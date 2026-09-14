@@ -1,4 +1,4 @@
-/// Madar POS — device setup, PIN login, station picker, mid-shift re-auth.
+/// Madar POS — device setup, PIN login, station picker, mid-till re-auth.
 ///
 /// Pixel-and-behavior ports of the Kotlin natives' LoginScreen.kt,
 /// StationPickerScreen.kt, ReauthScreen.kt, and BrandPanel.kt, driven by

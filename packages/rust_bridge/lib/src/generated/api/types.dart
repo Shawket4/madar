@@ -56,12 +56,14 @@ class MadarConfig {
   final String environment;
   final String dbPath;
   final String locale;
+  final String? appVersion;
 
   const MadarConfig({
     required this.baseUrl,
     required this.environment,
     required this.dbPath,
     required this.locale,
+    this.appVersion,
   });
 
   @override
@@ -69,7 +71,8 @@ class MadarConfig {
       baseUrl.hashCode ^
       environment.hashCode ^
       dbPath.hashCode ^
-      locale.hashCode;
+      locale.hashCode ^
+      appVersion.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -79,7 +82,8 @@ class MadarConfig {
           baseUrl == other.baseUrl &&
           environment == other.environment &&
           dbPath == other.dbPath &&
-          locale == other.locale;
+          locale == other.locale &&
+          appVersion == other.appVersion;
 }
 
 class SessionSnapshot {
@@ -149,7 +153,7 @@ class SessionSnapshot {
           permissionsLoaded == other.permissionsLoaded;
 }
 
-class ShiftView {
+class TillView {
   final String id;
   final String branchId;
   final String tellerId;
@@ -158,8 +162,14 @@ class ShiftView {
   final String openedAt;
   final String status;
   final bool isOpen;
+  final String? deviceId;
+  final String? deviceCode;
 
-  const ShiftView({
+  /// `server` | `lan` | `unverified` | `legacy`.
+  final String verification;
+  final bool openedWhileAnotherOpen;
+
+  const TillView({
     required this.id,
     required this.branchId,
     required this.tellerId,
@@ -168,6 +178,10 @@ class ShiftView {
     required this.openedAt,
     required this.status,
     required this.isOpen,
+    this.deviceId,
+    this.deviceCode,
+    required this.verification,
+    required this.openedWhileAnotherOpen,
   });
 
   @override
@@ -179,12 +193,16 @@ class ShiftView {
       openingCashMinor.hashCode ^
       openedAt.hashCode ^
       status.hashCode ^
-      isOpen.hashCode;
+      isOpen.hashCode ^
+      deviceId.hashCode ^
+      deviceCode.hashCode ^
+      verification.hashCode ^
+      openedWhileAnotherOpen.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ShiftView &&
+      other is TillView &&
           runtimeType == other.runtimeType &&
           id == other.id &&
           branchId == other.branchId &&
@@ -193,5 +211,9 @@ class ShiftView {
           openingCashMinor == other.openingCashMinor &&
           openedAt == other.openedAt &&
           status == other.status &&
-          isOpen == other.isOpen;
+          isOpen == other.isOpen &&
+          deviceId == other.deviceId &&
+          deviceCode == other.deviceCode &&
+          verification == other.verification &&
+          openedWhileAnotherOpen == other.openedWhileAnotherOpen;
 }

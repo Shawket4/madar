@@ -1,10 +1,10 @@
-/// Orders — this shift's sales, and every shift's when online, with the
+/// Orders — this till's sales, and every till's when online, with the
 /// selected sale beside the table.
 ///
 /// On the spec grid (docs/design/SPEC.md §15): the header carries the scope
-/// line; the search box and the This shift / All segments sit in the header's
+/// line; the search box and the This till / All segments sit in the header's
 /// `below` slot; the body is the one [OrdersTable] — the same table a past
-/// shift nests — with the type chips over it. Where the page is wide enough
+/// till nests — with the type chips over it. Where the page is wide enough
 /// (an iPad in landscape, a desktop) a selected sale opens in a 560 pane on
 /// the trailing side; narrower, a row pushes the sale ([SaleScreen]). The two
 /// are the same [SalePanel].
@@ -36,26 +36,26 @@ const double _tableMinWidth = 440;
 /// The segments beside the search on a tablet.
 const double _segmentsWidth = 280;
 
-/// The Orders screen — This shift / All, search, and the sale beside it.
+/// The Orders screen — This till / All, search, and the sale beside it.
 class OrderHistoryScreen extends ConsumerStatefulWidget {
   /// Creates the screen, opening on [initialScope].
   const OrderHistoryScreen({
     super.key,
-    this.initialScope = OrdersScope.thisShift,
+    this.initialScope = OrdersScope.thisTill,
   });
 
-  /// Which segment is selected on open. The Till's "Orders this shift" row
-  /// leaves it; the old Search entry opens on every shift.
+  /// Which segment is selected on open. The Till's "Orders this till" row
+  /// leaves it; the old Search entry opens on every till.
   final OrdersScope initialScope;
 
   @override
   ConsumerState<OrderHistoryScreen> createState() => _OrderHistoryScreenState();
 }
 
-/// The old cross-shift Search page, kept as a name so the shell still
+/// The old cross-till Search page, kept as a name so the shell still
 /// compiles: it is the Orders screen opened on All.
 class OrderSearchScreen extends StatelessWidget {
-  /// Creates the Orders screen opened on every shift.
+  /// Creates the Orders screen opened on every till.
   const OrderSearchScreen({super.key});
 
   @override
@@ -69,8 +69,8 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.initialScope != OrdersScope.thisShift) {
-      // The notifier builds on This shift; flip it before the first frame's
+    if (widget.initialScope != OrdersScope.thisTill) {
+      // The notifier builds on This till; flip it before the first frame's
       // load lands so the screen never flashes the wrong list.
       unawaited(
         Future.microtask(() {
@@ -111,7 +111,7 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
     );
     final segments = MadarSegmented<OrdersScope>(
       items: [
-        MadarSegmentItem(OrdersScope.thisShift, t('history.this_shift')),
+        MadarSegmentItem(OrdersScope.thisTill, t('history.this_shift')),
         MadarSegmentItem(OrdersScope.all, t('order.all')),
       ],
       value: scope,
@@ -151,8 +151,8 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
     );
   }
 
-  /// The header's second line: "This shift · 42 sales · EGP 6,230.00", or
-  /// "All · 318 found", or the honest "No shift open".
+  /// The header's second line: "This till · 42 sales · EGP 6,230.00", or
+  /// "All · 318 found", or the honest "No till open".
   String? _scopeLine(WidgetRef ref, MadarBridge bridge) {
     final scope = ref.watch(historyProvider.select((s) => s.scope));
     final currency = ref.watch(
@@ -160,11 +160,11 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
     );
     String t(String key) => historyTr(bridge, key);
     switch (scope) {
-      case OrdersScope.thisShift:
-        final hasShift = ref.watch(historyProvider.select((s) => s.hasShift));
+      case OrdersScope.thisTill:
+        final hasTill = ref.watch(historyProvider.select((s) => s.hasTill));
         final stats = ref.watch(historyProvider.select((s) => s.stats));
         final loading = ref.watch(historyProvider.select((s) => s.loading));
-        if (!hasShift && !loading) return t('history.no_shift');
+        if (!hasTill && !loading) return t('history.no_shift');
         final parts = <String>[t('history.this_shift')];
         if (stats != null) {
           parts
@@ -268,7 +268,7 @@ class _Master extends ConsumerWidget {
       historyProvider.select((s) => s.visibleLimit),
     );
     final hasMore = ref.watch(historyProvider.select((s) => s.hasMore));
-    final hasShift = ref.watch(historyProvider.select((s) => s.hasShift));
+    final hasTill = ref.watch(historyProvider.select((s) => s.hasTill));
     final selectedId = ref.watch(historyProvider.select((s) => s.selectedId));
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
@@ -281,11 +281,11 @@ class _Master extends ConsumerWidget {
       onTap: () => notifier.setFilter(f),
     );
 
-    // The honest states first: a first load, a refusal, no network, no shift.
-    final visible = scope == OrdersScope.thisShift
+    // The honest states first: a first load, a refusal, no network, no till.
+    final visible = scope == OrdersScope.thisTill
         ? filtered.take(visibleLimit).toList()
         : filtered;
-    final more = scope == OrdersScope.thisShift
+    final more = scope == OrdersScope.thisTill
         ? filtered.length > visible.length
         : hasMore;
     var empty = MadarEmptyContent(
@@ -310,9 +310,9 @@ class _Master extends ConsumerWidget {
         onAction: notifier.load,
       );
       state = const MadarTableState.data([]);
-    } else if (scope == OrdersScope.thisShift && !hasShift) {
-      // No shift is a place to be, not an error: say so and offer every
-      // shift, where yesterday's sale is.
+    } else if (scope == OrdersScope.thisTill && !hasTill) {
+      // No till is a place to be, not an error: say so and offer every
+      // till, where yesterday's sale is.
       empty = MadarEmptyContent(
         icon: 'lock',
         title: t('history.no_shift'),

@@ -201,7 +201,12 @@ class _DoneCardState extends ConsumerState<DoneCard> {
     final phone = context.isPhone;
 
     // The headline: what happened, and the figure that names it.
-    final ref_ = o.queued
+    // The device number reads the same queued or synced (`36B-12`); the
+    // older fallbacks stay for a sale rung without one.
+    final display = o.receipt?.displayNumber ?? '';
+    final ref_ = display.isNotEmpty
+        ? '#$display'
+        : o.queued
         ? '#${o.orderKey?.substring(0, o.orderKey!.length.clamp(0, 8)) ?? ''}'
         : o.orderNumber != null
         ? '#${o.orderNumber}'

@@ -4,7 +4,7 @@ description: Madar Cashier — a thin, high-performance Flutter UI over the shar
 # versionName); `+1` is the build number (CFBundleVersion / versionCode). Bump
 # the build number on EVERY upload to TestFlight / Play — both stores refuse a
 # reused one. CI may override with `--build-number=$GITHUB_RUN_NUMBER`.
-version: 0.6.0+1
+version: 0.7.0+1
 publish_to: none
 resolution: workspace
 
@@ -23,7 +23,7 @@ dependencies:
   feature_kds: ^0.1.0
   feature_order: ^0.1.0
   feature_settings: ^0.1.0
-  feature_shift: ^0.1.0
+  feature_till: ^0.1.0
   flutter:
     sdk: flutter
   flutter_local_notifications: ^22.0.1
@@ -35,6 +35,9 @@ dependencies:
   # Direct (not just transitive via rust_bridge) so observability.dart may
   # name the FRB exception types it tags Rust-core failures by.
   flutter_rust_bridge: 2.13.0
+  # The app's own version (pubspec `version`, as the platform bundle carries
+  # it) for the core's `X-Madar-Client` header. Already linked via Sentry.
+  package_info_plus: ^10.2.1
   path_provider: ^2.1.5
   rust_bridge: ^0.1.0
   # Crash/error reporting to the SELF-HOSTED Sentry at sentry.madar-pos.cloud.

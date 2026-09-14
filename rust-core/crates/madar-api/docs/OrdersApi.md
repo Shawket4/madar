@@ -43,7 +43,7 @@ Name | Type | Description  | Required | Notes
 
 ## export_orders
 
-> models::ExportResponse export_orders(branch_id, shift_id, teller_name, waiter_name, payment_method, status, from, to)
+> models::ExportResponse export_orders(branch_id, till_id, teller_name, waiter_name, payment_method, status, from, to)
 
 
 ### Parameters
@@ -52,7 +52,7 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **branch_id** | Option<**uuid::Uuid**> |  |  |
-**shift_id** | Option<**uuid::Uuid**> |  |  |
+**till_id** | Option<**uuid::Uuid**> |  |  |
 **teller_name** | Option<**String**> |  |  |
 **waiter_name** | Option<**String**> | Filter by the WAITER who opened the ticket (ILIKE, partial match). |  |
 **payment_method** | Option<**String**> |  |  |
@@ -106,7 +106,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_orders
 
-> models::PaginatedOrders list_orders(branch_id, shift_id, updated_after, page, per_page, teller_name, waiter_name, payment_method, status, from, to, order_type, channel, include_items, exclude_items)
+> models::PaginatedOrders list_orders(branch_id, till_id, updated_after, page, per_page, teller_name, waiter_name, payment_method, status, from, to, order_type, channel, include_items, exclude_items)
 
 
 ### Parameters
@@ -115,7 +115,7 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **branch_id** | Option<**uuid::Uuid**> |  |  |
-**shift_id** | Option<**uuid::Uuid**> |  |  |
+**till_id** | Option<**uuid::Uuid**> |  |  |
 **updated_after** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
 **page** | Option<**i64**> |  |  |
 **per_page** | Option<**i64**> |  |  |

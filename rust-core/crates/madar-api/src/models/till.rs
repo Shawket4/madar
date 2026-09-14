@@ -15,51 +15,226 @@ use serde::{Deserialize, Serialize};
 pub struct Till {
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
-    #[serde(rename = "created_at")]
-    pub created_at: chrono::DateTime<chrono::FixedOffset>,
-    #[serde(rename = "id")]
-    pub id: uuid::Uuid,
-    #[serde(rename = "is_active")]
-    pub is_active: bool,
-    #[serde(rename = "is_default")]
-    pub is_default: bool,
-    #[serde(rename = "name")]
-    pub name: String,
-    #[serde(rename = "org_id")]
-    pub org_id: uuid::Uuid,
-    /// The cash that should be in this drawer at the start of a shift, in minor units. The shift report proposes closing at it (\"leave the float, drop the rest into the safe\"); `None` means the shop has not decided and nothing is proposed.
+    /// Branch label (populated by reads; may be null on some write responses).
     #[serde(
-        rename = "standard_float",
+        rename = "branch_name",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub standard_float: Option<Option<i32>>,
-    #[serde(rename = "updated_at")]
-    pub updated_at: chrono::DateTime<chrono::FixedOffset>,
+    pub branch_name: Option<Option<String>>,
+    #[serde(
+        rename = "cash_discrepancy",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cash_discrepancy: Option<Option<i32>>,
+    #[serde(
+        rename = "closed_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub closed_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    #[serde(
+        rename = "closed_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub closed_by: Option<Option<uuid::Uuid>>,
+    #[serde(
+        rename = "closing_cash_declared",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub closing_cash_declared: Option<Option<i32>>,
+    #[serde(
+        rename = "closing_cash_system",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub closing_cash_system: Option<Option<i32>>,
+    #[serde(
+        rename = "device_code",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_code: Option<Option<String>>,
+    #[serde(
+        rename = "device_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_id: Option<Option<uuid::Uuid>>,
+    #[serde(
+        rename = "device_label",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_label: Option<Option<String>>,
+    #[serde(rename = "disagreement_count")]
+    pub disagreement_count: i64,
+    #[serde(
+        rename = "flagged_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub flagged_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    #[serde(
+        rename = "force_close_reason",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub force_close_reason: Option<Option<String>>,
+    #[serde(
+        rename = "force_closed_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub force_closed_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    #[serde(
+        rename = "force_closed_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub force_closed_by: Option<Option<uuid::Uuid>>,
+    #[serde(rename = "id")]
+    pub id: uuid::Uuid,
+    #[serde(
+        rename = "notes",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub notes: Option<Option<String>>,
+    #[serde(
+        rename = "old_bills_at_close",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub old_bills_at_close: Option<Option<i32>>,
+    #[serde(
+        rename = "open_bills_at_close",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub open_bills_at_close: Option<Option<i32>>,
+    #[serde(rename = "opened_at")]
+    pub opened_at: chrono::DateTime<chrono::FixedOffset>,
+    #[serde(rename = "opened_while_another_open")]
+    pub opened_while_another_open: bool,
+    #[serde(rename = "opening_cash")]
+    pub opening_cash: i32,
+    #[serde(
+        rename = "opening_cash_edit_reason",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub opening_cash_edit_reason: Option<Option<String>>,
+    #[serde(
+        rename = "opening_cash_original",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub opening_cash_original: Option<Option<i32>>,
+    #[serde(rename = "opening_cash_was_edited")]
+    pub opening_cash_was_edited: bool,
+    #[serde(
+        rename = "other_till_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub other_till_id: Option<Option<uuid::Uuid>>,
+    /// `clean` | `disagreed` | `unreviewed` | null (open, or closed before reconciliation existed)
+    #[serde(
+        rename = "reconciliation_status",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reconciliation_status: Option<Option<String>>,
+    /// `open` | `closed` | `force_closed`
+    #[serde(rename = "status")]
+    pub status: models::TillStatus,
+    #[serde(rename = "teller_id")]
+    pub teller_id: uuid::Uuid,
+    #[serde(rename = "teller_name")]
+    pub teller_name: String,
+    #[serde(
+        rename = "timezone",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub timezone: Option<Option<String>>,
+    /// `server` | `lan` | `unverified` | `legacy`
+    #[serde(rename = "verification")]
+    pub verification: models::TillVerification,
 }
 
 impl Till {
     pub fn new(
         branch_id: uuid::Uuid,
-        created_at: chrono::DateTime<chrono::FixedOffset>,
+        disagreement_count: i64,
         id: uuid::Uuid,
-        is_active: bool,
-        is_default: bool,
-        name: String,
-        org_id: uuid::Uuid,
-        updated_at: chrono::DateTime<chrono::FixedOffset>,
+        opened_at: chrono::DateTime<chrono::FixedOffset>,
+        opened_while_another_open: bool,
+        opening_cash: i32,
+        opening_cash_was_edited: bool,
+        status: models::TillStatus,
+        teller_id: uuid::Uuid,
+        teller_name: String,
+        verification: models::TillVerification,
     ) -> Till {
         Till {
             branch_id,
-            created_at,
+            branch_name: None,
+            cash_discrepancy: None,
+            closed_at: None,
+            closed_by: None,
+            closing_cash_declared: None,
+            closing_cash_system: None,
+            device_code: None,
+            device_id: None,
+            device_label: None,
+            disagreement_count,
+            flagged_at: None,
+            force_close_reason: None,
+            force_closed_at: None,
+            force_closed_by: None,
             id,
-            is_active,
-            is_default,
-            name,
-            org_id,
-            standard_float: None,
-            updated_at,
+            notes: None,
+            old_bills_at_close: None,
+            open_bills_at_close: None,
+            opened_at,
+            opened_while_another_open,
+            opening_cash,
+            opening_cash_edit_reason: None,
+            opening_cash_original: None,
+            opening_cash_was_edited,
+            other_till_id: None,
+            reconciliation_status: None,
+            status,
+            teller_id,
+            teller_name,
+            timezone: None,
+            verification,
         }
     }
 }

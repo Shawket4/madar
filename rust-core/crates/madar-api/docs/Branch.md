@@ -13,6 +13,7 @@ Name | Type | Description | Notes
 **latitude** | Option<**f64**> | WGS-84 latitude for geofenced branch resolution. | [optional]
 **longitude** | Option<**f64**> | WGS-84 longitude for geofenced branch resolution. | [optional]
 **name** | **String** |  | 
+**old_bill_hours** | **u32** | A bill left open longer than this many hours is flagged as OLD (till open notice, close warning, Z report). 1..168, default 3. | 
 **org_id** | **uuid::Uuid** |  | 
 **org_logo_url** | Option<**String**> | Convenience field — populated from the parent org's `logo_url`. | [optional]
 **phone** | Option<**String**> |  | [optional]
@@ -22,6 +23,7 @@ Name | Type | Description | Notes
 **require_table_for_orders** | Option<**bool**> | Whether every dine-in sale here must belong to a table. Same shape as the tax overrides: `null` inherits the organisation, which is not the same as `false`. An explicit `false` lets a counter with two stools by the window keep ringing walk-ups while the org's dining rooms seat everyone; an explicit `true` does the reverse. This is the OVERRIDE — the resolved answer is `branches::policy::require_table_for_orders`. | [optional]
 **service_charge_rate** | Option<**f64**> |  | [optional]
 **service_charge_taxable** | Option<**bool**> |  | [optional]
+**standard_float** | Option<**u32**> | The drawer's standard opening float in minor units; drives the till report's `standard_float` / `suggested_safe_drop`. `null` = none set. | [optional]
 **tax_inclusive** | Option<**bool**> |  | [optional]
 **tax_rate** | Option<**f64**> | Tax policy OVERRIDES. `null` means inherit the organisation's setting — which is not the same as `0`. An org that changes its rate still moves every branch that never asked to differ; a branch that genuinely charges no tax says so with an explicit `0`. | [optional]
 **timezone** | **String** | Effective IANA timezone name for this branch, resolved as `branch.timezone → org.timezone → Africa/Cairo`. Always present; clients should format all of this branch's timestamps in this zone. | 

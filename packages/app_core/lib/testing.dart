@@ -32,9 +32,7 @@ String coreWord(String key, {bool arabic = false}) {
 String _i18nSource() {
   var dir = Directory.current.absolute;
   while (true) {
-    final file = File(
-      '${dir.path}/rust-core/crates/madar-core/src/i18n.rs',
-    );
+    final file = File('${dir.path}/rust-core/crates/madar-core/src/i18n.rs');
     if (file.existsSync()) return file.readAsStringSync();
     final parent = dir.parent;
     if (parent.path == dir.path) {
@@ -60,9 +58,7 @@ Map<String, String> _parse(String source, String lang) {
       ? source.length
       : ends.reduce((a, b) => a < b ? a : b);
   final body = source.substring(start, end);
-  final arm = RegExp(
-    r'"([A-Za-z0-9_.\-]+)"\s*=>\s*\{?\s*"((?:[^"\\]|\\.)*)"',
-  );
+  final arm = RegExp(r'"([A-Za-z0-9_.\-]+)"\s*=>\s*\{?\s*"((?:[^"\\]|\\.)*)"');
   return {
     for (final m in arm.allMatches(body))
       m.group(1)!: m

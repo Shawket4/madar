@@ -4,7 +4,7 @@
 //! boundary — hosts only ever see a `CoreError`.
 
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Error))]
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum CoreError {
     /// An online-only op was attempted while disconnected. Hot-path *commands*
     /// never return this — they queue to the outbox instead.

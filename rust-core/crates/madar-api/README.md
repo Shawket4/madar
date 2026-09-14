@@ -33,6 +33,9 @@ Class | Method | HTTP request | Description
 *AiApi* | [**get_conversation**](docs/AiApi.md#get_conversation) | **GET** /ai/conversations/{id} | 
 *AiApi* | [**list_conversations**](docs/AiApi.md#list_conversations) | **GET** /ai/conversations | 
 *AiApi* | [**rename_conversation**](docs/AiApi.md#rename_conversation) | **PATCH** /ai/conversations/{id} | 
+*AssetsApi* | [**get_asset_bundle**](docs/AssetsApi.md#get_asset_bundle) | **GET** /sync/asset-bundles/{org_id}/{file_name} | 
+*AssetsApi* | [**get_job**](docs/AssetsApi.md#get_job) | **GET** /assets/jobs/{id} | 
+*AssetsApi* | [**top_up**](docs/AssetsApi.md#top_up) | **POST** /sync/assets | 
 *AuthApi* | [**get_my_permissions**](docs/AuthApi.md#get_my_permissions) | **GET** /auth/permissions | 
 *AuthApi* | [**login**](docs/AuthApi.md#login) | **POST** /auth/login | 
 *AuthApi* | [**me**](docs/AuthApi.md#me) | **GET** /auth/me | 
@@ -61,6 +64,7 @@ Class | Method | HTTP request | Description
 *BranchesApi* | [**get_branch**](docs/BranchesApi.md#get_branch) | **GET** /branches/{id} | 
 *BranchesApi* | [**list_branches**](docs/BranchesApi.md#list_branches) | **GET** /branches | 
 *BranchesApi* | [**list_timezones**](docs/BranchesApi.md#list_timezones) | **GET** /timezones | The full set of selectable IANA timezones — the labels of the `timezone_name` DB enum. The dashboard's timezone `<select>` is populated from this, so the frontend can never offer a value the backend/DB would reject (single source of truth: DB enum → this endpoint → select options).
+*BranchesApi* | [**patch_branch**](docs/BranchesApi.md#patch_branch) | **PATCH** /branches/{id} | `PATCH /branches/{id}` — the same partial update as `PUT` (the contract names both; every field is already optional).
 *BranchesApi* | [**update_branch**](docs/BranchesApi.md#update_branch) | **PUT** /branches/{id} | 
 *BundlesApi* | [**activate_bundle**](docs/BundlesApi.md#activate_bundle) | **POST** /bundles/{id}/activate | 
 *BundlesApi* | [**archive_bundle**](docs/BundlesApi.md#archive_bundle) | **POST** /bundles/{id}/archive | 
@@ -101,6 +105,10 @@ Class | Method | HTTP request | Description
 *DeliveryPublicApi* | [**public_branches**](docs/DeliveryPublicApi.md#public_branches) | **GET** /public/branches | 
 *DeliveryPublicApi* | [**public_menu**](docs/DeliveryPublicApi.md#public_menu) | **GET** /public/branches/{id}/menu | 
 *DeliveryPublicApi* | [**track_delivery_order**](docs/DeliveryPublicApi.md#track_delivery_order) | **GET** /public/delivery-orders/{id}/track | 
+*DevicesApi* | [**list_client_versions**](docs/DevicesApi.md#list_client_versions) | **GET** /devices/client-versions | 
+*DevicesApi* | [**list_devices**](docs/DevicesApi.md#list_devices) | **GET** /devices | 
+*DevicesApi* | [**register_device**](docs/DevicesApi.md#register_device) | **POST** /devices/register | 
+*DevicesApi* | [**update_device**](docs/DevicesApi.md#update_device) | **PATCH** /devices/{id} | 
 *DiscountsApi* | [**create_discount**](docs/DiscountsApi.md#create_discount) | **POST** /discounts | 
 *DiscountsApi* | [**delete_discount**](docs/DiscountsApi.md#delete_discount) | **DELETE** /discounts/{id} | 
 *DiscountsApi* | [**list_discounts**](docs/DiscountsApi.md#list_discounts) | **GET** /discounts | 
@@ -269,7 +277,12 @@ Class | Method | HTTP request | Description
 *PaymentMethodsApi* | [**activate_payment_method**](docs/PaymentMethodsApi.md#activate_payment_method) | **POST** /payment-methods/{id}/activate | 
 *PaymentMethodsApi* | [**create_payment_method**](docs/PaymentMethodsApi.md#create_payment_method) | **POST** /payment-methods | 
 *PaymentMethodsApi* | [**deactivate_payment_method**](docs/PaymentMethodsApi.md#deactivate_payment_method) | **POST** /payment-methods/{id}/deactivate | 
+*PaymentMethodsApi* | [**get_availability**](docs/PaymentMethodsApi.md#get_availability) | **GET** /payment-methods/availability | 
+*PaymentMethodsApi* | [**get_effective**](docs/PaymentMethodsApi.md#get_effective) | **GET** /payment-methods/effective | 
 *PaymentMethodsApi* | [**list_payment_methods**](docs/PaymentMethodsApi.md#list_payment_methods) | **GET** /payment-methods | 
+*PaymentMethodsApi* | [**put_branch_availability**](docs/PaymentMethodsApi.md#put_branch_availability) | **PUT** /payment-methods/availability/branches/{branch_id} | 
+*PaymentMethodsApi* | [**put_device_availability**](docs/PaymentMethodsApi.md#put_device_availability) | **PUT** /payment-methods/availability/devices/{device_id} | 
+*PaymentMethodsApi* | [**put_user_availability**](docs/PaymentMethodsApi.md#put_user_availability) | **PUT** /payment-methods/availability/users/{user_id} | 
 *PaymentMethodsApi* | [**update_payment_method**](docs/PaymentMethodsApi.md#update_payment_method) | **PUT** /payment-methods/{id} | 
 *PermissionsApi* | [**delete_user_permission**](docs/PermissionsApi.md#delete_user_permission) | **DELETE** /permissions/user/{user_id}/{resource}/{action} | 
 *PermissionsApi* | [**get_permission_matrix**](docs/PermissionsApi.md#get_permission_matrix) | **GET** /permissions/matrix/{user_id} | 
@@ -317,7 +330,7 @@ Class | Method | HTTP request | Description
 *RefundsApi* | [**create_refund**](docs/RefundsApi.md#create_refund) | **POST** /refunds | 
 *RefundsApi* | [**get_refund**](docs/RefundsApi.md#get_refund) | **GET** /refunds/{id} | 
 *RefundsApi* | [**list_order_refunds**](docs/RefundsApi.md#list_order_refunds) | **GET** /refunds/order/{order_id} | 
-*RefundsApi* | [**list_shift_refunds**](docs/RefundsApi.md#list_shift_refunds) | **GET** /refunds/shift/{shift_id} | 
+*RefundsApi* | [**list_till_refunds**](docs/RefundsApi.md#list_till_refunds) | **GET** /tills/{till_id}/refunds | 
 *ReportsApi* | [**branch_addon_sales**](docs/ReportsApi.md#branch_addon_sales) | **GET** /reports/branches/{branch_id}/addons | 
 *ReportsApi* | [**branch_bundle_sales**](docs/ReportsApi.md#branch_bundle_sales) | **GET** /reports/branches/{branch_id}/bundles | 
 *ReportsApi* | [**branch_combined_item_sales**](docs/ReportsApi.md#branch_combined_item_sales) | **GET** /reports/branches/{branch_id}/items-combined | 
@@ -341,6 +354,8 @@ Class | Method | HTTP request | Description
 *ReportsApi* | [**org_waste_report**](docs/ReportsApi.md#org_waste_report) | **GET** /reports/orgs/{org_id}/waste-report | 
 *ReportsApi* | [**shift_deductions**](docs/ReportsApi.md#shift_deductions) | **GET** /reports/shifts/{shift_id}/deductions | 
 *ReportsApi* | [**shift_summary**](docs/ReportsApi.md#shift_summary) | **GET** /reports/shifts/{shift_id}/summary | 
+*ReportsApi* | [**till_deductions**](docs/ReportsApi.md#till_deductions) | **GET** /reports/tills/{till_id}/deductions | 
+*ReportsApi* | [**till_summary**](docs/ReportsApi.md#till_summary) | **GET** /reports/tills/{till_id}/summary | 
 *ReservationsApi* | [**create_floor_table**](docs/ReservationsApi.md#create_floor_table) | **POST** /floor/tables | 
 *ReservationsApi* | [**create_section**](docs/ReservationsApi.md#create_section) | **POST** /floor/sections | 
 *ReservationsApi* | [**delete_floor_table**](docs/ReservationsApi.md#delete_floor_table) | **DELETE** /floor/tables/{id} | 
@@ -350,14 +365,12 @@ Class | Method | HTTP request | Description
 *ReservationsApi* | [**save_layout**](docs/ReservationsApi.md#save_layout) | **PUT** /floor/layout | 
 *ReservationsApi* | [**update_floor_table**](docs/ReservationsApi.md#update_floor_table) | **PATCH** /floor/tables/{id} | 
 *ReservationsApi* | [**update_section**](docs/ReservationsApi.md#update_section) | **PATCH** /floor/sections/{id} | 
-*ShiftsApi* | [**add_cash_movement**](docs/ShiftsApi.md#add_cash_movement) | **POST** /shifts/{shift_id}/cash-movements | 
 *ShiftsApi* | [**close_shift**](docs/ShiftsApi.md#close_shift) | **POST** /shifts/{shift_id}/close | 
-*ShiftsApi* | [**delete_shift**](docs/ShiftsApi.md#delete_shift) | **DELETE** /shifts/{shift_id} | 
 *ShiftsApi* | [**force_close_shift**](docs/ShiftsApi.md#force_close_shift) | **POST** /shifts/{shift_id}/force-close | 
 *ShiftsApi* | [**get_current_shift**](docs/ShiftsApi.md#get_current_shift) | **GET** /shifts/branches/{branch_id}/current | 
 *ShiftsApi* | [**get_shift**](docs/ShiftsApi.md#get_shift) | **GET** /shifts/{shift_id} | 
 *ShiftsApi* | [**get_shift_report**](docs/ShiftsApi.md#get_shift_report) | **GET** /shifts/{shift_id}/report | 
-*ShiftsApi* | [**list_cash_movements**](docs/ShiftsApi.md#list_cash_movements) | **GET** /shifts/{shift_id}/cash-movements | 
+*ShiftsApi* | [**legacy_add_shift_cash_movement**](docs/ShiftsApi.md#legacy_add_shift_cash_movement) | **POST** /shifts/{shift_id}/cash-movements | 
 *ShiftsApi* | [**list_shifts**](docs/ShiftsApi.md#list_shifts) | **GET** /shifts/branches/{branch_id} | 
 *ShiftsApi* | [**open_shift**](docs/ShiftsApi.md#open_shift) | **POST** /shifts/branches/{branch_id}/open | 
 *StaffApi* | [**attendance_summary**](docs/StaffApi.md#attendance_summary) | **GET** /staff/attendance/summary | 
@@ -435,10 +448,23 @@ Class | Method | HTTP request | Description
 *StocktakesApi* | [**list_stocktakes**](docs/StocktakesApi.md#list_stocktakes) | **GET** /stocktakes/branches/{branch_id} | 
 *StocktakesApi* | [**upsert_items**](docs/StocktakesApi.md#upsert_items) | **PUT** /stocktakes/{id}/items | 
 *StocktakesApi* | [**variance_report**](docs/StocktakesApi.md#variance_report) | **GET** /stocktakes/{id}/variance-report | 
-*TillsApi* | [**create_till**](docs/TillsApi.md#create_till) | **POST** /tills | 
-*TillsApi* | [**delete_till**](docs/TillsApi.md#delete_till) | **DELETE** /tills/{id} | 
-*TillsApi* | [**list_tills**](docs/TillsApi.md#list_tills) | **GET** /tills | 
-*TillsApi* | [**update_till**](docs/TillsApi.md#update_till) | **PATCH** /tills/{id} | 
+*SyncApi* | [**pull**](docs/SyncApi.md#pull) | **POST** /sync/pull | 
+*TillsApi* | [**add_cash_movement**](docs/TillsApi.md#add_cash_movement) | **POST** /tills/{till_id}/cash-movements | 
+*TillsApi* | [**close_preview**](docs/TillsApi.md#close_preview) | **GET** /tills/{till_id}/close-preview | 
+*TillsApi* | [**close_till**](docs/TillsApi.md#close_till) | **POST** /tills/{till_id}/close | 
+*TillsApi* | [**delete_till**](docs/TillsApi.md#delete_till) | **DELETE** /tills/{till_id} | 
+*TillsApi* | [**force_close_till**](docs/TillsApi.md#force_close_till) | **POST** /tills/{till_id}/force-close | 
+*TillsApi* | [**get_current_till**](docs/TillsApi.md#get_current_till) | **GET** /tills/branches/{branch_id}/current | 
+*TillsApi* | [**get_open_bills_notice**](docs/TillsApi.md#get_open_bills_notice) | **GET** /tills/branches/{branch_id}/open-bills-notice | 
+*TillsApi* | [**get_till**](docs/TillsApi.md#get_till) | **GET** /tills/{till_id} | 
+*TillsApi* | [**get_till_report**](docs/TillsApi.md#get_till_report) | **GET** /tills/{till_id}/report | 
+*TillsApi* | [**legacy_list_till_entities**](docs/TillsApi.md#legacy_list_till_entities) | **GET** /tills | `GET /tills` — the removed entity list, synthesized (one \"Till 1\" per branch).
+*TillsApi* | [**list_cash_movements**](docs/TillsApi.md#list_cash_movements) | **GET** /tills/{till_id}/cash-movements | 
+*TillsApi* | [**list_open_tills**](docs/TillsApi.md#list_open_tills) | **GET** /tills/branches/{branch_id}/open | 
+*TillsApi* | [**list_tills**](docs/TillsApi.md#list_tills) | **GET** /tills/branches/{branch_id} | 
+*TillsApi* | [**open_till**](docs/TillsApi.md#open_till) | **POST** /tills/branches/{branch_id}/open | 
+*UploadsApi* | [**upload_bundle_image**](docs/UploadsApi.md#upload_bundle_image) | **POST** /uploads/bundles/{bundle_id} | 
+*UploadsApi* | [**upload_category_image**](docs/UploadsApi.md#upload_category_image) | **POST** /uploads/categories/{category_id} | 
 *UploadsApi* | [**upload_menu_item_image**](docs/UploadsApi.md#upload_menu_item_image) | **POST** /uploads/menu-items/{menu_item_id} | 
 *UsersApi* | [**assign_branch**](docs/UsersApi.md#assign_branch) | **POST** /users/{id}/branches | 
 *UsersApi* | [**create_user**](docs/UsersApi.md#create_user) | **POST** /users | 
@@ -474,8 +500,14 @@ Class | Method | HTTP request | Description
  - [AiChatKindOneOf2](docs/AiChatKindOneOf2.md)
  - [AiChatRequest](docs/AiChatRequest.md)
  - [AiChatResponse](docs/AiChatResponse.md)
+ - [AllowList](docs/AllowList.md)
  - [AnalyticsOrder](docs/AnalyticsOrder.md)
  - [AnalyticsResponse](docs/AnalyticsResponse.md)
+ - [AssetBundleRef](docs/AssetBundleRef.md)
+ - [AssetGroupRef](docs/AssetGroupRef.md)
+ - [AssetJobResult](docs/AssetJobResult.md)
+ - [AssetJobView](docs/AssetJobView.md)
+ - [AssetRef](docs/AssetRef.md)
  - [AssignBranchRequest](docs/AssignBranchRequest.md)
  - [AttendanceRecord](docs/AttendanceRecord.md)
  - [AttendanceSettings](docs/AttendanceSettings.md)
@@ -544,8 +576,12 @@ Class | Method | HTTP request | Description
  - [CheckInRequest](docs/CheckInRequest.md)
  - [CheckOutRequest](docs/CheckOutRequest.md)
  - [ClearTableRequest](docs/ClearTableRequest.md)
- - [CloseShiftRequest](docs/CloseShiftRequest.md)
+ - [ClientSeen](docs/ClientSeen.md)
  - [CloseShiftResponse](docs/CloseShiftResponse.md)
+ - [CloseTillMethod](docs/CloseTillMethod.md)
+ - [CloseTillPreview](docs/CloseTillPreview.md)
+ - [CloseTillRequest](docs/CloseTillRequest.md)
+ - [CloseTillResponse](docs/CloseTillResponse.md)
  - [Column](docs/Column.md)
  - [ColumnKind](docs/ColumnKind.md)
  - [CombinedItemSalesRow](docs/CombinedItemSalesRow.md)
@@ -593,7 +629,6 @@ Class | Method | HTTP request | Description
  - [CreateStocktakeRequest](docs/CreateStocktakeRequest.md)
  - [CreateSupplierRequest](docs/CreateSupplierRequest.md)
  - [CreateTableRequest](docs/CreateTableRequest.md)
- - [CreateTillRequest](docs/CreateTillRequest.md)
  - [CreateTransferRequest](docs/CreateTransferRequest.md)
  - [CreateUserRequest](docs/CreateUserRequest.md)
  - [CreateUserResponse](docs/CreateUserResponse.md)
@@ -619,6 +654,9 @@ Class | Method | HTTP request | Description
  - [DeliveryTracking](docs/DeliveryTracking.md)
  - [DeliveryZone](docs/DeliveryZone.md)
  - [Department](docs/Department.md)
+ - [Device](docs/Device.md)
+ - [DeviceAllowList](docs/DeviceAllowList.md)
+ - [DeviceKind](docs/DeviceKind.md)
  - [Dir](docs/Dir.md)
  - [Discount](docs/Discount.md)
  - [DrinkRecipe](docs/DrinkRecipe.md)
@@ -661,12 +699,15 @@ Class | Method | HTTP request | Description
  - [KitchenStation](docs/KitchenStation.md)
  - [KitchenTicketItemView](docs/KitchenTicketItemView.md)
  - [KitchenTicketView](docs/KitchenTicketView.md)
+ - [LastTillWarning](docs/LastTillWarning.md)
  - [LateDeductionKind](docs/LateDeductionKind.md)
  - [LateTier](docs/LateTier.md)
  - [LeaveBalance](docs/LeaveBalance.md)
  - [LeaveType](docs/LeaveType.md)
  - [LedgerEntry](docs/LedgerEntry.md)
  - [LedgerTotals](docs/LedgerTotals.md)
+ - [LedgerWindow](docs/LedgerWindow.md)
+ - [LegacyTill](docs/LegacyTill.md)
  - [LoginRequest](docs/LoginRequest.md)
  - [LoginResponse](docs/LoginResponse.md)
  - [LookupRequest](docs/LookupRequest.md)
@@ -688,6 +729,7 @@ Class | Method | HTTP request | Description
  - [MenuItemFull](docs/MenuItemFull.md)
  - [MenuItemRecipe](docs/MenuItemRecipe.md)
  - [MenuItemWithCosts](docs/MenuItemWithCosts.md)
+ - [MethodTotal](docs/MethodTotal.md)
  - [MetricResult](docs/MetricResult.md)
  - [MetricsQueryRequest](docs/MetricsQueryRequest.md)
  - [MetricsQueryResponse](docs/MetricsQueryResponse.md)
@@ -700,9 +742,11 @@ Class | Method | HTTP request | Description
  - [OnboardingStatus](docs/OnboardingStatus.md)
  - [OnboardingStep](docs/OnboardingStep.md)
  - [OnlineTaxPolicy](docs/OnlineTaxPolicy.md)
+ - [OpenBillsNotice](docs/OpenBillsNotice.md)
  - [OpenShiftRequest](docs/OpenShiftRequest.md)
  - [OpenTicketItemView](docs/OpenTicketItemView.md)
  - [OpenTicketView](docs/OpenTicketView.md)
+ - [OpenTillRequest](docs/OpenTillRequest.md)
  - [OptionRecipeLineInput](docs/OptionRecipeLineInput.md)
  - [OptionalField](docs/OptionalField.md)
  - [Order](docs/Order.md)
@@ -718,6 +762,7 @@ Class | Method | HTTP request | Description
  - [OrderItemFull](docs/OrderItemFull.md)
  - [OrderItemInput](docs/OrderItemInput.md)
  - [OrderItemOptional](docs/OrderItemOptional.md)
+ - [OrderNumberRange](docs/OrderNumberRange.md)
  - [OrderPayment](docs/OrderPayment.md)
  - [OrderRefunds](docs/OrderRefunds.md)
  - [OrderSummary](docs/OrderSummary.md)
@@ -737,6 +782,7 @@ Class | Method | HTTP request | Description
  - [PaginatedOrders](docs/PaginatedOrders.md)
  - [PaginatedOrdersFull](docs/PaginatedOrdersFull.md)
  - [PaginatedShifts](docs/PaginatedShifts.md)
+ - [PaginatedTills](docs/PaginatedTills.md)
  - [PassLinks](docs/PassLinks.md)
  - [PastOrder](docs/PastOrder.md)
  - [PastOrders](docs/PastOrders.md)
@@ -744,6 +790,7 @@ Class | Method | HTTP request | Description
  - [PatchOptionRequest](docs/PatchOptionRequest.md)
  - [PauseInput](docs/PauseInput.md)
  - [PaymentLeg](docs/PaymentLeg.md)
+ - [PaymentMethodAvailability](docs/PaymentMethodAvailability.md)
  - [PaymentSplitInput](docs/PaymentSplitInput.md)
  - [PaymentSummaryRow](docs/PaymentSummaryRow.md)
  - [PayrollAdjustment](docs/PayrollAdjustment.md)
@@ -767,6 +814,7 @@ Class | Method | HTTP request | Description
  - [PriceOverrideOut](docs/PriceOverrideOut.md)
  - [PriceOverrideRequest](docs/PriceOverrideRequest.md)
  - [PrinterBrand](docs/PrinterBrand.md)
+ - [ProcessingGroupRef](docs/ProcessingGroupRef.md)
  - [PublicBookingBranch](docs/PublicBookingBranch.md)
  - [PublicBookingChange](docs/PublicBookingChange.md)
  - [PublicBookingInfo](docs/PublicBookingInfo.md)
@@ -782,6 +830,9 @@ Class | Method | HTTP request | Description
  - [PublicTableBill](docs/PublicTableBill.md)
  - [PublicTableLine](docs/PublicTableLine.md)
  - [PublicTableRound](docs/PublicTableRound.md)
+ - [PullChange](docs/PullChange.md)
+ - [PullRequest](docs/PullRequest.md)
+ - [PullResponse](docs/PullResponse.md)
  - [PurchaseOrder](docs/PurchaseOrder.md)
  - [PurchaseOrderFull](docs/PurchaseOrderFull.md)
  - [PurchaseOrderLine](docs/PurchaseOrderLine.md)
@@ -800,6 +851,7 @@ Class | Method | HTTP request | Description
  - [QrResponse](docs/QrResponse.md)
  - [QuerySpec](docs/QuerySpec.md)
  - [QuoteResponse](docs/QuoteResponse.md)
+ - [ReadyGroupRef](docs/ReadyGroupRef.md)
  - [ReceiveLineInput](docs/ReceiveLineInput.md)
  - [ReceivePurchaseOrderRequest](docs/ReceivePurchaseOrderRequest.md)
  - [RecipeCostResult](docs/RecipeCostResult.md)
@@ -808,6 +860,7 @@ Class | Method | HTTP request | Description
  - [RecipeStep](docs/RecipeStep.md)
  - [RecipeStepInput](docs/RecipeStepInput.md)
  - [RecipeStepPreset](docs/RecipeStepPreset.md)
+ - [ReconciliationInput](docs/ReconciliationInput.md)
  - [Refund](docs/Refund.md)
  - [RefundFull](docs/RefundFull.md)
  - [RefundIssued](docs/RefundIssued.md)
@@ -815,6 +868,7 @@ Class | Method | HTTP request | Description
  - [RefundLineInput](docs/RefundLineInput.md)
  - [RefundReason](docs/RefundReason.md)
  - [RefundTotals](docs/RefundTotals.md)
+ - [RegisterDeviceRequest](docs/RegisterDeviceRequest.md)
  - [RegistryInfo](docs/RegistryInfo.md)
  - [ReleaseTableRequest](docs/ReleaseTableRequest.md)
  - [RenameConversationRequest](docs/RenameConversationRequest.md)
@@ -846,7 +900,6 @@ Class | Method | HTTP request | Description
  - [SettleOpenTicketRequest](docs/SettleOpenTicketRequest.md)
  - [Shift](docs/Shift.md)
  - [ShiftPreFill](docs/ShiftPreFill.md)
- - [ShiftRefunds](docs/ShiftRefunds.md)
  - [ShiftReportResponse](docs/ShiftReportResponse.md)
  - [ShiftSummary](docs/ShiftSummary.md)
  - [ShrinkageRow](docs/ShrinkageRow.md)
@@ -857,6 +910,7 @@ Class | Method | HTTP request | Description
  - [SizeOverrideOut](docs/SizeOverrideOut.md)
  - [SkuCost](docs/SkuCost.md)
  - [SlotAvailability](docs/SlotAvailability.md)
+ - [SnapshotCursor](docs/SnapshotCursor.md)
  - [Sort](docs/Sort.md)
  - [StaffDocument](docs/StaffDocument.md)
  - [StaffRequest](docs/StaffRequest.md)
@@ -888,12 +942,22 @@ Class | Method | HTTP request | Description
  - [TellerStats](docs/TellerStats.md)
  - [TicketBill](docs/TicketBill.md)
  - [Till](docs/Till.md)
+ - [TillBrief](docs/TillBrief.md)
+ - [TillPreFill](docs/TillPreFill.md)
+ - [TillReconciliationLine](docs/TillReconciliationLine.md)
+ - [TillRefunds](docs/TillRefunds.md)
+ - [TillReportFigures](docs/TillReportFigures.md)
+ - [TillReportResponse](docs/TillReportResponse.md)
+ - [TillStatus](docs/TillStatus.md)
+ - [TillVerification](docs/TillVerification.md)
  - [TimeseriesPoint](docs/TimeseriesPoint.md)
  - [TopPer](docs/TopPer.md)
  - [TopReward](docs/TopReward.md)
+ - [TopUpRequest](docs/TopUpRequest.md)
  - [TransferView](docs/TransferView.md)
  - [TransfersSyncResponse](docs/TransfersSyncResponse.md)
  - [Transform](docs/Transform.md)
+ - [TypeChecksum](docs/TypeChecksum.md)
  - [UpdateAddonItemRequest](docs/UpdateAddonItemRequest.md)
  - [UpdateAddonSlotRequest](docs/UpdateAddonSlotRequest.md)
  - [UpdateBookingRequest](docs/UpdateBookingRequest.md)
@@ -901,6 +965,7 @@ Class | Method | HTTP request | Description
  - [UpdateBundleRequest](docs/UpdateBundleRequest.md)
  - [UpdateCatalogItemRequest](docs/UpdateCatalogItemRequest.md)
  - [UpdateCategoryRequest](docs/UpdateCategoryRequest.md)
+ - [UpdateDeviceRequest](docs/UpdateDeviceRequest.md)
  - [UpdateDiscountRequest](docs/UpdateDiscountRequest.md)
  - [UpdateFloorTableRequest](docs/UpdateFloorTableRequest.md)
  - [UpdateIngredientCategoryRequest](docs/UpdateIngredientCategoryRequest.md)
@@ -912,7 +977,6 @@ Class | Method | HTTP request | Description
  - [UpdateSectionRequest](docs/UpdateSectionRequest.md)
  - [UpdateStationRequest](docs/UpdateStationRequest.md)
  - [UpdateSupplierRequest](docs/UpdateSupplierRequest.md)
- - [UpdateTillRequest](docs/UpdateTillRequest.md)
  - [UpdateTransferRequest](docs/UpdateTransferRequest.md)
  - [UpdateUserRequest](docs/UpdateUserRequest.md)
  - [UploadResponse](docs/UploadResponse.md)
@@ -927,6 +991,7 @@ Class | Method | HTTP request | Description
  - [UpsertSizeRequest](docs/UpsertSizeRequest.md)
  - [UpsertWorkShiftRequest](docs/UpsertWorkShiftRequest.md)
  - [UsedInBundleOut](docs/UsedInBundleOut.md)
+ - [UserAllowList](docs/UserAllowList.md)
  - [UserBranch](docs/UserBranch.md)
  - [UserPermissionItem](docs/UserPermissionItem.md)
  - [UserPublic](docs/UserPublic.md)
@@ -934,6 +999,8 @@ Class | Method | HTTP request | Description
  - [ValuationRow](docs/ValuationRow.md)
  - [VarianceReport](docs/VarianceReport.md)
  - [VarianceRow](docs/VarianceRow.md)
+ - [VariantRef](docs/VariantRef.md)
+ - [VariantSet](docs/VariantSet.md)
  - [Viz](docs/Viz.md)
  - [VoidOpenTicketRequest](docs/VoidOpenTicketRequest.md)
  - [VoidOrderRequest](docs/VoidOrderRequest.md)

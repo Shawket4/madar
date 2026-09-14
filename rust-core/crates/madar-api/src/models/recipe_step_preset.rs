@@ -14,6 +14,14 @@ use serde::{Deserialize, Serialize};
 /// RecipeStepPreset : One curated step the dashboard offers.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RecipeStepPreset {
+    /// Content hash of the zstd-compressed asset (`/assets/global/<hash>.lottie.zst`).
+    #[serde(
+        rename = "animation_hash",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub animation_hash: Option<Option<String>>,
     #[serde(rename = "animation_sha256")]
     pub animation_sha256: String,
     /// Path to the animation, relative to the API base.
@@ -57,6 +65,7 @@ impl RecipeStepPreset {
         sort_order: i32,
     ) -> RecipeStepPreset {
         RecipeStepPreset {
+            animation_hash: None,
             animation_sha256,
             animation_url,
             bytes,

@@ -74,14 +74,14 @@ void main() {
 
   test('async reads run on the worker pool', () async {
     expect(await core.bridge.pendingOutboxCount(), 0);
-    final status = await core.bridge.syncStatus();
-    expect(status.pending, 0);
-    expect(status.failed, 0);
+    final status = core.bridge.syncStatus();
+    expect(status.pendingOutbox, 0);
+    expect(status.deadOutbox, 0);
   });
 
   test('typed errors cross the boundary with localized messages', () async {
     try {
-      await core.bridge.openShift(openingCashMinor: 0);
+      await core.bridge.openTill(openingCashMinor: 0);
       fail('open_shift must throw while signed out');
     } on MadarError catch (e) {
       expect(
@@ -90,6 +90,16 @@ void main() {
       );
       expect(core.bridge.humanMessage(e), isNotEmpty);
     }
+  });
+
+  test('a refused payment method reads as one clear sentence', () {
+    const refused = MadarError.validation(
+      field: 'payment_method',
+      detail: 'payment method not available here',
+    );
+    final words = core.bridge.humanMessage(refused);
+    expect(words, core.bridge.tr(key: 'err.payment_method_unavailable'));
+    expect(words, isNot(contains('payment_method')));
   });
 
   test('realtime is gated on auth', () async {

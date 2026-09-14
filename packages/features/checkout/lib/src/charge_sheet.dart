@@ -271,7 +271,7 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
     // Every dimmed state says why — a grey bar with no words was the audit's
     // "Charge dim, no reason".
     final reason = switch (block) {
-      ChargeBlock.noShift => bridge.tr(key: 'waiter.need_shift'),
+      ChargeBlock.noTill => bridge.tr(key: 'waiter.need_shift'),
       ChargeBlock.noMethods => tr('charge.no_methods'),
       ChargeBlock.needTender when s.splitMode => tr('charge.reason_split'),
       ChargeBlock.needTender when s.isCash => tr('charge.reason_cash'),

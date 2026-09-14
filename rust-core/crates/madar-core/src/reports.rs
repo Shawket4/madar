@@ -1,6 +1,6 @@
 //! Dashboard analytics reads — projected KPI `View` DTOs for the management
 //! dashboard app. Follows the direct-networked read pattern (see
-//! `list_orders_for_shift`/`search_orders` in `lib.rs`). Money is integer minor
+//! `list_orders_for_till`/`search_orders` in `lib.rs`). Money is integer minor
 //! units (piastres) end-to-end — the host formats it with the session currency.
 //!
 //! Scope: a specific branch uses `branch_sales`; "all branches" (no branch)

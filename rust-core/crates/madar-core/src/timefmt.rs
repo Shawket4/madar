@@ -28,6 +28,23 @@ pub enum TimeStyle {
 /// every order/shift payload that carries `timezone`), or Cairo — the
 /// product-home default, matching Flutter's fallback. Falling back is flagged
 /// (once per process) so a till printing in the default zone is visible.
+/// A branch-local calendar day as UTC bounds, midnight to midnight (the
+/// backend's `service_day_bounds`; a DST gap resolves to the earliest valid instant).
+pub(crate) fn local_day_bounds(
+    tz: chrono_tz::Tz,
+    date: chrono::NaiveDate,
+) -> (chrono::DateTime<chrono::FixedOffset>, chrono::DateTime<chrono::FixedOffset>) {
+    use chrono::TimeZone;
+    let midnight = |d: chrono::NaiveDate| {
+        let naive = d.and_hms_opt(0, 0, 0).expect("midnight exists");
+        tz.from_local_datetime(&naive)
+            .earliest()
+            .unwrap_or_else(|| tz.from_utc_datetime(&naive))
+            .fixed_offset()
+    };
+    (midnight(date), midnight(date + chrono::Duration::days(1)))
+}
+
 pub(crate) fn branch_tz(store: &Store) -> chrono_tz::Tz {
     match store
         .kv_get(KEY_BRANCH_TZ)

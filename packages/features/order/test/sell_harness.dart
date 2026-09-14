@@ -373,12 +373,9 @@ const _ar = {
 };
 
 class _FakeBridge implements MadarBridge {
-  _FakeBridge({
-    this.rtl = false,
-    this.shiftOpen = true,
-    this.bundles = const [],
-  }) : role = 'teller',
-       drafts = _drafts;
+  _FakeBridge({this.rtl = false, this.tillOpen = true, this.bundles = const []})
+    : role = 'teller',
+      drafts = _drafts;
 
   /// The combos the catalog offers — none unless a test needs the chip.
   final List<BundleView> bundles;
@@ -390,7 +387,7 @@ class _FakeBridge implements MadarBridge {
 
   /// Mutable: `setLocale` flips it, so a test can switch language mid-flight.
   bool rtl;
-  final bool shiftOpen;
+  final bool tillOpen;
 
   /// The table each park landed on, in order — null means the counter.
   final List<String?> parked = [];
@@ -421,8 +418,8 @@ class _FakeBridge implements MadarBridge {
   List<CartLineView> _cartOf(Invocation i) =>
       carts[i.namedArguments[#tableId] as String?] ??= [];
 
-  ShiftView? get _shift => shiftOpen
-      ? const ShiftView(
+  TillView? get _till => tillOpen
+      ? const TillView(
           id: 'sh-1',
           branchId: 'br-1',
           tellerId: 'u-1',
@@ -431,6 +428,8 @@ class _FakeBridge implements MadarBridge {
           openedAt: '2026-09-12T15:02:00Z',
           status: 'open',
           isOpen: true,
+          verification: 'server',
+          openedWhileAnotherOpen: false,
         )
       : null;
 
@@ -470,8 +469,8 @@ class _FakeBridge implements MadarBridge {
         permissionsLoaded: true,
       );
     }
-    if (name == #currentShift || name == #refreshShift) {
-      return Future<ShiftView?>.value(_shift);
+    if (name == #currentTill || name == #refreshTill) {
+      return Future<TillView?>.value(_till);
     }
     if (name == #listCategories) {
       return Future<List<CategoryView>>.value(_categories);
@@ -644,22 +643,29 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #refreshConnectivity) return Future<bool>.value(true);
     if (name == #syncStatus) {
-      return Future<SyncStatusView>.value(
-        const SyncStatusView(
-          pending: 0,
-          failed: 0,
-          blocked: 0,
-          online: true,
-          authPaused: false,
+      return SyncStatusView(
+        pendingOutbox: 0,
+        deadOutbox: 0,
+        blocked: 0,
+        freshness: const FreshnessView(state: 'fresh'),
+        online: true,
+        authPaused: false,
+        phase: 'idle',
+        assets: AssetSyncView(
+          needed: 0,
+          missing: 0,
+          downloading: false,
+          bytesDone: BigInt.zero,
+          bytesTotal: BigInt.zero,
         ),
       );
     }
-    if (name == #listShiftOrders) {
+    if (name == #listTillOrders) {
       return Future<List<OrderSummaryView>>.value(const []);
     }
-    if (name == #shiftStats) {
-      return Future<ShiftStatsView>.value(
-        const ShiftStatsView(salesMinor: 623000, orderCount: 42),
+    if (name == #tillStats) {
+      return Future<TillStatsView>.value(
+        const TillStatsView(salesMinor: 623000, orderCount: 42),
       );
     }
     if (name == #listItemModifierGroups) {

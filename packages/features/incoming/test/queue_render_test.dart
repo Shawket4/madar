@@ -379,7 +379,7 @@ const _ar = <String, String>{
 };
 
 /// The bridge the picture needs: the two feeds, the settings, a floor for
-/// table labels, an open shift, and real words in both scripts.
+/// table labels, an open till, and real words in both scripts.
 class _FakeBridge implements MadarBridge {
   _FakeBridge({
     this.arabic = false,
@@ -422,9 +422,9 @@ class _FakeBridge implements MadarBridge {
       return Future<List<TicketView>>.value(tickets);
     }
     if (name == #floorLayout) return Future<FloorLayoutView>.value(_layout);
-    if (name == #currentShift) {
-      return Future<ShiftView?>.value(
-        const ShiftView(
+    if (name == #currentTill) {
+      return Future<TillView?>.value(
+        const TillView(
           id: 'sh-1',
           branchId: 'b',
           tellerId: 'u',
@@ -433,6 +433,8 @@ class _FakeBridge implements MadarBridge {
           openedAt: '2026-09-10T17:00:00Z',
           status: 'open',
           isOpen: true,
+          verification: 'server',
+          openedWhileAnotherOpen: false,
         ),
       );
     }
@@ -475,13 +477,20 @@ class _FakeBridge implements MadarBridge {
       return Future<List<KdsStationView>>.value(const []);
     }
     if (name == #syncStatus) {
-      return Future<SyncStatusView>.value(
-        const SyncStatusView(
-          online: true,
-          pending: 0,
-          failed: 0,
-          blocked: 0,
-          authPaused: false,
+      return SyncStatusView(
+        online: true,
+        pendingOutbox: 0,
+        deadOutbox: 0,
+        blocked: 0,
+        freshness: const FreshnessView(state: 'fresh'),
+        authPaused: false,
+        phase: 'idle',
+        assets: AssetSyncView(
+          needed: 0,
+          missing: 0,
+          downloading: false,
+          bytesDone: BigInt.zero,
+          bytesTotal: BigInt.zero,
         ),
       );
     }

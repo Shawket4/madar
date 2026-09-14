@@ -818,41 +818,95 @@ class _NudgeState extends State<Nudge> with SingleTickerProviderStateMixin {
 /// Keys the flying dot, so a test can find the flight in the overlay.
 const Key cartFlightDotKey = ValueKey<String>('cartFlightDot');
 
+/// A screen's own flight layer: an [Overlay] stacked over [child], clipped
+/// to the child's bounds, so an add-to-cart dot stays inside the screen's
+/// content area and never crosses the shell chrome (top bar, side rail,
+/// bottom tab bar) around it. Pass [overlayKey] to [playCartFlight].
+class CartFlightLayer extends StatefulWidget {
+  /// Stacks a clipped, pointer-transparent overlay over [child].
+  const CartFlightLayer({
+    required this.overlayKey,
+    required this.child,
+    super.key,
+  });
+
+  /// The layer's overlay — the flight's `overlay:`.
+  final GlobalKey<OverlayState> overlayKey;
+
+  /// The screen the flights stay inside.
+  final Widget child;
+
+  @override
+  State<CartFlightLayer> createState() => _CartFlightLayerState();
+}
+
+class _CartFlightLayerState extends State<CartFlightLayer>
+    with TickerProviderStateMixin {
+  /// Flights in the air: a screen popped mid-flight takes them down with it
+  /// instead of leaving a ticker running on a disposed layer.
+  final _flying = <AnimationController>{};
+
+  @override
+  void dispose() {
+    for (final c in _flying) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      widget.child,
+      Positioned.fill(
+        child: IgnorePointer(child: Overlay(key: widget.overlayKey)),
+      ),
+    ],
+  );
+}
+
 /// Flies a small accent dot from [from] to [to] (global coordinates) along a
-/// parabolic arc — the add-to-cart flight. Inserts a transient overlay entry;
-/// [onArrive] fires when the dot lands (pair it with a [Nudge] dip on the
-/// cart). No-ops straight to [onArrive] when no overlay is available.
+/// parabolic arc — the add-to-cart flight. Inserts a transient entry into
+/// [overlay] (a screen's [CartFlightLayer]; the root overlay when omitted),
+/// converting both ends into that overlay's space; [onArrive] fires when the
+/// dot lands (pair it with a [Nudge] dip on the cart). No-ops straight to
+/// [onArrive] when no overlay is available.
 void playCartFlight(
   BuildContext context, {
   required Offset from,
   required Offset to,
+  OverlayState? overlay,
   double dotSize = 9,
   Color? color,
   VoidCallback? onArrive,
 }) {
-  final overlay = Overlay.maybeOf(context, rootOverlay: true);
-  if (overlay == null) {
+  final target = overlay ?? Overlay.maybeOf(context, rootOverlay: true);
+  if (target == null || !target.mounted) {
     onArrive?.call();
     return;
   }
+  final box = target.context.findRenderObject();
+  final local = box is RenderBox && box.hasSize;
+  final start = local ? box.globalToLocal(from) : from;
+  final end = local ? box.globalToLocal(to) : to;
   final dotColor = color ?? context.madarColors.accent;
   if (motionReduced(context)) {
-    _playCartPulse(overlay, at: to, color: dotColor, onArrive: onArrive);
+    _playCartPulse(target, at: end, color: dotColor, onArrive: onArrive);
     return;
   }
-  final controller = AnimationController(
-    vsync: overlay,
-    duration: const Duration(milliseconds: 450),
+  final (controller, done) = _flightController(
+    target,
+    const Duration(milliseconds: 450),
   );
   const xCurve = Cubic(0.3, 0.5, 0.5, 1);
-  final arc = math.max<double>(40, (to - from).distance * 0.22);
+  final arc = math.max<double>(40, (end - start).distance * 0.22);
   final entry = OverlayEntry(
     builder: (context) => AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
         final t = controller.value;
-        final x = from.dx + (to.dx - from.dx) * xCurve.transform(t);
-        final y = from.dy + (to.dy - from.dy) * t - arc * 4 * t * (1 - t);
+        final x = start.dx + (end.dx - start.dx) * xCurve.transform(t);
+        final y = start.dy + (end.dy - start.dy) * t - arc * 4 * t * (1 - t);
         final opacity = t > 0.85 ? (1 - t) / 0.15 : 1.0;
         return Positioned(
           left: x - dotSize / 2,
@@ -872,13 +926,36 @@ void playCartFlight(
       },
     ),
   );
-  overlay.insert(entry);
+  target.insert(entry);
   unawaited(
     controller.forward().whenComplete(() {
       entry.remove();
-      controller.dispose();
+      done();
       onArrive?.call();
     }),
+  );
+}
+
+/// A flight's controller, ticking on the screen's [CartFlightLayer] when
+/// [overlay] is one (so the layer disposes it if the screen goes mid-flight),
+/// else on [overlay] itself; `done` releases it after landing.
+(AnimationController, VoidCallback) _flightController(
+  OverlayState overlay,
+  Duration duration,
+) {
+  final layer = overlay.context
+      .findAncestorStateOfType<_CartFlightLayerState>();
+  final controller = AnimationController(
+    vsync: layer ?? overlay,
+    duration: duration,
+  );
+  layer?._flying.add(controller);
+  return (
+    controller,
+    () {
+      layer?._flying.remove(controller);
+      controller.dispose();
+    },
   );
 }
 
@@ -891,9 +968,9 @@ void _playCartPulse(
   required Color color,
   VoidCallback? onArrive,
 }) {
-  final controller = AnimationController(
-    vsync: overlay,
-    duration: const Duration(milliseconds: 150),
+  final (controller, done) = _flightController(
+    overlay,
+    const Duration(milliseconds: 150),
   );
   const size = 22.0;
   final entry = OverlayEntry(
@@ -926,7 +1003,7 @@ void _playCartPulse(
   unawaited(
     controller.forward().whenComplete(() {
       entry.remove();
-      controller.dispose();
+      done();
       onArrive?.call();
     }),
   );

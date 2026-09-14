@@ -8,7 +8,7 @@
 //! worked out on the screen, from today's settings or from raw codes.
 
 use crate::menu::{self, CachedPaymentMethod};
-use crate::{i18n, shift, CoreError, MadarCore};
+use crate::{i18n, till, CoreError, MadarCore};
 
 /// One way money can go back: the wire code the server checks, and its name.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
@@ -33,7 +33,7 @@ pub struct RefundMethodPlan {
     pub default_code: Option<String>,
     /// The sale was rung before the open shift began: the money leaves
     /// TODAY's drawer, and the teller should be told so.
-    pub crosses_shift: bool,
+    pub crosses_till: bool,
 }
 
 /// What a close count means against the expected drawer.
@@ -91,7 +91,7 @@ pub(crate) fn movement_kind(kind: Option<&str>, amount_minor: i64) -> String {
 /// report's own expected figure once the float and the pay-ins/outs are
 /// taken out, so the lines always add up to the figure above them (offline
 /// too, when it is the queued cash the core added).
-pub fn cash_sales_minor(report: &shift::ShiftReportView) -> i64 {
+pub fn cash_sales_minor(report: &till::TillReportView) -> i64 {
     report.expected_cash_minor - report.opening_cash_minor - report.cash_in_minor
         + report.cash_out_minor
 }
@@ -174,14 +174,14 @@ pub(crate) fn refund_plan(
         .find(|o| o.code.eq_ignore_ascii_case(order_method.trim()))
         .map(|o| o.code.clone());
     let parse = |s: &str| chrono::DateTime::parse_from_rfc3339(s).ok();
-    let crosses_shift = match (parse(order_created_at), shift_opened_at.and_then(parse)) {
+    let crosses_till = match (parse(order_created_at), shift_opened_at.and_then(parse)) {
         (Some(sale), Some(opened)) => sale < opened,
         _ => false,
     };
     RefundMethodPlan {
         options,
         default_code,
-        crosses_shift,
+        crosses_till,
     }
 }
 
@@ -201,7 +201,7 @@ impl MadarCore {
         order_created_at: String,
     ) -> Result<RefundMethodPlan, CoreError> {
         let methods = menu::cached_payment_methods(&self.store)?;
-        let open = shift::current(&self.store)?.filter(|s| s.is_open);
+        let open = till::current(&self.store)?.filter(|s| s.is_open);
         Ok(refund_plan(
             &methods,
             &order_payment_method,
@@ -220,17 +220,33 @@ impl MadarCore {
     pub(crate) async fn fetch_shift_orders_all_pages(
         &self,
         branch_id: &str,
-        shift_id: &str,
+        till_id: &str,
     ) -> Option<Vec<crate::orders::OrderSummaryView>> {
+        Some(
+            self.fetch_shift_order_models(branch_id, till_id)
+                .await?
+                .iter()
+                .map(crate::orders::from_server)
+                .collect(),
+        )
+    }
+
+    /// [`Self::fetch_shift_orders_all_pages`] as the server's models (the ledger
+    /// stores them as rows for a till the device does not hold completely).
+    pub(crate) async fn fetch_shift_order_models(
+        &self,
+        branch_id: &str,
+        till_id: &str,
+    ) -> Option<Vec<madar_api::models::Order>> {
         use madar_api::apis::orders_api;
         /// A guard, not a business rule: 50 × 200 sales is past any shift.
         const MAX_PAGES: i64 = 50;
-        let mut views = Vec::new();
+        let mut all = Vec::new();
         let mut page = 1i64;
         loop {
             let params = orders_api::ListOrdersParams {
                 branch_id: Some(branch_id.to_string()),
-                shift_id: Some(shift_id.to_string()),
+                till_id: Some(till_id.to_string()),
                 updated_after: None,
                 page: Some(page),
                 per_page: Some(200),
@@ -243,20 +259,21 @@ impl MadarCore {
                 order_type: None,
                 exclude_items: None,
                 channel: None,
-                include_items: Some(true),
+                // The list decodes into models::Order (no items): asking for
+                // items was ~90% wasted bytes (payload audit).
+                include_items: Some(false),
             };
             let resp = orders_api::list_orders(&self.api.config(), params)
                 .await
                 .ok()?;
-            // Do NOT preload these into cache:order:{id}: the list element is
-            // models::Order (no items), not the OrderFull an offline reprint reads.
-            views.extend(resp.data.iter().map(crate::orders::from_server));
-            if page >= resp.total_pages || resp.data.is_empty() || page >= MAX_PAGES {
+            let done = page >= resp.total_pages || resp.data.is_empty() || page >= MAX_PAGES;
+            all.extend(resp.data);
+            if done {
                 break;
             }
             page += 1;
         }
-        Some(views)
+        Some(all)
     }
 }
 
@@ -312,9 +329,9 @@ mod tests {
     fn a_sale_from_before_the_shift_crosses_it() {
         let opened = Some("2026-09-13T08:00:00+02:00");
         let old = refund_plan(&methods(), "cash", "2026-09-12T19:00:00Z", opened, "en");
-        assert!(old.crosses_shift);
+        assert!(old.crosses_till);
         let today = refund_plan(&methods(), "cash", "2026-09-13T09:00:00Z", opened, "en");
-        assert!(!today.crosses_shift);
+        assert!(!today.crosses_till);
     }
 
     #[test]

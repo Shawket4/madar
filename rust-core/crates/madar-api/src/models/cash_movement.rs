@@ -15,7 +15,6 @@ use serde::{Deserialize, Serialize};
 pub struct CashMovement {
     #[serde(rename = "amount")]
     pub amount: i32,
-    /// Client-minted idempotency / reconciliation key, echoed back so an offline client can map its queued movement to the server row. NULL for live online movements.
     #[serde(
         rename = "client_ref",
         default,
@@ -23,7 +22,6 @@ pub struct CashMovement {
         skip_serializing_if = "Option::is_none"
     )]
     pub client_ref: Option<Option<uuid::Uuid>>,
-    /// For a `correction`: the movement it reverses. NULL for every other kind, and for a correction of something never recorded as a row.
     #[serde(
         rename = "corrects_id",
         default,
@@ -33,9 +31,15 @@ pub struct CashMovement {
     pub corrects_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
+    #[serde(
+        rename = "device_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
-    /// One of `pay_in` / `pay_out` / `safe_drop` / `correction` — see [`CashMovementKind`].
     #[serde(rename = "kind")]
     pub kind: String,
     #[serde(rename = "moved_by")]
@@ -44,8 +48,11 @@ pub struct CashMovement {
     pub moved_by_name: String,
     #[serde(rename = "note")]
     pub note: String,
+    /// DEPRECATED: same value as `till_id` (kept for POS v0.5.1/v0.6.0).
     #[serde(rename = "shift_id")]
     pub shift_id: uuid::Uuid,
+    #[serde(rename = "till_id")]
+    pub till_id: uuid::Uuid,
 }
 
 impl CashMovement {
@@ -58,18 +65,21 @@ impl CashMovement {
         moved_by_name: String,
         note: String,
         shift_id: uuid::Uuid,
+        till_id: uuid::Uuid,
     ) -> CashMovement {
         CashMovement {
             amount,
             client_ref: None,
             corrects_id: None,
             created_at,
+            device_id: None,
             id,
             kind,
             moved_by,
             moved_by_name,
             note,
             shift_id,
+            till_id,
         }
     }
 }

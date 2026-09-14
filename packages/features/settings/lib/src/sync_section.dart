@@ -32,8 +32,8 @@ const int _skewBannerMinutes = 5;
 /// than raw, so the row still reads as words.
 String outboxOpLabel(MadarBridge bridge, String op) {
   final key = switch (op) {
-    'open_shift' => 'sync.op_open_shift',
-    'close_shift' => 'sync.op_close_shift',
+    'open_till' || 'open_shift' => 'sync.op_open_till',
+    'close_till' || 'close_shift' => 'sync.op_close_till',
     'create_order' => 'sync.op_create_order',
     'void_order' => 'sync.op_void_order',
     'cash_movement' => 'sync.op_cash_movement',
@@ -334,12 +334,34 @@ class _HealthCard extends ConsumerWidget {
                   : null,
               loading: pushing,
               onTap: () => unawaited(ref.read(syncProvider.notifier).syncNow()),
+              // A manager's long press downloads everything again, after a
+              // confirm that says unsent sales stay.
+              onLongPress:
+                  isManagerRole(
+                    ref.watch(shellProvider.select((s) => s.session?.role)),
+                  )
+                  ? () => unawaited(confirmFullSync(context, ref))
+                  : null,
             ),
           ),
         ],
       ),
     );
   }
+}
+
+/// Ask before downloading everything again; runs it on yes.
+Future<void> confirmFullSync(BuildContext context, WidgetRef ref) async {
+  final bridge = ref.read(bridgeProvider);
+  final notifier = ref.read(syncProvider.notifier);
+  final yes = await showMadarConfirm(
+    context,
+    title: bridge.tr(key: 'sync.full_confirm_title'),
+    body: bridge.tr(key: 'sync.full_confirm_body'),
+    confirmLabel: bridge.tr(key: 'sync.push'),
+    cancelLabel: bridge.tr(key: 'common.cancel'),
+  );
+  if (yes) await notifier.syncFull();
 }
 
 /// A queued or in-flight item: what it is, when, how many tries, as a bill
@@ -438,7 +460,7 @@ class _StuckItem extends ConsumerWidget {
   }
 }
 
-/// Sales stranded behind a dead `open_shift`. The rows are ordinary queued
+/// Sales stranded behind a dead `open_till`. The rows are ordinary queued
 /// sales; what makes them stuck is the dependency, which only the count
 /// knows. Recovery needs an open drawer to move them onto.
 class _BlockedCard extends ConsumerWidget {
@@ -448,7 +470,7 @@ class _BlockedCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final bridge = ref.bridge;
-    final hasShift = ref.watch(syncProvider.select((s) => s.hasOpenShift));
+    final hasTill = ref.watch(syncProvider.select((s) => s.hasOpenTill));
     final recovering = ref.watch(syncProvider.select((s) => s.recovering));
     final recovered = ref.watch(syncProvider.select((s) => s.recovered));
     return MadarCard.column(
@@ -461,12 +483,12 @@ class _BlockedCard extends ConsumerWidget {
           label: bridge.tr(key: 'sync.recover'),
           variant: MadarButtonVariant.secondary,
           glyph: MadarGlyph.undo,
-          enabled: hasShift,
-          tooltip: hasShift ? null : bridge.tr(key: 'sync.recover_need_shift'),
+          enabled: hasTill,
+          tooltip: hasTill ? null : bridge.tr(key: 'sync.recover_need_shift'),
           loading: recovering,
           onTap: () => unawaited(ref.read(syncProvider.notifier).recover()),
         ),
-        if (!hasShift)
+        if (!hasTill)
           Text(
             bridge.tr(key: 'sync.recover_need_shift'),
             style: MadarType.bodySm.copyWith(color: colors.textSecondary),

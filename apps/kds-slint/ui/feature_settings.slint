@@ -24,7 +24,6 @@ import { Icons } from "icons.slint";
 
 // ── Data rows (structs precede use). ─────────────────────────────────────────
 
-export struct SettingsTillData { id: string, name: string }
 export struct SettingsStationData { id: string, name: string }
 export struct SettingsDiagData { message: string, at: string, level: string }
 
@@ -32,7 +31,7 @@ export struct SettingsDiagData { message: string, at: string, level: string }
 // pre-localized op label (unknown ops show their raw wire name — Rust).
 export struct SyncOutboxData {
     id: string,
-    op: string,          // open_shift | close_shift | create_order | …
+    op: string,          // open_till | close_till | create_order | …
     op-label: string,    // localized (sync.op_*) or raw wire name
     status: string,      // pending | inflight | dead
     error: string,       // lastError ?? ""
@@ -62,8 +61,6 @@ export global SettingsState {
     in property <string> tr-printed;               // receipt.printed
     in property <string> tr-print-failed;          // receipt.print_failed
     in property <string> tr-no-printer;            // receipt.no_printer
-    in property <string> tr-till;                  // settings.till
-    in property <string> tr-till-default;          // settings.till_default
     in property <string> tr-choose-station;        // setup.choose_station
     in property <string> tr-lan;                   // settings.lan
     in property <string> tr-lan-hub-hint;          // settings.lan_hub_hint
@@ -92,8 +89,6 @@ export global SettingsState {
     in property <string> role-label;               // UPPERCASED, "_"→" "; "" hides
     in property <bool> is-kitchen;
     in property <bool> has-open-shift;             // sign-out/reconfigure guard
-    in property <[SettingsTillData]> tills;
-    in property <string> till-id;                  // "" = branch default
     in property <[SettingsStationData]> stations;
     in property <string> station-id;
     in-out property <bool> brand-star;             // brand chip (epson otherwise)
@@ -127,7 +122,6 @@ export global SettingsState {
     callback printer-changed(string /* address */);
     callback pick-brand(string /* epson|star */, string /* address */);
     callback test-print();
-    callback bind-till(string /* id; "" = default */);
     callback bind-station(string /* id */);
     callback set-lan-hub(string);
     callback reconfigure();
@@ -168,8 +162,8 @@ export global SyncState {
 global OpGlyph {
     public pure function glyph(op: string, status: string) -> image {
         if (status == "dead") { return Icons.exclamationmark-circle; }
-        if (op == "open_shift") { return Icons.play-circle; }
-        if (op == "close_shift") { return Icons.lock; }
+        if (op == "open_till" || op == "open_shift") { return Icons.play-circle; }
+        if (op == "close_till" || op == "close_shift") { return Icons.lock; }
         if (op == "create_order") { return Icons.doc-text; }
         return Icons.arrow-clockwise;
     }
@@ -697,21 +691,6 @@ export component SettingsScreen {
                     }
                 }
 
-                // ── Till (drawer) binding — which POS drawer this device
-                // controls. Hidden on kitchen devices (they bind a station).
-                if !SettingsState.is-kitchen && SettingsState.tills.length > 0: SettingsCard {
-                    title: SettingsState.tr-till;
-                    PickerRow {
-                        label: SettingsState.tr-till-default;
-                        selected: SettingsState.till-id == "";
-                        clicked => { SettingsState.bind-till(""); }
-                    }
-                    for till in SettingsState.tills: PickerRow {
-                        label: till.name;
-                        selected: SettingsState.till-id == till.id;
-                        clicked => { SettingsState.bind-till(till.id); }
-                    }
-                }
 
                 // ── Station binding for kitchen devices — which station this
                 // display shows (and routes chits for).

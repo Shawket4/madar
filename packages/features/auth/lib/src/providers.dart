@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// PIN length window: auto-submit at 6, reject below 4 (natives' maxPin /
-/// submit guard). Shared by teller sign-in and mid-shift re-auth.
+/// submit guard). Shared by teller sign-in and mid-till re-auth.
 const int _maxPin = 6;
 const int _minPin = 4;
 
@@ -137,7 +137,7 @@ class AuthNotifier extends Notifier<AuthState> {
   void resetEntry() =>
       state = state.copyWith(pin: '', error: null, busy: false);
 
-  /// Shared PIN sign-in tail (teller login and mid-shift re-auth). Returns
+  /// Shared PIN sign-in tail (teller login and mid-till re-auth). Returns
   /// true on success; on failure clears the PIN and bumps [AuthState.failCount].
   Future<bool> _signInPin(String name) async {
     state = state.copyWith(busy: true, error: null);
@@ -192,7 +192,7 @@ class AuthNotifier extends Notifier<AuthState> {
     await _signInPin(trimmed);
   }
 
-  /// Re-authenticate the SAME teller who owns the open shift (no handover) —
+  /// Re-authenticate the SAME teller who owns the open till (no handover) —
   /// the natives' `reauth(pin)`. ONLINE-ONLY by design: this sheet exists to
   /// mint a fresh JWT from the server (an expired bearer parked the outbox),
   /// so the combined sign-in's offline PIN fallback would "succeed" locally

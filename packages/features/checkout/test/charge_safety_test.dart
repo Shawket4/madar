@@ -48,7 +48,7 @@ const _session = SessionSnapshot(
   permissionsLoaded: true,
 );
 
-const _openShift = ShiftView(
+const _openTill = TillView(
   id: 'sh-1',
   branchId: 'b1',
   tellerId: 'u1',
@@ -57,6 +57,8 @@ const _openShift = ShiftView(
   openedAt: '2026-09-13T09:00:00Z',
   status: 'open',
   isOpen: true,
+  verification: 'server',
+  openedWhileAnotherOpen: false,
 );
 
 const _ticket = TicketView(
@@ -90,6 +92,7 @@ ReceiptView _receipt() => const ReceiptView(
   queuedOffline: false,
   createdAt: '2026-09-13T10:05:00Z',
   payments: [],
+  displayNumber: '',
 );
 
 class _Fake implements MadarBridge {
@@ -97,8 +100,8 @@ class _Fake implements MadarBridge {
   Completer<ReceiptView> checkoutGate = Completer<ReceiptView>();
   Completer<String?> settleGate = Completer<String?>();
 
-  /// Released by the test: the shift lookup. Null answers at once.
-  Completer<ShiftView?>? shift;
+  /// Released by the test: the till lookup. Null answers at once.
+  Completer<TillView?>? till;
 
   int checkoutCalls = 0;
   int settleCalls = 0;
@@ -119,15 +122,19 @@ class _Fake implements MadarBridge {
     if (name == #deviceConfig) {
       return const DeviceConfigView(
         branchName: 'Rue',
-        tillId: 'till-1',
         reconfiguring: false,
         configured: true,
       );
     }
     if (name == #orgLogoLocalPath) return null;
     if (name == #humanMessage) return 'refused';
-    if (name == #listPaymentMethods) {
+    // The core's effective set (branch ∩ teller ∩ device); the full org
+    // list is never what Charge shows.
+    if (name == #availablePaymentMethods) {
       return Future<List<PaymentMethodView>>.value(_methods);
+    }
+    if (name == #listPaymentMethods) {
+      throw StateError('Charge must list only available methods');
     }
     if (name == #listDiscounts) {
       return Future<List<DiscountView>>.value(const []);
@@ -156,8 +163,8 @@ class _Fake implements MadarBridge {
       );
     }
     if (name == #cartLines) return Future<List<CartLineView>>.value(const []);
-    if (name == #currentShift) {
-      return shift?.future ?? Future<ShiftView?>.value(_openShift);
+    if (name == #currentTill) {
+      return till?.future ?? Future<TillView?>.value(_openTill);
     }
     if (name == #checkout) {
       checkoutCalls += 1;
@@ -385,7 +392,7 @@ void main() {
   testWidgets('a bill cannot charge before the shift lookup answers', (
     tester,
   ) async {
-    final bridge = _Fake()..shift = Completer<ShiftView?>();
+    final bridge = _Fake()..till = Completer<TillView?>();
     final container = await _mount(tester, bridge);
     final session = container.read(checkoutProvider.notifier);
     final keep = container.listen(checkoutProvider, (_, _) {});
@@ -400,7 +407,7 @@ void main() {
     await session.charge();
     expect(bridge.settleCalls, 0, reason: 'no shift id to settle against');
 
-    bridge.shift!.complete(_openShift);
+    bridge.till!.complete(_openTill);
     await started;
     expect(container.read(checkoutProvider).block, ChargeBlock.none);
   });

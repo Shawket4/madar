@@ -1065,13 +1065,14 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   MadarConfig dco_decode_madar_config(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return MadarConfig(
       baseUrl: dco_decode_String(arr[0]),
       environment: dco_decode_String(arr[1]),
       dbPath: dco_decode_String(arr[2]),
       locale: dco_decode_String(arr[3]),
+      appVersion: dco_decode_opt_String(arr[4]),
     );
   }
 
@@ -1496,11 +1497,13 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
     var var_environment = sse_decode_String(deserializer);
     var var_dbPath = sse_decode_String(deserializer);
     var var_locale = sse_decode_String(deserializer);
+    var var_appVersion = sse_decode_opt_String(deserializer);
     return MadarConfig(
       baseUrl: var_baseUrl,
       environment: var_environment,
       dbPath: var_dbPath,
       locale: var_locale,
+      appVersion: var_appVersion,
     );
   }
 
@@ -1922,6 +1925,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
     sse_encode_String(self.environment, serializer);
     sse_encode_String(self.dbPath, serializer);
     sse_encode_String(self.locale, serializer);
+    sse_encode_opt_String(self.appVersion, serializer);
   }
 
   @protected

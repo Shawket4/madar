@@ -236,8 +236,8 @@ class _Fake implements MadarBridge {
         permissionsLoaded: true,
       );
     }
-    if (n == #currentShift || n == #refreshShift) {
-      return Future<ShiftView?>.value();
+    if (n == #currentTill || n == #refreshTill) {
+      return Future<TillView?>.value();
     }
     if (n == #floorLayout) {
       return Future<FloorLayoutView>.value(
@@ -278,13 +278,20 @@ class _Fake implements MadarBridge {
     }
     if (n == #refreshConnectivity) return Future<bool>.value(true);
     if (n == #syncStatus) {
-      return Future<SyncStatusView>.value(
-        const SyncStatusView(
-          pending: 0,
-          failed: 0,
-          blocked: 0,
-          online: true,
-          authPaused: false,
+      return SyncStatusView(
+        pendingOutbox: 0,
+        deadOutbox: 0,
+        blocked: 0,
+        freshness: const FreshnessView(state: 'fresh'),
+        online: true,
+        authPaused: false,
+        phase: 'idle',
+        assets: AssetSyncView(
+          needed: 0,
+          missing: 0,
+          downloading: false,
+          bytesDone: BigInt.zero,
+          bytesTotal: BigInt.zero,
         ),
       );
     }
@@ -295,12 +302,12 @@ class _Fake implements MadarBridge {
       String two(int v) => v.toString().padLeft(2, '0');
       return '${two(t.hour)}:${two(t.minute)}';
     }
-    if (n == #listShiftOrders) {
+    if (n == #listTillOrders) {
       return Future<List<OrderSummaryView>>.value([]);
     }
-    if (n == #shiftStats) {
-      return Future<ShiftStatsView>.value(
-        const ShiftStatsView(salesMinor: 0, orderCount: 0),
+    if (n == #tillStats) {
+      return Future<TillStatsView>.value(
+        const TillStatsView(salesMinor: 0, orderCount: 0),
       );
     }
     if (n == #listItemModifierGroups) {

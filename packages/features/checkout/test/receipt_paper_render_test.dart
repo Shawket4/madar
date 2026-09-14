@@ -71,6 +71,7 @@ ReceiptView _r({
   int tip = 0,
   int tendered = 20000,
   int change = 4500,
+  String display = '',
 }) => ReceiptView(
   payments: payments,
   localOrderId: '8f2a4c1e-x',
@@ -92,6 +93,7 @@ ReceiptView _r({
   tellerName: 'Sara',
   queuedOffline: false,
   createdAt: '2026-09-10T19:45:00Z',
+  displayNumber: display,
 );
 
 final _cases = <String, ReceiptView>{
@@ -118,6 +120,8 @@ final _cases = <String, ReceiptView>{
     change: 0,
   ),
   'void': _r(voided: true),
+  // Two devices shared a code offline: the server's ~suffix stays on.
+  'device': _r(display: '36B-12~AB12'),
 };
 
 Future<void> _fonts() async {
@@ -199,6 +203,9 @@ void main() {
               expect(change, findsNothing);
             case 'void':
               expect(find.textContaining(w('receipt.voided')), findsOneWidget);
+            case 'device':
+              expect(find.textContaining('#36B-12~AB12'), findsOneWidget);
+              expect(find.textContaining('#1042'), findsNothing);
           }
           if (!_render) return;
           final b =

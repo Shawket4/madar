@@ -45,13 +45,13 @@ void main() {
   });
 
   test('the migrated screens build no rows or tables of their own', () {
-    // Till, shifts, Orders, Settings and sign-in are on the spec
+    // Till, tills, Orders, Settings and sign-in are on the spec
     // (docs/design/SPEC.md §7–8): records go in MadarDataTable, lists in
     // MadarListRow. A private `_SomethingRow` / `_SomethingTable` class here
     // is a hand-built row drifting from the kit again — the owner's "Past
-    // shifts and Orders look nothing alike". Composites that only arrange
+    // tills and Orders look nothing alike". Composites that only arrange
     // kit rows are named for what they hold, not "Row".
-    const packages = ['shift', 'history', 'settings', 'auth'];
+    const packages = ['till', 'history', 'settings', 'auth'];
     final bespoke = RegExp(r'^class (_\w*(Row|Table))\b');
     final raw = RegExp(r'CircularProgressIndicator\(');
     final offenders = <String>[];

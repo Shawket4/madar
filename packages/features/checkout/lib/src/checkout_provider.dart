@@ -41,15 +41,15 @@ enum ChargeBlock {
   /// Ready — the bar is lit.
   none,
 
-  /// The session is still loading (methods, the shift lookup). Nothing may
-  /// charge yet: a bill charged before the shift answered had no shift id.
+  /// The session is still loading (methods, the till lookup). Nothing may
+  /// charge yet: a bill charged before the till answered had no till id.
   loading,
 
   /// The payment methods could not be loaded, or the branch has none.
   noMethods,
 
-  /// No open shift on this till. The bar says so instead of the figure.
-  noShift,
+  /// No open till on this till. The bar says so instead of the figure.
+  noTill,
 
   /// Cash needs an amount, a card needs a tap, a split needs to reach zero.
   needTender,
@@ -77,8 +77,8 @@ class CheckoutState {
     this.taxInclusive = true,
     this.serviceChargeRate = 0,
     this.taxRate = 0,
-    this.shiftId,
-    this.shiftKnown = false,
+    this.tillId,
+    this.tillKnown = false,
     this.loaded = false,
     this.tender = const TenderSummaryView(
       chargeTotalMinor: 0,
@@ -144,11 +144,11 @@ class CheckoutState {
   final double serviceChargeRate;
   final double taxRate;
 
-  /// The open shift's id, or null when there is none. [shiftKnown] flips
-  /// once the lookup has answered, so the bar does not flash "no shift"
+  /// The open till's id, or null when there is none. [tillKnown] flips
+  /// once the lookup has answered, so the bar does not flash "no till"
   /// during the first frame.
-  final String? shiftId;
-  final bool shiftKnown;
+  final String? tillId;
+  final bool tillKnown;
 
   /// The session's reads have answered (methods, discounts, programme).
   final bool loaded;
@@ -250,7 +250,7 @@ class CheckoutState {
   /// Still not an online order: a finalize takes one method and nothing else.
   bool get canSplit => !isOnline && paymentMethods.length >= 2;
 
-  bool get shiftOpen => shiftId != null;
+  bool get tillOpen => tillId != null;
 
   // ── derived: the money ────────────────────────────────────────────────────
 
@@ -340,8 +340,8 @@ class CheckoutState {
   /// its legs to reach the due.
   ChargeBlock get block {
     if (isPlacingOrder || outcome != null) return ChargeBlock.charging;
-    if (!loaded || !shiftKnown) return ChargeBlock.loading;
-    if (!shiftOpen) return ChargeBlock.noShift;
+    if (!loaded || !tillKnown) return ChargeBlock.loading;
+    if (!tillOpen) return ChargeBlock.noTill;
     if (paymentMethods.isEmpty) return ChargeBlock.noMethods;
     if (splitMode) {
       return splitRemaining == 0 && splitLegs.isNotEmpty
@@ -364,14 +364,14 @@ class CheckoutState {
 
   bool get canCharge => block == ChargeBlock.none;
 
-  /// Exact cash is the lit primary: it needs only a shift and cash to be
+  /// Exact cash is the lit primary: it needs only a till and cash to be
   /// the method.
   bool get canChargeExact =>
       !isPlacingOrder &&
       outcome == null &&
       loaded &&
-      shiftKnown &&
-      shiftOpen &&
+      tillKnown &&
+      tillOpen &&
       !splitMode &&
       takesTender &&
       isCash;
@@ -389,8 +389,8 @@ class CheckoutState {
     bool? taxInclusive,
     double? serviceChargeRate,
     double? taxRate,
-    Object? shiftId = _unset,
-    bool? shiftKnown,
+    Object? tillId = _unset,
+    bool? tillKnown,
     bool? loaded,
     TenderSummaryView? tender,
     Object? receipt = _unset,
@@ -435,8 +435,8 @@ class CheckoutState {
       taxInclusive: taxInclusive ?? this.taxInclusive,
       serviceChargeRate: serviceChargeRate ?? this.serviceChargeRate,
       taxRate: taxRate ?? this.taxRate,
-      shiftId: shiftId == _unset ? this.shiftId : shiftId as String?,
-      shiftKnown: shiftKnown ?? this.shiftKnown,
+      tillId: tillId == _unset ? this.tillId : tillId as String?,
+      tillKnown: tillKnown ?? this.tillKnown,
       loaded: loaded ?? this.loaded,
       tender: tender ?? this.tender,
       receipt: receipt == _unset ? this.receipt : receipt as ReceiptView?,
@@ -623,25 +623,26 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     );
   }
 
-  /// The one honest gate on Charge: is there an open shift on this till.
+  /// The one honest gate on Charge: is there an open till on this till.
   /// Until it answers the bar is dimmed as loading — never lit, and never a
-  /// flash of "no shift".
-  Future<void> _loadShift(int session) async {
-    final shift = await _quiet(_bridge.currentShift);
+  /// flash of "no till".
+  Future<void> _loadTill(int session) async {
+    final till = await _quiet(_bridge.currentTill);
     _updateFor(
       session,
       (s) => s.copyWith(
-        shiftId: (shift?.isOpen ?? false) ? shift!.id : null,
-        shiftKnown: true,
+        tillId: (till?.isOpen ?? false) ? till!.id : null,
+        tillKnown: true,
       ),
     );
   }
 
-  /// The branch's methods. A failure is SAID — a dimmed bar with no reason
-  /// reads as a broken till.
+  /// The methods this sale may take: the branch's, narrowed to what this
+  /// teller and this device are allowed (the core intersects them). A
+  /// failure is SAID — a dimmed bar with no reason reads as a broken till.
   Future<List<PaymentMethodView>> _loadMethods(int session) async {
     try {
-      return await _bridge.listPaymentMethods();
+      return await _bridge.availablePaymentMethods();
     } on MadarError catch (e) {
       ref.read(connectivityRefreshProvider.notifier).reportError(e);
       _updateFor(session, (s) => s.copyWith(error: UiText.error(e)));
@@ -673,7 +674,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// its position, so this list and the wire order must be the same list).
   Future<void> _startCart(int session, String? tableId) async {
     final bridge = _bridge;
-    final shift = _loadShift(session);
+    final till = _loadTill(session);
     final methods = await _loadMethods(session);
     final discounts =
         await _quiet(bridge.listDiscounts) ?? const <DiscountView>[];
@@ -700,7 +701,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         loaded: true,
       ),
     );
-    await shift;
+    await till;
   }
 
   /// A bill, priced by the SERVER.
@@ -755,7 +756,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     bool loadDiscounts = false,
   }) async {
     final bridge = _bridge;
-    final shift = _loadShift(session);
+    final till = _loadTill(session);
     final methods = await _loadMethods(session);
     final discounts = loadDiscounts
         ? await _quiet(bridge.listDiscounts) ?? const <DiscountView>[]
@@ -780,7 +781,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         loaded: true,
       ),
     );
-    await shift;
+    await till;
   }
 
   // ── Loyalty ───────────────────────────────────────────────────────────────
@@ -1037,9 +1038,9 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     final method = s.splitMode ? s.splitPrimary : s.effectiveMethodId;
     if (method == null) return;
     final bridge = _bridge;
-    // A bill books onto THIS till's shift. `block` keeps the bar dimmed until
+    // A bill books onto THIS till's till. `block` keeps the bar dimmed until
     // the lookup answered; this is the lock behind it for any other caller.
-    if (s.isBill && s.shiftId == null) {
+    if (s.isBill && s.tillId == null) {
       _update(
         (st) => st.copyWith(error: const UiText.key('waiter.need_shift')),
       );
@@ -1143,7 +1144,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     );
   }
 
-  /// Settle the ticket into a paid order on this shift. The order id comes
+  /// Settle the ticket into a paid order on this till. The order id comes
   /// back once the server acked — then its receipt is fetched and printed;
   /// null means queued offline, where no order exists yet.
   Future<ChargeOutcome> _chargeBill(
@@ -1153,15 +1154,15 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     String? tableLabel,
   }) async {
     final bridge = _bridge;
-    // `_charge` refuses a bill with no shift id before it gets here.
-    final shiftId = s.shiftId!;
+    // `_charge` refuses a bill with no till id before it gets here.
+    final tillId = s.tillId!;
     final tendered = !s.splitMode && s.isCash && s.tenderedMinor > 0
         ? s.tenderedMinor
         : null;
     final discount = s.billDiscount;
     final orderId = await bridge.settleTicket(
       ticketId: ticket.id,
-      shiftId: shiftId,
+      tillId: tillId,
       paymentMethodId: method,
       amountTenderedMinor: tendered,
       tipMinor: s.tipMinor > 0 ? s.tipMinor : null,
@@ -1204,7 +1205,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     );
   }
 
-  /// Finalize the online order into a real sale on this shift — a method
+  /// Finalize the online order into a real sale on this till — a method
   /// and nothing else, then the new order's receipt.
   Future<ChargeOutcome> _chargeOnline(
     CheckoutState s,

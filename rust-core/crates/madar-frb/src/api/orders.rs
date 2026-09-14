@@ -12,7 +12,7 @@ pub use madar_core::checkout::{
 };
 pub use madar_core::orders::{
     OrderDetailLineView, OrderDetailView, OrderRefundsView, OrderSearchPage, OrderSummaryView,
-    RefundLineView, RefundView, ShiftRefundsView,
+    RefundLineView, RefundView, TillRefundsView,
 };
 
 /// What has already been given back against one sale.
@@ -31,9 +31,9 @@ pub struct _OrderRefundsView {
 }
 
 /// Every refund issued during one shift — the Z-report's line.
-#[frb(mirror(ShiftRefundsView))]
-pub struct _ShiftRefundsView {
-    pub shift_id: String,
+#[frb(mirror(TillRefundsView))]
+pub struct _TillRefundsView {
+    pub till_id: String,
     pub refund_count: i64,
     pub refunded_minor: i64,
     /// What left the drawer. The rest went back the way it came.
@@ -110,6 +110,8 @@ pub struct _ReceiptView {
     pub local_order_id: String,
     /// Human order number (server-assigned); `None` for a freshly-queued sale.
     pub order_number: Option<i64>,
+    /// What people read: `36B-12` (device code + per-device number).
+    pub display_number: String,
     /// Cross-channel order reference (e.g. delivery ticket id), printed when set.
     pub order_ref: Option<String>,
     /// `true` when the order is voided — prints a `*** VOIDED ***` stamp.
@@ -256,6 +258,7 @@ pub struct _OrderSummaryView {
     pub price_flagged: bool,
     /// Optional human order ref (server-assigned) shown under the order number.
     pub order_ref: Option<String>,
+    pub display_number: String,
 }
 
 /// One line of a fetched order (item + its chosen modifiers).
@@ -365,9 +368,9 @@ impl MadarBridge {
 
     /// The current shift's orders — still-queued sales (offline-safe) plus
     /// the server's synced orders when online (best-effort).
-    pub async fn list_shift_orders(&self) -> Result<Vec<OrderSummaryView>, MadarError> {
+    pub async fn list_till_orders(&self) -> Result<Vec<OrderSummaryView>, MadarError> {
         self.inner
-            .list_shift_orders()
+            .list_till_orders()
             .await
             .map_err(MadarError::from)
     }
@@ -392,12 +395,12 @@ impl MadarBridge {
 
     /// A PAST shift's synced orders (history-screen expansion). Live when
     /// online, else the last-synced snapshot.
-    pub async fn list_orders_for_shift(
+    pub async fn list_orders_for_till(
         &self,
-        shift_id: String,
+        till_id: String,
     ) -> Result<Vec<OrderSummaryView>, MadarError> {
         self.inner
-            .list_orders_for_shift(shift_id)
+            .list_orders_for_till(till_id)
             .await
             .map_err(MadarError::from)
     }
@@ -451,12 +454,12 @@ impl MadarBridge {
 
     /// Every refund issued during a shift — the Z-report's line, and why the
     /// counted drawer is lighter than the sales say.
-    pub async fn list_shift_refunds(
+    pub async fn list_till_refunds(
         &self,
-        shift_id: String,
-    ) -> Result<ShiftRefundsView, MadarError> {
+        till_id: String,
+    ) -> Result<TillRefundsView, MadarError> {
         self.inner
-            .list_shift_refunds(shift_id)
+            .list_till_refunds(till_id)
             .await
             .map_err(MadarError::from)
     }

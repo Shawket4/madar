@@ -741,6 +741,7 @@ mod tests {
         user.org_id = org.map(|o| Some(uuid::Uuid::parse_str(o).unwrap()));
         models::LoginResponse {
             currency_code: "EGP".into(),
+            open_till: None,
             require_table_for_orders: Some(false),
             tax_rate: 0.14,
             tax_policy: Box::new(models::TaxPolicyPublic {

@@ -33,6 +33,44 @@ pub struct DeactivatePaymentMethodParams {
     pub id: String,
 }
 
+/// struct for passing parameters to the method [`get_availability`]
+#[derive(Clone, Debug)]
+pub struct GetAvailabilityParams {
+    pub branch_id: String,
+}
+
+/// struct for passing parameters to the method [`get_effective`]
+#[derive(Clone, Debug)]
+pub struct GetEffectiveParams {
+    pub branch_id: String,
+    pub user_id: Option<String>,
+    pub device_id: Option<String>,
+}
+
+/// struct for passing parameters to the method [`put_branch_availability`]
+#[derive(Clone, Debug)]
+pub struct PutBranchAvailabilityParams {
+    /// Branch ID
+    pub branch_id: String,
+    pub allow_list: models::AllowList,
+}
+
+/// struct for passing parameters to the method [`put_device_availability`]
+#[derive(Clone, Debug)]
+pub struct PutDeviceAvailabilityParams {
+    /// Device ID
+    pub device_id: String,
+    pub allow_list: models::AllowList,
+}
+
+/// struct for passing parameters to the method [`put_user_availability`]
+#[derive(Clone, Debug)]
+pub struct PutUserAvailabilityParams {
+    /// User (teller) ID
+    pub user_id: String,
+    pub allow_list: models::AllowList,
+}
+
 /// struct for passing parameters to the method [`update_payment_method`]
 #[derive(Clone, Debug)]
 pub struct UpdatePaymentMethodParams {
@@ -80,10 +118,75 @@ pub enum DeactivatePaymentMethodError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`get_availability`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetAvailabilityError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_effective`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetEffectiveError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`list_payment_methods`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListPaymentMethodsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`put_branch_availability`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PutBranchAvailabilityError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`put_device_availability`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PutDeviceAvailabilityError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`put_user_availability`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PutUserAvailabilityError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -250,6 +353,100 @@ pub async fn deactivate_payment_method(
     }
 }
 
+pub async fn get_availability(
+    configuration: &configuration::Configuration,
+    params: GetAvailabilityParams,
+) -> Result<models::PaymentMethodAvailability, Error<GetAvailabilityError>> {
+    let uri_str = format!("{}/payment-methods/availability", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    req_builder = req_builder.query(&[("branch_id", &params.branch_id.to_string())]);
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PaymentMethodAvailability`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PaymentMethodAvailability`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetAvailabilityError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_effective(
+    configuration: &configuration::Configuration,
+    params: GetEffectiveParams,
+) -> Result<Vec<models::OrgPaymentMethod>, Error<GetEffectiveError>> {
+    let uri_str = format!("{}/payment-methods/effective", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    req_builder = req_builder.query(&[("branch_id", &params.branch_id.to_string())]);
+    if let Some(ref param_value) = params.user_id {
+        req_builder = req_builder.query(&[("user_id", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.device_id {
+        req_builder = req_builder.query(&[("device_id", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::OrgPaymentMethod&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::OrgPaymentMethod&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetEffectiveError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn list_payment_methods(
     configuration: &configuration::Configuration,
 ) -> Result<Vec<models::OrgPaymentMethod>, Error<ListPaymentMethodsError>> {
@@ -284,6 +481,150 @@ pub async fn list_payment_methods(
     } else {
         let content = resp.text().await?;
         let entity: Option<ListPaymentMethodsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn put_branch_availability(
+    configuration: &configuration::Configuration,
+    params: PutBranchAvailabilityParams,
+) -> Result<models::AllowList, Error<PutBranchAvailabilityError>> {
+    let uri_str = format!(
+        "{}/payment-methods/availability/branches/{branch_id}",
+        configuration.base_path,
+        branch_id = crate::apis::urlencode(params.branch_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.allow_list);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AllowList`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AllowList`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PutBranchAvailabilityError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn put_device_availability(
+    configuration: &configuration::Configuration,
+    params: PutDeviceAvailabilityParams,
+) -> Result<models::AllowList, Error<PutDeviceAvailabilityError>> {
+    let uri_str = format!(
+        "{}/payment-methods/availability/devices/{device_id}",
+        configuration.base_path,
+        device_id = crate::apis::urlencode(params.device_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.allow_list);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AllowList`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AllowList`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PutDeviceAvailabilityError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn put_user_availability(
+    configuration: &configuration::Configuration,
+    params: PutUserAvailabilityParams,
+) -> Result<models::AllowList, Error<PutUserAvailabilityError>> {
+    let uri_str = format!(
+        "{}/payment-methods/availability/users/{user_id}",
+        configuration.base_path,
+        user_id = crate::apis::urlencode(params.user_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.allow_list);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AllowList`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AllowList`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PutUserAvailabilityError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

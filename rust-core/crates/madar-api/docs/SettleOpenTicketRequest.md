@@ -14,7 +14,7 @@ Name | Type | Description | Notes
 **payment_method** | **String** |  | 
 **payment_splits** | Option<[**Vec<models::PaymentSplitInput>**](PaymentSplitInput.md)> | Split tenders, when the party paid with more than one. Carried to the order's payment legs like a counter sale's; they must sum to the total. | [optional]
 **settled_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> | When the bill was paid, as the till says. An offline settle replayed later keeps its real time — it becomes the order's `created_at` and the ticket's `settled_at`, one instant on both rows. Absent means now; a future clock is refused. | [optional]
-**shift_id** | **uuid::Uuid** |  | 
+**till_id** | **uuid::Uuid** |  | 
 **tip_amount** | Option<**i32**> |  | [optional]
 **tip_payment_method** | Option<**String**> |  | [optional]
 **total_amount** | Option<**i32**> | What the till says the bill came to — the figure its drawer collected. Checked against the server's own total exactly as a counter checkout is (`create_order_inner`'s drift check); a disagreement is refused, not recorded. Absent on older builds, which then get no check. The figure to send is `OpenTicketView::bill.total`, which is priced by the same engine under the same policy — a till that shows that number cannot disagree with the books. | [optional]

@@ -56,13 +56,13 @@ extension AppRoutePatterns on AppRoute {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( AppRoute_DeviceSetup value)?  deviceSetup,TResult Function( AppRoute_Login value)?  login,TResult Function( AppRoute_OpenShift value)?  openShift,TResult Function( AppRoute_Order value)?  order,TResult Function( AppRoute_KitchenDisplay value)?  kitchenDisplay,TResult Function( AppRoute_WaiterTickets value)?  waiterTickets,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( AppRoute_DeviceSetup value)?  deviceSetup,TResult Function( AppRoute_Login value)?  login,TResult Function( AppRoute_OpenTill value)?  openTill,TResult Function( AppRoute_Order value)?  order,TResult Function( AppRoute_KitchenDisplay value)?  kitchenDisplay,TResult Function( AppRoute_WaiterTickets value)?  waiterTickets,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case AppRoute_DeviceSetup() when deviceSetup != null:
 return deviceSetup(_that);case AppRoute_Login() when login != null:
-return login(_that);case AppRoute_OpenShift() when openShift != null:
-return openShift(_that);case AppRoute_Order() when order != null:
+return login(_that);case AppRoute_OpenTill() when openTill != null:
+return openTill(_that);case AppRoute_Order() when order != null:
 return order(_that);case AppRoute_KitchenDisplay() when kitchenDisplay != null:
 return kitchenDisplay(_that);case AppRoute_WaiterTickets() when waiterTickets != null:
 return waiterTickets(_that);case _:
@@ -83,13 +83,13 @@ return waiterTickets(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( AppRoute_DeviceSetup value)  deviceSetup,required TResult Function( AppRoute_Login value)  login,required TResult Function( AppRoute_OpenShift value)  openShift,required TResult Function( AppRoute_Order value)  order,required TResult Function( AppRoute_KitchenDisplay value)  kitchenDisplay,required TResult Function( AppRoute_WaiterTickets value)  waiterTickets,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( AppRoute_DeviceSetup value)  deviceSetup,required TResult Function( AppRoute_Login value)  login,required TResult Function( AppRoute_OpenTill value)  openTill,required TResult Function( AppRoute_Order value)  order,required TResult Function( AppRoute_KitchenDisplay value)  kitchenDisplay,required TResult Function( AppRoute_WaiterTickets value)  waiterTickets,}){
 final _that = this;
 switch (_that) {
 case AppRoute_DeviceSetup():
 return deviceSetup(_that);case AppRoute_Login():
-return login(_that);case AppRoute_OpenShift():
-return openShift(_that);case AppRoute_Order():
+return login(_that);case AppRoute_OpenTill():
+return openTill(_that);case AppRoute_Order():
 return order(_that);case AppRoute_KitchenDisplay():
 return kitchenDisplay(_that);case AppRoute_WaiterTickets():
 return waiterTickets(_that);}
@@ -106,13 +106,13 @@ return waiterTickets(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( AppRoute_DeviceSetup value)?  deviceSetup,TResult? Function( AppRoute_Login value)?  login,TResult? Function( AppRoute_OpenShift value)?  openShift,TResult? Function( AppRoute_Order value)?  order,TResult? Function( AppRoute_KitchenDisplay value)?  kitchenDisplay,TResult? Function( AppRoute_WaiterTickets value)?  waiterTickets,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( AppRoute_DeviceSetup value)?  deviceSetup,TResult? Function( AppRoute_Login value)?  login,TResult? Function( AppRoute_OpenTill value)?  openTill,TResult? Function( AppRoute_Order value)?  order,TResult? Function( AppRoute_KitchenDisplay value)?  kitchenDisplay,TResult? Function( AppRoute_WaiterTickets value)?  waiterTickets,}){
 final _that = this;
 switch (_that) {
 case AppRoute_DeviceSetup() when deviceSetup != null:
 return deviceSetup(_that);case AppRoute_Login() when login != null:
-return login(_that);case AppRoute_OpenShift() when openShift != null:
-return openShift(_that);case AppRoute_Order() when order != null:
+return login(_that);case AppRoute_OpenTill() when openTill != null:
+return openTill(_that);case AppRoute_Order() when order != null:
 return order(_that);case AppRoute_KitchenDisplay() when kitchenDisplay != null:
 return kitchenDisplay(_that);case AppRoute_WaiterTickets() when waiterTickets != null:
 return waiterTickets(_that);case _:
@@ -132,12 +132,12 @@ return waiterTickets(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  deviceSetup,TResult Function()?  login,TResult Function()?  openShift,TResult Function()?  order,TResult Function( String stationId)?  kitchenDisplay,TResult Function()?  waiterTickets,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  deviceSetup,TResult Function()?  login,TResult Function()?  openTill,TResult Function()?  order,TResult Function( String stationId)?  kitchenDisplay,TResult Function()?  waiterTickets,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case AppRoute_DeviceSetup() when deviceSetup != null:
 return deviceSetup();case AppRoute_Login() when login != null:
-return login();case AppRoute_OpenShift() when openShift != null:
-return openShift();case AppRoute_Order() when order != null:
+return login();case AppRoute_OpenTill() when openTill != null:
+return openTill();case AppRoute_Order() when order != null:
 return order();case AppRoute_KitchenDisplay() when kitchenDisplay != null:
 return kitchenDisplay(_that.stationId);case AppRoute_WaiterTickets() when waiterTickets != null:
 return waiterTickets();case _:
@@ -158,12 +158,12 @@ return waiterTickets();case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  deviceSetup,required TResult Function()  login,required TResult Function()  openShift,required TResult Function()  order,required TResult Function( String stationId)  kitchenDisplay,required TResult Function()  waiterTickets,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  deviceSetup,required TResult Function()  login,required TResult Function()  openTill,required TResult Function()  order,required TResult Function( String stationId)  kitchenDisplay,required TResult Function()  waiterTickets,}) {final _that = this;
 switch (_that) {
 case AppRoute_DeviceSetup():
 return deviceSetup();case AppRoute_Login():
-return login();case AppRoute_OpenShift():
-return openShift();case AppRoute_Order():
+return login();case AppRoute_OpenTill():
+return openTill();case AppRoute_Order():
 return order();case AppRoute_KitchenDisplay():
 return kitchenDisplay(_that.stationId);case AppRoute_WaiterTickets():
 return waiterTickets();}
@@ -180,12 +180,12 @@ return waiterTickets();}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  deviceSetup,TResult? Function()?  login,TResult? Function()?  openShift,TResult? Function()?  order,TResult? Function( String stationId)?  kitchenDisplay,TResult? Function()?  waiterTickets,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  deviceSetup,TResult? Function()?  login,TResult? Function()?  openTill,TResult? Function()?  order,TResult? Function( String stationId)?  kitchenDisplay,TResult? Function()?  waiterTickets,}) {final _that = this;
 switch (_that) {
 case AppRoute_DeviceSetup() when deviceSetup != null:
 return deviceSetup();case AppRoute_Login() when login != null:
-return login();case AppRoute_OpenShift() when openShift != null:
-return openShift();case AppRoute_Order() when order != null:
+return login();case AppRoute_OpenTill() when openTill != null:
+return openTill();case AppRoute_Order() when order != null:
 return order();case AppRoute_KitchenDisplay() when kitchenDisplay != null:
 return kitchenDisplay(_that.stationId);case AppRoute_WaiterTickets() when waiterTickets != null:
 return waiterTickets();case _:
@@ -263,8 +263,8 @@ String toString() {
 /// @nodoc
 
 
-class AppRoute_OpenShift extends AppRoute {
-  const AppRoute_OpenShift(): super._();
+class AppRoute_OpenTill extends AppRoute {
+  const AppRoute_OpenTill(): super._();
   
 
 
@@ -274,7 +274,7 @@ class AppRoute_OpenShift extends AppRoute {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute_OpenShift);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute_OpenTill);
 }
 
 
@@ -283,7 +283,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-    return 'AppRoute.openShift()';
+    return 'AppRoute.openTill()';
 }
 
 

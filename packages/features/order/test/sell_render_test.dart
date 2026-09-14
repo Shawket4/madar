@@ -220,9 +220,9 @@ void main() {
             tester,
             screen: const TakeawaySellScreen(),
             size: size,
-            bridge: _FakeBridge(rtl: ar, shiftOpen: false),
+            bridge: _FakeBridge(rtl: ar, tillOpen: false),
           );
-          expect(find.byType(SellNoShiftNotice), findsOneWidget);
+          expect(find.byType(SellNoTillNotice), findsOneWidget);
           await _capture(tester, 'sell-noshift-$tag');
         });
 

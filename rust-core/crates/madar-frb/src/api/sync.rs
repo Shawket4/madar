@@ -7,13 +7,18 @@ use crate::api::bridge::MadarBridge;
 use crate::api::error::MadarError;
 
 pub use madar_core::timefmt::TimeStyle;
-pub use madar_core::{DiagLogView, OutboxItemView, SyncStatusView};
+pub use madar_core::assets::AssetSyncView;
+pub use madar_core::sync_pull::{FreshnessView, SyncStatusView, TillOpenSyncView};
+pub use madar_core::readpath::ReadPathMode;
+
+use crate::frb_generated::StreamSink;
+pub use madar_core::{DiagLogView, OutboxItemView};
 
 /// A queued/failed outbox command, projected for the sync center.
 #[frb(mirror(OutboxItemView))]
 pub struct _OutboxItemView {
     pub id: String,
-    /// `open_shift` | `close_shift` | `create_order` | …
+    /// `open_till` | `close_till` | `create_order` | …
     pub op_type: String,
     /// `pending` | `inflight` | `dead`.
     pub status: String,
@@ -22,21 +27,70 @@ pub struct _OutboxItemView {
     pub event_at: String,
 }
 
-/// One-shot sync health for the action-bar chip + offline banner. `pending` is
-/// the in-flight/queued set, `failed` the stuck (dead) set, `online` the
-/// session's connectivity. The host maps these to the chip label/tone.
+/// Sync health (§10.3).
 #[frb(mirror(SyncStatusView))]
 pub struct _SyncStatusView {
-    pub pending: u32,
-    pub failed: u32,
-    /// Orders STRANDED by a dead `open_shift` (waiting on a dependency that will
-    /// never ack). When >0 with no open shift, the host can offer
-    /// `recover_orphaned_orders()`.
-    pub blocked: u32,
+    /// `idle` | `draining` | `pulling` | `applying` | `done` | `offline` | `error`.
+    pub phase: String,
+    pub next_seq: Option<i64>,
+    pub pending_outbox: u32,
+    pub dead_outbox: u32,
+    pub last_ok_at: Option<String>,
+    pub last_full_at: Option<String>,
+    /// `offline` | `checksum_mismatch` | `resync_failed` | `http_error`.
+    pub stale_reason: Option<String>,
+    pub last_error: Option<String>,
+    pub assets: AssetSyncView,
     pub online: bool,
-    /// `true` when the outbox is parked on a 401 — the host prompts a re-login
-    /// to resume syncing (nothing drains until then).
     pub auth_paused: bool,
+    pub blocked: u32,
+    /// How far the local data can be trusted (`fresh` / `stale` / `bootstrapping`).
+    pub freshness: FreshnessView,
+}
+
+/// Which read a board uses while offline plan B rolls out (`legacy` = the
+/// pre-B server list + cache, `shadow` = legacy served and compared, `new` =
+/// local rows only).
+#[frb(mirror(ReadPathMode))]
+pub enum _ReadPathMode {
+    Legacy,
+    Shadow,
+    New,
+}
+
+/// Freshness of the replicated store (OFFLINE_B_DESIGN §6).
+#[frb(mirror(FreshnessView))]
+pub struct _FreshnessView {
+    /// `fresh` | `stale` | `bootstrapping`.
+    pub state: String,
+    /// `offline` | `auth_expired` | `server_error` | `forbidden` | `decode` | `never_synced`.
+    pub reason: Option<String>,
+    pub age_secs: Option<u64>,
+    /// i18n key of the banner this state needs, if any.
+    pub banner: Option<String>,
+}
+
+#[frb(mirror(AssetSyncView))]
+pub struct _AssetSyncView {
+    pub needed: u32,
+    pub missing: u32,
+    pub downloading: bool,
+    pub bytes_done: u64,
+    pub bytes_total: u64,
+    pub last_error: Option<String>,
+}
+
+/// The Open-till screen's sync strip (decision 15).
+#[frb(mirror(TillOpenSyncView))]
+pub struct _TillOpenSyncView {
+    /// `running` | `done` | `stale`.
+    pub state: String,
+    pub till_id: Option<String>,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
+    pub stale_reason: Option<String>,
+    pub changes_applied: u32,
+    pub pending_outbox: u32,
 }
 
 /// One diagnostic log line.
@@ -75,31 +129,63 @@ impl MadarBridge {
         self.inner.discard_outbox_item(id).map_err(MadarError::from)
     }
 
-    /// Sync health for the action-bar chip + offline banner (counts + online),
-    /// in one cheap local read. Always succeeds offline.
-    pub fn sync_status(&self) -> Result<SyncStatusView, MadarError> {
-        self.inner.sync_status().map_err(MadarError::from)
+    /// Local table changes, as batches of logical table names (`orders`, `tills`,
+    /// `open_tickets`, …, or `*` = re-read everything), coalesced over 50 ms.
+    /// A board re-reads when a table it shows changes; the core decides what
+    /// changed, Dart only listens.
+    pub async fn watch_tables(&self, sink: StreamSink<Vec<String>>) -> Result<(), MadarError> {
+        self.inner
+            .watch_tables(50, move |batch| sink.add(batch).is_ok())
+            .map_err(MadarError::from)
     }
 
-    /// Force a sync now — drains the outbox. Cancellable/idempotent.
-    pub async fn sync_now(&self) -> Result<(), MadarError> {
+    /// The read-path mode of an area (`ledger`, `tickets`, `kitchen`, `delivery`, `bookings`).
+    #[frb(sync)]
+    pub fn read_path_mode(&self, area: String) -> ReadPathMode {
+        self.inner.read_path_mode(area)
+    }
+
+    /// Switch an area's read path (the diagnostics toggle).
+    #[frb(sync)]
+    pub fn set_read_path_mode(&self, area: String, mode: ReadPathMode) -> Result<(), MadarError> {
+        self.inner.set_read_path_mode(area, mode).map_err(MadarError::from)
+    }
+
+    /// Sync health (one cheap local read; always succeeds offline).
+    #[frb(sync)]
+    pub fn sync_status(&self) -> SyncStatusView {
+        self.inner.sync_status()
+    }
+
+    /// Incremental sync: drain the outbox, then pull.
+    pub async fn sync_now(&self) -> Result<SyncStatusView, MadarError> {
         self.inner.sync_now().await.map_err(MadarError::from)
     }
 
-    /// Requeue every dead command (clearing its error) and try to send now.
-    /// Best-effort — offline just leaves them pending again.
+    /// Long-press: download everything again (unsent sales are kept).
+    pub async fn sync_full(&self) -> Result<SyncStatusView, MadarError> {
+        self.inner.sync_full().await.map_err(MadarError::from)
+    }
+
+    /// The till-open sync strip state.
+    #[frb(sync)]
+    pub fn sync_on_till_open_status(&self) -> TillOpenSyncView {
+        self.inner.sync_on_till_open_status()
+    }
+
+    /// Re-verify local asset files and fetch what is missing.
+    pub async fn repair_assets(&self) -> Result<AssetSyncView, MadarError> {
+        self.inner.repair_assets().await.map_err(MadarError::from)
+    }
+
+    /// Requeue every dead command and try to send now.
     pub async fn retry_outbox(&self) -> Result<(), MadarError> {
         self.inner.retry_outbox().await.map_err(MadarError::from)
     }
 
-    /// FALLBACK recovery for the sync center: re-point every order STRANDED by a
-    /// dead `open_shift` onto the CURRENT open shift and sync. Returns the number
-    /// of outbox rows recovered.
-    pub async fn recover_orphaned_orders(&self) -> Result<u32, MadarError> {
-        self.inner
-            .recover_orphaned_orders()
-            .await
-            .map_err(MadarError::from)
+    /// Retry one till's dead commands (a dead `open_till` holds only its till).
+    pub async fn retry_till_outbox(&self, till_id: String) -> Result<u32, MadarError> {
+        self.inner.retry_till_outbox(till_id).await.map_err(MadarError::from)
     }
 
     // ── diagnostics ────────────────────────────────────────────────────────
@@ -196,5 +282,76 @@ impl MadarBridge {
     #[frb(sync)]
     pub fn version(&self) -> String {
         self.inner.version()
+    }
+}
+
+// ── Board reads with their trust (OFFLINE_B_DESIGN §6 `Synced<T>`) ─────────
+
+pub use madar_core::synced::SyncMeta;
+
+/// How far a board's rows can be trusted.
+#[frb(mirror(SyncMeta))]
+pub struct _SyncMeta {
+    pub freshness: FreshnessView,
+    /// This device's changes to the board still queued or sending.
+    pub pending: u32,
+    /// This device's changes to the board the server refused.
+    pub failed: u32,
+}
+
+pub struct SyncedTickets {
+    pub data: Vec<crate::api::tickets::TicketView>,
+    pub meta: SyncMeta,
+}
+
+pub struct SyncedOrders {
+    pub data: Vec<crate::api::orders::OrderSummaryView>,
+    pub meta: SyncMeta,
+}
+
+pub struct SyncedTillReport {
+    pub data: crate::api::till::TillReportView,
+    pub meta: SyncMeta,
+}
+
+pub struct SyncedKitchen {
+    pub data: Vec<crate::api::kds::KdsTicketView>,
+    pub meta: SyncMeta,
+}
+
+pub struct SyncedDeliveries {
+    pub data: Vec<crate::api::delivery::DeliveryOrderView>,
+    pub meta: SyncMeta,
+}
+
+impl MadarBridge {
+    /// The open bills with their freshness and this device's queue for them.
+    pub async fn list_open_tickets_synced(&self) -> Result<SyncedTickets, MadarError> {
+        let s = self.inner.list_open_tickets_synced().await.map_err(MadarError::from)?;
+        Ok(SyncedTickets { data: s.data, meta: s.meta })
+    }
+
+    /// The current till's sales with their freshness and queue.
+    pub async fn list_till_orders_synced(&self) -> Result<SyncedOrders, MadarError> {
+        let s = self.inner.list_till_orders_synced().await.map_err(MadarError::from)?;
+        Ok(SyncedOrders { data: s.data, meta: s.meta })
+    }
+
+    /// The current till's Z report with its freshness and queue.
+    pub async fn till_report_synced(&self) -> Result<SyncedTillReport, MadarError> {
+        let s = self.inner.till_report_synced().await.map_err(MadarError::from)?;
+        Ok(SyncedTillReport { data: s.data, meta: s.meta })
+    }
+
+    /// The kitchen board with its freshness and queue.
+    pub async fn kds_list_synced(&self, station_id: Option<String>) -> Result<SyncedKitchen, MadarError> {
+        let s = self.inner.kds_list_synced(station_id).await.map_err(MadarError::from)?;
+        Ok(SyncedKitchen { data: s.data, meta: s.meta })
+    }
+
+    /// The delivery queue with its freshness and queue.
+    pub async fn list_delivery_orders_synced(&self, status: Option<String>) -> Result<SyncedDeliveries, MadarError> {
+        let s = self.inner.list_delivery_orders_synced(status).await.map_err(MadarError::from)?;
+        Ok(SyncedDeliveries { data: s.data, meta: s.meta })
     }
 }

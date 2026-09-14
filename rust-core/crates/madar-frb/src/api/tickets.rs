@@ -158,7 +158,7 @@ impl MadarBridge {
     pub async fn settle_ticket(
         &self,
         ticket_id: String,
-        shift_id: String,
+        till_id: String,
         payment_method_id: String,
         amount_tendered_minor: Option<i64>,
         tip_minor: Option<i64>,
@@ -183,7 +183,7 @@ impl MadarBridge {
         self.inner
             .settle_ticket(
                 ticket_id,
-                shift_id,
+                till_id,
                 payment_method_id,
                 amount_tendered_minor,
                 tip_minor,

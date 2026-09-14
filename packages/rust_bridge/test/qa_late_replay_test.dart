@@ -9,13 +9,13 @@ import 'package:rust_bridge/rust_bridge.dart';
 import 'host_library.dart';
 
 /// Reproduces the cross-till close race and its fix: a teller queues orders
-/// OFFLINE, ANOTHER till closes the shift server-side, then the queue drains.
-/// The replayed sales must land onto the (now closed) shift and reconcile its
+/// OFFLINE, ANOTHER till closes the till server-side, then the queue drains.
+/// The replayed sales must land onto the (now closed) till and reconcile its
 /// cash total instead of dead-lettering forever.
 ///
 /// Run behind a killable proxy so "offline" is real:
 ///   tool/qa_late_replay.sh   (MADAR_QA_API points at the proxy; the runner
-///   toggles it and, on the offline signal, closes the shift via psql).
+///   toggles it and, on the offline signal, closes the till via psql).
 void main() {
   final api = Platform.environment['MADAR_QA_API'];
   final email = Platform.environment['MADAR_QA_EMAIL'];
@@ -72,7 +72,7 @@ void main() {
   test(
     'orders queued offline replay into a shift closed by another till',
     () async {
-      // Online setup + an open shift with a known opening float.
+      // Online setup + an open till with a known opening float.
       await core.bridge.login(
         req: LoginRequest(
           mode: LoginMode.email,
@@ -95,13 +95,13 @@ void main() {
         ),
       );
       await core.bridge.refreshCatalog();
-      final shift = await core.bridge.refreshShift();
-      if (!(shift?.isOpen ?? false)) {
-        await core.bridge.openShift(openingCashMinor: 20000);
+      final till = await core.bridge.refreshTill();
+      if (!(till?.isOpen ?? false)) {
+        await core.bridge.openTill(openingCashMinor: 20000);
       }
-      final openShift = await core.bridge.currentShift();
-      final shiftId = openShift!.id;
-      final report0 = await core.bridge.shiftReport();
+      final openTill = await core.bridge.currentTill();
+      final tillId = openTill!.id;
+      final report0 = await core.bridge.tillReport();
       final expectedBefore = report0.expectedCashMinor;
 
       final items = await core.bridge.listMenuItems();
@@ -115,14 +115,14 @@ void main() {
       // ── Network drops; drive the failure streak to flip offline. ──
       await signal(
         'qa_offline',
-      ); // runner: kill proxy AND close the shift (psql)
+      ); // runner: kill proxy AND close the till (psql)
       var online = true;
       for (var i = 0; i < 12 && online; i++) {
         online = await core.bridge.refreshConnectivity();
       }
       expect(online, isFalse);
 
-      // Two CASH sales while offline → both queue against the (now-closed) shift.
+      // Two CASH sales while offline → both queue against the (now-closed) till.
       var cashTotal = 0;
       for (var i = 0; i < 2; i++) {
         await core.bridge.cartClear();
@@ -155,17 +155,17 @@ void main() {
         await Future<void>.delayed(const Duration(seconds: 1));
         pending = await core.bridge.pendingOutboxCount();
       }
-      final status = await core.bridge.syncStatus();
+      final status = core.bridge.syncStatus();
       expect(
         pending,
         0,
         reason:
-            'late sales must NOT dead-letter (pending=${status.pending} '
-            'failed=${status.failed} authPaused=${status.authPaused})',
+            'late sales must NOT dead-letter (pending=${status.pendingOutbox} '
+            'failed=${status.deadOutbox} authPaused=${status.authPaused})',
       );
 
-      // The closed shift's Z-report must now include the two late cash sales.
-      final report1 = await core.bridge.shiftReportFor(shiftId: shiftId);
+      // The closed till's Z-report must now include the two late cash sales.
+      final report1 = await core.bridge.tillReportFor(tillId: tillId);
       expect(
         report1.isOpen,
         isFalse,

@@ -40,7 +40,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"
 # `stream` enables `Response::bytes_stream()` — the basis of the hand-rolled SSE
 # reader in realtime.rs (the unified per-branch event bus). openapi-generator emits
 # no usable text/event-stream method, so the streaming consumer is hand-written.
-reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider", "stream"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider", "stream", "gzip", "brotli"] }
 # Stream combinators (`StreamExt::next`) for draining `bytes_stream()` in the SSE
 # supervisor. Pure-Rust, cross-compiles clean; `alloc`/`std` only, no executor.
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
@@ -85,17 +85,19 @@ mdns-sd = "0.20"
 # are trusted, so the relay can't be an injection vector.
 hmac = "0.13"
 sha2 = "0.11"
+# Content-addressed assets (assets.rs): pure-Rust zstd DECODER for `.lottie.zst`.
+ruzstd = "0.8"
 
 # Local store — embedded SQLite, the source of truth the UI reads from, online
 # or offline. `bundled` vendors SQLite so there's no system dependency.
-rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled", "hooks"] }
 # DTO/payload (de)serialization + ids + timestamps + the FFI error model.
 serde = { version = "1", features = ["derive"] }
 # Money. The tax engine mirrors MadarRust's exactly, and f64 rounding is the
 # one way two correct implementations can still disagree by a piastre.
 rust_decimal = { version = "1", default-features = false, features = ["serde"] }
 rust_decimal_macros = "1"
-serde_json = "1"
+serde_json = { version = "1", features = ["raw_value"] }
 uuid = { version = "1", features = ["serde", "v4", "v5"] }
 chrono = { version = "0.4", features = ["serde"] }
 # IANA timezone math so the client derives an order's BUSINESS DATE in the branch

@@ -1,0 +1,23 @@
+# Template. tool/old_client_api_check.sh copies this harness next to a temp
+# worktree of an OLD POS release and substitutes @MADAR_API@ with that
+# worktree's rust-core/crates/madar-api. Not a member of the rust-core workspace.
+[package]
+name = "old_client_api_check"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[features]
+# Exactly one: which POS release's generated models are being checked.
+v051 = []
+v060 = []
+v061 = []
+
+[dependencies]
+madar-api = { path = "@MADAR_API@" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde"] }

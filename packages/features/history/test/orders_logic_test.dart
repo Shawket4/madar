@@ -1,13 +1,14 @@
-// Orders tells "no shift" from "could not read", keeps a stable newest-first
+// Orders tells "no till" from "could not read", keeps a stable newest-first
 // order by the instant, and under All keeps paging to find a search.
 
 import 'package:app_core/app_core.dart';
 import 'package:feature_history/feature_history.dart';
+import 'package:feature_history/src/widgets.dart' show saleNumberText;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-const _shift = ShiftView(
+const _till = TillView(
   id: 'sh-1',
   branchId: 'br-1',
   tellerId: 'u-1',
@@ -16,6 +17,8 @@ const _shift = ShiftView(
   openedAt: '2026-09-12T15:02:00Z',
   status: 'open',
   isOpen: true,
+  verification: 'server',
+  openedWhileAnotherOpen: false,
 );
 
 OrderSummaryView _o(String id, int number, String at) => OrderSummaryView(
@@ -30,10 +33,11 @@ OrderSummaryView _o(String id, int number, String at) => OrderSummaryView(
   queued: false,
   orderType: 'takeaway',
   priceFlagged: false,
+  displayNumber: '',
 );
 
 class _Bridge implements MadarBridge {
-  ShiftView? shift = _shift;
+  TillView? till = _till;
   bool failList = false;
   int listCalls = 0;
   List<OrderSummaryView> rows = const [];
@@ -47,8 +51,8 @@ class _Bridge implements MadarBridge {
       final code = invocation.namedArguments[#code] as String;
       return code.isEmpty ? code : code[0].toUpperCase() + code.substring(1);
     }
-    if (name == #shiftCashSalesMinor) {
-      final r = invocation.namedArguments[#report] as ShiftReportView;
+    if (name == #tillCashSalesMinor) {
+      final r = invocation.namedArguments[#report] as TillReportView;
       return r.expectedCashMinor -
           r.openingCashMinor -
           r.cashInMinor +
@@ -92,7 +96,7 @@ class _Bridge implements MadarBridge {
             .where((o) => o.code == method.toLowerCase())
             .firstOrNull
             ?.code,
-        crossesShift: false,
+        crossesTill: false,
       );
     }
     final args = invocation.namedArguments;
@@ -107,8 +111,8 @@ class _Bridge implements MadarBridge {
         const MadarError.offline(detail: 'x'),
       );
     }
-    if (name == #currentShift) return Future<ShiftView?>.value(shift);
-    if (name == #listShiftOrders) {
+    if (name == #currentTill) return Future<TillView?>.value(till);
+    if (name == #listTillOrders) {
       listCalls++;
       return failList
           ? Future<List<OrderSummaryView>>.error(
@@ -116,19 +120,26 @@ class _Bridge implements MadarBridge {
             )
           : Future<List<OrderSummaryView>>.value(rows);
     }
-    if (name == #shiftStats) {
-      return Future<ShiftStatsView>.value(
-        const ShiftStatsView(salesMinor: 0, orderCount: 0),
+    if (name == #tillStats) {
+      return Future<TillStatsView>.value(
+        const TillStatsView(salesMinor: 0, orderCount: 0),
       );
     }
     if (name == #syncStatus) {
-      return Future<SyncStatusView>.value(
-        const SyncStatusView(
-          pending: 0,
-          failed: 0,
-          blocked: 0,
-          online: true,
-          authPaused: false,
+      return SyncStatusView(
+        pendingOutbox: 0,
+        deadOutbox: 0,
+        blocked: 0,
+        freshness: const FreshnessView(state: 'fresh'),
+        online: true,
+        authPaused: false,
+        phase: 'idle',
+        assets: AssetSyncView(
+          needed: 0,
+          missing: 0,
+          downloading: false,
+          bytesDone: BigInt.zero,
+          bytesTotal: BigInt.zero,
         ),
       );
     }
@@ -165,6 +176,27 @@ void main() {
   late _Bridge bridge;
   late ProviderContainer container;
 
+  test('a sale reads by its device number, then the server number', () {
+    final server = _o('o-1', 12, '2026-09-12T15:10:00Z');
+    expect(saleNumberText(server), '12');
+    OrderSummaryView withDisplay(String d) => OrderSummaryView(
+      id: server.id,
+      orderNumber: server.orderNumber,
+      subtotalMinor: server.subtotalMinor,
+      taxMinor: server.taxMinor,
+      totalMinor: server.totalMinor,
+      paymentLabel: server.paymentLabel,
+      status: server.status,
+      createdAt: server.createdAt,
+      queued: false,
+      orderType: server.orderType,
+      priceFlagged: false,
+      displayNumber: d,
+    );
+    expect(saleNumberText(withDisplay('36B-12')), '36B-12');
+    expect(saleNumberText(withDisplay('36B-12~AB12')), '36B-12~AB12');
+  });
+
   setUp(() {
     bridge = _Bridge();
     container = ProviderContainer(
@@ -174,11 +206,11 @@ void main() {
   tearDown(() => container.dispose());
 
   test('no shift is a state: no list call, no toast, no error', () async {
-    bridge.shift = null;
+    bridge.till = null;
     container.listen(historyProvider, (_, _) {});
     await _settle();
     final s = container.read(historyProvider);
-    expect(s.hasShift, isFalse);
+    expect(s.hasTill, isFalse);
     expect(s.loading, isFalse);
     expect(s.toast, isNull);
     expect(s.error, isNull);
@@ -192,7 +224,7 @@ void main() {
     final s = container.read(historyProvider);
     expect(s.error, isNotNull);
     expect(s.toast, isNull);
-    expect(s.hasShift, isTrue);
+    expect(s.hasTill, isTrue);
   });
 
   test('rows sort by the instant, not the text, and ties keep order', () async {

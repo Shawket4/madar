@@ -16,15 +16,15 @@ pub struct FinalizeInput {
     /// The actual method the customer paid (overrides the hint). Must be an org method.
     #[serde(rename = "payment_method")]
     pub payment_method: String,
-    #[serde(rename = "shift_id")]
-    pub shift_id: uuid::Uuid,
+    #[serde(rename = "till_id")]
+    pub till_id: uuid::Uuid,
 }
 
 impl FinalizeInput {
-    pub fn new(payment_method: String, shift_id: uuid::Uuid) -> FinalizeInput {
+    pub fn new(payment_method: String, till_id: uuid::Uuid) -> FinalizeInput {
         FinalizeInput {
             payment_method,
-            shift_id,
+            till_id,
         }
     }
 }

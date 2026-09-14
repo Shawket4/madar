@@ -40,7 +40,7 @@ String _saleMeta(MadarBridge bridge, OrderSummaryView o) => [
 ].join(' · ');
 
 /// Why Void does not apply to [o], in words — or null when it does. The one
-/// refusal the till cannot see ahead (a closed shift) comes back from the
+/// refusal the till cannot see ahead (a closed till) comes back from the
 /// server and lands in the void sheet's banner.
 String? _voidBlocked(MadarBridge bridge, OrderSummaryView o) =>
     switch (SaleState.of(o)) {
@@ -706,7 +706,7 @@ class _VoidFormNotifier extends Notifier<_VoidFormState> {
   void toggleRestock({required bool on}) => state = state.copyWith(restock: on);
 
   /// Void the sale — true on success (the sheet pops). A void moves the
-  /// shift stats, so the shell refreshes here; a refusal (the shift is
+  /// till stats, so the shell refreshes here; a refusal (the till is
   /// closed, the order is not this branch's) lands in [_VoidFormState.error]
   /// in the server's words — the till cannot pre-check them.
   Future<bool> confirm({required String orderId, required String note}) async {
@@ -939,7 +939,7 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
                 ),
                 // An old sale's refund still leaves TODAY's drawer; say so
                 // before the money moves.
-                if (_plan?.crossesShift ?? false)
+                if (_plan?.crossesTill ?? false)
                   NoticeBanner(
                     text: t('history.refund_other_shift'),
                     icon: 'exclamationmark.triangle',

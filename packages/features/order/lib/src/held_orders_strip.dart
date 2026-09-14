@@ -154,7 +154,7 @@ class HeldOrdersStrip extends ConsumerWidget {
     }
 
     return ColoredBox(
-      color: colors.surface,
+      color: colors.bg,
       child: Column(
         children: [
           SizedBox(

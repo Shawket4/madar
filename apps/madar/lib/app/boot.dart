@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // `Override` moved to the misc library in Riverpod 3.
 import 'package:flutter_riverpod/misc.dart';
 import 'package:madar/app/host_vault.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
@@ -17,6 +18,18 @@ const _apiBase = String.fromEnvironment(
   defaultValue: 'https://api.madar-pos.cloud',
 );
 const _environment = String.fromEnvironment('MADAR_ENV', defaultValue: 'prod');
+
+/// This build's version as the platform bundle reports it (the pubspec
+/// `version`), for the core's client header. `null` when the platform cannot
+/// say (a test host without the plugin) — the core then falls back.
+Future<String?> appVersion() async {
+  try {
+    final version = (await PackageInfo.fromPlatform()).version;
+    return version.isEmpty ? null : version;
+  } on Object {
+    return null;
+  }
+}
 
 /// What a successful boot yields: the live core handle + the host vault.
 class BootData {
@@ -69,6 +82,7 @@ class BootNotifier extends AsyncNotifier<BootData> {
           environment: _environment,
           dbPath: '${docs.path}${Platform.pathSeparator}madar.db',
           locale: vault.locale.isEmpty ? 'en' : vault.locale,
+          appVersion: await appVersion(),
         ),
       );
 
@@ -161,6 +175,10 @@ class RealtimeArmer {
   RealtimeSession? _realtime;
   StreamSubscription<RealtimeMessage>? _events;
   StreamSubscription<AlertCommand>? _alerts;
+  late final TableChangeWatcher _tables = TableChangeWatcher(
+    subscribe: _core.bridge.watchTables,
+    apply: (tables) => applyTableChanges(_ref, tables),
+  );
 
   /// The `realtimeArmerProvider` hook — `ShellNotifier.refresh` calls it
   /// after every state-moving bridge call; the subscription is
@@ -168,6 +186,12 @@ class RealtimeArmer {
   void call() => unawaited(_ensure());
 
   Future<void> _ensure() async {
+    // The core's table-change stream drives every board re-read: a pull that
+    // landed, a sale rung here, a peer's mirrored op, a realtime event. One
+    // subscription for the app's life; it outlives sign-outs.
+    // Resubscribes with backoff if the stream drops, and keeps the boards
+    // re-reading while it is down (see TableChangeWatcher).
+    _tables.start();
     if (_core.bridge.currentSession() == null) {
       _realtime = null;
       return;
@@ -189,53 +213,17 @@ class RealtimeArmer {
 
   void _onEvent(RealtimeMessage message) {
     switch (message) {
-      case RealtimeMessage_Event(:final eventType):
-        if (eventType.startsWith('kitchen.')) {
-          _ref.read(kitchenTickProvider.notifier).bump();
-        }
-        if (eventType.startsWith('ticket.')) {
-          _ref.read(ticketTickProvider.notifier).bump();
-        }
-        if (eventType.startsWith('delivery.') ||
-            eventType.startsWith('order.')) {
-          _ref.read(deliveryTickProvider.notifier).bump();
-        }
-        // A settled/voided bill or an order changes what the drawer should
-        // hold. The backend publishes no shift/cash event, so these are the
-        // closest cross-device signal for the Till's expected cash.
-        if (eventType.startsWith('order.') || eventType.startsWith('ticket.')) {
-          _ref.read(drawerTickProvider.notifier).bump();
-        }
-        // The floor moved: a manager re-arranged the room in the dashboard
-        // (`floor.layout_changed`), a table changed state, or another till
-        // parked/seated a party. The order surface re-pulls the mirrors.
-        if (eventType.startsWith('floor.') ||
-            eventType.startsWith('table.') ||
-            eventType.startsWith('transfer.')) {
-          _ref.read(floorTickProvider.notifier).bump();
-        }
-        // A booking changed: the canvas (reserved tables) and the arrivals
-        // list both re-pull. Rides the same connection as everything else.
-        if (eventType.startsWith('booking.')) {
-          _ref.read(floorTickProvider.notifier).bump();
-          _ref.read(bookingTickProvider.notifier).bump();
-        }
-        // The server could not replay our gap (buffer evicted / restart):
-        // every board re-seeds, exactly as it does on reconnect.
-        if (eventType == 'resync') {
-          _ref.read(kitchenTickProvider.notifier).bump();
-          _ref.read(ticketTickProvider.notifier).bump();
-          _ref.read(deliveryTickProvider.notifier).bump();
-          _ref.read(floorTickProvider.notifier).bump();
-          _ref.read(bookingTickProvider.notifier).bump();
-          _ref.read(drawerTickProvider.notifier).bump();
-        }
+      // Board re-reads ride the core's table-change stream: the core turns
+      // every event (and the pull it nudges) into the tables it moves.
+      case RealtimeMessage_Event():
+        break;
       case RealtimeMessage_ConnectionChanged(:final connected):
         _ref.read(realtimeConnectedProvider.notifier).update(connected);
     }
   }
 
   void dispose() {
+    _tables.dispose();
     unawaited(_events?.cancel());
     unawaited(_alerts?.cancel());
   }

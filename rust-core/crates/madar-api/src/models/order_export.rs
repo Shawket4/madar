@@ -37,6 +37,12 @@ pub struct OrderExport {
     /// Links a finalized delivery order back to its `delivery_orders` row (customer, address, channel, zone). `null` for dine-in orders.
     #[serde(rename = "delivery_order_id", skip_serializing_if = "Option::is_none")]
     pub delivery_order_id: Option<uuid::Uuid>,
+    /// That device's code (`36B`), stored with the order. `null` when server-numbered.
+    #[serde(rename = "device_code", skip_serializing_if = "Option::is_none")]
+    pub device_code: Option<String>,
+    /// The device that numbered this sale (contract R4). `null` for server-numbered orders (old clients, dashboard, delivery).
+    #[serde(rename = "device_id", skip_serializing_if = "Option::is_none")]
+    pub device_id: Option<uuid::Uuid>,
     #[serde(rename = "discount_amount")]
     pub discount_amount: i32,
     #[serde(rename = "discount_id", skip_serializing_if = "Option::is_none")]
@@ -49,8 +55,14 @@ pub struct OrderExport {
     /// LEGACY SPELLING — an integer, 0-100 for a percentage. See `discounts::wire`: every shipped till was generated against `integer`, and a double here fails to deserialise the whole ORDER, not just this field. Read [`Order::discount_rate`] for the stored number.
     #[serde(rename = "discount_value")]
     pub discount_value: i64,
+    /// What receipts and lists show: `<device_code>-<order_number>` (`36B-12`) for a device-numbered sale, else `order_number` as text.
+    #[serde(rename = "display_number", skip_serializing_if = "Option::is_none")]
+    pub display_number: Option<String>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// The client-minted key the sale was created with (a till's sale, or the ticket id of a settled bill). An offline POS identifies its own row by it when a list read brings the sale back (OFFLINE_B_DESIGN §7). Additive.
+    #[serde(rename = "idempotency_key", skip_serializing_if = "Option::is_none")]
+    pub idempotency_key: Option<uuid::Uuid>,
     /// The loyalty member this sale redeemed for (or was scanned for).
     #[serde(
         rename = "loyalty_customer_id",
@@ -65,6 +77,9 @@ pub struct OrderExport {
     pub loyalty_member_name: Option<String>,
     #[serde(rename = "notes", skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+    /// The open ticket this sale settled, if any. Additive.
+    #[serde(rename = "open_ticket_id", skip_serializing_if = "Option::is_none")]
+    pub open_ticket_id: Option<uuid::Uuid>,
     #[serde(rename = "order_number")]
     pub order_number: i32,
     /// Human-readable, org-unique reference (e.g. \"DT-260614-0042\"). Additive alongside the per-shift order_number. Optional only during the rollout window before the historical backfill runs; never null afterwards.
@@ -94,6 +109,7 @@ pub struct OrderExport {
         skip_serializing_if = "Option::is_none"
     )]
     pub service_charge_amount: Option<i32>,
+    /// DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0).
     #[serde(rename = "shift_id")]
     pub shift_id: uuid::Uuid,
     #[serde(rename = "status")]
@@ -106,6 +122,8 @@ pub struct OrderExport {
     pub teller_id: uuid::Uuid,
     #[serde(rename = "teller_name")]
     pub teller_name: String,
+    #[serde(rename = "till_id")]
+    pub till_id: uuid::Uuid,
     /// The branch's effective IANA timezone (see `crate::tz`) — the zone every timestamp on this payload is shown and printed in. Additive: older clients ignore it; `null` only where a write path does not resolve it.
     #[serde(rename = "timezone", skip_serializing_if = "Option::is_none")]
     pub timezone: Option<String>,
@@ -115,6 +133,9 @@ pub struct OrderExport {
     pub tip_payment_method: Option<String>,
     #[serde(rename = "total_amount")]
     pub total_amount: i32,
+    /// `server` | `lan` | `unverified` — the till's verification as the ringing device knew it; `null` when not recorded.
+    #[serde(rename = "verification", skip_serializing_if = "Option::is_none")]
+    pub verification: Option<String>,
     #[serde(rename = "void_note", skip_serializing_if = "Option::is_none")]
     pub void_note: Option<String>,
     #[serde(rename = "void_reason", skip_serializing_if = "Option::is_none")]
@@ -152,6 +173,7 @@ impl OrderExport {
         tax_amount: i32,
         teller_id: uuid::Uuid,
         teller_name: String,
+        till_id: uuid::Uuid,
         total_amount: i32,
         items: Vec<models::OrderItemFull>,
         payments: Vec<models::OrderPayment>,
@@ -167,15 +189,20 @@ impl OrderExport {
             delivery_lat: None,
             delivery_lng: None,
             delivery_order_id: None,
+            device_code: None,
+            device_id: None,
             discount_amount,
             discount_id: None,
             discount_rate: None,
             discount_type: None,
             discount_value,
+            display_number: None,
             id,
+            idempotency_key: None,
             loyalty_customer_id: None,
             loyalty_member_name: None,
             notes: None,
+            open_ticket_id: None,
             order_number,
             order_ref: None,
             order_type,
@@ -190,10 +217,12 @@ impl OrderExport {
             tax_amount,
             teller_id,
             teller_name,
+            till_id,
             timezone: None,
             tip_amount: None,
             tip_payment_method: None,
             total_amount,
+            verification: None,
             void_note: None,
             void_reason: None,
             voided_at: None,

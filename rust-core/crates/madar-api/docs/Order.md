@@ -14,15 +14,20 @@ Name | Type | Description | Notes
 **delivery_lat** | Option<**f64**> | Customer location of the linked delivery order, so clients can link out to a map (e.g. Google Maps) without a per-order detail fetch. `null` for dine-in orders or delivery orders without captured coordinates. | [optional]
 **delivery_lng** | Option<**f64**> |  | [optional]
 **delivery_order_id** | Option<**uuid::Uuid**> | Links a finalized delivery order back to its `delivery_orders` row (customer, address, channel, zone). `null` for dine-in orders. | [optional]
+**device_code** | Option<**String**> | That device's code (`36B`), stored with the order. `null` when server-numbered. | [optional]
+**device_id** | Option<**uuid::Uuid**> | The device that numbered this sale (contract R4). `null` for server-numbered orders (old clients, dashboard, delivery). | [optional]
 **discount_amount** | **i32** |  | 
 **discount_id** | Option<**uuid::Uuid**> |  | [optional]
 **discount_rate** | Option<**f64**> | The stored value — a fraction for a percentage. Same column as [`Order::discount_value`]. | [optional]
 **discount_type** | Option<**String**> |  | [optional]
 **discount_value** | **i64** | LEGACY SPELLING — an integer, 0-100 for a percentage. See `discounts::wire`: every shipped till was generated against `integer`, and a double here fails to deserialise the whole ORDER, not just this field. Read [`Order::discount_rate`] for the stored number. | 
+**display_number** | Option<**String**> | What receipts and lists show: `<device_code>-<order_number>` (`36B-12`) for a device-numbered sale, else `order_number` as text. | [optional]
 **id** | **uuid::Uuid** |  | 
+**idempotency_key** | Option<**uuid::Uuid**> | The client-minted key the sale was created with (a till's sale, or the ticket id of a settled bill). An offline POS identifies its own row by it when a list read brings the sale back (OFFLINE_B_DESIGN §7). Additive. | [optional]
 **loyalty_customer_id** | Option<**uuid::Uuid**> | The loyalty member this sale redeemed for (or was scanned for). | [optional]
 **loyalty_member_name** | Option<**String**> | That member's name, for the order detail. `None` once forgotten. | [optional]
 **notes** | Option<**String**> |  | [optional]
+**open_ticket_id** | Option<**uuid::Uuid**> | The open ticket this sale settled, if any. Additive. | [optional]
 **order_number** | **i32** |  | 
 **order_ref** | Option<**String**> | Human-readable, org-unique reference (e.g. \"DT-260614-0042\"). Additive alongside the per-shift order_number. Optional only during the rollout window before the historical backfill runs; never null afterwards. | [optional]
 **order_type** | **String** | What kind of sale: \"dine_in\" (settled from a waiter's ticket — the only kind that carries a service charge), \"takeaway\" (rung straight through the till) or \"delivery\" (a finalized delivery order). Till sales before 2026-09 say \"dine_in\" because \"takeaway\" could not be expressed. | 
@@ -31,16 +36,18 @@ Name | Type | Description | Notes
 **price_expected_total** | Option<**i32**> | What the catalogue says this sale should have come to, when it differs. Beside `subtotal` it is the size of the drift, which is the question anyone looking at a flagged sale asks next. | [optional]
 **price_flagged** | Option<**bool**> | This sale was rung against a catalogue that has since moved: a line was charged at a price the menu no longer says, or the item was disabled at this branch. Both mean a till that was OFFLINE when something changed — a live sale is priced by the server and cannot deviate.  Recorded, never rejected: the money already changed hands. It is here so the POS and the dashboard can SHOW it, which is the whole point of flagging something. | [optional]
 **service_charge_amount** | Option<**i32**> | The service charge on this bill; `0` where the branch charges none. Its own field, and its own receipt line: a charge the customer did not choose is stated separately from the tax rather than folded into it. | [optional]
-**shift_id** | **uuid::Uuid** |  | 
+**shift_id** | **uuid::Uuid** | DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0). | 
 **status** | **String** |  | 
 **subtotal** | **i32** |  | 
 **tax_amount** | **i32** |  | 
 **teller_id** | **uuid::Uuid** |  | 
 **teller_name** | **String** |  | 
+**till_id** | **uuid::Uuid** |  | 
 **timezone** | Option<**String**> | The branch's effective IANA timezone (see `crate::tz`) — the zone every timestamp on this payload is shown and printed in. Additive: older clients ignore it; `null` only where a write path does not resolve it. | [optional]
 **tip_amount** | Option<**i32**> |  | [optional]
 **tip_payment_method** | Option<**String**> |  | [optional]
 **total_amount** | **i32** |  | 
+**verification** | Option<**String**> | `server` | `lan` | `unverified` — the till's verification as the ringing device knew it; `null` when not recorded. | [optional]
 **void_note** | Option<**String**> |  | [optional]
 **void_reason** | Option<**String**> |  | [optional]
 **voided_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]

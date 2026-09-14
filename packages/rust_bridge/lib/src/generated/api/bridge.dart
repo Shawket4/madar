@@ -9,6 +9,7 @@ import 'cart.dart';
 import 'catalog.dart';
 import 'delivery.dart';
 import 'device.dart';
+import 'drawer.dart';
 import 'error.dart';
 import 'floor.dart';
 import 'kds.dart';
@@ -18,7 +19,6 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'printing.dart';
 import 'realtime.dart';
 import 'routes.dart';
-import 'shift.dart';
 import 'sync.dart';
 import 'tickets.dart';
 import 'till.dart';
@@ -57,6 +57,8 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// window is evaluated in the till's timezone (Flutter parity).
   Future<List<BundleView>> availableBundles({required String nowRfc3339});
 
+  Future<List<PaymentMethodView>> availablePaymentMethods();
+
   /// API base URL the core will talk to (from `.env`).
   String baseUrl();
 
@@ -67,6 +69,8 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? discountType,
     double? discountValue,
   });
+
+  Future<List<BranchOpenTillView>> branchOpenTills();
 
   /// The branch's IANA timezone name (cached at login, or the Cairo fallback) —
   /// for any host that needs the raw zone (e.g. a platform date picker).
@@ -209,6 +213,8 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Flutter's `CatStyle.of`. `dark` picks the dark-mode palette.
   CatStyleView categoryStyle({required String name, required bool dark});
 
+  Future<TillElsewhereView?> checkTillElsewhere();
+
   Future<ReceiptView> checkout({String? tableId, required CheckoutInput input});
 
   /// Decide what a captured string is: a whole member token, a phone number,
@@ -243,13 +249,13 @@ abstract class MadarBridge implements RustOpaqueInterface {
     PlatformInt64? countedMinor,
   });
 
-  /// Close the current open shift: count the closing drawer cash + an optional
-  /// note. Marks the shift closed locally and queues an idempotent
-  /// `close_shift` command; works offline. Errors if there is no open shift.
-  Future<void> closeShift({
+  Future<CloseTillOutcomeView> closeTill({
     required PlatformInt64 closingCashMinor,
     String? cashNote,
+    required List<ReconciliationInput> reconciliation,
   });
+
+  Future<CloseTillPreviewView> closeTillPreview();
 
   /// Mark a restored draft COMPLETED after its cart checked out — the host
   /// calls this right after a successful ring-up of a resumed draft.
@@ -280,7 +286,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   SessionSnapshot? currentSession();
 
-  Future<ShiftView?> currentShift();
+  Future<TillView?> currentTill();
 
   /// SQLite path the host handed us (empty => in-memory).
   String dbPath();
@@ -341,6 +347,8 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The device's current binding (for device-setup / Settings + screen chrome).
   DeviceConfigView deviceConfig();
 
+  String deviceId();
+
   /// Discard a parked draft (frees its table + any waitlist wish).
   Future<void> discardDraft({required String id});
 
@@ -369,20 +377,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// every table affordance (the feature gate).
   Future<FloorLayoutView> floorLayout();
 
-  /// Close someone else's shift, as a manager.
-  ///
-  /// A till left signed in with an open drawer blocks the next person from
-  /// opening one. The ordinary close belongs to whoever opened the shift;
-  /// this is the way out when they have gone home.
-  ///
-  /// Online only, and it says so rather than queueing: a forced close
-  /// arbitrates between two people and a drawer, and the server holds the
-  /// facts that decide it. The reason is required — a drawer closed by
-  /// someone who was not counting it needs a sentence saying why.
-  Future<void> forceCloseShift({
-    required String shiftId,
-    required String reason,
-  });
+  Future<void> forceCloseTill({required String tillId, required String reason});
 
   /// A duration in seconds: `42m`, `1h 05m`, `2d 03h` (Arabic `42 د`…).
   String formatElapsed({required PlatformInt64 secs});
@@ -454,6 +449,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The branch's kitchen stations (the KDS device-setup / chit-routing picker).
   Future<List<KdsStationView>> kdsListStations();
 
+  /// The kitchen board with its freshness and queue.
+  Future<SyncedKitchen> kdsListSynced({String? stationId});
+
   /// Un-bump a kitchen line (undo a mistaken bump). Same outbox-first path.
   Future<void> kdsUnbump({required String itemId});
 
@@ -491,8 +489,6 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// live (manager) session; online-only.
   Future<List<BranchView>> listBranches();
 
-  /// Cash movements for the open shift — server rows merged with still-queued
-  /// (offline) ones, so the drawer view is complete with or without a connection.
   Future<List<CashMovementView>> listCashMovements();
 
   Future<List<CategoryView>> listCategories();
@@ -500,6 +496,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The branch's delivery queue (newest first). `status` is a comma-separated
   /// wire filter (e.g. "received,confirmed"); `None` = all. Online-only.
   Future<List<DeliveryOrderView>> listDeliveryOrders({String? status});
+
+  /// The delivery queue with its freshness and queue.
+  Future<SyncedDeliveries> listDeliveryOrdersSynced({String? status});
 
   Future<List<DiscountView>> listDiscounts();
 
@@ -525,6 +524,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// `status = "queued"` — offline-first visibility before the fire syncs.
   Future<List<TicketView>> listOpenTickets();
 
+  /// The open bills with their freshness and this device's queue for them.
+  Future<SyncedTickets> listOpenTicketsSynced();
+
   /// What has already been given back against one sale, and what may still
   /// be. Cached per order, with any refund still in the outbox overlaid, so
   /// a teller offline cannot hand the same money over twice.
@@ -532,7 +534,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// A PAST shift's synced orders (history-screen expansion). Live when
   /// online, else the last-synced snapshot.
-  Future<List<OrderSummaryView>> listOrdersForShift({required String shiftId});
+  Future<List<OrderSummaryView>> listOrdersForTill({required String tillId});
 
   /// Queued + failed commands for the sync center (acked rows hidden), oldest
   /// first. Always succeeds offline.
@@ -542,19 +544,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// The current shift's orders — still-queued sales (offline-safe) plus
   /// the server's synced orders when online (best-effort).
-  Future<List<OrderSummaryView>> listShiftOrders();
+  Future<List<OrderSummaryView>> listTillOrders();
+
+  /// The current till's sales with their freshness and queue.
+  Future<SyncedOrders> listTillOrdersSynced();
 
   /// Every refund issued during a shift — the Z-report's line, and why the
   /// counted drawer is lighter than the sales say.
-  Future<ShiftRefundsView> listShiftRefunds({required String shiftId});
+  Future<TillRefundsView> listTillRefunds({required String tillId});
 
-  /// Past shifts for this branch, newest first (the history screen). Live when
-  /// online (cached write-through), else the last-synced snapshot.
-  Future<List<ShiftSummaryView>> listShifts();
-
-  /// The branch's active tills (the device-setup / Settings till picker). Write-
-  /// through cached so the picker still works offline. Default till first.
-  Future<List<TillView>> listTills();
+  Future<List<TillSummaryView>> listTills();
 
   /// The transfer waitlist (waiting entries, FIFO, labels resolved).
   Future<List<TransferQueueView>> listTransferQueue();
@@ -631,8 +630,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The party never came: release the table. Optimistic-local + queued.
   Future<void> noShowBooking({required String bookingId});
 
-  /// Outbox-first: enqueues the open, drains, returns the local view.
-  Future<ShiftView> openShift({
+  /// `None` when no bills are open.
+  Future<OpenBillsNoticeView?> openBillsNotice();
+
+  Future<OpenTillOutcome> openTill({
     required PlatformInt64 openingCashMinor,
     String? openingReason,
   });
@@ -676,30 +677,19 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// (from the core device config). Errors if no printer is bound.
   Future<void> printToDevice({required List<int> bytes});
 
+  /// The read-path mode of an area (`ledger`, `tickets`, `kitchen`, `delivery`, `bookings`).
+  ReadPathMode readPathMode({required String area});
+
   /// Recent diagnostic warnings (newest first) — the Settings → Diagnostics
   /// feed. Captures sync dead-letters, cascade failures, and auth parks.
   Future<List<DiagLogView>> recentLogs();
 
-  /// Record a cash-drawer movement against the open shift — pay-IN when
-  /// `amount_minor > 0`, pay-OUT when `< 0`. Offline-first and idempotent on a
-  /// minted `client_ref`, so a replay never double-applies cash.
-  ///
-  /// `kind` is `pay_in` | `pay_out` | `safe_drop` | `correction`. It says what
-  /// the sign cannot: a safe drop and a pay-out both take money out of the
-  /// drawer, and only one of them takes it out of the business. `corrects`
-  /// names the movement being reversed, so the pair nets to nothing on the
-  /// report rather than reading as two real movements.
   Future<CashMovementView> recordCashMovement({
     required PlatformInt64 amountMinor,
     required String note,
     String? kind,
     String? corrects,
   });
-
-  /// FALLBACK recovery for the sync center: re-point every order STRANDED by a
-  /// dead `open_shift` onto the CURRENT open shift and sync. Returns the number
-  /// of outbox rows recovered.
-  Future<int> recoverOrphanedOrders();
 
   /// Pull today's active bookings into the offline cache (best-effort; a
   /// `refresh_floor` does this too).
@@ -721,10 +711,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Best-effort: offline leaves the mirrors as they are.
   Future<void> refreshFloor();
 
-  /// Reconcile the device's shift with the server (online). Caches the server's
-  /// open shift, or CLEARS the local cache when the server reports none — call
-  /// this on login and on app resume.
-  Future<ShiftView?> refreshShift();
+  Future<TillView?> refreshTill();
 
   /// The methods a refund of this sale may go back by, the sale's own when
   /// allowed, and whether the refund lands in a later shift than the sale.
@@ -792,14 +779,17 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// `render_receipt`. Pass the shift's `orders` to append the per-order
   /// breakdown (the expanded print); an empty list prints the summary only.
   /// Pair with `send_to_printer`.
-  Future<Uint8List> renderShiftReport({
-    required ShiftReportView report,
+  Future<Uint8List> renderTillReport({
+    required TillReportView report,
     required String storeName,
     required String currency,
     required int width,
     required PrinterBrand brand,
     required List<OrderSummaryView> orders,
   });
+
+  /// Re-verify local asset files and fetch what is missing.
+  Future<AssetSyncView> repairAssets();
 
   /// Restore a draft into `table_id`'s cart (replaces its lines) and CLAIM
   /// it for this till. Errors when another till is editing it.
@@ -816,9 +806,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// normal cold boot. `None` = signed out / fresh install.
   SessionSnapshot? restoreSessionCached();
 
-  /// Requeue every dead command (clearing its error) and try to send now.
-  /// Best-effort — offline just leaves them pending again.
+  /// Requeue every dead command and try to send now.
   Future<void> retryOutbox();
+
+  /// Retry one till's dead commands (a dead `open_till` holds only its till).
+  Future<int> retryTillOutbox({required String tillId});
 
   /// Apply the reward rules to the asked picks (cap, balance, catalogue,
   /// bundles, shrunk or removed lines) and describe every line.
@@ -912,14 +904,14 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Bind the device's kitchen station (a KDS device). `None` clears it.
   Future<void> setDeviceStation({String? stationId});
 
-  /// Bind the device's till (POS drawer). `None` = use the branch default till.
-  Future<void> setDeviceTill({String? tillId});
-
   /// Set the branch's routing mode; `null` clears the override back to auto.
   /// Returns the effective mode the server resolved. Online-only.
   Future<String> setKitchenRoutingMode({String? mode});
 
   void setLocale({required String locale});
+
+  /// Switch an area's read path (the diagnostics toggle).
+  void setReadPathMode({required String area, required ReadPathMode mode});
 
   /// SETTLE an open ticket into a paid order in the cashier's shift (a till
   /// action). Offline-first: the order is materialized server-side at replay,
@@ -930,7 +922,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// it is still queued offline, where no order exists yet.
   Future<String?> settleTicket({
     required String ticketId,
-    required String shiftId,
+    required String tillId,
     required String paymentMethodId,
     PlatformInt64? amountTenderedMinor,
     PlatformInt64? tipMinor,
@@ -942,24 +934,6 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<CheckoutRedemption> loyaltyRedemptions,
     required List<CheckoutSplit> splits,
   });
-
-  /// The drawer arithmetic's cash-sales line, closed on the report's figure.
-  PlatformInt64 shiftCashSalesMinor({required ShiftReportView report});
-
-  /// The current shift's report — drives the close-shift system-cash +
-  /// discrepancy. Online: the server report plus still-queued cash sales.
-  /// Offline / on error: opening cash + queued cash (`from_server = false`).
-  Future<ShiftReportView> shiftReport();
-
-  /// A PAST shift's Z-report (history-screen reprint). Live when online (cached
-  /// write-through), else the cached report; a shift opened+closed entirely
-  /// offline is reconstructed from local data.
-  Future<ShiftReportView> shiftReportFor({required String shiftId});
-
-  /// Live shift stats (sales total + order count) for the action-bar pill,
-  /// derived from the orders the host already loaded via `list_shift_orders`
-  /// (synced + queued), voided excluded. Pure — no extra network.
-  Future<ShiftStatsView> shiftStats({required List<OrderSummaryView> orders});
 
   /// One-call sign-in: online first, offline PIN unlock fallback.
   Future<SessionSnapshot> signIn({required LoginRequest req});
@@ -991,8 +965,6 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// `set_device_branch` confirms a — possibly new — branch).
   Future<void> startReconfigure();
 
-  /// Suggested opening cash for the next shift (minor units) — the previous
-  /// shift's declared closing, for cash continuity. 0 when none is known.
   Future<PlatformInt64> suggestedOpeningCashMinor();
 
   /// Swap whatever sits on two tables (held orders and/or waiter tickets);
@@ -1017,12 +989,17 @@ abstract class MadarBridge implements RustOpaqueInterface {
     HeldParkInput? parkAtTarget,
   });
 
-  /// Force a sync now — drains the outbox. Cancellable/idempotent.
-  Future<void> syncNow();
+  /// Long-press: download everything again (unsent sales are kept).
+  Future<SyncStatusView> syncFull();
 
-  /// Sync health for the action-bar chip + offline banner (counts + online),
-  /// in one cheap local read. Always succeeds offline.
-  Future<SyncStatusView> syncStatus();
+  /// Incremental sync: drain the outbox, then pull.
+  Future<SyncStatusView> syncNow();
+
+  /// The till-open sync strip state.
+  TillOpenSyncView syncOnTillOpenStatus();
+
+  /// Sync health (one cheap local read; always succeeds offline).
+  SyncStatusView syncStatus();
 
   /// A table's history and takings — ONLINE ONLY, never mirrored.
   ///
@@ -1046,6 +1023,18 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// A bill's lines a reward could name.
   List<RewardLineInput> ticketRewardLines({required String ticketId});
+
+  /// The drawer arithmetic's cash-sales line, closed on the report's figure.
+  PlatformInt64 tillCashSalesMinor({required TillReportView report});
+
+  Future<TillReportView> tillReport();
+
+  Future<TillReportView> tillReportFor({required String tillId});
+
+  /// The current till's Z report with its freshness and queue.
+  Future<SyncedTillReport> tillReportSynced();
+
+  Future<TillStatsView> tillStats({required List<OrderSummaryView> orders});
 
   /// The tap on a reward line: one more unit, or clear it.
   List<RewardPick> toggleReward({
@@ -1110,4 +1099,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String itemId,
     String? reason,
   });
+
+  /// Local table changes, as batches of logical table names (`orders`, `tills`,
+  /// `open_tickets`, …, or `*` = re-read everything), coalesced over 50 ms.
+  /// A board re-reads when a table it shows changes; the core decides what
+  /// changed, Dart only listens.
+  Stream<List<String>> watchTables();
 }

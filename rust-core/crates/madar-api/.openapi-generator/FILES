@@ -22,8 +22,15 @@ docs/AiChatKindOneOf1.md
 docs/AiChatKindOneOf2.md
 docs/AiChatRequest.md
 docs/AiChatResponse.md
+docs/AllowList.md
 docs/AnalyticsOrder.md
 docs/AnalyticsResponse.md
+docs/AssetBundleRef.md
+docs/AssetGroupRef.md
+docs/AssetJobResult.md
+docs/AssetJobView.md
+docs/AssetRef.md
+docs/AssetsApi.md
 docs/AssignBranchRequest.md
 docs/AttendanceRecord.md
 docs/AttendanceSettings.md
@@ -97,8 +104,12 @@ docs/ChatFrameOneOf5.md
 docs/CheckInRequest.md
 docs/CheckOutRequest.md
 docs/ClearTableRequest.md
-docs/CloseShiftRequest.md
+docs/ClientSeen.md
 docs/CloseShiftResponse.md
+docs/CloseTillMethod.md
+docs/CloseTillPreview.md
+docs/CloseTillRequest.md
+docs/CloseTillResponse.md
 docs/Column.md
 docs/ColumnKind.md
 docs/CombinedItemSalesRow.md
@@ -147,7 +158,6 @@ docs/CreateStationRequest.md
 docs/CreateStocktakeRequest.md
 docs/CreateSupplierRequest.md
 docs/CreateTableRequest.md
-docs/CreateTillRequest.md
 docs/CreateTransferRequest.md
 docs/CreateUserRequest.md
 docs/CreateUserResponse.md
@@ -175,6 +185,10 @@ docs/DeliverySalesReport.md
 docs/DeliveryTracking.md
 docs/DeliveryZone.md
 docs/Department.md
+docs/Device.md
+docs/DeviceAllowList.md
+docs/DeviceKind.md
+docs/DevicesApi.md
 docs/Dir.md
 docs/Discount.md
 docs/DiscountsApi.md
@@ -224,12 +238,15 @@ docs/KitchenLine.md
 docs/KitchenStation.md
 docs/KitchenTicketItemView.md
 docs/KitchenTicketView.md
+docs/LastTillWarning.md
 docs/LateDeductionKind.md
 docs/LateTier.md
 docs/LeaveBalance.md
 docs/LeaveType.md
 docs/LedgerEntry.md
 docs/LedgerTotals.md
+docs/LedgerWindow.md
+docs/LegacyTill.md
 docs/LoginRequest.md
 docs/LoginResponse.md
 docs/LookupRequest.md
@@ -254,6 +271,7 @@ docs/MenuItem.md
 docs/MenuItemFull.md
 docs/MenuItemRecipe.md
 docs/MenuItemWithCosts.md
+docs/MethodTotal.md
 docs/MetricResult.md
 docs/MetricsApi.md
 docs/MetricsQueryRequest.md
@@ -267,10 +285,12 @@ docs/OfflineTellerCredential.md
 docs/OnboardingStatus.md
 docs/OnboardingStep.md
 docs/OnlineTaxPolicy.md
+docs/OpenBillsNotice.md
 docs/OpenShiftRequest.md
 docs/OpenTicketItemView.md
 docs/OpenTicketView.md
 docs/OpenTicketsApi.md
+docs/OpenTillRequest.md
 docs/OptionRecipeLineInput.md
 docs/OptionalField.md
 docs/Order.md
@@ -286,6 +306,7 @@ docs/OrderItemAddon.md
 docs/OrderItemFull.md
 docs/OrderItemInput.md
 docs/OrderItemOptional.md
+docs/OrderNumberRange.md
 docs/OrderPayment.md
 docs/OrderRefunds.md
 docs/OrderSummary.md
@@ -307,6 +328,7 @@ docs/PaginatedMenuItems.md
 docs/PaginatedOrders.md
 docs/PaginatedOrdersFull.md
 docs/PaginatedShifts.md
+docs/PaginatedTills.md
 docs/PassLinks.md
 docs/PastOrder.md
 docs/PastOrders.md
@@ -314,6 +336,7 @@ docs/PatchGroupRequest.md
 docs/PatchOptionRequest.md
 docs/PauseInput.md
 docs/PaymentLeg.md
+docs/PaymentMethodAvailability.md
 docs/PaymentMethodsApi.md
 docs/PaymentSplitInput.md
 docs/PaymentSummaryRow.md
@@ -339,6 +362,7 @@ docs/PreviewRecipeRequest.md
 docs/PriceOverrideOut.md
 docs/PriceOverrideRequest.md
 docs/PrinterBrand.md
+docs/ProcessingGroupRef.md
 docs/PublicBookingBranch.md
 docs/PublicBookingChange.md
 docs/PublicBookingInfo.md
@@ -354,6 +378,9 @@ docs/PublicTable.md
 docs/PublicTableBill.md
 docs/PublicTableLine.md
 docs/PublicTableRound.md
+docs/PullChange.md
+docs/PullRequest.md
+docs/PullResponse.md
 docs/PurchaseOrder.md
 docs/PurchaseOrderFull.md
 docs/PurchaseOrderLine.md
@@ -374,6 +401,7 @@ docs/QrApi.md
 docs/QrResponse.md
 docs/QuerySpec.md
 docs/QuoteResponse.md
+docs/ReadyGroupRef.md
 docs/RealtimeApi.md
 docs/ReceiveLineInput.md
 docs/ReceivePurchaseOrderRequest.md
@@ -384,6 +412,7 @@ docs/RecipeStep.md
 docs/RecipeStepInput.md
 docs/RecipeStepPreset.md
 docs/RecipesApi.md
+docs/ReconciliationInput.md
 docs/Refund.md
 docs/RefundFull.md
 docs/RefundIssued.md
@@ -392,6 +421,7 @@ docs/RefundLineInput.md
 docs/RefundReason.md
 docs/RefundTotals.md
 docs/RefundsApi.md
+docs/RegisterDeviceRequest.md
 docs/RegistryInfo.md
 docs/ReleaseTableRequest.md
 docs/RenameConversationRequest.md
@@ -425,7 +455,6 @@ docs/SetRoutingModeRequest.md
 docs/SettleOpenTicketRequest.md
 docs/Shift.md
 docs/ShiftPreFill.md
-docs/ShiftRefunds.md
 docs/ShiftReportResponse.md
 docs/ShiftSummary.md
 docs/ShiftsApi.md
@@ -437,6 +466,7 @@ docs/SizeOut.md
 docs/SizeOverrideOut.md
 docs/SkuCost.md
 docs/SlotAvailability.md
+docs/SnapshotCursor.md
 docs/Sort.md
 docs/StaffApi.md
 docs/StaffDocument.md
@@ -454,6 +484,7 @@ docs/StoredTurn.md
 docs/StudioAggregate.md
 docs/Supplier.md
 docs/SwapTablesRequest.md
+docs/SyncApi.md
 docs/SyncIngredient.md
 docs/SyncItem.md
 docs/SyncModifierGroup.md
@@ -470,13 +501,23 @@ docs/TeamPresence.md
 docs/TellerStats.md
 docs/TicketBill.md
 docs/Till.md
+docs/TillBrief.md
+docs/TillPreFill.md
+docs/TillReconciliationLine.md
+docs/TillRefunds.md
+docs/TillReportFigures.md
+docs/TillReportResponse.md
+docs/TillStatus.md
+docs/TillVerification.md
 docs/TillsApi.md
 docs/TimeseriesPoint.md
 docs/TopPer.md
 docs/TopReward.md
+docs/TopUpRequest.md
 docs/TransferView.md
 docs/TransfersSyncResponse.md
 docs/Transform.md
+docs/TypeChecksum.md
 docs/UpdateAddonItemRequest.md
 docs/UpdateAddonSlotRequest.md
 docs/UpdateBookingRequest.md
@@ -484,6 +525,7 @@ docs/UpdateBranchRequest.md
 docs/UpdateBundleRequest.md
 docs/UpdateCatalogItemRequest.md
 docs/UpdateCategoryRequest.md
+docs/UpdateDeviceRequest.md
 docs/UpdateDiscountRequest.md
 docs/UpdateFloorTableRequest.md
 docs/UpdateIngredientCategoryRequest.md
@@ -495,7 +537,6 @@ docs/UpdatePaymentMethodRequest.md
 docs/UpdateSectionRequest.md
 docs/UpdateStationRequest.md
 docs/UpdateSupplierRequest.md
-docs/UpdateTillRequest.md
 docs/UpdateTransferRequest.md
 docs/UpdateUserRequest.md
 docs/UploadResponse.md
@@ -511,6 +552,7 @@ docs/UpsertRolePermissionRequest.md
 docs/UpsertSizeRequest.md
 docs/UpsertWorkShiftRequest.md
 docs/UsedInBundleOut.md
+docs/UserAllowList.md
 docs/UserBranch.md
 docs/UserPermissionItem.md
 docs/UserPublic.md
@@ -519,6 +561,8 @@ docs/UsersApi.md
 docs/ValuationRow.md
 docs/VarianceReport.md
 docs/VarianceRow.md
+docs/VariantRef.md
+docs/VariantSet.md
 docs/Viz.md
 docs/VoidOpenTicketRequest.md
 docs/VoidOrderRequest.md
@@ -540,6 +584,7 @@ docs/WorkShift.md
 docs/ZoneInput.md
 git_push.sh
 src/apis/ai_api.rs
+src/apis/assets_api.rs
 src/apis/auth_api.rs
 src/apis/bookings_api.rs
 src/apis/bookings_public_api.rs
@@ -549,6 +594,7 @@ src/apis/configuration.rs
 src/apis/costing_api.rs
 src/apis/delivery_api.rs
 src/apis/delivery_public_api.rs
+src/apis/devices_api.rs
 src/apis/discounts_api.rs
 src/apis/floor_api.rs
 src/apis/floor_transfers_api.rs
@@ -576,6 +622,7 @@ src/apis/reservations_api.rs
 src/apis/shifts_api.rs
 src/apis/staff_api.rs
 src/apis/stocktakes_api.rs
+src/apis/sync_api.rs
 src/apis/tills_api.rs
 src/apis/uploads_api.rs
 src/apis/users_api.rs
@@ -599,8 +646,14 @@ src/models/ai_chat_kind_one_of_1.rs
 src/models/ai_chat_kind_one_of_2.rs
 src/models/ai_chat_request.rs
 src/models/ai_chat_response.rs
+src/models/allow_list.rs
 src/models/analytics_order.rs
 src/models/analytics_response.rs
+src/models/asset_bundle_ref.rs
+src/models/asset_group_ref.rs
+src/models/asset_job_result.rs
+src/models/asset_job_view.rs
+src/models/asset_ref.rs
 src/models/assign_branch_request.rs
 src/models/attendance_record.rs
 src/models/attendance_settings.rs
@@ -669,8 +722,12 @@ src/models/chat_frame_one_of_5.rs
 src/models/check_in_request.rs
 src/models/check_out_request.rs
 src/models/clear_table_request.rs
-src/models/close_shift_request.rs
+src/models/client_seen.rs
 src/models/close_shift_response.rs
+src/models/close_till_method.rs
+src/models/close_till_preview.rs
+src/models/close_till_request.rs
+src/models/close_till_response.rs
 src/models/column.rs
 src/models/column_kind.rs
 src/models/combined_item_sales_row.rs
@@ -718,7 +775,6 @@ src/models/create_station_request.rs
 src/models/create_stocktake_request.rs
 src/models/create_supplier_request.rs
 src/models/create_table_request.rs
-src/models/create_till_request.rs
 src/models/create_transfer_request.rs
 src/models/create_user_request.rs
 src/models/create_user_response.rs
@@ -744,6 +800,9 @@ src/models/delivery_sales_report.rs
 src/models/delivery_tracking.rs
 src/models/delivery_zone.rs
 src/models/department.rs
+src/models/device.rs
+src/models/device_allow_list.rs
+src/models/device_kind.rs
 src/models/dir.rs
 src/models/discount.rs
 src/models/drink_recipe.rs
@@ -786,12 +845,15 @@ src/models/kitchen_line.rs
 src/models/kitchen_station.rs
 src/models/kitchen_ticket_item_view.rs
 src/models/kitchen_ticket_view.rs
+src/models/last_till_warning.rs
 src/models/late_deduction_kind.rs
 src/models/late_tier.rs
 src/models/leave_balance.rs
 src/models/leave_type.rs
 src/models/ledger_entry.rs
 src/models/ledger_totals.rs
+src/models/ledger_window.rs
+src/models/legacy_till.rs
 src/models/login_request.rs
 src/models/login_response.rs
 src/models/lookup_request.rs
@@ -813,6 +875,7 @@ src/models/menu_item.rs
 src/models/menu_item_full.rs
 src/models/menu_item_recipe.rs
 src/models/menu_item_with_costs.rs
+src/models/method_total.rs
 src/models/metric_result.rs
 src/models/metrics_query_request.rs
 src/models/metrics_query_response.rs
@@ -826,9 +889,11 @@ src/models/offline_teller_credential.rs
 src/models/onboarding_status.rs
 src/models/onboarding_step.rs
 src/models/online_tax_policy.rs
+src/models/open_bills_notice.rs
 src/models/open_shift_request.rs
 src/models/open_ticket_item_view.rs
 src/models/open_ticket_view.rs
+src/models/open_till_request.rs
 src/models/option_recipe_line_input.rs
 src/models/optional_field.rs
 src/models/order.rs
@@ -844,6 +909,7 @@ src/models/order_item_addon.rs
 src/models/order_item_full.rs
 src/models/order_item_input.rs
 src/models/order_item_optional.rs
+src/models/order_number_range.rs
 src/models/order_payment.rs
 src/models/order_refunds.rs
 src/models/order_summary.rs
@@ -863,6 +929,7 @@ src/models/paginated_menu_items.rs
 src/models/paginated_orders.rs
 src/models/paginated_orders_full.rs
 src/models/paginated_shifts.rs
+src/models/paginated_tills.rs
 src/models/pass_links.rs
 src/models/past_order.rs
 src/models/past_orders.rs
@@ -870,6 +937,7 @@ src/models/patch_group_request.rs
 src/models/patch_option_request.rs
 src/models/pause_input.rs
 src/models/payment_leg.rs
+src/models/payment_method_availability.rs
 src/models/payment_split_input.rs
 src/models/payment_summary_row.rs
 src/models/payroll_adjustment.rs
@@ -893,6 +961,7 @@ src/models/preview_recipe_request.rs
 src/models/price_override_out.rs
 src/models/price_override_request.rs
 src/models/printer_brand.rs
+src/models/processing_group_ref.rs
 src/models/public_booking_branch.rs
 src/models/public_booking_change.rs
 src/models/public_booking_info.rs
@@ -908,6 +977,9 @@ src/models/public_table.rs
 src/models/public_table_bill.rs
 src/models/public_table_line.rs
 src/models/public_table_round.rs
+src/models/pull_change.rs
+src/models/pull_request.rs
+src/models/pull_response.rs
 src/models/purchase_order.rs
 src/models/purchase_order_full.rs
 src/models/purchase_order_line.rs
@@ -926,6 +998,7 @@ src/models/put_target_request.rs
 src/models/qr_response.rs
 src/models/query_spec.rs
 src/models/quote_response.rs
+src/models/ready_group_ref.rs
 src/models/receive_line_input.rs
 src/models/receive_purchase_order_request.rs
 src/models/recipe_cost_result.rs
@@ -934,6 +1007,7 @@ src/models/recipe_line_out.rs
 src/models/recipe_step.rs
 src/models/recipe_step_input.rs
 src/models/recipe_step_preset.rs
+src/models/reconciliation_input.rs
 src/models/refund.rs
 src/models/refund_full.rs
 src/models/refund_issued.rs
@@ -941,6 +1015,7 @@ src/models/refund_line.rs
 src/models/refund_line_input.rs
 src/models/refund_reason.rs
 src/models/refund_totals.rs
+src/models/register_device_request.rs
 src/models/registry_info.rs
 src/models/release_table_request.rs
 src/models/rename_conversation_request.rs
@@ -972,7 +1047,6 @@ src/models/set_routing_mode_request.rs
 src/models/settle_open_ticket_request.rs
 src/models/shift.rs
 src/models/shift_pre_fill.rs
-src/models/shift_refunds.rs
 src/models/shift_report_response.rs
 src/models/shift_summary.rs
 src/models/shrinkage_row.rs
@@ -983,6 +1057,7 @@ src/models/size_out.rs
 src/models/size_override_out.rs
 src/models/sku_cost.rs
 src/models/slot_availability.rs
+src/models/snapshot_cursor.rs
 src/models/sort.rs
 src/models/staff_document.rs
 src/models/staff_request.rs
@@ -1014,12 +1089,22 @@ src/models/team_presence.rs
 src/models/teller_stats.rs
 src/models/ticket_bill.rs
 src/models/till.rs
+src/models/till_brief.rs
+src/models/till_pre_fill.rs
+src/models/till_reconciliation_line.rs
+src/models/till_refunds.rs
+src/models/till_report_figures.rs
+src/models/till_report_response.rs
+src/models/till_status.rs
+src/models/till_verification.rs
 src/models/timeseries_point.rs
 src/models/top_per.rs
 src/models/top_reward.rs
+src/models/top_up_request.rs
 src/models/transfer_view.rs
 src/models/transfers_sync_response.rs
 src/models/transform.rs
+src/models/type_checksum.rs
 src/models/update_addon_item_request.rs
 src/models/update_addon_slot_request.rs
 src/models/update_booking_request.rs
@@ -1027,6 +1112,7 @@ src/models/update_branch_request.rs
 src/models/update_bundle_request.rs
 src/models/update_catalog_item_request.rs
 src/models/update_category_request.rs
+src/models/update_device_request.rs
 src/models/update_discount_request.rs
 src/models/update_floor_table_request.rs
 src/models/update_ingredient_category_request.rs
@@ -1038,7 +1124,6 @@ src/models/update_payment_method_request.rs
 src/models/update_section_request.rs
 src/models/update_station_request.rs
 src/models/update_supplier_request.rs
-src/models/update_till_request.rs
 src/models/update_transfer_request.rs
 src/models/update_user_request.rs
 src/models/upload_response.rs
@@ -1053,6 +1138,7 @@ src/models/upsert_role_permission_request.rs
 src/models/upsert_size_request.rs
 src/models/upsert_work_shift_request.rs
 src/models/used_in_bundle_out.rs
+src/models/user_allow_list.rs
 src/models/user_branch.rs
 src/models/user_permission_item.rs
 src/models/user_public.rs
@@ -1060,6 +1146,8 @@ src/models/user_role.rs
 src/models/valuation_row.rs
 src/models/variance_report.rs
 src/models/variance_row.rs
+src/models/variant_ref.rs
+src/models/variant_set.rs
 src/models/viz.rs
 src/models/void_open_ticket_request.rs
 src/models/void_order_request.rs

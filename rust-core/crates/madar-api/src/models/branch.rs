@@ -60,6 +60,9 @@ pub struct Branch {
     pub longitude: Option<Option<f64>>,
     #[serde(rename = "name")]
     pub name: String,
+    /// A bill left open longer than this many hours is flagged as OLD (till open notice, close warning, Z report). 1..168, default 3.
+    #[serde(rename = "old_bill_hours")]
+    pub old_bill_hours: u32,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
     /// Convenience field — populated from the parent org's `logo_url`.
@@ -120,6 +123,14 @@ pub struct Branch {
         skip_serializing_if = "Option::is_none"
     )]
     pub service_charge_taxable: Option<Option<bool>>,
+    /// The drawer's standard opening float in minor units; drives the till report's `standard_float` / `suggested_safe_drop`. `null` = none set.
+    #[serde(
+        rename = "standard_float",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub standard_float: Option<Option<u32>>,
     #[serde(
         rename = "tax_inclusive",
         default,
@@ -148,6 +159,7 @@ impl Branch {
         id: uuid::Uuid,
         is_active: bool,
         name: String,
+        old_bill_hours: u32,
         org_id: uuid::Uuid,
         timezone: String,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
@@ -162,6 +174,7 @@ impl Branch {
             latitude: None,
             longitude: None,
             name,
+            old_bill_hours,
             org_id,
             org_logo_url: None,
             phone: None,
@@ -171,6 +184,7 @@ impl Branch {
             require_table_for_orders: None,
             service_charge_rate: None,
             service_charge_taxable: None,
+            standard_float: None,
             tax_inclusive: None,
             tax_rate: None,
             timezone,

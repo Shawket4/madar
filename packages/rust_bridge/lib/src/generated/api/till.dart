@@ -5,92 +5,701 @@
 
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'types.dart';
 
-/// What a close count means against the expected drawer.
-class CloseCountCheck {
-  final bool entered;
-  final PlatformInt64 varianceMinor;
+class BranchOpenTillView {
+  final String tillId;
+  final String tellerId;
+  final String tellerName;
+  final String? deviceCode;
+  final String? deviceLabel;
+  final String openedAt;
+  final bool isThisDevice;
 
-  /// `pending` · `matches` · `over` · `short`.
-  final String verdict;
-  final bool needsReason;
+  /// `server` | `lan` | `both`.
+  final String source;
 
-  const CloseCountCheck({
-    required this.entered,
-    required this.varianceMinor,
-    required this.verdict,
-    required this.needsReason,
+  const BranchOpenTillView({
+    required this.tillId,
+    required this.tellerId,
+    required this.tellerName,
+    this.deviceCode,
+    this.deviceLabel,
+    required this.openedAt,
+    required this.isThisDevice,
+    required this.source,
   });
 
   @override
   int get hashCode =>
-      entered.hashCode ^
-      varianceMinor.hashCode ^
-      verdict.hashCode ^
-      needsReason.hashCode;
+      tillId.hashCode ^
+      tellerId.hashCode ^
+      tellerName.hashCode ^
+      deviceCode.hashCode ^
+      deviceLabel.hashCode ^
+      openedAt.hashCode ^
+      isThisDevice.hashCode ^
+      source.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is CloseCountCheck &&
+      other is BranchOpenTillView &&
           runtimeType == other.runtimeType &&
-          entered == other.entered &&
-          varianceMinor == other.varianceMinor &&
-          verdict == other.verdict &&
-          needsReason == other.needsReason;
+          tillId == other.tillId &&
+          tellerId == other.tellerId &&
+          tellerName == other.tellerName &&
+          deviceCode == other.deviceCode &&
+          deviceLabel == other.deviceLabel &&
+          openedAt == other.openedAt &&
+          isThisDevice == other.isThisDevice &&
+          source == other.source;
 }
 
-/// One way money can go back: the wire code and its name.
-class PaymentMethodChoice {
-  final String code;
+class CashMovementView {
+  final String id;
+
+  /// `pay_in` | `pay_out` | `safe_drop` | `correction`.
+  final String kind;
+  final PlatformInt64 amountMinor;
+  final String note;
+  final String movedByName;
+  final String createdAt;
+
+  const CashMovementView({
+    required this.id,
+    required this.kind,
+    required this.amountMinor,
+    required this.note,
+    required this.movedByName,
+    required this.createdAt,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      kind.hashCode ^
+      amountMinor.hashCode ^
+      note.hashCode ^
+      movedByName.hashCode ^
+      createdAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CashMovementView &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          kind == other.kind &&
+          amountMinor == other.amountMinor &&
+          note == other.note &&
+          movedByName == other.movedByName &&
+          createdAt == other.createdAt;
+}
+
+class CloseTillMethodView {
+  final String method;
   final String label;
   final bool isCash;
+  final PlatformInt64 systemTotalMinor;
+  final PlatformInt64 orderCount;
 
-  const PaymentMethodChoice({
-    required this.code,
+  const CloseTillMethodView({
+    required this.method,
     required this.label,
     required this.isCash,
-  });
-
-  @override
-  int get hashCode => code.hashCode ^ label.hashCode ^ isCash.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is PaymentMethodChoice &&
-          runtimeType == other.runtimeType &&
-          code == other.code &&
-          label == other.label &&
-          isCash == other.isCash;
-}
-
-/// How a refund of one sale may be paid back.
-class RefundMethodPlan {
-  final List<PaymentMethodChoice> options;
-
-  /// The sale's own method when the server accepts it; `None` → choose.
-  final String? defaultCode;
-
-  /// The sale predates the open shift: the refund leaves today's drawer.
-  final bool crossesShift;
-
-  const RefundMethodPlan({
-    required this.options,
-    this.defaultCode,
-    required this.crossesShift,
+    required this.systemTotalMinor,
+    required this.orderCount,
   });
 
   @override
   int get hashCode =>
-      options.hashCode ^ defaultCode.hashCode ^ crossesShift.hashCode;
+      method.hashCode ^
+      label.hashCode ^
+      isCash.hashCode ^
+      systemTotalMinor.hashCode ^
+      orderCount.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is RefundMethodPlan &&
+      other is CloseTillMethodView &&
           runtimeType == other.runtimeType &&
-          options == other.options &&
-          defaultCode == other.defaultCode &&
-          crossesShift == other.crossesShift;
+          method == other.method &&
+          label == other.label &&
+          isCash == other.isCash &&
+          systemTotalMinor == other.systemTotalMinor &&
+          orderCount == other.orderCount;
+}
+
+class CloseTillOutcomeView {
+  final bool queued;
+  final List<ReconciliationLineView> reconciliation;
+  final LastTillWarningView? lastTillWarning;
+
+  const CloseTillOutcomeView({
+    required this.queued,
+    required this.reconciliation,
+    this.lastTillWarning,
+  });
+
+  @override
+  int get hashCode =>
+      queued.hashCode ^ reconciliation.hashCode ^ lastTillWarning.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CloseTillOutcomeView &&
+          runtimeType == other.runtimeType &&
+          queued == other.queued &&
+          reconciliation == other.reconciliation &&
+          lastTillWarning == other.lastTillWarning;
+}
+
+class CloseTillPreviewView {
+  final TillView till;
+  final PlatformInt64 expectedCashMinor;
+  final List<CloseTillMethodView> methods;
+  final LastTillWarningView? lastTillWarning;
+  final bool fromServer;
+
+  const CloseTillPreviewView({
+    required this.till,
+    required this.expectedCashMinor,
+    required this.methods,
+    this.lastTillWarning,
+    required this.fromServer,
+  });
+
+  @override
+  int get hashCode =>
+      till.hashCode ^
+      expectedCashMinor.hashCode ^
+      methods.hashCode ^
+      lastTillWarning.hashCode ^
+      fromServer.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CloseTillPreviewView &&
+          runtimeType == other.runtimeType &&
+          till == other.till &&
+          expectedCashMinor == other.expectedCashMinor &&
+          methods == other.methods &&
+          lastTillWarning == other.lastTillWarning &&
+          fromServer == other.fromServer;
+}
+
+class LastTillWarningView {
+  final PlatformInt64 openBillsCount;
+  final PlatformInt64 openBillsAmountMinor;
+  final PlatformInt64 seatedTablesCount;
+
+  const LastTillWarningView({
+    required this.openBillsCount,
+    required this.openBillsAmountMinor,
+    required this.seatedTablesCount,
+  });
+
+  @override
+  int get hashCode =>
+      openBillsCount.hashCode ^
+      openBillsAmountMinor.hashCode ^
+      seatedTablesCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LastTillWarningView &&
+          runtimeType == other.runtimeType &&
+          openBillsCount == other.openBillsCount &&
+          openBillsAmountMinor == other.openBillsAmountMinor &&
+          seatedTablesCount == other.seatedTablesCount;
+}
+
+class OpenBillsNoticeView {
+  final PlatformInt64 openBillsCount;
+  final PlatformInt64 openBillsAmountMinor;
+  final String? oldestOpenedAt;
+  final PlatformInt64 oldBillsCount;
+  final PlatformInt64 oldBillHours;
+  final PlatformInt64 seatedTablesCount;
+  final String? since;
+
+  const OpenBillsNoticeView({
+    required this.openBillsCount,
+    required this.openBillsAmountMinor,
+    this.oldestOpenedAt,
+    required this.oldBillsCount,
+    required this.oldBillHours,
+    required this.seatedTablesCount,
+    this.since,
+  });
+
+  @override
+  int get hashCode =>
+      openBillsCount.hashCode ^
+      openBillsAmountMinor.hashCode ^
+      oldestOpenedAt.hashCode ^
+      oldBillsCount.hashCode ^
+      oldBillHours.hashCode ^
+      seatedTablesCount.hashCode ^
+      since.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OpenBillsNoticeView &&
+          runtimeType == other.runtimeType &&
+          openBillsCount == other.openBillsCount &&
+          openBillsAmountMinor == other.openBillsAmountMinor &&
+          oldestOpenedAt == other.oldestOpenedAt &&
+          oldBillsCount == other.oldBillsCount &&
+          oldBillHours == other.oldBillHours &&
+          seatedTablesCount == other.seatedTablesCount &&
+          since == other.since;
+}
+
+class OpenTillOutcome {
+  final TillView? till;
+  final String verification;
+  final TillElsewhereView? openElsewhere;
+
+  const OpenTillOutcome({
+    this.till,
+    required this.verification,
+    this.openElsewhere,
+  });
+
+  @override
+  int get hashCode =>
+      till.hashCode ^ verification.hashCode ^ openElsewhere.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OpenTillOutcome &&
+          runtimeType == other.runtimeType &&
+          till == other.till &&
+          verification == other.verification &&
+          openElsewhere == other.openElsewhere;
+}
+
+class ReconciliationInput {
+  final String method;
+
+  /// `checked` | `disagreed`.
+  final String status;
+  final PlatformInt64? declaredAmountMinor;
+  final String? note;
+
+  const ReconciliationInput({
+    required this.method,
+    required this.status,
+    this.declaredAmountMinor,
+    this.note,
+  });
+
+  @override
+  int get hashCode =>
+      method.hashCode ^
+      status.hashCode ^
+      declaredAmountMinor.hashCode ^
+      note.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReconciliationInput &&
+          runtimeType == other.runtimeType &&
+          method == other.method &&
+          status == other.status &&
+          declaredAmountMinor == other.declaredAmountMinor &&
+          note == other.note;
+}
+
+class ReconciliationLineView {
+  final String method;
+  final String label;
+  final bool isCash;
+  final PlatformInt64 systemTotalMinor;
+  final String status;
+  final PlatformInt64? declaredAmountMinor;
+  final String? note;
+  final bool changedAfterClose;
+
+  const ReconciliationLineView({
+    required this.method,
+    required this.label,
+    required this.isCash,
+    required this.systemTotalMinor,
+    required this.status,
+    this.declaredAmountMinor,
+    this.note,
+    required this.changedAfterClose,
+  });
+
+  @override
+  int get hashCode =>
+      method.hashCode ^
+      label.hashCode ^
+      isCash.hashCode ^
+      systemTotalMinor.hashCode ^
+      status.hashCode ^
+      declaredAmountMinor.hashCode ^
+      note.hashCode ^
+      changedAfterClose.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReconciliationLineView &&
+          runtimeType == other.runtimeType &&
+          method == other.method &&
+          label == other.label &&
+          isCash == other.isCash &&
+          systemTotalMinor == other.systemTotalMinor &&
+          status == other.status &&
+          declaredAmountMinor == other.declaredAmountMinor &&
+          note == other.note &&
+          changedAfterClose == other.changedAfterClose;
+}
+
+class TillElsewhereView {
+  final String tillId;
+  final String? deviceCode;
+  final String? deviceLabel;
+  final String openedAt;
+
+  /// `server` | `lan`.
+  final String source;
+
+  const TillElsewhereView({
+    required this.tillId,
+    this.deviceCode,
+    this.deviceLabel,
+    required this.openedAt,
+    required this.source,
+  });
+
+  @override
+  int get hashCode =>
+      tillId.hashCode ^
+      deviceCode.hashCode ^
+      deviceLabel.hashCode ^
+      openedAt.hashCode ^
+      source.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TillElsewhereView &&
+          runtimeType == other.runtimeType &&
+          tillId == other.tillId &&
+          deviceCode == other.deviceCode &&
+          deviceLabel == other.deviceLabel &&
+          openedAt == other.openedAt &&
+          source == other.source;
+}
+
+class TillReportCashLine {
+  final PlatformInt64 amountMinor;
+  final String note;
+  final String movedByName;
+  final String createdAt;
+
+  const TillReportCashLine({
+    required this.amountMinor,
+    required this.note,
+    required this.movedByName,
+    required this.createdAt,
+  });
+
+  @override
+  int get hashCode =>
+      amountMinor.hashCode ^
+      note.hashCode ^
+      movedByName.hashCode ^
+      createdAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TillReportCashLine &&
+          runtimeType == other.runtimeType &&
+          amountMinor == other.amountMinor &&
+          note == other.note &&
+          movedByName == other.movedByName &&
+          createdAt == other.createdAt;
+}
+
+class TillReportPaymentLine {
+  final String method;
+  final bool isCash;
+  final PlatformInt64 orderCount;
+  final PlatformInt64 totalMinor;
+
+  const TillReportPaymentLine({
+    required this.method,
+    required this.isCash,
+    required this.orderCount,
+    required this.totalMinor,
+  });
+
+  @override
+  int get hashCode =>
+      method.hashCode ^
+      isCash.hashCode ^
+      orderCount.hashCode ^
+      totalMinor.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TillReportPaymentLine &&
+          runtimeType == other.runtimeType &&
+          method == other.method &&
+          isCash == other.isCash &&
+          orderCount == other.orderCount &&
+          totalMinor == other.totalMinor;
+}
+
+/// The till report (Z report / close figures).
+class TillReportView {
+  final String tellerName;
+  final String openedAt;
+  final String? closedAt;
+  final String printedAt;
+  final bool isOpen;
+  final PlatformInt64 expectedCashMinor;
+  final PlatformInt64 openingCashMinor;
+  final bool openingCashWasEdited;
+  final PlatformInt64? openingCashOriginalMinor;
+  final String? openingCashEditReason;
+  final PlatformInt64? closingCashDeclaredMinor;
+  final PlatformInt64 totalPaymentsMinor;
+  final PlatformInt64 netPaymentsMinor;
+  final PlatformInt64 voidedAmountMinor;
+  final PlatformInt64 refundsIssuedMinor;
+  final PlatformInt64 refundsIssuedCashMinor;
+  final PlatformInt64 refundsIssuedCount;
+  final PlatformInt64 cashInRefundedSalesMinor;
+  final PlatformInt64 cashMovementsNetMinor;
+  final PlatformInt64 cashInMinor;
+  final PlatformInt64 cashOutMinor;
+  final List<TillReportPaymentLine> paymentLines;
+  final List<TillReportCashLine> cashMovements;
+  final bool fromServer;
+  final String? deviceCode;
+  final PlatformInt64? orderNumberFirst;
+  final PlatformInt64? orderNumberLast;
+  final List<ReconciliationLineView> reconciliation;
+  final PlatformInt64? oldBillsCount;
+  final PlatformInt64? openBillsCount;
+  final bool openedWhileAnotherOpen;
+  final String verification;
+
+  const TillReportView({
+    required this.tellerName,
+    required this.openedAt,
+    this.closedAt,
+    required this.printedAt,
+    required this.isOpen,
+    required this.expectedCashMinor,
+    required this.openingCashMinor,
+    required this.openingCashWasEdited,
+    this.openingCashOriginalMinor,
+    this.openingCashEditReason,
+    this.closingCashDeclaredMinor,
+    required this.totalPaymentsMinor,
+    required this.netPaymentsMinor,
+    required this.voidedAmountMinor,
+    required this.refundsIssuedMinor,
+    required this.refundsIssuedCashMinor,
+    required this.refundsIssuedCount,
+    required this.cashInRefundedSalesMinor,
+    required this.cashMovementsNetMinor,
+    required this.cashInMinor,
+    required this.cashOutMinor,
+    required this.paymentLines,
+    required this.cashMovements,
+    required this.fromServer,
+    this.deviceCode,
+    this.orderNumberFirst,
+    this.orderNumberLast,
+    required this.reconciliation,
+    this.oldBillsCount,
+    this.openBillsCount,
+    required this.openedWhileAnotherOpen,
+    required this.verification,
+  });
+
+  @override
+  int get hashCode =>
+      tellerName.hashCode ^
+      openedAt.hashCode ^
+      closedAt.hashCode ^
+      printedAt.hashCode ^
+      isOpen.hashCode ^
+      expectedCashMinor.hashCode ^
+      openingCashMinor.hashCode ^
+      openingCashWasEdited.hashCode ^
+      openingCashOriginalMinor.hashCode ^
+      openingCashEditReason.hashCode ^
+      closingCashDeclaredMinor.hashCode ^
+      totalPaymentsMinor.hashCode ^
+      netPaymentsMinor.hashCode ^
+      voidedAmountMinor.hashCode ^
+      refundsIssuedMinor.hashCode ^
+      refundsIssuedCashMinor.hashCode ^
+      refundsIssuedCount.hashCode ^
+      cashInRefundedSalesMinor.hashCode ^
+      cashMovementsNetMinor.hashCode ^
+      cashInMinor.hashCode ^
+      cashOutMinor.hashCode ^
+      paymentLines.hashCode ^
+      cashMovements.hashCode ^
+      fromServer.hashCode ^
+      deviceCode.hashCode ^
+      orderNumberFirst.hashCode ^
+      orderNumberLast.hashCode ^
+      reconciliation.hashCode ^
+      oldBillsCount.hashCode ^
+      openBillsCount.hashCode ^
+      openedWhileAnotherOpen.hashCode ^
+      verification.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TillReportView &&
+          runtimeType == other.runtimeType &&
+          tellerName == other.tellerName &&
+          openedAt == other.openedAt &&
+          closedAt == other.closedAt &&
+          printedAt == other.printedAt &&
+          isOpen == other.isOpen &&
+          expectedCashMinor == other.expectedCashMinor &&
+          openingCashMinor == other.openingCashMinor &&
+          openingCashWasEdited == other.openingCashWasEdited &&
+          openingCashOriginalMinor == other.openingCashOriginalMinor &&
+          openingCashEditReason == other.openingCashEditReason &&
+          closingCashDeclaredMinor == other.closingCashDeclaredMinor &&
+          totalPaymentsMinor == other.totalPaymentsMinor &&
+          netPaymentsMinor == other.netPaymentsMinor &&
+          voidedAmountMinor == other.voidedAmountMinor &&
+          refundsIssuedMinor == other.refundsIssuedMinor &&
+          refundsIssuedCashMinor == other.refundsIssuedCashMinor &&
+          refundsIssuedCount == other.refundsIssuedCount &&
+          cashInRefundedSalesMinor == other.cashInRefundedSalesMinor &&
+          cashMovementsNetMinor == other.cashMovementsNetMinor &&
+          cashInMinor == other.cashInMinor &&
+          cashOutMinor == other.cashOutMinor &&
+          paymentLines == other.paymentLines &&
+          cashMovements == other.cashMovements &&
+          fromServer == other.fromServer &&
+          deviceCode == other.deviceCode &&
+          orderNumberFirst == other.orderNumberFirst &&
+          orderNumberLast == other.orderNumberLast &&
+          reconciliation == other.reconciliation &&
+          oldBillsCount == other.oldBillsCount &&
+          openBillsCount == other.openBillsCount &&
+          openedWhileAnotherOpen == other.openedWhileAnotherOpen &&
+          verification == other.verification;
+}
+
+class TillStatsView {
+  final PlatformInt64 salesMinor;
+  final PlatformInt64 orderCount;
+
+  const TillStatsView({required this.salesMinor, required this.orderCount});
+
+  @override
+  int get hashCode => salesMinor.hashCode ^ orderCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TillStatsView &&
+          runtimeType == other.runtimeType &&
+          salesMinor == other.salesMinor &&
+          orderCount == other.orderCount;
+}
+
+/// A past till, projected for the history list.
+class TillSummaryView {
+  final String id;
+  final String? branchName;
+  final String? tellerName;
+  final String openedAt;
+  final String? closedAt;
+  final PlatformInt64 openingCashMinor;
+  final PlatformInt64? closingDeclaredMinor;
+  final PlatformInt64? closingSystemMinor;
+  final PlatformInt64? discrepancyMinor;
+  final String status;
+  final bool isOpen;
+  final String? deviceCode;
+  final String verification;
+  final bool openedWhileAnotherOpen;
+  final String? reconciliationStatus;
+
+  const TillSummaryView({
+    required this.id,
+    this.branchName,
+    this.tellerName,
+    required this.openedAt,
+    this.closedAt,
+    required this.openingCashMinor,
+    this.closingDeclaredMinor,
+    this.closingSystemMinor,
+    this.discrepancyMinor,
+    required this.status,
+    required this.isOpen,
+    this.deviceCode,
+    required this.verification,
+    required this.openedWhileAnotherOpen,
+    this.reconciliationStatus,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      branchName.hashCode ^
+      tellerName.hashCode ^
+      openedAt.hashCode ^
+      closedAt.hashCode ^
+      openingCashMinor.hashCode ^
+      closingDeclaredMinor.hashCode ^
+      closingSystemMinor.hashCode ^
+      discrepancyMinor.hashCode ^
+      status.hashCode ^
+      isOpen.hashCode ^
+      deviceCode.hashCode ^
+      verification.hashCode ^
+      openedWhileAnotherOpen.hashCode ^
+      reconciliationStatus.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TillSummaryView &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          branchName == other.branchName &&
+          tellerName == other.tellerName &&
+          openedAt == other.openedAt &&
+          closedAt == other.closedAt &&
+          openingCashMinor == other.openingCashMinor &&
+          closingDeclaredMinor == other.closingDeclaredMinor &&
+          closingSystemMinor == other.closingSystemMinor &&
+          discrepancyMinor == other.discrepancyMinor &&
+          status == other.status &&
+          isOpen == other.isOpen &&
+          deviceCode == other.deviceCode &&
+          verification == other.verification &&
+          openedWhileAnotherOpen == other.openedWhileAnotherOpen &&
+          reconciliationStatus == other.reconciliationStatus;
 }

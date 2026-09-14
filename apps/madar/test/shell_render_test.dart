@@ -20,7 +20,7 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_history/feature_history.dart';
 import 'package:feature_order/feature_order.dart';
 import 'package:feature_settings/feature_settings.dart';
-import 'package:feature_shift/feature_shift.dart';
+import 'package:feature_till/feature_till.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show FontLoader, LogicalKeyboardKey;
@@ -329,7 +329,7 @@ const _deliverySettings = DeliverySettingsView(
 
 const _openedAt = '2026-09-12T15:02:00Z';
 
-const _shift = ShiftView(
+const _till = TillView(
   id: 'sh-1',
   branchId: 'br-1',
   tellerId: 'u-1',
@@ -338,9 +338,11 @@ const _shift = ShiftView(
   openedAt: _openedAt,
   status: 'open',
   isOpen: true,
+  verification: 'server',
+  openedWhileAnotherOpen: false,
 );
 
-ShiftReportView _report({required bool fromServer}) => ShiftReportView(
+TillReportView _report({required bool fromServer}) => TillReportView(
   tellerName: 'Sara',
   openedAt: _openedAt,
   printedAt: '2026-09-12T19:40:00Z',
@@ -359,13 +361,13 @@ ShiftReportView _report({required bool fromServer}) => ShiftReportView(
   cashInMinor: 20000,
   cashOutMinor: 9000,
   paymentLines: const [
-    ShiftReportPaymentLine(
+    TillReportPaymentLine(
       method: 'Cash',
       isCash: true,
       orderCount: 18,
       totalMinor: 142000,
     ),
-    ShiftReportPaymentLine(
+    TillReportPaymentLine(
       method: 'Card',
       isCash: false,
       orderCount: 24,
@@ -374,6 +376,9 @@ ShiftReportView _report({required bool fromServer}) => ShiftReportView(
   ],
   cashMovements: const [],
   fromServer: fromServer,
+  reconciliation: const [],
+  verification: 'server',
+  openedWhileAnotherOpen: false,
 );
 
 const _movements = <CashMovementView>[
@@ -409,14 +414,15 @@ List<OrderSummaryView> _orders({required int queued}) => [
       queued: i < queued,
       tellerName: 'Sara',
       priceFlagged: false,
+      displayNumber: '',
       orderType: 'dine_in',
     ),
 ];
 
-/// Past shifts: a short one (with a rail), balanced ones, an over.
-List<ShiftSummaryView> _pastShifts(bool ar) {
+/// Past tills: a short one (with a rail), balanced ones, an over.
+List<TillSummaryView> _pastTills(bool ar) {
   String n(String en, String a) => ar ? a : en;
-  ShiftSummaryView s(
+  TillSummaryView s(
     String id,
     String teller,
     int daysAgo,
@@ -427,7 +433,7 @@ List<ShiftSummaryView> _pastShifts(bool ar) {
     final open = DateTime.now().toUtc().subtract(
       Duration(days: daysAgo, hours: hours + 1),
     );
-    return ShiftSummaryView(
+    return TillSummaryView(
       id: id,
       tellerName: teller,
       openedAt: open.toIso8601String(),
@@ -438,6 +444,8 @@ List<ShiftSummaryView> _pastShifts(bool ar) {
       discrepancyMinor: delta,
       status: 'closed',
       isOpen: false,
+      verification: 'server',
+      openedWhileAnotherOpen: false,
     );
   }
 
@@ -463,6 +471,7 @@ List<OrderSummaryView> _historyOrders() => [
       queued: false,
       tellerName: 'Sara',
       priceFlagged: false,
+      displayNumber: '',
       orderType: ['dine_in', 'takeaway', 'delivery'][i % 3],
     ),
 ];
@@ -520,7 +529,7 @@ class _FakeBridge implements MadarBridge {
   _FakeBridge({
     this.role = 'teller',
     this.rtl = false,
-    this.shiftOpen = true,
+    this.tillOpen = true,
     this.hasFloor = true,
     this.requireTable = false,
     this.online = true,
@@ -537,7 +546,7 @@ class _FakeBridge implements MadarBridge {
 
   final String role;
   final bool rtl;
-  final bool shiftOpen;
+  final bool tillOpen;
   final bool hasFloor;
   final bool requireTable;
   final bool online;
@@ -552,8 +561,8 @@ class _FakeBridge implements MadarBridge {
   final int clockSkew;
 
   bool get _waiter => role == 'waiter';
-  // A waiter's device has no drawer; the shift is the till's, not theirs.
-  ShiftView? get _openShift => shiftOpen && !_waiter ? _shift : null;
+  // A waiter's device has no drawer; the till is the till's, not theirs.
+  TillView? get _openTill => tillOpen && !_waiter ? _till : null;
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -572,8 +581,8 @@ class _FakeBridge implements MadarBridge {
       if (en[key] != null) return en[key];
       return code.isEmpty ? code : code[0].toUpperCase() + code.substring(1);
     }
-    if (name == #shiftCashSalesMinor) {
-      final r = invocation.namedArguments[#report] as ShiftReportView;
+    if (name == #tillCashSalesMinor) {
+      final r = invocation.namedArguments[#report] as TillReportView;
       return r.expectedCashMinor -
           r.openingCashMinor -
           r.cashInMinor +
@@ -617,7 +626,7 @@ class _FakeBridge implements MadarBridge {
             .where((o) => o.code == method.toLowerCase())
             .firstOrNull
             ?.code,
-        crossesShift: false,
+        crossesTill: false,
       );
     }
     // ── words, locale, time ────────────────────────────────────────────────
@@ -688,7 +697,7 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #appRoute) {
       if (_waiter) return const AppRoute.waiterTickets();
-      return shiftOpen ? const AppRoute.order() : const AppRoute.openShift();
+      return tillOpen ? const AppRoute.order() : const AppRoute.openTill();
     }
     if (name == #currentSession) {
       return SessionSnapshot(
@@ -709,7 +718,6 @@ class _FakeBridge implements MadarBridge {
     if (name == #deviceConfig) {
       return DeviceConfigView(
         branchName: rtl ? 'شارع الزمالك' : 'Rue Zamalek',
-        tillId: _waiter ? null : 't-1',
         reconfiguring: false,
         configured: true,
       );
@@ -718,23 +726,25 @@ class _FakeBridge implements MadarBridge {
     if (name == #baseUrl) return 'https://api.madar-pos.cloud';
     if (name == #version) return '0.5.1';
     if (name == #environment) return 'prod';
-    if (name == #listTills) {
-      return Future<List<TillView>>.value(const [
-        TillView(id: 't-1', name: 'Till 1', isDefault: true, isActive: true),
-      ]);
-    }
     if (name == #kdsListStations) {
       return Future<List<KdsStationView>>.value(const []);
     }
     // ── connectivity, sync ─────────────────────────────────────────────────
     if (name == #syncStatus) {
-      return Future<SyncStatusView>.value(
-        SyncStatusView(
-          pending: pending,
-          failed: failed,
-          blocked: 0,
-          online: online,
-          authPaused: authPaused,
+      return SyncStatusView(
+        pendingOutbox: pending,
+        deadOutbox: failed,
+        blocked: 0,
+        freshness: const FreshnessView(state: 'fresh'),
+        online: online,
+        authPaused: authPaused,
+        phase: 'idle',
+        assets: AssetSyncView(
+          needed: 0,
+          missing: 0,
+          downloading: false,
+          bytesDone: BigInt.zero,
+          bytesTotal: BigInt.zero,
         ),
       );
     }
@@ -836,29 +846,29 @@ class _FakeBridge implements MadarBridge {
       return Future<DeliverySettingsView>.value(_deliverySettings);
     }
     // ── the drawer ─────────────────────────────────────────────────────────
-    if (name == #currentShift || name == #refreshShift) {
-      return Future<ShiftView?>.value(_openShift);
+    if (name == #currentTill || name == #refreshTill) {
+      return Future<TillView?>.value(_openTill);
     }
-    if (name == #shiftReport || name == #shiftReportFor) {
-      return Future<ShiftReportView>.value(_report(fromServer: online));
+    if (name == #tillReport || name == #tillReportFor) {
+      return Future<TillReportView>.value(_report(fromServer: online));
     }
-    if (name == #listShiftOrders) {
+    if (name == #listTillOrders) {
       return Future<List<OrderSummaryView>>.value(
         _orders(queued: online ? 0 : pending),
       );
     }
-    if (name == #shiftStats) {
-      return Future<ShiftStatsView>.value(
-        const ShiftStatsView(salesMinor: 623000, orderCount: 42),
+    if (name == #tillStats) {
+      return Future<TillStatsView>.value(
+        const TillStatsView(salesMinor: 623000, orderCount: 42),
       );
     }
     if (name == #listCashMovements) {
       return Future<List<CashMovementView>>.value(_movements);
     }
-    if (name == #listShifts) {
-      return Future<List<ShiftSummaryView>>.value(_pastShifts(rtl));
+    if (name == #listTills) {
+      return Future<List<TillSummaryView>>.value(_pastTills(rtl));
     }
-    if (name == #listOrdersForShift) {
+    if (name == #listOrdersForTill) {
       return Future<List<OrderSummaryView>>.value(
         _historyOrders().sublist(4, 8),
       );
@@ -1219,7 +1229,7 @@ void main() {
   testWidgets('a teller with no shift lands on Till, offline', (tester) async {
     await _mount(
       tester,
-      bridge: _FakeBridge(shiftOpen: false, online: false, pending: 2),
+      bridge: _FakeBridge(tillOpen: false, online: false, pending: 2),
       size: _ipad,
     );
     final till = tester.widget<MadarRailTab>(
@@ -1376,7 +1386,7 @@ void main() {
       await _mount(tester, bridge: _FakeBridge(), size: _phone);
       await _tab(tester, 'till');
       _pageStack(tester).push(
-        MaterialPageRoute<void>(builder: (_) => const ShiftHistoryScreen()),
+        MaterialPageRoute<void>(builder: (_) => const TillHistoryScreen()),
       );
       await _settle(tester);
       _pageStack(
@@ -1390,13 +1400,13 @@ void main() {
       await _settle(tester);
       expect(handled, isTrue);
       expect(find.byType(SyncScreen), findsNothing);
-      expect(find.byType(ShiftHistoryScreen), findsOneWidget);
+      expect(find.byType(TillHistoryScreen), findsOneWidget);
       _expectChromeStands(tester, 'back', _phone);
 
       // Escape.
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await _settle(tester);
-      expect(find.byType(ShiftHistoryScreen), findsNothing);
+      expect(find.byType(TillHistoryScreen), findsNothing);
       expect(find.byType(TillScreen), findsOneWidget);
       expect(_pageStack(tester).canPop(), isFalse);
     });
@@ -1496,7 +1506,7 @@ void main() {
 
     testWidgets('a teller with no shift: the open-shift page', (tester) async {
       _notch(tester);
-      await _mount(tester, bridge: _FakeBridge(shiftOpen: false), size: _phone);
+      await _mount(tester, bridge: _FakeBridge(tillOpen: false), size: _phone);
       _expectShellClearOfInset(tester, 'open shift');
     });
 
@@ -1517,8 +1527,8 @@ void main() {
       'settings': (false, SettingsScreen.new),
       'order history': (false, OrderHistoryScreen.new),
       'sale': (false, SaleScreen.new),
-      'close shift': (false, CloseShiftScreen.new),
-      'shift history': (false, ShiftHistoryScreen.new),
+      'close shift': (false, CloseTillScreen.new),
+      'shift history': (false, TillHistoryScreen.new),
       'cash movements': (false, CashMovementsScreen.new),
     };
     for (final MapEntry(key: name, value: (waiter, page)) in pushed.entries) {
@@ -1543,7 +1553,7 @@ void main() {
 // ── One page shell ─────────────────────────────────────────────────────────
 
 /// Every page the POS shows as a page, by the name its picture is filed
-/// under: `(waiter, shiftOpen, tab, pushed)`. A tab entry is reached through
+/// under: `(waiter, tillOpen, tab, pushed)`. A tab entry is reached through
 /// the rail or the bar; a pushed one is pushed over the teller's Sell tab.
 final _pages = <String, (bool, bool, String?, Widget Function()?)>{
   'sell': (false, true, 'sell', null),
@@ -1569,8 +1579,8 @@ final _pages = <String, (bool, bool, String?, Widget Function()?)>{
   'settings': (false, true, null, SettingsScreen.new),
   'past-orders': (false, true, null, OrderHistoryScreen.new),
   'sale': (false, true, null, SaleScreen.new),
-  'close-shift': (false, true, null, CloseShiftScreen.new),
-  'shift-history': (false, true, null, ShiftHistoryScreen.new),
+  'close-shift': (false, true, null, CloseTillScreen.new),
+  'shift-history': (false, true, null, TillHistoryScreen.new),
   'cash-in-out': (false, true, null, CashMovementsScreen.new),
 };
 
@@ -1579,13 +1589,10 @@ Future<void> _openPage(
   (bool, bool, String?, Widget Function()?) page,
   Size size,
 ) async {
-  final (waiter, shiftOpen, tab, pushed) = page;
+  final (waiter, tillOpen, tab, pushed) = page;
   await _mount(
     tester,
-    bridge: _FakeBridge(
-      role: waiter ? 'waiter' : 'teller',
-      shiftOpen: shiftOpen,
-    ),
+    bridge: _FakeBridge(role: waiter ? 'waiter' : 'teller', tillOpen: tillOpen),
     size: size,
   );
   if (tab != null) await _tab(tester, tab);
@@ -1734,7 +1741,7 @@ void pageShellMain() {
       }
       // Pages on the spec grid (SPEC §2): the leading slot is reserved on
       // tab and pushed pages alike, so EVERY title sits at gutter + 56 and at
-      // one height — Till to Past shifts to Orders, the title does not move.
+      // one height — Till to Past tills to Orders, the title does not move.
       final gutter = size == _phone ? 16.0 : 24.0;
       final spec = {
         for (final n in _specPages)
@@ -1790,7 +1797,7 @@ const _boardSizes = <String, Size>{
 class _BoardScreen {
   const _BoardScreen({
     this.waiter = false,
-    this.shiftOpen = true,
+    this.tillOpen = true,
     this.tab,
     this.pushed,
     this.sheet,
@@ -1800,7 +1807,7 @@ class _BoardScreen {
 
   final String? route;
   final bool waiter;
-  final bool shiftOpen;
+  final bool tillOpen;
   final String? tab;
   final Widget Function()? pushed;
   final Widget Function()? sheet;
@@ -1815,15 +1822,15 @@ Future<void> _tapFirst(WidgetTester tester, Finder finder) async {
 
 final _board = <String, _BoardScreen>{
   'till': const _BoardScreen(tab: 'till'),
-  'till-noshift': const _BoardScreen(tab: 'till', shiftOpen: false),
+  'till-noshift': const _BoardScreen(tab: 'till', tillOpen: false),
   'cash-in-out': const _BoardScreen(
     tab: 'till',
     pushed: CashMovementsScreen.new,
   ),
-  'close-shift': const _BoardScreen(tab: 'till', pushed: CloseShiftScreen.new),
+  'close-shift': const _BoardScreen(tab: 'till', pushed: CloseTillScreen.new),
   'close-shift-counted': _BoardScreen(
     tab: 'till',
-    pushed: CloseShiftScreen.new,
+    pushed: CloseTillScreen.new,
     then: (tester) async {
       final field = find.byType(TextField);
       if (field.evaluate().isEmpty) return;
@@ -1833,16 +1840,13 @@ final _board = <String, _BoardScreen>{
   ),
   'z-report': _BoardScreen(
     tab: 'till',
-    sheet: () => const ShiftReportSheet(shiftId: 'sh-1', closed: true),
+    sheet: () => const TillReportSheet(tillId: 'sh-1', closed: true),
   ),
-  'x-report': const _BoardScreen(tab: 'till', sheet: ShiftReportSheet.new),
-  'past-shifts': const _BoardScreen(
-    tab: 'till',
-    pushed: ShiftHistoryScreen.new,
-  ),
+  'x-report': const _BoardScreen(tab: 'till', sheet: TillReportSheet.new),
+  'past-shifts': const _BoardScreen(tab: 'till', pushed: TillHistoryScreen.new),
   'past-shifts-open': _BoardScreen(
     tab: 'till',
-    pushed: ShiftHistoryScreen.new,
+    pushed: TillHistoryScreen.new,
     then: (tester) => _tapFirst(tester, find.text('Omar')),
   ),
   'orders': const _BoardScreen(tab: 'till', pushed: OrderHistoryScreen.new),
@@ -1873,7 +1877,7 @@ Future<void> _openBoard(
           : screen.waiter
           ? 'waiter'
           : 'teller',
-      shiftOpen: screen.shiftOpen,
+      tillOpen: screen.tillOpen,
       rtl: ar,
       route: screen.route,
     ),

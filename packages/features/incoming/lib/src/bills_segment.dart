@@ -47,7 +47,7 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
         if (!mounted) return;
         final n = ref.read(incomingProvider.notifier);
         unawaited(n.loadOpenTickets());
-        unawaited(n.loadShift());
+        unawaited(n.loadTill());
       }),
     );
   }
@@ -74,7 +74,7 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
       return;
     }
     final bridge = ref.read(bridgeProvider);
-    final shiftOpen = ref.read(incomingProvider).shiftOpen ?? false;
+    final tillOpen = ref.read(incomingProvider).tillOpen ?? false;
     final charge = await showMadarSheet<bool>(
       context,
       size: SheetSize.large,
@@ -85,10 +85,10 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
           label: bridge.trOr(QueueKeys.chargeBill),
           amountMinor: ticket.bill?.totalMinor ?? ticket.subtotalMinor,
           currency: bridge.currentSession()?.currencyCode ?? '',
-          enabled: shiftOpen && !ticket.queuedOffline,
+          enabled: tillOpen && !ticket.queuedOffline,
           reason: ticket.queuedOffline
               ? bridge.tr(key: 'queue.bill_not_synced')
-              : bridge.trOr(QueueKeys.needShift),
+              : bridge.trOr(QueueKeys.needTill),
           onTap: () => Navigator.of(sheetContext).maybePop(true),
         ),
       ),
@@ -99,7 +99,7 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
 
   /// Charge = the ONE tender drawer (the same one the counter and the Bill
   /// use), over this bill. Stays on the list after charging — the bill drops
-  /// out on reload — and the shell learns a sale landed on the shift.
+  /// out on reload — and the shell learns a sale landed on the till.
   Future<void> _charge(TicketView ticket) async {
     // A bill still in the outbox has no server id to settle against.
     if (ticket.queuedOffline) return;
@@ -130,7 +130,7 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
     final loaded = ref.watch(incomingProvider.select((s) => s.ticketsLoaded));
     final labels = ref.watch(incomingProvider.select((s) => s.tableLabels));
     final hasFloor = ref.watch(incomingProvider.select((s) => s.hasFloor));
-    final shiftOpen = ref.watch(incomingProvider.select((s) => s.shiftOpen));
+    final tillOpen = ref.watch(incomingProvider.select((s) => s.tillOpen));
     final error = ref.watch(incomingProvider.select((s) => s.error));
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
@@ -161,7 +161,7 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
       );
     }
 
-    final chargeReady = shiftOpen ?? false;
+    final chargeReady = tillOpen ?? false;
     Widget chargeFor(TicketView b) => MadarButton(
       label: bridge.trOr(QueueKeys.chargeBill),
       size: MadarButtonSize.compact,
@@ -172,7 +172,7 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
           ? t('queue.bill_not_synced')
           : chargeReady
           ? null
-          : bridge.trOr(QueueKeys.needShift),
+          : bridge.trOr(QueueKeys.needTill),
       onTap: () => unawaited(_guarded(() => _charge(b))),
     );
 
@@ -275,10 +275,10 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
     );
 
     final banners = <Widget>[
-      // Charge books onto THIS till's shift. Say so once, at the top, instead
+      // Charge books onto THIS till's till. Say so once, at the top, instead
       // of every row's button greyed with no reason.
-      if (shiftOpen == false)
-        NoticeBanner(text: bridge.trOr(QueueKeys.needShift), icon: 'lock'),
+      if (tillOpen == false)
+        NoticeBanner(text: bridge.trOr(QueueKeys.needTill), icon: 'lock'),
       if (error != null && bills.isNotEmpty)
         NoticeBanner(
           text: error.of(bridge),
@@ -384,7 +384,7 @@ class _PaneFooter extends ConsumerWidget {
               ? bridge.tr(key: 'queue.bill_not_synced')
               : chargeReady
               ? null
-              : bridge.trOr(QueueKeys.needShift),
+              : bridge.trOr(QueueKeys.needTill),
           onTap: onCharge,
         ),
         if (onOpenBill != null)

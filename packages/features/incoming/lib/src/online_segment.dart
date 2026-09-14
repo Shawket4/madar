@@ -24,9 +24,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// Safety-net poll period under the SSE tick, only while realtime is down.
-const Duration _pollPeriod = Duration(seconds: 60);
-
 class OnlineSegment extends ConsumerStatefulWidget {
   const OnlineSegment({super.key});
 
@@ -34,8 +31,7 @@ class OnlineSegment extends ConsumerStatefulWidget {
   ConsumerState<OnlineSegment> createState() => _OnlineSegmentState();
 }
 
-class _OnlineSegmentState extends ConsumerState<OnlineSegment>
-    with RealtimeGatedPoll<OnlineSegment> {
+class _OnlineSegmentState extends ConsumerState<OnlineSegment> {
   @override
   void initState() {
     super.initState();
@@ -138,8 +134,6 @@ class _OnlineSegmentState extends ConsumerState<OnlineSegment>
   @override
   Widget build(BuildContext context) {
     final bridge = ref.bridge;
-    // Backstop poll ONLY while realtime is down; connected relies on ticks.
-    realtimeGatedPoll(interval: _pollPeriod, onPoll: _reload);
     final orders = ref.watch(incomingProvider.select((s) => s.deliveryOrders));
     final loading = ref.watch(
       incomingProvider.select((s) => s.isLoadingDelivery),

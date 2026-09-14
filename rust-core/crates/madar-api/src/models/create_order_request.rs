@@ -43,6 +43,22 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub customer_name: Option<Option<String>>,
+    /// The device's code; with `device_id` + `order_number` the number is stored verbatim.
+    #[serde(
+        rename = "device_code",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_code: Option<Option<String>>,
+    /// The device ringing the order (else `X-Madar-Device`).
+    #[serde(
+        rename = "device_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_id: Option<Option<uuid::Uuid>>,
     #[serde(
         rename = "discount_amount",
         default,
@@ -101,7 +117,7 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub notes: Option<Option<String>>,
-    /// IGNORED by the server (accepted for backward compatibility only). The authoritative per-shift number is ALWAYS `MAX(order_number)+1` computed under the shift advisory lock — never the client value, which is used only on the device's local receipt. The byte-identical-at-reprint guarantee rides on `order_ref`, not this field. Two tills on one shift get distinct numbers (UNIQUE(shift_id, order_number) + the lock).
+    /// The device's own order number (contract R4): its per-business-day sequence, the same counter as the `NNNN` of its `order_ref`. Stored VERBATIM when the request also names `device_id` and a non-blank `device_code` — the order then reads `display_number` `<device_code>-<n>`. Without all three (old clients, dashboard, delivery) it is ignored and the server numbers the sale per till: `MAX(order_number)+1` over the till's server-numbered orders, under the till advisory lock (`uq_orders_till_legacy_number`).
     #[serde(
         rename = "order_number",
         default,
@@ -126,8 +142,6 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub payment_splits: Option<Option<Vec<models::PaymentSplitInput>>>,
-    #[serde(rename = "shift_id")]
-    pub shift_id: uuid::Uuid,
     #[serde(
         rename = "subtotal",
         default,
@@ -142,6 +156,8 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub tax_amount: Option<Option<i32>>,
+    #[serde(rename = "till_id")]
+    pub till_id: uuid::Uuid,
     #[serde(
         rename = "tip_amount",
         default,
@@ -163,6 +179,14 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub total_amount: Option<Option<i32>>,
+    /// `server` | `lan` | `unverified` — the till's verification as the device knew it.
+    #[serde(
+        rename = "verification",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub verification: Option<Option<String>>,
 }
 
 impl CreateOrderRequest {
@@ -170,7 +194,7 @@ impl CreateOrderRequest {
         branch_id: uuid::Uuid,
         items: Vec<models::OrderItemInput>,
         payment_method: String,
-        shift_id: uuid::Uuid,
+        till_id: uuid::Uuid,
     ) -> CreateOrderRequest {
         CreateOrderRequest {
             amount_tendered: None,
@@ -178,6 +202,8 @@ impl CreateOrderRequest {
             change_given: None,
             created_at: None,
             customer_name: None,
+            device_code: None,
+            device_id: None,
             discount_amount: None,
             discount_id: None,
             discount_type: None,
@@ -191,12 +217,13 @@ impl CreateOrderRequest {
             order_ref: None,
             payment_method,
             payment_splits: None,
-            shift_id,
             subtotal: None,
             tax_amount: None,
+            till_id,
             tip_amount: None,
             tip_payment_method: None,
             total_amount: None,
+            verification: None,
         }
     }
 }

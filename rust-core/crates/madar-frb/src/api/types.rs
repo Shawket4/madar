@@ -6,7 +6,7 @@
 use flutter_rust_bridge::frb;
 
 pub use madar_core::session::{LoginMode, LoginRequest, SessionSnapshot};
-pub use madar_core::shift::ShiftView;
+pub use madar_core::till::TillView;
 pub use madar_core::MadarConfig;
 
 #[frb(mirror(MadarConfig))]
@@ -15,6 +15,7 @@ pub struct _MadarConfig {
     pub environment: String,
     pub db_path: String,
     pub locale: String,
+    pub app_version: Option<String>,
 }
 
 #[frb(mirror(LoginMode))]
@@ -51,8 +52,8 @@ pub struct _SessionSnapshot {
     pub permissions_loaded: bool,
 }
 
-#[frb(mirror(ShiftView))]
-pub struct _ShiftView {
+#[frb(mirror(TillView))]
+pub struct _TillView {
     pub id: String,
     pub branch_id: String,
     pub teller_id: String,
@@ -61,4 +62,9 @@ pub struct _ShiftView {
     pub opened_at: String,
     pub status: String,
     pub is_open: bool,
+    pub device_id: Option<String>,
+    pub device_code: Option<String>,
+    /// `server` | `lan` | `unverified` | `legacy`.
+    pub verification: String,
+    pub opened_while_another_open: bool,
 }

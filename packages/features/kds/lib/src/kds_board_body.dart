@@ -19,10 +19,6 @@ import 'package:rust_bridge/rust_bridge.dart';
 /// four on an iPad landscape and one on a phone.
 const double _gridMinCell = 260;
 
-/// Safety-net poll under the realtime tick (natives: 60s), only while
-/// realtime is down.
-const Duration _safetyPollPeriod = Duration(seconds: 60);
-
 /// Ages are re-painted on this beat even when nothing happens — a ticket
 /// that crosses 5 or 10 minutes must change colour on its own.
 const Duration _ageBeat = Duration(seconds: 20);
@@ -41,8 +37,7 @@ class KdsBoardBody extends ConsumerStatefulWidget {
   ConsumerState<KdsBoardBody> createState() => _KdsBoardBodyState();
 }
 
-class _KdsBoardBodyState extends ConsumerState<KdsBoardBody>
-    with RealtimeGatedPoll<KdsBoardBody> {
+class _KdsBoardBodyState extends ConsumerState<KdsBoardBody> {
   Timer? _ageTimer;
 
   KdsNotifier get _board => ref.read(kdsProvider(widget.stationId).notifier);
@@ -99,12 +94,6 @@ class _KdsBoardBodyState extends ConsumerState<KdsBoardBody>
   Widget build(BuildContext context) {
     final bridge = ref.bridge;
     final layout = context.madarLayout;
-    // Fallback poll ONLY while realtime is down (connected → ticks cover it;
-    // the notifier itself listens to the ticks).
-    realtimeGatedPoll(
-      interval: _safetyPollPeriod,
-      onPoll: () => unawaited(_board.load()),
-    );
     final state = ref.watch(kdsProvider(widget.stationId));
     final connected = ref.watch(realtimeConnectedProvider);
     final now = DateTime.now();

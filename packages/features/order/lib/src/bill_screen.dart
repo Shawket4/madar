@@ -61,8 +61,7 @@ class BillScreen extends ConsumerStatefulWidget {
   ConsumerState<BillScreen> createState() => _BillScreenState();
 }
 
-class _BillScreenState extends ConsumerState<BillScreen>
-    with RealtimeGatedPoll<BillScreen> {
+class _BillScreenState extends ConsumerState<BillScreen> {
   /// "42m" moves by the clock, not by an event.
   Timer? _clock;
 
@@ -80,7 +79,7 @@ class _BillScreenState extends ConsumerState<BillScreen>
           if (!mounted || !widget.chargeOnOpen) return;
           final s = ref.read(orderProvider);
           final t = _ticketOf(s);
-          if (t != null && (widget.canCharge ?? !s.isWaiter) && s.shiftOpen) {
+          if (t != null && (widget.canCharge ?? !s.isWaiter) && s.tillOpen) {
             unawaited(_charge(t, _tableLabel(s, t) ?? t.ticketRef ?? ''));
           }
         }),
@@ -300,10 +299,6 @@ class _BillScreenState extends ConsumerState<BillScreen>
         );
         if (Navigator.of(context).canPop()) Navigator.of(context).pop();
       });
-    realtimeGatedPoll(
-      interval: const Duration(seconds: 15),
-      onPoll: () => unawaited(_notifier.loadOpenTickets()),
-    );
 
     final state = ref.watch(orderProvider);
     final layout = MadarLayout.of(context);
@@ -474,10 +469,8 @@ class _BillScreenState extends ConsumerState<BillScreen>
             // What the drawer will actually take — the total, not the lines.
             amountMinor: ticket.bill?.totalMinor ?? ticket.subtotalMinor,
             currency: currency,
-            enabled: state.shiftOpen && !state.isBusy,
-            reason: state.shiftOpen
-                ? null
-                : bridge.tr(key: 'waiter.need_shift'),
+            enabled: state.tillOpen && !state.isBusy,
+            reason: state.tillOpen ? null : bridge.tr(key: 'waiter.need_shift'),
             loading: state.isBusy,
             onTap: () => unawaited(_charge(ticket, title)),
           )

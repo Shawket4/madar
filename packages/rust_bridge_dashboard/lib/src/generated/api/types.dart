@@ -57,12 +57,14 @@ class MadarConfig {
   final String environment;
   final String dbPath;
   final String locale;
+  final String? appVersion;
 
   const MadarConfig({
     required this.baseUrl,
     required this.environment,
     required this.dbPath,
     required this.locale,
+    this.appVersion,
   });
 
   @override
@@ -70,7 +72,8 @@ class MadarConfig {
       baseUrl.hashCode ^
       environment.hashCode ^
       dbPath.hashCode ^
-      locale.hashCode;
+      locale.hashCode ^
+      appVersion.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -80,7 +83,8 @@ class MadarConfig {
           baseUrl == other.baseUrl &&
           environment == other.environment &&
           dbPath == other.dbPath &&
-          locale == other.locale;
+          locale == other.locale &&
+          appVersion == other.appVersion;
 }
 
 class SessionSnapshot {

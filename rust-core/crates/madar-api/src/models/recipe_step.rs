@@ -14,6 +14,17 @@ use serde::{Deserialize, Serialize};
 /// RecipeStep : One step, resolved for display: whatever its kind, it has a name, and a preset step also carries its note and the animation to play.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RecipeStep {
+    /// Content hash of the global asset; `None` until ingested or when retired.
+    #[serde(
+        rename = "animation_hash",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub animation_hash: Option<Option<String>>,
+    /// Always true for preset animations (global library).
+    #[serde(rename = "animation_is_global")]
+    pub animation_is_global: bool,
     #[serde(
         rename = "animation_sha256",
         default,
@@ -65,8 +76,16 @@ pub struct RecipeStep {
 
 impl RecipeStep {
     /// One step, resolved for display: whatever its kind, it has a name, and a preset step also carries its note and the animation to play.
-    pub fn new(kind: String, name: String, name_ar: String, position: i32) -> RecipeStep {
+    pub fn new(
+        animation_is_global: bool,
+        kind: String,
+        name: String,
+        name_ar: String,
+        position: i32,
+    ) -> RecipeStep {
         RecipeStep {
+            animation_hash: None,
+            animation_is_global,
             animation_sha256: None,
             animation_url: None,
             kind,

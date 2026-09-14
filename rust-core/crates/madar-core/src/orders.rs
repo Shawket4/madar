@@ -25,6 +25,7 @@ pub(crate) struct VoidOrderCommand {
 /// not the one open when the network returned.
 #[derive(Serialize, Deserialize)]
 pub(crate) struct RefundOrderCommand {
+    #[serde(deserialize_with = "crate::till::de_legacy_till_request")]
     pub request: models::CreateRefundRequest,
 }
 
@@ -135,6 +136,11 @@ pub struct OrderSummaryView {
     pub price_flagged: bool,
     /// Optional human order ref (server-assigned) shown under the order number.
     pub order_ref: Option<String>,
+    /// The number people read: `36B-12` for a device-numbered sale (with the
+    /// server's `~AB12` when two devices shared a code offline), the plain
+    /// server number otherwise, empty while a legacy queued sale has none.
+    #[serde(default)]
+    pub display_number: String,
 }
 
 /// One line of a fetched order (item + its chosen modifiers) — the expanded
@@ -195,8 +201,8 @@ pub struct OrderRefundsView {
 /// the counted drawer is lighter than the sales say.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ShiftRefundsView {
-    pub shift_id: String,
+pub struct TillRefundsView {
+    pub till_id: String,
     pub refund_count: i64,
     pub refunded_minor: i64,
     /// What left the drawer. The rest went back the way it came (card, wallet)
@@ -277,9 +283,9 @@ pub(crate) fn order_refunds_view(r: &models::OrderRefunds) -> OrderRefundsView {
     }
 }
 
-pub(crate) fn shift_refunds_view(r: &models::ShiftRefunds) -> ShiftRefundsView {
-    ShiftRefundsView {
-        shift_id: r.shift_id.to_string(),
+pub(crate) fn till_refunds_view(r: &models::TillRefunds) -> TillRefundsView {
+    TillRefundsView {
+        till_id: r.till_id.to_string(),
         refund_count: r.refund_count,
         refunded_minor: r.refunded_amount,
         refunded_cash_minor: r.refunded_cash,
@@ -425,6 +431,11 @@ pub(crate) fn order_to_receipt(
     crate::checkout::ReceiptView {
         local_order_id: o.id.to_string(),
         order_number: Some(o.order_number as i64),
+        display_number: crate::checkout::server_display_number(
+            o.display_number.as_deref(),
+            o.order_ref.as_deref(),
+            o.order_number as i64,
+        ),
         order_ref: o.order_ref.clone().filter(|s| !s.is_empty()),
         is_voided: o.status == "voided",
         lines,
@@ -536,15 +547,15 @@ fn compose_address(d: &models::OrderDeliveryInfo, locale: &str) -> Option<String
 /// order). Mirrors the Flutter pill, which sums `orderHistoryProvider` the same way.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ShiftStatsView {
+pub struct TillStatsView {
     pub sales_minor: i64,
     pub order_count: i64,
 }
 
 /// Derive the stats pill from the orders the host already holds (synced +
-/// queued, from `list_shift_orders`). Pure — no store/network — so the host can
+/// queued, from `list_till_orders`). Pure — no store/network — so the host can
 /// recompute it cheaply whenever the order list changes.
-pub fn shift_stats(orders: &[OrderSummaryView]) -> ShiftStatsView {
+pub fn till_stats(orders: &[OrderSummaryView]) -> TillStatsView {
     let mut sales_minor = 0i64;
     let mut order_count = 0i64;
     for o in orders {
@@ -554,7 +565,7 @@ pub fn shift_stats(orders: &[OrderSummaryView]) -> ShiftStatsView {
         order_count += 1;
         sales_minor += o.total_minor;
     }
-    ShiftStatsView {
+    TillStatsView {
         sales_minor,
         order_count,
     }
@@ -577,12 +588,17 @@ pub(crate) fn from_server(o: &models::Order) -> OrderSummaryView {
         price_flagged: o.price_flagged.unwrap_or(false),
         customer_name: o.customer_name.clone().flatten().filter(|s| !s.is_empty()),
         order_ref: o.order_ref.clone().flatten().filter(|s| !s.is_empty()),
+        display_number: crate::checkout::server_display_number(
+            o.display_number.as_deref(),
+            o.order_ref.clone().flatten().as_deref(),
+            o.order_number as i64,
+        ),
     }
 }
 
 /// The shift's still-queued orders, newest first — parsed from the outbox's
-/// `create_order` commands for `shift_id`. A dead command shows as `failed`.
-pub(crate) fn queued(store: &Store, shift_id: &str) -> CoreResult<Vec<OrderSummaryView>> {
+/// `create_order` commands for `till_id`. A dead command shows as `failed`.
+pub(crate) fn queued(store: &Store, till_id: &str) -> CoreResult<Vec<OrderSummaryView>> {
     let mut out = Vec::new();
     for item in store.list_active_of_types(&["create_order"])? {
         let cmd: crate::checkout::CheckoutCommand = match serde_json::from_str(&item.payload) {
@@ -590,7 +606,7 @@ pub(crate) fn queued(store: &Store, shift_id: &str) -> CoreResult<Vec<OrderSumma
             Err(_) => continue,
         };
         let r = &cmd.request;
-        if r.shift_id.to_string() != shift_id {
+        if r.till_id.to_string() != till_id {
             continue;
         }
         out.push(OrderSummaryView {
@@ -630,11 +646,21 @@ pub(crate) fn queued(store: &Store, shift_id: &str) -> CoreResult<Vec<OrderSumma
             // dedup this row against its synced server twin (same ref) during the
             // lost-response window; without it the order double-shows + double-counts.
             order_ref: flat(&r.order_ref).filter(|s| !s.is_empty()),
+            display_number: queued_display_number(&cmd),
         });
     }
     // Outbox is oldest-first; show the latest-rung sale on top.
     out.reverse();
     Ok(out)
+}
+
+/// A queued sale's number: the device stamp it was rung with (legacy queued
+/// sales carry none and are numbered by the server when they land).
+fn queued_display_number(cmd: &crate::checkout::CheckoutCommand) -> String {
+    cmd.device
+        .as_ref()
+        .map(|d| crate::checkout::display_number(&d.device_code, d.order_number))
+        .unwrap_or_default()
 }
 
 /// Every still-queued offline order ACROSS shifts (newest first) — the search /
@@ -677,6 +703,7 @@ pub(crate) fn queued_all(store: &Store) -> CoreResult<Vec<OrderSummaryView>> {
             price_flagged: false,
             customer_name: flat(&r.customer_name).filter(|s| !s.is_empty()),
             order_ref: flat(&r.order_ref).filter(|s| !s.is_empty()),
+            display_number: queued_display_number(&cmd),
         });
     }
     out.reverse();
@@ -687,7 +714,7 @@ pub(crate) fn queued_all(store: &Store) -> CoreResult<Vec<OrderSummaryView>> {
 /// view. Drops any queued order whose client-minted `order_ref` ALREADY appears on
 /// a server row — the inflight / lost-response window where the local outbox copy
 /// and the server copy coexist. WITHOUT this dedup the order shows twice and
-/// `shift_stats` double-counts the shift's sales + order count (the offline/online
+/// `till_stats` double-counts the shift's sales + order count (the offline/online
 /// merge bug). Queued-with-no-ref (pre-first-sync edge) can't be deduped, so it's
 /// kept — it isn't on the server yet anyway. Queued stay on top (newest), then server.
 pub fn merge_for_view(
@@ -737,7 +764,28 @@ mod tests {
             price_flagged: false,
             customer_name: None,
             order_ref: None,
+            display_number: String::new(),
         }
+    }
+
+    #[test]
+    fn history_rows_carry_the_device_display_number() {
+        let mut o = models::Order::default();
+        o.order_number = 12;
+        o.order_ref = Some(Some("MAA-260913-36B-0012".into()));
+        assert_eq!(from_server(&o).display_number, "36B-12");
+        o.order_ref = Some(Some("MAA-260913-36B-0012~AB12".into()));
+        assert_eq!(from_server(&o).display_number, "36B-12~AB12");
+        o.order_ref = Some(Some("MAA-260913-ABCDEF-007".into()));
+        o.order_number = 7;
+        assert_eq!(from_server(&o).display_number, "7", "server-numbered (legacy) ref");
+        // The server's own display_number wins over the derivation.
+        o.order_number = 12;
+        o.order_ref = Some(Some("MAA-260913-36B-0012".into()));
+        o.display_number = Some("36B-12~AB12".into());
+        assert_eq!(from_server(&o).display_number, "36B-12~AB12");
+        o.display_number = Some(String::new());
+        assert_eq!(from_server(&o).display_number, "36B-12", "an empty value falls back to the ref");
     }
 
     #[test]
@@ -748,13 +796,13 @@ mod tests {
             summary(9999, "voided"), // excluded from both count + total
             summary(2000, "failed"), // an unsynced sale still counts
         ];
-        let s = shift_stats(&orders);
+        let s = till_stats(&orders);
         assert_eq!(s.order_count, 3);
         assert_eq!(s.sales_minor, 10000);
         // Empty list → zeros (no open-shift activity yet).
         assert_eq!(
-            shift_stats(&[]),
-            ShiftStatsView {
+            till_stats(&[]),
+            TillStatsView {
                 sales_minor: 0,
                 order_count: 0
             }
@@ -787,8 +835,8 @@ mod tests {
                 .count(),
             1
         );
-        // shift_stats over the merged list is therefore no longer double-counted.
-        let st = shift_stats(&merged);
+        // till_stats over the merged list is therefore no longer double-counted.
+        let st = till_stats(&merged);
         assert_eq!(st.order_count, 2, "stats must count the synced order once");
         assert_eq!(st.sales_minor, 2280 + 1500);
     }
@@ -817,7 +865,7 @@ mod tests {
         req.subtotal = Some(Some((total as f64 / 1.14).round() as i32));
         req.tax_amount = Some(Some(total - (total as f64 / 1.14).round() as i32));
         req.total_amount = Some(Some(total));
-        let cmd = CheckoutCommand { request: req };
+        let cmd = CheckoutCommand { request: req, device: None };
         store
             .enqueue(&crate::store::NewOutboxOp {
                 id: id.into(),
@@ -1050,6 +1098,7 @@ mod tests {
             1400,  // tax_amount
             uid(33),
             "Tara".into(), // teller_name
+            uid(32),       // till_id (same as the deprecated shift_id)
             11400,         // total_amount
             items,
         );
@@ -1076,6 +1125,7 @@ mod tests {
             total - (total as f64 / 1.14).round() as i32,
             uid(43),
             "Bob".into(),
+            uid(42), // till_id
             total,
         );
         o.status = status.into();
@@ -1379,14 +1429,14 @@ mod tests {
         assert!(!v.queued);
     }
 
-    // ---- shift_stats edge cases ----------------------------------------
+    // ---- till_stats edge cases ----------------------------------------
 
     #[test]
     fn shift_stats_all_voided_is_zero() {
         let orders = vec![summary(5000, "voided"), summary(3000, "voided")];
         assert_eq!(
-            shift_stats(&orders),
-            ShiftStatsView {
+            till_stats(&orders),
+            TillStatsView {
                 sales_minor: 0,
                 order_count: 0
             }
@@ -1395,7 +1445,7 @@ mod tests {
 
     #[test]
     fn shift_stats_single_completed() {
-        let s = shift_stats(&[summary(4200, "completed")]);
+        let s = till_stats(&[summary(4200, "completed")]);
         assert_eq!(s.order_count, 1);
         assert_eq!(s.sales_minor, 4200);
     }
@@ -1455,9 +1505,9 @@ mod tests {
     fn queued_created_at_is_rfc3339_from_request() {
         let store = Store::open("").unwrap();
         let mut req = models::CreateOrderRequest::new(uid(60), vec![], "Cash".into(), uid(61));
-        req.shift_id = uuid::Uuid::parse_str(SHIFT).unwrap();
+        req.till_id = uuid::Uuid::parse_str(SHIFT).unwrap();
         req.created_at = Some(Some(ts()));
-        let cmd = CheckoutCommand { request: req };
+        let cmd = CheckoutCommand { request: req, device: None };
         store
             .enqueue(&crate::store::NewOutboxOp {
                 id: "o1".into(),
@@ -1500,7 +1550,7 @@ mod tests {
         assert!(pending_void_ids(&store).unwrap().is_empty());
     }
 
-    // Property-based: shift_stats must equal an independent re-statement (sum the
+    // Property-based: till_stats must equal an independent re-statement (sum the
     // non-voided totals, count the non-voided orders) for ANY mix — pins the sum
     // and the void-exclusion predicate so arithmetic/predicate mutants die.
     mod stats_proptests {
@@ -1517,7 +1567,7 @@ mod tests {
                 };
                 let views: Vec<OrderSummaryView> =
                     cases.iter().map(|(t, k)| summary(*t, status(*k))).collect();
-                let got = shift_stats(&views);
+                let got = till_stats(&views);
 
                 let (mut exp_sales, mut exp_count) = (0i64, 0i64);
                 for (t, k) in &cases {

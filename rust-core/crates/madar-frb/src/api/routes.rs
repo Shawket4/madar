@@ -8,7 +8,7 @@ pub enum AppRoute {
     /// Configured but signed out → teller/waiter PIN login.
     Login,
     /// Signed in, no open shift → open-shift screen.
-    OpenShift,
+    OpenTill,
     /// Signed in with an open shift → order screen.
     Order,
     /// Device run as a kitchen display → the KDS for `station_id` (no shift needed).
@@ -22,7 +22,7 @@ impl From<madar_core::AppRoute> for AppRoute {
         match r {
             madar_core::AppRoute::DeviceSetup => Self::DeviceSetup,
             madar_core::AppRoute::Login => Self::Login,
-            madar_core::AppRoute::OpenShift => Self::OpenShift,
+            madar_core::AppRoute::OpenTill => Self::OpenTill,
             madar_core::AppRoute::Order => Self::Order,
             madar_core::AppRoute::KitchenDisplay { station_id } => {
                 Self::KitchenDisplay { station_id }

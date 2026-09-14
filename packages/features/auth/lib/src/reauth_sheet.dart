@@ -37,8 +37,8 @@ enum ReauthOutcome {
   resumed,
 
   /// The teller chose the escape hatch — the presenter must open the
-  /// close-shift flow so a different teller can sign in (natives:
-  /// `reauthSwitchTeller()` → `showCloseShift = true`).
+  /// close-till flow so a different teller can sign in (natives:
+  /// `reauthSwitchTeller()` → `showCloseTill = true`).
   switchTeller,
 }
 
@@ -62,12 +62,12 @@ Future<ReauthOutcome?> showReauthSheet(BuildContext context) {
   );
 }
 
-/// Re-auth prompt shown when the bearer token expired mid-shift
+/// Re-auth prompt shown when the bearer token expired mid-till
 /// (`syncStatus().authPaused` — the outbox parked on a 401 while it still
-/// holds orders). The teller who owns the OPEN shift re-enters their PIN to
+/// holds orders). The teller who owns the OPEN till re-enters their PIN to
 /// resume syncing — same teller, no handover; `signIn` un-parks the queue
 /// and drains the backlog WITHOUT wiping the outbox. The escape hatch pops
-/// [ReauthOutcome.switchTeller] so the presenter can close the shift and
+/// [ReauthOutcome.switchTeller] so the presenter can close the till and
 /// route to login for a new teller. Port of the natives' ReauthScreen.kt /
 /// ReauthView.swift, presented via [showReauthSheet].
 class ReauthSheet extends ConsumerWidget {
@@ -157,7 +157,7 @@ class ReauthSheet extends ConsumerWidget {
                   icon: 'arrow.right.circle',
                 ),
                 const SizedBox(height: Space.sm),
-                // Escape hatch — close the shift and route a different
+                // Escape hatch — close the till and route a different
                 // teller to login.
                 _SwitchTellerLink(
                   label: t('chrome.reauth_switch'),

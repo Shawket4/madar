@@ -16,7 +16,7 @@ use madar_core::MadarCore;
 use crate::api::error::MadarError;
 use crate::api::realtime::{AlertCommand, RealtimeMessage, SinkListener, SinkPlayer};
 use crate::api::routes::AppRoute;
-use crate::api::types::{LoginRequest, MadarConfig, SessionSnapshot, ShiftView};
+use crate::api::types::{LoginRequest, MadarConfig, SessionSnapshot};
 use crate::frb_generated::StreamSink;
 
 /// FFI contract version this wrapper was written against (madar-core's
@@ -142,24 +142,6 @@ impl MadarBridge {
     #[frb(sync)]
     pub fn is_rtl(&self) -> bool {
         self.inner.is_rtl()
-    }
-
-    // ── shift (spike subset) ──────────────────────────────────────────────
-
-    pub fn current_shift(&self) -> Result<Option<ShiftView>, MadarError> {
-        self.inner.current_shift().map_err(MadarError::from)
-    }
-
-    /// Outbox-first: enqueues the open, drains, returns the local view.
-    pub async fn open_shift(
-        &self,
-        opening_cash_minor: i64,
-        opening_reason: Option<String>,
-    ) -> Result<ShiftView, MadarError> {
-        self.inner
-            .open_shift(opening_cash_minor, opening_reason)
-            .await
-            .map_err(MadarError::from)
     }
 
     // ── sync / connectivity (spike subset) ────────────────────────────────

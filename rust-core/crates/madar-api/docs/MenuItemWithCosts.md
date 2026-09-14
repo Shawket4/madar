@@ -12,6 +12,7 @@ Name | Type | Description | Notes
 **description** | Option<**String**> |  | [optional]
 **description_translations** | **serde_json::Value** |  | 
 **id** | **uuid::Uuid** |  | 
+**image** | Option<[**models::AssetGroupRef**](AssetGroupRef.md)> | Asset refs (Track B4, §11.10); null when no asset or not attached by this endpoint. | [optional]
 **image_url** | Option<**String**> |  | [optional]
 **is_active** | **bool** |  | 
 **name** | **String** |  | 

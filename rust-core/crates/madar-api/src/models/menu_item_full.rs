@@ -32,6 +32,9 @@ pub struct MenuItemFull {
     pub description_translations: serde_json::Value,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// Asset refs (Track B4, §11.10); null when no asset or not attached by this endpoint.
+    #[serde(rename = "image", skip_serializing_if = "Option::is_none")]
+    pub image: Option<Box<models::AssetGroupRef>>,
     #[serde(rename = "image_url", skip_serializing_if = "Option::is_none")]
     pub image_url: Option<String>,
     #[serde(rename = "is_active")]
@@ -86,6 +89,7 @@ impl MenuItemFull {
             description: None,
             description_translations,
             id,
+            image: None,
             image_url: None,
             is_active,
             name,

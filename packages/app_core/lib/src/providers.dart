@@ -299,16 +299,21 @@ final catalogTickProvider = NotifierProvider<TickNotifier, int>(
 
 /// Bumped whenever the drawer's figures may have moved: a pay in / pay out
 /// recorded here, a cash sale, refund, void or settle, or a realtime event
-/// that can carry another till's sale. The Till and close-shift surfaces
-/// re-read the core's shift report on it. A shell refresh is NOT that
+/// that can carry another till's sale. The Till and close-till surfaces
+/// re-read the core's till report on it. A shell refresh is NOT that
 /// signal — it only emits when the route or session changes, which a cash
 /// movement never does.
 final drawerTickProvider = NotifierProvider<TickNotifier, int>(
   TickNotifier.new,
 );
 
+/// Bumped when the core says its sync moved (`sync.status`, `sync.changed`):
+/// the sync-on-open strip and the Sync section re-read the core's status on
+/// it instead of polling.
+final syncTickProvider = NotifierProvider<TickNotifier, int>(TickNotifier.new);
+
 /// Bumped when the core emptied every cart outside a sign-in (closing a
-/// shift). Each open cart re-reads its context on it.
+/// till). Each open cart re-reads its context on it.
 final cartsClearedTickProvider = NotifierProvider<TickNotifier, int>(
   TickNotifier.new,
 );
@@ -318,7 +323,7 @@ final cartsClearedTickProvider = NotifierProvider<TickNotifier, int>(
 /// is routed at all). `null` until this device has reached the server once.
 ///
 /// Re-read on every connectivity pulse, because it is a shop-level setting a
-/// manager can change from the dashboard mid-shift: a till that was offline
+/// manager can change from the dashboard mid-till: a till that was offline
 /// when the kitchen moved onto a screen must not keep bumping for the rest of
 /// the day. The core caches the last known answer, so this survives going
 /// offline; only a device that has NEVER reached the server sees `null`.

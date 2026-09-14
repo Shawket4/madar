@@ -370,6 +370,7 @@ class OrderSummaryView {
 
   /// Optional human order ref (server-assigned) shown under the order number.
   final String? orderRef;
+  final String displayNumber;
 
   const OrderSummaryView({
     required this.id,
@@ -386,6 +387,7 @@ class OrderSummaryView {
     this.customerName,
     required this.priceFlagged,
     this.orderRef,
+    required this.displayNumber,
   });
 
   @override
@@ -403,7 +405,8 @@ class OrderSummaryView {
       orderType.hashCode ^
       customerName.hashCode ^
       priceFlagged.hashCode ^
-      orderRef.hashCode;
+      orderRef.hashCode ^
+      displayNumber.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -423,7 +426,8 @@ class OrderSummaryView {
           orderType == other.orderType &&
           customerName == other.customerName &&
           priceFlagged == other.priceFlagged &&
-          orderRef == other.orderRef;
+          orderRef == other.orderRef &&
+          displayNumber == other.displayNumber;
 }
 
 /// One component of a bundle line on the receipt, with its own modifiers.
@@ -557,6 +561,9 @@ class ReceiptView {
   /// Human order number (server-assigned); `None` for a freshly-queued sale.
   final PlatformInt64? orderNumber;
 
+  /// What people read: `36B-12` (device code + per-device number).
+  final String displayNumber;
+
   /// Cross-channel order reference (e.g. delivery ticket id), printed when set.
   final String? orderRef;
 
@@ -612,6 +619,7 @@ class ReceiptView {
   const ReceiptView({
     required this.localOrderId,
     this.orderNumber,
+    required this.displayNumber,
     this.orderRef,
     required this.isVoided,
     required this.lines,
@@ -646,6 +654,7 @@ class ReceiptView {
   int get hashCode =>
       localOrderId.hashCode ^
       orderNumber.hashCode ^
+      displayNumber.hashCode ^
       orderRef.hashCode ^
       isVoided.hashCode ^
       lines.hashCode ^
@@ -682,6 +691,7 @@ class ReceiptView {
           runtimeType == other.runtimeType &&
           localOrderId == other.localOrderId &&
           orderNumber == other.orderNumber &&
+          displayNumber == other.displayNumber &&
           orderRef == other.orderRef &&
           isVoided == other.isVoided &&
           lines == other.lines &&
@@ -811,44 +821,6 @@ class RefundView {
           queued == other.queued;
 }
 
-/// Every refund issued during one shift — the Z-report's line.
-class ShiftRefundsView {
-  final String shiftId;
-  final PlatformInt64 refundCount;
-  final PlatformInt64 refundedMinor;
-
-  /// What left the drawer. The rest went back the way it came.
-  final PlatformInt64 refundedCashMinor;
-  final List<RefundView> refunds;
-
-  const ShiftRefundsView({
-    required this.shiftId,
-    required this.refundCount,
-    required this.refundedMinor,
-    required this.refundedCashMinor,
-    required this.refunds,
-  });
-
-  @override
-  int get hashCode =>
-      shiftId.hashCode ^
-      refundCount.hashCode ^
-      refundedMinor.hashCode ^
-      refundedCashMinor.hashCode ^
-      refunds.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ShiftRefundsView &&
-          runtimeType == other.runtimeType &&
-          shiftId == other.shiftId &&
-          refundCount == other.refundCount &&
-          refundedMinor == other.refundedMinor &&
-          refundedCashMinor == other.refundedCashMinor &&
-          refunds == other.refunds;
-}
-
 /// The tender screen's figures.
 class TenderSummaryView {
   final PlatformInt64 chargeTotalMinor;
@@ -899,4 +871,42 @@ class TenderSummaryView {
           dueLabelKey == other.dueLabelKey &&
           dueIsSubtotal == other.dueIsSubtotal &&
           showsChange == other.showsChange;
+}
+
+/// Every refund issued during one shift — the Z-report's line.
+class TillRefundsView {
+  final String tillId;
+  final PlatformInt64 refundCount;
+  final PlatformInt64 refundedMinor;
+
+  /// What left the drawer. The rest went back the way it came.
+  final PlatformInt64 refundedCashMinor;
+  final List<RefundView> refunds;
+
+  const TillRefundsView({
+    required this.tillId,
+    required this.refundCount,
+    required this.refundedMinor,
+    required this.refundedCashMinor,
+    required this.refunds,
+  });
+
+  @override
+  int get hashCode =>
+      tillId.hashCode ^
+      refundCount.hashCode ^
+      refundedMinor.hashCode ^
+      refundedCashMinor.hashCode ^
+      refunds.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TillRefundsView &&
+          runtimeType == other.runtimeType &&
+          tillId == other.tillId &&
+          refundCount == other.refundCount &&
+          refundedMinor == other.refundedMinor &&
+          refundedCashMinor == other.refundedCashMinor &&
+          refunds == other.refunds;
 }

@@ -70,7 +70,7 @@ pub struct GetBookingSettingsParams {
 #[derive(Clone, Debug)]
 pub struct ListBookingsParams {
     pub branch_id: String,
-    /// Service date (`YYYY-MM-DD`, branch-local, 05:00→05:00). Defaults to today.
+    /// Calendar date (`YYYY-MM-DD`, branch-local, midnight→midnight). Defaults to today.
     pub date: Option<String>,
     /// Explicit window (overrides `date`).
     pub from: Option<chrono::DateTime<chrono::FixedOffset>>,

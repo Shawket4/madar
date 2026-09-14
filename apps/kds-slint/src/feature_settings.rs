@@ -13,7 +13,7 @@
 
 use crate::{
     human_message, on_ui, rt, App, AppWindow, SettingsDiagData, SettingsState,
-    SettingsStationData, SettingsTillData, SyncOutboxData, SyncState, T,
+    SettingsStationData, SyncOutboxData, SyncState, T,
 };
 use madar_core::{
     checkout::{ReceiptLineView, ReceiptView},
@@ -96,8 +96,6 @@ pub fn apply_settings_strings(ui: &AppWindow, core: &MadarCore) {
     s.set_tr_printed(t("receipt.printed"));
     s.set_tr_print_failed(t("receipt.print_failed"));
     s.set_tr_no_printer(t("receipt.no_printer"));
-    s.set_tr_till(t("settings.till"));
-    s.set_tr_till_default(t("settings.till_default"));
     s.set_tr_choose_station(t("setup.choose_station"));
     s.set_tr_lan(t("settings.lan"));
     s.set_tr_lan_hub_hint(t("settings.lan_hub_hint"));
@@ -147,7 +145,6 @@ fn refresh_config_mirror(app: &Arc<App>) {
     on_ui(app, |ui, app| {
         let config = app.core.device_config();
         let s = ui.global::<SettingsState>();
-        s.set_till_id(config.till_id.unwrap_or_default().into());
         s.set_station_id(config.station_id.unwrap_or_default().into());
         s.set_brand_star(config.printer_brand.as_deref() == Some("star"));
         s.set_lan_active(app.core.lan_active());
@@ -193,16 +190,11 @@ fn settings_load(app: &Arc<App>) {
     rt().spawn(async move {
         let core = app.core.clone();
         let config = core.device_config();
-        let shift = core.current_shift().ok().flatten();
+        let till = core.current_till().ok().flatten();
         let is_kitchen = core
             .current_session()
             .map(|s| s.role == "kitchen")
             .unwrap_or(false);
-        let tills = if is_kitchen {
-            Vec::new()
-        } else {
-            core.list_tills().await.unwrap_or_default()
-        };
         let stations = if is_kitchen {
             core.kds_list_stations().await.unwrap_or_default()
         } else {
@@ -211,13 +203,13 @@ fn settings_load(app: &Arc<App>) {
         let pending = core.pending_outbox_count().unwrap_or(0);
         let diagnostics = core.recent_logs();
 
-        let teller = shift.as_ref().map(|s| s.teller_name.clone()).unwrap_or_default();
+        let teller = till.as_ref().map(|s| s.teller_name.clone()).unwrap_or_default();
         let initial = teller
             .chars()
             .next()
             .map(|c| c.to_uppercase().to_string())
             .unwrap_or_else(|| "?".to_string());
-        let has_open_shift = shift.as_ref().map(|s| s.is_open).unwrap_or(false);
+        let has_open_shift = till.as_ref().map(|s| s.is_open).unwrap_or(false);
         let role = core
             .current_session()
             .map(|s| s.role)
@@ -232,14 +224,7 @@ fn settings_load(app: &Arc<App>) {
             // Role chip: `role.replaceAll('_', ' ').toUpperCase()`.
             s.set_role_label(role.replace('_', " ").to_uppercase().into());
             s.set_is_kitchen(is_kitchen);
-            s.set_till_id(config.till_id.clone().unwrap_or_default().into());
             s.set_station_id(config.station_id.clone().unwrap_or_default().into());
-            s.set_tills(ModelRc::new(VecModel::from(
-                tills
-                    .iter()
-                    .map(|t| SettingsTillData { id: t.id.clone().into(), name: t.name.clone().into() })
-                    .collect::<Vec<_>>(),
-            )));
             s.set_stations(ModelRc::new(VecModel::from(
                 stations
                     .iter()
@@ -291,6 +276,7 @@ fn test_receipt(teller_name: Option<String>) -> ReceiptView {
     ReceiptView {
         local_order_id: "test-print".into(),
         order_number: None,
+        display_number: String::new(),
         order_ref: None,
         is_voided: false,
         lines: vec![ReceiptLineView {
@@ -302,6 +288,7 @@ fn test_receipt(teller_name: Option<String>) -> ReceiptView {
             addons: Vec::new(),
             optionals: Vec::new(),
             components: Vec::new(),
+            reward_label: None,
         }],
         payment_label: "—".into(),
         subtotal_minor: 0,
@@ -325,6 +312,9 @@ fn test_receipt(teller_name: Option<String>) -> ReceiptView {
         delivery_notes: None,
         queued_offline: false,
         created_at: chrono::Utc::now().to_rfc3339(),
+        service_charge_minor: 0,
+        payments: Vec::new(),
+        loyalty_notice: None,
     }
 }
 
@@ -390,8 +380,8 @@ fn sync_load(app: &Arc<App>) {
         let loc_op = |op: &str| -> String {
             // Localized op-type label; unknown ops show their raw wire name.
             match op {
-                "open_shift" => app.core.tr("sync.op_open_shift".into()),
-                "close_shift" => app.core.tr("sync.op_close_shift".into()),
+                "open_till" | "open_shift" => app.core.tr("sync.op_open_till".into()),
+                "close_till" | "close_shift" => app.core.tr("sync.op_close_till".into()),
                 "create_order" => app.core.tr("sync.op_create_order".into()),
                 _ => op.to_string(),
             }
@@ -502,15 +492,6 @@ pub fn wire_settings(app_window: &AppWindow, app: &Arc<App>) {
         st.on_test_print(move || test_print(&a));
     }
 
-    // Bind this device's till (drawer); "" = the branch default.
-    {
-        let a = app.clone();
-        st.on_bind_till(move |id| {
-            let till = Some(id.to_string()).filter(|s| !s.is_empty());
-            let _ = a.core.set_device_till(till);
-            refresh_config_mirror(&a);
-        });
-    }
 
     // Bind this device's kitchen station (KDS devices). The station rides
     // the route, so the shell re-reads (the Dart `shell.refresh()`).

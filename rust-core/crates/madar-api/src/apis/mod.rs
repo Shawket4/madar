@@ -114,6 +114,7 @@ impl From<&str> for ContentType {
 }
 
 pub mod ai_api;
+pub mod assets_api;
 pub mod auth_api;
 pub mod bookings_api;
 pub mod bookings_public_api;
@@ -122,6 +123,7 @@ pub mod bundles_api;
 pub mod costing_api;
 pub mod delivery_api;
 pub mod delivery_public_api;
+pub mod devices_api;
 pub mod discounts_api;
 pub mod floor_api;
 pub mod floor_transfers_api;
@@ -148,6 +150,7 @@ pub mod reservations_api;
 pub mod shifts_api;
 pub mod staff_api;
 pub mod stocktakes_api;
+pub mod sync_api;
 pub mod tills_api;
 pub mod uploads_api;
 pub mod users_api;

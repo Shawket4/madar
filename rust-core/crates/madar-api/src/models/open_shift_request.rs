@@ -11,6 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// OpenShiftRequest : Request of the legacy open (`till_id` is the removed entity and ignored).
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OpenShiftRequest {
     #[serde(
@@ -36,7 +37,6 @@ pub struct OpenShiftRequest {
     pub opened_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "opening_cash")]
     pub opening_cash: i32,
-    /// Ignored by the server — the carryover edit is DERIVED from the previous shift's declared closing. Kept only for API/back-compat with clients.
     #[serde(
         rename = "opening_cash_edited",
         default,
@@ -44,7 +44,6 @@ pub struct OpenShiftRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub opening_cash_edited: Option<Option<bool>>,
-    /// The till (drawer) this shift opens on. Optional for back-compat: when omitted the server falls back to the branch's default till. Newer device-bound clients send their configured till explicitly.
     #[serde(
         rename = "till_id",
         default,
@@ -55,6 +54,7 @@ pub struct OpenShiftRequest {
 }
 
 impl OpenShiftRequest {
+    /// Request of the legacy open (`till_id` is the removed entity and ignored).
     pub fn new(opening_cash: i32) -> OpenShiftRequest {
         OpenShiftRequest {
             edit_reason: None,

@@ -48,13 +48,29 @@ pub struct ShiftSummary {
         skip_serializing_if = "Option::is_none"
     )]
     pub closing_cash_system: Option<Option<i64>>,
+    #[serde(
+        rename = "device_code",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_code: Option<Option<String>>,
     /// This shift's sales as rung up, before any refund. Was what `total_revenue` meant until 2026-09.
     #[serde(rename = "gross_sales", skip_serializing_if = "Option::is_none")]
     pub gross_sales: Option<i64>,
     #[serde(rename = "opened_at")]
     pub opened_at: chrono::DateTime<chrono::FixedOffset>,
+    #[serde(rename = "opened_while_another_open")]
+    pub opened_while_another_open: bool,
     #[serde(rename = "opening_cash")]
     pub opening_cash: i64,
+    #[serde(
+        rename = "reconciliation_status",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reconciliation_status: Option<Option<String>>,
     /// Money refunded AGAINST this shift's sales, whenever and from whichever drawer it was issued. `gross_sales − refunded_amount = total_revenue`. A fully refunded sale is out of all three (its status is `refunded`).
     #[serde(rename = "refunded_amount", skip_serializing_if = "Option::is_none")]
     pub refunded_amount: Option<i64>,
@@ -77,6 +93,7 @@ pub struct ShiftSummary {
     /// Goods only, by method actually tendered — money IN. Tips are in `total_tips`; refunds are not netted from these buckets (they are money OUT, with their own tender — see `refunds_issued_*`).
     #[serde(rename = "revenue_by_method", deserialize_with = "Option::deserialize")]
     pub revenue_by_method: Option<serde_json::Value>,
+    /// DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0).
     #[serde(rename = "shift_id")]
     pub shift_id: uuid::Uuid,
     #[serde(rename = "status")]
@@ -85,6 +102,8 @@ pub struct ShiftSummary {
     pub teller_id: uuid::Uuid,
     #[serde(rename = "teller_name")]
     pub teller_name: String,
+    #[serde(rename = "till_id")]
+    pub till_id: uuid::Uuid,
     /// Delivery fees on this shift's sales. Inside `total_revenue` (the customer paid them) but outside the tax base and not food revenue.
     #[serde(
         rename = "total_delivery_fees",
@@ -118,12 +137,14 @@ impl ShiftSummary {
         branch_id: uuid::Uuid,
         branch_name: String,
         opened_at: chrono::DateTime<chrono::FixedOffset>,
+        opened_while_another_open: bool,
         opening_cash: i64,
         revenue_by_method: Option<serde_json::Value>,
         shift_id: uuid::Uuid,
         status: String,
         teller_id: uuid::Uuid,
         teller_name: String,
+        till_id: uuid::Uuid,
         total_discount: i64,
         total_orders: i64,
         total_revenue: i64,
@@ -138,9 +159,12 @@ impl ShiftSummary {
             closed_at: None,
             closing_cash_declared: None,
             closing_cash_system: None,
+            device_code: None,
             gross_sales: None,
             opened_at,
+            opened_while_another_open,
             opening_cash,
+            reconciliation_status: None,
             refunded_amount: None,
             refunds_issued_amount: None,
             refunds_issued_cash: None,
@@ -150,6 +174,7 @@ impl ShiftSummary {
             status,
             teller_id,
             teller_name,
+            till_id,
             total_delivery_fees: None,
             total_discount,
             total_orders,

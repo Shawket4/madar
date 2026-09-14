@@ -5,7 +5,7 @@ use flutter_rust_bridge::frb;
 
 use madar_core::checkout::ReceiptView;
 pub use madar_core::receipt::KitchenChit;
-use madar_core::shift::ShiftReportView;
+use madar_core::till::TillReportView;
 
 use crate::api::bridge::MadarBridge;
 use crate::api::error::MadarError;
@@ -53,9 +53,9 @@ impl MadarBridge {
     /// `render_receipt`. Pass the shift's `orders` to append the per-order
     /// breakdown (the expanded print); an empty list prints the summary only.
     /// Pair with `send_to_printer`.
-    pub fn render_shift_report(
+    pub fn render_till_report(
         &self,
-        report: ShiftReportView,
+        report: TillReportView,
         store_name: String,
         currency: String,
         width: u32,
@@ -63,7 +63,7 @@ impl MadarBridge {
         orders: Vec<OrderSummaryView>,
     ) -> Vec<u8> {
         self.inner
-            .render_shift_report(report, store_name, currency, width, brand, orders)
+            .render_till_report(report, store_name, currency, width, brand, orders)
     }
 
     /// Cash-drawer kick bytes for the chosen printer dialect — send via

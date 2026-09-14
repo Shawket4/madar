@@ -100,6 +100,25 @@ authored layout means the POS renders no canvas at all.
 Realtime is the fast path (`floor.*`, ticket ticks); a gated poll is the fallback while
 the SSE stream is down. Both exist on purpose — don't remove the poll.
 
+## Offline plan B: the replicated store (OFFLINE_B_DESIGN.md)
+The core keeps the branch as rows fed by `POST /sync/pull` (`sync_pull.rs`): the
+money ledger in typed tables (`ledger/`: tills, orders + payment legs, cash,
+refunds), every other POS type in `sync_rows`. Reads are local; a local write and
+its outbox op commit in ONE transaction; acks fold the server's answer in.
+- **One identity per row.** Every writer goes through `ledger::write_row`, which
+  resolves the row by client key, then server id, then order_ref / ticket id and
+  re-keys instead of inserting. Never write ledger tables with raw SQL.
+- **A new POS-visible backend table needs a changefeed trigger** (MadarRust:
+  `sync_emit` trigger + a `sync_source_tables()` entry + the migration header;
+  the migration tests enforce it). Without one the POS silently never sees it.
+- **Report formula changes regenerate the shared vectors.** A change to the
+  till report / drawer figures (`compute_system_cash`, `report_figures`, close
+  methods) regenerates `MadarRust/tests/fixtures/till_report_vectors.json`
+  (`MADAR_WRITE_TILL_VECTORS=1`) and copies it to
+  `rust-core/crates/madar-core/tests/fixtures/`; `ledger::report` must pass it.
+- Read paths default to `shadow` (`readpath.rs`, how to flip to `new`).
+- Real-backend scenarios: `tool/offline_b_backend.sh` (see its header).
+
 ## Floor / tables — shared with the dashboard
 `packages/features/order/lib/src/tables_screen.dart`.
 

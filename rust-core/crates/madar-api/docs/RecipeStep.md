@@ -4,6 +4,8 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**animation_hash** | Option<**String**> | Content hash of the global asset; `None` until ingested or when retired. | [optional]
+**animation_is_global** | **bool** | Always true for preset animations (global library). | 
 **animation_sha256** | Option<**String**> |  | [optional]
 **animation_url** | Option<**String**> | Present only for a preset whose animation still ships. `None` on a custom step, and on a retired preset — clients show the name alone. | [optional]
 **kind** | **String** | `preset` | `custom`. | 

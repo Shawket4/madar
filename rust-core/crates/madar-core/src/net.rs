@@ -68,8 +68,29 @@ impl ApiClient {
         base_url: String,
         clock_skew: Arc<std::sync::atomic::AtomicI64>,
     ) -> CoreResult<Self> {
+        Self::with_device(base_url, clock_skew, None, None)
+    }
+
+    /// The client every request of this install goes through, carrying the
+    /// tills-rework identity headers (TILLS_CONTRACT §2.0): `X-Madar-Device` (the
+    /// install UUID) and `X-Madar-Client` (`pos/<semver> (<platform>)`). Bodies are
+    /// negotiated compressed (`Accept-Encoding: br, gzip`, decoded by reqwest).
+    pub fn with_device(
+        base_url: String,
+        clock_skew: Arc<std::sync::atomic::AtomicI64>,
+        device_id: Option<String>,
+        app_version: Option<&str>,
+    ) -> CoreResult<Self> {
         let user_agent = format!("madar-core/{}", env!("CARGO_PKG_VERSION"));
+        let mut headers = reqwest::header::HeaderMap::new();
+        if let Some(Ok(v)) = device_id.as_deref().map(reqwest::header::HeaderValue::from_str) {
+            headers.insert("X-Madar-Device", v);
+        }
+        if let Ok(v) = reqwest::header::HeaderValue::from_str(&client_header(app_version)) {
+            headers.insert("X-Madar-Client", v);
+        }
         let http = reqwest::Client::builder()
+            .default_headers(headers.clone())
             // ring + bundled Mozilla roots (see default_tls_config) — keeps cert
             // verification identical on Android/iOS/desktop with no OpenSSL.
             .use_preconfigured_tls(default_tls_config())
@@ -85,6 +106,7 @@ impl ApiClient {
         // The streaming client: same TLS, fast connect, but NO total timeout (it
         // would kill a long-lived SSE stream). A 60s read timeout reaps a dead link.
         let stream_http = reqwest::Client::builder()
+            .default_headers(headers)
             .use_preconfigured_tls(default_tls_config())
             .connect_timeout(Duration::from_secs(4))
             .read_timeout(Duration::from_secs(60))
@@ -205,6 +227,12 @@ impl ApiClient {
     /// whose tagged-enum envelope wraps the GENERATED request types — the business
     /// payloads stay generated; only the thin transport wrapper is hand-built.
     pub async fn post_json<B: serde::Serialize>(&self, path: &str, body: &B) -> CoreResult<String> {
+        self.post_json_seq(path, body).await.map(|(text, _)| text)
+    }
+
+    /// [`Self::post_json`], also returning the `X-Madar-Sync-Seq` answer header
+    /// (the feed horizon that includes a replayed op).
+    pub async fn post_json_seq<B: serde::Serialize>(&self, path: &str, body: &B) -> CoreResult<(String, Option<i64>)> {
         let url = format!("{}{}", self.base_url, path);
         let mut rb = self.http.request(reqwest::Method::POST, &url).json(body);
         if let Some(token) = self
@@ -218,9 +246,15 @@ impl ApiClient {
         let resp = rb.send().await.map_err(|e| classify_reqwest(&e))?;
         self.observe_clock(&resp);
         let status = resp.status();
+        let seq = resp
+            .headers()
+            .get("x-madar-sync-seq")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.trim().parse::<i64>().ok())
+            .filter(|s| *s > 0);
         let text = resp.text().await.map_err(|e| classify_reqwest(&e))?;
         if status.is_success() {
-            Ok(text)
+            Ok((text, seq))
         } else {
             Err(status_to_error(status.as_u16(), &text))
         }
@@ -306,6 +340,30 @@ impl ApiClient {
             api_key: None,
         }
     }
+}
+
+/// The app version the headers and device registration report: the host's
+/// (`MadarConfig.app_version`), else the build's `MADAR_APP_VERSION`, else the
+/// first tills-rework version (so the header is never empty).
+pub(crate) fn app_version(host: Option<&str>) -> String {
+    host.map(str::trim)
+        .filter(|v| !v.is_empty())
+        .or(option_env!("MADAR_APP_VERSION"))
+        .unwrap_or("0.7.0")
+        .to_string()
+}
+
+/// `pos/<semver> (<platform>)` — the `X-Madar-Client` value.
+pub(crate) fn client_header(host_version: Option<&str>) -> String {
+    let platform = match std::env::consts::OS {
+        "macos" => "macos",
+        "ios" => "ios",
+        "android" => "android",
+        "windows" => "windows",
+        _ => "linux",
+    };
+    // The core crate's own version is not the app's: the host passes it.
+    format!("pos/{} ({platform})", app_version(host_version))
 }
 
 /// Translate the generated client's transport/response error into the coarse,
@@ -415,8 +473,31 @@ pub(crate) fn is_connectivity_failure(e: &CoreError) -> bool {
     }
 }
 
+/// The refusal for a payment method outside the effective set (the backend's
+/// 422 `PAYMENT_METHOD_UNAVAILABLE`, or the core's own check before queueing).
+/// One detail for both, so the host shows one sentence for it.
+pub(crate) fn payment_method_unavailable() -> CoreError {
+    CoreError::Validation {
+        field: "payment_method".into(),
+        detail: PAYMENT_METHOD_UNAVAILABLE_DETAIL.into(),
+    }
+}
+pub(crate) const PAYMENT_METHOD_UNAVAILABLE_DETAIL: &str = "payment method not available here";
+
+/// The machine code in our error envelope (`ErrorBody.code`), when present.
+fn extract_error_code(body: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Value>(body)
+        .ok()?
+        .get("code")?
+        .as_str()
+        .map(str::to_string)
+}
+
 /// Map an HTTP status + raw body to a `CoreError` variant.
 pub(crate) fn status_to_error(status: u16, body: &str) -> CoreError {
+    if extract_error_code(body).as_deref() == Some("PAYMENT_METHOD_UNAVAILABLE") {
+        return payment_method_unavailable();
+    }
     // Our backend ALWAYS answers an error with the `{ "error": "…" }` envelope
     // (`errors.rs::ErrorBody`); a captive portal / transparent proxy answers with
     // HTML, a redirect stub, or an empty body. `extract_error_message` is `Some`
@@ -502,6 +583,16 @@ fn reason(status: u16) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn client_header_carries_the_host_app_version() {
+        assert!(client_header(Some("0.7.3")).starts_with("pos/0.7.3 ("));
+        // Blank or absent: still populated, never `pos/ (…)`.
+        for host in [None, Some(""), Some("  ")] {
+            let h = client_header(host);
+            assert!(!h.starts_with("pos/ ") && h.starts_with("pos/"), "{h}");
+        }
+    }
 
     #[test]
     fn client_builds_and_swaps_bearer() {
@@ -660,6 +751,18 @@ mod tests {
                 assert_eq!(action, "insufficient role");
             }
             other => panic!("expected Forbidden, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn payment_method_unavailable_is_one_refusal() {
+        let body = r#"{"error":"Payment method `CIB` is not available at this till","code":"PAYMENT_METHOD_UNAVAILABLE"}"#;
+        match status_to_error(422, body) {
+            CoreError::Validation { field, detail } => {
+                assert_eq!(field, "payment_method");
+                assert_eq!(detail, PAYMENT_METHOD_UNAVAILABLE_DETAIL);
+            }
+            other => panic!("expected Validation, got {other:?}"),
         }
     }
 

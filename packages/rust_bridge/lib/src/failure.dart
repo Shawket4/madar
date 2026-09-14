@@ -52,6 +52,7 @@ const Map<String, String> coreDetailKeys = {
   'no such parked order': 'err.parked_gone',
   'that line is no longer in the cart': 'err.line_gone',
   'unknown payment method': 'err.unknown_payment',
+  'payment method not available here': 'err.payment_method_unavailable',
   'scan a card or type a phone number': 'err.scan_or_phone',
   'a reward can only be redeemed online': 'loyalty.reward_offline',
   'no order to add points to': 'err.no_order_points',
@@ -61,8 +62,6 @@ const Map<String, String> coreDetailKeys = {
   'table is held for a booking': 'err.move_booked',
   'pick two different tables': 'err.move_same',
   'this party already has a waiting transfer': 'err.transfer_waiting',
-  'open a shift first so the stranded orders can move onto it':
-      'err.shift_for_stranded',
   'no printer configured for this device': 'printing.no_printer',
   'a note is required for cash movements': 'err.cash_note',
   'amount cannot be zero': 'err.amount_zero',
@@ -72,7 +71,6 @@ const Map<String, String> coreDetailKeys = {
       'history.refund_needs_shift',
   'a refund names a SYNCED sale; a queued one has no server id yet':
       'err.refund_queued',
-  'say why the drawer was closed for someone else': 'err.force_close_reason',
   'required — an override with no reason is indistinguishable from a mistake':
-      'shift.opening_reason_required',
+      'till.opening_reason_required',
 };

@@ -41,9 +41,12 @@ pub struct RefundFull {
     /// One of the [`RefundReason`] spellings.
     #[serde(rename = "reason")]
     pub reason: String,
-    /// The shift the refund was ISSUED in — the drawer the money left. Not necessarily the shift the order was sold in.
+    /// DEPRECATED: same value as `till_id`.
     #[serde(rename = "shift_id")]
     pub shift_id: uuid::Uuid,
+    /// The shift the refund was ISSUED in — the drawer the money left. Not necessarily the till the order was sold in.
+    #[serde(rename = "till_id")]
+    pub till_id: uuid::Uuid,
     #[serde(rename = "lines")]
     pub lines: Vec<models::RefundLine>,
 }
@@ -62,6 +65,7 @@ impl RefundFull {
         order_id: uuid::Uuid,
         reason: String,
         shift_id: uuid::Uuid,
+        till_id: uuid::Uuid,
         lines: Vec<models::RefundLine>,
     ) -> RefundFull {
         RefundFull {
@@ -79,6 +83,7 @@ impl RefundFull {
             order_id,
             reason,
             shift_id,
+            till_id,
             lines,
         }
     }

@@ -16,7 +16,6 @@ pub use madar_core::session::BranchView;
 pub struct _DeviceConfigView {
     pub branch_id: Option<String>,
     pub branch_name: Option<String>,
-    pub till_id: Option<String>,
     pub station_id: Option<String>,
     pub printer_host: Option<String>,
     pub printer_port: Option<u16>,
@@ -59,12 +58,6 @@ impl MadarBridge {
             .map_err(MadarError::from)
     }
 
-    /// Bind the device's till (POS drawer). `None` = use the branch default till.
-    pub fn set_device_till(&self, till_id: Option<String>) -> Result<(), MadarError> {
-        self.inner
-            .set_device_till(till_id)
-            .map_err(MadarError::from)
-    }
 
     /// Bind the device's kitchen station (a KDS device). `None` clears it.
     pub fn set_device_station(&self, station_id: Option<String>) -> Result<(), MadarError> {

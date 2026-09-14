@@ -271,8 +271,8 @@ class _Preferences extends ConsumerWidget {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final error = ref.watch(settingsProvider.select((s) => s.error));
-    final hasOpenShift = ref.watch(
-      settingsProvider.select((s) => s.hasOpenShift),
+    final hasOpenTill = ref.watch(
+      settingsProvider.select((s) => s.hasOpenTill),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -311,11 +311,11 @@ class _Preferences extends ConsumerWidget {
           label: t('settings.sign_out'),
           glyph: MadarGlyph.signOut,
           variant: MadarButtonVariant.secondary,
-          enabled: !hasOpenShift,
-          tooltip: hasOpenShift ? t('settings.sign_out_shift_open') : null,
+          enabled: !hasOpenTill,
+          tooltip: hasOpenTill ? t('settings.sign_out_shift_open') : null,
           onTap: () => unawaited(_signOut(context, ref)),
         ),
-        if (hasOpenShift)
+        if (hasOpenTill)
           Text(
             t('settings.sign_out_shift_open'),
             style: MadarType.bodySm.copyWith(color: colors.textSecondary),

@@ -503,8 +503,8 @@ fn settle_ticket(
     rt().spawn(async move {
         // Quiet lookup (the notifier's `_quiet`) — a shift-read failure reads
         // as "no shift", never an unhandled error.
-        let shift = g.core.current_shift().ok().flatten();
-        let Some(shift) = shift else {
+        let shift = g.core.current_till().ok().flatten();
+        let Some(till) = shift else {
             set_error(&g, g.core.tr("waiter.need_shift".into()));
             return;
         };
@@ -525,7 +525,7 @@ fn settle_ticket(
             .core
             .settle_ticket(
                 ticket_id,
-                shift.id,
+                till.id,
                 payment_method_id,
                 tendered,
                 None, // tip — the CheckoutDrawer extra, not in this stand-in
@@ -533,6 +533,9 @@ fn settle_ticket(
                 None, // settle-time discount — cashier drawer only
                 None,
                 None,
+                None,       // loyalty member — rewards are redeemed at the Flutter till
+                Vec::new(), // loyalty redemptions
+                Vec::new(), // one method, no split legs
             )
             .await;
         match result {

@@ -175,8 +175,8 @@ class _Fake implements MadarBridge {
     }
     if (n == #listItemAddons) return Future.value(_addons);
     if (n == #listItemModifierGroups) return Future.value(_groups);
-    if (n == #currentShift || n == #refreshShift) {
-      return Future<ShiftView?>.value();
+    if (n == #currentTill || n == #refreshTill) {
+      return Future<TillView?>.value();
     }
     return null;
   }

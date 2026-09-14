@@ -18,6 +18,10 @@ pub struct MadarConfig {
     /// BCP-47 locale (e.g. `ar-EG`, `en`) used to resolve `*_translations` to a
     /// single display string in the read DTOs. The host passes the device locale.
     pub locale: String,
+    /// The host app's own version (the Flutter POS passes its pubspec version).
+    /// Sent as `X-Madar-Client: pos/<version> (<platform>)` and recorded on the
+    /// device row; `None` falls back to the build's `MADAR_APP_VERSION`.
+    pub app_version: Option<String>,
 }
 
 impl MadarConfig {
@@ -32,6 +36,7 @@ impl MadarConfig {
             environment: option_env!("MADAR_ENV").unwrap_or("prod").to_string(),
             db_path: String::new(),
             locale: "en".to_string(),
+            app_version: option_env!("MADAR_APP_VERSION").map(str::to_string),
         }
     }
 }

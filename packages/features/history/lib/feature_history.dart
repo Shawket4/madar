@@ -1,11 +1,11 @@
-/// Madar POS — Orders: this shift's sales and every shift's, the sale
+/// Madar POS — Orders: this till's sales and every till's, the sale
 /// beside the list, reprint, and the one correction the core knows.
 ///
-/// `OrderHistoryScreen` is the one Orders screen: a This shift / All
-/// segment (the shift's own ledger from the local mirror, or the server's
-/// cross-shift search when online), one search box, one chip row, and the
+/// `OrderHistoryScreen` is the one Orders screen: a This till / All
+/// segment (the till's own ledger from the local mirror, or the server's
+/// cross-till search when online), one search box, one chip row, and the
 /// selected sale beside the list on a tablet or pushed over it on a phone
-/// (`SaleScreen`, the same `SalePanel`). The old cross-shift Search page
+/// (`SaleScreen`, the same `SalePanel`). The old cross-till Search page
 /// survives only as a name: `OrderSearchScreen` opens Orders on All.
 ///
 /// A refund is not a void, and the screen says so: Void lives in the sale's

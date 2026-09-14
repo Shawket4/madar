@@ -440,9 +440,9 @@ pub fn start_cart(feature: &Arc<CheckoutFeature>) {
         // the Dart `_quiet` (cache reads / best-effort refreshes).
         let methods = core.list_payment_methods().unwrap_or_default();
         let discounts = core.list_discounts().unwrap_or_default();
-        let discount_id = core.cart_discount_id().ok().flatten();
+        let discount_id = core.cart_discount_id(None).ok().flatten();
         let logo = core.org_logo_local_path();
-        let totals = core.cart_totals().ok();
+        let totals = core.cart_totals(None).ok();
         {
             let mut s = feature.session.lock().unwrap();
             *s = Session {
@@ -515,11 +515,11 @@ fn set_discount(feature: &Arc<CheckoutFeature>, id: Option<String>) {
     rt().spawn(async move {
         let core = &feature.core;
         let _ = match &id {
-            Some(id) => core.cart_set_discount(id.clone()),
-            None => core.cart_clear_discount(),
+            Some(id) => core.cart_set_discount(None, id.clone()),
+            None => core.cart_clear_discount(None),
         };
-        let discount_id = core.cart_discount_id().ok().flatten();
-        let totals = core.cart_totals().ok();
+        let discount_id = core.cart_discount_id(None).ok().flatten();
+        let totals = core.cart_totals(None).ok();
         {
             let mut s = feature.session.lock().unwrap();
             s.cart_discount_id = discount_id;
@@ -581,6 +581,9 @@ fn place_order(feature: &Arc<CheckoutFeature>, customer: String, notes: String) 
                 customer_name: blank(&customer),
                 notes: blank(&notes),
                 splits,
+                // Rewards are redeemed at the Flutter till; this stand-in has none.
+                loyalty_customer_id: None,
+                loyalty_redemptions: Vec::new(),
             },
             (),
         )
@@ -594,7 +597,7 @@ fn place_order(feature: &Arc<CheckoutFeature>, customer: String, notes: String) 
     render(feature);
     let feature = feature.clone();
     rt().spawn(async move {
-        let result = feature.core.checkout(input).await;
+        let result = feature.core.checkout(None, input).await;
         match result {
             Ok(receipt) => {
                 {

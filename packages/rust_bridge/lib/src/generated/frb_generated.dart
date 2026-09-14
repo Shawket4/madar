@@ -9,6 +9,7 @@ import 'api/cart.dart';
 import 'api/catalog.dart';
 import 'api/delivery.dart';
 import 'api/device.dart';
+import 'api/drawer.dart';
 import 'api/error.dart';
 import 'api/floor.dart';
 import 'api/kds.dart';
@@ -17,7 +18,6 @@ import 'api/orders.dart';
 import 'api/printing.dart';
 import 'api/realtime.dart';
 import 'api/routes.dart';
-import 'api/shift.dart';
 import 'api/sync.dart';
 import 'api/tickets.dart';
 import 'api/till.dart';
@@ -83,7 +83,7 @@ class RustBridge
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 463599853;
+  int get rustContentHash => -244455394;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -114,6 +114,9 @@ abstract class RustBridgeApi extends BaseApi {
     required String nowRfc3339,
   });
 
+  Future<List<PaymentMethodView>>
+  crateApiBridgeMadarBridgeAvailablePaymentMethods({required MadarBridge that});
+
   String crateApiBridgeMadarBridgeBaseUrl({required MadarBridge that});
 
   TicketBillView? crateApiBridgeMadarBridgeBillWithRewards({
@@ -122,6 +125,10 @@ abstract class RustBridgeApi extends BaseApi {
     required List<CheckoutRedemption> redemptions,
     String? discountType,
     double? discountValue,
+  });
+
+  Future<List<BranchOpenTillView>> crateApiBridgeMadarBridgeBranchOpenTills({
+    required MadarBridge that,
   });
 
   String crateApiBridgeMadarBridgeBranchTimezone({required MadarBridge that});
@@ -283,6 +290,10 @@ abstract class RustBridgeApi extends BaseApi {
     required bool dark,
   });
 
+  Future<TillElsewhereView?> crateApiBridgeMadarBridgeCheckTillElsewhere({
+    required MadarBridge that,
+  });
+
   Future<ReceiptView> crateApiBridgeMadarBridgeCheckout({
     required MadarBridge that,
     String? tableId,
@@ -313,10 +324,15 @@ abstract class RustBridgeApi extends BaseApi {
     PlatformInt64? countedMinor,
   });
 
-  Future<void> crateApiBridgeMadarBridgeCloseShift({
+  Future<CloseTillOutcomeView> crateApiBridgeMadarBridgeCloseTill({
     required MadarBridge that,
     required PlatformInt64 closingCashMinor,
     String? cashNote,
+    required List<ReconciliationInput> reconciliation,
+  });
+
+  Future<CloseTillPreviewView> crateApiBridgeMadarBridgeCloseTillPreview({
+    required MadarBridge that,
   });
 
   Future<void> crateApiBridgeMadarBridgeCompleteDraft({
@@ -351,7 +367,7 @@ abstract class RustBridgeApi extends BaseApi {
     required MadarBridge that,
   });
 
-  Future<ShiftView?> crateApiBridgeMadarBridgeCurrentShift({
+  Future<TillView?> crateApiBridgeMadarBridgeCurrentTill({
     required MadarBridge that,
   });
 
@@ -409,6 +425,8 @@ abstract class RustBridgeApi extends BaseApi {
     required MadarBridge that,
   });
 
+  String crateApiBridgeMadarBridgeDeviceId({required MadarBridge that});
+
   Future<void> crateApiBridgeMadarBridgeDiscardDraft({
     required MadarBridge that,
     required String id,
@@ -434,9 +452,9 @@ abstract class RustBridgeApi extends BaseApi {
     required MadarBridge that,
   });
 
-  Future<void> crateApiBridgeMadarBridgeForceCloseShift({
+  Future<void> crateApiBridgeMadarBridgeForceCloseTill({
     required MadarBridge that,
-    required String shiftId,
+    required String tillId,
     required String reason,
   });
 
@@ -524,6 +542,11 @@ abstract class RustBridgeApi extends BaseApi {
     required MadarBridge that,
   });
 
+  Future<SyncedKitchen> crateApiBridgeMadarBridgeKdsListSynced({
+    required MadarBridge that,
+    String? stationId,
+  });
+
   Future<void> crateApiBridgeMadarBridgeKdsUnbump({
     required MadarBridge that,
     required String itemId,
@@ -570,6 +593,11 @@ abstract class RustBridgeApi extends BaseApi {
     String? status,
   });
 
+  Future<SyncedDeliveries> crateApiBridgeMadarBridgeListDeliveryOrdersSynced({
+    required MadarBridge that,
+    String? status,
+  });
+
   Future<List<DiscountView>> crateApiBridgeMadarBridgeListDiscounts({
     required MadarBridge that,
   });
@@ -597,14 +625,18 @@ abstract class RustBridgeApi extends BaseApi {
     required MadarBridge that,
   });
 
+  Future<SyncedTickets> crateApiBridgeMadarBridgeListOpenTicketsSynced({
+    required MadarBridge that,
+  });
+
   Future<OrderRefundsView> crateApiBridgeMadarBridgeListOrderRefunds({
     required MadarBridge that,
     required String orderId,
   });
 
-  Future<List<OrderSummaryView>> crateApiBridgeMadarBridgeListOrdersForShift({
+  Future<List<OrderSummaryView>> crateApiBridgeMadarBridgeListOrdersForTill({
     required MadarBridge that,
-    required String shiftId,
+    required String tillId,
   });
 
   Future<List<OutboxItemView>> crateApiBridgeMadarBridgeListOutbox({
@@ -615,20 +647,20 @@ abstract class RustBridgeApi extends BaseApi {
     required MadarBridge that,
   });
 
-  Future<List<OrderSummaryView>> crateApiBridgeMadarBridgeListShiftOrders({
+  Future<List<OrderSummaryView>> crateApiBridgeMadarBridgeListTillOrders({
     required MadarBridge that,
   });
 
-  Future<ShiftRefundsView> crateApiBridgeMadarBridgeListShiftRefunds({
-    required MadarBridge that,
-    required String shiftId,
-  });
-
-  Future<List<ShiftSummaryView>> crateApiBridgeMadarBridgeListShifts({
+  Future<SyncedOrders> crateApiBridgeMadarBridgeListTillOrdersSynced({
     required MadarBridge that,
   });
 
-  Future<List<TillView>> crateApiBridgeMadarBridgeListTills({
+  Future<TillRefundsView> crateApiBridgeMadarBridgeListTillRefunds({
+    required MadarBridge that,
+    required String tillId,
+  });
+
+  Future<List<TillSummaryView>> crateApiBridgeMadarBridgeListTills({
     required MadarBridge that,
   });
 
@@ -699,7 +731,11 @@ abstract class RustBridgeApi extends BaseApi {
     required String bookingId,
   });
 
-  Future<ShiftView> crateApiBridgeMadarBridgeOpenShift({
+  Future<OpenBillsNoticeView?> crateApiBridgeMadarBridgeOpenBillsNotice({
+    required MadarBridge that,
+  });
+
+  Future<OpenTillOutcome> crateApiBridgeMadarBridgeOpenTill({
     required MadarBridge that,
     required PlatformInt64 openingCashMinor,
     String? openingReason,
@@ -746,6 +782,11 @@ abstract class RustBridgeApi extends BaseApi {
     required List<int> bytes,
   });
 
+  ReadPathMode crateApiBridgeMadarBridgeReadPathMode({
+    required MadarBridge that,
+    required String area,
+  });
+
   Future<List<DiagLogView>> crateApiBridgeMadarBridgeRecentLogs({
     required MadarBridge that,
   });
@@ -756,10 +797,6 @@ abstract class RustBridgeApi extends BaseApi {
     required String note,
     String? kind,
     String? corrects,
-  });
-
-  Future<int> crateApiBridgeMadarBridgeRecoverOrphanedOrders({
-    required MadarBridge that,
   });
 
   Future<void> crateApiBridgeMadarBridgeRefreshArrivals({
@@ -778,7 +815,7 @@ abstract class RustBridgeApi extends BaseApi {
     required MadarBridge that,
   });
 
-  Future<ShiftView?> crateApiBridgeMadarBridgeRefreshShift({
+  Future<TillView?> crateApiBridgeMadarBridgeRefreshTill({
     required MadarBridge that,
   });
 
@@ -833,14 +870,18 @@ abstract class RustBridgeApi extends BaseApi {
     required PrinterBrand brand,
   });
 
-  Future<Uint8List> crateApiBridgeMadarBridgeRenderShiftReport({
+  Future<Uint8List> crateApiBridgeMadarBridgeRenderTillReport({
     required MadarBridge that,
-    required ShiftReportView report,
+    required TillReportView report,
     required String storeName,
     required String currency,
     required int width,
     required PrinterBrand brand,
     required List<OrderSummaryView> orders,
+  });
+
+  Future<AssetSyncView> crateApiBridgeMadarBridgeRepairAssets({
+    required MadarBridge that,
   });
 
   Future<List<CartLineView>> crateApiBridgeMadarBridgeRestoreDraft({
@@ -860,6 +901,11 @@ abstract class RustBridgeApi extends BaseApi {
 
   Future<void> crateApiBridgeMadarBridgeRetryOutbox({
     required MadarBridge that,
+  });
+
+  Future<int> crateApiBridgeMadarBridgeRetryTillOutbox({
+    required MadarBridge that,
+    required String tillId,
   });
 
   RewardBoardView crateApiBridgeMadarBridgeRewardBoard({
@@ -958,11 +1004,6 @@ abstract class RustBridgeApi extends BaseApi {
     String? stationId,
   });
 
-  Future<void> crateApiBridgeMadarBridgeSetDeviceTill({
-    required MadarBridge that,
-    String? tillId,
-  });
-
   Future<String> crateApiBridgeMadarBridgeSetKitchenRoutingMode({
     required MadarBridge that,
     String? mode,
@@ -973,10 +1014,16 @@ abstract class RustBridgeApi extends BaseApi {
     required String locale,
   });
 
+  void crateApiBridgeMadarBridgeSetReadPathMode({
+    required MadarBridge that,
+    required String area,
+    required ReadPathMode mode,
+  });
+
   Future<String?> crateApiBridgeMadarBridgeSettleTicket({
     required MadarBridge that,
     required String ticketId,
-    required String shiftId,
+    required String tillId,
     required String paymentMethodId,
     PlatformInt64? amountTenderedMinor,
     PlatformInt64? tipMinor,
@@ -987,25 +1034,6 @@ abstract class RustBridgeApi extends BaseApi {
     String? loyaltyCustomerId,
     required List<CheckoutRedemption> loyaltyRedemptions,
     required List<CheckoutSplit> splits,
-  });
-
-  PlatformInt64 crateApiBridgeMadarBridgeShiftCashSalesMinor({
-    required MadarBridge that,
-    required ShiftReportView report,
-  });
-
-  Future<ShiftReportView> crateApiBridgeMadarBridgeShiftReport({
-    required MadarBridge that,
-  });
-
-  Future<ShiftReportView> crateApiBridgeMadarBridgeShiftReportFor({
-    required MadarBridge that,
-    required String shiftId,
-  });
-
-  Future<ShiftStatsView> crateApiBridgeMadarBridgeShiftStats({
-    required MadarBridge that,
-    required List<OrderSummaryView> orders,
   });
 
   Future<SessionSnapshot> crateApiBridgeMadarBridgeSignIn({
@@ -1056,9 +1084,19 @@ abstract class RustBridgeApi extends BaseApi {
     HeldParkInput? parkAtTarget,
   });
 
-  Future<void> crateApiBridgeMadarBridgeSyncNow({required MadarBridge that});
+  Future<SyncStatusView> crateApiBridgeMadarBridgeSyncFull({
+    required MadarBridge that,
+  });
 
-  Future<SyncStatusView> crateApiBridgeMadarBridgeSyncStatus({
+  Future<SyncStatusView> crateApiBridgeMadarBridgeSyncNow({
+    required MadarBridge that,
+  });
+
+  TillOpenSyncView crateApiBridgeMadarBridgeSyncOnTillOpenStatus({
+    required MadarBridge that,
+  });
+
+  SyncStatusView crateApiBridgeMadarBridgeSyncStatus({
     required MadarBridge that,
   });
 
@@ -1081,6 +1119,29 @@ abstract class RustBridgeApi extends BaseApi {
   List<RewardLineInput> crateApiBridgeMadarBridgeTicketRewardLines({
     required MadarBridge that,
     required String ticketId,
+  });
+
+  PlatformInt64 crateApiBridgeMadarBridgeTillCashSalesMinor({
+    required MadarBridge that,
+    required TillReportView report,
+  });
+
+  Future<TillReportView> crateApiBridgeMadarBridgeTillReport({
+    required MadarBridge that,
+  });
+
+  Future<TillReportView> crateApiBridgeMadarBridgeTillReportFor({
+    required MadarBridge that,
+    required String tillId,
+  });
+
+  Future<SyncedTillReport> crateApiBridgeMadarBridgeTillReportSynced({
+    required MadarBridge that,
+  });
+
+  Future<TillStatsView> crateApiBridgeMadarBridgeTillStats({
+    required MadarBridge that,
+    required List<OrderSummaryView> orders,
   });
 
   List<RewardPick> crateApiBridgeMadarBridgeToggleReward({
@@ -1141,6 +1202,10 @@ abstract class RustBridgeApi extends BaseApi {
     required String ticketId,
     required String itemId,
     String? reason,
+  });
+
+  Stream<List<String>> crateApiBridgeMadarBridgeWatchTables({
+    required MadarBridge that,
   });
 
   String crateApiBridgeCoreVersion();
@@ -1315,6 +1380,44 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  Future<List<PaymentMethodView>>
+  crateApiBridgeMadarBridgeAvailablePaymentMethods({
+    required MadarBridge that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_payment_method_view,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeAvailablePaymentMethodsConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiBridgeMadarBridgeAvailablePaymentMethodsConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_available_payment_methods",
+        argNames: ["that"],
+      );
+
+  @override
   String crateApiBridgeMadarBridgeBaseUrl({required MadarBridge that}) {
     return handler.executeSync(
       SyncTask(
@@ -1324,7 +1427,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1363,7 +1466,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           sse_encode_list_checkout_redemption(redemptions, serializer);
           sse_encode_opt_String(discountType, serializer);
           sse_encode_opt_box_autoadd_f_64(discountValue, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_ticket_bill_view,
@@ -1389,6 +1492,42 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  Future<List<BranchOpenTillView>> crateApiBridgeMadarBridgeBranchOpenTills({
+    required MadarBridge that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 8,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_branch_open_till_view,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeBranchOpenTillsConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeBranchOpenTillsConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_branch_open_tills",
+        argNames: ["that"],
+      );
+
+  @override
   String crateApiBridgeMadarBridgeBranchTimezone({required MadarBridge that}) {
     return handler.executeSync(
       SyncTask(
@@ -1398,7 +1537,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1434,7 +1573,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 10,
             port: port_,
           );
         },
@@ -1478,7 +1617,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 11,
             port: port_,
           );
         },
@@ -1522,7 +1661,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 12,
             port: port_,
           );
         },
@@ -1572,7 +1711,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 13,
             port: port_,
           );
         },
@@ -1630,7 +1769,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 14,
             port: port_,
           );
         },
@@ -1668,7 +1807,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 15,
             port: port_,
           );
         },
@@ -1704,7 +1843,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 16,
             port: port_,
           );
         },
@@ -1742,7 +1881,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 17,
             port: port_,
           );
         },
@@ -1780,7 +1919,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 18,
             port: port_,
           );
         },
@@ -1818,7 +1957,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 19,
             port: port_,
           );
         },
@@ -1856,7 +1995,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 20,
             port: port_,
           );
         },
@@ -1894,7 +2033,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 21,
             port: port_,
           );
         },
@@ -1934,7 +2073,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 22,
             port: port_,
           );
         },
@@ -1986,7 +2125,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 23,
             port: port_,
           );
         },
@@ -2044,7 +2183,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 24,
             port: port_,
           );
         },
@@ -2079,7 +2218,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             serializer,
           );
           sse_encode_opt_String(tableId, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_reward_line_input,
@@ -2117,7 +2256,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 26,
             port: port_,
           );
         },
@@ -2157,7 +2296,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 27,
             port: port_,
           );
         },
@@ -2197,7 +2336,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 28,
             port: port_,
           );
         },
@@ -2239,7 +2378,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 29,
             port: port_,
           );
         },
@@ -2275,7 +2414,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 30,
             port: port_,
           );
         },
@@ -2313,7 +2452,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 31,
             port: port_,
           );
         },
@@ -2350,7 +2489,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           );
           sse_encode_opt_String(tableId, serializer);
           sse_encode_list_checkout_redemption(redemptions, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_cart_totals,
@@ -2386,7 +2525,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 33,
             port: port_,
           );
         },
@@ -2423,7 +2562,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           );
           sse_encode_i_64(dueMinor, serializer);
           sse_encode_String(currency, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_cash_quick_tender_view,
@@ -2458,7 +2597,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           );
           sse_encode_String(name, serializer);
           sse_encode_bool(dark, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_cat_style_view,
@@ -2475,6 +2614,42 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       const TaskConstMeta(
         debugName: "MadarBridge_category_style",
         argNames: ["that", "name", "dark"],
+      );
+
+  @override
+  Future<TillElsewhereView?> crateApiBridgeMadarBridgeCheckTillElsewhere({
+    required MadarBridge that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 36,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_till_elsewhere_view,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeCheckTillElsewhereConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeCheckTillElsewhereConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_check_till_elsewhere",
+        argNames: ["that"],
       );
 
   @override
@@ -2496,7 +2671,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 37,
             port: port_,
           );
         },
@@ -2531,7 +2706,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             serializer,
           );
           sse_encode_String(raw, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_loyalty_scan_input,
@@ -2565,7 +2740,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 39,
             port: port_,
           );
         },
@@ -2599,7 +2774,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 40,
             port: port_,
           );
         },
@@ -2637,7 +2812,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 41,
             port: port_,
           );
         },
@@ -2668,7 +2843,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_i_32,
@@ -2703,7 +2878,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           );
           sse_encode_i_64(expectedMinor, serializer);
           sse_encode_opt_box_autoadd_i_64(countedMinor, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_close_count_check,
@@ -2723,10 +2898,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<void> crateApiBridgeMadarBridgeCloseShift({
+  Future<CloseTillOutcomeView> crateApiBridgeMadarBridgeCloseTill({
     required MadarBridge that,
     required PlatformInt64 closingCashMinor,
     String? cashNote,
+    required List<ReconciliationInput> reconciliation,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -2738,28 +2914,65 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           );
           sse_encode_i_64(closingCashMinor, serializer);
           sse_encode_opt_String(cashNote, serializer);
+          sse_encode_list_reconciliation_input(reconciliation, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 41,
+            funcId: 44,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
+          decodeSuccessData: sse_decode_close_till_outcome_view,
           decodeErrorData: sse_decode_madar_error,
         ),
-        constMeta: kCrateApiBridgeMadarBridgeCloseShiftConstMeta,
-        argValues: [that, closingCashMinor, cashNote],
+        constMeta: kCrateApiBridgeMadarBridgeCloseTillConstMeta,
+        argValues: [that, closingCashMinor, cashNote, reconciliation],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBridgeMadarBridgeCloseShiftConstMeta =>
+  TaskConstMeta get kCrateApiBridgeMadarBridgeCloseTillConstMeta =>
       const TaskConstMeta(
-        debugName: "MadarBridge_close_shift",
-        argNames: ["that", "closingCashMinor", "cashNote"],
+        debugName: "MadarBridge_close_till",
+        argNames: ["that", "closingCashMinor", "cashNote", "reconciliation"],
+      );
+
+  @override
+  Future<CloseTillPreviewView> crateApiBridgeMadarBridgeCloseTillPreview({
+    required MadarBridge that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 45,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_close_till_preview_view,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeCloseTillPreviewConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeCloseTillPreviewConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_close_till_preview",
+        argNames: ["that"],
       );
 
   @override
@@ -2781,7 +2994,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 42,
+            funcId: 46,
             port: port_,
           );
         },
@@ -2825,7 +3038,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 43,
+            funcId: 47,
             port: port_,
           );
         },
@@ -2871,7 +3084,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 44,
+            funcId: 48,
             port: port_,
           );
         },
@@ -2920,7 +3133,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             serializer,
           );
           sse_encode_String(code, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 45)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -2951,7 +3164,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 46)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_session_snapshot,
@@ -2971,7 +3184,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<ShiftView?> crateApiBridgeMadarBridgeCurrentShift({
+  Future<TillView?> crateApiBridgeMadarBridgeCurrentTill({
     required MadarBridge that,
   }) {
     return handler.executeNormal(
@@ -2985,24 +3198,24 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 47,
+            funcId: 51,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_box_autoadd_shift_view,
+          decodeSuccessData: sse_decode_opt_box_autoadd_till_view,
           decodeErrorData: sse_decode_madar_error,
         ),
-        constMeta: kCrateApiBridgeMadarBridgeCurrentShiftConstMeta,
+        constMeta: kCrateApiBridgeMadarBridgeCurrentTillConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBridgeMadarBridgeCurrentShiftConstMeta =>
+  TaskConstMeta get kCrateApiBridgeMadarBridgeCurrentTillConstMeta =>
       const TaskConstMeta(
-        debugName: "MadarBridge_current_shift",
+        debugName: "MadarBridge_current_till",
         argNames: ["that"],
       );
 
@@ -3016,7 +3229,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3051,7 +3264,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 49,
+            funcId: 53,
             port: port_,
           );
         },
@@ -3093,7 +3306,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 50,
+            funcId: 54,
             port: port_,
           );
         },
@@ -3133,7 +3346,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 51,
+            funcId: 55,
             port: port_,
           );
         },
@@ -3171,7 +3384,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 52,
+            funcId: 56,
             port: port_,
           );
         },
@@ -3211,7 +3424,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 53,
+            funcId: 57,
             port: port_,
           );
         },
@@ -3251,7 +3464,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 54,
+            funcId: 58,
             port: port_,
           );
         },
@@ -3291,7 +3504,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 55,
+            funcId: 59,
             port: port_,
           );
         },
@@ -3327,7 +3540,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 56,
+            funcId: 60,
             port: port_,
           );
         },
@@ -3358,7 +3571,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 57)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 61)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3389,7 +3602,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 58)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 62)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_device_config_view,
@@ -3405,6 +3618,35 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   TaskConstMeta get kCrateApiBridgeMadarBridgeDeviceConfigConstMeta =>
       const TaskConstMeta(
         debugName: "MadarBridge_device_config",
+        argNames: ["that"],
+      );
+
+  @override
+  String crateApiBridgeMadarBridgeDeviceId({required MadarBridge that}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 63)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeDeviceIdConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeDeviceIdConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_device_id",
         argNames: ["that"],
       );
 
@@ -3425,7 +3667,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 59,
+            funcId: 64,
             port: port_,
           );
         },
@@ -3463,7 +3705,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 60,
+            funcId: 65,
             port: port_,
           );
         },
@@ -3494,7 +3736,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 61)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 66)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3538,7 +3780,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 62,
+            funcId: 67,
             port: port_,
           );
         },
@@ -3581,7 +3823,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 63,
+            funcId: 68,
             port: port_,
           );
         },
@@ -3603,9 +3845,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<void> crateApiBridgeMadarBridgeForceCloseShift({
+  Future<void> crateApiBridgeMadarBridgeForceCloseTill({
     required MadarBridge that,
-    required String shiftId,
+    required String tillId,
     required String reason,
   }) {
     return handler.executeNormal(
@@ -3616,12 +3858,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          sse_encode_String(shiftId, serializer);
+          sse_encode_String(tillId, serializer);
           sse_encode_String(reason, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 64,
+            funcId: 69,
             port: port_,
           );
         },
@@ -3629,17 +3871,17 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: sse_decode_madar_error,
         ),
-        constMeta: kCrateApiBridgeMadarBridgeForceCloseShiftConstMeta,
-        argValues: [that, shiftId, reason],
+        constMeta: kCrateApiBridgeMadarBridgeForceCloseTillConstMeta,
+        argValues: [that, tillId, reason],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBridgeMadarBridgeForceCloseShiftConstMeta =>
+  TaskConstMeta get kCrateApiBridgeMadarBridgeForceCloseTillConstMeta =>
       const TaskConstMeta(
-        debugName: "MadarBridge_force_close_shift",
-        argNames: ["that", "shiftId", "reason"],
+        debugName: "MadarBridge_force_close_till",
+        argNames: ["that", "tillId", "reason"],
       );
 
   @override
@@ -3656,7 +3898,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             serializer,
           );
           sse_encode_i_64(secs, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 70)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3689,7 +3931,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             serializer,
           );
           sse_encode_String(rfc3339, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 66)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 71)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3726,7 +3968,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           sse_encode_i_64(minor, serializer);
           sse_encode_String(currency, serializer);
           sse_encode_bool(signed, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 72)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3759,7 +4001,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             serializer,
           );
           sse_encode_String(rfc3339, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 73)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3794,7 +4036,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           );
           sse_encode_String(rfc3339, serializer);
           sse_encode_time_style(style, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 69)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 74)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3832,7 +4074,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 70,
+            funcId: 75,
             port: port_,
           );
         },
@@ -3870,7 +4112,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 71,
+            funcId: 76,
             port: port_,
           );
         },
@@ -3907,7 +4149,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           );
           sse_encode_String(resource, serializer);
           sse_encode_String(action, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 72)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 77)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -3949,7 +4191,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 73,
+            funcId: 78,
             port: port_,
           );
         },
@@ -3995,7 +4237,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 74,
+            funcId: 79,
             port: port_,
           );
         },
@@ -4033,7 +4275,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 75)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 80)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -4064,7 +4306,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 76)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 81)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -4093,7 +4335,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 77)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 82)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -4126,7 +4368,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 78,
+            funcId: 83,
             port: port_,
           );
         },
@@ -4164,7 +4406,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 79,
+            funcId: 84,
             port: port_,
           );
         },
@@ -4200,7 +4442,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 80,
+            funcId: 85,
             port: port_,
           );
         },
@@ -4222,6 +4464,44 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  Future<SyncedKitchen> crateApiBridgeMadarBridgeKdsListSynced({
+    required MadarBridge that,
+    String? stationId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_opt_String(stationId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 86,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_synced_kitchen,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeKdsListSyncedConstMeta,
+        argValues: [that, stationId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeKdsListSyncedConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_kds_list_synced",
+        argNames: ["that", "stationId"],
+      );
+
+  @override
   Future<void> crateApiBridgeMadarBridgeKdsUnbump({
     required MadarBridge that,
     required String itemId,
@@ -4238,7 +4518,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 81,
+            funcId: 87,
             port: port_,
           );
         },
@@ -4274,7 +4554,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 82,
+            funcId: 88,
             port: port_,
           );
         },
@@ -4305,7 +4585,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 83)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 89)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -4336,7 +4616,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 84)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 90)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -4365,7 +4645,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 85)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 91)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_u_32,
@@ -4397,7 +4677,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 86,
+            funcId: 92,
             port: port_,
           );
         },
@@ -4431,7 +4711,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 87,
+            funcId: 93,
             port: port_,
           );
         },
@@ -4467,7 +4747,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 88,
+            funcId: 94,
             port: port_,
           );
         },
@@ -4503,7 +4783,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 89,
+            funcId: 95,
             port: port_,
           );
         },
@@ -4539,7 +4819,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 90,
+            funcId: 96,
             port: port_,
           );
         },
@@ -4575,7 +4855,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 91,
+            funcId: 97,
             port: port_,
           );
         },
@@ -4611,7 +4891,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 92,
+            funcId: 98,
             port: port_,
           );
         },
@@ -4649,7 +4929,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 93,
+            funcId: 99,
             port: port_,
           );
         },
@@ -4671,6 +4951,45 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  Future<SyncedDeliveries> crateApiBridgeMadarBridgeListDeliveryOrdersSynced({
+    required MadarBridge that,
+    String? status,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_opt_String(status, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 100,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_synced_deliveries,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeListDeliveryOrdersSyncedConstMeta,
+        argValues: [that, status],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiBridgeMadarBridgeListDeliveryOrdersSyncedConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_list_delivery_orders_synced",
+        argNames: ["that", "status"],
+      );
+
+  @override
   Future<List<DiscountView>> crateApiBridgeMadarBridgeListDiscounts({
     required MadarBridge that,
   }) {
@@ -4685,7 +5004,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 94,
+            funcId: 101,
             port: port_,
           );
         },
@@ -4721,7 +5040,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 95,
+            funcId: 102,
             port: port_,
           );
         },
@@ -4759,7 +5078,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 96,
+            funcId: 103,
             port: port_,
           );
         },
@@ -4798,7 +5117,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 97,
+            funcId: 104,
             port: port_,
           );
         },
@@ -4834,7 +5153,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 98,
+            funcId: 105,
             port: port_,
           );
         },
@@ -4870,7 +5189,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 99,
+            funcId: 106,
             port: port_,
           );
         },
@@ -4892,6 +5211,42 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  Future<SyncedTickets> crateApiBridgeMadarBridgeListOpenTicketsSynced({
+    required MadarBridge that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 107,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_synced_tickets,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeListOpenTicketsSyncedConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeListOpenTicketsSyncedConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_list_open_tickets_synced",
+        argNames: ["that"],
+      );
+
+  @override
   Future<OrderRefundsView> crateApiBridgeMadarBridgeListOrderRefunds({
     required MadarBridge that,
     required String orderId,
@@ -4908,7 +5263,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 100,
+            funcId: 108,
             port: port_,
           );
         },
@@ -4930,9 +5285,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<List<OrderSummaryView>> crateApiBridgeMadarBridgeListOrdersForShift({
+  Future<List<OrderSummaryView>> crateApiBridgeMadarBridgeListOrdersForTill({
     required MadarBridge that,
-    required String shiftId,
+    required String tillId,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -4942,11 +5297,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          sse_encode_String(shiftId, serializer);
+          sse_encode_String(tillId, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 101,
+            funcId: 109,
             port: port_,
           );
         },
@@ -4954,17 +5309,17 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           decodeSuccessData: sse_decode_list_order_summary_view,
           decodeErrorData: sse_decode_madar_error,
         ),
-        constMeta: kCrateApiBridgeMadarBridgeListOrdersForShiftConstMeta,
-        argValues: [that, shiftId],
+        constMeta: kCrateApiBridgeMadarBridgeListOrdersForTillConstMeta,
+        argValues: [that, tillId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBridgeMadarBridgeListOrdersForShiftConstMeta =>
+  TaskConstMeta get kCrateApiBridgeMadarBridgeListOrdersForTillConstMeta =>
       const TaskConstMeta(
-        debugName: "MadarBridge_list_orders_for_shift",
-        argNames: ["that", "shiftId"],
+        debugName: "MadarBridge_list_orders_for_till",
+        argNames: ["that", "tillId"],
       );
 
   @override
@@ -4982,7 +5337,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 102,
+            funcId: 110,
             port: port_,
           );
         },
@@ -5018,7 +5373,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 103,
+            funcId: 111,
             port: port_,
           );
         },
@@ -5040,7 +5395,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<List<OrderSummaryView>> crateApiBridgeMadarBridgeListShiftOrders({
+  Future<List<OrderSummaryView>> crateApiBridgeMadarBridgeListTillOrders({
     required MadarBridge that,
   }) {
     return handler.executeNormal(
@@ -5054,7 +5409,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 104,
+            funcId: 112,
             port: port_,
           );
         },
@@ -5062,59 +5417,21 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           decodeSuccessData: sse_decode_list_order_summary_view,
           decodeErrorData: sse_decode_madar_error,
         ),
-        constMeta: kCrateApiBridgeMadarBridgeListShiftOrdersConstMeta,
+        constMeta: kCrateApiBridgeMadarBridgeListTillOrdersConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBridgeMadarBridgeListShiftOrdersConstMeta =>
+  TaskConstMeta get kCrateApiBridgeMadarBridgeListTillOrdersConstMeta =>
       const TaskConstMeta(
-        debugName: "MadarBridge_list_shift_orders",
+        debugName: "MadarBridge_list_till_orders",
         argNames: ["that"],
       );
 
   @override
-  Future<ShiftRefundsView> crateApiBridgeMadarBridgeListShiftRefunds({
-    required MadarBridge that,
-    required String shiftId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
-            that,
-            serializer,
-          );
-          sse_encode_String(shiftId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 105,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_shift_refunds_view,
-          decodeErrorData: sse_decode_madar_error,
-        ),
-        constMeta: kCrateApiBridgeMadarBridgeListShiftRefundsConstMeta,
-        argValues: [that, shiftId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiBridgeMadarBridgeListShiftRefundsConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_list_shift_refunds",
-        argNames: ["that", "shiftId"],
-      );
-
-  @override
-  Future<List<ShiftSummaryView>> crateApiBridgeMadarBridgeListShifts({
+  Future<SyncedOrders> crateApiBridgeMadarBridgeListTillOrdersSynced({
     required MadarBridge that,
   }) {
     return handler.executeNormal(
@@ -5128,29 +5445,67 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 106,
+            funcId: 113,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_list_shift_summary_view,
+          decodeSuccessData: sse_decode_synced_orders,
           decodeErrorData: sse_decode_madar_error,
         ),
-        constMeta: kCrateApiBridgeMadarBridgeListShiftsConstMeta,
+        constMeta: kCrateApiBridgeMadarBridgeListTillOrdersSyncedConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBridgeMadarBridgeListShiftsConstMeta =>
+  TaskConstMeta get kCrateApiBridgeMadarBridgeListTillOrdersSyncedConstMeta =>
       const TaskConstMeta(
-        debugName: "MadarBridge_list_shifts",
+        debugName: "MadarBridge_list_till_orders_synced",
         argNames: ["that"],
       );
 
   @override
-  Future<List<TillView>> crateApiBridgeMadarBridgeListTills({
+  Future<TillRefundsView> crateApiBridgeMadarBridgeListTillRefunds({
+    required MadarBridge that,
+    required String tillId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(tillId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 114,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_till_refunds_view,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeListTillRefundsConstMeta,
+        argValues: [that, tillId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeListTillRefundsConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_list_till_refunds",
+        argNames: ["that", "tillId"],
+      );
+
+  @override
+  Future<List<TillSummaryView>> crateApiBridgeMadarBridgeListTills({
     required MadarBridge that,
   }) {
     return handler.executeNormal(
@@ -5164,12 +5519,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 107,
+            funcId: 115,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_list_till_view,
+          decodeSuccessData: sse_decode_list_till_summary_view,
           decodeErrorData: sse_decode_madar_error,
         ),
         constMeta: kCrateApiBridgeMadarBridgeListTillsConstMeta,
@@ -5200,7 +5555,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 108,
+            funcId: 116,
             port: port_,
           );
         },
@@ -5234,7 +5589,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 109,
+            funcId: 117,
           )!;
         },
         codec: SseCodec(
@@ -5268,7 +5623,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 110,
+            funcId: 118,
             port: port_,
           );
         },
@@ -5306,7 +5661,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 111,
+            funcId: 119,
             port: port_,
           );
         },
@@ -5354,7 +5709,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 112,
+            funcId: 120,
             port: port_,
           );
         },
@@ -5410,7 +5765,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 113,
+            funcId: 121,
           )!;
         },
         codec: SseCodec(
@@ -5449,7 +5804,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 114,
+            funcId: 122,
             port: port_,
           );
         },
@@ -5487,7 +5842,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 115,
+            funcId: 123,
             port: port_,
           );
         },
@@ -5525,7 +5880,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 116,
+            funcId: 124,
           )!;
         },
         codec: SseCodec(
@@ -5560,7 +5915,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 117,
+            funcId: 125,
             port: port_,
           );
         },
@@ -5600,7 +5955,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 118,
+            funcId: 126,
             port: port_,
           );
         },
@@ -5633,7 +5988,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 119,
+            funcId: 127,
             port: port_,
           );
         },
@@ -5669,7 +6024,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 120,
+            funcId: 128,
             port: port_,
           );
         },
@@ -5691,7 +6046,43 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<ShiftView> crateApiBridgeMadarBridgeOpenShift({
+  Future<OpenBillsNoticeView?> crateApiBridgeMadarBridgeOpenBillsNotice({
+    required MadarBridge that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 129,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_open_bills_notice_view,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeOpenBillsNoticeConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeOpenBillsNoticeConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_open_bills_notice",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<OpenTillOutcome> crateApiBridgeMadarBridgeOpenTill({
     required MadarBridge that,
     required PlatformInt64 openingCashMinor,
     String? openingReason,
@@ -5709,24 +6100,24 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 121,
+            funcId: 130,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_shift_view,
+          decodeSuccessData: sse_decode_open_till_outcome,
           decodeErrorData: sse_decode_madar_error,
         ),
-        constMeta: kCrateApiBridgeMadarBridgeOpenShiftConstMeta,
+        constMeta: kCrateApiBridgeMadarBridgeOpenTillConstMeta,
         argValues: [that, openingCashMinor, openingReason],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBridgeMadarBridgeOpenShiftConstMeta =>
+  TaskConstMeta get kCrateApiBridgeMadarBridgeOpenTillConstMeta =>
       const TaskConstMeta(
-        debugName: "MadarBridge_open_shift",
+        debugName: "MadarBridge_open_till",
         argNames: ["that", "openingCashMinor", "openingReason"],
       );
 
@@ -5747,7 +6138,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 122,
+            funcId: 131,
             port: port_,
           );
         },
@@ -5785,7 +6176,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 123,
+            funcId: 132,
             port: port_,
           );
         },
@@ -5821,7 +6212,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 124,
+            funcId: 133,
           )!;
         },
         codec: SseCodec(
@@ -5856,7 +6247,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 125,
+            funcId: 134,
             port: port_,
           );
         },
@@ -5894,7 +6285,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 126,
+            funcId: 135,
           )!;
         },
         codec: SseCodec(
@@ -5929,7 +6320,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 127,
+            funcId: 136,
             port: port_,
           );
         },
@@ -5975,7 +6366,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 128,
+            funcId: 137,
             port: port_,
           );
         },
@@ -6020,7 +6411,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 129,
+            funcId: 138,
             port: port_,
           );
         },
@@ -6042,6 +6433,43 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  ReadPathMode crateApiBridgeMadarBridgeReadPathMode({
+    required MadarBridge that,
+    required String area,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(area, serializer);
+          return pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 139,
+          )!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_read_path_mode,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeReadPathModeConstMeta,
+        argValues: [that, area],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeReadPathModeConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_read_path_mode",
+        argNames: ["that", "area"],
+      );
+
+  @override
   Future<List<DiagLogView>> crateApiBridgeMadarBridgeRecentLogs({
     required MadarBridge that,
   }) {
@@ -6056,7 +6484,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 130,
+            funcId: 140,
             port: port_,
           );
         },
@@ -6100,7 +6528,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 131,
+            funcId: 141,
             port: port_,
           );
         },
@@ -6122,42 +6550,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<int> crateApiBridgeMadarBridgeRecoverOrphanedOrders({
-    required MadarBridge that,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
-            that,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 132,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_u_32,
-          decodeErrorData: sse_decode_madar_error,
-        ),
-        constMeta: kCrateApiBridgeMadarBridgeRecoverOrphanedOrdersConstMeta,
-        argValues: [that],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiBridgeMadarBridgeRecoverOrphanedOrdersConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_recover_orphaned_orders",
-        argNames: ["that"],
-      );
-
-  @override
   Future<void> crateApiBridgeMadarBridgeRefreshArrivals({
     required MadarBridge that,
   }) {
@@ -6172,7 +6564,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 133,
+            funcId: 142,
             port: port_,
           );
         },
@@ -6208,7 +6600,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 134,
+            funcId: 143,
             port: port_,
           );
         },
@@ -6244,7 +6636,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 135,
+            funcId: 144,
             port: port_,
           );
         },
@@ -6280,7 +6672,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 136,
+            funcId: 145,
             port: port_,
           );
         },
@@ -6302,7 +6694,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<ShiftView?> crateApiBridgeMadarBridgeRefreshShift({
+  Future<TillView?> crateApiBridgeMadarBridgeRefreshTill({
     required MadarBridge that,
   }) {
     return handler.executeNormal(
@@ -6316,24 +6708,24 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 137,
+            funcId: 146,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_box_autoadd_shift_view,
+          decodeSuccessData: sse_decode_opt_box_autoadd_till_view,
           decodeErrorData: sse_decode_madar_error,
         ),
-        constMeta: kCrateApiBridgeMadarBridgeRefreshShiftConstMeta,
+        constMeta: kCrateApiBridgeMadarBridgeRefreshTillConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBridgeMadarBridgeRefreshShiftConstMeta =>
+  TaskConstMeta get kCrateApiBridgeMadarBridgeRefreshTillConstMeta =>
       const TaskConstMeta(
-        debugName: "MadarBridge_refresh_shift",
+        debugName: "MadarBridge_refresh_till",
         argNames: ["that"],
       );
 
@@ -6356,7 +6748,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 138,
+            funcId: 147,
           )!;
         },
         codec: SseCodec(
@@ -6401,7 +6793,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 139,
+            funcId: 148,
             port: port_,
           );
         },
@@ -6446,7 +6838,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 140,
+            funcId: 149,
             port: port_,
           );
         },
@@ -6486,7 +6878,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 141,
+            funcId: 150,
             port: port_,
           );
         },
@@ -6528,7 +6920,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 142,
+            funcId: 151,
             port: port_,
           );
         },
@@ -6574,7 +6966,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 143,
+            funcId: 152,
             port: port_,
           );
         },
@@ -6627,7 +7019,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 144,
+            funcId: 153,
             port: port_,
           );
         },
@@ -6656,9 +7048,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<Uint8List> crateApiBridgeMadarBridgeRenderShiftReport({
+  Future<Uint8List> crateApiBridgeMadarBridgeRenderTillReport({
     required MadarBridge that,
-    required ShiftReportView report,
+    required TillReportView report,
     required String storeName,
     required String currency,
     required int width,
@@ -6673,7 +7065,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          sse_encode_box_autoadd_shift_report_view(report, serializer);
+          sse_encode_box_autoadd_till_report_view(report, serializer);
           sse_encode_String(storeName, serializer);
           sse_encode_String(currency, serializer);
           sse_encode_u_32(width, serializer);
@@ -6682,7 +7074,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 145,
+            funcId: 154,
             port: port_,
           );
         },
@@ -6690,16 +7082,16 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           decodeSuccessData: sse_decode_list_prim_u_8_strict,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiBridgeMadarBridgeRenderShiftReportConstMeta,
+        constMeta: kCrateApiBridgeMadarBridgeRenderTillReportConstMeta,
         argValues: [that, report, storeName, currency, width, brand, orders],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBridgeMadarBridgeRenderShiftReportConstMeta =>
+  TaskConstMeta get kCrateApiBridgeMadarBridgeRenderTillReportConstMeta =>
       const TaskConstMeta(
-        debugName: "MadarBridge_render_shift_report",
+        debugName: "MadarBridge_render_till_report",
         argNames: [
           "that",
           "report",
@@ -6709,6 +7101,42 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           "brand",
           "orders",
         ],
+      );
+
+  @override
+  Future<AssetSyncView> crateApiBridgeMadarBridgeRepairAssets({
+    required MadarBridge that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 155,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_asset_sync_view,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeRepairAssetsConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeRepairAssetsConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_repair_assets",
+        argNames: ["that"],
       );
 
   @override
@@ -6730,7 +7158,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 146,
+            funcId: 156,
             port: port_,
           );
         },
@@ -6768,7 +7196,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 147,
+            funcId: 157,
             port: port_,
           );
         },
@@ -6804,7 +7232,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 148,
+            funcId: 158,
           )!;
         },
         codec: SseCodec(
@@ -6839,7 +7267,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 149,
+            funcId: 159,
             port: port_,
           );
         },
@@ -6858,6 +7286,44 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       const TaskConstMeta(
         debugName: "MadarBridge_retry_outbox",
         argNames: ["that"],
+      );
+
+  @override
+  Future<int> crateApiBridgeMadarBridgeRetryTillOutbox({
+    required MadarBridge that,
+    required String tillId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(tillId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 160,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_32,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeRetryTillOutboxConstMeta,
+        argValues: [that, tillId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeRetryTillOutboxConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_retry_till_outbox",
+        argNames: ["that", "tillId"],
       );
 
   @override
@@ -6881,7 +7347,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 150,
+            funcId: 161,
           )!;
         },
         codec: SseCodec(
@@ -6920,7 +7386,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 151,
+            funcId: 162,
           )!;
         },
         codec: SseCodec(
@@ -6967,7 +7433,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 152,
+            funcId: 163,
           )!;
         },
         codec: SseCodec(
@@ -7030,7 +7496,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 153,
+            funcId: 164,
             port: port_,
           );
         },
@@ -7078,7 +7544,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 154,
+            funcId: 165,
             port: port_,
           );
         },
@@ -7118,7 +7584,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 155,
+            funcId: 166,
             port: port_,
           );
         },
@@ -7160,7 +7626,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 156,
+            funcId: 167,
             port: port_,
           );
         },
@@ -7200,7 +7666,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 157,
+            funcId: 168,
             port: port_,
           );
         },
@@ -7238,7 +7704,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 158,
+            funcId: 169,
           )!;
         },
         codec: SseCodec(
@@ -7275,7 +7741,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 159,
+            funcId: 170,
             port: port_,
           );
         },
@@ -7317,7 +7783,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 160,
+            funcId: 171,
             port: port_,
           );
         },
@@ -7357,7 +7823,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 161,
+            funcId: 172,
             port: port_,
           );
         },
@@ -7395,7 +7861,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 162,
+            funcId: 173,
             port: port_,
           );
         },
@@ -7433,7 +7899,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 163,
+            funcId: 174,
             port: port_,
           );
         },
@@ -7472,7 +7938,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 164,
+            funcId: 175,
             port: port_,
           );
         },
@@ -7494,44 +7960,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<void> crateApiBridgeMadarBridgeSetDeviceTill({
-    required MadarBridge that,
-    String? tillId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
-            that,
-            serializer,
-          );
-          sse_encode_opt_String(tillId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 165,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_madar_error,
-        ),
-        constMeta: kCrateApiBridgeMadarBridgeSetDeviceTillConstMeta,
-        argValues: [that, tillId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiBridgeMadarBridgeSetDeviceTillConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_set_device_till",
-        argNames: ["that", "tillId"],
-      );
-
-  @override
   Future<String> crateApiBridgeMadarBridgeSetKitchenRoutingMode({
     required MadarBridge that,
     String? mode,
@@ -7548,7 +7976,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 166,
+            funcId: 176,
             port: port_,
           );
         },
@@ -7586,7 +8014,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 167,
+            funcId: 177,
           )!;
         },
         codec: SseCodec(
@@ -7607,10 +8035,49 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  void crateApiBridgeMadarBridgeSetReadPathMode({
+    required MadarBridge that,
+    required String area,
+    required ReadPathMode mode,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(area, serializer);
+          sse_encode_read_path_mode(mode, serializer);
+          return pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 178,
+          )!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeSetReadPathModeConstMeta,
+        argValues: [that, area, mode],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeSetReadPathModeConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_set_read_path_mode",
+        argNames: ["that", "area", "mode"],
+      );
+
+  @override
   Future<String?> crateApiBridgeMadarBridgeSettleTicket({
     required MadarBridge that,
     required String ticketId,
-    required String shiftId,
+    required String tillId,
     required String paymentMethodId,
     PlatformInt64? amountTenderedMinor,
     PlatformInt64? tipMinor,
@@ -7631,7 +8098,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             serializer,
           );
           sse_encode_String(ticketId, serializer);
-          sse_encode_String(shiftId, serializer);
+          sse_encode_String(tillId, serializer);
           sse_encode_String(paymentMethodId, serializer);
           sse_encode_opt_box_autoadd_i_64(amountTenderedMinor, serializer);
           sse_encode_opt_box_autoadd_i_64(tipMinor, serializer);
@@ -7645,7 +8112,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 168,
+            funcId: 179,
             port: port_,
           );
         },
@@ -7657,7 +8124,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
         argValues: [
           that,
           ticketId,
-          shiftId,
+          tillId,
           paymentMethodId,
           amountTenderedMinor,
           tipMinor,
@@ -7680,7 +8147,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
         argNames: [
           "that",
           "ticketId",
-          "shiftId",
+          "tillId",
           "paymentMethodId",
           "amountTenderedMinor",
           "tipMinor",
@@ -7692,155 +8159,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           "loyaltyRedemptions",
           "splits",
         ],
-      );
-
-  @override
-  PlatformInt64 crateApiBridgeMadarBridgeShiftCashSalesMinor({
-    required MadarBridge that,
-    required ShiftReportView report,
-  }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
-            that,
-            serializer,
-          );
-          sse_encode_box_autoadd_shift_report_view(report, serializer);
-          return pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 169,
-          )!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_i_64,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiBridgeMadarBridgeShiftCashSalesMinorConstMeta,
-        argValues: [that, report],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiBridgeMadarBridgeShiftCashSalesMinorConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_shift_cash_sales_minor",
-        argNames: ["that", "report"],
-      );
-
-  @override
-  Future<ShiftReportView> crateApiBridgeMadarBridgeShiftReport({
-    required MadarBridge that,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
-            that,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 170,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_shift_report_view,
-          decodeErrorData: sse_decode_madar_error,
-        ),
-        constMeta: kCrateApiBridgeMadarBridgeShiftReportConstMeta,
-        argValues: [that],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiBridgeMadarBridgeShiftReportConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_shift_report",
-        argNames: ["that"],
-      );
-
-  @override
-  Future<ShiftReportView> crateApiBridgeMadarBridgeShiftReportFor({
-    required MadarBridge that,
-    required String shiftId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
-            that,
-            serializer,
-          );
-          sse_encode_String(shiftId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 171,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_shift_report_view,
-          decodeErrorData: sse_decode_madar_error,
-        ),
-        constMeta: kCrateApiBridgeMadarBridgeShiftReportForConstMeta,
-        argValues: [that, shiftId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiBridgeMadarBridgeShiftReportForConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_shift_report_for",
-        argNames: ["that", "shiftId"],
-      );
-
-  @override
-  Future<ShiftStatsView> crateApiBridgeMadarBridgeShiftStats({
-    required MadarBridge that,
-    required List<OrderSummaryView> orders,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
-            that,
-            serializer,
-          );
-          sse_encode_list_order_summary_view(orders, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 172,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_shift_stats_view,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiBridgeMadarBridgeShiftStatsConstMeta,
-        argValues: [that, orders],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiBridgeMadarBridgeShiftStatsConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_shift_stats",
-        argNames: ["that", "orders"],
       );
 
   @override
@@ -7860,7 +8178,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 173,
+            funcId: 180,
             port: port_,
           );
         },
@@ -7904,7 +8222,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 174,
+            funcId: 181,
           )!;
         },
         codec: SseCodec(
@@ -7945,7 +8263,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 175,
+            funcId: 182,
           )!;
         },
         codec: SseCodec(
@@ -7984,7 +8302,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 176,
+            funcId: 183,
             port: port_,
           );
         },
@@ -8020,7 +8338,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 177,
+            funcId: 184,
             port: port_,
           );
         },
@@ -8056,7 +8374,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 178,
+            funcId: 185,
             port: port_,
           );
         },
@@ -8097,7 +8415,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 179,
+            funcId: 186,
             port: port_,
           );
         },
@@ -8141,7 +8459,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 180,
+            funcId: 187,
             port: port_,
           );
         },
@@ -8163,7 +8481,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<void> crateApiBridgeMadarBridgeSyncNow({required MadarBridge that}) {
+  Future<SyncStatusView> crateApiBridgeMadarBridgeSyncFull({
+    required MadarBridge that,
+  }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -8175,12 +8495,48 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 181,
+            funcId: 188,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
+          decodeSuccessData: sse_decode_sync_status_view,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeSyncFullConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeSyncFullConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_sync_full",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<SyncStatusView> crateApiBridgeMadarBridgeSyncNow({
+    required MadarBridge that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 189,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_sync_status_view,
           decodeErrorData: sse_decode_madar_error,
         ),
         constMeta: kCrateApiBridgeMadarBridgeSyncNowConstMeta,
@@ -8197,27 +8553,61 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<SyncStatusView> crateApiBridgeMadarBridgeSyncStatus({
+  TillOpenSyncView crateApiBridgeMadarBridgeSyncOnTillOpenStatus({
     required MadarBridge that,
   }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
             that,
             serializer,
           );
-          pdeCallFfi(
+          return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 182,
-            port: port_,
+            funcId: 190,
+          )!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_till_open_sync_view,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeSyncOnTillOpenStatusConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeSyncOnTillOpenStatusConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_sync_on_till_open_status",
+        argNames: ["that"],
+      );
+
+  @override
+  SyncStatusView crateApiBridgeMadarBridgeSyncStatus({
+    required MadarBridge that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
           );
+          return pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 191,
+          )!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_sync_status_view,
-          decodeErrorData: sse_decode_madar_error,
+          decodeErrorData: null,
         ),
         constMeta: kCrateApiBridgeMadarBridgeSyncStatusConstMeta,
         argValues: [that],
@@ -8249,7 +8639,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 183,
+            funcId: 192,
             port: port_,
           );
         },
@@ -8299,7 +8689,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 184,
+            funcId: 193,
           )!;
         },
         codec: SseCodec(
@@ -8354,7 +8744,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 185,
+            funcId: 194,
           )!;
         },
         codec: SseCodec(
@@ -8372,6 +8762,191 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       const TaskConstMeta(
         debugName: "MadarBridge_ticket_reward_lines",
         argNames: ["that", "ticketId"],
+      );
+
+  @override
+  PlatformInt64 crateApiBridgeMadarBridgeTillCashSalesMinor({
+    required MadarBridge that,
+    required TillReportView report,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_till_report_view(report, serializer);
+          return pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 195,
+          )!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeTillCashSalesMinorConstMeta,
+        argValues: [that, report],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeTillCashSalesMinorConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_till_cash_sales_minor",
+        argNames: ["that", "report"],
+      );
+
+  @override
+  Future<TillReportView> crateApiBridgeMadarBridgeTillReport({
+    required MadarBridge that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 196,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_till_report_view,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeTillReportConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeTillReportConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_till_report",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<TillReportView> crateApiBridgeMadarBridgeTillReportFor({
+    required MadarBridge that,
+    required String tillId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(tillId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 197,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_till_report_view,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeTillReportForConstMeta,
+        argValues: [that, tillId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeTillReportForConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_till_report_for",
+        argNames: ["that", "tillId"],
+      );
+
+  @override
+  Future<SyncedTillReport> crateApiBridgeMadarBridgeTillReportSynced({
+    required MadarBridge that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 198,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_synced_till_report,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeTillReportSyncedConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeTillReportSyncedConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_till_report_synced",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<TillStatsView> crateApiBridgeMadarBridgeTillStats({
+    required MadarBridge that,
+    required List<OrderSummaryView> orders,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_list_order_summary_view(orders, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 199,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_till_stats_view,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeTillStatsConstMeta,
+        argValues: [that, orders],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeTillStatsConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_till_stats",
+        argNames: ["that", "orders"],
       );
 
   @override
@@ -8397,7 +8972,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 186,
+            funcId: 200,
           )!;
         },
         codec: SseCodec(
@@ -8434,7 +9009,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 187,
+            funcId: 201,
           )!;
         },
         codec: SseCodec(
@@ -8475,7 +9050,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 188,
+            funcId: 202,
             port: port_,
           );
         },
@@ -8513,7 +9088,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 189,
+            funcId: 203,
             port: port_,
           );
         },
@@ -8549,7 +9124,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 190,
+            funcId: 204,
           )!;
         },
         codec: SseCodec(
@@ -8591,7 +9166,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 191,
+            funcId: 205,
             port: port_,
           );
         },
@@ -8625,7 +9200,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 192,
+            funcId: 206,
           )!;
         },
         codec: SseCodec(
@@ -8665,7 +9240,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 193,
+            funcId: 207,
             port: port_,
           );
         },
@@ -8705,7 +9280,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 194,
+            funcId: 208,
             port: port_,
           );
         },
@@ -8747,7 +9322,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 195,
+            funcId: 209,
             port: port_,
           );
         },
@@ -8769,6 +9344,47 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  Stream<List<String>> crateApiBridgeMadarBridgeWatchTables({
+    required MadarBridge that,
+  }) {
+    final sink = RustStreamSink<List<String>>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+              that,
+              serializer,
+            );
+            sse_encode_StreamSink_list_String_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 210,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_madar_error,
+          ),
+          constMeta: kCrateApiBridgeMadarBridgeWatchTablesConstMeta,
+          argValues: [that, sink],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeWatchTablesConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_watch_tables",
+        argNames: ["that", "sink"],
+      );
+
+  @override
   String crateApiBridgeCoreVersion() {
     return handler.executeSync(
       SyncTask(
@@ -8777,7 +9393,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 196,
+            funcId: 211,
           )!;
         },
         codec: SseCodec(
@@ -8803,7 +9419,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 197,
+            funcId: 212,
           )!;
         },
         codec: SseCodec(
@@ -8830,7 +9446,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 198,
+            funcId: 213,
           )!;
         },
         codec: SseCodec(
@@ -8890,6 +9506,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
 
   @protected
   RustStreamSink<AlertCommand> dco_decode_StreamSink_alert_command_Sse(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
+  }
+
+  @protected
+  RustStreamSink<List<String>> dco_decode_StreamSink_list_String_Sse(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -8996,7 +9620,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       case 1:
         return AppRoute_Login();
       case 2:
-        return AppRoute_OpenShift();
+        return AppRoute_OpenTill();
       case 3:
         return AppRoute_Order();
       case 4:
@@ -9006,6 +9630,22 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       default:
         throw Exception("unreachable");
     }
+  }
+
+  @protected
+  AssetSyncView dco_decode_asset_sync_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return AssetSyncView(
+      needed: dco_decode_u_32(arr[0]),
+      missing: dco_decode_u_32(arr[1]),
+      downloading: dco_decode_bool(arr[2]),
+      bytesDone: dco_decode_u_64(arr[3]),
+      bytesTotal: dco_decode_u_64(arr[4]),
+      lastError: dco_decode_opt_String(arr[5]),
+    );
   }
 
   @protected
@@ -9086,6 +9726,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  LastTillWarningView dco_decode_box_autoadd_last_till_warning_view(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_last_till_warning_view(raw);
+  }
+
+  @protected
   LoginRequest dco_decode_box_autoadd_login_request(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_login_request(raw);
@@ -9110,6 +9758,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  OpenBillsNoticeView dco_decode_box_autoadd_open_bills_notice_view(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_open_bills_notice_view(raw);
+  }
+
+  @protected
   ReceiptView dco_decode_box_autoadd_receipt_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_receipt_view(raw);
@@ -9122,21 +9778,27 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  ShiftReportView dco_decode_box_autoadd_shift_report_view(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_shift_report_view(raw);
-  }
-
-  @protected
-  ShiftView dco_decode_box_autoadd_shift_view(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_shift_view(raw);
-  }
-
-  @protected
   TicketBillView dco_decode_box_autoadd_ticket_bill_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_ticket_bill_view(raw);
+  }
+
+  @protected
+  TillElsewhereView dco_decode_box_autoadd_till_elsewhere_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_till_elsewhere_view(raw);
+  }
+
+  @protected
+  TillReportView dco_decode_box_autoadd_till_report_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_till_report_view(raw);
+  }
+
+  @protected
+  TillView dco_decode_box_autoadd_till_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_till_view(raw);
   }
 
   @protected
@@ -9149,6 +9811,30 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   int dco_decode_box_autoadd_u_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
+  }
+
+  @protected
+  BigInt dco_decode_box_autoadd_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_u_64(raw);
+  }
+
+  @protected
+  BranchOpenTillView dco_decode_branch_open_till_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return BranchOpenTillView(
+      tillId: dco_decode_String(arr[0]),
+      tellerId: dco_decode_String(arr[1]),
+      tellerName: dco_decode_String(arr[2]),
+      deviceCode: dco_decode_opt_String(arr[3]),
+      deviceLabel: dco_decode_opt_String(arr[4]),
+      openedAt: dco_decode_String(arr[5]),
+      isThisDevice: dco_decode_bool(arr[6]),
+      source: dco_decode_String(arr[7]),
+    );
   }
 
   @protected
@@ -9429,6 +10115,53 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  CloseTillMethodView dco_decode_close_till_method_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return CloseTillMethodView(
+      method: dco_decode_String(arr[0]),
+      label: dco_decode_String(arr[1]),
+      isCash: dco_decode_bool(arr[2]),
+      systemTotalMinor: dco_decode_i_64(arr[3]),
+      orderCount: dco_decode_i_64(arr[4]),
+    );
+  }
+
+  @protected
+  CloseTillOutcomeView dco_decode_close_till_outcome_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return CloseTillOutcomeView(
+      queued: dco_decode_bool(arr[0]),
+      reconciliation: dco_decode_list_reconciliation_line_view(arr[1]),
+      lastTillWarning: dco_decode_opt_box_autoadd_last_till_warning_view(
+        arr[2],
+      ),
+    );
+  }
+
+  @protected
+  CloseTillPreviewView dco_decode_close_till_preview_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return CloseTillPreviewView(
+      till: dco_decode_till_view(arr[0]),
+      expectedCashMinor: dco_decode_i_64(arr[1]),
+      methods: dco_decode_list_close_till_method_view(arr[2]),
+      lastTillWarning: dco_decode_opt_box_autoadd_last_till_warning_view(
+        arr[3],
+      ),
+      fromServer: dco_decode_bool(arr[4]),
+    );
+  }
+
+  @protected
   ComputedRecipeLineView dco_decode_computed_recipe_line_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -9508,23 +10241,22 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   DeviceConfigView dco_decode_device_config_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 14)
-      throw Exception('unexpected arr length: expect 14 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return DeviceConfigView(
       branchId: dco_decode_opt_String(arr[0]),
       branchName: dco_decode_opt_String(arr[1]),
-      tillId: dco_decode_opt_String(arr[2]),
-      stationId: dco_decode_opt_String(arr[3]),
-      printerHost: dco_decode_opt_String(arr[4]),
-      printerPort: dco_decode_opt_box_autoadd_u_16(arr[5]),
-      printerBrand: dco_decode_opt_String(arr[6]),
-      printerTransport: dco_decode_opt_String(arr[7]),
-      printerBtAddress: dco_decode_opt_String(arr[8]),
-      printerBtName: dco_decode_opt_String(arr[9]),
-      printerPaperDots: dco_decode_opt_box_autoadd_u_32(arr[10]),
-      reconfiguring: dco_decode_bool(arr[11]),
-      lanHub: dco_decode_opt_String(arr[12]),
-      configured: dco_decode_bool(arr[13]),
+      stationId: dco_decode_opt_String(arr[2]),
+      printerHost: dco_decode_opt_String(arr[3]),
+      printerPort: dco_decode_opt_box_autoadd_u_16(arr[4]),
+      printerBrand: dco_decode_opt_String(arr[5]),
+      printerTransport: dco_decode_opt_String(arr[6]),
+      printerBtAddress: dco_decode_opt_String(arr[7]),
+      printerBtName: dco_decode_opt_String(arr[8]),
+      printerPaperDots: dco_decode_opt_box_autoadd_u_32(arr[9]),
+      reconfiguring: dco_decode_bool(arr[10]),
+      lanHub: dco_decode_opt_String(arr[11]),
+      configured: dco_decode_bool(arr[12]),
     );
   }
 
@@ -9653,6 +10385,20 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       bookingStatus: dco_decode_opt_String(arr[20]),
       seatedAt: dco_decode_opt_String(arr[21]),
       covers: dco_decode_opt_box_autoadd_i_32(arr[22]),
+    );
+  }
+
+  @protected
+  FreshnessView dco_decode_freshness_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return FreshnessView(
+      state: dco_decode_String(arr[0]),
+      reason: dco_decode_opt_String(arr[1]),
+      ageSecs: dco_decode_opt_box_autoadd_u_64(arr[2]),
+      banner: dco_decode_opt_String(arr[3]),
     );
   }
 
@@ -9797,6 +10543,19 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  LastTillWarningView dco_decode_last_till_warning_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return LastTillWarningView(
+      openBillsCount: dco_decode_i_64(arr[0]),
+      openBillsAmountMinor: dco_decode_i_64(arr[1]),
+      seatedTablesCount: dco_decode_i_64(arr[2]),
+    );
+  }
+
+  @protected
   LinePreviewView dco_decode_line_preview_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -9845,6 +10604,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   List<BookingView> dco_decode_list_booking_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_booking_view).toList();
+  }
+
+  @protected
+  List<BranchOpenTillView> dco_decode_list_branch_open_till_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_branch_open_till_view)
+        .toList();
   }
 
   @protected
@@ -9937,6 +10704,16 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   List<CheckoutSplit> dco_decode_list_checkout_split(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_checkout_split).toList();
+  }
+
+  @protected
+  List<CloseTillMethodView> dco_decode_list_close_till_method_view(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_close_till_method_view)
+        .toList();
   }
 
   @protected
@@ -10152,6 +10929,22 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  List<ReconciliationInput> dco_decode_list_reconciliation_input(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_reconciliation_input).toList();
+  }
+
+  @protected
+  List<ReconciliationLineView> dco_decode_list_reconciliation_line_view(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_reconciliation_line_view)
+        .toList();
+  }
+
+  @protected
   List<RefundLineView> dco_decode_list_refund_line_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_refund_line_view).toList();
@@ -10182,32 +10975,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  List<ShiftReportCashLine> dco_decode_list_shift_report_cash_line(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>)
-        .map(dco_decode_shift_report_cash_line)
-        .toList();
-  }
-
-  @protected
-  List<ShiftReportPaymentLine> dco_decode_list_shift_report_payment_line(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>)
-        .map(dco_decode_shift_report_payment_line)
-        .toList();
-  }
-
-  @protected
-  List<ShiftSummaryView> dco_decode_list_shift_summary_view(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>).map(dco_decode_shift_summary_view).toList();
-  }
-
-  @protected
   List<TableSittingView> dco_decode_list_table_sitting_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_table_sitting_view).toList();
@@ -10226,9 +10993,27 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  List<TillView> dco_decode_list_till_view(dynamic raw) {
+  List<TillReportCashLine> dco_decode_list_till_report_cash_line(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>).map(dco_decode_till_view).toList();
+    return (raw as List<dynamic>)
+        .map(dco_decode_till_report_cash_line)
+        .toList();
+  }
+
+  @protected
+  List<TillReportPaymentLine> dco_decode_list_till_report_payment_line(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_till_report_payment_line)
+        .toList();
+  }
+
+  @protected
+  List<TillSummaryView> dco_decode_list_till_summary_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_till_summary_view).toList();
   }
 
   @protected
@@ -10377,13 +11162,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   MadarConfig dco_decode_madar_config(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return MadarConfig(
       baseUrl: dco_decode_String(arr[0]),
       environment: dco_decode_String(arr[1]),
       dbPath: dco_decode_String(arr[2]),
       locale: dco_decode_String(arr[3]),
+      appVersion: dco_decode_opt_String(arr[4]),
     );
   }
 
@@ -10483,6 +11269,36 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  OpenBillsNoticeView dco_decode_open_bills_notice_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return OpenBillsNoticeView(
+      openBillsCount: dco_decode_i_64(arr[0]),
+      openBillsAmountMinor: dco_decode_i_64(arr[1]),
+      oldestOpenedAt: dco_decode_opt_String(arr[2]),
+      oldBillsCount: dco_decode_i_64(arr[3]),
+      oldBillHours: dco_decode_i_64(arr[4]),
+      seatedTablesCount: dco_decode_i_64(arr[5]),
+      since: dco_decode_opt_String(arr[6]),
+    );
+  }
+
+  @protected
+  OpenTillOutcome dco_decode_open_till_outcome(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return OpenTillOutcome(
+      till: dco_decode_opt_box_autoadd_till_view(arr[0]),
+      verification: dco_decode_String(arr[1]),
+      openElsewhere: dco_decode_opt_box_autoadd_till_elsewhere_view(arr[2]),
+    );
+  }
+
+  @protected
   String? dco_decode_opt_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_String(raw);
@@ -10519,11 +11335,31 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  LastTillWarningView? dco_decode_opt_box_autoadd_last_till_warning_view(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_last_till_warning_view(raw);
+  }
+
+  @protected
   LoyaltyMemberView? dco_decode_opt_box_autoadd_loyalty_member_view(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_loyalty_member_view(raw);
+  }
+
+  @protected
+  OpenBillsNoticeView? dco_decode_opt_box_autoadd_open_bills_notice_view(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_open_bills_notice_view(raw);
   }
 
   @protected
@@ -10533,15 +11369,23 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  ShiftView? dco_decode_opt_box_autoadd_shift_view(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null ? null : dco_decode_box_autoadd_shift_view(raw);
-  }
-
-  @protected
   TicketBillView? dco_decode_opt_box_autoadd_ticket_bill_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_ticket_bill_view(raw);
+  }
+
+  @protected
+  TillElsewhereView? dco_decode_opt_box_autoadd_till_elsewhere_view(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_till_elsewhere_view(raw);
+  }
+
+  @protected
+  TillView? dco_decode_opt_box_autoadd_till_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_till_view(raw);
   }
 
   @protected
@@ -10554,6 +11398,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_u_32(raw);
+  }
+
+  @protected
+  BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_u_64(raw);
   }
 
   @protected
@@ -10645,8 +11495,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   OrderSummaryView dco_decode_order_summary_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 14)
-      throw Exception('unexpected arr length: expect 14 but see ${arr.length}');
+    if (arr.length != 15)
+      throw Exception('unexpected arr length: expect 15 but see ${arr.length}');
     return OrderSummaryView(
       id: dco_decode_String(arr[0]),
       orderNumber: dco_decode_opt_box_autoadd_i_32(arr[1]),
@@ -10662,6 +11512,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       customerName: dco_decode_opt_String(arr[11]),
       priceFlagged: dco_decode_bool(arr[12]),
       orderRef: dco_decode_opt_String(arr[13]),
+      displayNumber: dco_decode_String(arr[14]),
     );
   }
 
@@ -10713,6 +11564,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   PrinterBrand dco_decode_printer_brand(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return PrinterBrand.values[raw as int];
+  }
+
+  @protected
+  ReadPathMode dco_decode_read_path_mode(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ReadPathMode.values[raw as int];
   }
 
   @protected
@@ -10794,39 +11651,40 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   ReceiptView dco_decode_receipt_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 30)
-      throw Exception('unexpected arr length: expect 30 but see ${arr.length}');
+    if (arr.length != 31)
+      throw Exception('unexpected arr length: expect 31 but see ${arr.length}');
     return ReceiptView(
       localOrderId: dco_decode_String(arr[0]),
       orderNumber: dco_decode_opt_box_autoadd_i_64(arr[1]),
-      orderRef: dco_decode_opt_String(arr[2]),
-      isVoided: dco_decode_bool(arr[3]),
-      lines: dco_decode_list_receipt_line_view(arr[4]),
-      paymentLabel: dco_decode_String(arr[5]),
-      subtotalMinor: dco_decode_i_64(arr[6]),
-      discountMinor: dco_decode_i_64(arr[7]),
-      taxMinor: dco_decode_i_64(arr[8]),
-      serviceChargeMinor: dco_decode_i_64(arr[9]),
-      deliveryFeeMinor: dco_decode_i_64(arr[10]),
-      totalMinor: dco_decode_i_64(arr[11]),
-      tipMinor: dco_decode_i_64(arr[12]),
-      amountTenderedMinor: dco_decode_i_64(arr[13]),
-      changeMinor: dco_decode_i_64(arr[14]),
-      isCash: dco_decode_bool(arr[15]),
-      customerName: dco_decode_opt_String(arr[16]),
-      tellerName: dco_decode_opt_String(arr[17]),
-      isDelivery: dco_decode_bool(arr[18]),
-      deliveryChannel: dco_decode_opt_String(arr[19]),
-      customerPhone: dco_decode_opt_String(arr[20]),
-      deliveryAddress: dco_decode_opt_String(arr[21]),
-      deliveryZone: dco_decode_opt_String(arr[22]),
-      deliveryRef: dco_decode_opt_String(arr[23]),
-      paymentHint: dco_decode_opt_String(arr[24]),
-      deliveryNotes: dco_decode_opt_String(arr[25]),
-      queuedOffline: dco_decode_bool(arr[26]),
-      createdAt: dco_decode_String(arr[27]),
-      payments: dco_decode_list_receipt_payment_view(arr[28]),
-      loyaltyNotice: dco_decode_opt_String(arr[29]),
+      displayNumber: dco_decode_String(arr[2]),
+      orderRef: dco_decode_opt_String(arr[3]),
+      isVoided: dco_decode_bool(arr[4]),
+      lines: dco_decode_list_receipt_line_view(arr[5]),
+      paymentLabel: dco_decode_String(arr[6]),
+      subtotalMinor: dco_decode_i_64(arr[7]),
+      discountMinor: dco_decode_i_64(arr[8]),
+      taxMinor: dco_decode_i_64(arr[9]),
+      serviceChargeMinor: dco_decode_i_64(arr[10]),
+      deliveryFeeMinor: dco_decode_i_64(arr[11]),
+      totalMinor: dco_decode_i_64(arr[12]),
+      tipMinor: dco_decode_i_64(arr[13]),
+      amountTenderedMinor: dco_decode_i_64(arr[14]),
+      changeMinor: dco_decode_i_64(arr[15]),
+      isCash: dco_decode_bool(arr[16]),
+      customerName: dco_decode_opt_String(arr[17]),
+      tellerName: dco_decode_opt_String(arr[18]),
+      isDelivery: dco_decode_bool(arr[19]),
+      deliveryChannel: dco_decode_opt_String(arr[20]),
+      customerPhone: dco_decode_opt_String(arr[21]),
+      deliveryAddress: dco_decode_opt_String(arr[22]),
+      deliveryZone: dco_decode_opt_String(arr[23]),
+      deliveryRef: dco_decode_opt_String(arr[24]),
+      paymentHint: dco_decode_opt_String(arr[25]),
+      deliveryNotes: dco_decode_opt_String(arr[26]),
+      queuedOffline: dco_decode_bool(arr[27]),
+      createdAt: dco_decode_String(arr[28]),
+      payments: dco_decode_list_receipt_payment_view(arr[29]),
+      loyaltyNotice: dco_decode_opt_String(arr[30]),
     );
   }
 
@@ -10861,6 +11719,38 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  ReconciliationInput dco_decode_reconciliation_input(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return ReconciliationInput(
+      method: dco_decode_String(arr[0]),
+      status: dco_decode_String(arr[1]),
+      declaredAmountMinor: dco_decode_opt_box_autoadd_i_64(arr[2]),
+      note: dco_decode_opt_String(arr[3]),
+    );
+  }
+
+  @protected
+  ReconciliationLineView dco_decode_reconciliation_line_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return ReconciliationLineView(
+      method: dco_decode_String(arr[0]),
+      label: dco_decode_String(arr[1]),
+      isCash: dco_decode_bool(arr[2]),
+      systemTotalMinor: dco_decode_i_64(arr[3]),
+      status: dco_decode_String(arr[4]),
+      declaredAmountMinor: dco_decode_opt_box_autoadd_i_64(arr[5]),
+      note: dco_decode_opt_String(arr[6]),
+      changedAfterClose: dco_decode_bool(arr[7]),
+    );
+  }
+
+  @protected
   RefundLineView dco_decode_refund_line_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -10883,7 +11773,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     return RefundMethodPlan(
       options: dco_decode_list_payment_method_choice(arr[0]),
       defaultCode: dco_decode_opt_String(arr[1]),
-      crossesShift: dco_decode_bool(arr[2]),
+      crossesTill: dco_decode_bool(arr[2]),
     );
   }
 
@@ -10996,130 +11886,15 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  ShiftRefundsView dco_decode_shift_refunds_view(dynamic raw) {
+  SyncMeta dco_decode_sync_meta(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
-    return ShiftRefundsView(
-      shiftId: dco_decode_String(arr[0]),
-      refundCount: dco_decode_i_64(arr[1]),
-      refundedMinor: dco_decode_i_64(arr[2]),
-      refundedCashMinor: dco_decode_i_64(arr[3]),
-      refunds: dco_decode_list_refund_view(arr[4]),
-    );
-  }
-
-  @protected
-  ShiftReportCashLine dco_decode_shift_report_cash_line(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
-    return ShiftReportCashLine(
-      amountMinor: dco_decode_i_64(arr[0]),
-      note: dco_decode_String(arr[1]),
-      movedByName: dco_decode_String(arr[2]),
-      createdAt: dco_decode_String(arr[3]),
-    );
-  }
-
-  @protected
-  ShiftReportPaymentLine dco_decode_shift_report_payment_line(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
-    return ShiftReportPaymentLine(
-      method: dco_decode_String(arr[0]),
-      isCash: dco_decode_bool(arr[1]),
-      orderCount: dco_decode_i_64(arr[2]),
-      totalMinor: dco_decode_i_64(arr[3]),
-    );
-  }
-
-  @protected
-  ShiftReportView dco_decode_shift_report_view(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 24)
-      throw Exception('unexpected arr length: expect 24 but see ${arr.length}');
-    return ShiftReportView(
-      tellerName: dco_decode_String(arr[0]),
-      openedAt: dco_decode_String(arr[1]),
-      closedAt: dco_decode_opt_String(arr[2]),
-      printedAt: dco_decode_String(arr[3]),
-      isOpen: dco_decode_bool(arr[4]),
-      expectedCashMinor: dco_decode_i_64(arr[5]),
-      openingCashMinor: dco_decode_i_64(arr[6]),
-      openingCashWasEdited: dco_decode_bool(arr[7]),
-      openingCashOriginalMinor: dco_decode_opt_box_autoadd_i_64(arr[8]),
-      openingCashEditReason: dco_decode_opt_String(arr[9]),
-      closingCashDeclaredMinor: dco_decode_opt_box_autoadd_i_64(arr[10]),
-      totalPaymentsMinor: dco_decode_i_64(arr[11]),
-      netPaymentsMinor: dco_decode_i_64(arr[12]),
-      voidedAmountMinor: dco_decode_i_64(arr[13]),
-      refundsIssuedMinor: dco_decode_i_64(arr[14]),
-      refundsIssuedCashMinor: dco_decode_i_64(arr[15]),
-      refundsIssuedCount: dco_decode_i_64(arr[16]),
-      cashInRefundedSalesMinor: dco_decode_i_64(arr[17]),
-      cashMovementsNetMinor: dco_decode_i_64(arr[18]),
-      cashInMinor: dco_decode_i_64(arr[19]),
-      cashOutMinor: dco_decode_i_64(arr[20]),
-      paymentLines: dco_decode_list_shift_report_payment_line(arr[21]),
-      cashMovements: dco_decode_list_shift_report_cash_line(arr[22]),
-      fromServer: dco_decode_bool(arr[23]),
-    );
-  }
-
-  @protected
-  ShiftStatsView dco_decode_shift_stats_view(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
-    return ShiftStatsView(
-      salesMinor: dco_decode_i_64(arr[0]),
-      orderCount: dco_decode_i_64(arr[1]),
-    );
-  }
-
-  @protected
-  ShiftSummaryView dco_decode_shift_summary_view(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 11)
-      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
-    return ShiftSummaryView(
-      id: dco_decode_String(arr[0]),
-      branchName: dco_decode_opt_String(arr[1]),
-      tellerName: dco_decode_opt_String(arr[2]),
-      openedAt: dco_decode_String(arr[3]),
-      closedAt: dco_decode_opt_String(arr[4]),
-      openingCashMinor: dco_decode_i_64(arr[5]),
-      closingDeclaredMinor: dco_decode_opt_box_autoadd_i_64(arr[6]),
-      closingSystemMinor: dco_decode_opt_box_autoadd_i_64(arr[7]),
-      discrepancyMinor: dco_decode_opt_box_autoadd_i_64(arr[8]),
-      status: dco_decode_String(arr[9]),
-      isOpen: dco_decode_bool(arr[10]),
-    );
-  }
-
-  @protected
-  ShiftView dco_decode_shift_view(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
-    return ShiftView(
-      id: dco_decode_String(arr[0]),
-      branchId: dco_decode_String(arr[1]),
-      tellerId: dco_decode_String(arr[2]),
-      tellerName: dco_decode_String(arr[3]),
-      openingCashMinor: dco_decode_i_64(arr[4]),
-      openedAt: dco_decode_String(arr[5]),
-      status: dco_decode_String(arr[6]),
-      isOpen: dco_decode_bool(arr[7]),
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return SyncMeta(
+      freshness: dco_decode_freshness_view(arr[0]),
+      pending: dco_decode_u_32(arr[1]),
+      failed: dco_decode_u_32(arr[2]),
     );
   }
 
@@ -11127,14 +11902,82 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   SyncStatusView dco_decode_sync_status_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return SyncStatusView(
-      pending: dco_decode_u_32(arr[0]),
-      failed: dco_decode_u_32(arr[1]),
-      blocked: dco_decode_u_32(arr[2]),
-      online: dco_decode_bool(arr[3]),
-      authPaused: dco_decode_bool(arr[4]),
+      phase: dco_decode_String(arr[0]),
+      nextSeq: dco_decode_opt_box_autoadd_i_64(arr[1]),
+      pendingOutbox: dco_decode_u_32(arr[2]),
+      deadOutbox: dco_decode_u_32(arr[3]),
+      lastOkAt: dco_decode_opt_String(arr[4]),
+      lastFullAt: dco_decode_opt_String(arr[5]),
+      staleReason: dco_decode_opt_String(arr[6]),
+      lastError: dco_decode_opt_String(arr[7]),
+      assets: dco_decode_asset_sync_view(arr[8]),
+      online: dco_decode_bool(arr[9]),
+      authPaused: dco_decode_bool(arr[10]),
+      blocked: dco_decode_u_32(arr[11]),
+      freshness: dco_decode_freshness_view(arr[12]),
+    );
+  }
+
+  @protected
+  SyncedDeliveries dco_decode_synced_deliveries(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return SyncedDeliveries(
+      data: dco_decode_list_delivery_order_view(arr[0]),
+      meta: dco_decode_sync_meta(arr[1]),
+    );
+  }
+
+  @protected
+  SyncedKitchen dco_decode_synced_kitchen(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return SyncedKitchen(
+      data: dco_decode_list_kds_ticket_view(arr[0]),
+      meta: dco_decode_sync_meta(arr[1]),
+    );
+  }
+
+  @protected
+  SyncedOrders dco_decode_synced_orders(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return SyncedOrders(
+      data: dco_decode_list_order_summary_view(arr[0]),
+      meta: dco_decode_sync_meta(arr[1]),
+    );
+  }
+
+  @protected
+  SyncedTickets dco_decode_synced_tickets(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return SyncedTickets(
+      data: dco_decode_list_ticket_view(arr[0]),
+      meta: dco_decode_sync_meta(arr[1]),
+    );
+  }
+
+  @protected
+  SyncedTillReport dco_decode_synced_till_report(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return SyncedTillReport(
+      data: dco_decode_till_report_view(arr[0]),
+      meta: dco_decode_sync_meta(arr[1]),
     );
   }
 
@@ -11274,16 +12117,178 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  TillView dco_decode_till_view(dynamic raw) {
+  TillElsewhereView dco_decode_till_elsewhere_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return TillElsewhereView(
+      tillId: dco_decode_String(arr[0]),
+      deviceCode: dco_decode_opt_String(arr[1]),
+      deviceLabel: dco_decode_opt_String(arr[2]),
+      openedAt: dco_decode_String(arr[3]),
+      source: dco_decode_String(arr[4]),
+    );
+  }
+
+  @protected
+  TillOpenSyncView dco_decode_till_open_sync_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return TillOpenSyncView(
+      state: dco_decode_String(arr[0]),
+      tillId: dco_decode_opt_String(arr[1]),
+      startedAt: dco_decode_opt_String(arr[2]),
+      finishedAt: dco_decode_opt_String(arr[3]),
+      staleReason: dco_decode_opt_String(arr[4]),
+      changesApplied: dco_decode_u_32(arr[5]),
+      pendingOutbox: dco_decode_u_32(arr[6]),
+    );
+  }
+
+  @protected
+  TillRefundsView dco_decode_till_refunds_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return TillRefundsView(
+      tillId: dco_decode_String(arr[0]),
+      refundCount: dco_decode_i_64(arr[1]),
+      refundedMinor: dco_decode_i_64(arr[2]),
+      refundedCashMinor: dco_decode_i_64(arr[3]),
+      refunds: dco_decode_list_refund_view(arr[4]),
+    );
+  }
+
+  @protected
+  TillReportCashLine dco_decode_till_report_cash_line(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 4)
       throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return TillReportCashLine(
+      amountMinor: dco_decode_i_64(arr[0]),
+      note: dco_decode_String(arr[1]),
+      movedByName: dco_decode_String(arr[2]),
+      createdAt: dco_decode_String(arr[3]),
+    );
+  }
+
+  @protected
+  TillReportPaymentLine dco_decode_till_report_payment_line(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return TillReportPaymentLine(
+      method: dco_decode_String(arr[0]),
+      isCash: dco_decode_bool(arr[1]),
+      orderCount: dco_decode_i_64(arr[2]),
+      totalMinor: dco_decode_i_64(arr[3]),
+    );
+  }
+
+  @protected
+  TillReportView dco_decode_till_report_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 32)
+      throw Exception('unexpected arr length: expect 32 but see ${arr.length}');
+    return TillReportView(
+      tellerName: dco_decode_String(arr[0]),
+      openedAt: dco_decode_String(arr[1]),
+      closedAt: dco_decode_opt_String(arr[2]),
+      printedAt: dco_decode_String(arr[3]),
+      isOpen: dco_decode_bool(arr[4]),
+      expectedCashMinor: dco_decode_i_64(arr[5]),
+      openingCashMinor: dco_decode_i_64(arr[6]),
+      openingCashWasEdited: dco_decode_bool(arr[7]),
+      openingCashOriginalMinor: dco_decode_opt_box_autoadd_i_64(arr[8]),
+      openingCashEditReason: dco_decode_opt_String(arr[9]),
+      closingCashDeclaredMinor: dco_decode_opt_box_autoadd_i_64(arr[10]),
+      totalPaymentsMinor: dco_decode_i_64(arr[11]),
+      netPaymentsMinor: dco_decode_i_64(arr[12]),
+      voidedAmountMinor: dco_decode_i_64(arr[13]),
+      refundsIssuedMinor: dco_decode_i_64(arr[14]),
+      refundsIssuedCashMinor: dco_decode_i_64(arr[15]),
+      refundsIssuedCount: dco_decode_i_64(arr[16]),
+      cashInRefundedSalesMinor: dco_decode_i_64(arr[17]),
+      cashMovementsNetMinor: dco_decode_i_64(arr[18]),
+      cashInMinor: dco_decode_i_64(arr[19]),
+      cashOutMinor: dco_decode_i_64(arr[20]),
+      paymentLines: dco_decode_list_till_report_payment_line(arr[21]),
+      cashMovements: dco_decode_list_till_report_cash_line(arr[22]),
+      fromServer: dco_decode_bool(arr[23]),
+      deviceCode: dco_decode_opt_String(arr[24]),
+      orderNumberFirst: dco_decode_opt_box_autoadd_i_64(arr[25]),
+      orderNumberLast: dco_decode_opt_box_autoadd_i_64(arr[26]),
+      reconciliation: dco_decode_list_reconciliation_line_view(arr[27]),
+      oldBillsCount: dco_decode_opt_box_autoadd_i_64(arr[28]),
+      openBillsCount: dco_decode_opt_box_autoadd_i_64(arr[29]),
+      openedWhileAnotherOpen: dco_decode_bool(arr[30]),
+      verification: dco_decode_String(arr[31]),
+    );
+  }
+
+  @protected
+  TillStatsView dco_decode_till_stats_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return TillStatsView(
+      salesMinor: dco_decode_i_64(arr[0]),
+      orderCount: dco_decode_i_64(arr[1]),
+    );
+  }
+
+  @protected
+  TillSummaryView dco_decode_till_summary_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 15)
+      throw Exception('unexpected arr length: expect 15 but see ${arr.length}');
+    return TillSummaryView(
+      id: dco_decode_String(arr[0]),
+      branchName: dco_decode_opt_String(arr[1]),
+      tellerName: dco_decode_opt_String(arr[2]),
+      openedAt: dco_decode_String(arr[3]),
+      closedAt: dco_decode_opt_String(arr[4]),
+      openingCashMinor: dco_decode_i_64(arr[5]),
+      closingDeclaredMinor: dco_decode_opt_box_autoadd_i_64(arr[6]),
+      closingSystemMinor: dco_decode_opt_box_autoadd_i_64(arr[7]),
+      discrepancyMinor: dco_decode_opt_box_autoadd_i_64(arr[8]),
+      status: dco_decode_String(arr[9]),
+      isOpen: dco_decode_bool(arr[10]),
+      deviceCode: dco_decode_opt_String(arr[11]),
+      verification: dco_decode_String(arr[12]),
+      openedWhileAnotherOpen: dco_decode_bool(arr[13]),
+      reconciliationStatus: dco_decode_opt_String(arr[14]),
+    );
+  }
+
+  @protected
+  TillView dco_decode_till_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return TillView(
       id: dco_decode_String(arr[0]),
-      name: dco_decode_String(arr[1]),
-      isDefault: dco_decode_bool(arr[2]),
-      isActive: dco_decode_bool(arr[3]),
+      branchId: dco_decode_String(arr[1]),
+      tellerId: dco_decode_String(arr[2]),
+      tellerName: dco_decode_String(arr[3]),
+      openingCashMinor: dco_decode_i_64(arr[4]),
+      openedAt: dco_decode_String(arr[5]),
+      status: dco_decode_String(arr[6]),
+      isOpen: dco_decode_bool(arr[7]),
+      deviceId: dco_decode_opt_String(arr[8]),
+      deviceCode: dco_decode_opt_String(arr[9]),
+      verification: dco_decode_String(arr[10]),
+      openedWhileAnotherOpen: dco_decode_bool(arr[11]),
     );
   }
 
@@ -11326,6 +12331,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   int dco_decode_u_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
+  }
+
+  @protected
+  BigInt dco_decode_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeU64(raw);
   }
 
   @protected
@@ -11391,6 +12402,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
 
   @protected
   RustStreamSink<AlertCommand> sse_decode_StreamSink_alert_command_Sse(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
+  }
+
+  @protected
+  RustStreamSink<List<String>> sse_decode_StreamSink_list_String_Sse(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -11510,7 +12529,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       case 1:
         return AppRoute_Login();
       case 2:
-        return AppRoute_OpenShift();
+        return AppRoute_OpenTill();
       case 3:
         return AppRoute_Order();
       case 4:
@@ -11521,6 +12540,25 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       default:
         throw UnimplementedError('');
     }
+  }
+
+  @protected
+  AssetSyncView sse_decode_asset_sync_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_needed = sse_decode_u_32(deserializer);
+    var var_missing = sse_decode_u_32(deserializer);
+    var var_downloading = sse_decode_bool(deserializer);
+    var var_bytesDone = sse_decode_u_64(deserializer);
+    var var_bytesTotal = sse_decode_u_64(deserializer);
+    var var_lastError = sse_decode_opt_String(deserializer);
+    return AssetSyncView(
+      needed: var_needed,
+      missing: var_missing,
+      downloading: var_downloading,
+      bytesDone: var_bytesDone,
+      bytesTotal: var_bytesTotal,
+      lastError: var_lastError,
+    );
   }
 
   @protected
@@ -11619,6 +12657,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  LastTillWarningView sse_decode_box_autoadd_last_till_warning_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_last_till_warning_view(deserializer));
+  }
+
+  @protected
   LoginRequest sse_decode_box_autoadd_login_request(
     SseDeserializer deserializer,
   ) {
@@ -11651,6 +12697,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  OpenBillsNoticeView sse_decode_box_autoadd_open_bills_notice_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_open_bills_notice_view(deserializer));
+  }
+
+  @protected
   ReceiptView sse_decode_box_autoadd_receipt_view(
     SseDeserializer deserializer,
   ) {
@@ -11667,25 +12721,33 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  ShiftReportView sse_decode_box_autoadd_shift_report_view(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_shift_report_view(deserializer));
-  }
-
-  @protected
-  ShiftView sse_decode_box_autoadd_shift_view(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_shift_view(deserializer));
-  }
-
-  @protected
   TicketBillView sse_decode_box_autoadd_ticket_bill_view(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_ticket_bill_view(deserializer));
+  }
+
+  @protected
+  TillElsewhereView sse_decode_box_autoadd_till_elsewhere_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_till_elsewhere_view(deserializer));
+  }
+
+  @protected
+  TillReportView sse_decode_box_autoadd_till_report_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_till_report_view(deserializer));
+  }
+
+  @protected
+  TillView sse_decode_box_autoadd_till_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_till_view(deserializer));
   }
 
   @protected
@@ -11698,6 +12760,37 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_u_32(deserializer));
+  }
+
+  @protected
+  BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_u_64(deserializer));
+  }
+
+  @protected
+  BranchOpenTillView sse_decode_branch_open_till_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_tillId = sse_decode_String(deserializer);
+    var var_tellerId = sse_decode_String(deserializer);
+    var var_tellerName = sse_decode_String(deserializer);
+    var var_deviceCode = sse_decode_opt_String(deserializer);
+    var var_deviceLabel = sse_decode_opt_String(deserializer);
+    var var_openedAt = sse_decode_String(deserializer);
+    var var_isThisDevice = sse_decode_bool(deserializer);
+    var var_source = sse_decode_String(deserializer);
+    return BranchOpenTillView(
+      tillId: var_tillId,
+      tellerId: var_tellerId,
+      tellerName: var_tellerName,
+      deviceCode: var_deviceCode,
+      deviceLabel: var_deviceLabel,
+      openedAt: var_openedAt,
+      isThisDevice: var_isThisDevice,
+      source: var_source,
+    );
   }
 
   @protected
@@ -12032,6 +13125,65 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  CloseTillMethodView sse_decode_close_till_method_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_method = sse_decode_String(deserializer);
+    var var_label = sse_decode_String(deserializer);
+    var var_isCash = sse_decode_bool(deserializer);
+    var var_systemTotalMinor = sse_decode_i_64(deserializer);
+    var var_orderCount = sse_decode_i_64(deserializer);
+    return CloseTillMethodView(
+      method: var_method,
+      label: var_label,
+      isCash: var_isCash,
+      systemTotalMinor: var_systemTotalMinor,
+      orderCount: var_orderCount,
+    );
+  }
+
+  @protected
+  CloseTillOutcomeView sse_decode_close_till_outcome_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_queued = sse_decode_bool(deserializer);
+    var var_reconciliation = sse_decode_list_reconciliation_line_view(
+      deserializer,
+    );
+    var var_lastTillWarning = sse_decode_opt_box_autoadd_last_till_warning_view(
+      deserializer,
+    );
+    return CloseTillOutcomeView(
+      queued: var_queued,
+      reconciliation: var_reconciliation,
+      lastTillWarning: var_lastTillWarning,
+    );
+  }
+
+  @protected
+  CloseTillPreviewView sse_decode_close_till_preview_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_till = sse_decode_till_view(deserializer);
+    var var_expectedCashMinor = sse_decode_i_64(deserializer);
+    var var_methods = sse_decode_list_close_till_method_view(deserializer);
+    var var_lastTillWarning = sse_decode_opt_box_autoadd_last_till_warning_view(
+      deserializer,
+    );
+    var var_fromServer = sse_decode_bool(deserializer);
+    return CloseTillPreviewView(
+      till: var_till,
+      expectedCashMinor: var_expectedCashMinor,
+      methods: var_methods,
+      lastTillWarning: var_lastTillWarning,
+      fromServer: var_fromServer,
+    );
+  }
+
+  @protected
   ComputedRecipeLineView sse_decode_computed_recipe_line_view(
     SseDeserializer deserializer,
   ) {
@@ -12144,7 +13296,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_branchId = sse_decode_opt_String(deserializer);
     var var_branchName = sse_decode_opt_String(deserializer);
-    var var_tillId = sse_decode_opt_String(deserializer);
     var var_stationId = sse_decode_opt_String(deserializer);
     var var_printerHost = sse_decode_opt_String(deserializer);
     var var_printerPort = sse_decode_opt_box_autoadd_u_16(deserializer);
@@ -12159,7 +13310,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     return DeviceConfigView(
       branchId: var_branchId,
       branchName: var_branchName,
-      tillId: var_tillId,
       stationId: var_stationId,
       printerHost: var_printerHost,
       printerPort: var_printerPort,
@@ -12325,6 +13475,21 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       bookingStatus: var_bookingStatus,
       seatedAt: var_seatedAt,
       covers: var_covers,
+    );
+  }
+
+  @protected
+  FreshnessView sse_decode_freshness_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_state = sse_decode_String(deserializer);
+    var var_reason = sse_decode_opt_String(deserializer);
+    var var_ageSecs = sse_decode_opt_box_autoadd_u_64(deserializer);
+    var var_banner = sse_decode_opt_String(deserializer);
+    return FreshnessView(
+      state: var_state,
+      reason: var_reason,
+      ageSecs: var_ageSecs,
+      banner: var_banner,
     );
   }
 
@@ -12495,6 +13660,21 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  LastTillWarningView sse_decode_last_till_warning_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_openBillsCount = sse_decode_i_64(deserializer);
+    var var_openBillsAmountMinor = sse_decode_i_64(deserializer);
+    var var_seatedTablesCount = sse_decode_i_64(deserializer);
+    return LastTillWarningView(
+      openBillsCount: var_openBillsCount,
+      openBillsAmountMinor: var_openBillsAmountMinor,
+      seatedTablesCount: var_seatedTablesCount,
+    );
+  }
+
+  @protected
   LinePreviewView sse_decode_line_preview_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_unitTotalMinor = sse_decode_i_64(deserializer);
@@ -12583,6 +13763,20 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var ans_ = <BookingView>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_booking_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<BranchOpenTillView> sse_decode_list_branch_open_till_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <BranchOpenTillView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_branch_open_till_view(deserializer));
     }
     return ans_;
   }
@@ -12761,6 +13955,20 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var ans_ = <CheckoutSplit>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_checkout_split(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<CloseTillMethodView> sse_decode_list_close_till_method_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <CloseTillMethodView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_close_till_method_view(deserializer));
     }
     return ans_;
   }
@@ -13198,6 +14406,34 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  List<ReconciliationInput> sse_decode_list_reconciliation_input(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ReconciliationInput>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_reconciliation_input(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<ReconciliationLineView> sse_decode_list_reconciliation_line_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ReconciliationLineView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_reconciliation_line_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<RefundLineView> sse_decode_list_refund_line_view(
     SseDeserializer deserializer,
   ) {
@@ -13264,48 +14500,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  List<ShiftReportCashLine> sse_decode_list_shift_report_cash_line(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <ShiftReportCashLine>[];
-    for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_shift_report_cash_line(deserializer));
-    }
-    return ans_;
-  }
-
-  @protected
-  List<ShiftReportPaymentLine> sse_decode_list_shift_report_payment_line(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <ShiftReportPaymentLine>[];
-    for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_shift_report_payment_line(deserializer));
-    }
-    return ans_;
-  }
-
-  @protected
-  List<ShiftSummaryView> sse_decode_list_shift_summary_view(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <ShiftSummaryView>[];
-    for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_shift_summary_view(deserializer));
-    }
-    return ans_;
-  }
-
-  @protected
   List<TableSittingView> sse_decode_list_table_sitting_view(
     SseDeserializer deserializer,
   ) {
@@ -13346,13 +14540,43 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  List<TillView> sse_decode_list_till_view(SseDeserializer deserializer) {
+  List<TillReportCashLine> sse_decode_list_till_report_cash_line(
+    SseDeserializer deserializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <TillView>[];
+    var ans_ = <TillReportCashLine>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_till_view(deserializer));
+      ans_.add(sse_decode_till_report_cash_line(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<TillReportPaymentLine> sse_decode_list_till_report_payment_line(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <TillReportPaymentLine>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_till_report_payment_line(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<TillSummaryView> sse_decode_list_till_summary_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <TillSummaryView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_till_summary_view(deserializer));
     }
     return ans_;
   }
@@ -13550,11 +14774,13 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_environment = sse_decode_String(deserializer);
     var var_dbPath = sse_decode_String(deserializer);
     var var_locale = sse_decode_String(deserializer);
+    var var_appVersion = sse_decode_opt_String(deserializer);
     return MadarConfig(
       baseUrl: var_baseUrl,
       environment: var_environment,
       dbPath: var_dbPath,
       locale: var_locale,
+      appVersion: var_appVersion,
     );
   }
 
@@ -13685,6 +14911,44 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  OpenBillsNoticeView sse_decode_open_bills_notice_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_openBillsCount = sse_decode_i_64(deserializer);
+    var var_openBillsAmountMinor = sse_decode_i_64(deserializer);
+    var var_oldestOpenedAt = sse_decode_opt_String(deserializer);
+    var var_oldBillsCount = sse_decode_i_64(deserializer);
+    var var_oldBillHours = sse_decode_i_64(deserializer);
+    var var_seatedTablesCount = sse_decode_i_64(deserializer);
+    var var_since = sse_decode_opt_String(deserializer);
+    return OpenBillsNoticeView(
+      openBillsCount: var_openBillsCount,
+      openBillsAmountMinor: var_openBillsAmountMinor,
+      oldestOpenedAt: var_oldestOpenedAt,
+      oldBillsCount: var_oldBillsCount,
+      oldBillHours: var_oldBillHours,
+      seatedTablesCount: var_seatedTablesCount,
+      since: var_since,
+    );
+  }
+
+  @protected
+  OpenTillOutcome sse_decode_open_till_outcome(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_till = sse_decode_opt_box_autoadd_till_view(deserializer);
+    var var_verification = sse_decode_String(deserializer);
+    var var_openElsewhere = sse_decode_opt_box_autoadd_till_elsewhere_view(
+      deserializer,
+    );
+    return OpenTillOutcome(
+      till: var_till,
+      verification: var_verification,
+      openElsewhere: var_openElsewhere,
+    );
+  }
+
+  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -13755,6 +15019,19 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  LastTillWarningView? sse_decode_opt_box_autoadd_last_till_warning_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_last_till_warning_view(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   LoyaltyMemberView? sse_decode_opt_box_autoadd_loyalty_member_view(
     SseDeserializer deserializer,
   ) {
@@ -13762,6 +15039,19 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_loyalty_member_view(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  OpenBillsNoticeView? sse_decode_opt_box_autoadd_open_bills_notice_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_open_bills_notice_view(deserializer));
     } else {
       return null;
     }
@@ -13781,19 +15071,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  ShiftView? sse_decode_opt_box_autoadd_shift_view(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_shift_view(deserializer));
-    } else {
-      return null;
-    }
-  }
-
-  @protected
   TicketBillView? sse_decode_opt_box_autoadd_ticket_bill_view(
     SseDeserializer deserializer,
   ) {
@@ -13801,6 +15078,30 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_ticket_bill_view(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  TillElsewhereView? sse_decode_opt_box_autoadd_till_elsewhere_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_till_elsewhere_view(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  TillView? sse_decode_opt_box_autoadd_till_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_till_view(deserializer));
     } else {
       return null;
     }
@@ -13823,6 +15124,17 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_u_32(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_u_64(deserializer));
     } else {
       return null;
     }
@@ -13954,6 +15266,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_customerName = sse_decode_opt_String(deserializer);
     var var_priceFlagged = sse_decode_bool(deserializer);
     var var_orderRef = sse_decode_opt_String(deserializer);
+    var var_displayNumber = sse_decode_String(deserializer);
     return OrderSummaryView(
       id: var_id,
       orderNumber: var_orderNumber,
@@ -13969,6 +15282,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       customerName: var_customerName,
       priceFlagged: var_priceFlagged,
       orderRef: var_orderRef,
+      displayNumber: var_displayNumber,
     );
   }
 
@@ -14030,6 +15344,13 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_i_32(deserializer);
     return PrinterBrand.values[inner];
+  }
+
+  @protected
+  ReadPathMode sse_decode_read_path_mode(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return ReadPathMode.values[inner];
   }
 
   @protected
@@ -14117,6 +15438,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_localOrderId = sse_decode_String(deserializer);
     var var_orderNumber = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_displayNumber = sse_decode_String(deserializer);
     var var_orderRef = sse_decode_opt_String(deserializer);
     var var_isVoided = sse_decode_bool(deserializer);
     var var_lines = sse_decode_list_receipt_line_view(deserializer);
@@ -14148,6 +15470,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     return ReceiptView(
       localOrderId: var_localOrderId,
       orderNumber: var_orderNumber,
+      displayNumber: var_displayNumber,
       orderRef: var_orderRef,
       isVoided: var_isVoided,
       lines: var_lines,
@@ -14214,6 +15537,48 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  ReconciliationInput sse_decode_reconciliation_input(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_method = sse_decode_String(deserializer);
+    var var_status = sse_decode_String(deserializer);
+    var var_declaredAmountMinor = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_note = sse_decode_opt_String(deserializer);
+    return ReconciliationInput(
+      method: var_method,
+      status: var_status,
+      declaredAmountMinor: var_declaredAmountMinor,
+      note: var_note,
+    );
+  }
+
+  @protected
+  ReconciliationLineView sse_decode_reconciliation_line_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_method = sse_decode_String(deserializer);
+    var var_label = sse_decode_String(deserializer);
+    var var_isCash = sse_decode_bool(deserializer);
+    var var_systemTotalMinor = sse_decode_i_64(deserializer);
+    var var_status = sse_decode_String(deserializer);
+    var var_declaredAmountMinor = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_note = sse_decode_opt_String(deserializer);
+    var var_changedAfterClose = sse_decode_bool(deserializer);
+    return ReconciliationLineView(
+      method: var_method,
+      label: var_label,
+      isCash: var_isCash,
+      systemTotalMinor: var_systemTotalMinor,
+      status: var_status,
+      declaredAmountMinor: var_declaredAmountMinor,
+      note: var_note,
+      changedAfterClose: var_changedAfterClose,
+    );
+  }
+
+  @protected
   RefundLineView sse_decode_refund_line_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_itemName = sse_decode_String(deserializer);
@@ -14233,11 +15598,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_options = sse_decode_list_payment_method_choice(deserializer);
     var var_defaultCode = sse_decode_opt_String(deserializer);
-    var var_crossesShift = sse_decode_bool(deserializer);
+    var var_crossesTill = sse_decode_bool(deserializer);
     return RefundMethodPlan(
       options: var_options,
       defaultCode: var_defaultCode,
-      crossesShift: var_crossesShift,
+      crossesTill: var_crossesTill,
     );
   }
 
@@ -14377,199 +15742,89 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  ShiftRefundsView sse_decode_shift_refunds_view(SseDeserializer deserializer) {
+  SyncMeta sse_decode_sync_meta(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_shiftId = sse_decode_String(deserializer);
-    var var_refundCount = sse_decode_i_64(deserializer);
-    var var_refundedMinor = sse_decode_i_64(deserializer);
-    var var_refundedCashMinor = sse_decode_i_64(deserializer);
-    var var_refunds = sse_decode_list_refund_view(deserializer);
-    return ShiftRefundsView(
-      shiftId: var_shiftId,
-      refundCount: var_refundCount,
-      refundedMinor: var_refundedMinor,
-      refundedCashMinor: var_refundedCashMinor,
-      refunds: var_refunds,
-    );
-  }
-
-  @protected
-  ShiftReportCashLine sse_decode_shift_report_cash_line(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_amountMinor = sse_decode_i_64(deserializer);
-    var var_note = sse_decode_String(deserializer);
-    var var_movedByName = sse_decode_String(deserializer);
-    var var_createdAt = sse_decode_String(deserializer);
-    return ShiftReportCashLine(
-      amountMinor: var_amountMinor,
-      note: var_note,
-      movedByName: var_movedByName,
-      createdAt: var_createdAt,
-    );
-  }
-
-  @protected
-  ShiftReportPaymentLine sse_decode_shift_report_payment_line(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_method = sse_decode_String(deserializer);
-    var var_isCash = sse_decode_bool(deserializer);
-    var var_orderCount = sse_decode_i_64(deserializer);
-    var var_totalMinor = sse_decode_i_64(deserializer);
-    return ShiftReportPaymentLine(
-      method: var_method,
-      isCash: var_isCash,
-      orderCount: var_orderCount,
-      totalMinor: var_totalMinor,
-    );
-  }
-
-  @protected
-  ShiftReportView sse_decode_shift_report_view(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_tellerName = sse_decode_String(deserializer);
-    var var_openedAt = sse_decode_String(deserializer);
-    var var_closedAt = sse_decode_opt_String(deserializer);
-    var var_printedAt = sse_decode_String(deserializer);
-    var var_isOpen = sse_decode_bool(deserializer);
-    var var_expectedCashMinor = sse_decode_i_64(deserializer);
-    var var_openingCashMinor = sse_decode_i_64(deserializer);
-    var var_openingCashWasEdited = sse_decode_bool(deserializer);
-    var var_openingCashOriginalMinor = sse_decode_opt_box_autoadd_i_64(
-      deserializer,
-    );
-    var var_openingCashEditReason = sse_decode_opt_String(deserializer);
-    var var_closingCashDeclaredMinor = sse_decode_opt_box_autoadd_i_64(
-      deserializer,
-    );
-    var var_totalPaymentsMinor = sse_decode_i_64(deserializer);
-    var var_netPaymentsMinor = sse_decode_i_64(deserializer);
-    var var_voidedAmountMinor = sse_decode_i_64(deserializer);
-    var var_refundsIssuedMinor = sse_decode_i_64(deserializer);
-    var var_refundsIssuedCashMinor = sse_decode_i_64(deserializer);
-    var var_refundsIssuedCount = sse_decode_i_64(deserializer);
-    var var_cashInRefundedSalesMinor = sse_decode_i_64(deserializer);
-    var var_cashMovementsNetMinor = sse_decode_i_64(deserializer);
-    var var_cashInMinor = sse_decode_i_64(deserializer);
-    var var_cashOutMinor = sse_decode_i_64(deserializer);
-    var var_paymentLines = sse_decode_list_shift_report_payment_line(
-      deserializer,
-    );
-    var var_cashMovements = sse_decode_list_shift_report_cash_line(
-      deserializer,
-    );
-    var var_fromServer = sse_decode_bool(deserializer);
-    return ShiftReportView(
-      tellerName: var_tellerName,
-      openedAt: var_openedAt,
-      closedAt: var_closedAt,
-      printedAt: var_printedAt,
-      isOpen: var_isOpen,
-      expectedCashMinor: var_expectedCashMinor,
-      openingCashMinor: var_openingCashMinor,
-      openingCashWasEdited: var_openingCashWasEdited,
-      openingCashOriginalMinor: var_openingCashOriginalMinor,
-      openingCashEditReason: var_openingCashEditReason,
-      closingCashDeclaredMinor: var_closingCashDeclaredMinor,
-      totalPaymentsMinor: var_totalPaymentsMinor,
-      netPaymentsMinor: var_netPaymentsMinor,
-      voidedAmountMinor: var_voidedAmountMinor,
-      refundsIssuedMinor: var_refundsIssuedMinor,
-      refundsIssuedCashMinor: var_refundsIssuedCashMinor,
-      refundsIssuedCount: var_refundsIssuedCount,
-      cashInRefundedSalesMinor: var_cashInRefundedSalesMinor,
-      cashMovementsNetMinor: var_cashMovementsNetMinor,
-      cashInMinor: var_cashInMinor,
-      cashOutMinor: var_cashOutMinor,
-      paymentLines: var_paymentLines,
-      cashMovements: var_cashMovements,
-      fromServer: var_fromServer,
-    );
-  }
-
-  @protected
-  ShiftStatsView sse_decode_shift_stats_view(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_salesMinor = sse_decode_i_64(deserializer);
-    var var_orderCount = sse_decode_i_64(deserializer);
-    return ShiftStatsView(
-      salesMinor: var_salesMinor,
-      orderCount: var_orderCount,
-    );
-  }
-
-  @protected
-  ShiftSummaryView sse_decode_shift_summary_view(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_id = sse_decode_String(deserializer);
-    var var_branchName = sse_decode_opt_String(deserializer);
-    var var_tellerName = sse_decode_opt_String(deserializer);
-    var var_openedAt = sse_decode_String(deserializer);
-    var var_closedAt = sse_decode_opt_String(deserializer);
-    var var_openingCashMinor = sse_decode_i_64(deserializer);
-    var var_closingDeclaredMinor = sse_decode_opt_box_autoadd_i_64(
-      deserializer,
-    );
-    var var_closingSystemMinor = sse_decode_opt_box_autoadd_i_64(deserializer);
-    var var_discrepancyMinor = sse_decode_opt_box_autoadd_i_64(deserializer);
-    var var_status = sse_decode_String(deserializer);
-    var var_isOpen = sse_decode_bool(deserializer);
-    return ShiftSummaryView(
-      id: var_id,
-      branchName: var_branchName,
-      tellerName: var_tellerName,
-      openedAt: var_openedAt,
-      closedAt: var_closedAt,
-      openingCashMinor: var_openingCashMinor,
-      closingDeclaredMinor: var_closingDeclaredMinor,
-      closingSystemMinor: var_closingSystemMinor,
-      discrepancyMinor: var_discrepancyMinor,
-      status: var_status,
-      isOpen: var_isOpen,
-    );
-  }
-
-  @protected
-  ShiftView sse_decode_shift_view(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_id = sse_decode_String(deserializer);
-    var var_branchId = sse_decode_String(deserializer);
-    var var_tellerId = sse_decode_String(deserializer);
-    var var_tellerName = sse_decode_String(deserializer);
-    var var_openingCashMinor = sse_decode_i_64(deserializer);
-    var var_openedAt = sse_decode_String(deserializer);
-    var var_status = sse_decode_String(deserializer);
-    var var_isOpen = sse_decode_bool(deserializer);
-    return ShiftView(
-      id: var_id,
-      branchId: var_branchId,
-      tellerId: var_tellerId,
-      tellerName: var_tellerName,
-      openingCashMinor: var_openingCashMinor,
-      openedAt: var_openedAt,
-      status: var_status,
-      isOpen: var_isOpen,
+    var var_freshness = sse_decode_freshness_view(deserializer);
+    var var_pending = sse_decode_u_32(deserializer);
+    var var_failed = sse_decode_u_32(deserializer);
+    return SyncMeta(
+      freshness: var_freshness,
+      pending: var_pending,
+      failed: var_failed,
     );
   }
 
   @protected
   SyncStatusView sse_decode_sync_status_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_pending = sse_decode_u_32(deserializer);
-    var var_failed = sse_decode_u_32(deserializer);
-    var var_blocked = sse_decode_u_32(deserializer);
+    var var_phase = sse_decode_String(deserializer);
+    var var_nextSeq = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_pendingOutbox = sse_decode_u_32(deserializer);
+    var var_deadOutbox = sse_decode_u_32(deserializer);
+    var var_lastOkAt = sse_decode_opt_String(deserializer);
+    var var_lastFullAt = sse_decode_opt_String(deserializer);
+    var var_staleReason = sse_decode_opt_String(deserializer);
+    var var_lastError = sse_decode_opt_String(deserializer);
+    var var_assets = sse_decode_asset_sync_view(deserializer);
     var var_online = sse_decode_bool(deserializer);
     var var_authPaused = sse_decode_bool(deserializer);
+    var var_blocked = sse_decode_u_32(deserializer);
+    var var_freshness = sse_decode_freshness_view(deserializer);
     return SyncStatusView(
-      pending: var_pending,
-      failed: var_failed,
-      blocked: var_blocked,
+      phase: var_phase,
+      nextSeq: var_nextSeq,
+      pendingOutbox: var_pendingOutbox,
+      deadOutbox: var_deadOutbox,
+      lastOkAt: var_lastOkAt,
+      lastFullAt: var_lastFullAt,
+      staleReason: var_staleReason,
+      lastError: var_lastError,
+      assets: var_assets,
       online: var_online,
       authPaused: var_authPaused,
+      blocked: var_blocked,
+      freshness: var_freshness,
     );
+  }
+
+  @protected
+  SyncedDeliveries sse_decode_synced_deliveries(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_data = sse_decode_list_delivery_order_view(deserializer);
+    var var_meta = sse_decode_sync_meta(deserializer);
+    return SyncedDeliveries(data: var_data, meta: var_meta);
+  }
+
+  @protected
+  SyncedKitchen sse_decode_synced_kitchen(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_data = sse_decode_list_kds_ticket_view(deserializer);
+    var var_meta = sse_decode_sync_meta(deserializer);
+    return SyncedKitchen(data: var_data, meta: var_meta);
+  }
+
+  @protected
+  SyncedOrders sse_decode_synced_orders(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_data = sse_decode_list_order_summary_view(deserializer);
+    var var_meta = sse_decode_sync_meta(deserializer);
+    return SyncedOrders(data: var_data, meta: var_meta);
+  }
+
+  @protected
+  SyncedTickets sse_decode_synced_tickets(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_data = sse_decode_list_ticket_view(deserializer);
+    var var_meta = sse_decode_sync_meta(deserializer);
+    return SyncedTickets(data: var_data, meta: var_meta);
+  }
+
+  @protected
+  SyncedTillReport sse_decode_synced_till_report(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_data = sse_decode_till_report_view(deserializer);
+    var var_meta = sse_decode_sync_meta(deserializer);
+    return SyncedTillReport(data: var_data, meta: var_meta);
   }
 
   @protected
@@ -14754,17 +16009,255 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  TillElsewhereView sse_decode_till_elsewhere_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_tillId = sse_decode_String(deserializer);
+    var var_deviceCode = sse_decode_opt_String(deserializer);
+    var var_deviceLabel = sse_decode_opt_String(deserializer);
+    var var_openedAt = sse_decode_String(deserializer);
+    var var_source = sse_decode_String(deserializer);
+    return TillElsewhereView(
+      tillId: var_tillId,
+      deviceCode: var_deviceCode,
+      deviceLabel: var_deviceLabel,
+      openedAt: var_openedAt,
+      source: var_source,
+    );
+  }
+
+  @protected
+  TillOpenSyncView sse_decode_till_open_sync_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_state = sse_decode_String(deserializer);
+    var var_tillId = sse_decode_opt_String(deserializer);
+    var var_startedAt = sse_decode_opt_String(deserializer);
+    var var_finishedAt = sse_decode_opt_String(deserializer);
+    var var_staleReason = sse_decode_opt_String(deserializer);
+    var var_changesApplied = sse_decode_u_32(deserializer);
+    var var_pendingOutbox = sse_decode_u_32(deserializer);
+    return TillOpenSyncView(
+      state: var_state,
+      tillId: var_tillId,
+      startedAt: var_startedAt,
+      finishedAt: var_finishedAt,
+      staleReason: var_staleReason,
+      changesApplied: var_changesApplied,
+      pendingOutbox: var_pendingOutbox,
+    );
+  }
+
+  @protected
+  TillRefundsView sse_decode_till_refunds_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_tillId = sse_decode_String(deserializer);
+    var var_refundCount = sse_decode_i_64(deserializer);
+    var var_refundedMinor = sse_decode_i_64(deserializer);
+    var var_refundedCashMinor = sse_decode_i_64(deserializer);
+    var var_refunds = sse_decode_list_refund_view(deserializer);
+    return TillRefundsView(
+      tillId: var_tillId,
+      refundCount: var_refundCount,
+      refundedMinor: var_refundedMinor,
+      refundedCashMinor: var_refundedCashMinor,
+      refunds: var_refunds,
+    );
+  }
+
+  @protected
+  TillReportCashLine sse_decode_till_report_cash_line(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_amountMinor = sse_decode_i_64(deserializer);
+    var var_note = sse_decode_String(deserializer);
+    var var_movedByName = sse_decode_String(deserializer);
+    var var_createdAt = sse_decode_String(deserializer);
+    return TillReportCashLine(
+      amountMinor: var_amountMinor,
+      note: var_note,
+      movedByName: var_movedByName,
+      createdAt: var_createdAt,
+    );
+  }
+
+  @protected
+  TillReportPaymentLine sse_decode_till_report_payment_line(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_method = sse_decode_String(deserializer);
+    var var_isCash = sse_decode_bool(deserializer);
+    var var_orderCount = sse_decode_i_64(deserializer);
+    var var_totalMinor = sse_decode_i_64(deserializer);
+    return TillReportPaymentLine(
+      method: var_method,
+      isCash: var_isCash,
+      orderCount: var_orderCount,
+      totalMinor: var_totalMinor,
+    );
+  }
+
+  @protected
+  TillReportView sse_decode_till_report_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_tellerName = sse_decode_String(deserializer);
+    var var_openedAt = sse_decode_String(deserializer);
+    var var_closedAt = sse_decode_opt_String(deserializer);
+    var var_printedAt = sse_decode_String(deserializer);
+    var var_isOpen = sse_decode_bool(deserializer);
+    var var_expectedCashMinor = sse_decode_i_64(deserializer);
+    var var_openingCashMinor = sse_decode_i_64(deserializer);
+    var var_openingCashWasEdited = sse_decode_bool(deserializer);
+    var var_openingCashOriginalMinor = sse_decode_opt_box_autoadd_i_64(
+      deserializer,
+    );
+    var var_openingCashEditReason = sse_decode_opt_String(deserializer);
+    var var_closingCashDeclaredMinor = sse_decode_opt_box_autoadd_i_64(
+      deserializer,
+    );
+    var var_totalPaymentsMinor = sse_decode_i_64(deserializer);
+    var var_netPaymentsMinor = sse_decode_i_64(deserializer);
+    var var_voidedAmountMinor = sse_decode_i_64(deserializer);
+    var var_refundsIssuedMinor = sse_decode_i_64(deserializer);
+    var var_refundsIssuedCashMinor = sse_decode_i_64(deserializer);
+    var var_refundsIssuedCount = sse_decode_i_64(deserializer);
+    var var_cashInRefundedSalesMinor = sse_decode_i_64(deserializer);
+    var var_cashMovementsNetMinor = sse_decode_i_64(deserializer);
+    var var_cashInMinor = sse_decode_i_64(deserializer);
+    var var_cashOutMinor = sse_decode_i_64(deserializer);
+    var var_paymentLines = sse_decode_list_till_report_payment_line(
+      deserializer,
+    );
+    var var_cashMovements = sse_decode_list_till_report_cash_line(deserializer);
+    var var_fromServer = sse_decode_bool(deserializer);
+    var var_deviceCode = sse_decode_opt_String(deserializer);
+    var var_orderNumberFirst = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_orderNumberLast = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_reconciliation = sse_decode_list_reconciliation_line_view(
+      deserializer,
+    );
+    var var_oldBillsCount = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_openBillsCount = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_openedWhileAnotherOpen = sse_decode_bool(deserializer);
+    var var_verification = sse_decode_String(deserializer);
+    return TillReportView(
+      tellerName: var_tellerName,
+      openedAt: var_openedAt,
+      closedAt: var_closedAt,
+      printedAt: var_printedAt,
+      isOpen: var_isOpen,
+      expectedCashMinor: var_expectedCashMinor,
+      openingCashMinor: var_openingCashMinor,
+      openingCashWasEdited: var_openingCashWasEdited,
+      openingCashOriginalMinor: var_openingCashOriginalMinor,
+      openingCashEditReason: var_openingCashEditReason,
+      closingCashDeclaredMinor: var_closingCashDeclaredMinor,
+      totalPaymentsMinor: var_totalPaymentsMinor,
+      netPaymentsMinor: var_netPaymentsMinor,
+      voidedAmountMinor: var_voidedAmountMinor,
+      refundsIssuedMinor: var_refundsIssuedMinor,
+      refundsIssuedCashMinor: var_refundsIssuedCashMinor,
+      refundsIssuedCount: var_refundsIssuedCount,
+      cashInRefundedSalesMinor: var_cashInRefundedSalesMinor,
+      cashMovementsNetMinor: var_cashMovementsNetMinor,
+      cashInMinor: var_cashInMinor,
+      cashOutMinor: var_cashOutMinor,
+      paymentLines: var_paymentLines,
+      cashMovements: var_cashMovements,
+      fromServer: var_fromServer,
+      deviceCode: var_deviceCode,
+      orderNumberFirst: var_orderNumberFirst,
+      orderNumberLast: var_orderNumberLast,
+      reconciliation: var_reconciliation,
+      oldBillsCount: var_oldBillsCount,
+      openBillsCount: var_openBillsCount,
+      openedWhileAnotherOpen: var_openedWhileAnotherOpen,
+      verification: var_verification,
+    );
+  }
+
+  @protected
+  TillStatsView sse_decode_till_stats_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_salesMinor = sse_decode_i_64(deserializer);
+    var var_orderCount = sse_decode_i_64(deserializer);
+    return TillStatsView(
+      salesMinor: var_salesMinor,
+      orderCount: var_orderCount,
+    );
+  }
+
+  @protected
+  TillSummaryView sse_decode_till_summary_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_branchName = sse_decode_opt_String(deserializer);
+    var var_tellerName = sse_decode_opt_String(deserializer);
+    var var_openedAt = sse_decode_String(deserializer);
+    var var_closedAt = sse_decode_opt_String(deserializer);
+    var var_openingCashMinor = sse_decode_i_64(deserializer);
+    var var_closingDeclaredMinor = sse_decode_opt_box_autoadd_i_64(
+      deserializer,
+    );
+    var var_closingSystemMinor = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_discrepancyMinor = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_status = sse_decode_String(deserializer);
+    var var_isOpen = sse_decode_bool(deserializer);
+    var var_deviceCode = sse_decode_opt_String(deserializer);
+    var var_verification = sse_decode_String(deserializer);
+    var var_openedWhileAnotherOpen = sse_decode_bool(deserializer);
+    var var_reconciliationStatus = sse_decode_opt_String(deserializer);
+    return TillSummaryView(
+      id: var_id,
+      branchName: var_branchName,
+      tellerName: var_tellerName,
+      openedAt: var_openedAt,
+      closedAt: var_closedAt,
+      openingCashMinor: var_openingCashMinor,
+      closingDeclaredMinor: var_closingDeclaredMinor,
+      closingSystemMinor: var_closingSystemMinor,
+      discrepancyMinor: var_discrepancyMinor,
+      status: var_status,
+      isOpen: var_isOpen,
+      deviceCode: var_deviceCode,
+      verification: var_verification,
+      openedWhileAnotherOpen: var_openedWhileAnotherOpen,
+      reconciliationStatus: var_reconciliationStatus,
+    );
+  }
+
+  @protected
   TillView sse_decode_till_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_id = sse_decode_String(deserializer);
-    var var_name = sse_decode_String(deserializer);
-    var var_isDefault = sse_decode_bool(deserializer);
-    var var_isActive = sse_decode_bool(deserializer);
+    var var_branchId = sse_decode_String(deserializer);
+    var var_tellerId = sse_decode_String(deserializer);
+    var var_tellerName = sse_decode_String(deserializer);
+    var var_openingCashMinor = sse_decode_i_64(deserializer);
+    var var_openedAt = sse_decode_String(deserializer);
+    var var_status = sse_decode_String(deserializer);
+    var var_isOpen = sse_decode_bool(deserializer);
+    var var_deviceId = sse_decode_opt_String(deserializer);
+    var var_deviceCode = sse_decode_opt_String(deserializer);
+    var var_verification = sse_decode_String(deserializer);
+    var var_openedWhileAnotherOpen = sse_decode_bool(deserializer);
     return TillView(
       id: var_id,
-      name: var_name,
-      isDefault: var_isDefault,
-      isActive: var_isActive,
+      branchId: var_branchId,
+      tellerId: var_tellerId,
+      tellerName: var_tellerName,
+      openingCashMinor: var_openingCashMinor,
+      openedAt: var_openedAt,
+      status: var_status,
+      isOpen: var_isOpen,
+      deviceId: var_deviceId,
+      deviceCode: var_deviceCode,
+      verification: var_verification,
+      openedWhileAnotherOpen: var_openedWhileAnotherOpen,
     );
   }
 
@@ -14820,6 +16313,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   int sse_decode_u_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint32();
+  }
+
+  @protected
+  BigInt sse_decode_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getBigUint64();
   }
 
   @protected
@@ -14897,6 +16396,23 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       self.setupAndSerialize(
         codec: SseCodec(
           decodeSuccessData: sse_decode_alert_command,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
+      serializer,
+    );
+  }
+
+  @protected
+  void sse_encode_StreamSink_list_String_Sse(
+    RustStreamSink<List<String>> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_String,
           decodeErrorData: sse_decode_AnyhowException,
         ),
       ),
@@ -15005,7 +16521,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
         sse_encode_i_32(0, serializer);
       case AppRoute_Login():
         sse_encode_i_32(1, serializer);
-      case AppRoute_OpenShift():
+      case AppRoute_OpenTill():
         sse_encode_i_32(2, serializer);
       case AppRoute_Order():
         sse_encode_i_32(3, serializer);
@@ -15015,6 +16531,20 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       case AppRoute_WaiterTickets():
         sse_encode_i_32(5, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_asset_sync_view(
+    AssetSyncView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.needed, serializer);
+    sse_encode_u_32(self.missing, serializer);
+    sse_encode_bool(self.downloading, serializer);
+    sse_encode_u_64(self.bytesDone, serializer);
+    sse_encode_u_64(self.bytesTotal, serializer);
+    sse_encode_opt_String(self.lastError, serializer);
   }
 
   @protected
@@ -15108,6 +16638,15 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_box_autoadd_last_till_warning_view(
+    LastTillWarningView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_last_till_warning_view(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_login_request(
     LoginRequest self,
     SseSerializer serializer,
@@ -15144,6 +16683,15 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_box_autoadd_open_bills_notice_view(
+    OpenBillsNoticeView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_open_bills_notice_view(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_receipt_view(
     ReceiptView self,
     SseSerializer serializer,
@@ -15162,30 +16710,39 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  void sse_encode_box_autoadd_shift_report_view(
-    ShiftReportView self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_shift_report_view(self, serializer);
-  }
-
-  @protected
-  void sse_encode_box_autoadd_shift_view(
-    ShiftView self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_shift_view(self, serializer);
-  }
-
-  @protected
   void sse_encode_box_autoadd_ticket_bill_view(
     TicketBillView self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_ticket_bill_view(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_till_elsewhere_view(
+    TillElsewhereView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_till_elsewhere_view(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_till_report_view(
+    TillReportView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_till_report_view(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_till_view(
+    TillView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_till_view(self, serializer);
   }
 
   @protected
@@ -15198,6 +16755,28 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_32(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_64(self, serializer);
+  }
+
+  @protected
+  void sse_encode_branch_open_till_view(
+    BranchOpenTillView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.tillId, serializer);
+    sse_encode_String(self.tellerId, serializer);
+    sse_encode_String(self.tellerName, serializer);
+    sse_encode_opt_String(self.deviceCode, serializer);
+    sse_encode_opt_String(self.deviceLabel, serializer);
+    sse_encode_String(self.openedAt, serializer);
+    sse_encode_bool(self.isThisDevice, serializer);
+    sse_encode_String(self.source, serializer);
   }
 
   @protected
@@ -15418,6 +16997,49 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_close_till_method_view(
+    CloseTillMethodView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.method, serializer);
+    sse_encode_String(self.label, serializer);
+    sse_encode_bool(self.isCash, serializer);
+    sse_encode_i_64(self.systemTotalMinor, serializer);
+    sse_encode_i_64(self.orderCount, serializer);
+  }
+
+  @protected
+  void sse_encode_close_till_outcome_view(
+    CloseTillOutcomeView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.queued, serializer);
+    sse_encode_list_reconciliation_line_view(self.reconciliation, serializer);
+    sse_encode_opt_box_autoadd_last_till_warning_view(
+      self.lastTillWarning,
+      serializer,
+    );
+  }
+
+  @protected
+  void sse_encode_close_till_preview_view(
+    CloseTillPreviewView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_till_view(self.till, serializer);
+    sse_encode_i_64(self.expectedCashMinor, serializer);
+    sse_encode_list_close_till_method_view(self.methods, serializer);
+    sse_encode_opt_box_autoadd_last_till_warning_view(
+      self.lastTillWarning,
+      serializer,
+    );
+    sse_encode_bool(self.fromServer, serializer);
+  }
+
+  @protected
   void sse_encode_computed_recipe_line_view(
     ComputedRecipeLineView self,
     SseSerializer serializer,
@@ -15493,7 +17115,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_opt_String(self.branchId, serializer);
     sse_encode_opt_String(self.branchName, serializer);
-    sse_encode_opt_String(self.tillId, serializer);
     sse_encode_opt_String(self.stationId, serializer);
     sse_encode_opt_String(self.printerHost, serializer);
     sse_encode_opt_box_autoadd_u_16(self.printerPort, serializer);
@@ -15613,6 +17234,15 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_freshness_view(FreshnessView self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.state, serializer);
+    sse_encode_opt_String(self.reason, serializer);
+    sse_encode_opt_box_autoadd_u_64(self.ageSecs, serializer);
+    sse_encode_opt_String(self.banner, serializer);
+  }
+
+  @protected
   void sse_encode_group_violation_view(
     GroupViolationView self,
     SseSerializer serializer,
@@ -15728,6 +17358,17 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_last_till_warning_view(
+    LastTillWarningView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.openBillsCount, serializer);
+    sse_encode_i_64(self.openBillsAmountMinor, serializer);
+    sse_encode_i_64(self.seatedTablesCount, serializer);
+  }
+
+  @protected
   void sse_encode_line_preview_view(
     LinePreviewView self,
     SseSerializer serializer,
@@ -15804,6 +17445,18 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_booking_view(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_branch_open_till_view(
+    List<BranchOpenTillView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_branch_open_till_view(item, serializer);
     }
   }
 
@@ -15960,6 +17613,18 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_checkout_split(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_close_till_method_view(
+    List<CloseTillMethodView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_close_till_method_view(item, serializer);
     }
   }
 
@@ -16346,6 +18011,30 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_list_reconciliation_input(
+    List<ReconciliationInput> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_reconciliation_input(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_reconciliation_line_view(
+    List<ReconciliationLineView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_reconciliation_line_view(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_refund_line_view(
     List<RefundLineView> self,
     SseSerializer serializer,
@@ -16406,42 +18095,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  void sse_encode_list_shift_report_cash_line(
-    List<ShiftReportCashLine> self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.length, serializer);
-    for (final item in self) {
-      sse_encode_shift_report_cash_line(item, serializer);
-    }
-  }
-
-  @protected
-  void sse_encode_list_shift_report_payment_line(
-    List<ShiftReportPaymentLine> self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.length, serializer);
-    for (final item in self) {
-      sse_encode_shift_report_payment_line(item, serializer);
-    }
-  }
-
-  @protected
-  void sse_encode_list_shift_summary_view(
-    List<ShiftSummaryView> self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.length, serializer);
-    for (final item in self) {
-      sse_encode_shift_summary_view(item, serializer);
-    }
-  }
-
-  @protected
   void sse_encode_list_table_sitting_view(
     List<TableSittingView> self,
     SseSerializer serializer,
@@ -16478,14 +18131,38 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  void sse_encode_list_till_view(
-    List<TillView> self,
+  void sse_encode_list_till_report_cash_line(
+    List<TillReportCashLine> self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
-      sse_encode_till_view(item, serializer);
+      sse_encode_till_report_cash_line(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_till_report_payment_line(
+    List<TillReportPaymentLine> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_till_report_payment_line(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_till_summary_view(
+    List<TillSummaryView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_till_summary_view(item, serializer);
     }
   }
 
@@ -16625,6 +18302,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_String(self.environment, serializer);
     sse_encode_String(self.dbPath, serializer);
     sse_encode_String(self.locale, serializer);
+    sse_encode_opt_String(self.appVersion, serializer);
   }
 
   @protected
@@ -16720,6 +18398,35 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_open_bills_notice_view(
+    OpenBillsNoticeView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.openBillsCount, serializer);
+    sse_encode_i_64(self.openBillsAmountMinor, serializer);
+    sse_encode_opt_String(self.oldestOpenedAt, serializer);
+    sse_encode_i_64(self.oldBillsCount, serializer);
+    sse_encode_i_64(self.oldBillHours, serializer);
+    sse_encode_i_64(self.seatedTablesCount, serializer);
+    sse_encode_opt_String(self.since, serializer);
+  }
+
+  @protected
+  void sse_encode_open_till_outcome(
+    OpenTillOutcome self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_box_autoadd_till_view(self.till, serializer);
+    sse_encode_String(self.verification, serializer);
+    sse_encode_opt_box_autoadd_till_elsewhere_view(
+      self.openElsewhere,
+      serializer,
+    );
+  }
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -16789,6 +18496,19 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_last_till_warning_view(
+    LastTillWarningView? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_last_till_warning_view(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_loyalty_member_view(
     LoyaltyMemberView? self,
     SseSerializer serializer,
@@ -16798,6 +18518,19 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_loyalty_member_view(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_open_bills_notice_view(
+    OpenBillsNoticeView? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_open_bills_notice_view(self, serializer);
     }
   }
 
@@ -16815,19 +18548,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  void sse_encode_opt_box_autoadd_shift_view(
-    ShiftView? self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    sse_encode_bool(self != null, serializer);
-    if (self != null) {
-      sse_encode_box_autoadd_shift_view(self, serializer);
-    }
-  }
-
-  @protected
   void sse_encode_opt_box_autoadd_ticket_bill_view(
     TicketBillView? self,
     SseSerializer serializer,
@@ -16837,6 +18557,32 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_ticket_bill_view(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_till_elsewhere_view(
+    TillElsewhereView? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_till_elsewhere_view(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_till_view(
+    TillView? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_till_view(self, serializer);
     }
   }
 
@@ -16857,6 +18603,16 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_u_32(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_u_64(self, serializer);
     }
   }
 
@@ -16955,6 +18711,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_opt_String(self.customerName, serializer);
     sse_encode_bool(self.priceFlagged, serializer);
     sse_encode_opt_String(self.orderRef, serializer);
+    sse_encode_String(self.displayNumber, serializer);
   }
 
   @protected
@@ -16997,6 +18754,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
 
   @protected
   void sse_encode_printer_brand(PrinterBrand self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_read_path_mode(ReadPathMode self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
   }
@@ -17072,6 +18835,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.localOrderId, serializer);
     sse_encode_opt_box_autoadd_i_64(self.orderNumber, serializer);
+    sse_encode_String(self.displayNumber, serializer);
     sse_encode_opt_String(self.orderRef, serializer);
     sse_encode_bool(self.isVoided, serializer);
     sse_encode_list_receipt_line_view(self.lines, serializer);
@@ -17129,6 +18893,34 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_reconciliation_input(
+    ReconciliationInput self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.method, serializer);
+    sse_encode_String(self.status, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.declaredAmountMinor, serializer);
+    sse_encode_opt_String(self.note, serializer);
+  }
+
+  @protected
+  void sse_encode_reconciliation_line_view(
+    ReconciliationLineView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.method, serializer);
+    sse_encode_String(self.label, serializer);
+    sse_encode_bool(self.isCash, serializer);
+    sse_encode_i_64(self.systemTotalMinor, serializer);
+    sse_encode_String(self.status, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.declaredAmountMinor, serializer);
+    sse_encode_opt_String(self.note, serializer);
+    sse_encode_bool(self.changedAfterClose, serializer);
+  }
+
+  @protected
   void sse_encode_refund_line_view(
     RefundLineView self,
     SseSerializer serializer,
@@ -17148,7 +18940,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_payment_method_choice(self.options, serializer);
     sse_encode_opt_String(self.defaultCode, serializer);
-    sse_encode_bool(self.crossesShift, serializer);
+    sse_encode_bool(self.crossesTill, serializer);
   }
 
   @protected
@@ -17242,114 +19034,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  void sse_encode_shift_refunds_view(
-    ShiftRefundsView self,
-    SseSerializer serializer,
-  ) {
+  void sse_encode_sync_meta(SyncMeta self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.shiftId, serializer);
-    sse_encode_i_64(self.refundCount, serializer);
-    sse_encode_i_64(self.refundedMinor, serializer);
-    sse_encode_i_64(self.refundedCashMinor, serializer);
-    sse_encode_list_refund_view(self.refunds, serializer);
-  }
-
-  @protected
-  void sse_encode_shift_report_cash_line(
-    ShiftReportCashLine self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_64(self.amountMinor, serializer);
-    sse_encode_String(self.note, serializer);
-    sse_encode_String(self.movedByName, serializer);
-    sse_encode_String(self.createdAt, serializer);
-  }
-
-  @protected
-  void sse_encode_shift_report_payment_line(
-    ShiftReportPaymentLine self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.method, serializer);
-    sse_encode_bool(self.isCash, serializer);
-    sse_encode_i_64(self.orderCount, serializer);
-    sse_encode_i_64(self.totalMinor, serializer);
-  }
-
-  @protected
-  void sse_encode_shift_report_view(
-    ShiftReportView self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.tellerName, serializer);
-    sse_encode_String(self.openedAt, serializer);
-    sse_encode_opt_String(self.closedAt, serializer);
-    sse_encode_String(self.printedAt, serializer);
-    sse_encode_bool(self.isOpen, serializer);
-    sse_encode_i_64(self.expectedCashMinor, serializer);
-    sse_encode_i_64(self.openingCashMinor, serializer);
-    sse_encode_bool(self.openingCashWasEdited, serializer);
-    sse_encode_opt_box_autoadd_i_64(self.openingCashOriginalMinor, serializer);
-    sse_encode_opt_String(self.openingCashEditReason, serializer);
-    sse_encode_opt_box_autoadd_i_64(self.closingCashDeclaredMinor, serializer);
-    sse_encode_i_64(self.totalPaymentsMinor, serializer);
-    sse_encode_i_64(self.netPaymentsMinor, serializer);
-    sse_encode_i_64(self.voidedAmountMinor, serializer);
-    sse_encode_i_64(self.refundsIssuedMinor, serializer);
-    sse_encode_i_64(self.refundsIssuedCashMinor, serializer);
-    sse_encode_i_64(self.refundsIssuedCount, serializer);
-    sse_encode_i_64(self.cashInRefundedSalesMinor, serializer);
-    sse_encode_i_64(self.cashMovementsNetMinor, serializer);
-    sse_encode_i_64(self.cashInMinor, serializer);
-    sse_encode_i_64(self.cashOutMinor, serializer);
-    sse_encode_list_shift_report_payment_line(self.paymentLines, serializer);
-    sse_encode_list_shift_report_cash_line(self.cashMovements, serializer);
-    sse_encode_bool(self.fromServer, serializer);
-  }
-
-  @protected
-  void sse_encode_shift_stats_view(
-    ShiftStatsView self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_64(self.salesMinor, serializer);
-    sse_encode_i_64(self.orderCount, serializer);
-  }
-
-  @protected
-  void sse_encode_shift_summary_view(
-    ShiftSummaryView self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.id, serializer);
-    sse_encode_opt_String(self.branchName, serializer);
-    sse_encode_opt_String(self.tellerName, serializer);
-    sse_encode_String(self.openedAt, serializer);
-    sse_encode_opt_String(self.closedAt, serializer);
-    sse_encode_i_64(self.openingCashMinor, serializer);
-    sse_encode_opt_box_autoadd_i_64(self.closingDeclaredMinor, serializer);
-    sse_encode_opt_box_autoadd_i_64(self.closingSystemMinor, serializer);
-    sse_encode_opt_box_autoadd_i_64(self.discrepancyMinor, serializer);
-    sse_encode_String(self.status, serializer);
-    sse_encode_bool(self.isOpen, serializer);
-  }
-
-  @protected
-  void sse_encode_shift_view(ShiftView self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.id, serializer);
-    sse_encode_String(self.branchId, serializer);
-    sse_encode_String(self.tellerId, serializer);
-    sse_encode_String(self.tellerName, serializer);
-    sse_encode_i_64(self.openingCashMinor, serializer);
-    sse_encode_String(self.openedAt, serializer);
-    sse_encode_String(self.status, serializer);
-    sse_encode_bool(self.isOpen, serializer);
+    sse_encode_freshness_view(self.freshness, serializer);
+    sse_encode_u_32(self.pending, serializer);
+    sse_encode_u_32(self.failed, serializer);
   }
 
   @protected
@@ -17358,11 +19047,60 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_u_32(self.pending, serializer);
-    sse_encode_u_32(self.failed, serializer);
-    sse_encode_u_32(self.blocked, serializer);
+    sse_encode_String(self.phase, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.nextSeq, serializer);
+    sse_encode_u_32(self.pendingOutbox, serializer);
+    sse_encode_u_32(self.deadOutbox, serializer);
+    sse_encode_opt_String(self.lastOkAt, serializer);
+    sse_encode_opt_String(self.lastFullAt, serializer);
+    sse_encode_opt_String(self.staleReason, serializer);
+    sse_encode_opt_String(self.lastError, serializer);
+    sse_encode_asset_sync_view(self.assets, serializer);
     sse_encode_bool(self.online, serializer);
     sse_encode_bool(self.authPaused, serializer);
+    sse_encode_u_32(self.blocked, serializer);
+    sse_encode_freshness_view(self.freshness, serializer);
+  }
+
+  @protected
+  void sse_encode_synced_deliveries(
+    SyncedDeliveries self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_delivery_order_view(self.data, serializer);
+    sse_encode_sync_meta(self.meta, serializer);
+  }
+
+  @protected
+  void sse_encode_synced_kitchen(SyncedKitchen self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_kds_ticket_view(self.data, serializer);
+    sse_encode_sync_meta(self.meta, serializer);
+  }
+
+  @protected
+  void sse_encode_synced_orders(SyncedOrders self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_order_summary_view(self.data, serializer);
+    sse_encode_sync_meta(self.meta, serializer);
+  }
+
+  @protected
+  void sse_encode_synced_tickets(SyncedTickets self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_ticket_view(self.data, serializer);
+    sse_encode_sync_meta(self.meta, serializer);
+  }
+
+  @protected
+  void sse_encode_synced_till_report(
+    SyncedTillReport self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_till_report_view(self.data, serializer);
+    sse_encode_sync_meta(self.meta, serializer);
   }
 
   @protected
@@ -17484,12 +19222,158 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_till_elsewhere_view(
+    TillElsewhereView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.tillId, serializer);
+    sse_encode_opt_String(self.deviceCode, serializer);
+    sse_encode_opt_String(self.deviceLabel, serializer);
+    sse_encode_String(self.openedAt, serializer);
+    sse_encode_String(self.source, serializer);
+  }
+
+  @protected
+  void sse_encode_till_open_sync_view(
+    TillOpenSyncView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.state, serializer);
+    sse_encode_opt_String(self.tillId, serializer);
+    sse_encode_opt_String(self.startedAt, serializer);
+    sse_encode_opt_String(self.finishedAt, serializer);
+    sse_encode_opt_String(self.staleReason, serializer);
+    sse_encode_u_32(self.changesApplied, serializer);
+    sse_encode_u_32(self.pendingOutbox, serializer);
+  }
+
+  @protected
+  void sse_encode_till_refunds_view(
+    TillRefundsView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.tillId, serializer);
+    sse_encode_i_64(self.refundCount, serializer);
+    sse_encode_i_64(self.refundedMinor, serializer);
+    sse_encode_i_64(self.refundedCashMinor, serializer);
+    sse_encode_list_refund_view(self.refunds, serializer);
+  }
+
+  @protected
+  void sse_encode_till_report_cash_line(
+    TillReportCashLine self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.amountMinor, serializer);
+    sse_encode_String(self.note, serializer);
+    sse_encode_String(self.movedByName, serializer);
+    sse_encode_String(self.createdAt, serializer);
+  }
+
+  @protected
+  void sse_encode_till_report_payment_line(
+    TillReportPaymentLine self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.method, serializer);
+    sse_encode_bool(self.isCash, serializer);
+    sse_encode_i_64(self.orderCount, serializer);
+    sse_encode_i_64(self.totalMinor, serializer);
+  }
+
+  @protected
+  void sse_encode_till_report_view(
+    TillReportView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.tellerName, serializer);
+    sse_encode_String(self.openedAt, serializer);
+    sse_encode_opt_String(self.closedAt, serializer);
+    sse_encode_String(self.printedAt, serializer);
+    sse_encode_bool(self.isOpen, serializer);
+    sse_encode_i_64(self.expectedCashMinor, serializer);
+    sse_encode_i_64(self.openingCashMinor, serializer);
+    sse_encode_bool(self.openingCashWasEdited, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.openingCashOriginalMinor, serializer);
+    sse_encode_opt_String(self.openingCashEditReason, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.closingCashDeclaredMinor, serializer);
+    sse_encode_i_64(self.totalPaymentsMinor, serializer);
+    sse_encode_i_64(self.netPaymentsMinor, serializer);
+    sse_encode_i_64(self.voidedAmountMinor, serializer);
+    sse_encode_i_64(self.refundsIssuedMinor, serializer);
+    sse_encode_i_64(self.refundsIssuedCashMinor, serializer);
+    sse_encode_i_64(self.refundsIssuedCount, serializer);
+    sse_encode_i_64(self.cashInRefundedSalesMinor, serializer);
+    sse_encode_i_64(self.cashMovementsNetMinor, serializer);
+    sse_encode_i_64(self.cashInMinor, serializer);
+    sse_encode_i_64(self.cashOutMinor, serializer);
+    sse_encode_list_till_report_payment_line(self.paymentLines, serializer);
+    sse_encode_list_till_report_cash_line(self.cashMovements, serializer);
+    sse_encode_bool(self.fromServer, serializer);
+    sse_encode_opt_String(self.deviceCode, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.orderNumberFirst, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.orderNumberLast, serializer);
+    sse_encode_list_reconciliation_line_view(self.reconciliation, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.oldBillsCount, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.openBillsCount, serializer);
+    sse_encode_bool(self.openedWhileAnotherOpen, serializer);
+    sse_encode_String(self.verification, serializer);
+  }
+
+  @protected
+  void sse_encode_till_stats_view(
+    TillStatsView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.salesMinor, serializer);
+    sse_encode_i_64(self.orderCount, serializer);
+  }
+
+  @protected
+  void sse_encode_till_summary_view(
+    TillSummaryView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_opt_String(self.branchName, serializer);
+    sse_encode_opt_String(self.tellerName, serializer);
+    sse_encode_String(self.openedAt, serializer);
+    sse_encode_opt_String(self.closedAt, serializer);
+    sse_encode_i_64(self.openingCashMinor, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.closingDeclaredMinor, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.closingSystemMinor, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.discrepancyMinor, serializer);
+    sse_encode_String(self.status, serializer);
+    sse_encode_bool(self.isOpen, serializer);
+    sse_encode_opt_String(self.deviceCode, serializer);
+    sse_encode_String(self.verification, serializer);
+    sse_encode_bool(self.openedWhileAnotherOpen, serializer);
+    sse_encode_opt_String(self.reconciliationStatus, serializer);
+  }
+
+  @protected
   void sse_encode_till_view(TillView self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.id, serializer);
-    sse_encode_String(self.name, serializer);
-    sse_encode_bool(self.isDefault, serializer);
-    sse_encode_bool(self.isActive, serializer);
+    sse_encode_String(self.branchId, serializer);
+    sse_encode_String(self.tellerId, serializer);
+    sse_encode_String(self.tellerName, serializer);
+    sse_encode_i_64(self.openingCashMinor, serializer);
+    sse_encode_String(self.openedAt, serializer);
+    sse_encode_String(self.status, serializer);
+    sse_encode_bool(self.isOpen, serializer);
+    sse_encode_opt_String(self.deviceId, serializer);
+    sse_encode_opt_String(self.deviceCode, serializer);
+    sse_encode_String(self.verification, serializer);
+    sse_encode_bool(self.openedWhileAnotherOpen, serializer);
   }
 
   @protected
@@ -17529,6 +19413,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   void sse_encode_u_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint32(self);
+  }
+
+  @protected
+  void sse_encode_u_64(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putBigUint64(self);
   }
 
   @protected
@@ -17601,6 +19491,11 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
         nowRfc3339: nowRfc3339,
       );
 
+  Future<List<PaymentMethodView>> availablePaymentMethods() => RustBridge
+      .instance
+      .api
+      .crateApiBridgeMadarBridgeAvailablePaymentMethods(that: this);
+
   /// API base URL the core will talk to (from `.env`).
   String baseUrl() =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeBaseUrl(that: this);
@@ -17618,6 +19513,9 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     discountType: discountType,
     discountValue: discountValue,
   );
+
+  Future<List<BranchOpenTillView>> branchOpenTills() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeBranchOpenTills(that: this);
 
   /// The branch's IANA timezone name (cached at login, or the Cairo fallback) —
   /// for any host that needs the raw zone (e.g. a platform date picker).
@@ -17855,6 +19753,9 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
         dark: dark,
       );
 
+  Future<TillElsewhereView?> checkTillElsewhere() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeCheckTillElsewhere(that: this);
+
   Future<ReceiptView> checkout({
     String? tableId,
     required CheckoutInput input,
@@ -17907,17 +19808,19 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     countedMinor: countedMinor,
   );
 
-  /// Close the current open shift: count the closing drawer cash + an optional
-  /// note. Marks the shift closed locally and queues an idempotent
-  /// `close_shift` command; works offline. Errors if there is no open shift.
-  Future<void> closeShift({
+  Future<CloseTillOutcomeView> closeTill({
     required PlatformInt64 closingCashMinor,
     String? cashNote,
-  }) => RustBridge.instance.api.crateApiBridgeMadarBridgeCloseShift(
+    required List<ReconciliationInput> reconciliation,
+  }) => RustBridge.instance.api.crateApiBridgeMadarBridgeCloseTill(
     that: this,
     closingCashMinor: closingCashMinor,
     cashNote: cashNote,
+    reconciliation: reconciliation,
   );
+
+  Future<CloseTillPreviewView> closeTillPreview() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeCloseTillPreview(that: this);
 
   /// Mark a restored draft COMPLETED after its cart checked out — the host
   /// calls this right after a successful ring-up of a resumed draft.
@@ -17968,8 +19871,8 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   SessionSnapshot? currentSession() => RustBridge.instance.api
       .crateApiBridgeMadarBridgeCurrentSession(that: this);
 
-  Future<ShiftView?> currentShift() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeCurrentShift(that: this);
+  Future<TillView?> currentTill() =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeCurrentTill(that: this);
 
   /// SQLite path the host handed us (empty => in-memory).
   String dbPath() =>
@@ -18063,6 +19966,9 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   DeviceConfigView deviceConfig() =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeDeviceConfig(that: this);
 
+  String deviceId() =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeDeviceId(that: this);
+
   /// Discard a parked draft (frees its table + any waitlist wish).
   Future<void> discardDraft({required String id}) => RustBridge.instance.api
       .crateApiBridgeMadarBridgeDiscardDraft(that: this, id: id);
@@ -18104,22 +20010,12 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   Future<FloorLayoutView> floorLayout() =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeFloorLayout(that: this);
 
-  /// Close someone else's shift, as a manager.
-  ///
-  /// A till left signed in with an open drawer blocks the next person from
-  /// opening one. The ordinary close belongs to whoever opened the shift;
-  /// this is the way out when they have gone home.
-  ///
-  /// Online only, and it says so rather than queueing: a forced close
-  /// arbitrates between two people and a drawer, and the server holds the
-  /// facts that decide it. The reason is required — a drawer closed by
-  /// someone who was not counting it needs a sentence saying why.
-  Future<void> forceCloseShift({
-    required String shiftId,
+  Future<void> forceCloseTill({
+    required String tillId,
     required String reason,
-  }) => RustBridge.instance.api.crateApiBridgeMadarBridgeForceCloseShift(
+  }) => RustBridge.instance.api.crateApiBridgeMadarBridgeForceCloseTill(
     that: this,
-    shiftId: shiftId,
+    tillId: tillId,
     reason: reason,
   );
 
@@ -18243,6 +20139,12 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   Future<List<KdsStationView>> kdsListStations() => RustBridge.instance.api
       .crateApiBridgeMadarBridgeKdsListStations(that: this);
 
+  /// The kitchen board with its freshness and queue.
+  Future<SyncedKitchen> kdsListSynced({String? stationId}) => RustBridge
+      .instance
+      .api
+      .crateApiBridgeMadarBridgeKdsListSynced(that: this, stationId: stationId);
+
   /// Un-bump a kitchen line (undo a mistaken bump). Same outbox-first path.
   Future<void> kdsUnbump({required String itemId}) => RustBridge.instance.api
       .crateApiBridgeMadarBridgeKdsUnbump(that: this, itemId: itemId);
@@ -18290,8 +20192,6 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   Future<List<BranchView>> listBranches() =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeListBranches(that: this);
 
-  /// Cash movements for the open shift — server rows merged with still-queued
-  /// (offline) ones, so the drawer view is complete with or without a connection.
   Future<List<CashMovementView>> listCashMovements() => RustBridge.instance.api
       .crateApiBridgeMadarBridgeListCashMovements(that: this);
 
@@ -18302,6 +20202,13 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// wire filter (e.g. "received,confirmed"); `None` = all. Online-only.
   Future<List<DeliveryOrderView>> listDeliveryOrders({String? status}) =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeListDeliveryOrders(
+        that: this,
+        status: status,
+      );
+
+  /// The delivery queue with its freshness and queue.
+  Future<SyncedDeliveries> listDeliveryOrdersSynced({String? status}) =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeListDeliveryOrdersSynced(
         that: this,
         status: status,
       );
@@ -18341,6 +20248,10 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   Future<List<TicketView>> listOpenTickets() => RustBridge.instance.api
       .crateApiBridgeMadarBridgeListOpenTickets(that: this);
 
+  /// The open bills with their freshness and this device's queue for them.
+  Future<SyncedTickets> listOpenTicketsSynced() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeListOpenTicketsSynced(that: this);
+
   /// What has already been given back against one sale, and what may still
   /// be. Cached per order, with any refund still in the outbox overlaid, so
   /// a teller offline cannot hand the same money over twice.
@@ -18352,12 +20263,11 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
 
   /// A PAST shift's synced orders (history-screen expansion). Live when
   /// online, else the last-synced snapshot.
-  Future<List<OrderSummaryView>> listOrdersForShift({
-    required String shiftId,
-  }) => RustBridge.instance.api.crateApiBridgeMadarBridgeListOrdersForShift(
-    that: this,
-    shiftId: shiftId,
-  );
+  Future<List<OrderSummaryView>> listOrdersForTill({required String tillId}) =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeListOrdersForTill(
+        that: this,
+        tillId: tillId,
+      );
 
   /// Queued + failed commands for the sync center (acked rows hidden), oldest
   /// first. Always succeeds offline.
@@ -18371,25 +20281,22 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
 
   /// The current shift's orders — still-queued sales (offline-safe) plus
   /// the server's synced orders when online (best-effort).
-  Future<List<OrderSummaryView>> listShiftOrders() => RustBridge.instance.api
-      .crateApiBridgeMadarBridgeListShiftOrders(that: this);
+  Future<List<OrderSummaryView>> listTillOrders() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeListTillOrders(that: this);
+
+  /// The current till's sales with their freshness and queue.
+  Future<SyncedOrders> listTillOrdersSynced() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeListTillOrdersSynced(that: this);
 
   /// Every refund issued during a shift — the Z-report's line, and why the
   /// counted drawer is lighter than the sales say.
-  Future<ShiftRefundsView> listShiftRefunds({required String shiftId}) =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListShiftRefunds(
+  Future<TillRefundsView> listTillRefunds({required String tillId}) =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeListTillRefunds(
         that: this,
-        shiftId: shiftId,
+        tillId: tillId,
       );
 
-  /// Past shifts for this branch, newest first (the history screen). Live when
-  /// online (cached write-through), else the last-synced snapshot.
-  Future<List<ShiftSummaryView>> listShifts() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListShifts(that: this);
-
-  /// The branch's active tills (the device-setup / Settings till picker). Write-
-  /// through cached so the picker still works offline. Default till first.
-  Future<List<TillView>> listTills() =>
+  Future<List<TillSummaryView>> listTills() =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeListTills(that: this);
 
   /// The transfer waitlist (waiting entries, FIFO, labels resolved).
@@ -18497,11 +20404,14 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
       .api
       .crateApiBridgeMadarBridgeNoShowBooking(that: this, bookingId: bookingId);
 
-  /// Outbox-first: enqueues the open, drains, returns the local view.
-  Future<ShiftView> openShift({
+  /// `None` when no bills are open.
+  Future<OpenBillsNoticeView?> openBillsNotice() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeOpenBillsNotice(that: this);
+
+  Future<OpenTillOutcome> openTill({
     required PlatformInt64 openingCashMinor,
     String? openingReason,
-  }) => RustBridge.instance.api.crateApiBridgeMadarBridgeOpenShift(
+  }) => RustBridge.instance.api.crateApiBridgeMadarBridgeOpenTill(
     that: this,
     openingCashMinor: openingCashMinor,
     openingReason: openingReason,
@@ -18566,20 +20476,15 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
       .api
       .crateApiBridgeMadarBridgePrintToDevice(that: this, bytes: bytes);
 
+  /// The read-path mode of an area (`ledger`, `tickets`, `kitchen`, `delivery`, `bookings`).
+  ReadPathMode readPathMode({required String area}) => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeReadPathMode(that: this, area: area);
+
   /// Recent diagnostic warnings (newest first) — the Settings → Diagnostics
   /// feed. Captures sync dead-letters, cascade failures, and auth parks.
   Future<List<DiagLogView>> recentLogs() =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeRecentLogs(that: this);
 
-  /// Record a cash-drawer movement against the open shift — pay-IN when
-  /// `amount_minor > 0`, pay-OUT when `< 0`. Offline-first and idempotent on a
-  /// minted `client_ref`, so a replay never double-applies cash.
-  ///
-  /// `kind` is `pay_in` | `pay_out` | `safe_drop` | `correction`. It says what
-  /// the sign cannot: a safe drop and a pay-out both take money out of the
-  /// drawer, and only one of them takes it out of the business. `corrects`
-  /// names the movement being reversed, so the pair nets to nothing on the
-  /// report rather than reading as two real movements.
   Future<CashMovementView> recordCashMovement({
     required PlatformInt64 amountMinor,
     required String note,
@@ -18592,12 +20497,6 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     kind: kind,
     corrects: corrects,
   );
-
-  /// FALLBACK recovery for the sync center: re-point every order STRANDED by a
-  /// dead `open_shift` onto the CURRENT open shift and sync. Returns the number
-  /// of outbox rows recovered.
-  Future<int> recoverOrphanedOrders() => RustBridge.instance.api
-      .crateApiBridgeMadarBridgeRecoverOrphanedOrders(that: this);
 
   /// Pull today's active bookings into the offline cache (best-effort; a
   /// `refresh_floor` does this too).
@@ -18623,11 +20522,8 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   Future<void> refreshFloor() =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeRefreshFloor(that: this);
 
-  /// Reconcile the device's shift with the server (online). Caches the server's
-  /// open shift, or CLEARS the local cache when the server reports none — call
-  /// this on login and on app resume.
-  Future<ShiftView?> refreshShift() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeRefreshShift(that: this);
+  Future<TillView?> refreshTill() =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeRefreshTill(that: this);
 
   /// The methods a refund of this sale may go back by, the sale's own when
   /// allowed, and whether the refund lands in a later shift than the sale.
@@ -18731,14 +20627,14 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// `render_receipt`. Pass the shift's `orders` to append the per-order
   /// breakdown (the expanded print); an empty list prints the summary only.
   /// Pair with `send_to_printer`.
-  Future<Uint8List> renderShiftReport({
-    required ShiftReportView report,
+  Future<Uint8List> renderTillReport({
+    required TillReportView report,
     required String storeName,
     required String currency,
     required int width,
     required PrinterBrand brand,
     required List<OrderSummaryView> orders,
-  }) => RustBridge.instance.api.crateApiBridgeMadarBridgeRenderShiftReport(
+  }) => RustBridge.instance.api.crateApiBridgeMadarBridgeRenderTillReport(
     that: this,
     report: report,
     storeName: storeName,
@@ -18747,6 +20643,10 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     brand: brand,
     orders: orders,
   );
+
+  /// Re-verify local asset files and fetch what is missing.
+  Future<AssetSyncView> repairAssets() =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeRepairAssets(that: this);
 
   /// Restore a draft into `table_id`'s cart (replaces its lines) and CLAIM
   /// it for this till. Errors when another till is editing it.
@@ -18772,10 +20672,15 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   SessionSnapshot? restoreSessionCached() => RustBridge.instance.api
       .crateApiBridgeMadarBridgeRestoreSessionCached(that: this);
 
-  /// Requeue every dead command (clearing its error) and try to send now.
-  /// Best-effort — offline just leaves them pending again.
+  /// Requeue every dead command and try to send now.
   Future<void> retryOutbox() =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeRetryOutbox(that: this);
+
+  /// Retry one till's dead commands (a dead `open_till` holds only its till).
+  Future<int> retryTillOutbox({required String tillId}) => RustBridge
+      .instance
+      .api
+      .crateApiBridgeMadarBridgeRetryTillOutbox(that: this, tillId: tillId);
 
   /// Apply the reward rules to the asked picks (cap, balance, catalogue,
   /// bundles, shrunk or removed lines) and describe every line.
@@ -18940,10 +20845,6 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
         stationId: stationId,
       );
 
-  /// Bind the device's till (POS drawer). `None` = use the branch default till.
-  Future<void> setDeviceTill({String? tillId}) => RustBridge.instance.api
-      .crateApiBridgeMadarBridgeSetDeviceTill(that: this, tillId: tillId);
-
   /// Set the branch's routing mode; `null` clears the override back to auto.
   /// Returns the effective mode the server resolved. Online-only.
   Future<String> setKitchenRoutingMode({String? mode}) => RustBridge
@@ -18954,6 +20855,14 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   void setLocale({required String locale}) => RustBridge.instance.api
       .crateApiBridgeMadarBridgeSetLocale(that: this, locale: locale);
 
+  /// Switch an area's read path (the diagnostics toggle).
+  void setReadPathMode({required String area, required ReadPathMode mode}) =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeSetReadPathMode(
+        that: this,
+        area: area,
+        mode: mode,
+      );
+
   /// SETTLE an open ticket into a paid order in the cashier's shift (a till
   /// action). Offline-first: the order is materialized server-side at replay,
   /// deduped on the ticket id. Returns true when still queued (offline). The
@@ -18963,7 +20872,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// it is still queued offline, where no order exists yet.
   Future<String?> settleTicket({
     required String ticketId,
-    required String shiftId,
+    required String tillId,
     required String paymentMethodId,
     PlatformInt64? amountTenderedMinor,
     PlatformInt64? tipMinor,
@@ -18977,7 +20886,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   }) => RustBridge.instance.api.crateApiBridgeMadarBridgeSettleTicket(
     that: this,
     ticketId: ticketId,
-    shiftId: shiftId,
+    tillId: tillId,
     paymentMethodId: paymentMethodId,
     amountTenderedMinor: amountTenderedMinor,
     tipMinor: tipMinor,
@@ -18989,37 +20898,6 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     loyaltyRedemptions: loyaltyRedemptions,
     splits: splits,
   );
-
-  /// The drawer arithmetic's cash-sales line, closed on the report's figure.
-  PlatformInt64 shiftCashSalesMinor({required ShiftReportView report}) =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeShiftCashSalesMinor(
-        that: this,
-        report: report,
-      );
-
-  /// The current shift's report — drives the close-shift system-cash +
-  /// discrepancy. Online: the server report plus still-queued cash sales.
-  /// Offline / on error: opening cash + queued cash (`from_server = false`).
-  Future<ShiftReportView> shiftReport() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeShiftReport(that: this);
-
-  /// A PAST shift's Z-report (history-screen reprint). Live when online (cached
-  /// write-through), else the cached report; a shift opened+closed entirely
-  /// offline is reconstructed from local data.
-  Future<ShiftReportView> shiftReportFor({required String shiftId}) =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeShiftReportFor(
-        that: this,
-        shiftId: shiftId,
-      );
-
-  /// Live shift stats (sales total + order count) for the action-bar pill,
-  /// derived from the orders the host already loaded via `list_shift_orders`
-  /// (synced + queued), voided excluded. Pure — no extra network.
-  Future<ShiftStatsView> shiftStats({required List<OrderSummaryView> orders}) =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeShiftStats(
-        that: this,
-        orders: orders,
-      );
 
   /// One-call sign-in: online first, offline PIN unlock fallback.
   Future<SessionSnapshot> signIn({required LoginRequest req}) => RustBridge
@@ -19070,8 +20948,6 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   Future<void> startReconfigure() => RustBridge.instance.api
       .crateApiBridgeMadarBridgeStartReconfigure(that: this);
 
-  /// Suggested opening cash for the next shift (minor units) — the previous
-  /// shift's declared closing, for cash continuity. 0 when none is known.
   Future<PlatformInt64> suggestedOpeningCashMinor() => RustBridge.instance.api
       .crateApiBridgeMadarBridgeSuggestedOpeningCashMinor(that: this);
 
@@ -19107,13 +20983,20 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     parkAtTarget: parkAtTarget,
   );
 
-  /// Force a sync now — drains the outbox. Cancellable/idempotent.
-  Future<void> syncNow() =>
+  /// Long-press: download everything again (unsent sales are kept).
+  Future<SyncStatusView> syncFull() =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeSyncFull(that: this);
+
+  /// Incremental sync: drain the outbox, then pull.
+  Future<SyncStatusView> syncNow() =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeSyncNow(that: this);
 
-  /// Sync health for the action-bar chip + offline banner (counts + online),
-  /// in one cheap local read. Always succeeds offline.
-  Future<SyncStatusView> syncStatus() =>
+  /// The till-open sync strip state.
+  TillOpenSyncView syncOnTillOpenStatus() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeSyncOnTillOpenStatus(that: this);
+
+  /// Sync health (one cheap local read; always succeeds offline).
+  SyncStatusView syncStatus() =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeSyncStatus(that: this);
 
   /// A table's history and takings — ONLINE ONLY, never mirrored.
@@ -19153,6 +21036,31 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
       RustBridge.instance.api.crateApiBridgeMadarBridgeTicketRewardLines(
         that: this,
         ticketId: ticketId,
+      );
+
+  /// The drawer arithmetic's cash-sales line, closed on the report's figure.
+  PlatformInt64 tillCashSalesMinor({required TillReportView report}) =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeTillCashSalesMinor(
+        that: this,
+        report: report,
+      );
+
+  Future<TillReportView> tillReport() =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeTillReport(that: this);
+
+  Future<TillReportView> tillReportFor({required String tillId}) => RustBridge
+      .instance
+      .api
+      .crateApiBridgeMadarBridgeTillReportFor(that: this, tillId: tillId);
+
+  /// The current till's Z report with its freshness and queue.
+  Future<SyncedTillReport> tillReportSynced() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeTillReportSynced(that: this);
+
+  Future<TillStatsView> tillStats({required List<OrderSummaryView> orders}) =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeTillStats(
+        that: this,
+        orders: orders,
       );
 
   /// The tap on a reward line: one more unit, or clear it.
@@ -19254,4 +21162,11 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     itemId: itemId,
     reason: reason,
   );
+
+  /// Local table changes, as batches of logical table names (`orders`, `tills`,
+  /// `open_tickets`, …, or `*` = re-read everything), coalesced over 50 ms.
+  /// A board re-reads when a table it shows changes; the core decides what
+  /// changed, Dart only listens.
+  Stream<List<String>> watchTables() =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeWatchTables(that: this);
 }

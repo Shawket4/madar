@@ -23,6 +23,13 @@ class CartAnchors {
   /// when the cart is collapsed into the bar.
   final GlobalKey bar = GlobalKey(debugLabel: 'cartBarAnchor');
 
+  /// The screen's own flight overlay ([CartFlightLayer]) — the dot flies
+  /// inside the screen's content area, never over the shell chrome or a
+  /// root-navigator sheet's scrim.
+  final GlobalKey<OverlayState> flightOverlay = GlobalKey<OverlayState>(
+    debugLabel: 'cartFlightOverlay',
+  );
+
   /// Bumped once per flight landing; the mounted anchor wraps itself in a
   /// dip so the cart visibly "catches" the flown dot.
   final ValueNotifier<int> catchTick = ValueNotifier<int>(0);
@@ -38,6 +45,28 @@ class CartAnchors {
       }
     }
     return null;
+  }
+
+  /// Flies the dot from [from] (global) to whichever anchor is on screen.
+  ///
+  /// Waits for the end of the current frame first: the add that launched it
+  /// has just changed the cart, and on a phone the bar (the landing pad) only
+  /// exists once the cart has a line — read before that frame, the FIRST add
+  /// to an empty cart found no target and flew nothing. Resolved once, then
+  /// dropped if there is still no target or the screen is gone: a flight is
+  /// never queued for a later add.
+  Future<void> fly(Offset from) async {
+    await WidgetsBinding.instance.endOfFrame;
+    final overlay = flightOverlay.currentState;
+    final to = center();
+    if (overlay == null || !overlay.mounted || to == null) return;
+    playCartFlight(
+      overlay.context,
+      from: from,
+      to: to,
+      overlay: overlay,
+      onArrive: () => catchTick.value++,
+    );
   }
 
   /// The nearest screen's anchors, or null outside any [CartAnchorScope]
