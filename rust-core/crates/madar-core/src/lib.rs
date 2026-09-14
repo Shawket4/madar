@@ -7230,11 +7230,17 @@ impl MadarCore {
                 list
             }
             (Some(list), false) => list,
+            // Nothing known yet: the server's list, or none (the picker shows
+            // no stations rather than an error, as it always has).
             (None, true) => {
                 let config = self.api.config();
-                let list = ledger_ops::within(k::list_stations(&config, k::ListStationsParams { branch_id })).await?;
-                cache_views(&self.store, "cache:kds_stations", &list);
-                list
+                match ledger_ops::within(k::list_stations(&config, k::ListStationsParams { branch_id })).await {
+                    Ok(list) => {
+                        cache_views(&self.store, "cache:kds_stations", &list);
+                        list
+                    }
+                    Err(_) => Vec::new(),
+                }
             }
             (None, false) => Vec::new(),
         };
