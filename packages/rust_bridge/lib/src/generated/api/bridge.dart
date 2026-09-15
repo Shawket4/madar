@@ -468,10 +468,25 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Whether the LAN relay is currently running.
   bool lanActive();
 
+  /// This device's native Bonjour advert, or `None` while the relay is down.
+  LanAdvertView? lanAdvert();
+
   /// The LAN shift-open gate: is a till at this branch advertising a FRESH open
   /// shift right now? The freshest "is the branch operating" signal (it beats the
   /// backend, which may not yet know a till opened/closed). `false` if not running.
   bool lanBranchHasOpenTill();
+
+  /// Feed a peer resolved by native Bonjour/NSD into the relay. Re-note live
+  /// peers every few seconds so the TTL keeps them.
+  bool lanNotePeer({
+    required String deviceId,
+    required String branchId,
+    required String host,
+    required int port,
+    required String role,
+    String? stationId,
+    String? deviceCode,
+  });
 
   /// Live discovered peers + manual hubs (a "LAN: N devices" diagnostics chip).
   int lanPeerCount();
@@ -481,6 +496,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// (mDNS + UDP beacon), advertises this till's open shift, and wires any manual
   /// hub. Safe to call after every login — a no-op if already running.
   Future<void> lanStart();
+
+  /// The LAN relay's health: running, peers, last start error, bound port, and
+  /// which discovery layers are live.
+  LanStatusView lanStatus();
 
   /// Stop + tear down the LAN relay (idempotent). Call on logout / branch switch.
   Future<void> lanStop();

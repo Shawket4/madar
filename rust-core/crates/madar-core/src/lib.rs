@@ -300,6 +300,8 @@ pub struct MadarCore {
     /// The running LAN relay (`None` = not started). The second delivery path beside
     /// the cloud bus; outbox stays the source of truth. Phase E.
     lan: Arc<Mutex<Option<Arc<lan::LanRelay>>>>,
+    /// Why the last `lan_start` failed (`None` once it succeeds) — the LAN status view.
+    lan_last_error: Mutex<Option<String>>,
     /// Dashboard-only: the runtime-selected org/branch scope override. `None`
     /// (or a `None` field) falls back to the session-derived scope. Persisted to
     /// kv (`dashboard:active_scope`) so the app reopens on the last branch.
@@ -419,6 +421,7 @@ impl MadarCore {
             unified_listener: Arc::new(Mutex::new(None)),
             alert_memory: Arc::new(Mutex::new(realtime::AlertDedup::new())),
             lan: Arc::new(Mutex::new(None)),
+            lan_last_error: Mutex::new(None),
             active_scope: RwLock::new(active_scope),
             sync_state: std::sync::Mutex::new(sync_pull::SyncState::default()),
             scheduler: scheduler::SchedulerState::default(),
@@ -3010,6 +3013,15 @@ impl MadarCore {
     /// (mDNS + UDP beacon), advertises this till's open shift, and wires any manual
     /// hub. Safe to call after every login — a no-op if already running.
     pub async fn lan_start(&self) -> Result<(), CoreError> {
+        let result = self.lan_start_inner().await;
+        *self.lan_last_error.lock().unwrap_or_else(|e| e.into_inner()) =
+            result.as_ref().err().map(|e| e.to_string());
+        result
+    }
+}
+
+impl MadarCore {
+    async fn lan_start_inner(&self) -> Result<(), CoreError> {
         if self.lan.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
             return Ok(());
         }
@@ -3110,6 +3122,59 @@ impl MadarCore {
         if let Some(relay) = self.lan.lock().unwrap_or_else(|e| e.into_inner()).take() {
             relay.stop();
         }
+    }
+
+    /// The LAN relay's health: running, peers, the last start error, the bound
+    /// port and which discovery layers are live.
+    pub fn lan_status(&self) -> lan::LanStatusView {
+        let last_error = self.lan_last_error.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        match self.lan.lock().unwrap_or_else(|e| e.into_inner()).clone() {
+            None => lan::LanStatusView { last_error, ..Default::default() },
+            Some(relay) => {
+                let d = relay.discovery();
+                let now = chrono::Utc::now().timestamp_millis();
+                lan::LanStatusView {
+                    running: true,
+                    peer_count: relay.peer_count(),
+                    manual_hub_count: relay.manual_hub_count(),
+                    last_error,
+                    tcp_port: Some(relay.tcp_port()),
+                    beacon_active: d.beacon,
+                    mdns_active: d.mdns,
+                    native_discovery_active: d.native_last_ms > 0
+                        && now - d.native_last_ms <= lan::PEER_TTL_MS,
+                }
+            }
+        }
+    }
+
+    /// What the host advertises over native Bonjour/NSD (`None` when the relay
+    /// isn't running — nothing to advertise yet).
+    pub fn lan_advert(&self) -> Option<lan::LanAdvertView> {
+        self.lan.lock().unwrap_or_else(|e| e.into_inner()).as_ref().map(|r| r.advert())
+    }
+
+    /// A peer resolved by the host's native Bonjour/NSD. Branch-filtered and
+    /// self-skipped; re-note live peers every few seconds to keep them past the
+    /// TTL. Returns whether it was accepted (`false` when not running).
+    #[allow(clippy::too_many_arguments)]
+    pub fn lan_note_peer(
+        &self,
+        device_id: String,
+        branch_id: String,
+        host: String,
+        port: u16,
+        role: String,
+        station_id: Option<String>,
+        device_code: Option<String>,
+    ) -> bool {
+        let Some(relay) = self.lan.lock().unwrap_or_else(|e| e.into_inner()).clone() else {
+            return false;
+        };
+        relay.note_peer(
+            lan::PeerNote { device_id, branch_id, host, port, role, station_id, device_code },
+            lan::PeerSource::Native,
+        )
     }
 
     /// Whether the LAN relay is currently running.
@@ -9822,6 +9887,49 @@ mod lifecycle_tests {
         assert_eq!(st.till_id.as_deref(), out.till.as_ref().map(|t| t.id.as_str()));
         assert!(["running", "done", "stale"].contains(&st.state.as_str()));
         assert_eq!(core.app_route(), AppRoute::Order, "selling is available immediately");
+    }
+
+    #[tokio::test]
+    async fn lan_status_reports_start_errors_then_the_running_relay() {
+        let core = MadarCore::new(MadarConfig {
+            base_url: "http://127.0.0.1:1".into(),
+            environment: "dev".into(),
+            db_path: String::new(),
+            locale: "en".into(),
+            app_version: None,
+        })
+        .unwrap();
+        let st = core.lan_status();
+        assert!(!st.running && st.last_error.is_none() && st.tcp_port.is_none());
+        assert!(core.lan_start().await.is_err(), "no session");
+        let st = core.lan_status();
+        assert!(!st.running);
+        assert!(st.last_error.as_deref().unwrap_or("").contains("sign in"), "{st:?}");
+        assert!(core.lan_advert().is_none());
+        assert!(!core.lan_note_peer("d".into(), "b".into(), "h".into(), 1, "waiter".into(), None, None));
+
+        let core = signed_in_offline_core().await;
+        core.lan_start().await.expect("starts even if 47600 is taken");
+        let st = core.lan_status();
+        assert!(st.running);
+        assert!(st.last_error.is_none(), "a success clears the error");
+        let port = st.tcp_port.unwrap();
+        assert_ne!(port, 0);
+        assert!(!st.native_discovery_active);
+        let ad = core.lan_advert().unwrap();
+        assert_eq!(ad.tcp_port, port);
+        assert_eq!(ad.branch_id, "00000000-0000-0000-0000-000000000001");
+        assert!(core.lan_note_peer(
+            "peer-1".into(), ad.branch_id.clone(), "127.0.0.1".into(), 9, "waiter".into(), None, Some("7C".into())
+        ));
+        assert!(!core.lan_note_peer(ad.device_id.clone(), ad.branch_id.clone(), "127.0.0.1".into(), 9, "waiter".into(), None, None), "self skipped");
+        let st = core.lan_status();
+        assert!(st.native_discovery_active);
+        assert_eq!(st.peer_count, 1);
+        core.set_device_lan_hub(Some("10.0.0.5:47600".into())).unwrap();
+        assert_eq!(core.lan_status().manual_hub_count, 1);
+        core.lan_stop();
+        assert!(!core.lan_status().running);
     }
 
     /// Per-device order numbers: `36B-12`, sent with the device code.

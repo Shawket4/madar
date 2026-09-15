@@ -131,6 +131,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   KitchenChit dco_decode_box_autoadd_kitchen_chit(dynamic raw);
 
   @protected
+  LanAdvertView dco_decode_box_autoadd_lan_advert_view(dynamic raw);
+
+  @protected
   LastTillWarningView dco_decode_box_autoadd_last_till_warning_view(
     dynamic raw,
   );
@@ -316,6 +319,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   KitchenChit dco_decode_kitchen_chit(dynamic raw);
+
+  @protected
+  LanAdvertView dco_decode_lan_advert_view(dynamic raw);
+
+  @protected
+  LanStatusView dco_decode_lan_status_view(dynamic raw);
 
   @protected
   LastTillWarningView dco_decode_last_till_warning_view(dynamic raw);
@@ -604,6 +613,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  LanAdvertView? dco_decode_opt_box_autoadd_lan_advert_view(dynamic raw);
 
   @protected
   LastTillWarningView? dco_decode_opt_box_autoadd_last_till_warning_view(
@@ -919,6 +931,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   KitchenChit sse_decode_box_autoadd_kitchen_chit(SseDeserializer deserializer);
 
   @protected
+  LanAdvertView sse_decode_box_autoadd_lan_advert_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LastTillWarningView sse_decode_box_autoadd_last_till_warning_view(
     SseDeserializer deserializer,
   );
@@ -1148,6 +1165,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   KitchenChit sse_decode_kitchen_chit(SseDeserializer deserializer);
+
+  @protected
+  LanAdvertView sse_decode_lan_advert_view(SseDeserializer deserializer);
+
+  @protected
+  LanStatusView sse_decode_lan_status_view(SseDeserializer deserializer);
 
   @protected
   LastTillWarningView sse_decode_last_till_warning_view(
@@ -1560,6 +1583,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
+  LanAdvertView? sse_decode_opt_box_autoadd_lan_advert_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LastTillWarningView? sse_decode_opt_box_autoadd_last_till_warning_view(
     SseDeserializer deserializer,
   );
@@ -1930,6 +1958,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_lan_advert_view(
+    LanAdvertView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_last_till_warning_view(
     LastTillWarningView self,
     SseSerializer serializer,
@@ -2216,6 +2250,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_kitchen_chit(KitchenChit self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_lan_advert_view(LanAdvertView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_lan_status_view(LanStatusView self, SseSerializer serializer);
 
   @protected
   void sse_encode_last_till_warning_view(
@@ -2736,6 +2776,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_opt_box_autoadd_i_64(
     PlatformInt64? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_lan_advert_view(
+    LanAdvertView? self,
     SseSerializer serializer,
   );
 
