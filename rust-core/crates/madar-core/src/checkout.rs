@@ -528,7 +528,9 @@ pub(crate) fn prepare(
     // tender + change; non-cash records neither. The cart's discount applies
     // before tax (the engine clamps it).
     let (discount_kind, discount_value) = cart::discount(store, ctx)?;
-    let tendered = if is_cash {
+    // A split has no single tender: its legs say what each method paid.
+    let is_split = input.splits.iter().any(|l| l.amount_minor > 0);
+    let tendered = if is_cash && !is_split {
         Some(amount_tendered_minor)
     } else {
         None
@@ -606,7 +608,19 @@ pub(crate) fn prepare(
     request.created_at = chrono::DateTime::parse_from_rfc3339(&now_rfc3339)
         .ok()
         .map(Some);
-    if is_cash {
+    // Split legs must cover the bill exactly, or the server refuses the sale
+    // after it has left the till (a queued one dead-letters).
+    if is_split {
+        let legs: i64 = input.splits.iter().map(|l| l.amount_minor.max(0)).sum();
+        if legs != priced.total_minor {
+            return Err(CoreError::Validation {
+                field: "splits".into(),
+                detail: format!("split payments ({legs}) must sum to the total ({})", priced.total_minor),
+            });
+        }
+    }
+    // A split sends no tender: a 0 here was stored as "Cash 0.00".
+    if is_cash && !is_split {
         request.amount_tendered = Some(Some(amount_tendered_minor as i32));
         request.change_given = Some(Some(priced.change_given_minor as i32));
     }
@@ -731,7 +745,7 @@ pub(crate) fn prepare(
         delivery_fee_minor: 0,
         total_minor: priced.total_minor,
         tip_minor,
-        amount_tendered_minor: if is_cash { amount_tendered_minor } else { 0 },
+        amount_tendered_minor: if is_cash && !is_split { amount_tendered_minor } else { 0 },
         change_minor: priced.change_given_minor,
         is_cash,
         customer_name: input.customer_name.clone().filter(|s| !s.trim().is_empty()),
@@ -1685,6 +1699,36 @@ mod tests {
         assert_eq!(legs[1].amount, 1280);
     }
 
+    /// A split sends no tender (a 0 was stored as "Cash 0.00" and printed on
+    /// every receipt), its receipt lists the legs, and legs that do not cover
+    /// the total are refused at the till instead of dead-lettering later.
+    #[test]
+    fn a_split_sends_no_zero_tender_and_its_legs_must_cover_the_total() {
+        let store = Store::open("").unwrap();
+        seed_methods(&store);
+        cart::add(&store, None, ITEM, "Latte", 2000).unwrap();
+        let run = |legs: &[(&str, i64)]| {
+            let mut input = mk_input(CASH, 0);
+            input.splits = legs
+                .iter()
+                .map(|(m, a)| CheckoutSplit { payment_method_id: (*m).into(), amount_minor: *a })
+                .collect();
+            prepare(&store, None, "en", BRANCH, SHIFT, &input, &tax_policy_at(0.14),
+                "2026-06-20T12:00:00+00:00".into())
+        };
+        let p = run(&[(CASH, 1280), (CARD, 1000)]).expect("legs cover 2280");
+        let r = &p.command.request;
+        assert_eq!((r.amount_tendered, r.change_given), (None, None));
+        assert_eq!((p.receipt.amount_tendered_minor, p.receipt.change_minor), (0, 0));
+        let legs: Vec<i64> = p.receipt.payments.iter().map(|l| l.amount_minor).collect();
+        assert_eq!(legs, vec![1280, 1000]);
+        assert_eq!(legs.iter().sum::<i64>(), p.receipt.total_minor);
+        assert!(matches!(
+            run(&[(CASH, 1000), (CARD, 1000)]),
+            Err(CoreError::Validation { ref field, .. }) if field == "splits"
+        ));
+    }
+
     #[test]
     fn split_legs_with_unknown_method_are_dropped() {
         let store = Store::open("").unwrap();
@@ -1694,7 +1738,7 @@ mod tests {
         input.splits = vec![
             CheckoutSplit {
                 payment_method_id: CASH.into(),
-                amount_minor: 1000,
+                amount_minor: 1500, // with the ghost leg, the whole 2000,
             },
             CheckoutSplit {
                 payment_method_id: "00000000-0000-0000-0000-0000000000ee".into(),

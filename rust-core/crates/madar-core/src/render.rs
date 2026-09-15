@@ -464,7 +464,13 @@ impl Renderer {
         if r.tip_minor > 0 {
             self.row(&lab.tip, &m(r.tip_minor), SZ_BODY, Weight::NORMAL);
         }
-        if r.is_cash {
+        if !r.payments.is_empty() {
+            // A split prints what each method paid. It has no one "cash
+            // tendered" figure, so the Cash/Change pair would read 0.00.
+            for leg in &r.payments {
+                self.row(&leg.label, &m(leg.amount_minor), SZ_BODY, Weight::NORMAL);
+            }
+        } else if r.is_cash {
             self.row(
                 &lab.cash,
                 &m(r.amount_tendered_minor),
@@ -1026,6 +1032,42 @@ mod tests {
             narrow.rows,
             wide.rows
         );
+    }
+
+    /// A split prints each leg's amount instead of a Cash 0.00 / Change 0.00
+    /// pair: the paper used to show nothing paid on a split sale.
+    #[test]
+    fn a_split_prints_its_legs_not_a_zero_cash_tender() {
+        use crate::checkout::ReceiptPaymentView;
+        let leg = |label: &str, amount_minor| ReceiptPaymentView { label: label.into(), amount_minor };
+        let printed = |r: &ReceiptView| {
+            let mut p = Renderer::new(PRINT_WIDTH);
+            p.build(r, &ctx(), None);
+            p.shaped
+        };
+        let money_of = |v: i64| money(v, &ctx().currency);
+        // Booked against cash (the largest leg), no tender, as the till sends it.
+        let mut two = receipt();
+        two.amount_tendered_minor = 0;
+        two.change_minor = 0;
+        two.payments = vec![leg("Cash", 7500), leg("Card", 5000)];
+        let text = printed(&two);
+        for (label, amount) in [("Cash", 7500), ("Card", 5000)] {
+            let at = text.iter().position(|t| t == label).unwrap_or_else(|| panic!("{label} leg: {text:?}"));
+            // A row shapes its amount, then its label.
+            assert_eq!(text[at - 1], money_of(amount), "{label} amount: {text:?}");
+        }
+        assert!(!text.iter().any(|t| *t == ctx().labels.change), "no Change row: {text:?}");
+        assert_eq!(text.iter().filter(|t| *t == "Cash").count(), 1, "one Cash row, the leg's: {text:?}");
+
+        let mut three = two.clone();
+        three.payments = vec![leg("Cash", 5000), leg("Card", 5000), leg("Wallet", 2500)];
+        let text = printed(&three);
+        assert!(text.iter().any(|t| t == "Wallet") && text.iter().any(|t| *t == money_of(2500)));
+
+        // A single cash payment still prints its tender and change.
+        let text = printed(&receipt());
+        assert!(text.iter().any(|t| *t == money_of(15000)) && text.iter().any(|t| *t == money_of(2500)));
     }
 
     /// The printed receipt carries the service charge line (it used to be

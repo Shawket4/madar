@@ -19,8 +19,8 @@ sealed class ChargeTarget {
   const factory ChargeTarget.cart({String? tableId, String? label}) =
       CartChargeTarget;
 
-  /// A table's bill (an open ticket). `settleTicket()` — tip, discount and
-  /// rewards by line id; NO splits, although the wire accepts them.
+  /// A table's bill (an open ticket). `settleTicket()` — tip, discount,
+  /// rewards by line id, a service charge waiver, and split legs.
   const factory ChargeTarget.bill(TicketView ticket, {String? tableLabel}) =
       BillChargeTarget;
 

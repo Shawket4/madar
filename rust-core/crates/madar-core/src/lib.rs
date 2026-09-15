@@ -7332,6 +7332,17 @@ impl MadarCore {
         if let Some(b) = priced_bill.as_ref().filter(|_| loyalty_redemptions.is_empty()) {
             request.total_amount = Some(Some(b.total_minor as i32));
         }
+        // The legs must cover the bill the drawer collects, exactly — the
+        // server refuses anything else, after the table has left the board.
+        if let (Some(legs), Some(b)) = (request.payment_splits.clone().flatten(), priced_bill.as_ref()) {
+            let sum: i64 = legs.iter().map(|l| l.amount as i64).sum();
+            if sum != b.total_minor {
+                return Err(CoreError::Validation {
+                    field: "splits".into(),
+                    detail: format!("split payments ({sum}) must sum to the total ({})", b.total_minor),
+                });
+            }
+        }
         if waive_service {
             request.waive_service_charge = Some(true);
         }
