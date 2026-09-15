@@ -4,7 +4,6 @@
 // The same flow runs offline: the sheet's figures come from the core's local
 // pricing, so these drive the real notifier over a fake bridge.
 
-
 import 'package:app_core/app_core.dart';
 import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
