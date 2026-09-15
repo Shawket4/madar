@@ -149,6 +149,11 @@ pub struct CategoryView {
     pub name: String,
     pub image_url: Option<String>,
     pub is_active: bool,
+    /// Dashboard-authored drag-and-drop position (lower first). `list_categories`
+    /// already returns rows sorted by this (ties on name), so callers can just
+    /// render in order — the field is exposed for any screen that re-sorts a
+    /// filtered subset and needs to preserve it.
+    pub display_order: i32,
 }
 
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
@@ -478,18 +483,49 @@ pub(crate) fn menu_items(store: &Store, locale: &str) -> CoreResult<Vec<MenuItem
         .collect())
 }
 
+/// Own (lenient) shape for the cached `/categories` mirror, rather than the
+/// generated `models::Category` directly: `display_order` is new, and a
+/// category cached by a build from before it existed must still decode —
+/// `#[serde(default)]` makes a missing value 0 (sorts first, same as
+/// everything else that predates ordering) instead of blanking the whole
+/// category list.
+#[derive(Deserialize)]
+struct LocalCategory {
+    id: uuid::Uuid,
+    name: String,
+    #[serde(default)]
+    name_translations: Value,
+    #[serde(default)]
+    image_url: Option<String>,
+    is_active: bool,
+    #[serde(default)]
+    deleted_at: Option<Value>,
+    #[serde(default)]
+    display_order: i32,
+}
+
 pub(crate) fn categories(store: &Store, locale: &str) -> CoreResult<Vec<CategoryView>> {
-    let cats: Vec<models::Category> = parse_kv(store, K_CATEGORIES)?;
-    Ok(cats
+    let cats: Vec<LocalCategory> = parse_kv(store, K_CATEGORIES)?;
+    let mut views: Vec<CategoryView> = cats
         .into_iter()
-        .filter(|c| flat(&c.deleted_at).is_none())
+        .filter(|c| c.deleted_at.as_ref().map(|v| v.is_null()).unwrap_or(true))
         .map(|c| CategoryView {
             id: c.id.to_string(),
             name: resolve(&c.name_translations, &c.name, locale),
-            image_url: flat(&c.image_url),
+            image_url: c.image_url,
             is_active: c.is_active,
+            display_order: c.display_order,
         })
-        .collect())
+        .collect();
+    // Custom drag-and-drop order, authored on the dashboard; ties break on the
+    // resolved (locale) name so two categories at the same position are still
+    // deterministic offline.
+    views.sort_by(|a, b| {
+        a.display_order
+            .cmp(&b.display_order)
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    Ok(views)
 }
 
 pub(crate) fn addons(store: &Store, locale: &str) -> CoreResult<Vec<AddonItemView>> {
@@ -871,12 +907,6 @@ pub(crate) fn resolve(translations: &Value, base: &str, locale: &str) -> String 
         }
     }
     base.to_string()
-}
-
-/// Collapse the generator's `Option<Option<T>>` (the absent-vs-null double
-/// option) to a plain `Option<T>`.
-fn flat<T: Clone>(opt: &Option<Option<T>>) -> Option<T> {
-    opt.clone().flatten()
 }
 
 /// A JSON number OR a BigDecimal-as-string ("18.000") → f64 (0.0 on failure).
@@ -1355,6 +1385,44 @@ mod tests {
         );
         let v = categories(&store, "en").unwrap();
         assert_eq!(v[0].image_url, None); // double-option null → None
+    }
+
+    #[test]
+    fn categories_sort_by_display_order_then_name() {
+        let store = Store::open("").unwrap();
+        seed(
+            &store,
+            K_CATEGORIES,
+            r#"[
+              {"id":"00000000-0000-0000-0000-0000000000c1","is_active":true,
+               "name":"Zebra","name_translations":{},"display_order":2},
+              {"id":"00000000-0000-0000-0000-0000000000c2","is_active":true,
+               "name":"Bread","name_translations":{},"display_order":0},
+              {"id":"00000000-0000-0000-0000-0000000000c3","is_active":true,
+               "name":"Apple","name_translations":{},"display_order":0}
+            ]"#,
+        );
+        let v = categories(&store, "en").unwrap();
+        // display_order wins; a tie (both 0) breaks on name.
+        assert_eq!(v.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["Apple", "Bread", "Zebra"]);
+        assert_eq!(v[0].display_order, 0);
+        assert_eq!(v[2].display_order, 2);
+    }
+
+    #[test]
+    fn a_category_cached_before_display_order_existed_still_decodes() {
+        // display_order is new; a row cached by an older build never wrote it.
+        // It must default to 0 rather than blank the whole category list.
+        let store = Store::open("").unwrap();
+        seed(
+            &store,
+            K_CATEGORIES,
+            r#"[{"id":"00000000-0000-0000-0000-0000000000c1","is_active":true,
+               "name":"Legacy","name_translations":{}}]"#,
+        );
+        let v = categories(&store, "en").unwrap();
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].display_order, 0);
     }
 
     // ── payment methods & discounts ─────────────────────────────────────────

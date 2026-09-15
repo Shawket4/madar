@@ -134,6 +134,7 @@ pub struct _CategoryView {
     pub name: String,
     pub image_url: Option<String>,
     pub is_active: bool,
+    pub display_order: i32,
 }
 
 #[frb(mirror(AddonItemView))]

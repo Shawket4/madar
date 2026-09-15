@@ -12612,6 +12612,7 @@ const _: fn() = || {
         let _: String = CategoryView.name;
         let _: Option<String> = CategoryView.image_url;
         let _: bool = CategoryView.is_active;
+        let _: i32 = CategoryView.display_order;
     }
     {
         let CheckoutInput = None::<crate::api::orders::CheckoutInput>.unwrap();
@@ -14139,11 +14140,13 @@ impl SseDecode for crate::api::catalog::CategoryView {
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_imageUrl = <Option<String>>::sse_decode(deserializer);
         let mut var_isActive = <bool>::sse_decode(deserializer);
+        let mut var_displayOrder = <i32>::sse_decode(deserializer);
         return crate::api::catalog::CategoryView {
             id: var_id,
             name: var_name,
             image_url: var_imageUrl,
             is_active: var_isActive,
+            display_order: var_displayOrder,
         };
     }
 }
@@ -19385,6 +19388,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::catalog::CategoryV
             self.0.name.into_into_dart().into_dart(),
             self.0.image_url.into_into_dart().into_dart(),
             self.0.is_active.into_into_dart().into_dart(),
+            self.0.display_order.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -22558,6 +22562,7 @@ impl SseEncode for crate::api::catalog::CategoryView {
         <String>::sse_encode(self.name, serializer);
         <Option<String>>::sse_encode(self.image_url, serializer);
         <bool>::sse_encode(self.is_active, serializer);
+        <i32>::sse_encode(self.display_order, serializer);
     }
 }
 

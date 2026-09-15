@@ -6,6 +6,7 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **created_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **deleted_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
+**display_order** | **i32** | Drag-and-drop position (lower first); ties break on name. Set via `PUT /categories/order`. | 
 **id** | **uuid::Uuid** |  | 
 **image** | Option<[**models::AssetGroupRef**](AssetGroupRef.md)> | Asset refs (Track B4, §11.10); null when no asset or not attached by this endpoint. | [optional]
 **image_url** | Option<**String**> |  | [optional]

@@ -425,6 +425,7 @@ docs/RegisterDeviceRequest.md
 docs/RegistryInfo.md
 docs/ReleaseTableRequest.md
 docs/RenameConversationRequest.md
+docs/ReorderCategoriesRequest.md
 docs/ReorderLine.md
 docs/ReorderSuggestion.md
 docs/ReportsApi.md
@@ -482,6 +483,7 @@ docs/StocktakeItem.md
 docs/StocktakesApi.md
 docs/StoredTurn.md
 docs/StudioAggregate.md
+docs/SuggestedComponent.md
 docs/Supplier.md
 docs/SwapTablesRequest.md
 docs/SyncApi.md
@@ -1019,6 +1021,7 @@ src/models/register_device_request.rs
 src/models/registry_info.rs
 src/models/release_table_request.rs
 src/models/rename_conversation_request.rs
+src/models/reorder_categories_request.rs
 src/models/reorder_line.rs
 src/models/reorder_suggestion.rs
 src/models/repricing_report.rs
@@ -1071,6 +1074,7 @@ src/models/stocktake_full.rs
 src/models/stocktake_item.rs
 src/models/stored_turn.rs
 src/models/studio_aggregate.rs
+src/models/suggested_component.rs
 src/models/supplier.rs
 src/models/swap_tables_request.rs
 src/models/sync_ingredient.rs
