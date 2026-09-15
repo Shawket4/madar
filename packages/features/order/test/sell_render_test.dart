@@ -105,9 +105,9 @@ void main() {
   });
 
   group('a cart line prints its own kitchen chit', () {
-    const tile = ValueKey('print-k-espresso');
+    const tile = ValueKey('kitchen-k-espresso');
 
-    testWidgets('a tap prints at once, with no preview', (tester) async {
+    testWidgets('a tap prints at once, with no sheet', (tester) async {
       final bridge = _FakeBridge();
       final c = await _mount(
         tester,
@@ -116,9 +116,9 @@ void main() {
         bridge: bridge,
       );
       expect(
-        find.bySemanticsLabel(coreWord('printing.chit')),
+        find.bySemanticsLabel(coreWord('sell.kitchen_row_hint')),
         findsWidgets,
-        reason: 'the glyph tile says what it does',
+        reason: 'the button says what it does, distinct from the cart-level one',
       );
       await tester.tap(find.byKey(tile));
       await _settle(tester);
@@ -133,7 +133,48 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
     });
 
-    testWidgets('a long press previews, and Print sends from the sheet', (
+    testWidgets(
+      'a long press opens the row sheet, titled with the item, with its own note/preview/print',
+      (tester) async {
+        final bridge = _FakeBridge();
+        await _mount(
+          tester,
+          screen: const TakeawaySellScreen(),
+          size: _ipad,
+          bridge: bridge,
+        );
+        await tester.longPress(find.byKey(tile));
+        await _settle(tester);
+        expect(find.text('Espresso'), findsWidgets, reason: 'titled with the item');
+        expect(
+          find.text(coreWord('sell.kitchen_row_sheet_preview')),
+          findsOneWidget,
+        );
+        expect(
+          find.text(coreWord('sell.kitchen_row_sheet_print')),
+          findsOneWidget,
+        );
+
+        // Preview opens the shared chit sheet; it prints nothing by itself.
+        await tester.tap(find.text(coreWord('sell.kitchen_row_sheet_preview')));
+        await _settle(tester);
+        expect(find.byType(KitchenChitSheet), findsOneWidget);
+        expect(find.text('1x k-espresso'), findsOneWidget);
+        expect(bridge.chitsSent, isEmpty, reason: 'a preview prints nothing');
+
+        await tester.tap(
+          find.descendant(
+            of: find.byType(KitchenChitSheet),
+            matching: find.text(coreWord('printing.chit')),
+          ),
+        );
+        await _settle(tester);
+        expect(bridge.chitsSent.map((s) => s.$1), ['10.0.0.5']);
+        await tester.pump(const Duration(seconds: 5));
+      },
+    );
+
+    testWidgets("the sheet's Print for kitchen prints without a preview", (
       tester,
     ) async {
       final bridge = _FakeBridge();
@@ -145,32 +186,15 @@ void main() {
       );
       await tester.longPress(find.byKey(tile));
       await _settle(tester);
-      expect(find.byType(KitchenChitSheet), findsOneWidget);
-      expect(find.text('1x k-espresso'), findsOneWidget);
-      expect(bridge.chitsSent, isEmpty, reason: 'a preview prints nothing');
-
-      await tester.tap(
-        find.descendant(
-          of: find.byType(KitchenChitSheet),
-          matching: find.text(coreWord('printing.chit')),
-        ),
-      );
+      await tester.tap(find.text(coreWord('sell.kitchen_row_sheet_print')));
       await _settle(tester);
       expect(bridge.chitsSent.map((s) => s.$1), ['10.0.0.5']);
-      expect(
-        find.descendant(
-          of: find.byType(KitchenChitSheet),
-          matching: find.text(coreWord('printing.chit_sent')),
-        ),
-        findsOneWidget,
-      );
-      await tester.pump(const Duration(seconds: 5));
+      expect(find.byType(KitchenChitSheet), findsNothing);
     });
   });
 
   group('a kitchen note is local, print-only, and clears on print', () {
-    const noteTile = ValueKey('kitchen-note-k-espresso');
-    const printTile = ValueKey('print-k-espresso');
+    const tile = ValueKey('kitchen-k-espresso');
 
     testWidgets('setting it shows on the line, and it clears once that line prints', (
       tester,
@@ -182,7 +206,9 @@ void main() {
         size: _ipad,
         bridge: bridge,
       );
-      await tester.tap(find.byKey(noteTile));
+      await tester.longPress(find.byKey(tile));
+      await _settle(tester);
+      await tester.tap(find.text(coreWord('sell.kitchen_row_sheet_note')));
       await _settle(tester);
       await tester.enterText(find.byType(TextField).first, 'no ice');
       await tester.tap(find.text(coreWord('common.save')));
@@ -195,7 +221,10 @@ void main() {
       );
       expect(find.textContaining('no ice'), findsOneWidget);
 
-      await tester.tap(find.byKey(printTile));
+      // Print from the still-open row sheet (the note-edit sheet popped back
+      // to it) — the same "Print for kitchen" action the row's own tile
+      // triggers on a short press.
+      await tester.tap(find.text(coreWord('sell.kitchen_row_sheet_print')));
       await _settle(tester);
       expect(
         bridge.lineKitchenNotes[null]?.containsKey('k-espresso'),
@@ -207,7 +236,7 @@ void main() {
   });
 
   group('the whole cart prints one kitchen job', () {
-    const cartPrintTile = ValueKey('print-cart-kitchen');
+    const cartPrintButton = ValueKey('print-cart-kitchen');
 
     testWidgets('a tap builds and sends the whole-cart chit at once', (
       tester,
@@ -220,10 +249,10 @@ void main() {
         bridge: bridge,
       );
       expect(
-        find.bySemanticsLabel(coreWord('printing.cart_chit')),
+        find.textContaining(coreWord('sell.kitchen_cart_button')),
         findsWidgets,
       );
-      await tester.tap(find.byKey(cartPrintTile));
+      await tester.tap(find.byKey(cartPrintButton));
       await _settle(tester);
       expect(bridge.cartKitchenChitsBuilt, 1);
       await tester.pump(const Duration(seconds: 5));
@@ -239,7 +268,7 @@ void main() {
         size: _ipad,
         bridge: bridge,
       );
-      await tester.longPress(find.byKey(cartPrintTile));
+      await tester.longPress(find.byKey(cartPrintButton));
       await _settle(tester);
       expect(find.byType(CartKitchenChitSheet), findsOneWidget);
       await tester.pump(const Duration(seconds: 5));
