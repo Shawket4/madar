@@ -90,6 +90,7 @@ fn order_summary(conn: &Connection, okey: &str, server_id: Option<String>, v: &V
         display_number: crate::checkout::server_display_number(
             s(v, "display_number"),
             s(v, "order_ref"),
+            s(v, "device_code"),
             order_number.unwrap_or(0),
         ),
     })

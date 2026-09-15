@@ -38,7 +38,6 @@ const LINE: f32 = 1.30; // line-height multiple
 
 // Customer-receipt sizes — larger and heavier than the kitchen slip / Z report
 // so a receipt reads at arm's length on a counter.
-const RS_STORE: f32 = 44.0;
 const RS_ORDER: f32 = 64.0;
 const RS_TOTAL: f32 = 38.0;
 const RS_BODY: f32 = 29.0;
@@ -48,8 +47,11 @@ const RS_SMALL: f32 = 26.0;
 // aspect-preserved after blank borders are trimmed; a small logo scales UP to
 // the box (see `decode_logo`), so a wide wordmark, a square mark, a tiny
 // upload and a logo padded with whitespace all print at a sensible size.
-const LOGO_MAX_W: u32 = 528;
-const LOGO_MAX_H: u32 = 144;
+const LOGO_MAX_W: u32 = 792;
+const LOGO_MAX_H: u32 = 216;
+
+// Branch name under the hairline — smaller than the old above-hairline size.
+const RS_BRANCH: f32 = 30.0;
 
 // Embedded Cairo — the same family the Compose/Swift UI renders. Regular for
 // body, SemiBold for the payment label, Bold for headers/totals.
@@ -349,7 +351,7 @@ impl Renderer {
         self.y += bh;
     }
 
-    /// Decode, scale-to-fit and dither the org logo, then composite it centered.
+    /// Decode, scale-to-fit and threshold the org logo to solid black, then composite it centered.
     fn logo(&mut self, bytes: &[u8]) {
         let Some((w, h, ink)) = decode_logo(bytes, self.logo_w, self.logo_h) else {
             return;
@@ -372,19 +374,21 @@ impl Renderer {
         let lab = &ctx.labels;
         let m = |minor: i64| money(minor, cur);
 
-        // ── header ──
-        if let Some(bytes) = logo {
-            self.logo(bytes);
-        }
+        // ── header ── logo sits directly above the hairline; the branch
+        // name (smaller) goes directly below it.
         if r.is_voided {
             self.center(&format!("*** {} ***", lab.voided), RS_BODY, Weight::BOLD);
         }
+        if let Some(bytes) = logo {
+            self.logo(bytes);
+        }
+        self.rule();
         let store = if ctx.store_name.trim().is_empty() {
             "MADAR".to_string()
         } else {
             ctx.store_name.to_uppercase()
         };
-        self.center(&store, RS_STORE, Weight::BOLD);
+        self.center(&store, RS_BRANCH, Weight::BOLD);
         if r.is_delivery {
             if let Some(ch) = r.delivery_channel.as_deref() {
                 let label = if ch == "in_mall" {
@@ -931,9 +935,16 @@ impl Renderer {
     }
 }
 
+/// The catalog's sentinel for an item with no real size choice — noise on a
+/// receipt, not a size the customer picked.
+fn is_one_size(s: &str) -> bool {
+    let s = s.trim();
+    s.eq_ignore_ascii_case("one_size") || s.eq_ignore_ascii_case("one size")
+}
+
 fn name_with_size(base: &str, size: &Option<String>) -> String {
     match size {
-        Some(s) if !s.is_empty() => format!("{} ({})", base, s),
+        Some(s) if !s.is_empty() && !is_one_size(s) => format!("{} ({})", base, s),
         _ => base.to_string(),
     }
 }
@@ -956,7 +967,7 @@ fn fmt_dt_z(lab: &TillReportLabels, rfc3339: &str) -> String {
     )
 }
 
-// ── logo decode + dither ─────────────────────────────────────────────────────
+// ── logo decode + threshold ──────────────────────────────────────────────────
 
 /// Crop transparent / near-white borders so a logo padded with empty canvas
 /// sizes by its visible mark. A fully blank image is returned unchanged.
@@ -984,7 +995,9 @@ fn trim_blank(img: image::RgbaImage) -> image::RgbaImage {
 }
 
 /// Decode (PNG/JPEG), composite over white, scale to fit `max_w`×`max_h`
-/// preserving aspect, then Floyd–Steinberg dither to 1-bit. Returns
+/// preserving aspect, then threshold to 1-bit — any pixel with visible ink
+/// prints solid black rather than a dithered halftone, since a logo on
+/// thermal paper reads as a clean mark, not a gray dot pattern. Returns
 /// `(width, height, ink)` where `ink[y*w+x]` is `255` (black) or `0` (white).
 /// `None` if the bytes aren't a decodable image.
 fn decode_logo(bytes: &[u8], max_w: u32, max_h: u32) -> Option<(usize, usize, Vec<u8>)> {
@@ -1001,37 +1014,15 @@ fn decode_logo(bytes: &[u8], max_w: u32, max_h: u32) -> Option<(usize, usize, Ve
     let scaled = image::imageops::resize(&rgba, tw, th, image::imageops::FilterType::Lanczos3);
 
     let (w, h) = (scaled.width() as usize, scaled.height() as usize);
-    // ink amount, 0.0 = white .. 1.0 = black (composited over white paper).
-    let mut g = vec![0f32; w * h];
+    // Any pixel with meaningfully more ink than paper prints solid black —
+    // no gray survives as a halftone dot.
+    let mut out = vec![0u8; w * h];
     for (i, p) in scaled.pixels().enumerate() {
         let [r, gc, b, a] = p.0;
         let af = a as f32 / 255.0;
         let over = |c: u8| c as f32 * af + 255.0 * (1.0 - af);
         let lum = 0.299 * over(r) + 0.587 * over(gc) + 0.114 * over(b);
-        g[i] = 1.0 - lum / 255.0;
-    }
-    // Floyd–Steinberg.
-    let mut out = vec![0u8; w * h];
-    for y in 0..h {
-        for x in 0..w {
-            let i = y * w + x;
-            let old = g[i];
-            let newp = if old >= 0.5 { 1.0 } else { 0.0 };
-            out[i] = if newp == 1.0 { 255 } else { 0 };
-            let err = old - newp;
-            if x + 1 < w {
-                g[i + 1] += err * 7.0 / 16.0;
-            }
-            if y + 1 < h {
-                if x > 0 {
-                    g[i + w - 1] += err * 3.0 / 16.0;
-                }
-                g[i + w] += err * 5.0 / 16.0;
-                if x + 1 < w {
-                    g[i + w + 1] += err * 1.0 / 16.0;
-                }
-            }
-        }
+        out[i] = if 1.0 - lum / 255.0 >= 0.35 { 255 } else { 0 };
     }
     Some((w, h, out))
 }

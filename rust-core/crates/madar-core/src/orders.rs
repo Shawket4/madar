@@ -410,6 +410,7 @@ pub(crate) fn order_to_receipt(
         display_number: crate::checkout::server_display_number(
             o.display_number.as_deref(),
             o.order_ref.as_deref(),
+            o.device_code.as_deref(),
             o.order_number as i64,
         ),
         order_ref: o.order_ref.clone().filter(|s| !s.is_empty()),
@@ -592,6 +593,7 @@ pub(crate) fn from_server(o: &models::Order) -> OrderSummaryView {
         display_number: crate::checkout::server_display_number(
             o.display_number.as_deref(),
             o.order_ref.clone().flatten().as_deref(),
+            o.device_code.clone().flatten().as_deref(),
             o.order_number as i64,
         ),
     }

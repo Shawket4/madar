@@ -89,6 +89,14 @@ class _DoneCardState extends ConsumerState<DoneCard> {
   bool _clearing = false;
   String? _clearError;
 
+  // A card kept open for a table's "cleared?" answer can outlive the
+  // outbox drain — without this it would say "Queued" forever even after
+  // the sale synced. Local state so a sync tick can flip it live.
+  late bool _queued = widget.outcome.queued;
+  late ReceiptView? _receipt = widget.outcome.receipt;
+  bool _syncChecking = false;
+  ProviderSubscription<int>? _syncSub;
+
   /// The card steps aside by itself once nothing is left to answer — the
   /// next customer is already at the counter. A touch on the card holds it.
   Timer? _autoDismiss;
@@ -114,6 +122,7 @@ class _DoneCardState extends ConsumerState<DoneCard> {
 
   @override
   void dispose() {
+    _syncSub?.close();
     _holdOpen();
     super.dispose();
   }
@@ -135,10 +144,43 @@ class _DoneCardState extends ConsumerState<DoneCard> {
         }),
       );
     }
+    // The core bumps this on every sync event; a queued sale re-checks its
+    // own record on each one rather than polling on a timer.
+    if (_queued) {
+      _syncSub = ref.listenManual(syncTickProvider, (_, _) {
+        unawaited(_checkSynced());
+      });
+    }
+  }
+
+  /// Re-read this sale's record — a LOCAL lookup by client key or server id
+  /// (`order_full_for` resolves either), so this only reaches the network in
+  /// the rare case the row is not local yet. Flips the card out of "Queued"
+  /// the moment the outbox has actually acked it.
+  Future<void> _checkSynced() async {
+    final key = widget.outcome.orderKey;
+    if (!mounted || !_queued || _syncChecking || key == null) return;
+    _syncChecking = true;
+    try {
+      final r = await ref.read(bridgeProvider).orderReceiptView(orderId: key);
+      if (!mounted || r.queuedOffline) return;
+      setState(() {
+        _queued = false;
+        _receipt = r;
+      });
+      _syncSub?.close();
+      _syncSub = null;
+      if (_autoDismiss != null) _armDismiss();
+    } on Object catch (_) {
+      // Best-effort, as printReceiptView: the row may not have landed
+      // locally yet, or the bridge threw — the next sync tick tries again.
+    } finally {
+      _syncChecking = false;
+    }
   }
 
   Future<void> _reprint() async {
-    final receipt = widget.outcome.receipt;
+    final receipt = _receipt;
     if (receipt == null || _print == PrintState.printing) return;
     setState(() => _print = PrintState.printing);
     final result = await printReceiptView(
@@ -203,18 +245,18 @@ class _DoneCardState extends ConsumerState<DoneCard> {
     // The headline: what happened, and the figure that names it.
     // The device number reads the same queued or synced (`36B-12`); the
     // older fallbacks stay for a sale rung without one.
-    final display = o.receipt?.displayNumber ?? '';
+    final display = _receipt?.displayNumber ?? '';
     final ref_ = display.isNotEmpty
         ? '#$display'
-        : o.queued
+        : _queued
         ? '#${o.orderKey?.substring(0, o.orderKey!.length.clamp(0, 8)) ?? ''}'
         : o.orderNumber != null
         ? '#${o.orderNumber}'
-        : (o.receipt?.orderRef ?? '');
+        : (_receipt?.orderRef ?? '');
     final headline = TextSpan(
       children: [
         TextSpan(
-          text: o.queued
+          text: _queued
               ? '${bridge.tr(key: 'sync.queued')} · '
               : '${tr('charge.sale')} ',
         ),
@@ -225,11 +267,11 @@ class _DoneCardState extends ConsumerState<DoneCard> {
             ref_,
             textDirection: TextDirection.ltr,
             style: MadarType.numLg.copyWith(
-              color: o.queued ? colors.textSecondary : colors.textPrimary,
+              color: _queued ? colors.textSecondary : colors.textPrimary,
             ),
           ),
         ),
-        if (!o.queued) ...[
+        if (!_queued) ...[
           const TextSpan(text: ' · '),
           WidgetSpan(
             alignment: PlaceholderAlignment.baseline,
@@ -248,7 +290,7 @@ class _DoneCardState extends ConsumerState<DoneCard> {
     // sentence about where it is.
     final detail = TextSpan(
       children: [
-        if (o.queued) ...[
+        if (_queued) ...[
           WidgetSpan(
             alignment: PlaceholderAlignment.baseline,
             baseline: TextBaseline.alphabetic,
@@ -275,17 +317,17 @@ class _DoneCardState extends ConsumerState<DoneCard> {
             ),
           ),
         ],
-        if (o.queued) TextSpan(text: ' · ${tr('charge.will_send')}'),
+        if (_queued) TextSpan(text: ' · ${tr('charge.will_send')}'),
         // The server recorded this sale's rewards without taking points (the
         // card was spent elsewhere first). The sale stands; the teller hears it.
-        if (o.receipt?.loyaltyNotice case final notice?)
+        if (_receipt?.loyaltyNotice case final notice?)
           TextSpan(text: '\n$notice'),
       ],
     );
 
     final printStatus = _PrintStatus(
       state: _print,
-      hasReceipt: o.receipt != null,
+      hasReceipt: _receipt != null,
       tr: tr,
       bridge: bridge,
       onPrinterSettings: widget.onPrinterSettings,
@@ -303,7 +345,7 @@ class _DoneCardState extends ConsumerState<DoneCard> {
           variant: MadarButtonVariant.secondary,
           onTap: () => unawaited(_addPoints()),
         ),
-      if (o.receipt != null)
+      if (_receipt != null)
         MadarButton(
           label: tr('charge.reprint'),
           glyph: MadarGlyph.printer,
@@ -366,7 +408,7 @@ class _DoneCardState extends ConsumerState<DoneCard> {
                 // sale parked for the network gets the living amber clock.
                 SizedBox.square(
                   dimension: _markSize,
-                  child: o.queued
+                  child: _queued
                       ? const QueuedMark(size: _markSize)
                       : const SettleMark(size: _markSize),
                 ),

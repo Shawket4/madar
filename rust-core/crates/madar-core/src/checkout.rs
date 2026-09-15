@@ -55,11 +55,26 @@ pub fn display_number(device_code: &str, order_number: i64) -> String {
 
 /// The number to show for a server order: the server's own `display_number`
 /// (the tills-rework backend sends it on every order response), else — an older
-/// backend — derived from `order_ref` by [`display_number_from_ref`].
-pub fn server_display_number(display_number: Option<&str>, order_ref: Option<&str>, order_number: i64) -> String {
+/// backend, or a cache from before the `order_ref` backfill reached this sale —
+/// derived from `order_ref` by [`display_number_from_ref`], else straight from
+/// the order's own `device_code` (stored with the order independently of the
+/// backfill, so it survives when `order_ref` doesn't) — all local, never a
+/// reason to hit the network for a number the row already carries.
+pub fn server_display_number(
+    display_number: Option<&str>,
+    order_ref: Option<&str>,
+    device_code: Option<&str>,
+    order_number: i64,
+) -> String {
     match display_number.map(str::trim).filter(|s| !s.is_empty()) {
         Some(d) => d.to_string(),
-        None => display_number_from_ref(order_ref, order_number),
+        None => match order_ref {
+            Some(_) => display_number_from_ref(order_ref, order_number),
+            None => match device_code.map(str::trim).filter(|s| !s.is_empty()) {
+                Some(code) => self::display_number(code, order_number),
+                None => order_number.to_string(),
+            },
+        },
     }
 }
 

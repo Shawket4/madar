@@ -148,6 +148,12 @@ its outbox op commit in ONE transaction; acks fold the server's answer in.
   counts every request against the real backend, and
   `apps/madar/test/network_budget_test.dart` pins that no tick calls a
   network-capable bridge method.
+- **Before adding a network call, check the local model first.** A value that
+  looks missing is often already on the cached record under a different field
+  (e.g. an order's `device_code`, kept independently of the `order_ref`
+  backfill, reconstructs the real display number without a `GetOrder` call).
+  Derive from what's already local before reaching for the network — a new
+  call is the last resort, not the first fix.
 - Real-backend scenarios: `tool/offline_b_backend.sh` (see its header);
   `MADAR_OB_TESTS=readpath_parity` checks every screen read against the server.
 
