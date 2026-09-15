@@ -451,6 +451,71 @@ struct RelayShared {
     transport: Option<Arc<dyn LanTransport>>,
     /// Frames accepted / refused (diagnostics and the adversarial tests).
     stats: Mutex<RelayStats>,
+    /// Which discovery layers actually came up (the LAN status view).
+    discovery: Mutex<DiscoveryState>,
+}
+
+/// Which discovery layers are live on this relay.
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
+pub struct DiscoveryState {
+    /// The UDP broadcast beacon socket is bound and running.
+    pub beacon: bool,
+    /// The raw mDNS daemon is advertising + browsing.
+    pub mdns: bool,
+    /// Last time the host's native Bonjour/NSD layer noted a peer (0 = never).
+    pub native_last_ms: i64,
+}
+
+/// Where a noted peer came from (only the logging/status differs).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PeerSource {
+    /// The Rust mdns-sd daemon.
+    Mdns,
+    /// The host's native Bonjour (NWBrowser) / NsdManager, via the bridge.
+    Native,
+}
+
+/// An unsigned discovery record (mDNS TXT or native Bonjour TXT): identity and
+/// address only. Never carries the shift advert — only the signed beacon does.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PeerNote {
+    pub device_id: String,
+    pub branch_id: String,
+    pub host: String,
+    pub port: u16,
+    pub role: String,
+    pub station_id: Option<String>,
+    pub device_code: Option<String>,
+}
+
+/// What this device advertises over native Bonjour: the same TXT fields the Rust
+/// mDNS advert carries (`branch_id`, `device_id`, `role`, `station_id`,
+/// `device_code`, `tcp_port`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LanAdvertView {
+    pub device_id: String,
+    pub branch_id: String,
+    pub role: String,
+    pub station_id: Option<String>,
+    pub device_code: Option<String>,
+    pub tcp_port: u16,
+}
+
+/// The LAN relay's health, for Settings and the retry loop.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct LanStatusView {
+    pub running: bool,
+    /// Live discovered peers + manual hubs.
+    pub peer_count: u32,
+    pub manual_hub_count: u32,
+    /// Why the last `lan_start` failed (`None` after a successful start).
+    pub last_error: Option<String>,
+    /// The actually-bound TCP relay port (`None` when not running).
+    pub tcp_port: Option<u16>,
+    pub beacon_active: bool,
+    pub mdns_active: bool,
+    /// The host's native Bonjour/NSD noted a peer within the peer TTL.
+    pub native_discovery_active: bool,
 }
 
 /// What the relay did with inbound frames.
@@ -502,6 +567,7 @@ impl LanRelay {
                 manual: Mutex::new(Vec::new()),
                 transport,
                 stats: Mutex::new(RelayStats::default()),
+                discovery: Mutex::new(DiscoveryState::default()),
             }),
             handles: Mutex::new(Vec::new()),
             mdns: Mutex::new(None),
@@ -588,6 +654,48 @@ impl LanRelay {
         }
     }
 
+    /// Fold an unsigned discovery record (native Bonjour/NSD) into the registry:
+    /// branch-filtered, self-skipped, TTL-refreshed. A host re-notes live peers
+    /// periodically so pruning never drops one that is still advertising.
+    /// Returns `true` when the peer was accepted.
+    pub fn note_peer(&self, note: PeerNote, source: PeerSource) -> bool {
+        match note_peer(&self.shared, note, source) {
+            NoteOutcome::Fresh(id) => {
+                if self.shared.transport.is_none() {
+                    let shared = self.shared.clone();
+                    if let Ok(h) = tokio::runtime::Handle::try_current() {
+                        h.spawn(async move { send_digest(&shared, Some(id)).await });
+                    }
+                }
+                true
+            }
+            NoteOutcome::Refreshed => true,
+            NoteOutcome::Ignored => false,
+        }
+    }
+
+    /// Which discovery layers are live.
+    pub fn discovery(&self) -> DiscoveryState {
+        self.shared.discovery.lock().unwrap().clone()
+    }
+
+    /// Count of manual hubs.
+    pub fn manual_hub_count(&self) -> u32 {
+        self.shared.manual.lock().unwrap().len() as u32
+    }
+
+    /// This device's advert (for the host's native Bonjour broadcast).
+    pub fn advert(&self) -> LanAdvertView {
+        LanAdvertView {
+            device_id: self.shared.cfg.device_id.clone(),
+            branch_id: self.shared.cfg.branch_id.clone(),
+            role: self.shared.cfg.role.clone(),
+            station_id: self.shared.cfg.station_id.clone(),
+            device_code: self.shared.device_code.lock().unwrap().clone(),
+            tcp_port: self.tcp_port(),
+        }
+    }
+
     /// Register a manual hub peer (`host`, `port`) — the always-works fallback. Never
     /// TTL-expires; we always push to it. Idempotent (no duplicate host:port).
     pub fn add_manual_hub(&self, host: String, port: u16) {
@@ -659,7 +767,15 @@ impl LanRelay {
         //    meant "fails in total silence": without the beacon this device is
         //    invisible to its peers AND can't see their open-shift adverts, which
         //    degrades the LAN shift-open gate. Report the bind failure.
+        // iOS blocks broadcast + multicast without Apple's restricted multicast
+        // entitlement: the host's native Bonjour is the discovery path there, so
+        // don't start (and log-spam) layers that can only fail.
+        #[cfg(target_os = "ios")]
+        let beacon: std::io::Result<UdpSocket> =
+            Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "ios"));
+        #[cfg(not(target_os = "ios"))]
         let beacon = bind_beacon(self.shared.cfg.beacon_port).await;
+        #[cfg(not(target_os = "ios"))]
         if let Err(ref e) = beacon {
             crate::obs::capture_bg_warning(
                 "lan.beacon_bind",
@@ -667,6 +783,7 @@ impl LanRelay {
             );
         }
         if let Ok(sock) = beacon {
+            self.shared.discovery.lock().unwrap().beacon = true;
             let sock = Arc::new(sock);
             let send_shared = self.shared.clone();
             let send_sock = sock.clone();
@@ -679,7 +796,8 @@ impl LanRelay {
             }));
         }
 
-        // 3. mDNS advertise + browse. Best-effort.
+        // 3. mDNS advertise + browse. Best-effort; skipped on iOS (see above).
+        #[cfg(not(target_os = "ios"))]
         self.start_mdns();
 
         // 4. TTL pruner.
@@ -770,6 +888,7 @@ impl LanRelay {
         if let Some(d) = self.mdns.lock().unwrap().take() {
             let _ = d.shutdown();
         }
+        *self.shared.discovery.lock().unwrap() = DiscoveryState::default();
     }
 
     fn spawn(&self, h: JoinHandle<()>) {
@@ -779,6 +898,7 @@ impl LanRelay {
     /// Advertise `_madar._tcp` + browse for peers, feeding resolved services into the
     /// registry. Unsigned TXT (discovery only) — message acceptance is still HMAC-gated,
     /// and the shift gate trusts only the SIGNED beacon, so mDNS can't spoof either.
+    #[cfg(not(target_os = "ios"))]
     fn start_mdns(&self) {
         let daemon = match mdns_sd::ServiceDaemon::new() {
             Ok(d) => d,
@@ -822,6 +942,7 @@ impl LanRelay {
         }
         match daemon.browse(SERVICE_TYPE) {
             Ok(rx) => {
+                self.shared.discovery.lock().unwrap().mdns = true;
                 let shared = self.shared.clone();
                 self.spawn(tokio::spawn(async move {
                     while let Ok(event) = rx.recv_async().await {
@@ -829,6 +950,7 @@ impl LanRelay {
                             ingest_mdns(&shared, &info);
                         }
                     }
+                    shared.discovery.lock().unwrap().mdns = false;
                     // Falling out of the loop means the daemon channel closed:
                     // mDNS discovery is dead for the rest of this process and will
                     // never recover on its own. The relay keeps limping on the UDP
@@ -1264,49 +1386,83 @@ async fn beacon_recv_loop(shared: Arc<RelayShared>, sock: Arc<UdpSocket>) {
     }
 }
 
-/// Fold an mDNS-resolved service into the registry (discovery only — no shift advert;
-/// only the signed beacon sets `open_shift_id`).
+/// What [`note_peer`] did with a record.
+#[derive(Debug, PartialEq, Eq)]
+enum NoteOutcome {
+    /// A device not known (or expired) — the caller sends it a digest.
+    Fresh(String),
+    /// A live peer's heartbeat refreshed.
+    Refreshed,
+    /// Foreign branch, self, or an unusable record.
+    Ignored,
+}
+
+/// Fold an unsigned discovery record (mDNS TXT or native Bonjour TXT) into the
+/// registry — the ONE path both discovery layers share. Discovery only: the
+/// shift adverts a signed beacon set are preserved, never erased.
+fn note_peer(shared: &Arc<RelayShared>, note: PeerNote, source: PeerSource) -> NoteOutcome {
+    note_peer_at(shared, note, source, now_ms())
+}
+
+fn note_peer_at(shared: &Arc<RelayShared>, note: PeerNote, source: PeerSource, now: i64) -> NoteOutcome {
+    if note.branch_id != shared.cfg.branch_id
+        || note.device_id.is_empty()
+        || note.device_id == shared.cfg.device_id
+        || note.host.is_empty()
+        || note.port == 0
+    {
+        return NoteOutcome::Ignored;
+    }
+    if source == PeerSource::Native {
+        shared.discovery.lock().unwrap().native_last_ms = now;
+    }
+    let mut reg = shared.registry.lock().unwrap();
+    let known = reg
+        .live_for_branch(&note.branch_id, now)
+        .into_iter()
+        .find(|p| p.device_id == note.device_id)
+        .map(|p| (p.open_shift_id.clone(), p.open_tills.clone()));
+    let fresh = known.is_none();
+    let (open_shift_id, open_tills) = known.unwrap_or((None, Vec::new()));
+    let id = note.device_id.clone();
+    reg.upsert(Peer {
+        device_id: note.device_id,
+        branch_id: note.branch_id,
+        role: note.role,
+        host: note.host,
+        port: note.port,
+        station_id: note.station_id.filter(|s| !s.is_empty()),
+        open_shift_id,
+        device_code: note.device_code.filter(|s| !s.is_empty()),
+        open_tills,
+        last_seen_ms: now,
+    });
+    if fresh { NoteOutcome::Fresh(id) } else { NoteOutcome::Refreshed }
+}
+
+/// Fold an mDNS-resolved service into the registry via [`note_peer`].
+#[cfg(not(target_os = "ios"))]
 fn ingest_mdns(shared: &Arc<RelayShared>, info: &mdns_sd::ResolvedService) {
     let prop = |k: &str| info.get_property_val_str(k).map(|s| s.to_string());
-    let branch_id = prop("branch_id").unwrap_or_default();
-    let device_id = prop("device_id").unwrap_or_default();
-    if branch_id != shared.cfg.branch_id
-        || device_id.is_empty()
-        || device_id == shared.cfg.device_id
-    {
-        return;
-    }
-    let Some(host) = info
-        .get_addresses_v4()
-        .iter()
-        .next()
-        .map(|ip| ip.to_string())
-    else {
+    let Some(host) = info.get_addresses_v4().iter().next().map(|ip| ip.to_string()) else {
         return;
     };
     let port = prop("tcp_port")
         .and_then(|p| p.parse::<u16>().ok())
         .unwrap_or_else(|| info.get_port());
-    let mut reg = shared.registry.lock().unwrap();
-    // Discovery never erases a signed beacon's adverts (mDNS TXT is unsigned).
-    let (open_shift_id, open_tills) = reg
-        .live_for_branch(&branch_id, now_ms())
-        .into_iter()
-        .find(|p| p.device_id == device_id)
-        .map(|p| (p.open_shift_id.clone(), p.open_tills.clone()))
-        .unwrap_or((None, Vec::new()));
-    reg.upsert(Peer {
-        device_id,
-        branch_id,
-        role: prop("role").unwrap_or_default(),
+    let note = PeerNote {
+        device_id: prop("device_id").unwrap_or_default(),
+        branch_id: prop("branch_id").unwrap_or_default(),
         host,
         port,
-        station_id: prop("station_id").filter(|s| !s.is_empty()),
-        open_shift_id,
-        device_code: prop("device_code").filter(|s| !s.is_empty()),
-        open_tills,
-        last_seen_ms: now_ms(),
-    });
+        role: prop("role").unwrap_or_default(),
+        station_id: prop("station_id"),
+        device_code: prop("device_code"),
+    };
+    if let NoteOutcome::Fresh(id) = note_peer(shared, note, PeerSource::Mdns) {
+        let s = shared.clone();
+        tokio::spawn(async move { send_digest(&s, Some(id)).await });
+    }
 }
 
 #[cfg(test)]
@@ -1701,6 +1857,66 @@ mod tests {
             got[0].replay_op.is_none(),
             "display-only: the write lives in the cloud"
         );
+    }
+
+    fn note(id: &str, branch: &str) -> PeerNote {
+        PeerNote {
+            device_id: id.into(),
+            branch_id: branch.into(),
+            host: "10.0.0.9".into(),
+            port: 47600,
+            role: "waiter".into(),
+            station_id: Some(String::new()),
+            device_code: Some("12A".into()),
+        }
+    }
+
+    #[test]
+    fn note_peer_filters_branch_and_self() {
+        let relay = LanRelay::new(lan_cfg("SELF", branch_key("aa", "b1")), rec());
+        let sh = &relay.shared;
+        let now = now_ms();
+        assert_eq!(note_peer_at(sh, note("X", "b2"), PeerSource::Native, now), NoteOutcome::Ignored);
+        assert_eq!(note_peer_at(sh, note("SELF", "b1"), PeerSource::Native, now), NoteOutcome::Ignored);
+        assert_eq!(note_peer_at(sh, note("", "b1"), PeerSource::Native, now), NoteOutcome::Ignored);
+        let mut bad_port = note("P", "b1");
+        bad_port.port = 0;
+        assert_eq!(note_peer_at(sh, bad_port, PeerSource::Native, now), NoteOutcome::Ignored);
+        assert_eq!(relay.peer_count(), 0);
+        assert_eq!(relay.discovery().native_last_ms, 0, "an ignored record doesn't count as native discovery");
+        assert_eq!(note_peer_at(sh, note("P", "b1"), PeerSource::Native, now), NoteOutcome::Fresh("P".into()));
+        assert_eq!(relay.peer_count(), 1);
+        let reg = sh.registry.lock().unwrap();
+        let p = reg.live_for_branch("b1", now)[0].clone();
+        assert_eq!(p.station_id, None, "empty TXT becomes None");
+        assert_eq!(p.device_code.as_deref(), Some("12A"));
+        assert_eq!(relay.discovery().native_last_ms, now);
+    }
+
+    #[test]
+    fn note_peer_refreshes_ttl_and_keeps_signed_adverts() {
+        let relay = LanRelay::new(lan_cfg("SELF", branch_key("aa", "b1")), rec());
+        let sh = &relay.shared;
+        let t0 = 1_000_000;
+        // A signed beacon told us P holds an open till.
+        let mut from_beacon = peer("P", "b1", Some("T1"), t0);
+        from_beacon.role = "teller".into();
+        sh.registry.lock().unwrap().upsert(from_beacon);
+        // Re-noted just before expiry: refreshed, advert kept.
+        let t1 = t0 + PEER_TTL_MS - 1;
+        assert_eq!(note_peer_at(sh, note("P", "b1"), PeerSource::Mdns, t1), NoteOutcome::Refreshed);
+        let t2 = t1 + PEER_TTL_MS - 1;
+        {
+            let reg = sh.registry.lock().unwrap();
+            let live = reg.live_for_branch("b1", t2);
+            assert_eq!(live.len(), 1, "a re-noted peer outlives the original TTL");
+            assert_eq!(live[0].open_shift_id.as_deref(), Some("T1"), "unsigned TXT never erases the beacon advert");
+        }
+        assert_eq!(relay.discovery().native_last_ms, 0, "mDNS is not the native path");
+        // Not re-noted: it expires, and the next note is fresh again.
+        let t3 = t1 + PEER_TTL_MS + 1;
+        assert!(sh.registry.lock().unwrap().live_for_branch("b1", t3).is_empty());
+        assert_eq!(note_peer_at(sh, note("P", "b1"), PeerSource::Native, t3), NoteOutcome::Fresh("P".into()));
     }
 
     /// A busy fixed port no longer kills the relay: two relays configured for
