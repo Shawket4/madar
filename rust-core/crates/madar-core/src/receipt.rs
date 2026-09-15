@@ -2148,6 +2148,8 @@ pub struct KitchenChit {
     pub ticket_ref: Option<String>,
     /// Already-local, already-formatted. The renderer never guesses a timezone.
     pub at: String,
+    /// Who sent it — the signed-in teller or waiter, for a cook with a question.
+    pub teller: Option<String>,
 }
 
 /// The words a chit needs.
@@ -2225,7 +2227,116 @@ pub fn kitchen_chit_layout(
         None => chit.at.clone(),
     };
     out.push(Line::plain(foot));
+    if let Some(by) = chit.teller.as_deref().filter(|s| !s.trim().is_empty()) {
+        out.push(Line::plain(by.trim()));
+    }
     out
+}
+
+/// One printed line of a chit, for the preview sheet: the same lines the
+/// printer gets, so the preview can never show a different document.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ChitLineView {
+    pub text: String,
+    pub centered: bool,
+    pub bold: bool,
+    /// Double-size print (the table, the item).
+    pub large: bool,
+}
+
+/// One cart line's chit, ready to print and to preview: the printer bytes
+/// (in the target printer's dialect), the same document as preview lines,
+/// and where it goes.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
+pub struct CartLineChit {
+    pub chit: KitchenChit,
+    pub preview: Vec<ChitLineView>,
+    pub bytes: Vec<u8>,
+    pub target: crate::kds::ChitPrinterTarget,
+}
+
+/// The WHOLE cart printed as one kitchen job — every line's own chit (each
+/// still carrying its own routing target, unused by the print path itself
+/// but kept for the preview/UI), the cart-level kitchen note, the combined
+/// bytes ready to stream to the till printer, and the combined preview.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
+pub struct CartKitchenChit {
+    pub items: Vec<CartLineChit>,
+    /// The cart-level kitchen note, if any (never the order note, never the
+    /// receipt).
+    pub cart_note: Option<String>,
+    pub bytes: Vec<u8>,
+    pub preview: Vec<ChitLineView>,
+}
+
+/// The chit's lines as the preview draws them.
+pub fn kitchen_chit_preview(chit: &KitchenChit, labels: &KitchenChitLabels, width: u32) -> Vec<ChitLineView> {
+    kitchen_chit_layout(chit, labels, width)
+        .into_iter()
+        .map(|l| ChitLineView {
+            text: l.text,
+            centered: matches!(l.align, Align::Center),
+            bold: l.bold,
+            large: matches!(l.size, Size::Double),
+        })
+        .collect()
+}
+
+/// Build the chit for ONE cart line. Everything changed about the dish is
+/// flattened into one list — a cook does not care which of the cart's three
+/// lists a modification came from.
+pub fn chit_for_cart_line(
+    line: &crate::cart::CartLineView,
+    table_label: Option<String>,
+    ticket_ref: Option<String>,
+    at: String,
+    teller: Option<String>,
+) -> KitchenChit {
+    let mut modifiers: Vec<String> = Vec::new();
+    for a in &line.addons {
+        modifiers.push(if a.qty > 1 { format!("{} x{}", a.name, a.qty) } else { a.name.clone() });
+    }
+    for o in &line.optionals {
+        modifiers.push(o.name.clone());
+    }
+    for c in &line.bundle_components {
+        let name = match c.size_label.as_deref().filter(|s| !s.trim().is_empty()) {
+            Some(sz) => format!("{}x {} ({})", c.qty, c.name, sz.trim()),
+            None => format!("{}x {}", c.qty, c.name),
+        };
+        modifiers.push(name);
+        for a in &c.addons {
+            modifiers.push(format!("   {}", a.name));
+        }
+        for o in &c.optionals {
+            modifiers.push(format!("   {}", o.name));
+        }
+    }
+    // The order note (also on the receipt) and the kitchen-only note (never
+    // on the receipt, local-only) both belong on the chit a cook reads —
+    // join them so neither is silently dropped when both are set.
+    let order_note = line.notes.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let kitchen_note = line.kitchen_note.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let note = match (order_note, kitchen_note) {
+        (Some(o), Some(k)) => Some(format!("{o} — {k}")),
+        (Some(o), None) => Some(o.to_string()),
+        (None, Some(k)) => Some(k.to_string()),
+        (None, None) => None,
+    };
+    KitchenChit {
+        item: line.name.clone(),
+        qty: line.qty,
+        size_label: line.size_label.clone(),
+        modifiers,
+        note,
+        table_label,
+        ticket_ref,
+        at,
+        teller,
+    }
 }
 
 /// Render a kitchen chit to printer bytes.
@@ -2260,6 +2371,7 @@ mod kitchen_chit_tests {
             table_label: Some("T4".into()),
             ticket_ref: Some("T-0412".into()),
             at: "19:42".into(),
+            teller: Some("Mona".into()),
         }
     }
 
@@ -2336,6 +2448,7 @@ mod kitchen_chit_tests {
             table_label: None,
             ticket_ref: None,
             at: "19:42".into(),
+            teller: None,
         };
         let lines = kitchen_chit_layout(&bare, &labels(), 32);
         let all = text_of(&lines).join("\n");
@@ -2361,5 +2474,57 @@ mod kitchen_chit_tests {
             .collect();
         assert_eq!(mods.len(), 1, "only the real modifier survives");
         assert!(!text_of(&lines).join("\n").contains("NOTE:"));
+    }
+
+    fn cart_line() -> crate::cart::CartLineView {
+        use crate::cart::{CartAddonView, CartOptionalView};
+        crate::cart::CartLineView {
+            key: "k1".into(),
+            item_id: "item-1".into(),
+            name: "Burger".into(),
+            size_label: Some("Double".into()),
+            addons: vec![
+                CartAddonView { addon_item_id: "a1".into(), name: "Cheese".into(), qty: 2, price_modifier_minor: 500 },
+                CartAddonView { addon_item_id: "a2".into(), name: "Bacon".into(), qty: 1, price_modifier_minor: 900 },
+            ],
+            optionals: vec![CartOptionalView { optional_field_id: "o1".into(), name: "No onions".into(), price_minor: 0 }],
+            notes: Some("well done".into()),
+            unit_price_minor: 12_000,
+            qty: 3,
+            line_total_minor: 36_000,
+            bundle_id: None,
+            bundle_components: vec![],
+            kitchen_note: None,
+        }
+    }
+
+    #[test]
+    fn a_single_cart_line_chit_carries_the_whole_dish() {
+        let chit = chit_for_cart_line(&cart_line(), Some("T7".into()), Some("R-9".into()), "13:05".into(), Some("Sara".into()));
+        assert_eq!(chit.item, "Burger");
+        assert_eq!(chit.qty, 3);
+        assert_eq!(chit.modifiers, vec!["Cheese x2".to_string(), "Bacon".into(), "No onions".into()]);
+        let lines = kitchen_chit_preview(&chit, &labels(), 32);
+        let all: Vec<String> = lines.iter().map(|l| l.text.clone()).collect();
+        let joined = all.join("\n");
+        let item = lines.iter().find(|l| l.text == "3x Burger (Double)").expect("item line");
+        assert!(item.large && item.bold, "the dish prints big:\n{joined}");
+        for want in ["KITCHEN", "Table T7", "  - Cheese x2", "  - Bacon", "  - No onions", "NOTE: well done", "R-9  13:05", "Sara"] {
+            assert!(all.iter().any(|l| l == want), "missing {want:?}:\n{joined}");
+        }
+        assert!(!joined.contains("120") && !joined.contains("360"), "no money on a chit:\n{joined}");
+        // The preview is the printed document, line for line.
+        assert_eq!(all, text_of(&kitchen_chit_layout(&chit, &labels(), 32)));
+    }
+
+    #[test]
+    fn a_counter_cart_line_chit_has_no_table() {
+        let mut line = cart_line();
+        line.notes = None;
+        let chit = chit_for_cart_line(&line, None, None, "13:05".into(), None);
+        let joined = text_of(&kitchen_chit_layout(&chit, &labels(), 32)).join("\n");
+        assert!(!joined.contains("Table"));
+        assert!(!joined.contains("NOTE:"));
+        assert!(joined.contains("3x Burger (Double)"));
     }
 }

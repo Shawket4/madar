@@ -417,6 +417,25 @@ class _FakeBridge implements MadarBridge {
   /// Tables seated during the test — the floor reads them back seated.
   final Set<String> seated = {};
 
+  /// The cart lines a kitchen chit was built for, by line key.
+  final List<String> chitsBuilt = [];
+
+  /// Chits sent to a printer, as (host, bytes).
+  final List<(String, List<int>)> chitsSent = [];
+
+  /// Each context's per-line kitchen notes, by line key — mirrors the
+  /// core's kv-joined [CartLineView.kitchenNote].
+  final Map<String?, Map<String, String>> lineKitchenNotes = {};
+
+  /// Each context's cart-level kitchen note.
+  final Map<String?, String> cartKitchenNotes = {};
+
+  /// How many times the whole cart was printed to the kitchen.
+  int cartKitchenChitsBuilt = 0;
+
+  /// Bytes sent for a whole-cart kitchen print, via the till transport.
+  final List<List<int>> cartChitsSent = [];
+
   List<CartLineView> _cartOf(Invocation i) =>
       carts[i.namedArguments[#tableId] as String?] ??= [];
 
@@ -553,8 +572,153 @@ class _FakeBridge implements MadarBridge {
         const TicketFiredView(ticketId: 'tk-new', queuedOffline: false),
       );
     }
+    // One cart line's chit: the core routes it to the Grill's printer, so a
+    // print lands in `sendToPrinter` where the test can count it.
+    if (name == #cartLineChit) {
+      final key = invocation.namedArguments[#lineKey] as String;
+      chitsBuilt.add(key);
+      return Future<CartLineChit>.value(
+        CartLineChit(
+          chit: KitchenChit(
+            item: key,
+            qty: 1,
+            modifiers: const [],
+            at: '13:05',
+          ),
+          preview: [
+            const ChitLineView(
+              text: 'KITCHEN',
+              centered: true,
+              bold: true,
+              large: false,
+            ),
+            ChitLineView(
+              text: '1x $key',
+              centered: false,
+              bold: true,
+              large: true,
+            ),
+          ],
+          bytes: Uint8List.fromList(const [0x1b, 0x40]),
+          target: const ChitPrinterTarget(
+            stationName: 'Grill',
+            host: '10.0.0.5',
+            port: 9100,
+          ),
+        ),
+      );
+    }
+    if (name == #sendToPrinter) {
+      chitsSent.add((
+        invocation.namedArguments[#host] as String,
+        invocation.namedArguments[#bytes] as List<int>,
+      ));
+      return Future<void>.value();
+    }
     if (name == #cartLines) {
-      return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
+      final tableId = invocation.namedArguments[#tableId] as String?;
+      final notes = lineKitchenNotes[tableId] ?? const {};
+      CartLineView withNote(CartLineView l) {
+        final note = notes[l.key];
+        if (note == null) return l;
+        return CartLineView(
+          key: l.key,
+          itemId: l.itemId,
+          name: l.name,
+          sizeLabel: l.sizeLabel,
+          addons: l.addons,
+          optionals: l.optionals,
+          notes: l.notes,
+          unitPriceMinor: l.unitPriceMinor,
+          qty: l.qty,
+          lineTotalMinor: l.lineTotalMinor,
+          bundleId: l.bundleId,
+          bundleComponents: l.bundleComponents,
+          kitchenNote: note,
+        );
+      }
+
+      return Future<List<CartLineView>>.value([
+        for (final l in _cartOf(invocation)) withNote(l),
+      ]);
+    }
+    if (name == #cartSetLineKitchenNote) {
+      final tableId = invocation.namedArguments[#tableId] as String?;
+      final lineKey = invocation.namedArguments[#lineKey] as String;
+      final note = invocation.namedArguments[#note] as String?;
+      final map = lineKitchenNotes[tableId] ??= {};
+      if (note == null) {
+        map.remove(lineKey);
+      } else {
+        map[lineKey] = note;
+      }
+      return Future<void>.value();
+    }
+    if (name == #cartClearLineKitchenNote) {
+      final tableId = invocation.namedArguments[#tableId] as String?;
+      final lineKey = invocation.namedArguments[#lineKey] as String;
+      lineKitchenNotes[tableId]?.remove(lineKey);
+      return Future<void>.value();
+    }
+    if (name == #cartSetKitchenNote) {
+      final tableId = invocation.namedArguments[#tableId] as String?;
+      final note = invocation.namedArguments[#note] as String?;
+      if (note == null) {
+        cartKitchenNotes.remove(tableId);
+      } else {
+        cartKitchenNotes[tableId] = note;
+      }
+      return Future<void>.value();
+    }
+    if (name == #cartKitchenNote) {
+      return Future<String?>.value(
+        cartKitchenNotes[invocation.namedArguments[#tableId] as String?],
+      );
+    }
+    if (name == #cartClearKitchenNote) {
+      cartKitchenNotes.remove(invocation.namedArguments[#tableId] as String?);
+      return Future<void>.value();
+    }
+    if (name == #cartClearAllKitchenNotes) {
+      final tableId = invocation.namedArguments[#tableId] as String?;
+      cartKitchenNotes.remove(tableId);
+      lineKitchenNotes[tableId]?.clear();
+      return Future<void>.value();
+    }
+    // The whole cart as one kitchen chit — always the till printer, so the
+    // test only checks it was asked to build one (never routed by station).
+    if (name == #cartKitchenChit) {
+      cartKitchenChitsBuilt += 1;
+      final lines = _cartOf(invocation);
+      return Future<CartKitchenChit>.value(
+        CartKitchenChit(
+          items: [
+            for (final l in lines)
+              CartLineChit(
+                chit: KitchenChit(
+                  item: l.name,
+                  qty: l.qty,
+                  modifiers: const [],
+                  at: '13:05',
+                ),
+                preview: [
+                  ChitLineView(
+                    text: '${l.qty}x ${l.name}',
+                    centered: false,
+                    bold: true,
+                    large: true,
+                  ),
+                ],
+                bytes: Uint8List.fromList(const [0x1b, 0x40]),
+                target: const ChitPrinterTarget(),
+              ),
+          ],
+          cartNote: cartKitchenNotes[
+              invocation.namedArguments[#tableId] as String?],
+          bytes: Uint8List.fromList(const [0x1b, 0x40]),
+          preview: const [],
+        ),
+      );
     }
     if (name == #cartTotals) return Future<CartTotals>.value(_totals);
     if (name == #listDrafts) return Future<List<DraftView>>.value(drafts);

@@ -3278,6 +3278,128 @@ impl MadarCore {
         receipt::escpos_kitchen_chit(&chit, &labels, width, brand)
     }
 
+    /// ONE cart line as a kitchen chit, sent early from the cart — built with
+    /// the kitchen chit renderer and routed like a fired round would route
+    /// that item: its station's printer, else the device's till printer.
+    ///
+    /// Changes nothing: the line is not marked sent and checkout still prints
+    /// the whole round. Local only — the line, the menu, the stations and the
+    /// routes all come from the device's rows; no network.
+    ///
+    /// `till_brand` is the till printer's dialect, used when the chit falls
+    /// back to the till; a station printer's own brand wins otherwise.
+    pub fn cart_line_chit(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+        table_label: Option<String>,
+        ticket_ref: Option<String>,
+        width: u32,
+        till_brand: receipt::PrinterBrand,
+    ) -> Result<receipt::CartLineChit, CoreError> {
+        let line = cart::lines(&self.store, table_id.as_deref())?
+            .into_iter()
+            .find(|l| l.key == line_key)
+            .ok_or_else(|| CoreError::Validation { field: "line_key".into(), detail: "cart line not found".into() })?;
+        self.build_line_chit(&line, table_label, ticket_ref, width, till_brand)
+    }
+
+    /// Shared by [`Self::cart_line_chit`] and [`Self::cart_kitchen_chit`]: one
+    /// line, resolved and rendered with the kitchen chit renderer, routed and
+    /// worded exactly the same way whichever button asked for it.
+    fn build_line_chit(
+        &self,
+        line: &cart::CartLineView,
+        table_label: Option<String>,
+        ticket_ref: Option<String>,
+        width: u32,
+        till_brand: receipt::PrinterBrand,
+    ) -> Result<receipt::CartLineChit, CoreError> {
+        let loc = self.current_locale();
+        let tr = |k: &str| i18n::tr(&loc, k);
+        let at = timefmt::format(&self.store, &self.corrected_now().to_rfc3339(), timefmt::TimeStyle::Time, &loc);
+        let teller = self.current_session().map(|s| s.display_name).filter(|n| !n.trim().is_empty());
+        let chit = receipt::chit_for_cart_line(line, table_label, ticket_ref, at, teller);
+
+        let category_id = menu::menu_items(&self.store, &loc)
+            .ok()
+            .and_then(|items| items.into_iter().find(|i| i.id == line.item_id))
+            .and_then(|i| i.category_id);
+        let stations: Vec<kds::KdsStationView> = self
+            .branch_field::<Vec<madar_api::models::KitchenStation>>(branch_reads::F_STATIONS)
+            .ok()
+            .and_then(|s| s.value())
+            .unwrap_or_default()
+            .iter()
+            .map(kds::station_view)
+            .collect();
+        let routes = self
+            .branch_field::<madar_api::models::StationRoutes>(kds::F_ROUTES)
+            .ok()
+            .and_then(|s| s.value())
+            .unwrap_or_else(|| madar_api::models::StationRoutes { categories: vec![], items: vec![] });
+        let target = kds::resolve_chit_printer(&line.item_id, category_id.as_deref(), &routes, &stations);
+
+        let brand = match target.brand.as_deref() {
+            Some("star") if !target.is_till() => receipt::PrinterBrand::Star,
+            Some(_) if !target.is_till() => receipt::PrinterBrand::Epson,
+            _ => till_brand,
+        };
+        let labels = receipt::KitchenChitLabels {
+            heading: tr("kitchen.chit_heading"),
+            table: tr("kitchen.chit_table"),
+            note: tr("kitchen.chit_note"),
+        };
+        Ok(receipt::CartLineChit {
+            preview: receipt::kitchen_chit_preview(&chit, &labels, width),
+            bytes: receipt::escpos_kitchen_chit(&chit, &labels, width, brand),
+            chit,
+            target,
+        })
+    }
+
+    /// The WHOLE cart as one kitchen print — every line's chit (with its own
+    /// kitchen note), one after another, plus the cart-level kitchen note as
+    /// a header line. An EXTRA copy for the kitchen: it changes nothing about
+    /// checkout/fire printing, and nothing is marked sent.
+    ///
+    /// Printed to the device's own till printer — a whole-cart copy is a
+    /// backup/manual pass, not a per-station routing decision, so it does
+    /// not follow [`kds::resolve_chit_printer`] the way the per-line button
+    /// does.
+    pub fn cart_kitchen_chit(
+        &self,
+        table_id: Option<String>,
+        table_label: Option<String>,
+        ticket_ref: Option<String>,
+        width: u32,
+        till_brand: receipt::PrinterBrand,
+    ) -> Result<receipt::CartKitchenChit, CoreError> {
+        let lines = cart::lines(&self.store, table_id.as_deref())?;
+        let cart_note = cart::kitchen_note(&self.store, table_id.as_deref())?;
+        let loc = self.current_locale();
+        let tr = |k: &str| i18n::tr(&loc, k);
+
+        let mut items = Vec::with_capacity(lines.len());
+        let mut bytes = Vec::new();
+        let mut preview = Vec::new();
+        if let Some(n) = cart_note.as_deref().filter(|s| !s.trim().is_empty()) {
+            preview.push(receipt::ChitLineView {
+                text: format!("{} {}", tr("kitchen.chit_note"), n.trim()),
+                centered: false,
+                bold: true,
+                large: false,
+            });
+        }
+        for line in &lines {
+            let one = self.build_line_chit(line, table_label.clone(), ticket_ref.clone(), width, till_brand)?;
+            bytes.extend_from_slice(&one.bytes);
+            preview.extend(one.preview.clone());
+            items.push(one);
+        }
+        Ok(receipt::CartKitchenChit { items, cart_note, bytes, preview })
+    }
+
     pub fn render_receipt(
         &self,
         receipt: checkout::ReceiptView,
@@ -4582,6 +4704,52 @@ impl MadarCore {
     /// The cart's order note, or `None`.
     pub fn cart_note(&self, table_id: Option<String>) -> Result<Option<String>, CoreError> {
         cart::note(&self.store, table_id.as_deref())
+    }
+    /// Set or clear (None / blank) ONE cart line's KITCHEN-ONLY note, by its
+    /// line key ([`cart::CartLineView::key`]). Local only: never rides the
+    /// checkout payload, never prints on the customer receipt — a scribble
+    /// for the cook, meant to be read on that line's chit and then gone.
+    pub fn cart_set_line_kitchen_note(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+        note: Option<String>,
+    ) -> Result<(), CoreError> {
+        cart::set_line_kitchen_note(&self.store, table_id.as_deref(), &line_key, note.as_deref())
+    }
+    /// Clear one line's kitchen note — call once that line's chit has
+    /// actually printed (not on preview alone).
+    pub fn cart_clear_line_kitchen_note(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+    ) -> Result<(), CoreError> {
+        cart::clear_line_kitchen_note(&self.store, table_id.as_deref(), &line_key)
+    }
+    /// Set or clear (None / blank) the CART-level kitchen note — the
+    /// whole-cart kitchen print's own note. Distinct from [`Self::cart_set_note`]'s
+    /// order note: local only, kitchen-chit only.
+    pub fn cart_set_kitchen_note(
+        &self,
+        table_id: Option<String>,
+        note: Option<String>,
+    ) -> Result<(), CoreError> {
+        cart::set_kitchen_note(&self.store, table_id.as_deref(), note.as_deref())
+    }
+    /// The cart's kitchen-only note, or `None`.
+    pub fn cart_kitchen_note(&self, table_id: Option<String>) -> Result<Option<String>, CoreError> {
+        cart::kitchen_note(&self.store, table_id.as_deref())
+    }
+    /// Clear the cart-level kitchen note — call once the whole-cart chit has
+    /// actually printed.
+    pub fn cart_clear_kitchen_note(&self, table_id: Option<String>) -> Result<(), CoreError> {
+        cart::clear_kitchen_note(&self.store, table_id.as_deref())
+    }
+    /// Clear EVERY kitchen note in this cart — the cart-level one and every
+    /// line's own — in one go. Call once the whole-cart kitchen print has
+    /// actually printed.
+    pub fn cart_clear_all_kitchen_notes(&self, table_id: Option<String>) -> Result<(), CoreError> {
+        cart::clear_all_kitchen_notes(&self.store, table_id.as_deref())
     }
     /// The selected discount id (for the tender UI), or `None`.
     pub fn cart_discount_id(&self, table_id: Option<String>) -> Result<Option<String>, CoreError> {

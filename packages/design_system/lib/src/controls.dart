@@ -464,6 +464,7 @@ class MadarMoneyBar extends StatelessWidget {
 class MadarGlyphTile extends StatelessWidget {
   const MadarGlyphTile({
     required this.onTap,
+    this.onLongPress,
     this.glyph,
     this.icon,
     this.tint,
@@ -482,6 +483,11 @@ class MadarGlyphTile extends StatelessWidget {
 
   /// Tap handler; fires after the impact haptic.
   final VoidCallback onTap;
+
+  /// Optional long press — the preview behind a tile whose tap commits, the
+  /// same contract as [MadarButton.onLongPress]: a print tile prints on tap
+  /// and shows the paper on long press.
+  final VoidCallback? onLongPress;
 
   /// Glyph colour. Defaults to the primary text.
   final Color? tint;
@@ -524,6 +530,12 @@ class MadarGlyphTile extends StatelessWidget {
           MadarHaptics.impact();
           onTap();
         },
+        onLongPress: onLongPress == null
+            ? null
+            : () {
+                MadarHaptics.impact();
+                onLongPress!();
+              },
         child: tile,
       );
     }

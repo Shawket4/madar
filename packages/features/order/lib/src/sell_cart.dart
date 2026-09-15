@@ -8,15 +8,27 @@
 //     time each round went to the kitchen), then THIS ROUND (editable), then
 //     Round · Bill so far, then Fire.
 //
-// What it does not carry, on purpose: a per-line kitchen printer button (a
-// round prints once when it fires), a discount row (that is Charge's), a tax
+// Each line of this round carries a print tile that sends just that dish to
+// the kitchen early (tap prints, long press previews). It is EXTRA paper: it
+// marks nothing sent, and the round still prints in full when it fires.
+//
+// What it does not carry, on purpose: a discount row (that is Charge's), a tax
 // row (also Charge's), a tip card, or a table picker (the Floor does that).
 import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart'
-    show discountLabel, showCartDiscountPicker;
+    show
+        CartKitchenChitSheet,
+        KitchenChitSheet,
+        PrintState,
+        buildCartKitchenChit,
+        buildCartLineChit,
+        chitPrintToast,
+        discountLabel,
+        printCartKitchenChit,
+        showCartDiscountPicker;
 import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/floor_list.dart';
 import 'package:feature_order/src/order_providers.dart';
@@ -194,6 +206,8 @@ class SellCart extends ConsumerWidget {
               tableId: tableId,
               counter: isCounterFlow,
               lineCount: lines.length,
+              tableLabel: tableLabel,
+              ticketRef: ticket?.ticketRef,
             ),
           Expanded(
             child: lines.isEmpty && ticket == null
@@ -271,6 +285,8 @@ class SellCart extends ConsumerWidget {
                           tableId: tableId,
                           key: ValueKey('round-${line.key}'),
                           line: line,
+                          tableLabel: tableLabel,
+                          ticketRef: ticket?.ticketRef,
                           currency: state.currency,
                           onEdit: line.bundleId == null
                               ? () => onEditLine(line)
@@ -510,14 +526,49 @@ class _RoundLine extends ConsumerWidget {
     required this.tableId,
     required this.line,
     required this.currency,
+    this.tableLabel,
+    this.ticketRef,
     this.onEdit,
     super.key,
   });
 
   final String? tableId;
   final CartLineView line;
+
+  /// Where the chit says it goes, and the bill it belongs to — the same
+  /// context a fired round prints with.
+  final String? tableLabel;
+  final String? ticketRef;
   final String currency;
   final VoidCallback? onEdit;
+
+  /// Build the chit in the core and show it on the print preview sheet; the
+  /// sheet's Print sends it. A chit the core cannot build says so.
+  Future<void> _previewChit(BuildContext context, WidgetRef ref) async {
+    final bridge = ref.read(bridgeProvider);
+    final CartLineChit chit;
+    try {
+      chit = await buildCartLineChit(
+        bridge,
+        tableId: tableId,
+        lineKey: line.key,
+        tableLabel: tableLabel,
+        ticketRef: ticketRef,
+      );
+    } on Object {
+      final toast = chitPrintToast(bridge, PrintState.failed);
+      ref
+          .read(orderProvider.notifier)
+          .showToast(toast.text, tone: toast.tone, icon: toast.icon);
+      return;
+    }
+    if (!context.mounted) return;
+    await showMadarSheet<void>(
+      context,
+      size: SheetSize.large,
+      builder: (_) => KitchenChitSheet(chit: chit, tableId: tableId, lineKey: line.key),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -581,6 +632,16 @@ class _RoundLine extends ConsumerWidget {
                       fontStyle: FontStyle.italic,
                     ),
                   ),
+                if (line.kitchenNote case final k? when k.trim().isNotEmpty)
+                  Text(
+                    '${orderWord(ref.read(bridgeProvider), 'sell.kitchen_note')}: ${k.trim()}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MadarType.bodySm.copyWith(
+                      color: colors.warning,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
                 const SizedBox(height: Space.xs),
                 MoneyText(
                   line.lineTotalMinor,
@@ -593,6 +654,37 @@ class _RoundLine extends ConsumerWidget {
           MadarStepper(
             value: line.qty,
             onChanged: (q) => unawaited(notifier.setQty(line.key, q)),
+          ),
+          // A scribble for the cook on THIS dish's chit only — local, never
+          // the order, never the receipt.
+          MadarGlyphTile(
+            key: ValueKey('kitchen-note-${line.key}'),
+            glyph: MadarGlyph.note,
+            semanticLabel: orderWord(
+              ref.read(bridgeProvider),
+              'sell.kitchen_note',
+            ),
+            onTap: () => unawaited(
+              editLineKitchenNote(context, ref, tableId: tableId, line: line),
+            ),
+          ),
+          // Send just this dish to the kitchen now: tap prints, long press
+          // shows the chit first — the kit's print contract.
+          MadarGlyphTile(
+            key: ValueKey('print-${line.key}'),
+            glyph: MadarGlyph.printer,
+            semanticLabel: ref.read(bridgeProvider).tr(key: 'printing.chit'),
+            onTap: () => unawaited(
+              ref
+                  .read(orderProvider.notifier)
+                  .printKitchenChit(
+                    line,
+                    tableId: tableId,
+                    tableLabel: tableLabel,
+                    ticketRef: ticketRef,
+                  ),
+            ),
+            onLongPress: () => unawaited(_previewChit(context, ref)),
           ),
         ],
       ),
@@ -975,6 +1067,8 @@ class _CartSummary extends ConsumerWidget {
     required this.tableId,
     required this.counter,
     required this.lineCount,
+    this.tableLabel,
+    this.ticketRef,
   });
 
   final String? tableId;
@@ -983,6 +1077,9 @@ class _CartSummary extends ConsumerWidget {
 
   /// Re-asks the core for the note whenever the cart changes shape.
   final int lineCount;
+
+  final String? tableLabel;
+  final String? ticketRef;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -996,6 +1093,9 @@ class _CartSummary extends ConsumerWidget {
         .watch(_cartDiscountLabelProvider((tableId, discountMinor)))
         .value;
     final note = ref.watch(_cartNoteProvider((tableId, lineCount))).value;
+    final kitchenNote = ref
+        .watch(_cartKitchenNoteProvider((tableId, lineCount)))
+        .value;
     return ColoredBox(
       color: colors.bg,
       child: Column(
@@ -1041,6 +1141,39 @@ class _CartSummary extends ConsumerWidget {
                   glyph: MadarGlyph.note,
                   selected: note != null,
                   onTap: () => unawaited(editCartNote(context, ref, tableId)),
+                ),
+                MadarChip(
+                  label: kitchenNote ?? orderWord(bridge, 'sell.kitchen_note'),
+                  glyph: MadarGlyph.note,
+                  selected: kitchenNote != null,
+                  onTap: () =>
+                      unawaited(editCartKitchenNote(context, ref, tableId)),
+                ),
+                // The whole cart as one kitchen print, in addition to fire /
+                // checkout printing — tap prints now, long press previews
+                // first, exactly the per-line button's contract.
+                MadarGlyphTile(
+                  key: const ValueKey('print-cart-kitchen'),
+                  glyph: MadarGlyph.printer,
+                  semanticLabel: bridge.tr(key: 'printing.cart_chit'),
+                  onTap: () => unawaited(
+                    _printWholeCartToKitchen(
+                      context,
+                      ref,
+                      tableId: tableId,
+                      tableLabel: tableLabel,
+                      ticketRef: ticketRef,
+                    ),
+                  ),
+                  onLongPress: () => unawaited(
+                    _previewWholeCartKitchenChit(
+                      context,
+                      ref,
+                      tableId: tableId,
+                      tableLabel: tableLabel,
+                      ticketRef: ticketRef,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1103,6 +1236,188 @@ Future<void> editCartNote(
     note: saved.trim().isEmpty ? null : saved.trim(),
   );
   ref.invalidate(_cartNoteProvider);
+}
+
+/// Print the WHOLE cart to the kitchen right now (short press): every line's
+/// chit, one after another, plus the cart-level kitchen note. An EXTRA copy
+/// for the kitchen — checkout/fire printing is unchanged, nothing is marked
+/// sent. On success, clears the cart-level note and every line's own note.
+Future<void> _printWholeCartToKitchen(
+  BuildContext context,
+  WidgetRef ref, {
+  required String? tableId,
+  String? tableLabel,
+  String? ticketRef,
+}) async {
+  final bridge = ref.read(bridgeProvider);
+  PrintState result;
+  try {
+    final chit = await buildCartKitchenChit(
+      bridge,
+      tableId: tableId,
+      tableLabel: tableLabel,
+      ticketRef: ticketRef,
+    );
+    result = await printCartKitchenChit(
+      ref.read(printerServiceProvider),
+      chit,
+    );
+    if (result == PrintState.printed) {
+      await bridge.cartClearAllKitchenNotes(tableId: tableId);
+      ref.invalidate(_cartKitchenNoteProvider);
+      await ref.read(cartProvider(tableId).notifier).load();
+    }
+  } on Object {
+    result = PrintState.failed;
+  }
+  if (!context.mounted) return;
+  final toast = chitPrintToast(bridge, result);
+  ref
+      .read(orderProvider.notifier)
+      .showToast(toast.text, tone: toast.tone, icon: toast.icon);
+}
+
+/// Long press: build the whole-cart chit in the core and show it on the
+/// print preview sheet first; the sheet's Print sends it (and clears notes
+/// on success, same as the short press).
+Future<void> _previewWholeCartKitchenChit(
+  BuildContext context,
+  WidgetRef ref, {
+  required String? tableId,
+  String? tableLabel,
+  String? ticketRef,
+}) async {
+  final bridge = ref.read(bridgeProvider);
+  final CartKitchenChit chit;
+  try {
+    chit = await buildCartKitchenChit(
+      bridge,
+      tableId: tableId,
+      tableLabel: tableLabel,
+      ticketRef: ticketRef,
+    );
+  } on Object {
+    final toast = chitPrintToast(bridge, PrintState.failed);
+    ref
+        .read(orderProvider.notifier)
+        .showToast(toast.text, tone: toast.tone, icon: toast.icon);
+    return;
+  }
+  if (!context.mounted) return;
+  await showMadarSheet<void>(
+    context,
+    size: SheetSize.large,
+    builder: (_) => CartKitchenChitSheet(chit: chit, tableId: tableId),
+  );
+  // The preview sheet's own notifier cleared notes on print; refresh what
+  // this screen shows either way.
+  ref.invalidate(_cartKitchenNoteProvider);
+  await ref.read(cartProvider(tableId).notifier).load();
+}
+
+/// The cart's KITCHEN-ONLY note, from the core — local, never checkout,
+/// never the receipt, cleared once the whole-cart chit prints.
+final FutureProviderFamily<String?, (String?, int)> _cartKitchenNoteProvider =
+    FutureProvider.autoDispose.family<String?, (String?, int)>(
+      (ref, key) => ref.read(bridgeProvider).cartKitchenNote(tableId: key.$1),
+    );
+
+/// Type (or clear) the CART-level kitchen note — the whole-cart print's own
+/// note. Never rides the order note, never the receipt, and is cleared the
+/// moment the whole-cart chit actually prints.
+Future<void> editCartKitchenNote(
+  BuildContext context,
+  WidgetRef ref,
+  String? tableId,
+) async {
+  final bridge = ref.read(bridgeProvider);
+  final controller = TextEditingController(
+    text: await bridge.cartKitchenNote(tableId: tableId) ?? '',
+  );
+  if (!context.mounted) return;
+  final saved = await showMadarSheet<String>(
+    context,
+    size: SheetSize.hug,
+    maxWidth: Responsive.sheetCompactMaxWidth,
+    builder: (sheetContext) => Padding(
+      padding: const EdgeInsetsDirectional.all(Space.xl),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.lg,
+        children: [
+          Text(orderWord(bridge, 'sell.cart_kitchen_note_title'), style: MadarType.h2),
+          MadarField(
+            controller: controller,
+            placeholder: orderWord(bridge, 'sell.cart_kitchen_note_hint'),
+            icon: 'text.bubble',
+            autofocus: true,
+          ),
+          MadarButton(
+            label: bridge.tr(key: 'common.save'),
+            onTap: () => Navigator.of(sheetContext).pop(controller.text),
+          ),
+        ],
+      ),
+    ),
+  );
+  // NOT disposed here: `Navigator.pop` completes this future before the
+  // sheet's own close animation is done, and that animation still rebuilds
+  // the field for a few more frames — disposing now throws "used after
+  // being disposed" mid-close. The controller is short-lived and ownerless
+  // once the sheet is gone, so it is left for the GC rather than raced.
+  if (saved == null) return;
+  await bridge.cartSetKitchenNote(
+    tableId: tableId,
+    note: saved.trim().isEmpty ? null : saved.trim(),
+  );
+  ref.invalidate(_cartKitchenNoteProvider);
+}
+
+/// Type (or clear) ONE cart line's KITCHEN-ONLY note. Local, kitchen-chit
+/// only; cleared the moment that line's chit actually prints.
+Future<void> editLineKitchenNote(
+  BuildContext context,
+  WidgetRef ref, {
+  required String? tableId,
+  required CartLineView line,
+}) async {
+  final bridge = ref.read(bridgeProvider);
+  final controller = TextEditingController(text: line.kitchenNote ?? '');
+  final saved = await showMadarSheet<String>(
+    context,
+    size: SheetSize.hug,
+    maxWidth: Responsive.sheetCompactMaxWidth,
+    builder: (sheetContext) => Padding(
+      padding: const EdgeInsetsDirectional.all(Space.xl),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.lg,
+        children: [
+          Text(orderWord(bridge, 'sell.kitchen_note_title'), style: MadarType.h2),
+          MadarField(
+            controller: controller,
+            placeholder: orderWord(bridge, 'sell.kitchen_note_hint'),
+            icon: 'text.bubble',
+            autofocus: true,
+          ),
+          MadarButton(
+            label: bridge.tr(key: 'common.save'),
+            onTap: () => Navigator.of(sheetContext).pop(controller.text),
+          ),
+        ],
+      ),
+    ),
+  );
+  // See `editCartKitchenNote`'s note: not disposed here on purpose.
+  if (saved == null) return;
+  await bridge.cartSetLineKitchenNote(
+    tableId: tableId,
+    lineKey: line.key,
+    note: saved.trim().isEmpty ? null : saved.trim(),
+  );
+  await ref.read(cartProvider(tableId).notifier).load();
 }
 
 /// The applied cart discount's label, or null — re-asked whenever the cart's

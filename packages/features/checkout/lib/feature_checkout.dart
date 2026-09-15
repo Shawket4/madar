@@ -35,18 +35,35 @@ export 'src/checkout_provider.dart'
         CheckoutSummary,
         checkoutProvider;
 export 'src/done_card.dart' show DoneCard, DoneCardResult, showDoneCard;
+export 'src/kitchen_chit_sheet.dart'
+    show
+        CartChitPreviewNotifier,
+        CartChitPreviewState,
+        CartKitchenChitSheet,
+        ChitPreviewNotifier,
+        ChitPreviewState,
+        KitchenChitPaper,
+        KitchenChitSheet,
+        cartChitPreviewProvider,
+        chitPreviewProvider,
+        chitPrintToast;
 export 'src/loyalty_award_sheet.dart' show LoyaltyAwardSheet;
 export 'src/loyalty_scan_sheet.dart' show LoyaltyScanSheet;
 export 'src/receipt_paper.dart' show ReceiptPaper;
 export 'src/receipt_printing.dart'
     show
         PrintState,
+        buildCartKitchenChit,
+        buildCartLineChit,
         kPrintTimeout,
         kReceiptChars,
+        printCartKitchenChit,
+        printCartLineChit,
         printReceiptView,
         printerBrandOf;
 export 'src/receipt_sheet.dart'
     show
+        PrintPreviewFrame,
         ReceiptPreviewNotifier,
         ReceiptPreviewState,
         ReceiptSheet,

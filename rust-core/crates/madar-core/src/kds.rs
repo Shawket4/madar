@@ -140,6 +140,87 @@ fn line_view(it: &models::KitchenTicketItemView) -> KdsLineView {
     }
 }
 
+// ── Chit printer routing ──────────────────────────────────────────────────────
+
+/// Where a kitchen chit for one item goes: its station's printer, or — when the
+/// item has no station with a printer — the device's own till printer.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ChitPrinterTarget {
+    /// The station the item routes to, when that station has a printer.
+    pub station_id: Option<String>,
+    pub station_name: Option<String>,
+    /// The station printer's LAN address. `None` = print on the till printer.
+    pub host: Option<String>,
+    pub port: Option<u16>,
+    /// The station printer's brand wire name (`epson` / `star`), if set.
+    pub brand: Option<String>,
+}
+
+impl ChitPrinterTarget {
+    /// The device's own till printer.
+    pub fn till() -> Self {
+        ChitPrinterTarget { station_id: None, station_name: None, host: None, port: None, brand: None }
+    }
+    pub fn is_till(&self) -> bool {
+        self.host.is_none()
+    }
+}
+
+/// JetDirect default when a station printer has an address but no port.
+pub const DEFAULT_PRINTER_PORT: u16 = 9100;
+
+/// The branch's station routes (`kitchen_routes` on the settings row).
+pub(crate) const F_ROUTES: (&str, &str) = ("kitchen_routes", "cache:kitchen_routes");
+
+/// Resolve the printer for ONE item's chit, the way a fired round routes it:
+/// the item's own route, else its category's route, else the branch's default
+/// station. The station must be active and have a printer; otherwise the chit
+/// falls back to the till printer. Pure — the caller supplies synced data.
+pub fn resolve_chit_printer(
+    item_id: &str,
+    category_id: Option<&str>,
+    routes: &models::StationRoutes,
+    stations: &[KdsStationView],
+) -> ChitPrinterTarget {
+    let routed = routes
+        .items
+        .iter()
+        .find(|r| r.menu_item_id.to_string() == item_id)
+        .map(|r| r.station_id.to_string())
+        .or_else(|| {
+            category_id.and_then(|c| {
+                routes
+                    .categories
+                    .iter()
+                    .find(|r| r.category_id.to_string() == c)
+                    .map(|r| r.station_id.to_string())
+            })
+        });
+    let station = match routed {
+        Some(id) => stations.iter().find(|s| s.id == id),
+        None => stations.iter().find(|s| s.is_default),
+    };
+    match station {
+        Some(s) if s.is_active => match s.printer_ip.as_deref().map(str::trim).filter(|h| !h.is_empty()) {
+            Some(host) => ChitPrinterTarget {
+                station_id: Some(s.id.clone()),
+                station_name: Some(s.name.clone()),
+                host: Some(host.to_string()),
+                port: Some(
+                    s.printer_port
+                        .and_then(|p| u16::try_from(p).ok())
+                        .filter(|p| *p != 0)
+                        .unwrap_or(DEFAULT_PRINTER_PORT),
+                ),
+                brand: s.printer_brand.clone(),
+            },
+            None => ChitPrinterTarget::till(),
+        },
+        _ => ChitPrinterTarget::till(),
+    }
+}
+
 // ── Routing mode ──────────────────────────────────────────────────────────────
 
 /// kv key for the branch's last-known kitchen routing mode.
@@ -511,5 +592,78 @@ mod tests {
             kitchen_is_routed(None),
             "unknown is not off — a shop that routes must not lose its readiness"
         );
+    }
+
+    // ── chit printer routing ────────────────────────────────────────────────
+
+    const ITEM: &str = "11111111-1111-1111-1111-111111111111";
+    const CAT: &str = "22222222-2222-2222-2222-222222222222";
+    const GRILL: &str = "33333333-3333-3333-3333-333333333333";
+    const BAR: &str = "44444444-4444-4444-4444-444444444444";
+
+    fn st(id: &str, name: &str, default: bool, ip: Option<&str>) -> KdsStationView {
+        KdsStationView {
+            id: id.into(),
+            name: name.into(),
+            is_default: default,
+            is_active: true,
+            printer_brand: Some("star".into()),
+            printer_ip: ip.map(Into::into),
+            printer_port: None,
+        }
+    }
+
+    fn uid(s: &str) -> uuid::Uuid {
+        uuid::Uuid::parse_str(s).unwrap()
+    }
+
+    fn no_routes() -> models::StationRoutes {
+        models::StationRoutes { categories: vec![], items: vec![] }
+    }
+
+    #[test]
+    fn a_chit_goes_to_its_stations_printer() {
+        let routes = models::StationRoutes {
+            categories: vec![],
+            items: vec![models::ItemRoute::new(uid(ITEM), uid(GRILL))],
+        };
+        let stations = [st(BAR, "Bar", true, Some("10.0.0.9")), st(GRILL, "Grill", false, Some("10.0.0.5"))];
+        let t = resolve_chit_printer(ITEM, Some(CAT), &routes, &stations);
+        assert!(!t.is_till());
+        assert_eq!(t.station_name.as_deref(), Some("Grill"));
+        assert_eq!(t.host.as_deref(), Some("10.0.0.5"));
+        assert_eq!(t.port, Some(DEFAULT_PRINTER_PORT));
+        assert_eq!(t.brand.as_deref(), Some("star"));
+
+        // A category route answers for an item with no route of its own.
+        let routes = models::StationRoutes {
+            categories: vec![models::CategoryRoute::new(uid(CAT), uid(BAR))],
+            items: vec![],
+        };
+        let t = resolve_chit_printer(ITEM, Some(CAT), &routes, &stations);
+        assert_eq!(t.station_name.as_deref(), Some("Bar"));
+    }
+
+    #[test]
+    fn no_station_printer_falls_back_to_the_till() {
+        // No stations at all.
+        assert_eq!(resolve_chit_printer(ITEM, None, &no_routes(), &[]), ChitPrinterTarget::till());
+        // Routed to a station that has no printer.
+        let routes = models::StationRoutes {
+            categories: vec![],
+            items: vec![models::ItemRoute::new(uid(ITEM), uid(GRILL))],
+        };
+        let stations = [st(GRILL, "Grill", false, None)];
+        assert!(resolve_chit_printer(ITEM, None, &routes, &stations).is_till());
+        // Routed to an inactive station.
+        let mut off = st(GRILL, "Grill", false, Some("10.0.0.5"));
+        off.is_active = false;
+        assert!(resolve_chit_printer(ITEM, None, &routes, &[off]).is_till());
+        // Unrouted, and no default station.
+        let stations = [st(GRILL, "Grill", false, Some("10.0.0.5"))];
+        assert!(resolve_chit_printer(ITEM, Some(CAT), &no_routes(), &stations).is_till());
+        // Unrouted items follow the default station, like a fired round.
+        let stations = [st(BAR, "Bar", true, Some("10.0.0.9"))];
+        assert_eq!(resolve_chit_printer(ITEM, None, &no_routes(), &stations).host.as_deref(), Some("10.0.0.9"));
     }
 }
