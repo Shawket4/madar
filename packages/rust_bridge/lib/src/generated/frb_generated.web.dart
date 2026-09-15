@@ -206,6 +206,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CartBundleComponentView dco_decode_cart_bundle_component_view(dynamic raw);
 
   @protected
+  CartKitchenChit dco_decode_cart_kitchen_chit(dynamic raw);
+
+  @protected
+  CartLineChit dco_decode_cart_line_chit(dynamic raw);
+
+  @protected
   CartLineView dco_decode_cart_line_view(dynamic raw);
 
   @protected
@@ -237,6 +243,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CheckoutSplit dco_decode_checkout_split(dynamic raw);
+
+  @protected
+  ChitLineView dco_decode_chit_line_view(dynamic raw);
+
+  @protected
+  ChitPrinterTarget dco_decode_chit_printer_target(dynamic raw);
 
   @protected
   CloseCountCheck dco_decode_close_count_check(dynamic raw);
@@ -378,6 +390,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<CartLineChit> dco_decode_list_cart_line_chit(dynamic raw);
+
+  @protected
   List<CartLineView> dco_decode_list_cart_line_view(dynamic raw);
 
   @protected
@@ -397,6 +412,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<CheckoutSplit> dco_decode_list_checkout_split(dynamic raw);
+
+  @protected
+  List<ChitLineView> dco_decode_list_chit_line_view(dynamic raw);
 
   @protected
   List<CloseTillMethodView> dco_decode_list_close_till_method_view(dynamic raw);
@@ -1030,6 +1048,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  CartKitchenChit sse_decode_cart_kitchen_chit(SseDeserializer deserializer);
+
+  @protected
+  CartLineChit sse_decode_cart_line_chit(SseDeserializer deserializer);
+
+  @protected
   CartLineView sse_decode_cart_line_view(SseDeserializer deserializer);
 
   @protected
@@ -1065,6 +1089,14 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CheckoutSplit sse_decode_checkout_split(SseDeserializer deserializer);
+
+  @protected
+  ChitLineView sse_decode_chit_line_view(SseDeserializer deserializer);
+
+  @protected
+  ChitPrinterTarget sse_decode_chit_printer_target(
+    SseDeserializer deserializer,
+  );
 
   @protected
   CloseCountCheck sse_decode_close_count_check(SseDeserializer deserializer);
@@ -1240,6 +1272,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<CartLineChit> sse_decode_list_cart_line_chit(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<CartLineView> sse_decode_list_cart_line_view(
     SseDeserializer deserializer,
   );
@@ -1271,6 +1308,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<CheckoutSplit> sse_decode_list_checkout_split(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ChitLineView> sse_decode_list_chit_line_view(
     SseDeserializer deserializer,
   );
 
@@ -2080,6 +2122,15 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_cart_kitchen_chit(
+    CartKitchenChit self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cart_line_chit(CartLineChit self, SseSerializer serializer);
+
+  @protected
   void sse_encode_cart_line_view(CartLineView self, SseSerializer serializer);
 
   @protected
@@ -2123,6 +2174,15 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_checkout_split(CheckoutSplit self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_chit_line_view(ChitLineView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_chit_printer_target(
+    ChitPrinterTarget self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_close_count_check(
@@ -2347,6 +2407,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_cart_line_chit(
+    List<CartLineChit> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_cart_line_view(
     List<CartLineView> self,
     SseSerializer serializer,
@@ -2385,6 +2451,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_checkout_split(
     List<CheckoutSplit> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_chit_line_view(
+    List<ChitLineView> self,
     SseSerializer serializer,
   );
 

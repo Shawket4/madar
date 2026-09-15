@@ -127,11 +127,58 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Empty EVERY context's cart and meta (sign-out / shift close).
   Future<void> cartClearAll();
 
+  /// Clear EVERY kitchen note in this cart (cart-level + every line's own)
+  /// in one go — call once the whole-cart kitchen print has actually
+  /// printed.
+  Future<void> cartClearAllKitchenNotes({String? tableId});
+
   /// Remove the cart discount.
   Future<void> cartClearDiscount({String? tableId});
 
+  /// Clear the cart-level kitchen note — call once the whole-cart chit has
+  /// actually printed.
+  Future<void> cartClearKitchenNote({String? tableId});
+
+  /// Clear one line's kitchen note — call once that line's chit has
+  /// actually printed.
+  Future<void> cartClearLineKitchenNote({
+    String? tableId,
+    required String lineKey,
+  });
+
   /// The selected discount id (for the tender UI), or `None`.
   Future<String?> cartDiscountId({String? tableId});
+
+  /// The WHOLE cart as one kitchen print (the cart-level print button):
+  /// every line's chit, one after another, each carrying its own kitchen
+  /// note, plus the cart-level kitchen note. Always to the till printer —
+  /// a whole-cart copy is a manual/backup pass, not per-station routing.
+  /// Local only; marks nothing sent; checkout/fire printing is unchanged.
+  Future<CartKitchenChit> cartKitchenChit({
+    String? tableId,
+    String? tableLabel,
+    String? ticketRef,
+    required int width,
+    required PrinterBrand tillBrand,
+  });
+
+  /// The cart's kitchen-only note, or `None`.
+  Future<String?> cartKitchenNote({String? tableId});
+
+  /// ONE cart line as a kitchen chit, sent early from the cart (the per-line
+  /// print button). Renders the chit with the kitchen chit renderer and
+  /// routes it like a fired round: the item's station printer, else the
+  /// till printer (`target.host == null`). Returns the bytes for that
+  /// printer, the same document as preview lines for the preview sheet, and
+  /// the target. Local only; marks nothing sent.
+  Future<CartLineChit> cartLineChit({
+    String? tableId,
+    required String lineKey,
+    String? tableLabel,
+    String? ticketRef,
+    required int width,
+    required PrinterBrand tillBrand,
+  });
 
   /// The current cart lines (empty when none).
   Future<List<CartLineView>> cartLines({String? tableId});
@@ -171,6 +218,18 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// Apply a discount (by id) to the cart — reflected in `cart_totals`.
   Future<void> cartSetDiscount({String? tableId, required String discountId});
+
+  /// Set or clear (None / blank) the CART-level kitchen note (the
+  /// whole-cart kitchen print's own note). Local only.
+  Future<void> cartSetKitchenNote({String? tableId, String? note});
+
+  /// Set or clear (None / blank) ONE cart line's KITCHEN-ONLY note (by its
+  /// [`CartLineView.key`]). Local only — never checkout, never the receipt.
+  Future<void> cartSetLineKitchenNote({
+    String? tableId,
+    required String lineKey,
+    String? note,
+  });
 
   /// Replace one context's cart meta (reset when that cart is spent).
   Future<void> cartSetMeta({String? tableId, required CartMeta meta});

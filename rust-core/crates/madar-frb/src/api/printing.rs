@@ -4,7 +4,8 @@
 use flutter_rust_bridge::frb;
 
 use madar_core::checkout::ReceiptView;
-pub use madar_core::receipt::KitchenChit;
+pub use madar_core::kds::ChitPrinterTarget;
+pub use madar_core::receipt::{CartKitchenChit, CartLineChit, ChitLineView, KitchenChit};
 use madar_core::till::TillReportView;
 
 use crate::api::bridge::MadarBridge;
@@ -47,6 +48,44 @@ impl MadarBridge {
         brand: PrinterBrand,
     ) -> Vec<u8> {
         self.inner.render_kitchen_chit(chit, width, brand)
+    }
+
+    /// ONE cart line as a kitchen chit, sent early from the cart (the per-line
+    /// print button). Renders the chit with the kitchen chit renderer and
+    /// routes it like a fired round: the item's station printer, else the
+    /// till printer (`target.host == null`). Returns the bytes for that
+    /// printer, the same document as preview lines for the preview sheet, and
+    /// the target. Local only; marks nothing sent.
+    pub fn cart_line_chit(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+        table_label: Option<String>,
+        ticket_ref: Option<String>,
+        width: u32,
+        till_brand: PrinterBrand,
+    ) -> Result<CartLineChit, MadarError> {
+        self.inner
+            .cart_line_chit(table_id, line_key, table_label, ticket_ref, width, till_brand)
+            .map_err(MadarError::from)
+    }
+
+    /// The WHOLE cart as one kitchen print (the cart-level print button):
+    /// every line's chit, one after another, each carrying its own kitchen
+    /// note, plus the cart-level kitchen note. Always to the till printer —
+    /// a whole-cart copy is a manual/backup pass, not per-station routing.
+    /// Local only; marks nothing sent; checkout/fire printing is unchanged.
+    pub fn cart_kitchen_chit(
+        &self,
+        table_id: Option<String>,
+        table_label: Option<String>,
+        ticket_ref: Option<String>,
+        width: u32,
+        till_brand: PrinterBrand,
+    ) -> Result<CartKitchenChit, MadarError> {
+        self.inner
+            .cart_kitchen_chit(table_id, table_label, ticket_ref, width, till_brand)
+            .map_err(MadarError::from)
     }
 
     /// Render the shift report (Z-report) to printer bytes — rasterized like
@@ -128,4 +167,46 @@ pub struct _KitchenChit {
     pub table_label: Option<String>,
     pub ticket_ref: Option<String>,
     pub at: String,
+    pub teller: Option<String>,
+}
+
+/// Mirrors `madar_core::receipt::ChitLineView` — one printed chit line for the
+/// preview sheet.
+#[frb(mirror(ChitLineView))]
+pub struct _ChitLineView {
+    pub text: String,
+    pub centered: bool,
+    pub bold: bool,
+    pub large: bool,
+}
+
+/// Mirrors `madar_core::kds::ChitPrinterTarget` — where a chit prints.
+/// `host == null` means the device's till printer.
+#[frb(mirror(ChitPrinterTarget))]
+pub struct _ChitPrinterTarget {
+    pub station_id: Option<String>,
+    pub station_name: Option<String>,
+    pub host: Option<String>,
+    pub port: Option<u16>,
+    pub brand: Option<String>,
+}
+
+/// Mirrors `madar_core::receipt::CartLineChit` — a cart line's chit, ready to
+/// print and to preview.
+#[frb(mirror(CartLineChit))]
+pub struct _CartLineChit {
+    pub chit: KitchenChit,
+    pub preview: Vec<ChitLineView>,
+    pub bytes: Vec<u8>,
+    pub target: ChitPrinterTarget,
+}
+
+/// Mirrors `madar_core::receipt::CartKitchenChit` — the whole cart printed as
+/// one kitchen job.
+#[frb(mirror(CartKitchenChit))]
+pub struct _CartKitchenChit {
+    pub items: Vec<CartLineChit>,
+    pub cart_note: Option<String>,
+    pub bytes: Vec<u8>,
+    pub preview: Vec<ChitLineView>,
 }

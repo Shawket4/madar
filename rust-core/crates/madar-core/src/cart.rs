@@ -12,6 +12,8 @@
 //! add/qty/remove path is unchanged. `StoredLine` is forward-compatible: the
 //! modifier fields default in, so older blobs still load.
 
+use std::collections::HashMap;
+
 use madar_api::models;
 use serde::{Deserialize, Serialize};
 
@@ -28,6 +30,15 @@ pub(crate) const K_DISCOUNT: &str = "cart:discount";
 pub(crate) const K_NOTE: &str = "cart:note";
 /// kv key — parked/held carts (drafts) as a JSON array.
 pub(crate) const K_DRAFTS: &str = "cart:drafts";
+/// kv key — per-line KITCHEN-ONLY notes (JSON map, line key → text). Local
+/// only: never leaves the device, never rides the order/checkout payload,
+/// never prints on the customer receipt — a scribble for the cook, cleared
+/// the moment that line's chit prints.
+pub(crate) const K_KITCHEN_NOTES: &str = "cart:kitchen_notes";
+/// kv key — the CART-level kitchen note (the whole-cart kitchen print's own
+/// note, distinct from [`K_NOTE`]'s order note). Same rule: local only,
+/// kitchen-chit only, cleared when the whole-cart chit prints.
+pub(crate) const K_KITCHEN_NOTE: &str = "cart:kitchen_note";
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct StoredAddon {
@@ -153,6 +164,11 @@ pub struct CartLineView {
     pub line_total_minor: i64,
     pub bundle_id: Option<String>,
     pub bundle_components: Vec<CartBundleComponentView>,
+    /// A KITCHEN-ONLY note for this line — never sent with the order, never
+    /// on the customer receipt. Joined in from [`K_KITCHEN_NOTES`] at read
+    /// time, so `view()` itself stays a pure function of the stored lines.
+    /// Cleared once this line's chit prints ([`clear_line_kitchen_note`]).
+    pub kitchen_note: Option<String>,
 }
 
 /// The priced cart summary the host shows in the cart panel + action-bar badge.
@@ -293,6 +309,8 @@ pub(crate) fn clear_all(store: &Store) -> CoreResult<()> {
         store.kv_put(&key_for(t, K_NOTE), "")?;
         store.kv_put(&key_for(t, K_LAST_REMOVED), "[]")?;
         store.kv_put(&key_for(t, K_META), "{}")?;
+        store.kv_put(&key_for(t, K_KITCHEN_NOTES), "{}")?;
+        store.kv_put(&key_for(t, K_KITCHEN_NOTE), "")?;
     }
     store.kv_put(K_CONTEXT_TABLES, "[]")?;
     forget_legacy_context(store)
@@ -454,6 +472,7 @@ fn view(lines: &[StoredLine]) -> Vec<CartLineView> {
                         .collect(),
                 })
                 .collect(),
+            kitchen_note: None,
         })
         .collect()
 }
@@ -1041,7 +1060,82 @@ pub(crate) fn validate_group_selections(
 // ── operations (store in, updated views out) ─────────────────────────────────
 
 pub(crate) fn lines(store: &Store, ctx: Ctx<'_>) -> CoreResult<Vec<CartLineView>> {
-    Ok(view(&load(store, ctx)?))
+    let mut views = view(&load(store, ctx)?);
+    let notes = kitchen_notes_map(store, ctx)?;
+    for v in &mut views {
+        v.kitchen_note = notes.get(&v.key).cloned();
+    }
+    Ok(views)
+}
+
+// ── kitchen-only notes (local; never checkout, never the receipt) ────────────
+
+fn kitchen_notes_map(store: &Store, ctx: Ctx<'_>) -> CoreResult<HashMap<String, String>> {
+    Ok(match store.kv_get(&ctx_key(ctx, K_KITCHEN_NOTES)?)? {
+        Some(j) => serde_json::from_str(&j).unwrap_or_default(),
+        None => HashMap::new(),
+    })
+}
+
+fn save_kitchen_notes_map(store: &Store, ctx: Ctx<'_>, map: &HashMap<String, String>) -> CoreResult<()> {
+    store.kv_put(&ctx_key(ctx, K_KITCHEN_NOTES)?, &serde_json::to_string(map)?)
+}
+
+/// Set (or, blank/`None`, clear) ONE line's kitchen-only note, by its cart
+/// line key. Local only — never part of the checkout payload, never on the
+/// customer receipt.
+pub(crate) fn set_line_kitchen_note(
+    store: &Store,
+    ctx: Ctx<'_>,
+    line_key: &str,
+    note: Option<&str>,
+) -> CoreResult<()> {
+    let mut map = kitchen_notes_map(store, ctx)?;
+    match note.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(n) => {
+            map.insert(line_key.to_string(), n.to_string());
+        }
+        None => {
+            map.remove(line_key);
+        }
+    }
+    save_kitchen_notes_map(store, ctx, &map)
+}
+
+/// Clear one line's kitchen note — called the moment that line's chit
+/// actually printed, never on preview alone.
+pub(crate) fn clear_line_kitchen_note(store: &Store, ctx: Ctx<'_>, line_key: &str) -> CoreResult<()> {
+    set_line_kitchen_note(store, ctx, line_key, None)
+}
+
+/// Set (or clear) the CART-level kitchen note — the whole-cart kitchen
+/// print's own note, distinct from the order note ([`set_note`]). Local
+/// only, same rule as the per-line note.
+pub(crate) fn set_kitchen_note(store: &Store, ctx: Ctx<'_>, note: Option<&str>) -> CoreResult<()> {
+    let note = note.map(str::trim).unwrap_or("");
+    store.kv_put(&ctx_key(ctx, K_KITCHEN_NOTE)?, note)
+}
+
+/// The cart's kitchen-only note, or `None` when blank.
+pub(crate) fn kitchen_note(store: &Store, ctx: Ctx<'_>) -> CoreResult<Option<String>> {
+    Ok(store
+        .kv_get(&ctx_key(ctx, K_KITCHEN_NOTE)?)?
+        .filter(|s| !s.trim().is_empty()))
+}
+
+/// Clear the cart-level kitchen note — called once the whole-cart chit
+/// actually printed.
+pub(crate) fn clear_kitchen_note(store: &Store, ctx: Ctx<'_>) -> CoreResult<()> {
+    set_kitchen_note(store, ctx, None)
+}
+
+/// Clear EVERY kitchen note in this context — the cart-level one and every
+/// line's own — in one go. Called once the whole-cart kitchen print has
+/// actually printed: "the cart-level note and the printed rows' notes" is
+/// exactly every note that context is holding at that moment.
+pub(crate) fn clear_all_kitchen_notes(store: &Store, ctx: Ctx<'_>) -> CoreResult<()> {
+    clear_kitchen_note(store, ctx)?;
+    save_kitchen_notes_map(store, ctx, &HashMap::new())
 }
 
 /// Push a resolved line, merging into an identical existing line (same key).
@@ -3519,5 +3613,82 @@ mod tests {
         d.dtype = "fixed".into();
         d.value = 5000;
         assert_eq!(discount_rate(&d), 5000.0);
+    }
+
+    // ── kitchen-only notes: local, kitchen-chit only, cleared on print ────────
+
+    #[test]
+    fn a_line_kitchen_note_joins_the_view_and_clears_independently_of_the_order_note() {
+        let s = store();
+        let views = add(&s, None, "latte", "Latte", 5000).unwrap();
+        let key = views[0].key.clone();
+        set_note(&s, None, Some("extra hot")).unwrap(); // the ORDER note
+
+        assert_eq!(lines(&s, None).unwrap()[0].kitchen_note, None);
+        set_line_kitchen_note(&s, None, &key, Some("  no salt  ")).unwrap();
+        assert_eq!(
+            lines(&s, None).unwrap()[0].kitchen_note.as_deref(),
+            Some("no salt"),
+            "trimmed, and joined onto the view by line key"
+        );
+        // The order note is untouched by the kitchen note and vice versa.
+        assert_eq!(note(&s, None).unwrap().as_deref(), Some("extra hot"));
+
+        clear_line_kitchen_note(&s, None, &key).unwrap();
+        assert_eq!(lines(&s, None).unwrap()[0].kitchen_note, None, "cleared on print");
+        assert_eq!(
+            note(&s, None).unwrap().as_deref(),
+            Some("extra hot"),
+            "clearing the kitchen note must not touch the order note"
+        );
+    }
+
+    #[test]
+    fn a_blank_kitchen_note_is_the_same_as_no_note() {
+        let s = store();
+        let views = add(&s, None, "latte", "Latte", 5000).unwrap();
+        let key = views[0].key.clone();
+        set_line_kitchen_note(&s, None, &key, Some("   ")).unwrap();
+        assert_eq!(lines(&s, None).unwrap()[0].kitchen_note, None);
+    }
+
+    #[test]
+    fn the_cart_level_kitchen_note_is_its_own_slot() {
+        let s = store();
+        assert_eq!(kitchen_note(&s, None).unwrap(), None);
+        set_kitchen_note(&s, None, Some("fire on the pass call")).unwrap();
+        assert_eq!(kitchen_note(&s, None).unwrap().as_deref(), Some("fire on the pass call"));
+        clear_kitchen_note(&s, None).unwrap();
+        assert_eq!(kitchen_note(&s, None).unwrap(), None);
+    }
+
+    #[test]
+    fn clear_all_kitchen_notes_wipes_the_cart_note_and_every_line_note() {
+        let s = store();
+        let views = add(&s, None, "latte", "Latte", 5000).unwrap();
+        let key = views[0].key.clone();
+        set_line_kitchen_note(&s, None, &key, Some("no salt")).unwrap();
+        set_kitchen_note(&s, None, Some("rush")).unwrap();
+        set_note(&s, None, Some("extra hot")).unwrap(); // untouched by this call
+
+        clear_all_kitchen_notes(&s, None).unwrap();
+        assert_eq!(kitchen_note(&s, None).unwrap(), None);
+        assert_eq!(lines(&s, None).unwrap()[0].kitchen_note, None);
+        assert_eq!(
+            note(&s, None).unwrap().as_deref(),
+            Some("extra hot"),
+            "the order note is a different thing entirely"
+        );
+    }
+
+    #[test]
+    fn clear_all_wipes_every_context_kitchen_note() {
+        let s = store();
+        let views = add(&s, None, "latte", "Latte", 5000).unwrap();
+        set_line_kitchen_note(&s, None, &views[0].key, Some("no salt")).unwrap();
+        set_kitchen_note(&s, None, Some("rush")).unwrap();
+        clear_all(&s).unwrap();
+        assert_eq!(kitchen_note(&s, None).unwrap(), None);
+        assert!(lines(&s, None).unwrap().is_empty());
     }
 }

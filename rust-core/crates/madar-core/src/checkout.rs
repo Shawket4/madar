@@ -2552,6 +2552,7 @@ mod tests {
                 ],
                 optionals: vec![],
             }],
+            kitchen_note: None,
         };
         let r = receipt_line_from_cart(&line);
         let comp_addons = &r.components[0].addons;
@@ -2563,5 +2564,44 @@ mod tests {
             comp_addons[1].name, "Oat Milk",
             "qty==1 must NOT show a multiplier"
         );
+    }
+
+    /// A line's kitchen-only note must never ride the checkout wire item or
+    /// the customer receipt — it is a scribble for the cook, not the order.
+    #[test]
+    fn a_kitchen_note_never_reaches_the_checkout_payload_or_the_receipt() {
+        let mut line = cart::CartLineView {
+            key: "k".into(),
+            item_id: "11111111-1111-1111-1111-111111111111".into(),
+            name: "Latte".into(),
+            size_label: None,
+            addons: vec![],
+            optionals: vec![],
+            notes: None,
+            unit_price_minor: 5000,
+            qty: 1,
+            line_total_minor: 5000,
+            bundle_id: None,
+            bundle_components: vec![],
+            kitchen_note: Some("no salt — allergy".into()),
+        };
+        let receipt_line = receipt_line_from_cart(&line);
+        assert!(
+            format!("{receipt_line:?}").contains("Latte") && !format!("{receipt_line:?}").contains("allergy"),
+            "the receipt view carries no field the kitchen note could leak through: {receipt_line:?}"
+        );
+
+        let items = lines_to_wire_items(std::slice::from_ref(&line));
+        let wire = format!("{:?}", items[0]);
+        assert!(
+            !wire.contains("allergy"),
+            "the checkout wire item must not carry the kitchen note: {wire}"
+        );
+
+        // Clearing the kitchen note changes nothing about either path — the
+        // receipt view has no field it could have flowed through anyway.
+        line.kitchen_note = None;
+        let receipt_line2 = receipt_line_from_cart(&line);
+        assert_eq!(format!("{receipt_line:?}"), format!("{receipt_line2:?}"));
     }
 }
