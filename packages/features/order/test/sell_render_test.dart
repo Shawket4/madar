@@ -118,7 +118,8 @@ void main() {
       expect(
         find.bySemanticsLabel(coreWord('sell.kitchen_row_hint')),
         findsWidgets,
-        reason: 'the button says what it does, distinct from the cart-level one',
+        reason:
+            'the button says what it does, distinct from the cart-level one',
       );
       await tester.tap(find.byKey(tile));
       await _settle(tester);
@@ -145,7 +146,11 @@ void main() {
         );
         await tester.longPress(find.byKey(tile));
         await _settle(tester);
-        expect(find.text('Espresso'), findsWidgets, reason: 'titled with the item');
+        expect(
+          find.text('Espresso'),
+          findsWidgets,
+          reason: 'titled with the item',
+        );
         expect(
           find.text(coreWord('sell.kitchen_row_sheet_preview')),
           findsOneWidget,
@@ -196,43 +201,44 @@ void main() {
   group('a kitchen note is local, print-only, and clears on print', () {
     const tile = ValueKey('kitchen-k-espresso');
 
-    testWidgets('setting it shows on the line, and it clears once that line prints', (
-      tester,
-    ) async {
-      final bridge = _FakeBridge();
-      await _mount(
-        tester,
-        screen: const TakeawaySellScreen(),
-        size: _ipad,
-        bridge: bridge,
-      );
-      await tester.longPress(find.byKey(tile));
-      await _settle(tester);
-      await tester.tap(find.text(coreWord('sell.kitchen_row_sheet_note')));
-      await _settle(tester);
-      await tester.enterText(find.byType(TextField).first, 'no ice');
-      await tester.tap(find.text(coreWord('common.save')));
-      await _settle(tester);
+    testWidgets(
+      'setting it shows on the line, and it clears once that line prints',
+      (tester) async {
+        final bridge = _FakeBridge();
+        await _mount(
+          tester,
+          screen: const TakeawaySellScreen(),
+          size: _ipad,
+          bridge: bridge,
+        );
+        await tester.longPress(find.byKey(tile));
+        await _settle(tester);
+        await tester.tap(find.text(coreWord('sell.kitchen_row_sheet_note')));
+        await _settle(tester);
+        await tester.enterText(find.byType(TextField).first, 'no ice');
+        await tester.tap(find.text(coreWord('common.save')));
+        await _settle(tester);
 
-      expect(
-        bridge.lineKitchenNotes[null]?['k-espresso'],
-        'no ice',
-        reason: 'the core keeps it, keyed by cart line',
-      );
-      expect(find.textContaining('no ice'), findsOneWidget);
+        expect(
+          bridge.lineKitchenNotes[null]?['k-espresso'],
+          'no ice',
+          reason: 'the core keeps it, keyed by cart line',
+        );
+        expect(find.textContaining('no ice'), findsOneWidget);
 
-      // Print from the still-open row sheet (the note-edit sheet popped back
-      // to it) — the same "Print for kitchen" action the row's own tile
-      // triggers on a short press.
-      await tester.tap(find.text(coreWord('sell.kitchen_row_sheet_print')));
-      await _settle(tester);
-      expect(
-        bridge.lineKitchenNotes[null]?.containsKey('k-espresso'),
-        isNot(true),
-        reason: 'a printed chit is done with its note',
-      );
-      await tester.pump(const Duration(seconds: 5));
-    });
+        // Print from the still-open row sheet (the note-edit sheet popped back
+        // to it) — the same "Print for kitchen" action the row's own tile
+        // triggers on a short press.
+        await tester.tap(find.text(coreWord('sell.kitchen_row_sheet_print')));
+        await _settle(tester);
+        expect(
+          bridge.lineKitchenNotes[null]?.containsKey('k-espresso'),
+          isNot(true),
+          reason: 'a printed chit is done with its note',
+        );
+        await tester.pump(const Duration(seconds: 5));
+      },
+    );
   });
 
   group('the whole cart prints one kitchen job', () {

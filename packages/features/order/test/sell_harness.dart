@@ -582,9 +582,7 @@ class _FakeBridge implements MadarBridge {
           chit: KitchenSlip(
             at: '13:05',
             topNotes: const [],
-            items: [
-              KitchenSlipItem(item: key, qty: 1, modifiers: const []),
-            ],
+            items: [KitchenSlipItem(item: key, qty: 1, modifiers: const [])],
           ),
           preview: [
             const ChitLineView(

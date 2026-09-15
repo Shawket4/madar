@@ -633,7 +633,10 @@ class _RoundLine extends ConsumerWidget {
           // which sends every line. Tap prints just this dish now; long
           // press opens a sheet for its kitchen note, a preview, and print.
           Tooltip(
-            message: orderWord(ref.read(bridgeProvider), 'sell.kitchen_row_hint'),
+            message: orderWord(
+              ref.read(bridgeProvider),
+              'sell.kitchen_row_hint',
+            ),
             child: MadarGlyphTile(
               key: ValueKey('kitchen-${line.key}'),
               glyph: MadarGlyph.printer,
@@ -746,7 +749,8 @@ Future<void> _previewRowChit(
   await showMadarSheet<void>(
     context,
     size: SheetSize.large,
-    builder: (_) => KitchenChitSheet(chit: chit, tableId: tableId, lineKey: line.key),
+    builder: (_) =>
+        KitchenChitSheet(chit: chit, tableId: tableId, lineKey: line.key),
   );
 }
 
@@ -862,6 +866,9 @@ class _CartFooter extends ConsumerWidget {
     final totals = ref.watch(cartProvider(tableId).select((c) => c.totals));
     final currency = ref.watch(orderProvider.select((s) => s.currency));
     final isBusy = ref.watch(cartProvider(tableId).select((c) => c.isBusy));
+    final startedAt = ref.watch(
+      cartProvider(tableId).select((c) => c.startedAt),
+    );
     final itemsWord = bridge.tr(key: 'waiter.items');
     final kitchenNote = ref
         .watch(_cartKitchenNoteProvider((tableId, lineCount)))
@@ -883,7 +890,8 @@ class _CartFooter extends ConsumerWidget {
             // that is what overflowed at a narrow width.
             MadarButton(
               key: const ValueKey('print-cart-kitchen'),
-              label: '${orderWord(bridge, 'sell.kitchen_cart_button')} '
+              label:
+                  '${orderWord(bridge, 'sell.kitchen_cart_button')} '
                   '($lineCount $itemsWord)',
               glyph: MadarGlyph.printer,
               variant: MadarButtonVariant.secondary,
@@ -989,6 +997,15 @@ class _CartFooter extends ConsumerWidget {
                 ],
               ),
             ],
+            // When this order was started — the held chips show its number,
+            // so the time lives here, in the branch's clock.
+            if (startedAt != null && startedAt.isNotEmpty)
+              Text(
+                '${orderWord(bridge, 'sell.cart_started_at')} '
+                '${bridge.formatTime(rfc3339: startedAt, style: TimeStyle.time)}',
+                textAlign: TextAlign.center,
+                style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+              ),
           ],
         ),
       ),
@@ -1364,10 +1381,7 @@ Future<void> _printWholeCartToKitchen(
       tableLabel: tableLabel,
       ticketRef: ticketRef,
     );
-    result = await printCartKitchenChit(
-      ref.read(printerServiceProvider),
-      chit,
-    );
+    result = await printCartKitchenChit(ref.read(printerServiceProvider), chit);
     if (result == PrintState.printed) {
       await bridge.cartClearAllKitchenNotes(tableId: tableId);
       ref.invalidate(_cartKitchenNoteProvider);
@@ -1452,7 +1466,10 @@ Future<void> editCartKitchenNote(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.lg,
         children: [
-          Text(orderWord(bridge, 'sell.cart_kitchen_note_title'), style: MadarType.h2),
+          Text(
+            orderWord(bridge, 'sell.cart_kitchen_note_title'),
+            style: MadarType.h2,
+          ),
           MadarField(
             controller: controller,
             placeholder: orderWord(bridge, 'sell.cart_kitchen_note_hint'),
@@ -1501,7 +1518,10 @@ Future<void> editLineKitchenNote(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.lg,
         children: [
-          Text(orderWord(bridge, 'sell.kitchen_note_title'), style: MadarType.h2),
+          Text(
+            orderWord(bridge, 'sell.kitchen_note_title'),
+            style: MadarType.h2,
+          ),
           MadarField(
             controller: controller,
             placeholder: orderWord(bridge, 'sell.kitchen_note_hint'),

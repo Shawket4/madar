@@ -1,9 +1,7 @@
-import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:rust_bridge/rust_bridge.dart';
 
 /// One chip in the held-orders strip. Shared by the teller (parked drafts +
 /// the live cart) and the waiter (a "New" tab + open tickets). [sortKey] is
@@ -29,8 +27,8 @@ class HeldOrderTab {
   /// RFC3339 creation time — the default (pre-drag) order.
   final String sortKey;
 
-  /// Free-text order name; null/empty falls back to the "HH:MM" time label
-  /// derived from [sortKey].
+  /// Free-text order name; null/empty falls back to the order's number
+  /// ("#2") by creation order.
   final String? title;
 
   /// Opens the rename affordance — rendered as a pencil on the SELECTED
@@ -137,13 +135,13 @@ class HeldOrdersStrip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final saved = ref.watch(heldStripOrderProvider);
-    final bridge = ref.read(bridgeProvider);
-    // The chip's time in the BRANCH's clock, by the core's formatter. Slicing
-    // "HH:MM" out of the stamp showed UTC — two hours off in Cairo.
-    String timeOf(String rfc3339) => rfc3339.isEmpty
-        ? ''
-        : bridge.formatTime(rfc3339: rfc3339, style: TimeStyle.time);
     final display = _reconcile(saved, tabs);
+    // Each order's number: its place in creation order (oldest is #1), so a
+    // drag never renumbers the chips and two orders never share one.
+    final byAge = [...tabs]..sort((a, b) => a.sortKey.compareTo(b.sortKey));
+    final numbers = {
+      for (var i = 0; i < byAge.length; i++) byAge[i].key: i + 1,
+    };
     // onReorderItem (3.44+) hands a PRE-adjusted newIndex — no manual
     // removed-item offset like the old onReorder required.
     void handleReorder(int from, int to) {
@@ -178,7 +176,7 @@ class HeldOrdersStrip extends ConsumerWidget {
                       child: _HeldOrderChip(
                         tab: display[i],
                         newLabel: newLabel,
-                        time: timeOf(display[i].sortKey),
+                        number: numbers[display[i].key] ?? 0,
                       ),
                     ),
                   ),
@@ -204,14 +202,14 @@ class _HeldOrderChip extends StatelessWidget {
   const _HeldOrderChip({
     required this.tab,
     required this.newLabel,
-    required this.time,
+    required this.number,
   });
 
   final HeldOrderTab tab;
   final String newLabel;
 
-  /// The creation time, already formatted by the core.
-  final String time;
+  /// The order's number among the held orders, oldest first.
+  final int number;
 
   @override
   Widget build(BuildContext context) {
@@ -262,8 +260,9 @@ class _HeldOrderChip extends StatelessWidget {
                     ),
             ),
             const SizedBox(width: Space.sm),
-            // The order's NAME when the teller set one, else "HH:MM" from
-            // the (immutable) creation stamp; the New tab reads "new".
+            // The order's NAME when the teller set one, else its number by
+            // creation order; the New tab reads "new". The time the order
+            // was started shows in the cart's footer.
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 140),
               child: Text(
@@ -271,7 +270,7 @@ class _HeldOrderChip extends StatelessWidget {
                     ? newLabel
                     : (tab.title?.trim().isNotEmpty ?? false)
                     ? tab.title!.trim()
-                    : time,
+                    : '#$number',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: MadarType.bodySm.copyWith(
