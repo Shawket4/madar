@@ -215,6 +215,11 @@ pub struct ListAddonItemsParams {
     pub addon_type: Option<String>,
     /// When set, prices are branch-effective (override replaces default_price) and addons disabled at this branch are excluded — the per-branch addon list the POS consumes. Omitted → the plain org list (legacy behaviour).
     pub branch_id: Option<String>,
+    /// Case-insensitive filter on the addon name.
+    pub search: Option<String>,
+    /// Sending `page` or `per_page` switches the response to the paginated shape (`PaginatedAddonItems`); without either it stays the plain array the POS and old clients read.
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
 }
 
 /// struct for passing parameters to the method [`list_addon_overrides`]
@@ -361,6 +366,12 @@ pub struct PutSizesParams {
     /// Menu item ID
     pub id: String,
     pub put_sizes_request: models::PutSizesRequest,
+}
+
+/// struct for passing parameters to the method [`reorder_categories`]
+#[derive(Clone, Debug)]
+pub struct ReorderCategoriesParams {
+    pub reorder_categories_request: models::ReorderCategoriesRequest,
 }
 
 /// struct for passing parameters to the method [`update_addon_item`]
@@ -998,6 +1009,19 @@ pub enum PutSizeRecipeError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PutSizesError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`reorder_categories`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ReorderCategoriesError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -2230,6 +2254,15 @@ pub async fn list_addon_items(
     if let Some(ref param_value) = params.branch_id {
         req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
     }
+    if let Some(ref param_value) = params.search {
+        req_builder = req_builder.query(&[("search", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.page {
+        req_builder = req_builder.query(&[("page", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.per_page {
+        req_builder = req_builder.query(&[("per_page", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -3125,6 +3158,50 @@ pub async fn put_sizes(
     } else {
         let content = resp.text().await?;
         let entity: Option<PutSizesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn reorder_categories(
+    configuration: &configuration::Configuration,
+    params: ReorderCategoriesParams,
+) -> Result<Vec<models::Category>, Error<ReorderCategoriesError>> {
+    let uri_str = format!("{}/categories/order", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.reorder_categories_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::Category&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::Category&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ReorderCategoriesError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

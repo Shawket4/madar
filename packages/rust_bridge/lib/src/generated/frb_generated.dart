@@ -10198,13 +10198,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   CategoryView dco_decode_category_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return CategoryView(
       id: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
       imageUrl: dco_decode_opt_String(arr[2]),
       isActive: dco_decode_bool(arr[3]),
+      displayOrder: dco_decode_i_32(arr[4]),
     );
   }
 
@@ -13251,11 +13252,13 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_name = sse_decode_String(deserializer);
     var var_imageUrl = sse_decode_opt_String(deserializer);
     var var_isActive = sse_decode_bool(deserializer);
+    var var_displayOrder = sse_decode_i_32(deserializer);
     return CategoryView(
       id: var_id,
       name: var_name,
       imageUrl: var_imageUrl,
       isActive: var_isActive,
+      displayOrder: var_displayOrder,
     );
   }
 
@@ -17228,6 +17231,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_String(self.name, serializer);
     sse_encode_opt_String(self.imageUrl, serializer);
     sse_encode_bool(self.isActive, serializer);
+    sse_encode_i_32(self.displayOrder, serializer);
   }
 
   @protected

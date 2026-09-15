@@ -68,9 +68,9 @@ final _items = <MenuItemView>[
 ];
 
 const _categories = <CategoryView>[
-  CategoryView(id: 'hot', name: 'Hot', isActive: true),
-  CategoryView(id: 'cold', name: 'Cold', isActive: true),
-  CategoryView(id: 'food', name: 'Food', isActive: true),
+  CategoryView(id: 'hot', name: 'Hot', isActive: true, displayOrder: 0),
+  CategoryView(id: 'cold', name: 'Cold', isActive: true, displayOrder: 0),
+  CategoryView(id: 'food', name: 'Food', isActive: true, displayOrder: 0),
 ];
 
 CartLineView _cartLine(String id, String name, int price, int qty) =>

@@ -74,6 +74,7 @@ Class | Method | HTTP request | Description
 *BundlesApi* | [**delete_bundle**](docs/BundlesApi.md#delete_bundle) | **DELETE** /bundles/{id} | 
 *BundlesApi* | [**get_bundle**](docs/BundlesApi.md#get_bundle) | **GET** /bundles/{id} | 
 *BundlesApi* | [**list_bundles**](docs/BundlesApi.md#list_bundles) | **GET** /bundles | 
+*BundlesApi* | [**suggested_components**](docs/BundlesApi.md#suggested_components) | **GET** /bundles/suggested-components | Suggest menu items frequently ordered alongside the given item set, to help a manager pick the next component while building a bundle. Anchors on whichever items are already added: an item is suggested if it co-occurred, on the same order, with at least one anchor item at least `min_count` times across the org's branches in the given window.
 *BundlesApi* | [**update_bundle**](docs/BundlesApi.md#update_bundle) | **PATCH** /bundles/{id} | 
 *CostingApi* | [**list_addon_costs**](docs/CostingApi.md#list_addon_costs) | **GET** /costing/addon-items | 
 *CostingApi* | [**list_sku_costs**](docs/CostingApi.md#list_sku_costs) | **GET** /costing/menu-items | 
@@ -234,6 +235,7 @@ Class | Method | HTTP request | Description
 *MenuApi* | [**put_price_override**](docs/MenuApi.md#put_price_override) | **PUT** /menu-price-overrides | 
 *MenuApi* | [**put_size_recipe**](docs/MenuApi.md#put_size_recipe) | **PUT** /menu-item-sizes/{size_id}/recipe | 
 *MenuApi* | [**put_sizes**](docs/MenuApi.md#put_sizes) | **PUT** /menu-items/{id}/sizes | 
+*MenuApi* | [**reorder_categories**](docs/MenuApi.md#reorder_categories) | **PUT** /categories/order | 
 *MenuApi* | [**update_addon_item**](docs/MenuApi.md#update_addon_item) | **PATCH** /addon-items/{id} | 
 *MenuApi* | [**update_addon_slot**](docs/MenuApi.md#update_addon_slot) | **PATCH** /menu-items/{id}/addon-slots/{slot_id} | 
 *MenuApi* | [**update_category**](docs/MenuApi.md#update_category) | **PATCH** /categories/{id} | 
@@ -872,6 +874,7 @@ Class | Method | HTTP request | Description
  - [RegistryInfo](docs/RegistryInfo.md)
  - [ReleaseTableRequest](docs/ReleaseTableRequest.md)
  - [RenameConversationRequest](docs/RenameConversationRequest.md)
+ - [ReorderCategoriesRequest](docs/ReorderCategoriesRequest.md)
  - [ReorderLine](docs/ReorderLine.md)
  - [ReorderSuggestion](docs/ReorderSuggestion.md)
  - [RepricingReport](docs/RepricingReport.md)
@@ -924,6 +927,7 @@ Class | Method | HTTP request | Description
  - [StocktakeItem](docs/StocktakeItem.md)
  - [StoredTurn](docs/StoredTurn.md)
  - [StudioAggregate](docs/StudioAggregate.md)
+ - [SuggestedComponent](docs/SuggestedComponent.md)
  - [Supplier](docs/Supplier.md)
  - [SwapTablesRequest](docs/SwapTablesRequest.md)
  - [SyncIngredient](docs/SyncIngredient.md)

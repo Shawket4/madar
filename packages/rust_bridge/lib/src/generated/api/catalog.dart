@@ -264,17 +264,23 @@ class CategoryView {
   final String name;
   final String? imageUrl;
   final bool isActive;
+  final int displayOrder;
 
   const CategoryView({
     required this.id,
     required this.name,
     this.imageUrl,
     required this.isActive,
+    required this.displayOrder,
   });
 
   @override
   int get hashCode =>
-      id.hashCode ^ name.hashCode ^ imageUrl.hashCode ^ isActive.hashCode;
+      id.hashCode ^
+      name.hashCode ^
+      imageUrl.hashCode ^
+      isActive.hashCode ^
+      displayOrder.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -284,7 +290,8 @@ class CategoryView {
           id == other.id &&
           name == other.name &&
           imageUrl == other.imageUrl &&
-          isActive == other.isActive;
+          isActive == other.isActive &&
+          displayOrder == other.displayOrder;
 }
 
 class DiscountView {
