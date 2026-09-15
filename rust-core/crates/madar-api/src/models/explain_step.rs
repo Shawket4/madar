@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExplainStep {
+    /// For an assignment step: does the assignment cover the branch asked about?
+    #[serde(
+        rename = "applies_here",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub applies_here: Option<Option<bool>>,
     #[serde(
         rename = "branch_id",
         default,
@@ -27,6 +35,14 @@ pub struct ExplainStep {
         skip_serializing_if = "Option::is_none"
     )]
     pub detail: Option<Option<String>>,
+    /// For an assignment step: does the role grant the capability?
+    #[serde(
+        rename = "grants",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub grants: Option<Option<bool>>,
     /// owner | inactive | assignment | core | override_allow | override_deny | protected | not_held | limit | ask_manager
     #[serde(rename = "kind")]
     pub kind: String,
@@ -37,15 +53,26 @@ pub struct ExplainStep {
         skip_serializing_if = "Option::is_none"
     )]
     pub role_name: Option<Option<String>>,
+    /// The role's Arabic name, beside `role_name`.
+    #[serde(
+        rename = "role_name_ar",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub role_name_ar: Option<Option<String>>,
 }
 
 impl ExplainStep {
     pub fn new(kind: String) -> ExplainStep {
         ExplainStep {
+            applies_here: None,
             branch_id: None,
             detail: None,
+            grants: None,
             kind,
             role_name: None,
+            role_name_ar: None,
         }
     }
 }
