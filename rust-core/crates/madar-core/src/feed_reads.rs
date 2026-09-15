@@ -48,7 +48,7 @@ impl MadarCore {
     }
 
     /// Apply this device's queued ticket work over a list of bills.
-    fn overlay_bills(&self, server: &[madar_api::models::OpenTicketView]) -> Result<Vec<tickets::TicketView>, CoreError> {
+    pub(crate) fn overlay_bills(&self, server: &[madar_api::models::OpenTicketView]) -> Result<Vec<tickets::TicketView>, CoreError> {
         let pending = self.store.pending()?;
         let mut line_voids = tickets::pending_line_voids(&self.store)?;
         // A peer's queued line voids take the plate off here too.
@@ -95,12 +95,15 @@ impl MadarCore {
         // Bills settled or voided on this device and still queued are gone here.
         out.retain(|t| !cleared.contains(&t.id));
         let waiter = self.current_session().map(|s| s.display_name).filter(|s| !s.is_empty());
+        let policy = self.current_session().map(|s| s.tax_policy());
+        let names: std::collections::HashMap<String, String> =
+            self.list_menu_items().unwrap_or_default().into_iter().map(|m| (m.id, m.name)).collect();
         for item in pending.iter().filter(|i| i.op_type == "open_ticket") {
             if let Ok(cmd) = serde_json::from_str::<tickets::FireTicketCommand>(&item.payload) {
                 if cleared.contains(&cmd.ticket_id) || out.iter().any(|t| t.id == cmd.ticket_id) {
                     continue;
                 }
-                out.push(crate::queued_ticket_view(&cmd, &item.event_at, waiter.clone()));
+                out.push(crate::queued_ticket_view(&cmd, &item.event_at, waiter.clone(), &names, policy.as_ref()));
             }
         }
         for (item, env) in pending
@@ -117,7 +120,7 @@ impl MadarCore {
                 continue;
             }
             let cmd = tickets::FireTicketCommand { ticket_id, request };
-            out.push(crate::queued_ticket_view(&cmd, &item.event_at, None));
+            out.push(crate::queued_ticket_view(&cmd, &item.event_at, None, &names, policy.as_ref()));
         }
         self.overlay_rounds(server, &pending, &mut out);
         Ok(out)
@@ -193,8 +196,12 @@ impl MadarCore {
                 });
             }
             bill.subtotal_minor += added;
-            if let (Some(b), Some(v)) = (bill.bill.as_ref(), server.iter().find(|v| v.id.to_string() == ticket)) {
-                let (dt, dv) = tickets::waiter_discount(v);
+            if let Some(b) = bill.bill.as_ref() {
+                let (dt, dv) = server
+                    .iter()
+                    .find(|v| v.id.to_string() == ticket)
+                    .map(tickets::waiter_discount)
+                    .unwrap_or((None, None));
                 bill.bill = Some(tickets::reprice_with(b, bill.subtotal_minor, dt.as_deref(), dv, false));
             }
             bill.queued_offline = true;

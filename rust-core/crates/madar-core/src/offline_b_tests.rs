@@ -1564,3 +1564,55 @@ async fn a_filled_till_is_filled_again_only_when_the_feed_moves_it() {
     tokio::time::sleep(Duration::from_millis(200)).await;
     assert_eq!(reports(&stub), 2, "one more fill for the move, then quiet again");
 }
+
+/// A bill fired OFFLINE lists its items as round 1 and carries a priced bill;
+/// a second round queued offline shows as round 2 with the subtotal of both;
+/// and a discount picked at Charge re-prices that bill while still offline.
+/// (It used to show no lines for round 1, number the next round 1 too, and
+/// ignore the discount until the server priced the bill.)
+#[tokio::test]
+async fn an_offline_bill_shows_its_rounds_and_reprices_a_discount() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    let latte = uid("latte");
+    let tea = uid("tea");
+    core.store
+        .kv_put(
+            crate::menu::K_MENU_ITEMS,
+            &serde_json::json!([
+                {"id": latte, "org_id": testkit::ORG, "name": "Latte", "base_price": 500, "is_active": true,
+                 "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"},
+                {"id": tea, "org_id": testkit::ORG, "name": "Tea", "base_price": 300, "is_active": true,
+                 "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"}
+            ])
+            .to_string(),
+        )
+        .unwrap();
+
+    core.cart_add(None, latte.clone(), "Latte".into(), 500).unwrap();
+    let fired = core.fire_ticket(None, Some("walk-in".into()), None, None, None).await.unwrap();
+    let bill = core.list_open_tickets().await.unwrap().into_iter().find(|t| t.id == fired.ticket_id).expect("the offline bill");
+    assert_eq!(bill.lines.len(), 1, "round 1's items are listed");
+    assert_eq!((bill.lines[0].name.as_str(), bill.lines[0].round_number), ("Latte", 1));
+    assert_eq!(bill.subtotal_minor, 500);
+    assert!(bill.bill.is_some(), "priced locally, so Charge has a total to re-price");
+
+    core.cart_add(None, tea.clone(), "Tea".into(), 300).unwrap();
+    core.add_ticket_round(None, fired.ticket_id.clone()).await.unwrap();
+    let bill = core.list_open_tickets().await.unwrap().into_iter().find(|t| t.id == fired.ticket_id).unwrap();
+    let rounds: Vec<(i32, &str)> = bill.lines.iter().map(|l| (l.round_number, l.name.as_str())).collect();
+    assert_eq!(rounds, vec![(1, "Latte"), (2, "Tea")], "the second round is round 2");
+    assert_eq!(bill.subtotal_minor, 800);
+    assert_eq!(bill.lines.iter().map(|l| l.line_total_minor).sum::<i64>(), bill.subtotal_minor, "every counted line is shown");
+
+    let full = core
+        .bill_with_rewards(fired.ticket_id.clone(), vec![], None, None, false)
+        .unwrap()
+        .expect("the offline bill re-prices");
+    let discounted = core
+        .bill_with_rewards(fired.ticket_id.clone(), vec![], Some("percentage".into()), Some(0.10), false)
+        .unwrap()
+        .expect("the offline bill re-prices");
+    assert_eq!(full.subtotal_minor, 800);
+    assert_eq!(discounted.discount_minor, 80);
+    assert!(discounted.total_minor < full.total_minor, "the discount moves the due offline");
+}

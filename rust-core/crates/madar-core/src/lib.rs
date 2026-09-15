@@ -1923,23 +1923,79 @@ pub(crate) const K_LOYALTY_SETTINGS: &str = "cache:loyalty_settings";
 /// call that carries it is online-only.
 pub(crate) const K_DELIVERY_PREP_MINUTES: &str = "cache:delivery_prep_minutes";
 
-/// Synthesize an offline-overlay `TicketView` for a still-queued fire so the waiter
-/// sees the ticket immediately, before it syncs. Status `"queued"`; the subtotal is
-/// a rough estimate from the priced items (addons excluded — the server recomputes
-/// authoritatively on sync); detailed lines arrive with the server view.
-fn queued_ticket_view(
+/// A bill priced by the till under `policy`, for work the server has not
+/// priced yet (a fire or round still queued). The server's row replaces it on
+/// the next pull; until then the bill, the Charge sheet and the drawer read a
+/// real total instead of a bare subtotal.
+pub(crate) fn locally_priced_bill(
+    subtotal: i64,
+    policy: &crate::tax::TaxPolicy,
+    discount_type: Option<&str>,
+    discount_value: Option<f64>,
+) -> tickets::TicketBillView {
+    use rust_decimal::prelude::ToPrimitive;
+    let unpriced = tickets::TicketBillView {
+        subtotal_minor: subtotal,
+        discount_minor: 0,
+        service_charge_minor: 0,
+        tax_minor: 0,
+        total_minor: subtotal,
+        tax_rate: policy.tax_rate.to_f64().unwrap_or(0.0),
+        service_charge_rate: policy.service_charge_rate.to_f64().unwrap_or(0.0),
+        tax_inclusive: policy.tax_inclusive,
+        service_charge_taxable: policy.service_charge_taxable,
+        service_charge_waived_minor: 0,
+    };
+    tickets::reprice_with(&unpriced, subtotal, discount_type, discount_value, false)
+}
+
+/// Synthesize an offline-overlay `TicketView` for a still-queued fire so the
+/// bill shows at once, before it syncs: status `"queued"`, its items as round 1
+/// (named from the catalogue), and a bill priced under the session's dine-in
+/// policy with the waiter's discount. A bill with no lines used to show the
+/// subtotal of items it did not list, so the next round was numbered round 1
+/// too, and a discount picked at Charge could not re-price it.
+pub(crate) fn queued_ticket_view(
     cmd: &tickets::FireTicketCommand,
     event_at: &str,
     // The waiter who fired it (the current session) — the server round-trip will
     // confirm the same name once the queued fire syncs.
     waiter_name: Option<String>,
+    names: &std::collections::HashMap<String, String>,
+    policy: Option<&crate::tax::TaxPolicy>,
 ) -> tickets::TicketView {
-    let subtotal_minor: i64 = cmd
+    let lines: Vec<tickets::TicketLineView> = cmd
         .request
         .items
         .iter()
-        .map(|it| it.unit_price.flatten().unwrap_or(0) as i64 * it.quantity as i64)
-        .sum();
+        .map(|it| {
+            let menu_item_id = it.menu_item_id.flatten().map(|u| u.to_string());
+            tickets::TicketLineView {
+                id: String::new(),
+                name: menu_item_id
+                    .as_ref()
+                    .and_then(|m| names.get(m).cloned())
+                    .unwrap_or_else(|| "Item".into()),
+                menu_item_id,
+                qty: it.quantity,
+                size_label: it.size_label.clone().flatten(),
+                modifiers: Vec::new(),
+                line_total_minor: it.unit_price.flatten().unwrap_or(0) as i64 * it.quantity as i64,
+                voided: false,
+                round_number: 1,
+                round_fired_at: event_at.to_string(),
+            }
+        })
+        .collect();
+    let subtotal_minor: i64 = lines.iter().map(|l| l.line_total_minor).sum();
+    let bill = policy.map(|p| {
+        locally_priced_bill(
+            subtotal_minor,
+            p,
+            cmd.request.discount_type.clone().flatten().as_deref(),
+            cmd.request.discount_value.flatten(),
+        )
+    });
     tickets::TicketView {
         id: cmd.ticket_id.clone(),
         ticket_ref: None,
@@ -1950,14 +2006,11 @@ fn queued_ticket_view(
         waiter_name,
         guest_count: cmd.request.guest_count.flatten(),
         subtotal_minor,
-        // A fire the server has not seen has no priced bill: the branch's
-        // effective tax policy is the server's to apply, and a guess here would
-        // be a number the settle then contradicts.
-        bill: None,
+        bill,
         order_id: None,
         opened_at: event_at.to_string(),
         queued_offline: true,
-        lines: Vec::new(),
+        lines,
     }
 }
 
@@ -4521,19 +4574,28 @@ impl MadarCore {
     }
 
     /// The raw cached bill for `ticket_id`, and its projected view.
+    /// A bill as this device shows it: the synced row (if the server has priced
+    /// it) plus every queued fire, round and line void applied. A bill fired or
+    /// added to offline is found here too, so a discount or reward picked at
+    /// Charge re-prices what the screen shows, not only what the server last sent.
     fn cached_ticket(
         &self,
         ticket_id: &str,
-    ) -> Option<(madar_api::models::OpenTicketView, tickets::TicketView)> {
-        let line_voids = tickets::pending_line_voids(&self.store).unwrap_or_default();
-        let sc_taxable = self.service_charge_taxable();
-        self.bill_source()
-            .into_iter()
-            .find(|v| v.id.to_string() == ticket_id)
-            .map(|v| {
-                let view = tickets::to_view_with(&v, false, &line_voids, sc_taxable);
-                (v, view)
-            })
+    ) -> Option<(Option<madar_api::models::OpenTicketView>, tickets::TicketView)> {
+        let source = self.bill_source();
+        let raw = source.iter().find(|v| v.id.to_string() == ticket_id).cloned();
+        let view = self
+            .overlay_bills(&source)
+            .ok()
+            .and_then(|bills| bills.into_iter().find(|t| t.id == ticket_id))
+            .or_else(|| {
+                // Settled or voided locally (so the overlay dropped it) but a
+                // reader still needs its lines: the synced row as it was.
+                let line_voids = tickets::pending_line_voids(&self.store).unwrap_or_default();
+                raw.as_ref()
+                    .map(|v| tickets::to_view_with(v, false, &line_voids, self.service_charge_taxable()))
+            })?;
+        Some((raw, view))
     }
 
     /// The lines of a bill a reward could name.
@@ -4581,7 +4643,7 @@ impl MadarCore {
         let (dtype, dvalue) = match discount_type.as_deref() {
             Some("none") => (None, None),
             Some(_) => (discount_type.clone(), discount_value),
-            None => tickets::waiter_discount(&raw),
+            None => raw.as_ref().map(tickets::waiter_discount).unwrap_or((None, None)),
         };
         Ok(Some(tickets::reprice_with(
             &bill,
@@ -7298,7 +7360,7 @@ impl MadarCore {
                 Some(_) => (discount_type_for_row.clone(), discount_value),
                 None => self
                     .cached_ticket(&ticket_id)
-                    .map(|(raw, _)| tickets::waiter_discount(&raw))
+                    .and_then(|(raw, _)| raw.as_ref().map(tickets::waiter_discount))
                     .unwrap_or((None, None)),
             };
             tickets::reprice_with(&unpriced, subtotal, dtype.as_deref(), dvalue, waive_service)
