@@ -75,6 +75,7 @@ ReceiptView _r({
   bool inclusive = false,
   int waived = 0,
   String? waivedBy,
+  double rate = 0.14,
 }) => ReceiptView(
   payments: payments,
   localOrderId: '8f2a4c1e-x',
@@ -100,6 +101,7 @@ ReceiptView _r({
   serviceChargeWaivedMinor: waived,
   serviceChargeWaivedByName: waivedBy,
   taxInclusive: inclusive,
+  taxRate: rate,
 );
 
 final _cases = <String, ReceiptView>{
@@ -213,17 +215,17 @@ void main() {
               for (final k in [
                 'order.discount',
                 'order.service_charge',
-                'order.tax',
                 'order.tip',
               ]) {
                 expect(find.text(w(k)), findsOneWidget, reason: k);
               }
+              // The VAT line reads "VAT (14%)" now, exclusive or inclusive.
+              expect(find.text('${w('receipt.vat')} (14%)'), findsOneWidget);
               expect(change, findsNothing);
             case 'inclusive-waived':
-              expect(find.text(w('receipt.vat_included')), findsOneWidget);
-              expect(find.text(w('order.tax')), findsNothing);
+              expect(find.text('${w('receipt.vat')} (14%)'), findsOneWidget);
               expect(
-                find.text(w('receipt.prices_include_vat')),
+                find.text('${w('receipt.prices_include_vat')} (14%)'),
                 findsOneWidget,
               );
               expect(find.text(w('receipt.service_waived')), findsOneWidget);

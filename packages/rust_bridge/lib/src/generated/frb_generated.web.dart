@@ -335,6 +335,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   KitchenChit dco_decode_kitchen_chit(dynamic raw);
 
   @protected
+  KitchenSlip dco_decode_kitchen_slip(dynamic raw);
+
+  @protected
+  KitchenSlipItem dco_decode_kitchen_slip_item(dynamic raw);
+
+  @protected
   LanAdvertView dco_decode_lan_advert_view(dynamic raw);
 
   @protected
@@ -388,9 +394,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<CartBundleComponentView> dco_decode_list_cart_bundle_component_view(
     dynamic raw,
   );
-
-  @protected
-  List<CartLineChit> dco_decode_list_cart_line_chit(dynamic raw);
 
   @protected
   List<CartLineView> dco_decode_list_cart_line_view(dynamic raw);
@@ -459,6 +462,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<KdsTicketView> dco_decode_list_kds_ticket_view(dynamic raw);
+
+  @protected
+  List<KitchenSlipItem> dco_decode_list_kitchen_slip_item(dynamic raw);
 
   @protected
   List<LoyaltyLedgerView> dco_decode_list_loyalty_ledger_view(dynamic raw);
@@ -1201,6 +1207,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   KitchenChit sse_decode_kitchen_chit(SseDeserializer deserializer);
 
   @protected
+  KitchenSlip sse_decode_kitchen_slip(SseDeserializer deserializer);
+
+  @protected
+  KitchenSlipItem sse_decode_kitchen_slip_item(SseDeserializer deserializer);
+
+  @protected
   LanAdvertView sse_decode_lan_advert_view(SseDeserializer deserializer);
 
   @protected
@@ -1268,11 +1280,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<CartBundleComponentView> sse_decode_list_cart_bundle_component_view(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<CartLineChit> sse_decode_list_cart_line_chit(
     SseDeserializer deserializer,
   );
 
@@ -1377,6 +1384,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<KdsTicketView> sse_decode_list_kds_ticket_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<KitchenSlipItem> sse_decode_list_kitchen_slip_item(
     SseDeserializer deserializer,
   );
 
@@ -2314,6 +2326,15 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_kitchen_chit(KitchenChit self, SseSerializer serializer);
 
   @protected
+  void sse_encode_kitchen_slip(KitchenSlip self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_kitchen_slip_item(
+    KitchenSlipItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_lan_advert_view(LanAdvertView self, SseSerializer serializer);
 
   @protected
@@ -2403,12 +2424,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_cart_bundle_component_view(
     List<CartBundleComponentView> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_cart_line_chit(
-    List<CartLineChit> self,
     SseSerializer serializer,
   );
 
@@ -2541,6 +2556,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_kds_ticket_view(
     List<KdsTicketView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_kitchen_slip_item(
+    List<KitchenSlipItem> self,
     SseSerializer serializer,
   );
 

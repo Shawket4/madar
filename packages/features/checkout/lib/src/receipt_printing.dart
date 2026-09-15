@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_core/app_core.dart';
+import 'package:design_system/design_system.dart' show Money;
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// Thermal receipt width in characters — the natives' `32u` raster width.
@@ -18,6 +19,12 @@ enum PrintState { idle, printing, printed, failed, noPrinter }
 /// else falls back to Epson (the natives' default dialect).
 PrinterBrand printerBrandOf(String? brand) =>
     brand == 'star' ? PrinterBrand.star : PrinterBrand.epson;
+
+/// The VAT line's label, unified across exclusive/inclusive: `"VAT (14%)"`,
+/// at the bill's OWN frozen rate — mirrors the core's `receipt::vat_label`
+/// so the on-screen preview and the printed paper never disagree.
+String vatLabel(String Function(String) tr, double rate) =>
+    '${tr('receipt.vat')} (${Money.ratePercent(rate)}%)';
 
 /// Render [receipt] in the core and stream it to the bound printer.
 ///

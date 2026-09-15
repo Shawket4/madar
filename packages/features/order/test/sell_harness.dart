@@ -579,11 +579,12 @@ class _FakeBridge implements MadarBridge {
       chitsBuilt.add(key);
       return Future<CartLineChit>.value(
         CartLineChit(
-          chit: KitchenChit(
-            item: key,
-            qty: 1,
-            modifiers: const [],
+          chit: KitchenSlip(
             at: '13:05',
+            topNotes: const [],
+            items: [
+              KitchenSlipItem(item: key, qty: 1, modifiers: const []),
+            ],
           ),
           preview: [
             const ChitLineView(
@@ -690,33 +691,29 @@ class _FakeBridge implements MadarBridge {
     if (name == #cartKitchenChit) {
       cartKitchenChitsBuilt += 1;
       final lines = _cartOf(invocation);
+      final tableId = invocation.namedArguments[#tableId] as String?;
+      final cartNote = cartKitchenNotes[tableId];
       return Future<CartKitchenChit>.value(
         CartKitchenChit(
-          items: [
+          slip: KitchenSlip(
+            at: '13:05',
+            topNotes: cartNote == null ? const [] : [cartNote],
+            items: [
+              for (final l in lines)
+                KitchenSlipItem(item: l.name, qty: l.qty, modifiers: const []),
+            ],
+          ),
+          cartNote: cartNote,
+          bytes: Uint8List.fromList(const [0x1b, 0x40]),
+          preview: [
             for (final l in lines)
-              CartLineChit(
-                chit: KitchenChit(
-                  item: l.name,
-                  qty: l.qty,
-                  modifiers: const [],
-                  at: '13:05',
-                ),
-                preview: [
-                  ChitLineView(
-                    text: '${l.qty}x ${l.name}',
-                    centered: false,
-                    bold: true,
-                    large: true,
-                  ),
-                ],
-                bytes: Uint8List.fromList(const [0x1b, 0x40]),
-                target: const ChitPrinterTarget(),
+              ChitLineView(
+                text: '${l.qty}x ${l.name}',
+                centered: false,
+                bold: true,
+                large: true,
               ),
           ],
-          cartNote: cartKitchenNotes[
-              invocation.namedArguments[#tableId] as String?],
-          bytes: Uint8List.fromList(const [0x1b, 0x40]),
-          preview: const [],
         ),
       );
     }

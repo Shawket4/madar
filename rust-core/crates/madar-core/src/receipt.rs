@@ -758,6 +758,29 @@ pub fn raster_for(brand: PrinterBrand, bmp: &Bitmap, cut: bool) -> Vec<u8> {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
+/// A tax/service-charge rate as a percentage, for a printed VAT line:
+/// `0.14` → `"14"`, `0.125` → `"12.5"`. Mirrors the design system's
+/// `Money.ratePercent` so a receipt and its on-screen preview never disagree.
+///
+/// Rounded to a TENTH first, because `0.14 * 100.0` is `14.000000000000002`
+/// in a double and `"14.0%"` on a receipt reads like a rate nobody set.
+pub fn format_rate_pct(rate: f64) -> String {
+    let tenths = (rate * 1000.0).round() / 10.0;
+    if tenths == tenths.trunc() {
+        format!("{tenths:.0}")
+    } else {
+        format!("{tenths:.1}")
+    }
+}
+
+/// The full VAT line label a printed receipt uses, unified across the
+/// exclusive/inclusive/inclusive-note cases: `"{word} ({rate}%)"`, e.g.
+/// `"VAT (14%)"`. `word` is whichever i18n string the caller passes in
+/// (the plain VAT word, or the "Prices include VAT" note).
+pub fn vat_label(word: &str, rate: f64) -> String {
+    format!("{} ({}%)", word, format_rate_pct(rate))
+}
+
 /// Minor units → "x.yy" with the currency code suffixed. Handles negatives.
 pub(crate) fn money(minor: i64, currency: &str) -> String {
     let neg = minor < 0;
@@ -984,9 +1007,9 @@ mod tests {
                 subtotal: "Subtotal".into(),
                 discount: "Discount".into(),
                 service_charge: "Service".into(),
-                tax: "Tax".into(),
-                vat_included: "VAT (included)".into(),
-                prices_include_vat: "Prices include VAT".into(),
+                tax: "VAT (14%)".into(),
+                vat_included: "VAT (14%)".into(),
+                prices_include_vat: "Prices include VAT (14%)".into(),
                 service_waived: "Service charge removed".into(),
                 delivery_fee: "Delivery Fee".into(),
                 total: "Total".into(),
@@ -1032,6 +1055,7 @@ mod tests {
             tax_minor: 1750,
             service_charge_minor: 0,
             tax_inclusive: false,
+            tax_rate: 0.14,
             service_charge_waived_minor: 0,
             service_charge_waived_by_name: None,
             delivery_fee_minor: 0,
@@ -1128,7 +1152,7 @@ mod tests {
         assert!(!text.iter().any(|t| t.starts_with("Subtotal")));
         assert!(text
             .iter()
-            .any(|t| t.starts_with("Tax") && t.ends_with("17.50 EGP")));
+            .any(|t| t.starts_with("VAT (14%)") && t.ends_with("17.50 EGP")));
         assert!(text
             .iter()
             .any(|t| t.starts_with("Total") && t.ends_with("142.50 EGP")));
@@ -1514,7 +1538,15 @@ mod tests {
     fn layout_states_service_vat_and_the_inclusive_note_and_adds_up() {
         let amount = |lines: &[Line], label: &str| -> Option<i64> {
             let l = lines.iter().find(|l| l.text.starts_with(label))?;
-            let n: String = l.text.chars().filter(|c| c.is_ascii_digit() || *c == '-').collect();
+            // Read digits from the RIGHTMOST numeric run only — the label
+            // itself may carry digits too now (e.g. "VAT (14%)"), and those
+            // must never leak into the parsed money.
+            let value = l.text.strip_suffix(" EGP")?;
+            let start = value
+                .rfind(|c: char| !(c.is_ascii_digit() || c == '.' || c == '-'))
+                .map(|i| i + 1)
+                .unwrap_or(0);
+            let n: String = value[start..].chars().filter(|c| c.is_ascii_digit() || *c == '-').collect();
             n.parse().ok()
         };
         // Exclusive: 2000 − 200 + 180 + 277 = 2257.
@@ -1529,11 +1561,15 @@ mod tests {
             amount(&lines, "Subtotal").unwrap(),
             amount(&lines, "Discount").unwrap(),
             amount(&lines, "Service").unwrap(),
-            amount(&lines, "Tax").unwrap(),
+            amount(&lines, "VAT").unwrap(),
             amount(&lines, "Total").unwrap(),
         );
         assert_eq!(sub + disc + svc + tax, total, "{lines:?}");
         assert!(!lines.iter().any(|l| l.text.contains("Prices include VAT")));
+        assert!(
+            lines.iter().any(|l| l.text.starts_with("VAT (14%)")),
+            "the VAT line names the rate: {lines:?}"
+        );
 
         // Inclusive: the VAT is inside; 2000 − 200 + 180 = 1980, VAT 243 in it.
         r.tax_inclusive = true;
@@ -1541,8 +1577,8 @@ mod tests {
         r.total_minor = 1980;
         r.service_charge_waived_minor = 0;
         let lines = layout(&r, &ctx());
-        assert!(lines.iter().any(|l| l.text.starts_with("VAT (included)") && l.text.ends_with("2.43 EGP")));
-        assert!(lines.iter().any(|l| l.text == "Prices include VAT"));
+        assert!(lines.iter().any(|l| l.text.starts_with("VAT (14%)") && l.text.ends_with("2.43 EGP")));
+        assert!(lines.iter().any(|l| l.text == "Prices include VAT (14%)"));
         assert_eq!(
             amount(&lines, "Subtotal").unwrap() + amount(&lines, "Discount").unwrap() + amount(&lines, "Service").unwrap(),
             amount(&lines, "Total").unwrap()
@@ -1569,9 +1605,24 @@ mod tests {
         let mut r = cash_receipt();
         r.tax_minor = 0;
         let lines = layout(&r, &ctx());
-        assert!(!lines.iter().any(|l| l.text.starts_with("Tax")));
+        assert!(!lines.iter().any(|l| l.text.starts_with("VAT")));
         // Total still printed.
         assert!(lines.iter().any(|l| l.text.starts_with("Total")));
+    }
+
+    #[test]
+    fn vat_label_joins_the_word_and_the_rate() {
+        assert_eq!(vat_label("VAT", 0.14), "VAT (14%)");
+        assert_eq!(vat_label("Prices include VAT", 0.125), "Prices include VAT (12.5%)");
+        assert_eq!(vat_label("ضريبة القيمة المضافة", 0.14), "ضريبة القيمة المضافة (14%)");
+    }
+
+    #[test]
+    fn format_rate_pct_drops_trailing_zeros_and_rounds_float_noise() {
+        assert_eq!(format_rate_pct(0.14), "14");
+        assert_eq!(format_rate_pct(0.125), "12.5");
+        assert_eq!(format_rate_pct(0.0), "0");
+        assert_eq!(format_rate_pct(0.05), "5");
     }
 
     #[test]
@@ -2245,56 +2296,59 @@ pub struct ChitLineView {
     pub large: bool,
 }
 
-/// One cart line's chit, ready to print and to preview: the printer bytes
-/// (in the target printer's dialect), the same document as preview lines,
-/// and where it goes.
+/// One item's line on a kitchen SLIP — no header, no top note: those print
+/// once for the whole slip ([`KitchenSlip`]).
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug)]
-pub struct CartLineChit {
-    pub chit: KitchenChit,
-    pub preview: Vec<ChitLineView>,
-    pub bytes: Vec<u8>,
-    pub target: crate::kds::ChitPrinterTarget,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KitchenSlipItem {
+    pub item: String,
+    pub qty: i64,
+    pub size_label: Option<String>,
+    pub modifiers: Vec<String>,
+    /// THIS item's own note (its line's order note + its kitchen-only note,
+    /// joined) — never the cart-level notes, which print once at the top.
+    pub note: Option<String>,
 }
 
-/// The WHOLE cart printed as one kitchen job — every line's own chit (each
-/// still carrying its own routing target, unused by the print path itself
-/// but kept for the preview/UI), the cart-level kitchen note, the combined
-/// bytes ready to stream to the till printer, and the combined preview.
+/// A kitchen slip: one header (table/ticket/time), the notes that apply to
+/// the WHOLE slip printed ONCE at the top, then one or more items each with
+/// only its own note. The per-item print button and the whole-cart print
+/// button both build one of these — a single row is a one-item slip, the
+/// same layout throughout.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug)]
-pub struct CartKitchenChit {
-    pub items: Vec<CartLineChit>,
-    /// The cart-level kitchen note, if any (never the order note, never the
-    /// receipt).
-    pub cart_note: Option<String>,
-    pub bytes: Vec<u8>,
-    pub preview: Vec<ChitLineView>,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KitchenSlip {
+    pub table_label: Option<String>,
+    pub ticket_ref: Option<String>,
+    pub at: String,
+    pub teller: Option<String>,
+    /// The order note, then the cart-level kitchen note — each printed
+    /// once, blanks dropped. Never the customer receipt's concern.
+    pub top_notes: Vec<String>,
+    pub items: Vec<KitchenSlipItem>,
 }
 
 /// The chit's lines as the preview draws them.
 pub fn kitchen_chit_preview(chit: &KitchenChit, labels: &KitchenChitLabels, width: u32) -> Vec<ChitLineView> {
     kitchen_chit_layout(chit, labels, width)
         .into_iter()
-        .map(|l| ChitLineView {
-            text: l.text,
-            centered: matches!(l.align, Align::Center),
-            bold: l.bold,
-            large: matches!(l.size, Size::Double),
-        })
+        .map(line_to_preview)
         .collect()
 }
 
-/// Build the chit for ONE cart line. Everything changed about the dish is
-/// flattened into one list — a cook does not care which of the cart's three
-/// lists a modification came from.
-pub fn chit_for_cart_line(
-    line: &crate::cart::CartLineView,
-    table_label: Option<String>,
-    ticket_ref: Option<String>,
-    at: String,
-    teller: Option<String>,
-) -> KitchenChit {
+fn line_to_preview(l: Line) -> ChitLineView {
+    ChitLineView {
+        text: l.text,
+        centered: matches!(l.align, Align::Center),
+        bold: l.bold,
+        large: matches!(l.size, Size::Double),
+    }
+}
+
+/// Flatten one cart line's modifiers + its own note (line order note + its
+/// kitchen-only note, joined) into a [`KitchenSlipItem`]. A cook does not
+/// care which of the cart's three lists a modification came from.
+pub fn slip_item_for_cart_line(line: &crate::cart::CartLineView) -> KitchenSlipItem {
     let mut modifiers: Vec<String> = Vec::new();
     for a in &line.addons {
         modifiers.push(if a.qty > 1 { format!("{} x{}", a.name, a.qty) } else { a.name.clone() });
@@ -2315,9 +2369,10 @@ pub fn chit_for_cart_line(
             modifiers.push(format!("   {}", o.name));
         }
     }
-    // The order note (also on the receipt) and the kitchen-only note (never
-    // on the receipt, local-only) both belong on the chit a cook reads —
-    // join them so neither is silently dropped when both are set.
+    // This LINE's own order note (also on the receipt) and its own
+    // kitchen-only note (never on the receipt, local-only) — joined so
+    // neither is silently dropped when both are set. The CART-level notes
+    // are a different thing entirely and never reach here.
     let order_note = line.notes.as_deref().map(str::trim).filter(|s| !s.is_empty());
     let kitchen_note = line.kitchen_note.as_deref().map(str::trim).filter(|s| !s.is_empty());
     let note = match (order_note, kitchen_note) {
@@ -2326,17 +2381,173 @@ pub fn chit_for_cart_line(
         (None, Some(k)) => Some(k.to_string()),
         (None, None) => None,
     };
-    KitchenChit {
+    KitchenSlipItem {
         item: line.name.clone(),
         qty: line.qty,
         size_label: line.size_label.clone(),
         modifiers,
         note,
+    }
+}
+
+/// Build a ONE-ITEM slip — the per-item print button. Still the same
+/// layout as a whole-cart slip: the order note and the cart-level kitchen
+/// note print once at the top, above this row's own note.
+pub fn slip_for_cart_line(
+    line: &crate::cart::CartLineView,
+    table_label: Option<String>,
+    ticket_ref: Option<String>,
+    at: String,
+    teller: Option<String>,
+    order_note: Option<String>,
+    cart_kitchen_note: Option<String>,
+) -> KitchenSlip {
+    KitchenSlip {
         table_label,
         ticket_ref,
         at,
         teller,
+        top_notes: top_notes(order_note, cart_kitchen_note),
+        items: vec![slip_item_for_cart_line(line)],
     }
+}
+
+/// The order note, then the cart-level kitchen note, blanks dropped — the
+/// slip's top section, shared by the one-item and whole-cart builders.
+pub fn top_notes(order_note: Option<String>, cart_kitchen_note: Option<String>) -> Vec<String> {
+    [order_note, cart_kitchen_note]
+        .into_iter()
+        .flatten()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// Lay out a whole kitchen slip: heading, table, the top notes ONCE, then
+/// every item with only its own note, one footer. Rendered as ONE document
+/// — [`escpos_kitchen_slip`] cuts exactly once, at the very end, however
+/// many items are on it.
+pub fn kitchen_slip_layout(slip: &KitchenSlip, labels: &KitchenChitLabels, width: u32) -> Vec<Line> {
+    let w = width.max(16) as usize;
+    let mut out: Vec<Line> = Vec::new();
+
+    out.push(Line { text: labels.heading.clone(), align: Align::Center, bold: true, size: Size::Normal });
+    if let Some(t) = slip.table_label.as_deref().filter(|s| !s.trim().is_empty()) {
+        out.push(Line {
+            text: format!("{} {}", labels.table, t.trim()),
+            align: Align::Center,
+            bold: true,
+            size: Size::Double,
+        });
+    }
+    out.push(Line::plain("-".repeat(w)));
+
+    // The notes that apply to the WHOLE slip, once — above every item, never
+    // repeated per row.
+    let notes: Vec<&String> = slip.top_notes.iter().filter(|n| !n.trim().is_empty()).collect();
+    for n in &notes {
+        out.push(Line {
+            text: format!("{} {}", labels.note, n.trim()),
+            align: Align::Left,
+            bold: true,
+            size: Size::Normal,
+        });
+    }
+    if !notes.is_empty() {
+        out.push(Line::plain("-".repeat(w)));
+    }
+
+    for (i, item) in slip.items.iter().enumerate() {
+        if i > 0 {
+            // Space, not a rule and never a cut — one continuous slip.
+            out.push(Line::plain(""));
+        }
+        let name = match item.size_label.as_deref().filter(|s| !s.trim().is_empty()) {
+            Some(sz) => format!("{} ({})", item.item.trim(), sz.trim()),
+            None => item.item.trim().to_string(),
+        };
+        out.push(Line {
+            text: format!("{}x {}", item.qty.max(1), name),
+            align: Align::Left,
+            bold: true,
+            size: Size::Double,
+        });
+        for m in item.modifiers.iter().filter(|m| !m.trim().is_empty()) {
+            out.push(Line::plain(format!("  - {}", m.trim())));
+        }
+        if let Some(n) = item.note.as_deref().filter(|s| !s.trim().is_empty()) {
+            out.push(Line {
+                text: format!("{} {}", labels.note, n.trim()),
+                align: Align::Left,
+                bold: false,
+                size: Size::Normal,
+            });
+        }
+    }
+
+    out.push(Line::plain("-".repeat(w)));
+    let foot = match slip.ticket_ref.as_deref().filter(|s| !s.trim().is_empty()) {
+        Some(r) => format!("{}  {}", r.trim(), slip.at),
+        None => slip.at.clone(),
+    };
+    out.push(Line::plain(foot));
+    if let Some(by) = slip.teller.as_deref().filter(|s| !s.trim().is_empty()) {
+        out.push(Line::plain(by.trim()));
+    }
+    out
+}
+
+/// Adapt the legacy single-dish [`KitchenChit`] (still built directly by the
+/// host for the normal fire/checkout print) into a one-item [`KitchenSlip`]
+/// — so it renders through the SAME raster path as every other kitchen
+/// chit, instead of the old raw-text encoder that garbled Arabic.
+pub fn slip_for_kitchen_chit(chit: &KitchenChit) -> KitchenSlip {
+    KitchenSlip {
+        table_label: chit.table_label.clone(),
+        ticket_ref: chit.ticket_ref.clone(),
+        at: chit.at.clone(),
+        teller: chit.teller.clone(),
+        top_notes: Vec::new(),
+        items: vec![KitchenSlipItem {
+            item: chit.item.clone(),
+            qty: chit.qty,
+            size_label: chit.size_label.clone(),
+            modifiers: chit.modifiers.clone(),
+            note: chit.note.clone(),
+        }],
+    }
+}
+
+/// The slip's lines as the preview draws them — the same document.
+pub fn kitchen_slip_preview(slip: &KitchenSlip, labels: &KitchenChitLabels, width: u32) -> Vec<ChitLineView> {
+    kitchen_slip_layout(slip, labels, width).into_iter().map(line_to_preview).collect()
+}
+
+/// One cart line's slip, ready to print and to preview: the printer bytes
+/// (in the target printer's dialect), the same document as preview lines,
+/// and where it goes.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
+pub struct CartLineChit {
+    pub chit: KitchenSlip,
+    pub preview: Vec<ChitLineView>,
+    pub bytes: Vec<u8>,
+    pub target: crate::kds::ChitPrinterTarget,
+}
+
+/// The WHOLE cart printed as ONE kitchen slip — one header, the order note
+/// and the cart-level kitchen note once at the top, then every line with
+/// only its own note, one continuous document (one cut, at the end).
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
+pub struct CartKitchenChit {
+    pub slip: KitchenSlip,
+    /// The cart-level kitchen note, if any (never the order note, never the
+    /// receipt) — surfaced separately so the host can clear it after print
+    /// without re-deriving it from `slip.top_notes`.
+    pub cart_note: Option<String>,
+    pub bytes: Vec<u8>,
+    pub preview: Vec<ChitLineView>,
 }
 
 /// Render a kitchen chit to printer bytes.
@@ -2385,11 +2596,74 @@ mod kitchen_chit_tests {
         // price, and a pass is not where a bill belongs.
         let lines = kitchen_chit_layout(&chit(), &labels(), 32);
         let all = text_of(&lines).join("\n");
-        for money in ["EGP", ".00", "Total", "Subtotal", "Tax"] {
+        for money in ["EGP", ".00", "Total", "Subtotal", "Tax", "VAT"] {
             assert!(
                 !all.contains(money),
                 "a kitchen chit must not print {money}:\n{all}"
             );
+        }
+    }
+
+    /// A cook chit is built from cart lines that ARE priced (addons, bundle
+    /// components, the line's own unit price) — this is the one place money
+    /// sits right next to what gets printed, so it is the one place a price
+    /// could leak through by accident. `kitchen_slip_layout` is the shared
+    /// structure both the preview and the raster renderer
+    /// ([`render::render_kitchen_chit`]) draw from — checking it here covers
+    /// the per-item button, the whole-cart print, and (via
+    /// [`slip_for_kitchen_chit`]) the normal fire/checkout chit too.
+    #[test]
+    fn a_kitchen_chit_never_carries_a_price_currency_or_logo() {
+        let mut line = cart_line(); // unit 120.00, addons 5.00/9.00, total 360.00
+        line.bundle_id = Some("b1".into());
+        line.bundle_components = vec![crate::cart::CartBundleComponentView {
+            item_id: "c1".into(),
+            name: "Fries".into(),
+            qty: 1,
+            size_label: None,
+            addons: vec![crate::cart::CartAddonView {
+                addon_item_id: "a3".into(),
+                name: "Extra salt".into(),
+                qty: 1,
+                price_modifier_minor: 1000, // 10.00
+            }],
+            optionals: vec![],
+        }];
+        let built = slip_for_cart_line(
+            &line,
+            Some("T9".into()),
+            Some("R-1".into()),
+            "12:00".into(),
+            Some("Ken".into()),
+            None,
+            None,
+        );
+        let preview = kitchen_slip_preview(&built, &labels(), 32);
+        let text = preview
+            .iter()
+            .map(|l| l.text.clone())
+            .collect::<Vec<_>>()
+            .join("\n");
+        // Every money figure this line could possibly print, plus currency,
+        // VAT and logo/QR/loyalty/promo markers — none belong on a chit.
+        for forbidden in [
+            "EGP", "$", "5.00", "9.00", "10.00", "120.00", "360.00", "Total",
+            "Subtotal", "VAT", "Tax", "Discount", "QR", "logo", "loyalty",
+            "points", "promo",
+        ] {
+            assert!(
+                !text.to_lowercase().contains(&forbidden.to_lowercase()),
+                "a kitchen chit must never show {forbidden:?}:\n{text}"
+            );
+        }
+        // Preview and print are the SAME document, structurally — both come
+        // from `kitchen_slip_layout`. The actual bytes are rasterized
+        // ([`render::render_kitchen_chit`]), not tested at this layer.
+
+        // Allowed content IS present: item, size, modifiers, qty, note,
+        // table, ticket ref, time, teller — this is what a chit is FOR.
+        for allowed in ["Burger", "Double", "Cheese", "well done", "T9", "R-1", "12:00", "Ken"] {
+            assert!(text.contains(allowed), "missing {allowed:?}:\n{text}");
         }
     }
 
@@ -2500,31 +2774,125 @@ mod kitchen_chit_tests {
 
     #[test]
     fn a_single_cart_line_chit_carries_the_whole_dish() {
-        let chit = chit_for_cart_line(&cart_line(), Some("T7".into()), Some("R-9".into()), "13:05".into(), Some("Sara".into()));
-        assert_eq!(chit.item, "Burger");
-        assert_eq!(chit.qty, 3);
-        assert_eq!(chit.modifiers, vec!["Cheese x2".to_string(), "Bacon".into(), "No onions".into()]);
-        let lines = kitchen_chit_preview(&chit, &labels(), 32);
+        let slip = slip_for_cart_line(
+            &cart_line(),
+            Some("T7".into()),
+            Some("R-9".into()),
+            "13:05".into(),
+            Some("Sara".into()),
+            None,
+            None,
+        );
+        assert_eq!(slip.items.len(), 1);
+        let item = &slip.items[0];
+        assert_eq!(item.item, "Burger");
+        assert_eq!(item.qty, 3);
+        assert_eq!(item.modifiers, vec!["Cheese x2".to_string(), "Bacon".into(), "No onions".into()]);
+        let lines = kitchen_slip_preview(&slip, &labels(), 32);
         let all: Vec<String> = lines.iter().map(|l| l.text.clone()).collect();
         let joined = all.join("\n");
-        let item = lines.iter().find(|l| l.text == "3x Burger (Double)").expect("item line");
-        assert!(item.large && item.bold, "the dish prints big:\n{joined}");
+        let item_line = lines.iter().find(|l| l.text == "3x Burger (Double)").expect("item line");
+        assert!(item_line.large && item_line.bold, "the dish prints big:\n{joined}");
         for want in ["KITCHEN", "Table T7", "  - Cheese x2", "  - Bacon", "  - No onions", "NOTE: well done", "R-9  13:05", "Sara"] {
             assert!(all.iter().any(|l| l == want), "missing {want:?}:\n{joined}");
         }
         assert!(!joined.contains("120") && !joined.contains("360"), "no money on a chit:\n{joined}");
         // The preview is the printed document, line for line.
-        assert_eq!(all, text_of(&kitchen_chit_layout(&chit, &labels(), 32)));
+        assert_eq!(all, text_of(&kitchen_slip_layout(&slip, &labels(), 32)));
     }
 
     #[test]
     fn a_counter_cart_line_chit_has_no_table() {
         let mut line = cart_line();
         line.notes = None;
-        let chit = chit_for_cart_line(&line, None, None, "13:05".into(), None);
-        let joined = text_of(&kitchen_chit_layout(&chit, &labels(), 32)).join("\n");
+        let slip = slip_for_cart_line(&line, None, None, "13:05".into(), None, None, None);
+        let joined = text_of(&kitchen_slip_layout(&slip, &labels(), 32)).join("\n");
         assert!(!joined.contains("Table"));
         assert!(!joined.contains("NOTE:"));
         assert!(joined.contains("3x Burger (Double)"));
+    }
+
+    /// Notes inherit downward: the order note and the cart-level kitchen
+    /// note print ONCE at the top of the slip — never repeated per item —
+    /// and each item still shows only its OWN note below it. A single row
+    /// printed on its own gets the exact same layout.
+    #[test]
+    fn cart_and_order_notes_print_once_at_the_top_above_each_items_own_note() {
+        let slip = slip_for_cart_line(
+            &cart_line(), // its own note: "well done"
+            Some("T7".into()),
+            Some("R-9".into()),
+            "13:05".into(),
+            Some("Sara".into()),
+            Some("Birthday — bring the cake last".into()), // the ORDER note
+            Some("rush this table".into()),                // the CART-level kitchen note
+        );
+        assert_eq!(
+            slip.top_notes,
+            vec!["Birthday — bring the cake last".to_string(), "rush this table".to_string()],
+            "order note first, then the cart-level kitchen note"
+        );
+        let lines = text_of(&kitchen_slip_layout(&slip, &labels(), 32));
+        let top_idx = lines.iter().position(|l| l.contains("Birthday")).expect("order note at the top");
+        let cart_idx = lines.iter().position(|l| l.contains("rush this table")).expect("cart note at the top");
+        let item_idx = lines.iter().position(|l| l.starts_with("3x Burger")).expect("the item");
+        let own_note_idx = lines.iter().position(|l| l.contains("well done")).expect("the row's own note");
+        assert!(top_idx < item_idx && cart_idx < item_idx, "both top notes come before the item:\n{lines:?}");
+        assert!(own_note_idx > item_idx, "the row's own note comes AFTER the item, not among the top notes:\n{lines:?}");
+        // Each top note appears exactly once — never repeated per item.
+        assert_eq!(lines.iter().filter(|l| l.contains("Birthday")).count(), 1);
+        assert_eq!(lines.iter().filter(|l| l.contains("rush this table")).count(), 1);
+    }
+
+    /// A whole-cart slip with NO cart-level or order note has no top
+    /// section at all — each item still shows only its own note.
+    #[test]
+    fn a_multi_item_slip_shows_only_each_items_own_note_with_no_top_notes() {
+        let mut second = cart_line();
+        second.key = "k2".into();
+        second.name = "Fries".into();
+        second.notes = None;
+        second.kitchen_note = Some("extra crispy".into());
+        let slip = KitchenSlip {
+            table_label: Some("T2".into()),
+            ticket_ref: None,
+            at: "14:00".into(),
+            teller: None,
+            top_notes: top_notes(None, None),
+            items: vec![slip_item_for_cart_line(&cart_line()), slip_item_for_cart_line(&second)],
+        };
+        assert!(slip.top_notes.is_empty());
+        let lines = text_of(&kitchen_slip_layout(&slip, &labels(), 32));
+        assert!(lines.iter().any(|l| l.contains("well done")), "Burger's own note");
+        assert!(lines.iter().any(|l| l.contains("extra crispy")), "Fries' own note");
+        // Neither item's note leaks onto the other.
+        let burger_idx = lines.iter().position(|l| l.starts_with("3x Burger")).unwrap();
+        let fries_idx = lines.iter().position(|l| l.starts_with("3x Fries")).unwrap();
+        let well_done_idx = lines.iter().position(|l| l.contains("well done")).unwrap();
+        let crispy_idx = lines.iter().position(|l| l.contains("extra crispy")).unwrap();
+        assert!(burger_idx < well_done_idx && well_done_idx < fries_idx, "{lines:?}");
+        assert!(fries_idx < crispy_idx, "{lines:?}");
+    }
+
+    /// A whole-cart slip is ONE continuous document: no rule/divider marks a
+    /// cut between items, only the single one at the very end of the slip.
+    #[test]
+    fn a_multi_item_slip_has_exactly_one_closing_rule_no_cut_between_items() {
+        let mut second = cart_line();
+        second.key = "k2".into();
+        second.name = "Fries".into();
+        let slip = KitchenSlip {
+            table_label: Some("T2".into()),
+            ticket_ref: Some("R-1".into()),
+            at: "14:00".into(),
+            teller: None,
+            top_notes: vec![],
+            items: vec![slip_item_for_cart_line(&cart_line()), slip_item_for_cart_line(&second)],
+        };
+        let lines = kitchen_slip_layout(&slip, &labels(), 32);
+        // Exactly two rules: under the header, and the closing one before
+        // the footer — none between the two items.
+        let rule_count = lines.iter().filter(|l| l.text.starts_with('-') && l.text.chars().all(|c| c == '-')).count();
+        assert_eq!(rule_count, 2, "{lines:?}");
     }
 }

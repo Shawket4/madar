@@ -285,6 +285,7 @@ ReceiptView _receipt({required bool queued, int? number}) => ReceiptView(
   displayNumber: '',
   serviceChargeWaivedMinor: 0,
   taxInclusive: false,
+  taxRate: 0.14,
 );
 
 const _session = SessionSnapshot(

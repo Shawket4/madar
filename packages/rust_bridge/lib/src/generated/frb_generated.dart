@@ -10514,7 +10514,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     if (arr.length != 4)
       throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return CartKitchenChit(
-      items: dco_decode_list_cart_line_chit(arr[0]),
+      slip: dco_decode_kitchen_slip(arr[0]),
       cartNote: dco_decode_opt_String(arr[1]),
       bytes: dco_decode_list_prim_u_8_strict(arr[2]),
       preview: dco_decode_list_chit_line_view(arr[3]),
@@ -10528,7 +10528,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     if (arr.length != 4)
       throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return CartLineChit(
-      chit: dco_decode_kitchen_chit(arr[0]),
+      chit: dco_decode_kitchen_slip(arr[0]),
       preview: dco_decode_list_chit_line_view(arr[1]),
       bytes: dco_decode_list_prim_u_8_strict(arr[2]),
       target: dco_decode_chit_printer_target(arr[3]),
@@ -11179,6 +11179,37 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  KitchenSlip dco_decode_kitchen_slip(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return KitchenSlip(
+      tableLabel: dco_decode_opt_String(arr[0]),
+      ticketRef: dco_decode_opt_String(arr[1]),
+      at: dco_decode_String(arr[2]),
+      teller: dco_decode_opt_String(arr[3]),
+      topNotes: dco_decode_list_String(arr[4]),
+      items: dco_decode_list_kitchen_slip_item(arr[5]),
+    );
+  }
+
+  @protected
+  KitchenSlipItem dco_decode_kitchen_slip_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return KitchenSlipItem(
+      item: dco_decode_String(arr[0]),
+      qty: dco_decode_i_64(arr[1]),
+      sizeLabel: dco_decode_opt_String(arr[2]),
+      modifiers: dco_decode_list_String(arr[3]),
+      note: dco_decode_opt_String(arr[4]),
+    );
+  }
+
+  @protected
   LanAdvertView dco_decode_lan_advert_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -11331,12 +11362,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  List<CartLineChit> dco_decode_list_cart_line_chit(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>).map(dco_decode_cart_line_chit).toList();
-  }
-
-  @protected
   List<CartLineView> dco_decode_list_cart_line_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_cart_line_view).toList();
@@ -11482,6 +11507,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   List<KdsTicketView> dco_decode_list_kds_ticket_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_kds_ticket_view).toList();
+  }
+
+  @protected
+  List<KitchenSlipItem> dco_decode_list_kitchen_slip_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_kitchen_slip_item).toList();
   }
 
   @protected
@@ -12333,8 +12364,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   ReceiptView dco_decode_receipt_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 34)
-      throw Exception('unexpected arr length: expect 34 but see ${arr.length}');
+    if (arr.length != 35)
+      throw Exception('unexpected arr length: expect 35 but see ${arr.length}');
     return ReceiptView(
       localOrderId: dco_decode_String(arr[0]),
       orderNumber: dco_decode_opt_box_autoadd_i_64(arr[1]),
@@ -12348,28 +12379,29 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       taxMinor: dco_decode_i_64(arr[9]),
       serviceChargeMinor: dco_decode_i_64(arr[10]),
       taxInclusive: dco_decode_bool(arr[11]),
-      serviceChargeWaivedMinor: dco_decode_i_64(arr[12]),
-      serviceChargeWaivedByName: dco_decode_opt_String(arr[13]),
-      deliveryFeeMinor: dco_decode_i_64(arr[14]),
-      totalMinor: dco_decode_i_64(arr[15]),
-      tipMinor: dco_decode_i_64(arr[16]),
-      amountTenderedMinor: dco_decode_i_64(arr[17]),
-      changeMinor: dco_decode_i_64(arr[18]),
-      isCash: dco_decode_bool(arr[19]),
-      customerName: dco_decode_opt_String(arr[20]),
-      tellerName: dco_decode_opt_String(arr[21]),
-      isDelivery: dco_decode_bool(arr[22]),
-      deliveryChannel: dco_decode_opt_String(arr[23]),
-      customerPhone: dco_decode_opt_String(arr[24]),
-      deliveryAddress: dco_decode_opt_String(arr[25]),
-      deliveryZone: dco_decode_opt_String(arr[26]),
-      deliveryRef: dco_decode_opt_String(arr[27]),
-      paymentHint: dco_decode_opt_String(arr[28]),
-      deliveryNotes: dco_decode_opt_String(arr[29]),
-      queuedOffline: dco_decode_bool(arr[30]),
-      createdAt: dco_decode_String(arr[31]),
-      payments: dco_decode_list_receipt_payment_view(arr[32]),
-      loyaltyNotice: dco_decode_opt_String(arr[33]),
+      taxRate: dco_decode_f_64(arr[12]),
+      serviceChargeWaivedMinor: dco_decode_i_64(arr[13]),
+      serviceChargeWaivedByName: dco_decode_opt_String(arr[14]),
+      deliveryFeeMinor: dco_decode_i_64(arr[15]),
+      totalMinor: dco_decode_i_64(arr[16]),
+      tipMinor: dco_decode_i_64(arr[17]),
+      amountTenderedMinor: dco_decode_i_64(arr[18]),
+      changeMinor: dco_decode_i_64(arr[19]),
+      isCash: dco_decode_bool(arr[20]),
+      customerName: dco_decode_opt_String(arr[21]),
+      tellerName: dco_decode_opt_String(arr[22]),
+      isDelivery: dco_decode_bool(arr[23]),
+      deliveryChannel: dco_decode_opt_String(arr[24]),
+      customerPhone: dco_decode_opt_String(arr[25]),
+      deliveryAddress: dco_decode_opt_String(arr[26]),
+      deliveryZone: dco_decode_opt_String(arr[27]),
+      deliveryRef: dco_decode_opt_String(arr[28]),
+      paymentHint: dco_decode_opt_String(arr[29]),
+      deliveryNotes: dco_decode_opt_String(arr[30]),
+      queuedOffline: dco_decode_bool(arr[31]),
+      createdAt: dco_decode_String(arr[32]),
+      payments: dco_decode_list_receipt_payment_view(arr[33]),
+      loyaltyNotice: dco_decode_opt_String(arr[34]),
     );
   }
 
@@ -13611,12 +13643,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   @protected
   CartKitchenChit sse_decode_cart_kitchen_chit(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_items = sse_decode_list_cart_line_chit(deserializer);
+    var var_slip = sse_decode_kitchen_slip(deserializer);
     var var_cartNote = sse_decode_opt_String(deserializer);
     var var_bytes = sse_decode_list_prim_u_8_strict(deserializer);
     var var_preview = sse_decode_list_chit_line_view(deserializer);
     return CartKitchenChit(
-      items: var_items,
+      slip: var_slip,
       cartNote: var_cartNote,
       bytes: var_bytes,
       preview: var_preview,
@@ -13626,7 +13658,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   @protected
   CartLineChit sse_decode_cart_line_chit(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_chit = sse_decode_kitchen_chit(deserializer);
+    var var_chit = sse_decode_kitchen_slip(deserializer);
     var var_preview = sse_decode_list_chit_line_view(deserializer);
     var var_bytes = sse_decode_list_prim_u_8_strict(deserializer);
     var var_target = sse_decode_chit_printer_target(deserializer);
@@ -14429,6 +14461,42 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  KitchenSlip sse_decode_kitchen_slip(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_tableLabel = sse_decode_opt_String(deserializer);
+    var var_ticketRef = sse_decode_opt_String(deserializer);
+    var var_at = sse_decode_String(deserializer);
+    var var_teller = sse_decode_opt_String(deserializer);
+    var var_topNotes = sse_decode_list_String(deserializer);
+    var var_items = sse_decode_list_kitchen_slip_item(deserializer);
+    return KitchenSlip(
+      tableLabel: var_tableLabel,
+      ticketRef: var_ticketRef,
+      at: var_at,
+      teller: var_teller,
+      topNotes: var_topNotes,
+      items: var_items,
+    );
+  }
+
+  @protected
+  KitchenSlipItem sse_decode_kitchen_slip_item(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_item = sse_decode_String(deserializer);
+    var var_qty = sse_decode_i_64(deserializer);
+    var var_sizeLabel = sse_decode_opt_String(deserializer);
+    var var_modifiers = sse_decode_list_String(deserializer);
+    var var_note = sse_decode_opt_String(deserializer);
+    return KitchenSlipItem(
+      item: var_item,
+      qty: var_qty,
+      sizeLabel: var_sizeLabel,
+      modifiers: var_modifiers,
+      note: var_note,
+    );
+  }
+
+  @protected
   LanAdvertView sse_decode_lan_advert_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_deviceId = sse_decode_String(deserializer);
@@ -14668,20 +14736,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var ans_ = <CartBundleComponentView>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_cart_bundle_component_view(deserializer));
-    }
-    return ans_;
-  }
-
-  @protected
-  List<CartLineChit> sse_decode_list_cart_line_chit(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <CartLineChit>[];
-    for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_cart_line_chit(deserializer));
     }
     return ans_;
   }
@@ -14988,6 +15042,20 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var ans_ = <KdsTicketView>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_kds_ticket_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<KitchenSlipItem> sse_decode_list_kitchen_slip_item(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <KitchenSlipItem>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_kitchen_slip_item(deserializer));
     }
     return ans_;
   }
@@ -16293,6 +16361,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_taxMinor = sse_decode_i_64(deserializer);
     var var_serviceChargeMinor = sse_decode_i_64(deserializer);
     var var_taxInclusive = sse_decode_bool(deserializer);
+    var var_taxRate = sse_decode_f_64(deserializer);
     var var_serviceChargeWaivedMinor = sse_decode_i_64(deserializer);
     var var_serviceChargeWaivedByName = sse_decode_opt_String(deserializer);
     var var_deliveryFeeMinor = sse_decode_i_64(deserializer);
@@ -16328,6 +16397,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       taxMinor: var_taxMinor,
       serviceChargeMinor: var_serviceChargeMinor,
       taxInclusive: var_taxInclusive,
+      taxRate: var_taxRate,
       serviceChargeWaivedMinor: var_serviceChargeWaivedMinor,
       serviceChargeWaivedByName: var_serviceChargeWaivedByName,
       deliveryFeeMinor: var_deliveryFeeMinor,
@@ -17733,7 +17803,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_list_cart_line_chit(self.items, serializer);
+    sse_encode_kitchen_slip(self.slip, serializer);
     sse_encode_opt_String(self.cartNote, serializer);
     sse_encode_list_prim_u_8_strict(self.bytes, serializer);
     sse_encode_list_chit_line_view(self.preview, serializer);
@@ -17742,7 +17812,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   @protected
   void sse_encode_cart_line_chit(CartLineChit self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_kitchen_chit(self.chit, serializer);
+    sse_encode_kitchen_slip(self.chit, serializer);
     sse_encode_list_chit_line_view(self.preview, serializer);
     sse_encode_list_prim_u_8_strict(self.bytes, serializer);
     sse_encode_chit_printer_target(self.target, serializer);
@@ -18276,6 +18346,30 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_kitchen_slip(KitchenSlip self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_String(self.tableLabel, serializer);
+    sse_encode_opt_String(self.ticketRef, serializer);
+    sse_encode_String(self.at, serializer);
+    sse_encode_opt_String(self.teller, serializer);
+    sse_encode_list_String(self.topNotes, serializer);
+    sse_encode_list_kitchen_slip_item(self.items, serializer);
+  }
+
+  @protected
+  void sse_encode_kitchen_slip_item(
+    KitchenSlipItem self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.item, serializer);
+    sse_encode_i_64(self.qty, serializer);
+    sse_encode_opt_String(self.sizeLabel, serializer);
+    sse_encode_list_String(self.modifiers, serializer);
+    sse_encode_opt_String(self.note, serializer);
+  }
+
+  @protected
   void sse_encode_lan_advert_view(
     LanAdvertView self,
     SseSerializer serializer,
@@ -18477,18 +18571,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_cart_bundle_component_view(item, serializer);
-    }
-  }
-
-  @protected
-  void sse_encode_list_cart_line_chit(
-    List<CartLineChit> self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.length, serializer);
-    for (final item in self) {
-      sse_encode_cart_line_chit(item, serializer);
     }
   }
 
@@ -18753,6 +18835,18 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_kds_ticket_view(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_kitchen_slip_item(
+    List<KitchenSlipItem> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_kitchen_slip_item(item, serializer);
     }
   }
 
@@ -19824,6 +19918,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_i_64(self.taxMinor, serializer);
     sse_encode_i_64(self.serviceChargeMinor, serializer);
     sse_encode_bool(self.taxInclusive, serializer);
+    sse_encode_f_64(self.taxRate, serializer);
     sse_encode_i_64(self.serviceChargeWaivedMinor, serializer);
     sse_encode_opt_String(self.serviceChargeWaivedByName, serializer);
     sse_encode_i_64(self.deliveryFeeMinor, serializer);

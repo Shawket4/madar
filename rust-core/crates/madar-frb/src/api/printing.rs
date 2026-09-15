@@ -5,7 +5,7 @@ use flutter_rust_bridge::frb;
 
 use madar_core::checkout::ReceiptView;
 pub use madar_core::kds::ChitPrinterTarget;
-pub use madar_core::receipt::{CartKitchenChit, CartLineChit, ChitLineView, KitchenChit};
+pub use madar_core::receipt::{CartKitchenChit, CartLineChit, ChitLineView, KitchenChit, KitchenSlip, KitchenSlipItem};
 use madar_core::till::TillReportView;
 
 use crate::api::bridge::MadarBridge;
@@ -195,18 +195,42 @@ pub struct _ChitPrinterTarget {
 /// print and to preview.
 #[frb(mirror(CartLineChit))]
 pub struct _CartLineChit {
-    pub chit: KitchenChit,
+    pub chit: KitchenSlip,
     pub preview: Vec<ChitLineView>,
     pub bytes: Vec<u8>,
     pub target: ChitPrinterTarget,
 }
 
 /// Mirrors `madar_core::receipt::CartKitchenChit` — the whole cart printed as
-/// one kitchen job.
+/// ONE continuous kitchen slip.
 #[frb(mirror(CartKitchenChit))]
 pub struct _CartKitchenChit {
-    pub items: Vec<CartLineChit>,
+    pub slip: KitchenSlip,
     pub cart_note: Option<String>,
     pub bytes: Vec<u8>,
     pub preview: Vec<ChitLineView>,
+}
+
+/// Mirrors `madar_core::receipt::KitchenSlipItem` — one item's line on a
+/// kitchen slip: no header, no top note (those print once for the slip).
+#[frb(mirror(KitchenSlipItem))]
+pub struct _KitchenSlipItem {
+    pub item: String,
+    pub qty: i64,
+    pub size_label: Option<String>,
+    pub modifiers: Vec<String>,
+    pub note: Option<String>,
+}
+
+/// Mirrors `madar_core::receipt::KitchenSlip` — a kitchen slip: one header,
+/// the notes that apply to the whole slip printed once at the top, then one
+/// or more items each with only its own note.
+#[frb(mirror(KitchenSlip))]
+pub struct _KitchenSlip {
+    pub table_label: Option<String>,
+    pub ticket_ref: Option<String>,
+    pub at: String,
+    pub teller: Option<String>,
+    pub top_notes: Vec<String>,
+    pub items: Vec<KitchenSlipItem>,
 }

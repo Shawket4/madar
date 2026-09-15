@@ -12531,14 +12531,14 @@ const _: fn() = || {
     }
     {
         let CartKitchenChit = None::<crate::api::printing::CartKitchenChit>.unwrap();
-        let _: Vec<crate::api::printing::CartLineChit> = CartKitchenChit.items;
+        let _: crate::api::printing::KitchenSlip = CartKitchenChit.slip;
         let _: Option<String> = CartKitchenChit.cart_note;
         let _: Vec<u8> = CartKitchenChit.bytes;
         let _: Vec<crate::api::printing::ChitLineView> = CartKitchenChit.preview;
     }
     {
         let CartLineChit = None::<crate::api::printing::CartLineChit>.unwrap();
-        let _: crate::api::printing::KitchenChit = CartLineChit.chit;
+        let _: crate::api::printing::KitchenSlip = CartLineChit.chit;
         let _: Vec<crate::api::printing::ChitLineView> = CartLineChit.preview;
         let _: Vec<u8> = CartLineChit.bytes;
         let _: crate::api::printing::ChitPrinterTarget = CartLineChit.target;
@@ -12901,6 +12901,23 @@ const _: fn() = || {
         let _: Option<String> = KitchenChit.teller;
     }
     {
+        let KitchenSlip = None::<crate::api::printing::KitchenSlip>.unwrap();
+        let _: Option<String> = KitchenSlip.table_label;
+        let _: Option<String> = KitchenSlip.ticket_ref;
+        let _: String = KitchenSlip.at;
+        let _: Option<String> = KitchenSlip.teller;
+        let _: Vec<String> = KitchenSlip.top_notes;
+        let _: Vec<crate::api::printing::KitchenSlipItem> = KitchenSlip.items;
+    }
+    {
+        let KitchenSlipItem = None::<crate::api::printing::KitchenSlipItem>.unwrap();
+        let _: String = KitchenSlipItem.item;
+        let _: i64 = KitchenSlipItem.qty;
+        let _: Option<String> = KitchenSlipItem.size_label;
+        let _: Vec<String> = KitchenSlipItem.modifiers;
+        let _: Option<String> = KitchenSlipItem.note;
+    }
+    {
         let LanAdvertView = None::<crate::api::device::LanAdvertView>.unwrap();
         let _: String = LanAdvertView.device_id;
         let _: String = LanAdvertView.branch_id;
@@ -13199,6 +13216,7 @@ const _: fn() = || {
         let _: i64 = ReceiptView.tax_minor;
         let _: i64 = ReceiptView.service_charge_minor;
         let _: bool = ReceiptView.tax_inclusive;
+        let _: f64 = ReceiptView.tax_rate;
         let _: i64 = ReceiptView.service_charge_waived_minor;
         let _: Option<String> = ReceiptView.service_charge_waived_by_name;
         let _: i64 = ReceiptView.delivery_fee_minor;
@@ -13963,12 +13981,12 @@ impl SseDecode for crate::api::cart::CartBundleComponentView {
 impl SseDecode for crate::api::printing::CartKitchenChit {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_items = <Vec<crate::api::printing::CartLineChit>>::sse_decode(deserializer);
+        let mut var_slip = <crate::api::printing::KitchenSlip>::sse_decode(deserializer);
         let mut var_cartNote = <Option<String>>::sse_decode(deserializer);
         let mut var_bytes = <Vec<u8>>::sse_decode(deserializer);
         let mut var_preview = <Vec<crate::api::printing::ChitLineView>>::sse_decode(deserializer);
         return crate::api::printing::CartKitchenChit {
-            items: var_items,
+            slip: var_slip,
             cart_note: var_cartNote,
             bytes: var_bytes,
             preview: var_preview,
@@ -13979,7 +13997,7 @@ impl SseDecode for crate::api::printing::CartKitchenChit {
 impl SseDecode for crate::api::printing::CartLineChit {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_chit = <crate::api::printing::KitchenChit>::sse_decode(deserializer);
+        let mut var_chit = <crate::api::printing::KitchenSlip>::sse_decode(deserializer);
         let mut var_preview = <Vec<crate::api::printing::ChitLineView>>::sse_decode(deserializer);
         let mut var_bytes = <Vec<u8>>::sse_decode(deserializer);
         let mut var_target = <crate::api::printing::ChitPrinterTarget>::sse_decode(deserializer);
@@ -14806,6 +14824,44 @@ impl SseDecode for crate::api::printing::KitchenChit {
     }
 }
 
+impl SseDecode for crate::api::printing::KitchenSlip {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_tableLabel = <Option<String>>::sse_decode(deserializer);
+        let mut var_ticketRef = <Option<String>>::sse_decode(deserializer);
+        let mut var_at = <String>::sse_decode(deserializer);
+        let mut var_teller = <Option<String>>::sse_decode(deserializer);
+        let mut var_topNotes = <Vec<String>>::sse_decode(deserializer);
+        let mut var_items = <Vec<crate::api::printing::KitchenSlipItem>>::sse_decode(deserializer);
+        return crate::api::printing::KitchenSlip {
+            table_label: var_tableLabel,
+            ticket_ref: var_ticketRef,
+            at: var_at,
+            teller: var_teller,
+            top_notes: var_topNotes,
+            items: var_items,
+        };
+    }
+}
+
+impl SseDecode for crate::api::printing::KitchenSlipItem {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_item = <String>::sse_decode(deserializer);
+        let mut var_qty = <i64>::sse_decode(deserializer);
+        let mut var_sizeLabel = <Option<String>>::sse_decode(deserializer);
+        let mut var_modifiers = <Vec<String>>::sse_decode(deserializer);
+        let mut var_note = <Option<String>>::sse_decode(deserializer);
+        return crate::api::printing::KitchenSlipItem {
+            item: var_item,
+            qty: var_qty,
+            size_label: var_sizeLabel,
+            modifiers: var_modifiers,
+            note: var_note,
+        };
+    }
+}
+
 impl SseDecode for crate::api::device::LanAdvertView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -15043,20 +15099,6 @@ impl SseDecode for Vec<crate::api::cart::CartBundleComponentView> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::cart::CartBundleComponentView>::sse_decode(
-                deserializer,
-            ));
-        }
-        return ans_;
-    }
-}
-
-impl SseDecode for Vec<crate::api::printing::CartLineChit> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<crate::api::printing::CartLineChit>::sse_decode(
                 deserializer,
             ));
         }
@@ -15353,6 +15395,20 @@ impl SseDecode for Vec<crate::api::kds::KdsTicketView> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::kds::KdsTicketView>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::printing::KitchenSlipItem> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::printing::KitchenSlipItem>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -16703,6 +16759,7 @@ impl SseDecode for crate::api::orders::ReceiptView {
         let mut var_taxMinor = <i64>::sse_decode(deserializer);
         let mut var_serviceChargeMinor = <i64>::sse_decode(deserializer);
         let mut var_taxInclusive = <bool>::sse_decode(deserializer);
+        let mut var_taxRate = <f64>::sse_decode(deserializer);
         let mut var_serviceChargeWaivedMinor = <i64>::sse_decode(deserializer);
         let mut var_serviceChargeWaivedByName = <Option<String>>::sse_decode(deserializer);
         let mut var_deliveryFeeMinor = <i64>::sse_decode(deserializer);
@@ -16739,6 +16796,7 @@ impl SseDecode for crate::api::orders::ReceiptView {
             tax_minor: var_taxMinor,
             service_charge_minor: var_serviceChargeMinor,
             tax_inclusive: var_taxInclusive,
+            tax_rate: var_taxRate,
             service_charge_waived_minor: var_serviceChargeWaivedMinor,
             service_charge_waived_by_name: var_serviceChargeWaivedByName,
             delivery_fee_minor: var_deliveryFeeMinor,
@@ -19163,7 +19221,7 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::cart::CartBundleCo
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::printing::CartKitchenChit> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
-            self.0.items.into_into_dart().into_dart(),
+            self.0.slip.into_into_dart().into_dart(),
             self.0.cart_note.into_into_dart().into_dart(),
             self.0.bytes.into_into_dart().into_dart(),
             self.0.preview.into_into_dart().into_dart(),
@@ -20169,6 +20227,55 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::printing::KitchenC
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::printing::KitchenSlip> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.table_label.into_into_dart().into_dart(),
+            self.0.ticket_ref.into_into_dart().into_dart(),
+            self.0.at.into_into_dart().into_dart(),
+            self.0.teller.into_into_dart().into_dart(),
+            self.0.top_notes.into_into_dart().into_dart(),
+            self.0.items.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::printing::KitchenSlip>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::printing::KitchenSlip>>
+    for crate::api::printing::KitchenSlip
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::printing::KitchenSlip> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::printing::KitchenSlipItem> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.item.into_into_dart().into_dart(),
+            self.0.qty.into_into_dart().into_dart(),
+            self.0.size_label.into_into_dart().into_dart(),
+            self.0.modifiers.into_into_dart().into_dart(),
+            self.0.note.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::printing::KitchenSlipItem>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::printing::KitchenSlipItem>>
+    for crate::api::printing::KitchenSlipItem
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::printing::KitchenSlipItem> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::device::LanAdvertView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -21114,6 +21221,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::ReceiptVie
             self.0.tax_minor.into_into_dart().into_dart(),
             self.0.service_charge_minor.into_into_dart().into_dart(),
             self.0.tax_inclusive.into_into_dart().into_dart(),
+            self.0.tax_rate.into_into_dart().into_dart(),
             self.0
                 .service_charge_waived_minor
                 .into_into_dart()
@@ -22451,7 +22559,7 @@ impl SseEncode for crate::api::cart::CartBundleComponentView {
 impl SseEncode for crate::api::printing::CartKitchenChit {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <Vec<crate::api::printing::CartLineChit>>::sse_encode(self.items, serializer);
+        <crate::api::printing::KitchenSlip>::sse_encode(self.slip, serializer);
         <Option<String>>::sse_encode(self.cart_note, serializer);
         <Vec<u8>>::sse_encode(self.bytes, serializer);
         <Vec<crate::api::printing::ChitLineView>>::sse_encode(self.preview, serializer);
@@ -22461,7 +22569,7 @@ impl SseEncode for crate::api::printing::CartKitchenChit {
 impl SseEncode for crate::api::printing::CartLineChit {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <crate::api::printing::KitchenChit>::sse_encode(self.chit, serializer);
+        <crate::api::printing::KitchenSlip>::sse_encode(self.chit, serializer);
         <Vec<crate::api::printing::ChitLineView>>::sse_encode(self.preview, serializer);
         <Vec<u8>>::sse_encode(self.bytes, serializer);
         <crate::api::printing::ChitPrinterTarget>::sse_encode(self.target, serializer);
@@ -22973,6 +23081,29 @@ impl SseEncode for crate::api::printing::KitchenChit {
     }
 }
 
+impl SseEncode for crate::api::printing::KitchenSlip {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<String>>::sse_encode(self.table_label, serializer);
+        <Option<String>>::sse_encode(self.ticket_ref, serializer);
+        <String>::sse_encode(self.at, serializer);
+        <Option<String>>::sse_encode(self.teller, serializer);
+        <Vec<String>>::sse_encode(self.top_notes, serializer);
+        <Vec<crate::api::printing::KitchenSlipItem>>::sse_encode(self.items, serializer);
+    }
+}
+
+impl SseEncode for crate::api::printing::KitchenSlipItem {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.item, serializer);
+        <i64>::sse_encode(self.qty, serializer);
+        <Option<String>>::sse_encode(self.size_label, serializer);
+        <Vec<String>>::sse_encode(self.modifiers, serializer);
+        <Option<String>>::sse_encode(self.note, serializer);
+    }
+}
+
 impl SseEncode for crate::api::device::LanAdvertView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -23143,16 +23274,6 @@ impl SseEncode for Vec<crate::api::cart::CartBundleComponentView> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::cart::CartBundleComponentView>::sse_encode(item, serializer);
-        }
-    }
-}
-
-impl SseEncode for Vec<crate::api::printing::CartLineChit> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(self.len() as _, serializer);
-        for item in self {
-            <crate::api::printing::CartLineChit>::sse_encode(item, serializer);
         }
     }
 }
@@ -23373,6 +23494,16 @@ impl SseEncode for Vec<crate::api::kds::KdsTicketView> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::kds::KdsTicketView>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::printing::KitchenSlipItem> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::printing::KitchenSlipItem>::sse_encode(item, serializer);
         }
     }
 }
@@ -24331,6 +24462,7 @@ impl SseEncode for crate::api::orders::ReceiptView {
         <i64>::sse_encode(self.tax_minor, serializer);
         <i64>::sse_encode(self.service_charge_minor, serializer);
         <bool>::sse_encode(self.tax_inclusive, serializer);
+        <f64>::sse_encode(self.tax_rate, serializer);
         <i64>::sse_encode(self.service_charge_waived_minor, serializer);
         <Option<String>>::sse_encode(self.service_charge_waived_by_name, serializer);
         <i64>::sse_encode(self.delivery_fee_minor, serializer);

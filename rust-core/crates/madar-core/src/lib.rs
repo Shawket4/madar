@@ -3247,35 +3247,47 @@ impl MadarCore {
 // ── receipt rendering (sync; pure byte assembly) ─────────────────────────────
 #[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 impl MadarCore {
-    /// Render a placed order's receipt to printer bytes ready to stream to a
-    /// thermal printer. The receipt is rasterized to a 1-bit bitmap (logo +
-    /// Arabic, matching the on-screen preview) and wrapped in the brand's raster
-    /// protocol — text commands can't drive the raster-only TSP143III. Labels
-    /// resolve from the active locale; `store_name` (branch) and `currency` come
-    /// from the host. `width` (a character count) is retained for API stability;
-    /// the raster width now comes from the device's paper config
-    /// (`DeviceConfig::paper_dots` — 384 dots for a 58 mm Bluetooth portable, 576
-    /// for a 72 mm LAN head). Pair with `send_to_printer`.
     /// Render ONE item as a kitchen chit — no money, no logo, no totals.
     ///
     /// A different document from a receipt rather than a shorter one: a cook
     /// needs the item, the count, what was changed and which table it belongs
     /// to, and everything else is noise on a pass. Per item on purpose, so a
     /// chit follows its plate and the grill never reads the bar's work.
+    /// Rasterized through the same Cairo shaping engine as a receipt
+    /// (Arabic/RTL included) — text commands garbled non-Latin item names.
     pub fn render_kitchen_chit(
         &self,
         chit: receipt::KitchenChit,
         width: u32,
         brand: receipt::PrinterBrand,
     ) -> Vec<u8> {
+        let _ = width; // kept for API stability; the raster width is the device's own.
+        let slip = receipt::slip_for_kitchen_chit(&chit);
+        self.raster_kitchen_slip(&slip, brand)
+    }
+
+    /// The core-standard kitchen-chit labels, resolved once from i18n.
+    fn kitchen_chit_labels(&self) -> receipt::KitchenChitLabels {
         let loc = self.current_locale();
         let tr = |k: &str| i18n::tr(&loc, k);
-        let labels = receipt::KitchenChitLabels {
+        receipt::KitchenChitLabels {
             heading: tr("kitchen.chit_heading"),
             table: tr("kitchen.chit_table"),
             note: tr("kitchen.chit_note"),
-        };
-        receipt::escpos_kitchen_chit(&chit, &labels, width, brand)
+        }
+    }
+
+    /// Render a kitchen slip to bytes — through the SAME raster engine +
+    /// Cairo shaping as a receipt (Arabic/RTL included), so a chit never
+    /// garbles a non-Latin item name or note the way the old raw-text
+    /// encoder did. One `raster_for` call, so its cut (when the dialect
+    /// cuts) happens exactly once, at the end — however many items are on
+    /// the slip.
+    fn raster_kitchen_slip(&self, slip: &receipt::KitchenSlip, brand: receipt::PrinterBrand) -> Vec<u8> {
+        let labels = self.kitchen_chit_labels();
+        let cfg = device::load(&self.store);
+        let bitmap = render::render_kitchen_chit(slip, &labels, cfg.paper_dots());
+        receipt::raster_for(brand, &bitmap, cfg.printer_has_cutter())
     }
 
     /// ONE cart line as a kitchen chit, sent early from the cart — built with
@@ -3301,25 +3313,29 @@ impl MadarCore {
             .into_iter()
             .find(|l| l.key == line_key)
             .ok_or_else(|| CoreError::Validation { field: "line_key".into(), detail: "cart line not found".into() })?;
-        self.build_line_chit(&line, table_label, ticket_ref, width, till_brand)
+        self.build_line_chit(&line, table_id.as_deref(), table_label, ticket_ref, width, till_brand)
     }
 
     /// Shared by [`Self::cart_line_chit`] and [`Self::cart_kitchen_chit`]: one
     /// line, resolved and rendered with the kitchen chit renderer, routed and
-    /// worded exactly the same way whichever button asked for it.
+    /// worded exactly the same way whichever button asked for it. Same
+    /// layout as a whole-cart slip: the order note and the cart-level
+    /// kitchen note print once at the top, above this row's own note.
     fn build_line_chit(
         &self,
         line: &cart::CartLineView,
+        table_id: Option<&str>,
         table_label: Option<String>,
         ticket_ref: Option<String>,
         width: u32,
         till_brand: receipt::PrinterBrand,
     ) -> Result<receipt::CartLineChit, CoreError> {
         let loc = self.current_locale();
-        let tr = |k: &str| i18n::tr(&loc, k);
         let at = timefmt::format(&self.store, &self.corrected_now().to_rfc3339(), timefmt::TimeStyle::Time, &loc);
         let teller = self.current_session().map(|s| s.display_name).filter(|n| !n.trim().is_empty());
-        let chit = receipt::chit_for_cart_line(line, table_label, ticket_ref, at, teller);
+        let order_note = cart::note(&self.store, table_id)?;
+        let cart_kitchen_note = cart::kitchen_note(&self.store, table_id)?;
+        let slip = receipt::slip_for_cart_line(line, table_label, ticket_ref, at, teller, order_note, cart_kitchen_note);
 
         let category_id = menu::menu_items(&self.store, &loc)
             .ok()
@@ -3345,28 +3361,25 @@ impl MadarCore {
             Some(_) if !target.is_till() => receipt::PrinterBrand::Epson,
             _ => till_brand,
         };
-        let labels = receipt::KitchenChitLabels {
-            heading: tr("kitchen.chit_heading"),
-            table: tr("kitchen.chit_table"),
-            note: tr("kitchen.chit_note"),
-        };
+        let labels = self.kitchen_chit_labels();
         Ok(receipt::CartLineChit {
-            preview: receipt::kitchen_chit_preview(&chit, &labels, width),
-            bytes: receipt::escpos_kitchen_chit(&chit, &labels, width, brand),
-            chit,
+            preview: receipt::kitchen_slip_preview(&slip, &labels, width),
+            bytes: self.raster_kitchen_slip(&slip, brand),
+            chit: slip,
             target,
         })
     }
 
-    /// The WHOLE cart as one kitchen print — every line's chit (with its own
-    /// kitchen note), one after another, plus the cart-level kitchen note as
-    /// a header line. An EXTRA copy for the kitchen: it changes nothing about
-    /// checkout/fire printing, and nothing is marked sent.
+    /// The WHOLE cart as ONE continuous kitchen slip — one header, the order
+    /// note and the cart-level kitchen note once at the top, then every
+    /// line with only its own note. An EXTRA copy for the kitchen: it
+    /// changes nothing about checkout/fire printing, and nothing is marked
+    /// sent.
     ///
     /// Printed to the device's own till printer — a whole-cart copy is a
     /// backup/manual pass, not a per-station routing decision, so it does
     /// not follow [`kds::resolve_chit_printer`] the way the per-line button
-    /// does.
+    /// does. ONE slip, ONE cut at the very end, however many lines are on it.
     pub fn cart_kitchen_chit(
         &self,
         table_id: Option<String>,
@@ -3376,30 +3389,35 @@ impl MadarCore {
         till_brand: receipt::PrinterBrand,
     ) -> Result<receipt::CartKitchenChit, CoreError> {
         let lines = cart::lines(&self.store, table_id.as_deref())?;
-        let cart_note = cart::kitchen_note(&self.store, table_id.as_deref())?;
         let loc = self.current_locale();
-        let tr = |k: &str| i18n::tr(&loc, k);
+        let at = timefmt::format(&self.store, &self.corrected_now().to_rfc3339(), timefmt::TimeStyle::Time, &loc);
+        let teller = self.current_session().map(|s| s.display_name).filter(|n| !n.trim().is_empty());
+        let order_note = cart::note(&self.store, table_id.as_deref())?;
+        let cart_note = cart::kitchen_note(&self.store, table_id.as_deref())?;
 
-        let mut items = Vec::with_capacity(lines.len());
-        let mut bytes = Vec::new();
-        let mut preview = Vec::new();
-        if let Some(n) = cart_note.as_deref().filter(|s| !s.trim().is_empty()) {
-            preview.push(receipt::ChitLineView {
-                text: format!("{} {}", tr("kitchen.chit_note"), n.trim()),
-                centered: false,
-                bold: true,
-                large: false,
-            });
-        }
-        for line in &lines {
-            let one = self.build_line_chit(line, table_label.clone(), ticket_ref.clone(), width, till_brand)?;
-            bytes.extend_from_slice(&one.bytes);
-            preview.extend(one.preview.clone());
-            items.push(one);
-        }
-        Ok(receipt::CartKitchenChit { items, cart_note, bytes, preview })
+        let slip = receipt::KitchenSlip {
+            table_label,
+            ticket_ref,
+            at,
+            teller,
+            top_notes: receipt::top_notes(order_note.clone(), cart_note.clone()),
+            items: lines.iter().map(receipt::slip_item_for_cart_line).collect(),
+        };
+        let labels = self.kitchen_chit_labels();
+        let preview = receipt::kitchen_slip_preview(&slip, &labels, width);
+        let bytes = self.raster_kitchen_slip(&slip, till_brand);
+        Ok(receipt::CartKitchenChit { slip, cart_note, bytes, preview })
     }
 
+    /// Render a placed order's receipt to printer bytes ready to stream to a
+    /// thermal printer. The receipt is rasterized to a 1-bit bitmap (logo +
+    /// Arabic, matching the on-screen preview) and wrapped in the brand's raster
+    /// protocol — text commands can't drive the raster-only TSP143III. Labels
+    /// resolve from the active locale; `store_name` (branch) and `currency` come
+    /// from the host. `width` (a character count) is retained for API stability;
+    /// the raster width now comes from the device's paper config
+    /// (`DeviceConfig::paper_dots` — 384 dots for a 58 mm Bluetooth portable, 576
+    /// for a 72 mm LAN head). Pair with `send_to_printer`.
     pub fn render_receipt(
         &self,
         receipt: checkout::ReceiptView,
@@ -3413,6 +3431,11 @@ impl MadarCore {
         let tz = timefmt::branch_tz(&self.store);
         let loc = self.current_locale();
         let tr = |k: &str| i18n::tr(&loc, k);
+        // The VAT line reads "VAT (14%)" everywhere, at the bill's OWN frozen
+        // rate — never today's policy, so a reprint of an older sale still
+        // shows the rate that actually applied to it.
+        let vat_word = tr("receipt.vat");
+        let vat_label = receipt::vat_label(&vat_word, receipt.tax_rate);
         let ctx = receipt::EscPosCtx {
             store_name,
             currency,
@@ -3434,9 +3457,9 @@ impl MadarCore {
                 subtotal: tr("order.subtotal"),
                 discount: tr("order.discount"),
                 service_charge: tr("order.service_charge"),
-                tax: tr("order.tax"),
-                vat_included: tr("receipt.vat_included"),
-                prices_include_vat: tr("receipt.prices_include_vat"),
+                tax: vat_label.clone(),
+                vat_included: vat_label,
+                prices_include_vat: receipt::vat_label(&tr("receipt.prices_include_vat"), receipt.tax_rate),
                 service_waived: tr("receipt.service_waived"),
                 delivery_fee: tr("receipt.delivery_fee"),
                 total: tr("order.total"),
@@ -3493,6 +3516,10 @@ impl MadarCore {
         let tz = timefmt::branch_tz(&self.store);
         let loc = self.current_locale();
         let tr = |k: &str| i18n::tr(&loc, k);
+        // The shift's VAT total is at the branch's CURRENT rate — a Z report
+        // is a per-shift aggregate, not one bill, so there is no single
+        // frozen rate to freeze it at.
+        let tax_rate = self.current_session().map(|s| s.tax_rate).unwrap_or(0.0);
         let labels = receipt::TillReportLabels {
             title: tr("till.report_title"),
             business_date: tr("till.business_date"),
@@ -3521,7 +3548,7 @@ impl MadarCore {
             refunds: tr("till.refunds"),
             refunds_cash: tr("till.refunds_cash"),
             cash_in_refunded: tr("till.cash_in_refunded"),
-            total_tax: tr("till.total_tax"),
+            total_tax: receipt::vat_label(&tr("till.total_tax"), tax_rate),
             total_service: tr("till.total_service"),
             service_waived: tr("till.service_waived"),
             transactions: tr("till.transactions"),

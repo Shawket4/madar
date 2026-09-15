@@ -432,6 +432,11 @@ pub(crate) fn order_to_receipt(
                 o.total_amount as i64,
             )
         }),
+        // The rate that actually applied to THIS sale — a reprint must not
+        // show today's rate for an older bill. Absent on an order from
+        // before the backend recorded it; 0 there is a rare, honest gap
+        // rather than a guess.
+        tax_rate: o.tax_rate_applied.unwrap_or(0.0),
         service_charge_waived_minor: o
             .service_charge_waived_by
             .map(|_| o.service_charge_waived_amount.unwrap_or(0) as i64)
@@ -1001,6 +1006,19 @@ mod tests {
         assert_eq!(r.teller_name.as_deref(), Some("Tara"));
         assert!(!r.queued_offline);
         assert_eq!(r.created_at, ts().to_rfc3339());
+    }
+
+    #[test]
+    fn receipt_carries_the_orders_own_frozen_tax_rate() {
+        let mut o = order_full(vec![item("Latte", 1, 6000)]);
+        o.tax_rate_applied = Some(0.125);
+        let r = order_to_receipt(&o, "en");
+        assert_eq!(r.tax_rate, 0.125, "a reprint must show THIS bill's rate");
+
+        // An order from before the field existed: 0.0, not a guess.
+        o.tax_rate_applied = None;
+        let r = order_to_receipt(&o, "en");
+        assert_eq!(r.tax_rate, 0.0);
     }
 
     #[test]

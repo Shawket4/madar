@@ -95,6 +95,7 @@ ReceiptView _receipt() => const ReceiptView(
   displayNumber: '',
   serviceChargeWaivedMinor: 0,
   taxInclusive: false,
+  taxRate: 0,
 );
 
 class _Fake implements MadarBridge {

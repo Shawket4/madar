@@ -16,7 +16,9 @@
 use cosmic_text::{Attrs, Buffer, Color, Family, FontSystem, Metrics, Shaping, SwashCache, Weight};
 
 use crate::checkout::{ReceiptLineView, ReceiptModifierView, ReceiptView};
-use crate::receipt::{money, short_id, Bitmap, EscPosCtx, TillReportLabels};
+use crate::receipt::{money, short_id, Bitmap, EscPosCtx, KitchenChitLabels, KitchenSlip, TillReportLabels};
+#[cfg(test)]
+use crate::receipt::KitchenSlipItem;
 use crate::till::TillReportView;
 
 /// Printable width in dots — 72 mm @ 203 dpi. Matches the Flutter `_printerWidth`
@@ -73,6 +75,17 @@ pub fn render_till_report(
 ) -> Bitmap {
     let mut r = Renderer::new(width);
     r.build_till(report, store, currency, labels, orders);
+    r.canvas.into_bitmap()
+}
+
+/// Render a kitchen slip to a 1-bit bitmap — the SAME font + shaping engine
+/// as a receipt (Arabic/RTL included), so a kitchen chit never garbles a
+/// non-Latin item name or note the way the old raw-UTF-8 text encoder did.
+/// No logo, no money, no footer — just the header, the notes that apply to
+/// the whole slip once, and every item with only its own note.
+pub fn render_kitchen_chit(slip: &KitchenSlip, labels: &KitchenChitLabels, width: u32) -> Bitmap {
+    let mut r = Renderer::new(width);
+    r.build_kitchen_slip(slip, labels);
     r.canvas.into_bitmap()
 }
 
@@ -756,6 +769,50 @@ impl Renderer {
         self.gap(self.bottom_pad);
     }
 
+    /// Walk a kitchen slip top-to-bottom: heading, table, the notes that
+    /// apply to the whole slip ONCE, then every item with only its own
+    /// note. No logo, no money, no footer beyond the ticket/time/teller.
+    fn build_kitchen_slip(&mut self, slip: &KitchenSlip, labels: &KitchenChitLabels) {
+        self.center(&labels.heading, SZ_BODY, Weight::BOLD);
+        if let Some(t) = slip.table_label.as_deref().filter(|s| !s.trim().is_empty()) {
+            self.center(&format!("{} {}", labels.table, t.trim()), SZ_TOTAL, Weight::BOLD);
+        }
+        self.rule();
+
+        let notes: Vec<&String> = slip.top_notes.iter().filter(|n| !n.trim().is_empty()).collect();
+        for n in &notes {
+            self.indented(&format!("{} {}", labels.note, n.trim()), SZ_BODY, 0);
+        }
+        if !notes.is_empty() {
+            self.rule();
+        }
+
+        for (i, it) in slip.items.iter().enumerate() {
+            if i > 0 {
+                self.gap(self.sx(8));
+            }
+            let name = name_with_size(&it.item, &it.size_label);
+            self.row(&format!("{}× {}", it.qty.max(1), name), "", SZ_TOTAL, Weight::BOLD);
+            for m in it.modifiers.iter().filter(|m| !m.trim().is_empty()) {
+                self.indented(&format!("- {}", m.trim()), SZ_SMALL, 16);
+            }
+            if let Some(n) = it.note.as_deref().filter(|s| !s.trim().is_empty()) {
+                self.indented(&format!("{} {}", labels.note, n.trim()), SZ_SMALL, 0);
+            }
+        }
+
+        self.rule();
+        let foot = match slip.ticket_ref.as_deref().filter(|s| !s.trim().is_empty()) {
+            Some(r) => format!("{}  {}", r.trim(), slip.at),
+            None => slip.at.clone(),
+        };
+        self.center(&foot, SZ_SMALL, Weight::NORMAL);
+        if let Some(by) = slip.teller.as_deref().filter(|s| !s.trim().is_empty()) {
+            self.center(by.trim(), SZ_SMALL, Weight::NORMAL);
+        }
+        self.gap(self.bottom_pad);
+    }
+
     /// One item line + its modifier/bundle breakdown (mirrors `lineBlock`).
     fn item(&mut self, line: &ReceiptLineView, cur: &str) {
         let name = name_with_size(&line.name, &line.size_label);
@@ -967,6 +1024,7 @@ mod tests {
             tax_minor: 0,
             service_charge_minor: 0,
             tax_inclusive: false,
+            tax_rate: 0.0,
             service_charge_waived_minor: 0,
             service_charge_waived_by_name: None,
             delivery_fee_minor: 0,
@@ -1431,5 +1489,85 @@ mod tests {
         assert!(printed_receipt(cairo, "2026-04-23T22:00:00Z")
             .iter()
             .any(|t| t == "24/04/2026 01:00 AM"));
+    }
+
+    // ── kitchen chit: raster, not raw text (Arabic/RTL must not garble) ───────
+
+    fn kitchen_labels() -> KitchenChitLabels {
+        KitchenChitLabels {
+            heading: "المطبخ".into(),
+            table: "طاولة".into(),
+            note: "ملاحظة:".into(),
+        }
+    }
+
+    fn arabic_slip() -> KitchenSlip {
+        KitchenSlip {
+            table_label: Some("طاولة ٤".into()),
+            ticket_ref: Some("R-9".into()),
+            at: "19:42".into(),
+            teller: Some("منى".into()),
+            top_notes: vec!["عيد ميلاد — الكيك آخراً".into()],
+            items: vec![KitchenSlipItem {
+                item: "شاورما دجاج".into(), // "chicken shawarma"
+                qty: 2,
+                size_label: Some("كبير".into()), // "large"
+                modifiers: vec!["زيادة جبنة".into()],
+                note: Some("بدون بصل".into()), // "no onions"
+            }],
+        }
+    }
+
+    /// An Arabic item name + an Arabic note render to a bitmap without
+    /// panicking — the raster path shapes and blits real glyphs (Cairo +
+    /// cosmic-text bidi), unlike the old raw-UTF-8 text encoder that a
+    /// single-byte-codepage thermal head would have garbled.
+    #[test]
+    fn an_arabic_kitchen_chit_rasters_without_panicking() {
+        let bmp = render_kitchen_chit(&arabic_slip(), &kitchen_labels(), PRINT_WIDTH);
+        assert!(bmp.rows > 0 && !bmp.bytes.is_empty(), "a real bitmap, not empty");
+    }
+
+    /// The kitchen chit's bytes are a RASTER image (the brand's raster
+    /// protocol), never raw UTF-8 text — the bug that garbled Arabic.
+    #[test]
+    fn kitchen_chit_bytes_are_a_raster_not_raw_text() {
+        use crate::receipt::{raster_for, PrinterBrand};
+        let bmp = render_kitchen_chit(&arabic_slip(), &kitchen_labels(), PRINT_WIDTH);
+        let bytes = raster_for(PrinterBrand::Epson, &bmp, true);
+        // Raw UTF-8 text would carry the Arabic bytes verbatim; a raster
+        // frame never does — it's ESC/POS raster commands + packed bits.
+        let text = "شاورما دجاج";
+        assert!(
+            !bytes.windows(text.as_bytes().len()).any(|w| w == text.as_bytes()),
+            "the Arabic item name must not appear as raw text bytes in the printed frame"
+        );
+        // A real raster payload: bigger than the bare command bytes, and it
+        // is NOT valid UTF-8 as a whole (packed 1-bit pixel data isn't text).
+        assert!(bytes.len() > 64);
+    }
+
+    /// A multi-item kitchen slip is ONE raster job — the raster path never
+    /// emits more than one cut command, however many items are on it (the
+    /// commands/count-per-cut are Epson's own concern; here we assert the
+    /// slip is built as ONE bitmap, not N concatenated ones).
+    #[test]
+    fn a_multi_item_kitchen_slip_is_one_continuous_raster() {
+        let mut slip = arabic_slip();
+        slip.items.push(KitchenSlipItem {
+            item: "Fries".into(),
+            qty: 1,
+            size_label: None,
+            modifiers: vec![],
+            note: None,
+        });
+        let one_bitmap = render_kitchen_chit(&slip, &kitchen_labels(), PRINT_WIDTH);
+        let mut first_only = slip.clone();
+        first_only.items.truncate(1);
+        let smaller = render_kitchen_chit(&first_only, &kitchen_labels(), PRINT_WIDTH);
+        assert!(
+            one_bitmap.rows > smaller.rows,
+            "the second item adds rows to the SAME bitmap, not a second document"
+        );
     }
 }

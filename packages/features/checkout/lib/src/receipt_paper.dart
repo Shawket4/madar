@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/src/receipt_printing.dart' show vatLabel;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -185,15 +186,10 @@ class ReceiptPaper extends ConsumerWidget {
               left: tr('order.service_charge'),
               right: _money(r.serviceChargeMinor),
             ),
-          // Stated in both modes; "included" when it sits inside the prices,
-          // so the lines that add still add up to the total.
-          if (r.taxMinor > 0)
-            _MoneyRow(
-              left: r.taxInclusive
-                  ? tr('receipt.vat_included')
-                  : tr('order.tax'),
-              right: _money(r.taxMinor),
-            ),
+          // Stated the SAME way in both modes now — "VAT (14%)" — at the
+          // bill's OWN frozen rate, never today's session (a reprint of an
+          // older sale must read the rate that actually applied to it).
+          if (r.taxMinor > 0) _MoneyRow(left: vatLabel(tr, r.taxRate), right: _money(r.taxMinor)),
           if (r.deliveryFeeMinor > 0)
             _MoneyRow(
               left: tr('receipt.delivery_fee'),
@@ -206,7 +202,7 @@ class ReceiptPaper extends ConsumerWidget {
           ),
           if (r.taxInclusive)
             _Mono(
-              tr('receipt.prices_include_vat'),
+              '${tr('receipt.prices_include_vat')} (${Money.ratePercent(r.taxRate)}%)',
               size: _rowSize,
               align: TextAlign.start,
             ),

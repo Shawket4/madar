@@ -365,6 +365,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
       createdAt: DateTime.now().toUtc().toIso8601String(),
       serviceChargeWaivedMinor: 0,
       taxInclusive: false,
+      taxRate: 0,
     );
   }
 

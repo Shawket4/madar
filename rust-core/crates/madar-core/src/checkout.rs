@@ -166,8 +166,9 @@ pub struct ReceiptLineView {
 }
 
 /// The order confirmation / receipt summary.
+// `Eq` dropped: `tax_rate: f64` (the bill's own frozen rate) doesn't implement it.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ReceiptView {
     /// Client-generated order id (the outbox idempotency key). The server id
     /// lands later via sync; this identifies the order locally meanwhile.
@@ -195,6 +196,11 @@ pub struct ReceiptView {
     /// Whether the prices already contained the tax: the receipt then says
     /// "Prices include VAT" and the tax line reads as included, not added.
     pub tax_inclusive: bool,
+    /// The rate this BILL was taxed at, frozen at the time it was rung up —
+    /// a fraction (`0.14` is 14%), never today's policy: a reprint of an
+    /// older sale must show the rate that actually applied to it, even if
+    /// the branch's rate has since changed. Printed as `"VAT (14%)"`.
+    pub tax_rate: f64,
     /// A service charge someone removed from this table's bill (`0` when
     /// none), and who. Printed as its own note; not part of the total.
     pub service_charge_waived_minor: i64,
@@ -740,6 +746,7 @@ pub(crate) fn prepare(
         tax_minor: priced.tax_minor,
         service_charge_minor: priced.service_charge_minor,
         tax_inclusive: policy.tax_inclusive,
+        tax_rate: policy.tax_rate.to_f64().unwrap_or(0.0),
         service_charge_waived_minor: 0,
         service_charge_waived_by_name: None,
         delivery_fee_minor: 0,
@@ -1391,6 +1398,29 @@ mod tests {
         assert_eq!(rc.lines.len(), 1);
         assert_eq!(rc.lines[0].qty, 2);
         assert_eq!(rc.lines[0].line_total_minor, 2000);
+    }
+
+    /// The receipt freezes the POLICY'S rate at ring-up time, printed as
+    /// `"VAT (12.5%)"` — not whatever the branch's rate happens to be later,
+    /// which is exactly why a reprint must read this frozen figure and not
+    /// today's session.
+    #[test]
+    fn the_receipt_freezes_the_policys_tax_rate() {
+        let store = Store::open("").unwrap();
+        seed_methods(&store);
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
+        let p = prepare(
+            &store,
+            None,
+            "en",
+            BRANCH,
+            SHIFT,
+            &mk_input(CASH, 5000),
+            &tax_policy_at(0.125),
+            "2026-06-20T12:00:00+00:00".into(),
+        )
+        .unwrap();
+        assert_eq!(p.receipt.tax_rate, 0.125);
     }
 
     #[test]
