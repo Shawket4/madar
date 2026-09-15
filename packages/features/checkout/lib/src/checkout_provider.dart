@@ -974,6 +974,9 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// remains, so a two-way split is one amount typed instead of two.
   void setSplitAmount(String id, int minor) {
     _typedLegs.add(id);
+    // A person typed over the leg that held the rest: it is theirs now, and a
+    // later due change must not overwrite what they typed.
+    if (_restLeg == id) _restLeg = null;
     _update(
       (s) =>
           s.copyWith(splitAmounts: {...s.splitAmounts, id: minor}, error: null),
@@ -1039,6 +1042,10 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         baseSummary: totals == null ? null : _summaryOf(totals),
       ),
     );
+    // The cart's total just moved: the split's rest leg follows it, as it
+    // does for a bill's discount — or the legs stay on the old figure and
+    // the sale cannot be charged (or is charged short).
+    if (_live) _refillSplit();
     ref.read(shellProvider.notifier).refresh();
   }
 

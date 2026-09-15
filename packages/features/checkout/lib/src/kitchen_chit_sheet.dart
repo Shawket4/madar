@@ -44,7 +44,11 @@ class ChitPreviewNotifier extends Notifier<ChitPreviewState> {
 
   /// [tableId] and [lineKey] are only needed to clear that line's kitchen
   /// note once it actually prints — the print itself needs neither.
-  Future<void> print(CartLineChit chit, {String? tableId, String? lineKey}) async {
+  Future<void> print(
+    CartLineChit chit, {
+    String? tableId,
+    String? lineKey,
+  }) async {
     if (state.printing) return;
     final bridge = ref.read(bridgeProvider);
     _set(ChitPreviewState(printing: true, toast: state.toast));

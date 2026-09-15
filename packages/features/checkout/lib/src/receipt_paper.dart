@@ -189,7 +189,8 @@ class ReceiptPaper extends ConsumerWidget {
           // Stated the SAME way in both modes now — "VAT (14%)" — at the
           // bill's OWN frozen rate, never today's session (a reprint of an
           // older sale must read the rate that actually applied to it).
-          if (r.taxMinor > 0) _MoneyRow(left: vatLabel(tr, r.taxRate), right: _money(r.taxMinor)),
+          if (r.taxMinor > 0)
+            _MoneyRow(left: vatLabel(tr, r.taxRate), right: _money(r.taxMinor)),
           if (r.deliveryFeeMinor > 0)
             _MoneyRow(
               left: tr('receipt.delivery_fee'),
