@@ -147,6 +147,7 @@ class _ReadyScopeState extends State<_ReadyScope> {
           onPulse: () =>
               container.read(connectivityPulseProvider.notifier).pulse(),
           onReconnect: () => container.read(realtimeArmerProvider)(),
+          onNetworkSignal: () => container.read(realtimeArmerProvider)(),
         )..start();
         // Providers deep in the feature packages fire this on a transport-class
         // failure; the service does one debounced /health confirm + pulse.

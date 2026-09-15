@@ -48,6 +48,7 @@ dependencies:
 # Launcher icons are copied directly from the native apps' sources (pixel parity)
 # rather than generated — see android res/mipmap-* and ios AppIcon.appiconset.
 dev_dependencies:
+  fake_async: ^1.3.3
   flutter_native_splash: ^2.4.6
   flutter_test:
     sdk: flutter
