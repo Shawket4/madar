@@ -50,6 +50,45 @@ class AddonGroup {
   final int? maxSel;
   final bool isRequired;
   final int minSel;
+
+  /// The addon type this group is about, for ordering. A slot group and a
+  /// `type:` bucket both hold addons of one type, so the first option answers
+  /// it; an empty group never reaches the sheet.
+  String get addonType =>
+      addons.isEmpty ? '' : addons.first.addonType;
+}
+
+/// The owner's order for the item sheet: **required groups first**, and within
+/// the required set and the optional set alike, sizes, then milk, then coffee
+/// type, then extras, then anything else.
+///
+/// Sizes are the item's own chips and are already rendered above these cards,
+/// which is why the rank starts at milk.
+///
+/// The sort is STABLE, so groups that tie — two slots of the same type, or any
+/// type not named here — keep the order the core sent, which is the order the
+/// shop authored them in.
+int _groupRank(AddonGroup g) => switch (g.addonType) {
+  'milk_type' => 0,
+  'coffee_type' => 1,
+  'extra' => 2,
+  _ => 3,
+};
+
+List<AddonGroup> orderGroupsForSheet(List<AddonGroup> groups) {
+  // `List.sort` is NOT stable in Dart, so the original index is carried as the
+  // final tiebreak rather than relying on the sort to preserve it.
+  final indexed = <(int, AddonGroup)>[
+    for (var i = 0; i < groups.length; i++) (i, groups[i]),
+  ]..sort((a, b) {
+    // Required first: a person must answer these to add anything, so making
+    // them hunt past optional extras to find what is blocking the button is
+    // the one ordering that is certainly wrong.
+    if (a.$2.isRequired != b.$2.isRequired) return a.$2.isRequired ? -1 : 1;
+    final rank = _groupRank(a.$2).compareTo(_groupRank(b.$2));
+    return rank != 0 ? rank : a.$1.compareTo(b.$1);
+  });
+  return [for (final e in indexed) e.$2];
 }
 
 /// The DATA one item-customization presentation is seeded from. Identity
@@ -855,7 +894,9 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     for (final addon in widget.addons) {
       addonsByType.putIfAbsent(addon.addonType, () => []).add(addon);
     }
-    final groups = _buildGroups(bridge, addonsByType, showAll: config.showAll);
+    final groups = orderGroupsForSheet(
+      _buildGroups(bridge, addonsByType, showAll: config.showAll),
+    );
     final slotTypes = _item.addonSlots.map((s) => s.addonType).toSet();
     // True when "Show all" would reveal more than the default view.
     final hasMore =
@@ -1477,10 +1518,41 @@ class _AddonGroupCard extends ConsumerStatefulWidget {
 class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
   final _search = TextEditingController();
 
+  /// Required groups open, optional groups closed (the owner's decision).
+  ///
+  /// A required group must be answered before the button works, so hiding it
+  /// only hides the reason nothing happens. An optional one is almost always
+  /// left alone, and a wall of extras between the person and Add is what made
+  /// the sheet long enough to scroll on a busy morning. Closed, it still shows
+  /// what is chosen, so nothing is hidden — only folded.
+  late bool _expanded = widget.group.isRequired;
+
   @override
   void dispose() {
     _search.dispose();
     super.dispose();
+  }
+
+  /// What a closed group says about itself: the chosen options, or the
+  /// invitation to open it. Never "3 selected" — the person wants to know it
+  /// says oat and an extra shot, which is the whole reason a fold is safe.
+  String _summary(MadarBridge bridge) {
+    final g = widget.group;
+    // Walked in the group's own option order, so the summary reads in the same
+    // order as the chips behind the fold.
+    final names = <String>[];
+    for (final a in g.addons) {
+      if (g.isMulti) {
+        final qty = widget.selectedMulti[a.addonItemId];
+        if (qty == null) continue;
+        names.add(qty > 1 ? '${a.name} ×$qty' : a.name);
+      } else if (widget.selectedSingle == a.addonItemId) {
+        names.add(a.name);
+      }
+    }
+    return names.isEmpty
+        ? bridge.tr(key: 'order.none_chosen')
+        : names.join(', ');
   }
 
   @override
@@ -1502,7 +1574,12 @@ class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          // The whole header is the toggle: a 4px chevron is not a tap target
+          // on a tablet someone is using one-handed with a cup in the other.
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Row(
             children: [
               DecoratedBox(
                 decoration: BoxDecoration(
@@ -1541,8 +1618,31 @@ class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
                 const SizedBox(width: Space.sm),
                 StatusChip(label: '$count', tone: ChipTone.accent),
               ],
+              const SizedBox(width: Space.sm),
+              AnimatedRotation(
+                turns: _expanded ? 0.5 : 0,
+                duration: MotionSpec.gentleDuration,
+                curve: MotionSpec.gentleCurve,
+                child: Icon(
+                  Icons.keyboard_arrow_down,
+                  size: 18,
+                  color: colors.textSecondary,
+                ),
+              ),
             ],
+            ),
           ),
+          // Folded: the selection, so nothing is hidden — only folded.
+          if (!_expanded) ...[
+            const SizedBox(height: Space.sm),
+            Text(
+              _summary(bridge),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+            ),
+          ],
+          if (_expanded) ...[
           const SizedBox(height: Space.md),
           if (g.addons.length > 5) ...[
             MadarField(
@@ -1603,6 +1703,7 @@ class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
               );
             },
           ),
+          ],
         ],
       ),
     );
