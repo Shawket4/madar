@@ -12,6 +12,8 @@ import 'dart:ui' as ui;
 import 'package:app_core/app_core.dart';
 import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/feature_checkout.dart'
+    show CartKitchenChitSheet, KitchenChitSheet;
 import 'package:feature_order/feature_order.dart';
 import 'package:feature_order/src/bundle_detail_sheet.dart';
 import 'package:feature_order/src/held_orders_strip.dart';
@@ -98,6 +100,148 @@ void main() {
       await assignVia(tester, 'd1');
       expect(bridge.assigned, ['t6']);
       expect(c.read(orderProvider).toast?.text, 'Held on T6');
+      await tester.pump(const Duration(seconds: 5));
+    });
+  });
+
+  group('a cart line prints its own kitchen chit', () {
+    const tile = ValueKey('print-k-espresso');
+
+    testWidgets('a tap prints at once, with no preview', (tester) async {
+      final bridge = _FakeBridge();
+      final c = await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      expect(
+        find.bySemanticsLabel(coreWord('printing.chit')),
+        findsWidgets,
+        reason: 'the glyph tile says what it does',
+      );
+      await tester.tap(find.byKey(tile));
+      await _settle(tester);
+      expect(bridge.chitsBuilt, ['k-espresso'], reason: 'just that line');
+      expect(bridge.chitsSent.map((s) => s.$1), ['10.0.0.5']);
+      expect(find.byType(KitchenChitSheet), findsNothing);
+      expect(c.read(orderProvider).toast?.text, coreWord('printing.chit_sent'));
+      expect(bridge.carts[null]!.map((l) => l.key), [
+        'k-espresso',
+        'k-flat',
+      ], reason: 'printing a chit changes nothing in the cart');
+      await tester.pump(const Duration(seconds: 5));
+    });
+
+    testWidgets('a long press previews, and Print sends from the sheet', (
+      tester,
+    ) async {
+      final bridge = _FakeBridge();
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await tester.longPress(find.byKey(tile));
+      await _settle(tester);
+      expect(find.byType(KitchenChitSheet), findsOneWidget);
+      expect(find.text('1x k-espresso'), findsOneWidget);
+      expect(bridge.chitsSent, isEmpty, reason: 'a preview prints nothing');
+
+      await tester.tap(
+        find.descendant(
+          of: find.byType(KitchenChitSheet),
+          matching: find.text(coreWord('printing.chit')),
+        ),
+      );
+      await _settle(tester);
+      expect(bridge.chitsSent.map((s) => s.$1), ['10.0.0.5']);
+      expect(
+        find.descendant(
+          of: find.byType(KitchenChitSheet),
+          matching: find.text(coreWord('printing.chit_sent')),
+        ),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(seconds: 5));
+    });
+  });
+
+  group('a kitchen note is local, print-only, and clears on print', () {
+    const noteTile = ValueKey('kitchen-note-k-espresso');
+    const printTile = ValueKey('print-k-espresso');
+
+    testWidgets('setting it shows on the line, and it clears once that line prints', (
+      tester,
+    ) async {
+      final bridge = _FakeBridge();
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await tester.tap(find.byKey(noteTile));
+      await _settle(tester);
+      await tester.enterText(find.byType(TextField).first, 'no ice');
+      await tester.tap(find.text(coreWord('common.save')));
+      await _settle(tester);
+
+      expect(
+        bridge.lineKitchenNotes[null]?['k-espresso'],
+        'no ice',
+        reason: 'the core keeps it, keyed by cart line',
+      );
+      expect(find.textContaining('no ice'), findsOneWidget);
+
+      await tester.tap(find.byKey(printTile));
+      await _settle(tester);
+      expect(
+        bridge.lineKitchenNotes[null]?.containsKey('k-espresso'),
+        isNot(true),
+        reason: 'a printed chit is done with its note',
+      );
+      await tester.pump(const Duration(seconds: 5));
+    });
+  });
+
+  group('the whole cart prints one kitchen job', () {
+    const cartPrintTile = ValueKey('print-cart-kitchen');
+
+    testWidgets('a tap builds and sends the whole-cart chit at once', (
+      tester,
+    ) async {
+      final bridge = _FakeBridge();
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      expect(
+        find.bySemanticsLabel(coreWord('printing.cart_chit')),
+        findsWidgets,
+      );
+      await tester.tap(find.byKey(cartPrintTile));
+      await _settle(tester);
+      expect(bridge.cartKitchenChitsBuilt, 1);
+      await tester.pump(const Duration(seconds: 5));
+    });
+
+    testWidgets('a long press previews the whole cart before printing', (
+      tester,
+    ) async {
+      final bridge = _FakeBridge();
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await tester.longPress(find.byKey(cartPrintTile));
+      await _settle(tester);
+      expect(find.byType(CartKitchenChitSheet), findsOneWidget);
       await tester.pump(const Duration(seconds: 5));
     });
   });
