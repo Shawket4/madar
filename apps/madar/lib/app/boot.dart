@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // `Override` moved to the misc library in Riverpod 3.
 import 'package:flutter_riverpod/misc.dart';
 import 'package:madar/app/host_vault.dart';
+import 'package:madar/app/lan_bonjour.dart';
 import 'package:madar/app/lan_retry.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
@@ -183,7 +184,11 @@ class RealtimeArmer {
     start: _core.bridge.lanStart,
     isRunning: _core.bridge.lanActive,
     signedIn: () => _core.bridge.currentSession() != null,
+    // Native Bonjour advertises + browses once the relay runs (the iPad's
+    // only discovery path; a second one everywhere else).
+    onStarted: () => unawaited(_bonjour.ensure()),
   );
+  late final LanBonjour _bonjour = LanBonjour(bridge: _core.bridge);
   late final TableChangeWatcher _tables = TableChangeWatcher(
     subscribe: _core.bridge.watchTables,
     apply: (tables) => applyTableChanges(_ref, tables),
@@ -204,6 +209,7 @@ class RealtimeArmer {
     if (_core.bridge.currentSession() == null) {
       _realtime = null;
       _lan.stop();
+      unawaited(_bonjour.stop());
       return;
     }
     // Every arm (sign-in, shell refresh, network reconnect, app resume)
@@ -236,6 +242,7 @@ class RealtimeArmer {
 
   void dispose() {
     _lan.dispose();
+    unawaited(_bonjour.stop());
     _tables.dispose();
     unawaited(_events?.cancel());
     unawaited(_alerts?.cancel());

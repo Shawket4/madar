@@ -3,6 +3,9 @@
          does not — without this, a release APK ships with no network access
          and every request reads as "offline". -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- LAN discovery: NsdManager (bonsoir) + the core's mDNS. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Bluetooth Classic (SPP) receipt printing. The legacy BLUETOOTH /
          BLUETOOTH_ADMIN are capped at API 30; API 31+ uses the runtime
