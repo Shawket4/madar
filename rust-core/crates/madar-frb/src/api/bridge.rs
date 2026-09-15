@@ -109,6 +109,26 @@ impl MadarBridge {
         self.inner.has_permission(resource, action)
     }
 
+    /// Does the signed-in person hold capability `cap` (a generated `Cap` key)?
+    /// Screens gate on this, never on the role name. Offline it answers from the
+    /// synced teller row; unknown means no.
+    #[frb(sync)]
+    pub fn can(&self, cap: String) -> bool {
+        self.inner.can(cap)
+    }
+
+    /// Not held, but the owner lets this person ask a manager to approve it.
+    #[frb(sync)]
+    pub fn can_ask_manager(&self, cap: String) -> bool {
+        self.inner.can_ask_manager(cap)
+    }
+
+    /// Every capability key the signed-in person holds.
+    #[frb(sync)]
+    pub fn capabilities(&self) -> Vec<String> {
+        self.inner.capabilities()
+    }
+
     /// May the signed-in PIN user remove the service charge from a table's
     /// bill? Their effective `orders:waive_service` grant — never the role.
     #[frb(sync)]

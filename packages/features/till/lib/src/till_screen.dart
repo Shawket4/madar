@@ -446,7 +446,9 @@ class _BranchTills extends ConsumerWidget {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final tills = ref.watch(tillProvider.select((s) => s.branchTills));
-    final isManager = ref.watch(tillProvider.select((s) => s.isManager));
+    final canForceClose = ref.watch(
+      tillProvider.select((s) => s.canForceClose),
+    );
     final closingId = ref.watch(tillProvider.select((s) => s.forceClosingId));
     if (tills.isEmpty) return const SizedBox.shrink();
     final ordered = [
@@ -497,7 +499,7 @@ class _BranchTills extends ConsumerWidget {
                   MadarGlyph.wallet,
                   size: IconSize.xl,
                 ),
-                trailing: isManager && !b.isThisDevice
+                trailing: canForceClose && !b.isThisDevice
                     ? MadarButton(
                         label: t('till.force_close_elsewhere'),
                         variant: MadarButtonVariant.ghost,

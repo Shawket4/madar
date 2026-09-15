@@ -527,6 +527,7 @@ mod tests {
             },
             permissions: Vec::new(),
             token: None,
+            authz: None,
         });
         core.set_device_branch("00000000-0000-0000-0000-000000000001".into(), Some("Downtown".into())).unwrap();
         core.set_device_printer(Some("10.0.0.9".into()), Some(9100), Some("star".into())).unwrap();

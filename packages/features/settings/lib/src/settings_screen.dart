@@ -355,9 +355,8 @@ class _RowList extends ConsumerWidget {
     String t(String key) => bridge.tr(key: key);
     final config = ref.watch(settingsProvider.select((s) => s.config));
     final stations = ref.watch(settingsProvider.select((s) => s.stations));
-    final isKitchen = ref.watch(
-      shellProvider.select((s) => s.session?.role == 'kitchen'),
-    );
+    ref.watch(shellProvider.select((s) => s.session?.userId));
+    final isKitchen = isKitchenOnly((c) => bridge.can(cap: c));
     final floorAuthored = ref.watch(
       settingsProvider.select((s) => s.floorAuthored),
     );

@@ -77,12 +77,23 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// for any host that needs the raw zone (e.g. a platform date picker).
   String branchTimezone();
 
+  /// Does the signed-in person hold capability `cap` (a generated `Cap` key)?
+  /// Screens gate on this, never on the role name. Offline it answers from the
+  /// synced teller row; unknown means no.
+  bool can({required String cap});
+
+  /// Not held, but the owner lets this person ask a manager to approve it.
+  bool canAskManager({required String cap});
+
   /// May the signed-in PIN user remove the service charge from a table's
   /// bill? Their effective `orders:waive_service` grant — never the role.
   bool canWaiveServiceCharge();
 
   /// Withdraw a waiting transfer wish.
   Future<void> cancelTransfer({required String id});
+
+  /// Every capability key the signed-in person holds.
+  List<String> capabilities();
 
   /// Add one unit of a menu item (merges into the matching line). The host
   /// passes the resolved display name + unit price so the cart is self-contained.

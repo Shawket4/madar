@@ -167,6 +167,19 @@ pub(crate) const SELL_WHILE_UNLOADED: &[(&str, &str)] = &[
     ("categories", "read"),
 ];
 
+/// A person's effective capabilities (architecture E) as the server resolved
+/// them: `GET /authz/me` online, the synced teller row's `capabilities` offline.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub(crate) struct AuthzGrants {
+    pub capabilities: Vec<String>,
+    #[serde(default)]
+    pub ask_manager: Vec<String>,
+    #[serde(default)]
+    pub limits: std::collections::BTreeMap<String, madar_authz::Limits>,
+    #[serde(default)]
+    pub owner: bool,
+}
+
 /// The live session the core holds in memory (and persists, minus nothing, into
 /// the host's secure blob).
 #[derive(Clone, Serialize, Deserialize)]
@@ -175,6 +188,10 @@ pub(crate) struct SessionState {
     pub permissions: Vec<PermissionEntry>,
     /// `None` for an offline-unlocked session.
     pub token: Option<String>,
+    /// `None` until capabilities are known (an older backend, or not loaded yet);
+    /// [`SessionState::can`] then answers from the legacy grid.
+    #[serde(default)]
+    pub authz: Option<AuthzGrants>,
 }
 
 impl SessionState {
@@ -205,6 +222,78 @@ impl SessionState {
                 .permissions
                 .iter()
                 .any(|p| p.resource == resource && p.action == action && p.granted)
+    }
+
+    /// Does this session hold capability `key`? Ask this, never the role.
+    ///
+    /// - Capabilities known (server `/authz/me` or the feed's teller row): exact.
+    /// - Otherwise, grants loaded from `/auth/permissions` (an older backend): a
+    ///   capability with a legacy cell answers from that cell; a newer one
+    ///   (no cell) from the role kind's registry defaults.
+    /// - Nothing loaded: only the plain selling acts ([`SELL_WHILE_UNLOADED`]).
+    pub fn can(&self, key: &str) -> bool {
+        let Some(cap) = madar_authz::Cap::from_key(key) else {
+            return false;
+        };
+        if let Some(a) = &self.authz {
+            return a.capabilities.iter().any(|c| c == key);
+        }
+        let meta = cap.meta();
+        match meta.legacy {
+            Some((r, a)) => self.has_permission(r, a),
+            None => {
+                self.snapshot.permissions_loaded
+                    && madar_authz::RoleKind::parse(&self.snapshot.role)
+                        .map(|k| meta.defaults.contains(k))
+                        .unwrap_or(false)
+            }
+        }
+    }
+
+    /// Not held, but the owner lets this person ask a manager to approve it.
+    pub fn can_ask(&self, key: &str) -> bool {
+        !self.can(key)
+            && self
+                .authz
+                .as_ref()
+                .map(|a| a.ask_manager.iter().any(|c| c == key))
+                .unwrap_or(false)
+    }
+
+    /// The kind of work this person does on a device — `"kitchen"`, `"waiter"`
+    /// or `"teller"` — from their capabilities, not their role name: someone who
+    /// takes money works a till; someone who only reads the kitchen screen is
+    /// the kitchen; everyone else works tables. It picks the route, the realtime
+    /// topics, the alerts and the LAN advert (whose `role` older peers read with
+    /// exactly these three meanings). With nothing loaded yet it falls back to
+    /// the role's kind, since a guess from the selling defaults would put a
+    /// kitchen screen on a till.
+    pub fn work_kind(&self) -> &'static str {
+        if self.authz.is_none() && !self.snapshot.permissions_loaded {
+            return match self.snapshot.role.as_str() {
+                "kitchen" => "kitchen",
+                "waiter" => "waiter",
+                _ => "teller",
+            };
+        }
+        use madar_authz::Cap;
+        let can = |c: Cap| self.can(c.key());
+        if can(Cap::PaymentsTake) || can(Cap::TillOpen) {
+            "teller"
+        } else if can(Cap::KitchenDisplayRead) && !can(Cap::OrdersCreate) && !can(Cap::TicketsOpen) {
+            "kitchen"
+        } else {
+            "waiter"
+        }
+    }
+
+    /// Every capability key this session holds.
+    pub fn capabilities(&self) -> Vec<String> {
+        madar_authz::Cap::all()
+            .map(|c| c.key())
+            .filter(|k| self.can(k))
+            .map(str::to_string)
+            .collect()
     }
 
     /// Serialize for the host's secure vault.
@@ -422,6 +511,7 @@ pub(crate) fn unlock_from_bundle(
         snapshot,
         permissions: Vec::new(),
         token: None,
+        authz: None,
     })
 }
 
@@ -885,6 +975,7 @@ mod tests {
             },
             permissions: perms,
             token: if online { Some("t".into()) } else { None },
+            authz: None,
         }
     }
 

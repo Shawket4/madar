@@ -3,6 +3,7 @@
 // bind stays on the branch list instead of silently logging the manager out.
 
 import 'package:app_core/app_core.dart';
+import 'package:app_core/testing.dart';
 import 'package:feature_auth/feature_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,6 +17,8 @@ class _Bridge implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
+    final can = fakeCanInvocation(invocation, () => currentSession()?.role);
+    if (can != null) return can;
     final name = invocation.memberName;
     if (name == #tr) return invocation.namedArguments[#key];
     if (name == #appRoute) return const AppRoute.login();

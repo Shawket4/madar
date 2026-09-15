@@ -1,20 +1,20 @@
-/// Who a signed-in person is, as far as the screens need to branch on it.
+/// What a signed-in person does, as far as the screens need to branch on it —
+/// derived from their effective capabilities (`bridge.can`), never the role
+/// name, so an owner's custom role behaves the way its grants say.
 library;
 
-/// Roles that manage a branch. The wire enum is super_admin | org_admin |
-/// branch_manager | teller | waiter | kitchen; written positively so an
-/// unknown future role is NOT a manager by accident.
-const Set<String> _managerRoles = {
-  'super_admin',
-  'org_admin',
-  'branch_manager',
-};
+import 'package:app_core/src/generated/capabilities.dart';
 
-/// Whether [role] manages the branch (sees every till, force-closes one,
-/// downloads everything again).
-bool isManagerRole(String? role) =>
-    role != null && _managerRoles.contains(role);
+/// A capability check, usually `(c) => bridge.can(cap: c)`.
+typedef CanFn = bool Function(String cap);
 
-/// Whether [role] never opens a till (a waiter has no drawer; a kitchen
-/// display takes no money).
-bool neverOpensTill(String? role) => role == 'waiter' || role == 'kitchen';
+/// Whether this person takes money at a till (rings up and charges, or opens a
+/// drawer). Someone who does not works tables only: their cart fires a ticket
+/// and the bill's Settle is not offered.
+bool takesMoney(CanFn can) => can(Cap.paymentsTake) || can(Cap.tillOpen);
+
+/// Whether this person only works the kitchen screen (no selling, no tables).
+bool isKitchenOnly(CanFn can) =>
+    can(Cap.kitchenDisplayRead) &&
+    !can(Cap.ordersCreate) &&
+    !can(Cap.ticketsOpen);

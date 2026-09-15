@@ -70,6 +70,7 @@ class TillState {
     this.movements = const [],
     this.online = true,
     this.isManager = false,
+    this.canForceClose = false,
     this.drawers = const [],
     this.drawerReportLoadingId,
     this.toast,
@@ -112,8 +113,13 @@ class TillState {
   /// The device is online (the honest-figures flag on the stat cards).
   final bool online;
 
-  /// The signed-in role sees every drawer at the branch.
+  /// The signed-in person sees every drawer at the branch
+  /// (`till.read.branch`).
   final bool isManager;
+
+  /// The signed-in person may force-close another device's till
+  /// (`till.force_close`).
+  final bool canForceClose;
 
   /// Every till at the branch (managers only): open ones first.
   final List<TillSummaryView> drawers;
@@ -140,6 +146,7 @@ class TillState {
     List<CashMovementView>? movements,
     bool? online,
     bool? isManager,
+    bool? canForceClose,
     List<TillSummaryView>? drawers,
     Object? drawerReportLoadingId = _unset,
     Object? toast = _unset,
@@ -160,6 +167,7 @@ class TillState {
       movements: movements ?? this.movements,
       online: online ?? this.online,
       isManager: isManager ?? this.isManager,
+      canForceClose: canForceClose ?? this.canForceClose,
       drawers: drawers ?? this.drawers,
       drawerReportLoadingId: drawerReportLoadingId == _unset
           ? this.drawerReportLoadingId
@@ -193,13 +201,16 @@ class TillNotifier extends Notifier<TillState> {
       // for it, which left expected cash stale until a screen change.
       ..listen(drawerTickProvider, (_, _) => unawaited(refresh()));
     unawaited(Future<void>.microtask(refresh));
-    return TillState(isManager: isManagerRole(_bridge.currentSession()?.role));
+    return TillState(
+      isManager: _bridge.can(cap: Cap.tillReadBranch),
+      canForceClose: _bridge.can(cap: Cap.tillForceClose),
+    );
   }
 
   /// Reload everything the tab shows. The figures load in parallel; each
   /// degrades on its own so one failing call cannot blank the tab.
   Future<void> refresh() async {
-    final isManager = isManagerRole(_bridge.currentSession()?.role);
+    final isManager = _bridge.can(cap: Cap.tillReadBranch);
     final till = await _deviceTill(_bridge);
     if (_disposed) return;
     final open = till?.isOpen ?? false;
@@ -246,6 +257,7 @@ class TillNotifier extends Notifier<TillState> {
       movements: movements ?? const [],
       online: sync?.online ?? state.online,
       isManager: isManager,
+      canForceClose: _bridge.can(cap: Cap.tillForceClose),
       // Open drawers first — the manager is here to see who is on a till
       // right now; the closed ones are history.
       drawers: [
@@ -515,7 +527,8 @@ class OpenTillNotifier extends Notifier<OpenTillState> {
       }),
     );
     return OpenTillState(
-      isManager: isManagerRole(_bridge.currentSession()?.role),
+      // Offered only to someone who may force-close a till elsewhere.
+      isManager: _bridge.can(cap: Cap.tillForceClose),
     );
   }
 

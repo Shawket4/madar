@@ -2,6 +2,7 @@
 // starts blank, and a just-closed till's Z report is its own report.
 
 import 'package:app_core/app_core.dart';
+import 'package:app_core/testing.dart';
 import 'package:feature_till/feature_till.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -62,6 +63,8 @@ class _Bridge implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
+    final can = fakeCanInvocation(invocation, () => currentSession()?.role);
+    if (can != null) return can;
     final name = invocation.memberName;
     // The core's drawer and Orders decisions (till_views), in miniature.
     if (name == #paymentMethodLabel) {

@@ -112,6 +112,8 @@ class _Fake implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
+    final can = fakeCanInvocation(invocation, () => currentSession()?.role);
+    if (can != null) return can;
     final name = invocation.memberName;
     final a = invocation.namedArguments;
     if (name == #tr) return coreWord(a[#key] as String);
@@ -253,7 +255,8 @@ class _Hang implements PrinterTransport {
   Future<void> send(Uint8List bytes) => Completer<void>().future;
 
   @override
-  dynamic noSuchMethod(Invocation invocation) => null;
+  dynamic noSuchMethod(Invocation invocation) =>
+      fakeCanInvocation(invocation, () => null);
 }
 
 class _Host extends StatelessWidget {

@@ -64,6 +64,8 @@ class _Fake implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation i) {
+    final can = fakeCanInvocation(i, () => currentSession()?.role);
+    if (can != null) return can;
     final n = i.memberName;
     final a = i.namedArguments;
     if (n == #tr || n == #trChecked) {

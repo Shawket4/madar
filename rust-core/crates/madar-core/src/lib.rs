@@ -531,6 +531,78 @@ impl MadarCore {
             .unwrap_or(false)
     }
 
+    /// Does the signed-in person hold capability `key` (architecture E)? Screens
+    /// gate on this, never on the role name. See `SessionState::can`.
+    pub fn can(&self, key: String) -> bool {
+        self.session
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|s| s.can(&key))
+            .unwrap_or(false)
+    }
+
+    /// Not held, but the owner lets this person ask a manager to approve it.
+    pub fn can_ask_manager(&self, key: String) -> bool {
+        self.session
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|s| s.can_ask(&key))
+            .unwrap_or(false)
+    }
+
+    /// `"kitchen"`, `"waiter"` or `"teller"` for the signed-in person (see
+    /// `SessionState::work_kind`); empty when signed out.
+    pub fn work_kind(&self) -> String {
+        self.session
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|s| s.work_kind().to_string())
+            .unwrap_or_default()
+    }
+
+    /// Every capability key the signed-in person holds (empty when signed out).
+    pub fn capabilities(&self) -> Vec<String> {
+        self.session
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|s| s.capabilities())
+            .unwrap_or_default()
+    }
+
+    /// `GET /authz/me` for the live bearer, best-effort: `None` against an older
+    /// backend (the legacy grid then answers) or on a network blip.
+    pub(crate) async fn fetch_authz(&self, branch_id: Option<String>) -> Option<session::AuthzGrants> {
+        let me = madar_api::apis::authz_api::get_my_authz(
+            &self.api.config(),
+            madar_api::apis::authz_api::GetMyAuthzParams { branch_id },
+        )
+        .await
+        .ok()?;
+        Some(session::AuthzGrants {
+            capabilities: me.capabilities,
+            ask_manager: me.ask_manager,
+            limits: me
+                .limits
+                .into_iter()
+                .map(|(k, l)| {
+                    (
+                        k,
+                        madar_authz::Limits {
+                            max_amount: l.max_amount.flatten(),
+                            max_percent: l.max_percent.flatten(),
+                            max_value: l.max_value.flatten(),
+                        },
+                    )
+                })
+                .collect(),
+            owner: me.owner,
+        })
+    }
+
     /// Whether the signed-in user may remove the service charge from a table's
     /// bill: `orders:waive_service` in their EFFECTIVE permissions (role
     /// default or per-user override, as the server resolved them) — never the
@@ -2186,7 +2258,7 @@ impl MadarCore {
         // A kitchen-role device shows the KDS for its configured station (it needs
         // the session for the bus + kitchen permission, but holds no shift). With
         // no station bound yet, it must finish device setup first.
-        if session.snapshot.role == "kitchen" {
+        if session.work_kind() == "kitchen" {
             return match cfg.station_id {
                 Some(station_id) => AppRoute::KitchenDisplay { station_id },
                 None => AppRoute::DeviceSetup,
@@ -2194,7 +2266,7 @@ impl MadarCore {
         }
         // Waiters take orders and fire tickets but hold NO shift — route them to the
         // waiter screen BEFORE the open-shift gate (which they could never satisfy).
-        if session.snapshot.role == "waiter" {
+        if session.work_kind() == "waiter" {
             return AppRoute::WaiterTickets;
         }
         // An open shift counts only if it belongs to THIS teller (a stale shift
@@ -2391,8 +2463,9 @@ impl MadarCore {
                 field: "branch".into(),
                 detail: "no branch bound".into(),
             })?;
-        let topics = realtime::topics_for_role(&session.role);
-        let alerting = self.install_unified_listener(Arc::from(listener), Arc::from(player), &session.role);
+        let kind = self.work_kind();
+        let topics = realtime::topics_for_role(&kind);
+        let alerting = self.install_unified_listener(Arc::from(listener), Arc::from(player), &kind);
         let client = self.api.realtime_client();
         // Cloud-only events (online orders, bookings) get re-published on the LAN
         // by every device that heard them, under one deterministic id, so a
@@ -2447,7 +2520,7 @@ impl MadarCore {
     /// Simulation hook: install the listener chain without opening a stream.
     #[doc(hidden)]
     pub fn sim_install_listener(&self, host: Arc<dyn realtime::EventListener>, player: Arc<dyn realtime::RealtimePlayer>) {
-        let role = self.current_session().map(|s| s.role).unwrap_or_default();
+        let role = self.work_kind();
         self.install_unified_listener(host, player, &role);
     }
 
@@ -3080,7 +3153,7 @@ impl MadarCore {
         let cfg = lan::LanConfig {
             device_id: self.lan_device_id(),
             branch_id: branch_id.clone(),
-            role: session.role.clone(),
+            role: self.work_kind(),
             station_id: dev.station_id.clone(),
             key: lan::branch_key(&secret, &branch_id),
             tcp_port: lan::DEFAULT_TCP_PORT,
@@ -3129,7 +3202,7 @@ impl MadarCore {
         let cfg = lan::LanConfig {
             device_id: self.lan_device_id(),
             branch_id: branch_id.clone(),
-            role: session.role.clone(),
+            role: self.work_kind(),
             station_id: None,
             key: lan::branch_key(&secret, &branch_id),
             tcp_port: 0,
@@ -5255,10 +5328,12 @@ impl MadarCore {
             }
             Err(_) => Vec::new(),
         };
+        let authz = self.fetch_authz(None).await;
         self.persist_and_set(session::SessionState {
             snapshot: snapshot.clone(),
             permissions,
             token: Some(resp.token),
+            authz,
         });
         Ok(snapshot)
     }
@@ -5459,10 +5534,14 @@ impl MadarCore {
             }
         }
 
+        // Effective capabilities at this branch (an older backend answers 404 and
+        // the legacy grid stands in).
+        let authz = self.fetch_authz(snapshot.branch_id.clone()).await;
         let state = session::SessionState {
             snapshot: snapshot.clone(),
             permissions,
             token: Some(resp.token),
+            authz,
         };
         self.persist_and_set(state);
 
@@ -6277,6 +6356,8 @@ impl MadarCore {
             return;
         };
         let perms = session::permissions_from(&p);
+        let branch = self.current_session().and_then(|s| s.branch_id);
+        let authz = self.fetch_authz(branch).await;
         // Update under the write lock, capture the blob, then RELEASE before
         // the store write (keep lock scopes minimal; the store has its own).
         let blob = {
@@ -6284,6 +6365,9 @@ impl MadarCore {
             match g.as_mut() {
                 Some(s) if s.token.is_some() && !s.snapshot.permissions_loaded => {
                     s.permissions = perms;
+                    if authz.is_some() {
+                        s.authz = authz;
+                    }
                     s.snapshot.permissions_loaded = true;
                     Some(s.to_blob())
                 }
@@ -8721,14 +8805,23 @@ mod lifecycle_tests {
                 online: true,
                 permissions_loaded: true,
             },
-            permissions: vec![],
+            permissions: [("orders", "create"), ("payments", "create"), ("tills", "create")]
+                .into_iter()
+                .map(|(r, a)| session::PermissionEntry { resource: r.into(), action: a.into(), granted: true })
+                .collect(),
             token: None,
+            authz: None,
         }
     }
 
     fn kitchen_session(user_id: &str, branch: Option<&str>) -> session::SessionState {
         let mut s = teller_session(user_id, branch);
         s.snapshot.role = "kitchen".into();
+        s.permissions = vec![session::PermissionEntry {
+            resource: "kitchen_orders".into(),
+            action: "read".into(),
+            granted: true,
+        }];
         s
     }
 
@@ -10513,6 +10606,7 @@ mod lifecycle_tests {
             },
             permissions: Vec::new(),
             token: Some(token.clone()),
+            authz: None,
         };
         core.api.set_bearer(Some(token));
         core.persist_and_set(state);
@@ -10539,6 +10633,7 @@ mod lifecycle_tests {
             },
             permissions: Vec::new(),
             token: Some(token.clone()),
+            authz: None,
         };
         core.api.set_bearer(Some(token));
         core.persist_and_set(state);
@@ -10864,6 +10959,67 @@ mod lifecycle_tests {
         assert!(core.has_permission("orders".into(), "create".into()));
         assert!(!core.has_permission("orders".into(), "delete".into()), "a void is not assumed");
         assert!(!core.has_permission("tills".into(), "update".into()));
+    }
+
+    #[test]
+    fn offline_unlock_answers_capabilities_from_the_feed_row() {
+        let core = offline_core_with_bundle();
+        let row = serde_json::json!({"id": TELLER_BB, "user_id": TELLER_BB, "name": "Sara",
+            "role": "teller", "is_active": true, "permissions": ["orders:create", "payments:create"],
+            "capabilities": ["orders.create", "payments.take", "till.cash_spot_check"],
+            "ask_manager": ["refunds.create"], "limits": {"orders.discount.manual_percent": {"max_percent": 10}},
+            "is_owner": false});
+        core.store
+            .with_conn(|c| {
+                c.execute(
+                    "INSERT INTO sync_rows (branch_id, type, id, seq, data) VALUES (?1, 'teller', ?2, 1, ?3)",
+                    rusqlite::params![BRANCH_1, TELLER_BB, row.to_string()],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        core.unlock_offline("Sara".into(), "1234".into(), BRANCH_1.into())
+            .unwrap();
+        assert!(core.can("till.cash_spot_check".into()), "a capability with no legacy cell comes from the row");
+        assert!(!core.can("orders.void".into()));
+        assert!(core.can_ask_manager("refunds.create".into()));
+        assert!(!core.can_ask_manager("orders.create".into()), "held, so nothing to ask");
+        assert!(!core.can("no.such.capability".into()));
+        assert_eq!(core.capabilities().len(), 3);
+    }
+
+    #[test]
+    fn capabilities_fall_back_to_the_legacy_grid_on_an_older_backend() {
+        let core = offline_core_with_bundle();
+        let row = serde_json::json!({"id": TELLER_BB, "user_id": TELLER_BB, "name": "Sara",
+            "role": "teller", "is_active": true, "permissions": ["orders:create", "tills:create"]});
+        core.store
+            .with_conn(|c| {
+                c.execute(
+                    "INSERT INTO sync_rows (branch_id, type, id, seq, data) VALUES (?1, 'teller', ?2, 1, ?3)",
+                    rusqlite::params![BRANCH_1, TELLER_BB, row.to_string()],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        core.unlock_offline("Sara".into(), "1234".into(), BRANCH_1.into())
+            .unwrap();
+        assert!(core.can("till.open".into()), "legacy cell tills:create");
+        assert!(!core.can("orders.void".into()));
+        // No legacy cell: the teller kind's registry default.
+        assert!(core.can("pos.sign_in".into()));
+        assert!(!core.can("till.force_close".into()));
+    }
+
+    #[test]
+    fn nothing_loaded_means_only_plain_selling() {
+        let core = offline_core_with_bundle();
+        core.unlock_offline("Sara".into(), "1234".into(), BRANCH_1.into())
+            .unwrap();
+        assert!(core.can("orders.create".into()));
+        assert!(core.can("payments.take".into()));
+        assert!(!core.can("refunds.create".into()));
+        assert!(!core.can("pos.sign_in".into()), "unknown means no");
     }
 
     #[test]

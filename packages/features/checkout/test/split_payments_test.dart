@@ -4,7 +4,6 @@
 // The same flow runs offline: the sheet's figures come from the core's local
 // pricing, so these drive the real notifier over a fake bridge.
 
-
 import 'package:app_core/app_core.dart';
 import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
@@ -134,6 +133,8 @@ class _Fake implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
+    final can = fakeCanInvocation(invocation, () => currentSession()?.role);
+    if (can != null) return can;
     final name = invocation.memberName;
     final a = invocation.namedArguments;
     if (name == #tr) return coreWord(a[#key] as String);

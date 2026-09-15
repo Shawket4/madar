@@ -999,6 +999,12 @@ impl MadarCore {
             })?;
             applied += purged;
             self.project_pull_mirrors(&branch);
+            // A grant change re-emits the person's teller row: keep the live
+            // session's capabilities equal to the feed's (no-op when unchanged
+            // or when the person has no row here).
+            if applied > 0 {
+                self.adopt_feed_permissions(&branch);
+            }
             self.sync_state.lock().unwrap_or_else(|e| e.into_inner()).stale_reason = stale;
             // §11.7: after rows land, fetch the files they reference (non-fatal).
             let b = bundle
@@ -1112,13 +1118,32 @@ impl MadarCore {
     /// included). A row without `permissions` (an older server) changes nothing.
     pub(crate) fn adopt_feed_permissions(&self, branch: &str) {
         let Some(user) = self.current_session().map(|s| s.user_id) else { return };
-        let Some(granted) = rows_of_type(&self.store, branch, "teller")
+        let Some(row) = rows_of_type(&self.store, branch, "teller")
             .into_iter()
             .find(|v| v.get("id").and_then(|x| x.as_str()) == Some(user.as_str()))
-            .and_then(|v| v.get("permissions").and_then(|p| p.as_array()).cloned())
         else {
             return;
         };
+        let Some(granted) = row.get("permissions").and_then(|p| p.as_array()).cloned() else {
+            return;
+        };
+        // Architecture E rows also carry the resolved capabilities; an older
+        // backend's row does not, and the legacy grid then answers `can`.
+        let keys = |f: &str| -> Option<Vec<String>> {
+            row.get(f).and_then(|p| p.as_array()).map(|a| {
+                a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()
+            })
+        };
+        let authz = keys("capabilities").map(|capabilities| crate::session::AuthzGrants {
+            capabilities,
+            ask_manager: keys("ask_manager").unwrap_or_default(),
+            limits: row
+                .get("limits")
+                .cloned()
+                .and_then(|l| serde_json::from_value(l).ok())
+                .unwrap_or_default(),
+            owner: row.get("is_owner").and_then(|x| x.as_bool()).unwrap_or(false),
+        });
         let entries: Vec<crate::session::PermissionEntry> = granted
             .iter()
             .filter_map(|p| p.as_str())
@@ -1130,6 +1155,9 @@ impl MadarCore {
             match g.as_mut() {
                 Some(s) if s.snapshot.user_id == user => {
                     s.permissions = entries;
+                    if authz.is_some() {
+                        s.authz = authz;
+                    }
                     s.snapshot.permissions_loaded = true;
                     Some(s.to_blob())
                 }
