@@ -192,3 +192,65 @@ class LanStatusView {
           mdnsActive == other.mdnsActive &&
           nativeDiscoveryActive == other.nativeDiscoveryActive;
 }
+
+/// One reason reconfigure is blocked (a localized `label` with its live count).
+class ReconfigureBlockerView {
+  final String kind;
+  final int count;
+  final String label;
+  final String? tillId;
+  final String? ownerName;
+
+  const ReconfigureBlockerView({
+    required this.kind,
+    required this.count,
+    required this.label,
+    this.tillId,
+    this.ownerName,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^
+      count.hashCode ^
+      label.hashCode ^
+      tillId.hashCode ^
+      ownerName.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReconfigureBlockerView &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          count == other.count &&
+          label == other.label &&
+          tillId == other.tillId &&
+          ownerName == other.ownerName;
+}
+
+/// Whether the device may be reconfigured, and what stands in the way.
+class ReconfigureReadinessView {
+  final bool allowed;
+  final List<ReconfigureBlockerView> blockers;
+  final int outboxTotal;
+
+  const ReconfigureReadinessView({
+    required this.allowed,
+    required this.blockers,
+    required this.outboxTotal,
+  });
+
+  @override
+  int get hashCode =>
+      allowed.hashCode ^ blockers.hashCode ^ outboxTotal.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReconfigureReadinessView &&
+          runtimeType == other.runtimeType &&
+          allowed == other.allowed &&
+          blockers == other.blockers &&
+          outboxTotal == other.outboxTotal;
+}

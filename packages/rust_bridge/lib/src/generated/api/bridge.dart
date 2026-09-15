@@ -768,6 +768,14 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// feed. Captures sync dead-letters, cascade failures, and auth parks.
   Future<List<DiagLogView>> recentLogs();
 
+  /// "Push now": confirm online, drain the outbox, final `/sync/pull`, and
+  /// record the outcome the reconfigure gate reads.
+  Future<ReconfigureReadinessView> reconfigurePushNow();
+
+  /// Whether this device may be reconfigured now, with every blocker and its
+  /// live count. Local only (no network) — safe on a tick.
+  ReconfigureReadinessView reconfigureReadiness();
+
   Future<CashMovementView> recordCashMovement({
     required PlatformInt64 amountMinor,
     required String note,
@@ -1043,8 +1051,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required RustStreamSink<AlertCommand> alerts,
   });
 
-  /// Re-enter device setup (keeps the binding but forces the setup screen until
-  /// `set_device_branch` confirms a — possibly new — branch).
+  /// Reconfigure = a gated fresh install: refused unless readiness allows it;
+  /// otherwise wipes every local row, cache, the session, the offline bundle
+  /// and the device id (printer settings kept) → the device-setup screen.
   Future<void> startReconfigure();
 
   Future<PlatformInt64> suggestedOpeningCashMinor();

@@ -8,6 +8,7 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_auth/feature_auth.dart' show showReconfigureSheet;
 import 'package:feature_checkout/feature_checkout.dart' show PrintState;
 import 'package:feature_settings/src/labels.dart';
 import 'package:feature_settings/src/settings_provider.dart';
@@ -409,17 +410,9 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
     super.dispose();
   }
 
-  /// Pop the sheet AND the settings screen, then refresh the shell — the
-  /// route flips to DeviceSetup on the shell subtree, not under an overlay.
-  Future<void> _reconfigure() async {
-    final shell = ref.read(shellProvider.notifier);
-    final ok = await ref.read(settingsProvider.notifier).reconfigure();
-    if (!ok || !mounted) return;
-    final navigator = Navigator.of(context);
-    await navigator.maybePop();
-    await navigator.maybePop();
-    shell.refresh();
-  }
+  /// The gated fresh install: the reconfigure sheet shows every blocker and
+  /// wipes only once the core allows it.
+  Future<void> _reconfigure() => showReconfigureSheet(context);
 
   @override
   Widget build(BuildContext context) {
@@ -427,9 +420,6 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
     String t(String key) => bridge.tr(key: key);
     final notifier = ref.read(settingsProvider.notifier);
     final config = ref.watch(settingsProvider.select((s) => s.config));
-    final hasOpenTill = ref.watch(
-      settingsProvider.select((s) => s.hasOpenTill),
-    );
     final error = ref.watch(settingsProvider.select((s) => s.error));
     final lan = bridge.lanStatus();
     final lanActive = lan.running;
@@ -502,11 +492,8 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
           label: t('settings.reconfigure'),
           glyph: MadarGlyph.settings,
           variant: MadarButtonVariant.secondary,
-          enabled: !hasOpenTill,
-          tooltip: hasOpenTill ? t('settings.reconfigure_shift_open') : null,
           onTap: () => unawaited(_reconfigure()),
         ),
-        if (hasOpenTill) _Caption(t('settings.reconfigure_shift_open')),
       ],
     );
   }

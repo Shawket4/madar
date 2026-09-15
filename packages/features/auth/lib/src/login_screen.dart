@@ -5,6 +5,7 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_auth/src/auth_layout.dart';
 import 'package:feature_auth/src/device_setup_form.dart';
 import 'package:feature_auth/src/providers.dart';
+import 'package:feature_auth/src/reconfigure_sheet.dart';
 import 'package:feature_auth/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -136,20 +137,9 @@ class _TellerFormState extends ConsumerState<_TellerForm>
     return KeyEventResult.ignored;
   }
 
-  /// Reconfigure unbinds the till from its branch until a manager signs in
-  /// again, so it is asked, never a stray tap on the login screen.
-  Future<void> _reconfigure() async {
-    final bridge = ref.read(bridgeProvider);
-    final ok = await showMadarConfirm(
-      context,
-      title: bridge.tr(key: 'login.reconfigure_title'),
-      body: bridge.tr(key: 'login.reconfigure_body'),
-      confirmLabel: bridge.tr(key: 'login.reconfigure'),
-      cancelLabel: bridge.tr(key: 'common.cancel'),
-    );
-    if (!ok || !mounted) return;
-    await ref.read(authProvider.notifier).beginReconfigure();
-  }
+  /// Reconfigure is a gated fresh install: the sheet shows what blocks it
+  /// and only wipes once the core allows it.
+  Future<void> _reconfigure() => showReconfigureSheet(context);
 
   @override
   Widget build(BuildContext context) {

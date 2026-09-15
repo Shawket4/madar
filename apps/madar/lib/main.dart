@@ -109,6 +109,10 @@ class _ReadyScopeState extends State<_ReadyScope> {
   late ProviderContainer _container;
   ConnectivityService? _connectivity;
 
+  /// Bumped by a reconfigure wipe: keys the shell so every screen, navigator
+  /// and provider starts over exactly like a first launch.
+  int _generation = 0;
+
   @override
   void initState() {
     super.initState();
@@ -154,9 +158,27 @@ class _ReadyScopeState extends State<_ReadyScope> {
         container
             .read(connectivityRefreshProvider.notifier)
             .register(connectivity.refresh);
+        container.read(deviceResetProvider.notifier).register(_resetDevice);
       }
     });
     return container;
+  }
+
+  /// The core wiped the device: drop the whole container (every provider,
+  /// cache and timer derived from the old data) and mount a fresh one.
+  void _resetDevice() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final old = _container;
+      _connectivity?.dispose();
+      _connectivity = null;
+      setState(() {
+        _generation++;
+        _container = _createContainer();
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
+    });
   }
 
   @override
@@ -170,7 +192,7 @@ class _ReadyScopeState extends State<_ReadyScope> {
   Widget build(BuildContext context) {
     return UncontrolledProviderScope(
       container: _container,
-      child: const MadarShell(),
+      child: MadarShell(key: ValueKey(_generation)),
     );
   }
 }

@@ -371,20 +371,6 @@ class SettingsNotifier extends Notifier<SettingsState> {
 
   // ── route-moving actions ──────────────────────────────────────────────────
 
-  /// Re-provisioning is only allowed with a closed drawer (the natives'
-  /// guard). Returns true when the screen should pop and refresh the shell
-  /// (the route flips to DeviceSetup).
-  Future<bool> reconfigure() async {
-    if (state.hasOpenTill) {
-      state = state.copyWith(
-        error: const UiText.key('settings.reconfigure_shift_open'),
-      );
-      return false;
-    }
-    await _quiet(_bridge.startReconfigure);
-    return true;
-  }
-
   /// Sign-out (→ login) requires a closed drawer first. Tears down the
   /// realtime subscription + LAN relay, then the session (outbox kept).
   /// Returns true when the screen should pop and refresh the shell.

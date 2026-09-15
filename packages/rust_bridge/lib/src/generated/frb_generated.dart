@@ -83,7 +83,7 @@ class RustBridge
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1241514307;
+  int get rustContentHash => 429176033;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -862,6 +862,14 @@ abstract class RustBridgeApi extends BaseApi {
   });
 
   Future<List<DiagLogView>> crateApiBridgeMadarBridgeRecentLogs({
+    required MadarBridge that,
+  });
+
+  Future<ReconfigureReadinessView> crateApiBridgeMadarBridgeReconfigurePushNow({
+    required MadarBridge that,
+  });
+
+  ReconfigureReadinessView crateApiBridgeMadarBridgeReconfigureReadiness({
     required MadarBridge that,
   });
 
@@ -7111,6 +7119,77 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  Future<ReconfigureReadinessView> crateApiBridgeMadarBridgeReconfigurePushNow({
+    required MadarBridge that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 153,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_reconfigure_readiness_view,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeReconfigurePushNowConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeReconfigurePushNowConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_reconfigure_push_now",
+        argNames: ["that"],
+      );
+
+  @override
+  ReconfigureReadinessView crateApiBridgeMadarBridgeReconfigureReadiness({
+    required MadarBridge that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 154,
+          )!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_reconfigure_readiness_view,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeReconfigureReadinessConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeReconfigureReadinessConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_reconfigure_readiness",
+        argNames: ["that"],
+      );
+
+  @override
   Future<CashMovementView> crateApiBridgeMadarBridgeRecordCashMovement({
     required MadarBridge that,
     required PlatformInt64 amountMinor,
@@ -7133,7 +7212,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 153,
+            funcId: 155,
             port: port_,
           );
         },
@@ -7169,7 +7248,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 154,
+            funcId: 156,
             port: port_,
           );
         },
@@ -7205,7 +7284,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 155,
+            funcId: 157,
             port: port_,
           );
         },
@@ -7241,7 +7320,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 156,
+            funcId: 158,
             port: port_,
           );
         },
@@ -7277,7 +7356,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 157,
+            funcId: 159,
             port: port_,
           );
         },
@@ -7313,7 +7392,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 158,
+            funcId: 160,
             port: port_,
           );
         },
@@ -7353,7 +7432,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 159,
+            funcId: 161,
           )!;
         },
         codec: SseCodec(
@@ -7398,7 +7477,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 160,
+            funcId: 162,
             port: port_,
           );
         },
@@ -7443,7 +7522,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 161,
+            funcId: 163,
             port: port_,
           );
         },
@@ -7483,7 +7562,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 162,
+            funcId: 164,
             port: port_,
           );
         },
@@ -7525,7 +7604,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 163,
+            funcId: 165,
             port: port_,
           );
         },
@@ -7571,7 +7650,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 164,
+            funcId: 166,
             port: port_,
           );
         },
@@ -7624,7 +7703,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 165,
+            funcId: 167,
             port: port_,
           );
         },
@@ -7679,7 +7758,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 166,
+            funcId: 168,
             port: port_,
           );
         },
@@ -7723,7 +7802,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 167,
+            funcId: 169,
             port: port_,
           );
         },
@@ -7763,7 +7842,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 168,
+            funcId: 170,
             port: port_,
           );
         },
@@ -7801,7 +7880,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 169,
+            funcId: 171,
             port: port_,
           );
         },
@@ -7837,7 +7916,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 170,
+            funcId: 172,
           )!;
         },
         codec: SseCodec(
@@ -7872,7 +7951,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 171,
+            funcId: 173,
             port: port_,
           );
         },
@@ -7910,7 +7989,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 172,
+            funcId: 174,
             port: port_,
           );
         },
@@ -7952,7 +8031,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 173,
+            funcId: 175,
           )!;
         },
         codec: SseCodec(
@@ -7991,7 +8070,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 174,
+            funcId: 176,
           )!;
         },
         codec: SseCodec(
@@ -8038,7 +8117,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 175,
+            funcId: 177,
           )!;
         },
         codec: SseCodec(
@@ -8101,7 +8180,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 176,
+            funcId: 178,
             port: port_,
           );
         },
@@ -8149,7 +8228,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 177,
+            funcId: 179,
             port: port_,
           );
         },
@@ -8189,7 +8268,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 178,
+            funcId: 180,
             port: port_,
           );
         },
@@ -8231,7 +8310,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 179,
+            funcId: 181,
             port: port_,
           );
         },
@@ -8271,7 +8350,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 180,
+            funcId: 182,
             port: port_,
           );
         },
@@ -8309,7 +8388,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 181,
+            funcId: 183,
           )!;
         },
         codec: SseCodec(
@@ -8346,7 +8425,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 182,
+            funcId: 184,
             port: port_,
           );
         },
@@ -8388,7 +8467,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 183,
+            funcId: 185,
             port: port_,
           );
         },
@@ -8428,7 +8507,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 184,
+            funcId: 186,
             port: port_,
           );
         },
@@ -8466,7 +8545,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 185,
+            funcId: 187,
             port: port_,
           );
         },
@@ -8504,7 +8583,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 186,
+            funcId: 188,
             port: port_,
           );
         },
@@ -8543,7 +8622,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 187,
+            funcId: 189,
             port: port_,
           );
         },
@@ -8581,7 +8660,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 188,
+            funcId: 190,
             port: port_,
           );
         },
@@ -8619,7 +8698,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 189,
+            funcId: 191,
           )!;
         },
         codec: SseCodec(
@@ -8680,7 +8759,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 190,
+            funcId: 192,
             port: port_,
           );
         },
@@ -8748,7 +8827,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 191,
+            funcId: 193,
             port: port_,
           );
         },
@@ -8792,7 +8871,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 192,
+            funcId: 194,
           )!;
         },
         codec: SseCodec(
@@ -8833,7 +8912,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 193,
+            funcId: 195,
           )!;
         },
         codec: SseCodec(
@@ -8872,7 +8951,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 194,
+            funcId: 196,
             port: port_,
           );
         },
@@ -8908,7 +8987,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 195,
+            funcId: 197,
             port: port_,
           );
         },
@@ -8944,7 +9023,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 196,
+            funcId: 198,
             port: port_,
           );
         },
@@ -8985,7 +9064,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 197,
+            funcId: 199,
             port: port_,
           );
         },
@@ -9029,7 +9108,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 198,
+            funcId: 200,
             port: port_,
           );
         },
@@ -9065,7 +9144,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 199,
+            funcId: 201,
             port: port_,
           );
         },
@@ -9101,7 +9180,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 200,
+            funcId: 202,
             port: port_,
           );
         },
@@ -9137,7 +9216,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 201,
+            funcId: 203,
           )!;
         },
         codec: SseCodec(
@@ -9172,7 +9251,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 202,
+            funcId: 204,
           )!;
         },
         codec: SseCodec(
@@ -9209,7 +9288,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 203,
+            funcId: 205,
             port: port_,
           );
         },
@@ -9259,7 +9338,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 204,
+            funcId: 206,
           )!;
         },
         codec: SseCodec(
@@ -9314,7 +9393,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 205,
+            funcId: 207,
           )!;
         },
         codec: SseCodec(
@@ -9351,7 +9430,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 206,
+            funcId: 208,
           )!;
         },
         codec: SseCodec(
@@ -9386,7 +9465,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 207,
+            funcId: 209,
             port: port_,
           );
         },
@@ -9424,7 +9503,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 208,
+            funcId: 210,
             port: port_,
           );
         },
@@ -9460,7 +9539,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 209,
+            funcId: 211,
             port: port_,
           );
         },
@@ -9498,7 +9577,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 210,
+            funcId: 212,
             port: port_,
           );
         },
@@ -9542,7 +9621,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 211,
+            funcId: 213,
           )!;
         },
         codec: SseCodec(
@@ -9579,7 +9658,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 212,
+            funcId: 214,
           )!;
         },
         codec: SseCodec(
@@ -9620,7 +9699,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 213,
+            funcId: 215,
             port: port_,
           );
         },
@@ -9658,7 +9737,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 214,
+            funcId: 216,
             port: port_,
           );
         },
@@ -9694,7 +9773,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 215,
+            funcId: 217,
           )!;
         },
         codec: SseCodec(
@@ -9736,7 +9815,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 216,
+            funcId: 218,
             port: port_,
           );
         },
@@ -9770,7 +9849,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 217,
+            funcId: 219,
           )!;
         },
         codec: SseCodec(
@@ -9810,7 +9889,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 218,
+            funcId: 220,
             port: port_,
           );
         },
@@ -9850,7 +9929,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 219,
+            funcId: 221,
             port: port_,
           );
         },
@@ -9892,7 +9971,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 220,
+            funcId: 222,
             port: port_,
           );
         },
@@ -9931,7 +10010,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 221,
+              funcId: 223,
               port: port_,
             );
           },
@@ -9963,7 +10042,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 222,
+            funcId: 224,
           )!;
         },
         codec: SseCodec(
@@ -9989,7 +10068,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 223,
+            funcId: 225,
           )!;
         },
         codec: SseCodec(
@@ -10016,7 +10095,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 224,
+            funcId: 226,
           )!;
         },
         codec: SseCodec(
@@ -11658,6 +11737,16 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  List<ReconfigureBlockerView> dco_decode_list_reconfigure_blocker_view(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_reconfigure_blocker_view)
+        .toList();
+  }
+
+  @protected
   List<RefundLineView> dco_decode_list_refund_line_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_refund_line_view).toList();
@@ -12464,6 +12553,34 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       declaredAmountMinor: dco_decode_opt_box_autoadd_i_64(arr[5]),
       note: dco_decode_opt_String(arr[6]),
       changedAfterClose: dco_decode_bool(arr[7]),
+    );
+  }
+
+  @protected
+  ReconfigureBlockerView dco_decode_reconfigure_blocker_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return ReconfigureBlockerView(
+      kind: dco_decode_String(arr[0]),
+      count: dco_decode_u_32(arr[1]),
+      label: dco_decode_String(arr[2]),
+      tillId: dco_decode_opt_String(arr[3]),
+      ownerName: dco_decode_opt_String(arr[4]),
+    );
+  }
+
+  @protected
+  ReconfigureReadinessView dco_decode_reconfigure_readiness_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return ReconfigureReadinessView(
+      allowed: dco_decode_bool(arr[0]),
+      blockers: dco_decode_list_reconfigure_blocker_view(arr[1]),
+      outboxTotal: dco_decode_u_32(arr[2]),
     );
   }
 
@@ -15341,6 +15458,20 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  List<ReconfigureBlockerView> sse_decode_list_reconfigure_blocker_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ReconfigureBlockerView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_reconfigure_blocker_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<RefundLineView> sse_decode_list_refund_line_view(
     SseDeserializer deserializer,
   ) {
@@ -16496,6 +16627,40 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       declaredAmountMinor: var_declaredAmountMinor,
       note: var_note,
       changedAfterClose: var_changedAfterClose,
+    );
+  }
+
+  @protected
+  ReconfigureBlockerView sse_decode_reconfigure_blocker_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_kind = sse_decode_String(deserializer);
+    var var_count = sse_decode_u_32(deserializer);
+    var var_label = sse_decode_String(deserializer);
+    var var_tillId = sse_decode_opt_String(deserializer);
+    var var_ownerName = sse_decode_opt_String(deserializer);
+    return ReconfigureBlockerView(
+      kind: var_kind,
+      count: var_count,
+      label: var_label,
+      tillId: var_tillId,
+      ownerName: var_ownerName,
+    );
+  }
+
+  @protected
+  ReconfigureReadinessView sse_decode_reconfigure_readiness_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_allowed = sse_decode_bool(deserializer);
+    var var_blockers = sse_decode_list_reconfigure_blocker_view(deserializer);
+    var var_outboxTotal = sse_decode_u_32(deserializer);
+    return ReconfigureReadinessView(
+      allowed: var_allowed,
+      blockers: var_blockers,
+      outboxTotal: var_outboxTotal,
     );
   }
 
@@ -19101,6 +19266,18 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_list_reconfigure_blocker_view(
+    List<ReconfigureBlockerView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_reconfigure_blocker_view(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_refund_line_view(
     List<RefundLineView> self,
     SseSerializer serializer,
@@ -19995,6 +20172,30 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_opt_box_autoadd_i_64(self.declaredAmountMinor, serializer);
     sse_encode_opt_String(self.note, serializer);
     sse_encode_bool(self.changedAfterClose, serializer);
+  }
+
+  @protected
+  void sse_encode_reconfigure_blocker_view(
+    ReconfigureBlockerView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.kind, serializer);
+    sse_encode_u_32(self.count, serializer);
+    sse_encode_String(self.label, serializer);
+    sse_encode_opt_String(self.tillId, serializer);
+    sse_encode_opt_String(self.ownerName, serializer);
+  }
+
+  @protected
+  void sse_encode_reconfigure_readiness_view(
+    ReconfigureReadinessView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.allowed, serializer);
+    sse_encode_list_reconfigure_blocker_view(self.blockers, serializer);
+    sse_encode_u_32(self.outboxTotal, serializer);
   }
 
   @protected
@@ -21704,6 +21905,18 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   Future<List<DiagLogView>> recentLogs() =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeRecentLogs(that: this);
 
+  /// "Push now": confirm online, drain the outbox, final `/sync/pull`, and
+  /// record the outcome the reconfigure gate reads.
+  Future<ReconfigureReadinessView> reconfigurePushNow() => RustBridge
+      .instance
+      .api
+      .crateApiBridgeMadarBridgeReconfigurePushNow(that: this);
+
+  /// Whether this device may be reconfigured now, with every blocker and its
+  /// live count. Local only (no network) — safe on a tick.
+  ReconfigureReadinessView reconfigureReadiness() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeReconfigureReadiness(that: this);
+
   Future<CashMovementView> recordCashMovement({
     required PlatformInt64 amountMinor,
     required String note,
@@ -22156,8 +22369,9 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     alerts: alerts,
   );
 
-  /// Re-enter device setup (keeps the binding but forces the setup screen until
-  /// `set_device_branch` confirms a — possibly new — branch).
+  /// Reconfigure = a gated fresh install: refused unless readiness allows it;
+  /// otherwise wipes every local row, cache, the session, the offline bundle
+  /// and the device id (printer settings kept) → the device-setup screen.
   Future<void> startReconfigure() => RustBridge.instance.api
       .crateApiBridgeMadarBridgeStartReconfigure(that: this);
 
