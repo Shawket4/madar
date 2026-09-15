@@ -100,16 +100,24 @@ class ReceiptPaper extends ConsumerWidget {
               // Org brand mark, directly above the hairline — the CORE-cached
               // local file (downloaded during refresh_catalog); nothing draws
               // on failure, so an offline reprint just shows the store name.
+              // Forced to solid black, as it prints — the preview shouldn't
+              // show a color the paper can't.
               if (logo != null && logo.isNotEmpty)
                 ConstrainedBox(
                   constraints: const BoxConstraints(
                     maxHeight: _logoMaxHeight,
                     maxWidth: _logoMaxWidth,
                   ),
-                  child: Image(
-                    image: FileImage(File(logo)),
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  child: ColorFiltered(
+                    colorFilter: const ColorFilter.mode(
+                      Paper.ink,
+                      BlendMode.srcIn,
+                    ),
+                    child: Image(
+                      image: FileImage(File(logo)),
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
                   ),
                 ),
             ],
