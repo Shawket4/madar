@@ -52,20 +52,6 @@ async fn person(fx: &Fixture, role: &str, owner: bool) -> String {
     name
 }
 
-async fn pin_sign_in(core: &MadarCore, name: &str, branch: &str) {
-    core.sign_in(LoginRequest {
-        mode: LoginMode::Pin,
-        name: Some(name.to_string()),
-        pin: Some("1234".into()),
-        branch_id: Some(branch.to_string()),
-        email: None,
-        password: None,
-        org_id: None,
-    })
-    .await
-    .unwrap_or_else(|e| panic!("{name} signs in with a PIN: {e:?}"));
-}
-
 #[tokio::test]
 #[ignore]
 async fn managers_and_owners_sign_in_with_a_pin_and_get_their_capabilities() {
@@ -119,20 +105,27 @@ async fn an_offline_unlock_adopts_capabilities_from_the_feed() {
     let proxy = Proxy::start(&fx.base).await;
     let db = temp_db("perm-offline");
     // The teller signs in online (caches the offline bundle), the feed lands.
-    let core = core_at(&proxy.base, &db, &teller, &fx.branch).await;
-    let online_teller = core.capabilities();
-    core.logout(false).ok();
+    // Each stage drops its core before the next opens the same device database.
+    let online_teller = {
+        let core = core_at(&proxy.base, &db, &teller, &fx.branch).await;
+        let caps = core.capabilities();
+        core.logout(false).ok();
+        caps
+    };
 
     // The manager signs in online once on this device too. The backend derives
     // an offline PIN verifier only on an online PIN login, so without this the
     // bundle lists them with a null hash and the unlock is refused with
     // "connect once to enable offline unlock" — which is the point of the
     // round trip, not a bug.
-    pin_sign_in(&core, &manager, &fx.branch).await;
-    core.logout(false).ok();
+    {
+        let core = core_at(&proxy.base, &db, &manager, &fx.branch).await;
+        core.logout(false).ok();
+    }
+
     // Sign the teller back in so the device re-fetches the bundle, now carrying
     // the manager's verifier, and ends up on the teller as it started.
-    pin_sign_in(&core, &teller, &fx.branch).await;
+    let core = core_at(&proxy.base, &db, &teller, &fx.branch).await;
     core.logout(false).ok();
 
     proxy.offline();
