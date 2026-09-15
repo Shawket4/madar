@@ -228,6 +228,7 @@ enum _Tab {
   sell('nav.sell', MadarGlyph.bag),
   floor('nav.floor', MadarGlyph.grid),
   queue('nav.queue', MadarGlyph.inbox),
+  orders('nav.orders', MadarGlyph.list),
   till('nav.till', MadarGlyph.wallet),
   bills('nav.bills', MadarGlyph.receipt),
   me('nav.me', MadarGlyph.user),
@@ -348,7 +349,8 @@ class _RoleShellState extends ConsumerState<RoleShell> {
   /// in front, so the rail said Sell over Settings, and coming back to Sell
   /// showed Settings instead of the counter.
   _Tab _ownerOf(_OwnedPage page) => switch (page) {
-    _OwnedPage.orders || _OwnedPage.closeTill => _Tab.till,
+    _OwnedPage.orders => _Tab.orders,
+    _OwnedPage.closeTill => _Tab.till,
     _OwnedPage.settings ||
     _OwnedPage.sync => _kind == ShellKind.waiter ? _Tab.me : _Tab.settings,
   };
@@ -490,9 +492,10 @@ class _RoleShellState extends ConsumerState<RoleShell> {
         initialSegment: _queueInitial,
         onOpenBill: _openBill,
       ),
-      _Tab.till => TillScreen(
-        onOpenOrders: () => _openOwned(_OwnedPage.orders),
-      ),
+      // Orders is its own rail tab now; the Till's "orders this till" row
+      // switches to it instead of pushing a page over the Till.
+      _Tab.orders => const OrderHistoryScreen(),
+      _Tab.till => TillScreen(onOpenOrders: () => _select(_Tab.orders)),
       _Tab.bills => const BillsScreen(canCharge: false),
       _Tab.me => const MeScreen(),
       _Tab.settings => const SettingsScreen(),
@@ -656,6 +659,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
           _Tab.sell,
           if (hasFloor) _Tab.floor,
           _Tab.queue,
+          _Tab.orders,
           _Tab.till,
         ],
       };
