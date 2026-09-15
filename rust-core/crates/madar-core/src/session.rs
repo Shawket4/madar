@@ -151,6 +151,22 @@ pub(crate) struct PermissionEntry {
     pub granted: bool,
 }
 
+/// The only grants assumed while a session's permissions are not loaded: ringing
+/// up and taking payment for a sale, working a table's bill, and the kitchen
+/// screen. Everything else waits for the real grants.
+pub(crate) const SELL_WHILE_UNLOADED: &[(&str, &str)] = &[
+    ("orders", "create"),
+    ("orders", "read"),
+    ("payments", "create"),
+    ("open_tickets", "create"),
+    ("open_tickets", "read"),
+    ("open_tickets", "update"),
+    ("kitchen_orders", "read"),
+    ("kitchen_orders", "update"),
+    ("menu_items", "read"),
+    ("categories", "read"),
+];
+
 /// The live session the core holds in memory (and persists, minus nothing, into
 /// the host's secure blob).
 #[derive(Clone, Serialize, Deserialize)]
@@ -162,11 +178,17 @@ pub(crate) struct SessionState {
 }
 
 impl SessionState {
-    /// Does this session grant `resource`/`action`? Optimistic until permissions
-    /// are loaded (offline unlock) — see `permissions_loaded`.
+    /// Does this session grant `resource`/`action`?
+    ///
+    /// Until the grants are loaded (an offline unlock on a device whose feed
+    /// holds no row for this person, or a failed fetch) the answer is DENY,
+    /// except for the plain selling acts in [`SELL_WHILE_UNLOADED`], so offline
+    /// selling continues. Money exceptions (voids, refunds, discounts, cash
+    /// movements, waivers) are never assumed: offering them on a guess used to
+    /// dead-letter the sale at replay (audit S7).
     pub fn has_permission(&self, resource: &str, action: &str) -> bool {
         if !self.snapshot.permissions_loaded {
-            return true;
+            return SELL_WHILE_UNLOADED.contains(&(resource, action));
         }
         self.permissions
             .iter()
@@ -867,11 +889,22 @@ mod tests {
     }
 
     #[test]
-    fn has_permission_is_optimistic_when_not_loaded() {
+    fn unloaded_grants_allow_selling_and_deny_money_exceptions() {
         let s = state_with(vec![], false, false);
-        // Anything is granted while permissions_loaded == false.
-        assert!(s.has_permission("orders", "void"));
-        assert!(s.has_permission("anything", "at_all"));
+        assert!(s.has_permission("orders", "create"));
+        assert!(s.has_permission("payments", "create"));
+        assert!(s.has_permission("open_tickets", "update"));
+        for (r, a) in [
+            ("orders", "delete"),
+            ("refunds", "create"),
+            ("tills", "update"),
+            ("open_tickets", "delete"),
+            ("discounts", "read"),
+            ("orders", "waive_service"),
+            ("anything", "at_all"),
+        ] {
+            assert!(!s.has_permission(r, a), "{r}:{a} assumed while unloaded");
+        }
     }
 
     #[test]

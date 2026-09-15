@@ -530,7 +530,8 @@ async fn permissions_addons_and_prep_minutes_arrive_with_the_feed() {
     .await;
     let core = testkit::online_core(&stub.base, "").await;
     core.store.kv_put(menu::K_ADDONS, r#"[{"id":"fetched"}]"#).unwrap();
-    assert!(core.has_permission("anything".into(), "at_all".into()), "an offline unlock is optimistic");
+    assert!(!core.has_permission("anything".into(), "at_all".into()), "unloaded grants deny all but selling");
+    assert!(core.has_permission("orders".into(), "create".into()), "selling continues while unloaded");
     core.pull(true).await.unwrap();
     assert!(core.has_permission("orders".into(), "create".into()));
     assert!(!core.has_permission("orders".into(), "delete".into()), "the feed's grants replace the optimistic gate");

@@ -587,7 +587,10 @@ impl MadarCore {
         self.auth_paused.store(paused, Relaxed);
         let snapshot = state.snapshot.clone();
         self.persist_and_set(state);
-        Ok(snapshot)
+        // The person's last-known grants from the branch's synced teller row, so
+        // an offline unlock is governed by real grants instead of a guess (S7).
+        self.adopt_feed_permissions(&branch_id);
+        Ok(self.current_session().unwrap_or(snapshot))
     }
 
     /// Sign out: clear the live session + token (the JWT is stateless — there is
@@ -10479,6 +10482,27 @@ mod lifecycle_tests {
             core.sync_status().auth_paused,
             "the re-login banner surfaces once connectivity is confirmed"
         );
+    }
+
+    #[test]
+    fn unlock_offline_adopts_the_last_known_grants_from_the_feed() {
+        let core = offline_core_with_bundle();
+        let row = serde_json::json!({"id": TELLER_BB, "user_id": TELLER_BB, "name": "Sara",
+            "role": "teller", "is_active": true, "permissions": ["orders:create", "payments:create"]});
+        core.store
+            .with_conn(|c| {
+                c.execute(
+                    "INSERT INTO sync_rows (branch_id, type, id, seq, data) VALUES (?1, 'teller', ?2, 1, ?3)",
+                    rusqlite::params![BRANCH_1, TELLER_BB, row.to_string()],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        core.unlock_offline("Sara".into(), "1234".into(), BRANCH_1.into())
+            .unwrap();
+        assert!(core.has_permission("orders".into(), "create".into()));
+        assert!(!core.has_permission("orders".into(), "delete".into()), "a void is not assumed");
+        assert!(!core.has_permission("tills".into(), "update".into()));
     }
 
     #[test]
