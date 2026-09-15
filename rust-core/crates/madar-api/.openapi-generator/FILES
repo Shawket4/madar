@@ -32,12 +32,15 @@ docs/AssetJobView.md
 docs/AssetRef.md
 docs/AssetsApi.md
 docs/AssignBranchRequest.md
+docs/AssignmentInput.md
+docs/AssignmentView.md
 docs/AttendanceRecord.md
 docs/AttendanceSettings.md
 docs/AttendanceStatus.md
 docs/AttendanceSummary.md
 docs/AuthApi.md
 docs/AuthPermissionsResponse.md
+docs/AuthzApi.md
 docs/AvailabilityOut.md
 docs/AvailabilityResponse.md
 docs/AwardRequest.md
@@ -76,6 +79,7 @@ docs/BundleWithComponents.md
 docs/BundlesApi.md
 docs/CancelBookingRequest.md
 docs/CancelInput.md
+docs/CapabilityAccess.md
 docs/CardBrand.md
 docs/CardPreferences.md
 docs/CardView.md
@@ -152,6 +156,7 @@ docs/CreatePeriodRequest.md
 docs/CreatePurchaseOrderRequest.md
 docs/CreateRefundRequest.md
 docs/CreateReturnRequest.md
+docs/CreateRoleRequest.md
 docs/CreateSectionRequest.md
 docs/CreateStaffRequest.md
 docs/CreateStationRequest.md
@@ -195,6 +200,8 @@ docs/DiscountsApi.md
 docs/DrinkRecipe.md
 docs/Employee.md
 docs/ErrorBody.md
+docs/ExplainStep.md
+docs/Explanation.md
 docs/ExportResponse.md
 docs/FieldInfo.md
 docs/FilterInfo.md
@@ -211,6 +218,7 @@ docs/GoodsReceiptLine.md
 docs/GoogleObjectDump.md
 docs/GoogleRefreshReport.md
 docs/Grain.md
+docs/GrantView.md
 docs/GroupAttachInput.md
 docs/GroupOptionOut.md
 docs/GroupOut.md
@@ -247,6 +255,7 @@ docs/LedgerEntry.md
 docs/LedgerTotals.md
 docs/LedgerWindow.md
 docs/LegacyTill.md
+docs/LimitsView.md
 docs/LoginRequest.md
 docs/LoginResponse.md
 docs/LookupRequest.md
@@ -280,6 +289,7 @@ docs/ModifierGroupOut.md
 docs/ModifierOptionOut.md
 docs/MoveTicketTableRequest.md
 docs/MyAttendanceToday.md
+docs/MyAuthz.md
 docs/OfflineAuthBundle.md
 docs/OfflineTellerCredential.md
 docs/OnboardingStatus.md
@@ -322,6 +332,7 @@ docs/OtpRequestResponse.md
 docs/OtpVerifyInput.md
 docs/OtpVerifyResponse.md
 docs/OverrideDeductionRequest.md
+docs/OverrideView.md
 docs/PaginatedAddonItems.md
 docs/PaginatedBundles.md
 docs/PaginatedMenuItems.md
@@ -353,6 +364,7 @@ docs/PermissionMatrix.md
 docs/PermissionsApi.md
 docs/PoLineInput.md
 docs/PointsLiability.md
+docs/PolicyEntry.md
 docs/PrepTimeInput.md
 docs/PresenceRow.md
 docs/PresetInfo.md
@@ -425,6 +437,7 @@ docs/RegisterDeviceRequest.md
 docs/RegistryInfo.md
 docs/ReleaseTableRequest.md
 docs/RenameConversationRequest.md
+docs/RenameRoleRequest.md
 docs/ReorderCategoriesRequest.md
 docs/ReorderLine.md
 docs/ReorderSuggestion.md
@@ -442,6 +455,7 @@ docs/RewardCatalogue.md
 docs/RewardItem.md
 docs/RewardItemInput.md
 docs/RolePermission.md
+docs/RoleView.md
 docs/RoutingModeResponse.md
 docs/SalaryAdvance.md
 docs/SaveLayoutRequest.md
@@ -451,6 +465,9 @@ docs/ScheduleOverride.md
 docs/ScheduledDay.md
 docs/ScopeInfo.md
 docs/SeatBookingRequest.md
+docs/SetAssignmentsRequest.md
+docs/SetGrantRequest.md
+docs/SetOverrideRequest.md
 docs/SetParRequest.md
 docs/SetRoutingModeRequest.md
 docs/SettleOpenTicketRequest.md
@@ -554,6 +571,7 @@ docs/UpsertRolePermissionRequest.md
 docs/UpsertSizeRequest.md
 docs/UpsertWorkShiftRequest.md
 docs/UsedInBundleOut.md
+docs/UserAccess.md
 docs/UserAllowList.md
 docs/UserBranch.md
 docs/UserPermissionItem.md
@@ -588,6 +606,7 @@ git_push.sh
 src/apis/ai_api.rs
 src/apis/assets_api.rs
 src/apis/auth_api.rs
+src/apis/authz_api.rs
 src/apis/bookings_api.rs
 src/apis/bookings_public_api.rs
 src/apis/branches_api.rs
@@ -657,6 +676,8 @@ src/models/asset_job_result.rs
 src/models/asset_job_view.rs
 src/models/asset_ref.rs
 src/models/assign_branch_request.rs
+src/models/assignment_input.rs
+src/models/assignment_view.rs
 src/models/attendance_record.rs
 src/models/attendance_settings.rs
 src/models/attendance_status.rs
@@ -696,6 +717,7 @@ src/models/bundle_status.rs
 src/models/bundle_with_components.rs
 src/models/cancel_booking_request.rs
 src/models/cancel_input.rs
+src/models/capability_access.rs
 src/models/card_brand.rs
 src/models/card_preferences.rs
 src/models/card_view.rs
@@ -771,6 +793,7 @@ src/models/create_period_request.rs
 src/models/create_purchase_order_request.rs
 src/models/create_refund_request.rs
 src/models/create_return_request.rs
+src/models/create_role_request.rs
 src/models/create_section_request.rs
 src/models/create_staff_request.rs
 src/models/create_station_request.rs
@@ -810,6 +833,8 @@ src/models/discount.rs
 src/models/drink_recipe.rs
 src/models/employee.rs
 src/models/error_body.rs
+src/models/explain_step.rs
+src/models/explanation.rs
 src/models/export_response.rs
 src/models/field_info.rs
 src/models/filter_info.rs
@@ -824,6 +849,7 @@ src/models/goods_receipt_line.rs
 src/models/google_object_dump.rs
 src/models/google_refresh_report.rs
 src/models/grain.rs
+src/models/grant_view.rs
 src/models/group_attach_input.rs
 src/models/group_option_out.rs
 src/models/group_out.rs
@@ -856,6 +882,7 @@ src/models/ledger_entry.rs
 src/models/ledger_totals.rs
 src/models/ledger_window.rs
 src/models/legacy_till.rs
+src/models/limits_view.rs
 src/models/login_request.rs
 src/models/login_response.rs
 src/models/lookup_request.rs
@@ -886,6 +913,7 @@ src/models/modifier_group_out.rs
 src/models/modifier_option_out.rs
 src/models/move_ticket_table_request.rs
 src/models/my_attendance_today.rs
+src/models/my_authz.rs
 src/models/offline_auth_bundle.rs
 src/models/offline_teller_credential.rs
 src/models/onboarding_status.rs
@@ -925,6 +953,7 @@ src/models/otp_request_response.rs
 src/models/otp_verify_input.rs
 src/models/otp_verify_response.rs
 src/models/override_deduction_request.rs
+src/models/override_view.rs
 src/models/paginated_addon_items.rs
 src/models/paginated_bundles.rs
 src/models/paginated_menu_items.rs
@@ -954,6 +983,7 @@ src/models/permission.rs
 src/models/permission_matrix.rs
 src/models/po_line_input.rs
 src/models/points_liability.rs
+src/models/policy_entry.rs
 src/models/prep_time_input.rs
 src/models/presence_row.rs
 src/models/preset_info.rs
@@ -1021,6 +1051,7 @@ src/models/register_device_request.rs
 src/models/registry_info.rs
 src/models/release_table_request.rs
 src/models/rename_conversation_request.rs
+src/models/rename_role_request.rs
 src/models/reorder_categories_request.rs
 src/models/reorder_line.rs
 src/models/reorder_suggestion.rs
@@ -1036,6 +1067,7 @@ src/models/reward_catalogue.rs
 src/models/reward_item.rs
 src/models/reward_item_input.rs
 src/models/role_permission.rs
+src/models/role_view.rs
 src/models/routing_mode_response.rs
 src/models/salary_advance.rs
 src/models/save_layout_request.rs
@@ -1045,6 +1077,9 @@ src/models/schedule_override.rs
 src/models/scheduled_day.rs
 src/models/scope_info.rs
 src/models/seat_booking_request.rs
+src/models/set_assignments_request.rs
+src/models/set_grant_request.rs
+src/models/set_override_request.rs
 src/models/set_par_request.rs
 src/models/set_routing_mode_request.rs
 src/models/settle_open_ticket_request.rs
@@ -1142,6 +1177,7 @@ src/models/upsert_role_permission_request.rs
 src/models/upsert_size_request.rs
 src/models/upsert_work_shift_request.rs
 src/models/used_in_bundle_out.rs
+src/models/user_access.rs
 src/models/user_allow_list.rs
 src/models/user_branch.rs
 src/models/user_permission_item.rs

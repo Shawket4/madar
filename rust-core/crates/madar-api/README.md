@@ -40,6 +40,18 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**login**](docs/AuthApi.md#login) | **POST** /auth/login | 
 *AuthApi* | [**me**](docs/AuthApi.md#me) | **GET** /auth/me | 
 *AuthApi* | [**resolve_branch**](docs/AuthApi.md#resolve_branch) | **POST** /auth/resolve-branch | 
+*AuthzApi* | [**create_role**](docs/AuthzApi.md#create_role) | **POST** /authz/roles | 
+*AuthzApi* | [**delete_role**](docs/AuthzApi.md#delete_role) | **DELETE** /authz/roles/{id} | 
+*AuthzApi* | [**explain**](docs/AuthzApi.md#explain) | **GET** /authz/explain | 
+*AuthzApi* | [**get_my_authz**](docs/AuthzApi.md#get_my_authz) | **GET** /authz/me | 
+*AuthzApi* | [**get_policy**](docs/AuthzApi.md#get_policy) | **GET** /authz/policy | 
+*AuthzApi* | [**list_roles**](docs/AuthzApi.md#list_roles) | **GET** /authz/roles | 
+*AuthzApi* | [**rename_role**](docs/AuthzApi.md#rename_role) | **PATCH** /authz/roles/{id} | 
+*AuthzApi* | [**set_assignments**](docs/AuthzApi.md#set_assignments) | **PUT** /authz/users/{id}/assignments | 
+*AuthzApi* | [**set_override**](docs/AuthzApi.md#set_override) | **PUT** /authz/users/{id}/overrides | 
+*AuthzApi* | [**set_policy**](docs/AuthzApi.md#set_policy) | **PUT** /authz/policy | 
+*AuthzApi* | [**set_role_grant**](docs/AuthzApi.md#set_role_grant) | **PUT** /authz/roles/{id}/grants | 
+*AuthzApi* | [**user_access**](docs/AuthzApi.md#user_access) | **GET** /authz/users/{id} | 
 *BookingsApi* | [**booking_availability**](docs/BookingsApi.md#booking_availability) | **GET** /bookings/availability | 
 *BookingsApi* | [**booking_stats**](docs/BookingsApi.md#booking_stats) | **GET** /bookings/stats | 
 *BookingsApi* | [**cancel_booking**](docs/BookingsApi.md#cancel_booking) | **POST** /bookings/{id}/cancel | 
@@ -511,6 +523,8 @@ Class | Method | HTTP request | Description
  - [AssetJobView](docs/AssetJobView.md)
  - [AssetRef](docs/AssetRef.md)
  - [AssignBranchRequest](docs/AssignBranchRequest.md)
+ - [AssignmentInput](docs/AssignmentInput.md)
+ - [AssignmentView](docs/AssignmentView.md)
  - [AttendanceRecord](docs/AttendanceRecord.md)
  - [AttendanceSettings](docs/AttendanceSettings.md)
  - [AttendanceStatus](docs/AttendanceStatus.md)
@@ -550,6 +564,7 @@ Class | Method | HTTP request | Description
  - [BundleWithComponents](docs/BundleWithComponents.md)
  - [CancelBookingRequest](docs/CancelBookingRequest.md)
  - [CancelInput](docs/CancelInput.md)
+ - [CapabilityAccess](docs/CapabilityAccess.md)
  - [CardBrand](docs/CardBrand.md)
  - [CardPreferences](docs/CardPreferences.md)
  - [CardView](docs/CardView.md)
@@ -625,6 +640,7 @@ Class | Method | HTTP request | Description
  - [CreatePurchaseOrderRequest](docs/CreatePurchaseOrderRequest.md)
  - [CreateRefundRequest](docs/CreateRefundRequest.md)
  - [CreateReturnRequest](docs/CreateReturnRequest.md)
+ - [CreateRoleRequest](docs/CreateRoleRequest.md)
  - [CreateSectionRequest](docs/CreateSectionRequest.md)
  - [CreateStaffRequest](docs/CreateStaffRequest.md)
  - [CreateStationRequest](docs/CreateStationRequest.md)
@@ -664,6 +680,8 @@ Class | Method | HTTP request | Description
  - [DrinkRecipe](docs/DrinkRecipe.md)
  - [Employee](docs/Employee.md)
  - [ErrorBody](docs/ErrorBody.md)
+ - [ExplainStep](docs/ExplainStep.md)
+ - [Explanation](docs/Explanation.md)
  - [ExportResponse](docs/ExportResponse.md)
  - [FieldInfo](docs/FieldInfo.md)
  - [FilterInfo](docs/FilterInfo.md)
@@ -678,6 +696,7 @@ Class | Method | HTTP request | Description
  - [GoogleObjectDump](docs/GoogleObjectDump.md)
  - [GoogleRefreshReport](docs/GoogleRefreshReport.md)
  - [Grain](docs/Grain.md)
+ - [GrantView](docs/GrantView.md)
  - [GroupAttachInput](docs/GroupAttachInput.md)
  - [GroupOptionOut](docs/GroupOptionOut.md)
  - [GroupOut](docs/GroupOut.md)
@@ -710,6 +729,7 @@ Class | Method | HTTP request | Description
  - [LedgerTotals](docs/LedgerTotals.md)
  - [LedgerWindow](docs/LedgerWindow.md)
  - [LegacyTill](docs/LegacyTill.md)
+ - [LimitsView](docs/LimitsView.md)
  - [LoginRequest](docs/LoginRequest.md)
  - [LoginResponse](docs/LoginResponse.md)
  - [LookupRequest](docs/LookupRequest.md)
@@ -739,6 +759,7 @@ Class | Method | HTTP request | Description
  - [ModifierOptionOut](docs/ModifierOptionOut.md)
  - [MoveTicketTableRequest](docs/MoveTicketTableRequest.md)
  - [MyAttendanceToday](docs/MyAttendanceToday.md)
+ - [MyAuthz](docs/MyAuthz.md)
  - [OfflineAuthBundle](docs/OfflineAuthBundle.md)
  - [OfflineTellerCredential](docs/OfflineTellerCredential.md)
  - [OnboardingStatus](docs/OnboardingStatus.md)
@@ -778,6 +799,7 @@ Class | Method | HTTP request | Description
  - [OtpVerifyInput](docs/OtpVerifyInput.md)
  - [OtpVerifyResponse](docs/OtpVerifyResponse.md)
  - [OverrideDeductionRequest](docs/OverrideDeductionRequest.md)
+ - [OverrideView](docs/OverrideView.md)
  - [PaginatedAddonItems](docs/PaginatedAddonItems.md)
  - [PaginatedBundles](docs/PaginatedBundles.md)
  - [PaginatedMenuItems](docs/PaginatedMenuItems.md)
@@ -807,6 +829,7 @@ Class | Method | HTTP request | Description
  - [PermissionMatrix](docs/PermissionMatrix.md)
  - [PoLineInput](docs/PoLineInput.md)
  - [PointsLiability](docs/PointsLiability.md)
+ - [PolicyEntry](docs/PolicyEntry.md)
  - [PrepTimeInput](docs/PrepTimeInput.md)
  - [PresenceRow](docs/PresenceRow.md)
  - [PresetInfo](docs/PresetInfo.md)
@@ -874,6 +897,7 @@ Class | Method | HTTP request | Description
  - [RegistryInfo](docs/RegistryInfo.md)
  - [ReleaseTableRequest](docs/ReleaseTableRequest.md)
  - [RenameConversationRequest](docs/RenameConversationRequest.md)
+ - [RenameRoleRequest](docs/RenameRoleRequest.md)
  - [ReorderCategoriesRequest](docs/ReorderCategoriesRequest.md)
  - [ReorderLine](docs/ReorderLine.md)
  - [ReorderSuggestion](docs/ReorderSuggestion.md)
@@ -889,6 +913,7 @@ Class | Method | HTTP request | Description
  - [RewardItem](docs/RewardItem.md)
  - [RewardItemInput](docs/RewardItemInput.md)
  - [RolePermission](docs/RolePermission.md)
+ - [RoleView](docs/RoleView.md)
  - [RoutingModeResponse](docs/RoutingModeResponse.md)
  - [SalaryAdvance](docs/SalaryAdvance.md)
  - [SaveLayoutRequest](docs/SaveLayoutRequest.md)
@@ -898,6 +923,9 @@ Class | Method | HTTP request | Description
  - [ScheduledDay](docs/ScheduledDay.md)
  - [ScopeInfo](docs/ScopeInfo.md)
  - [SeatBookingRequest](docs/SeatBookingRequest.md)
+ - [SetAssignmentsRequest](docs/SetAssignmentsRequest.md)
+ - [SetGrantRequest](docs/SetGrantRequest.md)
+ - [SetOverrideRequest](docs/SetOverrideRequest.md)
  - [SetParRequest](docs/SetParRequest.md)
  - [SetRoutingModeRequest](docs/SetRoutingModeRequest.md)
  - [SettleOpenTicketRequest](docs/SettleOpenTicketRequest.md)
@@ -995,6 +1023,7 @@ Class | Method | HTTP request | Description
  - [UpsertSizeRequest](docs/UpsertSizeRequest.md)
  - [UpsertWorkShiftRequest](docs/UpsertWorkShiftRequest.md)
  - [UsedInBundleOut](docs/UsedInBundleOut.md)
+ - [UserAccess](docs/UserAccess.md)
  - [UserAllowList](docs/UserAllowList.md)
  - [UserBranch](docs/UserBranch.md)
  - [UserPermissionItem](docs/UserPermissionItem.md)
