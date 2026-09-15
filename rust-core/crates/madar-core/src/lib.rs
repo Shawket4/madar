@@ -852,6 +852,35 @@ impl MadarCore {
         .await;
     }
 
+    /// Send what a person just did WITHOUT making them wait for it. The action
+    /// is already committed locally with its outbox row, so the screen can close
+    /// now; the drain (network) and the LAN mirror (peer connects) run in the
+    /// background. Awaiting them made every checkout, settle, void and round
+    /// wait on connect timeouts offline (and behind any drain already running,
+    /// since drains are single-flight) — about five seconds per action.
+    pub(crate) fn send_in_background(&self, lan_ops: Vec<String>) {
+        let Some(me) = self.me.upgrade() else { return };
+        let Ok(rt) = tokio::runtime::Handle::try_current() else { return };
+        rt.spawn(async move {
+            let _ = me.drain_outbox().await;
+            for op in lan_ops {
+                me.lan_mirror_publish(&op).await;
+            }
+        });
+    }
+
+    /// Like [`Self::send_in_background`], but when the device believes it is
+    /// online, give the send up to [`K_SEND_SOON_WAIT`] to land first, for an
+    /// action whose screen shows the server's answer (a settle's receipt, a
+    /// close's reconciliation). Offline it never waits.
+    pub(crate) async fn send_soon(&self, lan_ops: Vec<String>) {
+        let online = self.current_session().map(|s| s.online).unwrap_or(false);
+        if online {
+            let _ = tokio::time::timeout(K_SEND_SOON_WAIT, self.drain_outbox()).await;
+        }
+        self.send_in_background(lan_ops);
+    }
+
     async fn drain_outbox(&self) -> Result<(), CoreError> {
         use std::sync::atomic::Ordering::Relaxed;
         // Single-flight: only one drain iterates the backlog at a time. A second
@@ -1099,7 +1128,7 @@ impl MadarCore {
             "kitchen.item_unbumped"
         };
         self.lan_publish("kitchen", ev, data, Some(envelope)).await;
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         Ok(())
     }
 
@@ -2018,6 +2047,8 @@ pub(crate) fn queued_ticket_view(
 }
 
 // ── outbox backoff (mirrors offline_queue.dart constants) ────────────────────
+/// The most a screen that shows the server's answer waits for its send.
+const K_SEND_SOON_WAIT: std::time::Duration = std::time::Duration::from_millis(2_500);
 const K_MAX_RETRIES: i64 = 8;
 const K_BASE_BACKOFF_MS: i64 = 2_000; // 2s
 const K_MAX_BACKOFF_MS: i64 = 300_000; // 5min
@@ -4549,7 +4580,7 @@ impl MadarCore {
         if draft.is_some() {
             self.sync_hold_occupancy(was_on, Some(table_id), false)?;
         }
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         Ok(())
     }
 
@@ -4605,7 +4636,7 @@ impl MadarCore {
         )?;
         // Every other device sees the table come back now, not at the next
         // heartbeat.
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         Ok(())
     }
 
@@ -6047,12 +6078,10 @@ impl MadarCore {
         // The sale is committed locally; the cart is now spent.
         cart::clear(&self.store, table_id.as_deref())?;
 
-        // Best-effort: send now if online (offline leaves it queued).
-        let _ = self.drain_outbox().await;
-
-        // If the order is no longer pending, the drain sent it.
+        // Sent in the background: the sale is committed locally, so the
+        // receipt returns now (queued) and the ack folds in when it lands.
         let order_id = prepared.order_id.to_string();
-        self.lan_mirror_publish(&order_id).await;
+        self.send_in_background(vec![order_id.clone()]);
         let still_pending = self.store.pending()?.iter().any(|i| i.id == order_id);
         let mut receipt = prepared.receipt;
         receipt.queued_offline = still_pending;
@@ -6597,7 +6626,7 @@ impl MadarCore {
             ..Default::default()
         })?;
         // Try to send it straight away; offline simply leaves it queued.
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         // Queued: there is no balance to show yet. The outcome says so in as
         // many words rather than inventing a number.
         Ok(loyalty::award_queued(&locale))
@@ -6798,8 +6827,7 @@ impl MadarCore {
             touched.extend(changes::tables_for_op("void_order"));
             Ok(())
         })?;
-        let _ = self.drain_outbox().await;
-        self.lan_mirror_publish(&format!("{order_id}:void")).await;
+        self.send_in_background(vec![format!("{order_id}:void")]);
         Ok(())
     }
 
@@ -6935,8 +6963,7 @@ impl MadarCore {
             touched.extend(changes::tables_for_op("refund_order"));
             Ok(())
         })?;
-        let _ = self.drain_outbox().await;
-        self.lan_mirror_publish(&format!("{order_id}:refund:{client_ref}")).await;
+        self.send_in_background(vec![format!("{order_id}:refund:{client_ref}")]);
         Ok(())
     }
 
@@ -7158,7 +7185,7 @@ impl MadarCore {
             format!("table-hold:{table_id}:{}", uuid::Uuid::new_v4()),
             &serde_json::to_string(&cmd)?,
         )?;
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         Ok(())
     }
 
@@ -7169,7 +7196,7 @@ impl MadarCore {
         self.session_branch_id()?;
         held::set_table_state_local(&self.store, &table_id, Some("free"), None, false, None)?;
         self.sync_hold_occupancy(Some(table_id), None, false)?;
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         Ok(())
     }
 
@@ -7263,7 +7290,7 @@ impl MadarCore {
         .to_string();
         self.lan_publish("kitchen", "kitchen.fired", data, Some(envelope))
             .await;
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
 
         let tid = ticket_id.to_string();
         let queued_offline = self.store.pending()?.iter().any(|i| i.id == tid);
@@ -7332,7 +7359,7 @@ impl MadarCore {
         .to_string();
         self.lan_publish("kitchen", "kitchen.fired", data, Some(envelope))
             .await;
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         let rid = round_id.to_string();
         let queued_offline = self.store.pending()?.iter().any(|i| i.id == rid);
         Ok(tickets::TicketFiredView {
@@ -7378,8 +7405,7 @@ impl MadarCore {
             till_id: None,
             ..Default::default()
         })?;
-        let _ = self.drain_outbox().await;
-        self.lan_mirror_publish(&op_id).await;
+        self.send_in_background(vec![op_id.clone()]);
         Ok(self.store.pending()?.iter().any(|i| i.id == op_id))
     }
 
@@ -7434,8 +7460,7 @@ impl MadarCore {
             till_id: None,
             ..Default::default()
         })?;
-        let _ = self.drain_outbox().await;
-        self.lan_mirror_publish(&op_id).await;
+        self.send_in_background(vec![op_id.clone()]);
         Ok(self.store.pending()?.iter().any(|i| i.id == op_id))
     }
 
@@ -7699,8 +7724,11 @@ impl MadarCore {
             touched.extend(changes::tables_for_op("settle_open_ticket"));
             Ok(())
         })?;
-        let _ = self.drain_outbox().await;
-        self.lan_mirror_publish(&op_id).await;
+        // A settle's receipt prints from the paid order the server returns, so
+        // wait for it briefly when the device is online. Offline (or a slow
+        // link) never holds the teller: it stays queued and sends in the
+        // background.
+        self.send_soon(vec![op_id.clone()]).await;
         // The paid order the settle produced, when it acked — that is what a
         // receipt prints from. `None` means the settle is still queued: there
         // is no order yet, and inventing one would print a receipt for a sale
@@ -9382,10 +9410,12 @@ mod lifecycle_tests {
         let seen = || hits.load(std::sync::atomic::Ordering::SeqCst);
 
         core.clear_table(TB.into()).await.unwrap();
+        let _ = core.drain_outbox().await; // the send runs in the background
         assert_eq!(seen(), 1, "the clear was sent");
         assert_eq!(core.store.pending_count().unwrap(), 0);
 
         core.seat_table(TB.into(), Some(5)).await.unwrap();
+        let _ = core.drain_outbox().await; // the send runs in the background
         assert_eq!(seen(), 2, "the seat was sent");
         assert_eq!(
             table(&core, TB).covers,
@@ -9401,6 +9431,7 @@ mod lifecycle_tests {
         )
         .await
         .unwrap();
+        let _ = core.drain_outbox().await; // the send runs in the background
         assert_eq!(seen(), 3, "the booking seat was sent");
 
         let (base, hits) = replay_stub(200, r#"{"ok":true}"#).await;
@@ -10919,7 +10950,7 @@ impl MadarCore {
             format!("booking-seat:{booking_id}"),
             &serde_json::to_string(&cmd)?,
         )?;
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         Ok(())
     }
 

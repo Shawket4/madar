@@ -310,7 +310,8 @@ async fn acked_sales_fold_and_survive_the_next_snapshot() {
     core.set_online(true);
     let _till = core.open_till(1_000, None).await.unwrap().till.unwrap();
     let sale = ring(&core, 700, CASH, 700).await;
-    assert!(!sale.queued_offline, "acked straight away");
+    // The sale returns at once and sends in the background; wait for that send.
+    let _ = core.drain_outbox().await;
     let orders = core.list_till_orders().await.unwrap();
     assert_eq!(orders.len(), 1);
     assert_eq!(orders[0].order_number, Some(7), "the server's answer folded in");
