@@ -20,6 +20,8 @@ name = "madar_core"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
 
 [dependencies]
+# Permission decisions, shared with the backend (vendored; see tool/sync_authz.sh).
+madar-authz = { path = "../madar-authz" }
 # Proc-macro UniFFI (no .udl). "cli" gates uniffi_bindgen_main for the bin below;
 # "tokio" lets us export `async fn`s with `async_runtime = "tokio"`.
 uniffi = { version = "0.32", features = ["cli", "tokio"], optional = true }

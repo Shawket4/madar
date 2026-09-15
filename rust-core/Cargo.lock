@@ -1806,6 +1806,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "madar-authz"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "madar-core"
 version = "0.1.0"
 dependencies = [
@@ -1817,6 +1826,7 @@ dependencies = [
  "hmac",
  "image",
  "madar-api",
+ "madar-authz",
  "mdns-sd",
  "proptest",
  "reqwest",
