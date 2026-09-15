@@ -325,6 +325,11 @@ pub(crate) const KEY_DEVICE_CODE: &str = "device_code";
 /// instead of living only in the host's volatile prefs from a one-time branch bind.
 pub(crate) const KEY_ORG_LOGO_URL: &str = "org_logo_url";
 
+/// The org's receipt footer (dashboard org settings), cached from the same
+/// `get_branch` as the logo so an offline print still carries it. Absent →
+/// the receipt prints the default "Thank you!".
+pub(crate) const KEY_ORG_RECEIPT_FOOTER: &str = "org_receipt_footer";
+
 /// Blob-cache key for the org logo's image BYTES (fetched from `KEY_ORG_LOGO_URL`
 /// whenever online, in the same `get_branch` flow), so the receipt rasterizer can
 /// composite the logo OFFLINE — the print path never touches the network.
@@ -832,7 +837,7 @@ fn receipt_line_from_cart(l: &cart::CartLineView) -> ReceiptLineView {
             } else {
                 a.name.clone()
             },
-            price_minor: a.price_modifier_minor,
+            price_minor: a.price_modifier_minor * a.qty.max(1) as i64,
         })
         .collect();
     let optionals = l
@@ -858,7 +863,7 @@ fn receipt_line_from_cart(l: &cart::CartLineView) -> ReceiptLineView {
                     } else {
                         a.name.clone()
                     },
-                    price_minor: a.price_modifier_minor,
+                    price_minor: a.price_modifier_minor * a.qty.max(1) as i64,
                 })
                 .collect(),
             optionals: c
@@ -2330,7 +2335,7 @@ mod tests {
             .find(|a| a.name.starts_with("shot"))
             .unwrap();
         assert_eq!(shot.name, "shot ×2");
-        assert_eq!(shot.price_minor, 800);
+        assert_eq!(shot.price_minor, 1600); // what it adds: 800 × 2
         assert_eq!(rl.optionals.len(), 1);
         assert_eq!(rl.optionals[0].name, "Vanilla");
         assert_eq!(rl.optionals[0].price_minor, 300);

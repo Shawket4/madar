@@ -340,7 +340,7 @@ pub(crate) fn order_to_receipt(
                 .iter()
                 .map(|a| ReceiptModifierView {
                     name: addon_label(&a.addon_name, &a.name_translations, a.quantity, locale),
-                    price_minor: a.unit_price as i64,
+                    price_minor: a.unit_price as i64 * a.quantity.max(1) as i64,
                 })
                 .collect();
             let optionals = it
@@ -369,7 +369,7 @@ pub(crate) fn order_to_receipt(
                                         a.quantity,
                                         locale,
                                     ),
-                                    price_minor: a.unit_price as i64,
+                                    price_minor: a.unit_price as i64 * a.quantity.max(1) as i64,
                                 })
                                 .collect(),
                             optionals: c
@@ -1073,7 +1073,7 @@ mod tests {
         assert_eq!(line.size_label.as_deref(), Some("Large"));
         assert!(!line.is_bundle);
         assert_eq!(line.addons[0].name, "Oat milk ×2");
-        assert_eq!(line.addons[0].price_minor, 500); // unit_price, not line_total
+        assert_eq!(line.addons[0].price_minor, 1000); // what it adds: unit 500 × 2
         assert_eq!(line.addons[1].name, "Caramel");
         assert_eq!(line.optionals[0].name, "No sugar");
         assert_eq!(line.optionals[1].price_minor, 700);
@@ -1098,7 +1098,7 @@ mod tests {
         assert_eq!(line.components[0].name, "Burger");
         assert_eq!(line.components[0].size_label.as_deref(), Some("Large"));
         assert_eq!(line.components[0].addons[0].name, "Cheese ×2");
-        assert_eq!(line.components[0].addons[0].price_minor, 300);
+        assert_eq!(line.components[0].addons[0].price_minor, 600);
         assert_eq!(line.components[0].optionals[0].name, "No onion");
         assert_eq!(line.components[1].name, "Fries");
         assert_eq!(line.components[1].size_label, None); // blank filtered

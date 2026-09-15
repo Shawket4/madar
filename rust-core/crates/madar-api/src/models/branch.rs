@@ -73,6 +73,14 @@ pub struct Branch {
         skip_serializing_if = "Option::is_none"
     )]
     pub org_logo_url: Option<Option<String>>,
+    /// Convenience field — the parent org's receipt footer text (dashboard org settings). `None` → the POS prints its default footer.
+    #[serde(
+        rename = "org_receipt_footer",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub org_receipt_footer: Option<Option<String>>,
     #[serde(
         rename = "phone",
         default,
@@ -177,6 +185,7 @@ impl Branch {
             old_bill_hours,
             org_id,
             org_logo_url: None,
+            org_receipt_footer: None,
             phone: None,
             printer_brand: None,
             printer_ip: None,

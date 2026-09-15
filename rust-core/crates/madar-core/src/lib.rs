@@ -3502,7 +3502,7 @@ impl MadarCore {
                 teller: tr("receipt.teller"),
                 served_by: tr("receipt.served_by"),
                 queued: tr("order.queued_hint"),
-                thank_you: tr("receipt.thank_you"),
+                thank_you: self.receipt_footer(),
                 locale: loc.clone(),
                 tz,
             },
@@ -3520,6 +3520,19 @@ impl MadarCore {
         let cfg = device::load(&self.store);
         let bitmap = render::render_receipt(&receipt, &ctx, logo.as_deref(), cfg.paper_dots());
         receipt::raster_for(brand, &bitmap, cfg.printer_has_cutter())
+    }
+
+    /// The line printed at the foot of a customer receipt: the org's own
+    /// footer from the dashboard, or the localized "Thank you!" when none is
+    /// set. Local read only — prints offline.
+    pub fn receipt_footer(&self) -> String {
+        self.store
+            .kv_get(checkout::KEY_ORG_RECEIPT_FOOTER)
+            .ok()
+            .flatten()
+            .map(|f| f.trim().to_string())
+            .filter(|f| !f.is_empty())
+            .unwrap_or_else(|| i18n::tr(&self.current_locale(), "receipt.thank_you"))
     }
 
     /// Cash-drawer kick bytes for the chosen printer dialect — send via
@@ -5490,6 +5503,19 @@ impl MadarCore {
             // kv from the same get_branch), so it survives restarts/offline and a
             // manual sync re-pulls it. Only overwrite with a non-empty value, so a
             // transient blank can't wipe a good cached logo.
+            // The receipt footer: a backend that sends the field is the truth
+            // (null/blank clears it back to the default); an older backend
+            // that omits it leaves the cached value alone.
+            if let Some(footer) = b.org_receipt_footer.clone() {
+                match footer.map(|f| f.trim().to_string()).filter(|f| !f.is_empty()) {
+                    Some(f) => {
+                        let _ = self.store.kv_put(checkout::KEY_ORG_RECEIPT_FOOTER, &f);
+                    }
+                    None => {
+                        let _ = self.store.kv_delete(checkout::KEY_ORG_RECEIPT_FOOTER);
+                    }
+                }
+            }
             if let Some(logo) = b.org_logo_url.flatten().filter(|s| !s.is_empty()) {
                 let _ = self.store.kv_put(checkout::KEY_ORG_LOGO_URL, &logo);
                 // Pull the logo BYTES too, so the (offline-capable) receipt
