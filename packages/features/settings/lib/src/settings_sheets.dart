@@ -433,6 +433,7 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
     final error = ref.watch(settingsProvider.select((s) => s.error));
     final lan = bridge.lanStatus();
     final lanActive = lan.running;
+    final lanError = lan.lastError;
     final discovery = [
       if (lan.nativeDiscoveryActive) t('settings.lan_disc_bonjour'),
       if (lan.mdnsActive) t('settings.lan_disc_mdns'),
@@ -489,10 +490,10 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
             muted: discovery.isEmpty,
           ),
         ],
-        if (!lanActive && lan.lastError != null) ...[
+        if (!lanActive && lanError != null) ...[
           MadarSummaryLine(
             label: t('settings.lan_last_error'),
-            value: lan.lastError!,
+            value: lanError,
             tone: MadarTone.warning,
           ),
           _Caption(t('settings.lan_retrying')),
