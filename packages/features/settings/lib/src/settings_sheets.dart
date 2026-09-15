@@ -386,9 +386,16 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
   late final TextEditingController _code;
   late final TextEditingController _hub;
 
+  /// Re-reads the (local, sync) LAN status while the sheet is open, so peers
+  /// found and a retry that succeeded show up without reopening it.
+  Timer? _lanTick;
+
   @override
   void initState() {
     super.initState();
+    _lanTick = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted) setState(() {});
+    });
     final bridge = ref.read(bridgeProvider);
     _code = TextEditingController(text: bridge.deviceCode());
     _hub = TextEditingController(text: bridge.deviceConfig().lanHub ?? '');
@@ -396,6 +403,7 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
 
   @override
   void dispose() {
+    _lanTick?.cancel();
     _code.dispose();
     _hub.dispose();
     super.dispose();
@@ -423,7 +431,14 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
       settingsProvider.select((s) => s.hasOpenTill),
     );
     final error = ref.watch(settingsProvider.select((s) => s.error));
-    final lanActive = bridge.lanActive();
+    final lan = bridge.lanStatus();
+    final lanActive = lan.running;
+    final discovery = [
+      if (lan.nativeDiscoveryActive) t('settings.lan_disc_bonjour'),
+      if (lan.mdnsActive) t('settings.lan_disc_mdns'),
+      if (lan.beaconActive) t('settings.lan_disc_beacon'),
+      if (lan.manualHubCount > 0) t('settings.lan_disc_manual'),
+    ];
     return _SheetFrame(
       title: t('settings.device'),
       children: [
@@ -461,6 +476,27 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
               : '—',
           tone: lanActive ? MadarTone.success : null,
         ),
+        if (lanActive) ...[
+          MadarSummaryLine(
+            label: t('settings.lan_port'),
+            value: '${lan.tcpPort ?? '—'}',
+          ),
+          MadarSummaryLine(
+            label: t('settings.lan_discovery'),
+            value: discovery.isEmpty
+                ? t('settings.lan_discovery_none')
+                : discovery.join(' · '),
+            muted: discovery.isEmpty,
+          ),
+        ],
+        if (!lanActive && lan.lastError != null) ...[
+          MadarSummaryLine(
+            label: t('settings.lan_last_error'),
+            value: lan.lastError!,
+            tone: MadarTone.warning,
+          ),
+          _Caption(t('settings.lan_retrying')),
+        ],
         MadarButton(
           label: t('settings.reconfigure'),
           glyph: MadarGlyph.settings,
