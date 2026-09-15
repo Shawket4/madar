@@ -79,6 +79,9 @@ argon2 = "0.5"
 # SERVER + UDP beacon ride the tokio `net` feature already enabled above — no
 # blocking-thread HTTP dep; SSE is hand-rolled like the cloud bus (realtime.rs).
 mdns-sd = "0.20"
+# SO_REUSEADDR/SO_REUSEPORT on the UDP beacon so several local instances share
+# port 47601 (already in the lock via tokio/mdns-sd).
+socket2 = { version = "0.6", features = ["all"] }
 # Per-branch HMAC-SHA256 signing of every LAN message (RustCrypto, same family as
 # argon2 above; pure Rust, cross-compiles clean). The key is derived from the
 # offline-auth bundle the device already holds — only branch-provisioned devices

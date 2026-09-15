@@ -623,7 +623,7 @@ impl LanRelay {
     /// it can't); the beacon + mDNS degrade gracefully (logged, not fatal) so a relay
     /// still works on a network that filters one discovery layer but not unicast.
     pub async fn start(&self) -> Result<(), CoreError> {
-        let listener = TcpListener::bind(("0.0.0.0", self.shared.cfg.tcp_port))
+        let listener = bind_tcp_with_fallback(self.shared.cfg.tcp_port)
             .await
             .map_err(|e| CoreError::Internal {
                 detail: format!("lan tcp bind: {e}"),
@@ -1145,11 +1145,38 @@ async fn read_line(stream: &mut TcpStream) -> Option<String> {
     String::from_utf8(buf).ok()
 }
 
-/// Bind the UDP beacon socket (broadcast-enabled). Fails gracefully (Err → no beacon).
-async fn bind_beacon(port: u16) -> std::io::Result<UdpSocket> {
-    let sock = UdpSocket::bind(("0.0.0.0", port)).await?;
+/// Bind the relay's TCP listener on `port`; if that port is taken (a second
+/// local instance, another app), fall back to an OS-assigned port. The actual
+/// port is read back by the caller and advertised in the beacon + mDNS TXT +
+/// the native Bonjour advert, so peers never need the fixed default.
+pub(crate) async fn bind_tcp_with_fallback(port: u16) -> std::io::Result<TcpListener> {
+    match TcpListener::bind(("0.0.0.0", port)).await {
+        Ok(l) => Ok(l),
+        Err(e) if port != 0 => {
+            crate::obs::capture_bg_warning(
+                "lan.tcp_fallback",
+                format!("tcp {port} unavailable ({e}); using an OS-assigned port"),
+            );
+            TcpListener::bind(("0.0.0.0", 0)).await
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// Bind the UDP beacon socket (broadcast-enabled) with SO_REUSEADDR (+
+/// SO_REUSEPORT on unix) so several instances on one machine share the beacon
+/// port. Fails gracefully (Err → no beacon).
+pub(crate) async fn bind_beacon(port: u16) -> std::io::Result<UdpSocket> {
+    use socket2::{Domain, Protocol, Socket, Type};
+    let sock = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
+    sock.set_reuse_address(true)?;
+    #[cfg(all(unix, not(any(target_os = "solaris", target_os = "illumos"))))]
+    sock.set_reuse_port(true)?;
     sock.set_broadcast(true)?;
-    Ok(sock)
+    sock.set_nonblocking(true)?;
+    let addr: std::net::SocketAddr = ([0, 0, 0, 0], port).into();
+    sock.bind(&addr.into())?;
+    UdpSocket::from_std(sock.into())
 }
 
 /// Broadcast a signed beacon every [`BEACON_EVERY`] — discovery + heartbeat + the
@@ -1674,6 +1701,42 @@ mod tests {
             got[0].replay_op.is_none(),
             "display-only: the write lives in the cloud"
         );
+    }
+
+    /// A busy fixed port no longer kills the relay: two relays configured for
+    /// the SAME taken port both start, on distinct OS-assigned ports.
+    #[tokio::test]
+    async fn two_relays_on_a_busy_port_both_bind() {
+        let squatter = std::net::TcpListener::bind(("0.0.0.0", 0)).unwrap();
+        let busy = squatter.local_addr().unwrap().port();
+        let key = branch_key("aabbccdd", "b1");
+        let mut ca = lan_cfg("A", key.clone());
+        ca.tcp_port = busy;
+        let mut cb = lan_cfg("B", key.clone());
+        cb.tcp_port = busy;
+        let rec_b = rec();
+        let a = LanRelay::new(ca, rec());
+        let b = LanRelay::new(cb, rec_b.clone());
+        a.start().await.expect("A binds despite the busy port");
+        b.start().await.expect("B binds despite the busy port");
+        assert_ne!(a.tcp_port(), busy);
+        assert_ne!(b.tcp_port(), busy);
+        assert_ne!(a.tcp_port(), b.tcp_port());
+        // And the advertised port really works.
+        a.add_peer(loopback_peer("B", b.tcp_port()));
+        a.publish("kitchen", "kitchen.fired", "{}".into(), None, now_ms()).await;
+        wait_until(|| !rec_b.0.lock().unwrap().is_empty()).await;
+        assert_eq!(rec_b.0.lock().unwrap().len(), 1);
+        drop(squatter);
+    }
+
+    /// Two instances share one beacon port (SO_REUSEADDR/SO_REUSEPORT).
+    #[tokio::test]
+    async fn beacon_port_is_shareable() {
+        let first = bind_beacon(0).await.unwrap();
+        let port = first.local_addr().unwrap().port();
+        let second = bind_beacon(port).await;
+        assert!(second.is_ok(), "second bind on the beacon port: {second:?}");
     }
 
     #[tokio::test]
