@@ -45,13 +45,16 @@ pub(crate) fn default_tls_config() -> rustls::ClientConfig {
 pub struct ApiClient {
     base_url: String,
     user_agent: String,
-    http: reqwest::Client,
+    /// The device id + app version the default headers were built from, kept so
+    /// a reconfigure wipe can rebuild both clients under a NEW device id.
+    app_version: Option<String>,
+    http: RwLock<reqwest::Client>,
     /// A SECOND client for long-lived SSE streams (the realtime bus). Identical TLS
     /// to `http`, but built WITHOUT the 20s total `timeout` — that timeout would
     /// sever an idle event stream every 20s. Instead a 60s `read_timeout` detects a
     /// genuinely dead connection (the backend pings every 20s, so 60s of silence
     /// means the link is gone). See `open_stream`.
-    stream_http: reqwest::Client,
+    stream_http: RwLock<reqwest::Client>,
     /// Live access token, swapped on login / refresh / logout. `None` = no
     /// bearer (unauthenticated or offline-unlocked). `Arc`-shared so the spawned
     /// SSE supervisor task reads the SAME live token without holding the core.
@@ -82,44 +85,13 @@ impl ApiClient {
         app_version: Option<&str>,
     ) -> CoreResult<Self> {
         let user_agent = format!("madar-core/{}", env!("CARGO_PKG_VERSION"));
-        let mut headers = reqwest::header::HeaderMap::new();
-        if let Some(Ok(v)) = device_id.as_deref().map(reqwest::header::HeaderValue::from_str) {
-            headers.insert("X-Madar-Device", v);
-        }
-        if let Ok(v) = reqwest::header::HeaderValue::from_str(&client_header(app_version)) {
-            headers.insert("X-Madar-Client", v);
-        }
-        let http = reqwest::Client::builder()
-            .default_headers(headers.clone())
-            // ring + bundled Mozilla roots (see default_tls_config) — keeps cert
-            // verification identical on Android/iOS/desktop with no OpenSSL.
-            .use_preconfigured_tls(default_tls_config())
-            // Short connect timeout so an unreachable server fails fast and the
-            // hot path can fall back to offline instead of stranding a teller.
-            .connect_timeout(Duration::from_secs(4))
-            .timeout(Duration::from_secs(20))
-            .user_agent(user_agent.clone())
-            .build()
-            .map_err(|e| CoreError::Internal {
-                detail: format!("http client: {e}"),
-            })?;
-        // The streaming client: same TLS, fast connect, but NO total timeout (it
-        // would kill a long-lived SSE stream). A 60s read timeout reaps a dead link.
-        let stream_http = reqwest::Client::builder()
-            .default_headers(headers)
-            .use_preconfigured_tls(default_tls_config())
-            .connect_timeout(Duration::from_secs(4))
-            .read_timeout(Duration::from_secs(60))
-            .user_agent(user_agent.clone())
-            .build()
-            .map_err(|e| CoreError::Internal {
-                detail: format!("stream client: {e}"),
-            })?;
+        let (http, stream_http) = build_clients(&user_agent, device_id.as_deref(), app_version)?;
         Ok(Self {
             base_url,
             user_agent,
-            http,
-            stream_http,
+            app_version: app_version.map(str::to_string),
+            http: RwLock::new(http),
+            stream_http: RwLock::new(stream_http),
             bearer: Arc::new(RwLock::new(None)),
             clock_skew,
         })
@@ -132,7 +104,7 @@ impl ApiClient {
     pub fn realtime_client(&self) -> crate::realtime::RealtimeClient {
         crate::realtime::RealtimeClient::new(
             self.base_url.clone(),
-            self.stream_http.clone(),
+            self.stream_http.read().unwrap_or_else(|e| e.into_inner()).clone(),
             self.bearer.clone(),
         )
     }
@@ -157,6 +129,21 @@ impl ApiClient {
         }
     }
 
+    /// The current request client (cheap `Arc` clone).
+    fn http(&self) -> reqwest::Client {
+        self.http.read().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// Rebuild both clients under a new `X-Madar-Device` id (the reconfigure
+    /// wipe mints a fresh install identity). A realtime stream already open keeps
+    /// the old client until it is re-subscribed — the wipe stops it first.
+    pub(crate) fn set_device_id(&self, device_id: &str) -> CoreResult<()> {
+        let (http, stream) = build_clients(&self.user_agent, Some(device_id), self.app_version.as_deref())?;
+        *self.http.write().unwrap_or_else(|e| e.into_inner()) = http;
+        *self.stream_http.write().unwrap_or_else(|e| e.into_inner()) = stream;
+        Ok(())
+    }
+
     /// Swap the live access token (login/refresh sets `Some`, logout sets `None`).
     pub fn set_bearer(&self, token: Option<String>) {
         *self.bearer.write().unwrap_or_else(|e| e.into_inner()) = token;
@@ -176,7 +163,7 @@ impl ApiClient {
     /// stores canonical JSON anyway (§8), so a text body is exactly what we want.
     pub async fn get_text(&self, path: &str, query: &[(&str, String)]) -> CoreResult<String> {
         let url = format!("{}{}", self.base_url, path);
-        let mut rb = self.http.request(reqwest::Method::GET, &url).query(query);
+        let mut rb = self.http().request(reqwest::Method::GET, &url).query(query);
         if let Some(token) = self
             .bearer
             .read()
@@ -208,7 +195,7 @@ impl ApiClient {
 
     pub async fn get_url_bytes(&self, url: &str) -> CoreResult<Vec<u8>> {
         let resp = self
-            .http
+            .http()
             .get(url)
             .send()
             .await
@@ -234,7 +221,7 @@ impl ApiClient {
     /// (the feed horizon that includes a replayed op).
     pub async fn post_json_seq<B: serde::Serialize>(&self, path: &str, body: &B) -> CoreResult<(String, Option<i64>)> {
         let url = format!("{}{}", self.base_url, path);
-        let mut rb = self.http.request(reqwest::Method::POST, &url).json(body);
+        let mut rb = self.http().request(reqwest::Method::POST, &url).json(body);
         if let Some(token) = self
             .bearer
             .read()
@@ -274,7 +261,7 @@ impl ApiClient {
     ) -> CoreResult<String> {
         let url = format!("{}{}", self.base_url, path);
         let mut rb = self
-            .http
+            .http()
             .request(reqwest::Method::POST, &url)
             .json(body)
             .header(header.0, header.1);
@@ -308,7 +295,7 @@ impl ApiClient {
     pub async fn ping(&self) -> CoreResult<Option<i64>> {
         let url = format!("{}/health", self.base_url);
         let resp = self
-            .http
+            .http()
             .request(reqwest::Method::GET, &url)
             .send()
             .await
@@ -329,7 +316,7 @@ impl ApiClient {
         Configuration {
             base_path: self.base_url.clone(),
             user_agent: Some(self.user_agent.clone()),
-            client: self.http.clone(),
+            client: self.http(),
             basic_auth: None,
             oauth_access_token: None,
             bearer_access_token: self
@@ -340,6 +327,49 @@ impl ApiClient {
             api_key: None,
         }
     }
+}
+
+
+/// The request + streaming clients, both carrying the install's identity headers.
+fn build_clients(
+    user_agent: &str,
+    device_id: Option<&str>,
+    app_version: Option<&str>,
+) -> CoreResult<(reqwest::Client, reqwest::Client)> {
+    let mut headers = reqwest::header::HeaderMap::new();
+    if let Some(Ok(v)) = device_id.map(reqwest::header::HeaderValue::from_str) {
+        headers.insert("X-Madar-Device", v);
+    }
+    if let Ok(v) = reqwest::header::HeaderValue::from_str(&client_header(app_version)) {
+        headers.insert("X-Madar-Client", v);
+    }
+    let http = reqwest::Client::builder()
+        .default_headers(headers.clone())
+        // ring + bundled Mozilla roots (see default_tls_config) — keeps cert
+        // verification identical on Android/iOS/desktop with no OpenSSL.
+        .use_preconfigured_tls(default_tls_config())
+        // Short connect timeout so an unreachable server fails fast and the
+        // hot path can fall back to offline instead of stranding a teller.
+        .connect_timeout(Duration::from_secs(4))
+        .timeout(Duration::from_secs(20))
+        .user_agent(user_agent)
+        .build()
+        .map_err(|e| CoreError::Internal {
+            detail: format!("http client: {e}"),
+        })?;
+    // The streaming client: same TLS, fast connect, but NO total timeout (it
+    // would kill a long-lived SSE stream). A 60s read timeout reaps a dead link.
+    let stream_http = reqwest::Client::builder()
+        .default_headers(headers)
+        .use_preconfigured_tls(default_tls_config())
+        .connect_timeout(Duration::from_secs(4))
+        .read_timeout(Duration::from_secs(60))
+        .user_agent(user_agent)
+        .build()
+        .map_err(|e| CoreError::Internal {
+            detail: format!("stream client: {e}"),
+        })?;
+    Ok((http, stream_http))
 }
 
 /// The app version the headers and device registration report: the host's

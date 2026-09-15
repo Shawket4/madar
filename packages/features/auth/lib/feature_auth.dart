@@ -12,4 +12,5 @@ export 'src/device_setup_screen.dart';
 export 'src/login_screen.dart';
 export 'src/providers.dart';
 export 'src/reauth_sheet.dart';
+export 'src/reconfigure_sheet.dart';
 export 'src/station_picker_screen.dart';

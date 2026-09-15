@@ -534,6 +534,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<ReconfigureBlockerView> dco_decode_list_reconfigure_blocker_view(
+    dynamic raw,
+  );
+
+  @protected
   List<RefundLineView> dco_decode_list_refund_line_view(dynamic raw);
 
   @protected
@@ -740,6 +745,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   ReconciliationLineView dco_decode_reconciliation_line_view(dynamic raw);
+
+  @protected
+  ReconfigureBlockerView dco_decode_reconfigure_blocker_view(dynamic raw);
+
+  @protected
+  ReconfigureReadinessView dco_decode_reconfigure_readiness_view(dynamic raw);
 
   @protected
   RefundLineView dco_decode_refund_line_view(dynamic raw);
@@ -1494,6 +1505,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<ReconfigureBlockerView> sse_decode_list_reconfigure_blocker_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<RefundLineView> sse_decode_list_refund_line_view(
     SseDeserializer deserializer,
   );
@@ -1760,6 +1776,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   ReconciliationLineView sse_decode_reconciliation_line_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ReconfigureBlockerView sse_decode_reconfigure_blocker_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ReconfigureReadinessView sse_decode_reconfigure_readiness_view(
     SseDeserializer deserializer,
   );
 
@@ -2689,6 +2715,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_reconfigure_blocker_view(
+    List<ReconfigureBlockerView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_refund_line_view(
     List<RefundLineView> self,
     SseSerializer serializer,
@@ -3042,6 +3074,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_reconciliation_line_view(
     ReconciliationLineView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reconfigure_blocker_view(
+    ReconfigureBlockerView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reconfigure_readiness_view(
+    ReconfigureReadinessView self,
     SseSerializer serializer,
   );
 

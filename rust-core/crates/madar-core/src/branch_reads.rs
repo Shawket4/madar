@@ -38,6 +38,12 @@ pub(crate) struct FillState {
 }
 
 impl FillState {
+    /// Forget every fill (the reconfigure wipe: a new branch starts from nothing).
+    pub(crate) fn reset(&self) {
+        self.asked.lock().unwrap_or_else(|e| e.into_inner()).clear();
+        self.tills.lock().unwrap_or_else(|e| e.into_inner()).clear();
+        self.attempts.lock().unwrap_or_else(|e| e.into_inner()).clear();
+    }
     /// Has this till been filled since the feed last moved it? (`newest` = the
     /// newest feed seq the device now holds for the till.)
     pub(crate) fn till_filled(&self, till_id: &str, newest: i64) -> bool {

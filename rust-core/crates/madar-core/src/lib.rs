@@ -110,6 +110,8 @@ pub(crate) mod ledger;
 pub mod till_ops;
 pub mod sync_pull;
 pub mod assets;
+/// Gated device reconfigure = a fresh install (`reconfigure.rs`).
+pub mod reconfigure;
 /// Branch-timezone-aware timestamp formatting for display (mirrors Flutter AppTz).
 pub mod timefmt;
 
@@ -314,6 +316,8 @@ pub struct MadarCore {
     branch_fills: branch_reads::FillState,
     /// Weak self-handle so background work (the till-open sync) can own the core.
     me: std::sync::Weak<MadarCore>,
+    /// The last reconfigure "Push now" outcome (`reconfigure.rs`).
+    reconfigure_check: Mutex<Option<reconfigure::PushCheck>>,
 }
 
 /// One diagnostic log line.
@@ -374,6 +378,9 @@ impl MadarCore {
         // rather than on first sync so the sync screen is already honest the
         // first time anyone opens it.
         let _ = store.purge_dead_held_ops();
+        // A reconfigure wipe a crash interrupted is finished before anything
+        // reads the store (it mints the new device id read just below).
+        reconfigure::resume_interrupted_wipe(&store, &config.db_path);
         let device_id = match store.kv_get("lan_device_id").ok().flatten().filter(|s| !s.is_empty()) {
             Some(id) => id,
             None => {
@@ -400,6 +407,7 @@ impl MadarCore {
             .and_then(|s| serde_json::from_str::<ActiveScopeView>(&s).ok());
         let core = Arc::new_cyclic(|me| Self {
             me: me.clone(),
+            reconfigure_check: Mutex::new(None),
             config,
             store,
             locale,
@@ -2297,13 +2305,6 @@ impl MadarCore {
         device::update(&self.store, |c| {
             c.printer_paper_dots = dots.filter(|&d| d >= 64);
         })?;
-        Ok(())
-    }
-
-    /// Re-enter device setup (keeps the binding but forces the setup screen until
-    /// `set_device_branch` confirms a — possibly new — branch).
-    pub fn start_reconfigure(&self) -> Result<(), CoreError> {
-        device::update(&self.store, |c| c.reconfiguring = true)?;
         Ok(())
     }
 
@@ -10208,7 +10209,7 @@ mod lifecycle_tests {
         assert_eq!(core.app_route(), AppRoute::DeviceSetup); // unbound (no device config)
         core.set_device_branch("b".into(), Some("Main".into()))
             .unwrap();
-        core.start_reconfigure().unwrap();
+        device::update(&core.store, |c| c.reconfiguring = true).unwrap();
         assert_eq!(core.app_route(), AppRoute::DeviceSetup); // bound but mid-reconfigure
     }
 
