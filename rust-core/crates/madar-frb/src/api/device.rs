@@ -9,7 +9,26 @@ use crate::api::error::MadarError;
 
 pub use madar_core::device::DeviceConfigView;
 pub use madar_core::lan::{LanAdvertView, LanStatusView};
+pub use madar_core::reconfigure::{ReconfigureBlockerView, ReconfigureReadinessView};
 pub use madar_core::session::BranchView;
+
+/// One reason reconfigure is blocked (a localized `label` with its live count).
+#[frb(mirror(ReconfigureBlockerView))]
+pub struct _ReconfigureBlockerView {
+    pub kind: String,
+    pub count: u32,
+    pub label: String,
+    pub till_id: Option<String>,
+    pub owner_name: Option<String>,
+}
+
+/// Whether the device may be reconfigured, and what stands in the way.
+#[frb(mirror(ReconfigureReadinessView))]
+pub struct _ReconfigureReadinessView {
+    pub allowed: bool,
+    pub blockers: Vec<ReconfigureBlockerView>,
+    pub outbox_total: u32,
+}
 
 /// The FFI view the host reads to render device-setup / Settings (and to know which
 /// screen chrome to show). `configured` is the derived "ready to use" bit.
@@ -151,8 +170,22 @@ impl MadarBridge {
         self.inner.set_device_code(code);
     }
 
-    /// Re-enter device setup (keeps the binding but forces the setup screen until
-    /// `set_device_branch` confirms a — possibly new — branch).
+    /// Whether this device may be reconfigured now, with every blocker and its
+    /// live count. Local only (no network) — safe on a tick.
+    #[frb(sync)]
+    pub fn reconfigure_readiness(&self) -> ReconfigureReadinessView {
+        self.inner.reconfigure_readiness()
+    }
+
+    /// "Push now": confirm online, drain the outbox, final `/sync/pull`, and
+    /// record the outcome the reconfigure gate reads.
+    pub async fn reconfigure_push_now(&self) -> ReconfigureReadinessView {
+        self.inner.reconfigure_push_now().await
+    }
+
+    /// Reconfigure = a gated fresh install: refused unless readiness allows it;
+    /// otherwise wipes every local row, cache, the session, the offline bundle
+    /// and the device id (printer settings kept) → the device-setup screen.
     pub fn start_reconfigure(&self) -> Result<(), MadarError> {
         self.inner.start_reconfigure().map_err(MadarError::from)
     }

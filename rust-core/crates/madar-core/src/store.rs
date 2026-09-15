@@ -935,6 +935,41 @@ impl Store {
         Ok(())
     }
 
+    /// The reconfigure wipe (`reconfigure.rs`): empty EVERY table of the store in
+    /// ONE transaction — kv mirrors, sync rows, ledger, outbox, cursors, the LAN
+    /// log, the session and the offline bundle — then write `seed` into kv. The
+    /// schema (and `user_version`) stays, and so do the one-shot migration guards,
+    /// so the next boot never re-runs a migration over the empty tables. A crash
+    /// rolls the whole thing back: the store is either untouched or empty.
+    pub(crate) fn wipe_all(&self, seed: &[(&str, &str)]) -> CoreResult<()> {
+        let tables = self.with_tx(|tx| {
+            let tables: Vec<String> = tx
+                .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")?
+                .query_map([], |r| r.get(0))?
+                .collect::<Result<_, _>>()?;
+            let guards: Vec<(String, String)> = tx
+                .prepare("SELECT k, v FROM kv WHERE k LIKE 'migr:%' OR k = 'store:auto_vacuum_migrated'")?
+                .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect::<Result<_, _>>()?;
+            for t in &tables {
+                tx.execute(&format!("DELETE FROM \"{}\"", t.replace('"', "\"\"")), [])?;
+            }
+            let has_seq: bool = tx
+                .query_row("SELECT COUNT(*) FROM sqlite_master WHERE name='sqlite_sequence'", [], |r| r.get::<_, i64>(0))
+                .map(|n| n > 0)?;
+            if has_seq {
+                tx.execute("DELETE FROM sqlite_sequence", [])?;
+            }
+            let now = now_iso();
+            for (k, v) in guards.iter().map(|(k, v)| (k.as_str(), v.as_str())).chain(seed.iter().copied()) {
+                tx.execute("INSERT OR REPLACE INTO kv (k, v, updated_at) VALUES (?1, ?2, ?3)", params![k, v, now])?;
+            }
+            Ok(tables)
+        })?;
+        self.emit_changes(tables.iter().map(String::as_str));
+        Ok(())
+    }
+
     /// Drop every queued command. Only for an explicit destructive sign-out —
     /// offline shifts are real sales, so the default logout preserves them.
     pub fn wipe_outbox(&self) -> CoreResult<()> {
