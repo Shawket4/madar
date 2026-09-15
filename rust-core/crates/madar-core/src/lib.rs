@@ -110,6 +110,8 @@ pub(crate) mod ledger;
 pub mod till_ops;
 pub mod sync_pull;
 pub mod assets;
+/// Gated device reconfigure = a fresh install (`reconfigure.rs`).
+pub mod reconfigure;
 /// Branch-timezone-aware timestamp formatting for display (mirrors Flutter AppTz).
 pub mod timefmt;
 
@@ -300,6 +302,8 @@ pub struct MadarCore {
     /// The running LAN relay (`None` = not started). The second delivery path beside
     /// the cloud bus; outbox stays the source of truth. Phase E.
     lan: Arc<Mutex<Option<Arc<lan::LanRelay>>>>,
+    /// Why the last `lan_start` failed (`None` once it succeeds) — the LAN status view.
+    lan_last_error: Mutex<Option<String>>,
     /// Dashboard-only: the runtime-selected org/branch scope override. `None`
     /// (or a `None` field) falls back to the session-derived scope. Persisted to
     /// kv (`dashboard:active_scope`) so the app reopens on the last branch.
@@ -312,6 +316,8 @@ pub struct MadarCore {
     branch_fills: branch_reads::FillState,
     /// Weak self-handle so background work (the till-open sync) can own the core.
     me: std::sync::Weak<MadarCore>,
+    /// The last reconfigure "Push now" outcome (`reconfigure.rs`).
+    reconfigure_check: Mutex<Option<reconfigure::PushCheck>>,
 }
 
 /// One diagnostic log line.
@@ -372,6 +378,9 @@ impl MadarCore {
         // rather than on first sync so the sync screen is already honest the
         // first time anyone opens it.
         let _ = store.purge_dead_held_ops();
+        // A reconfigure wipe a crash interrupted is finished before anything
+        // reads the store (it mints the new device id read just below).
+        reconfigure::resume_interrupted_wipe(&store, &config.db_path);
         let device_id = match store.kv_get("lan_device_id").ok().flatten().filter(|s| !s.is_empty()) {
             Some(id) => id,
             None => {
@@ -398,6 +407,7 @@ impl MadarCore {
             .and_then(|s| serde_json::from_str::<ActiveScopeView>(&s).ok());
         let core = Arc::new_cyclic(|me| Self {
             me: me.clone(),
+            reconfigure_check: Mutex::new(None),
             config,
             store,
             locale,
@@ -419,6 +429,7 @@ impl MadarCore {
             unified_listener: Arc::new(Mutex::new(None)),
             alert_memory: Arc::new(Mutex::new(realtime::AlertDedup::new())),
             lan: Arc::new(Mutex::new(None)),
+            lan_last_error: Mutex::new(None),
             active_scope: RwLock::new(active_scope),
             sync_state: std::sync::Mutex::new(sync_pull::SyncState::default()),
             scheduler: scheduler::SchedulerState::default(),
@@ -852,6 +863,35 @@ impl MadarCore {
         .await;
     }
 
+    /// Send what a person just did WITHOUT making them wait for it. The action
+    /// is already committed locally with its outbox row, so the screen can close
+    /// now; the drain (network) and the LAN mirror (peer connects) run in the
+    /// background. Awaiting them made every checkout, settle, void and round
+    /// wait on connect timeouts offline (and behind any drain already running,
+    /// since drains are single-flight) — about five seconds per action.
+    pub(crate) fn send_in_background(&self, lan_ops: Vec<String>) {
+        let Some(me) = self.me.upgrade() else { return };
+        let Ok(rt) = tokio::runtime::Handle::try_current() else { return };
+        rt.spawn(async move {
+            let _ = me.drain_outbox().await;
+            for op in lan_ops {
+                me.lan_mirror_publish(&op).await;
+            }
+        });
+    }
+
+    /// Like [`Self::send_in_background`], but when the device believes it is
+    /// online, give the send up to [`K_SEND_SOON_WAIT`] to land first, for an
+    /// action whose screen shows the server's answer (a settle's receipt, a
+    /// close's reconciliation). Offline it never waits.
+    pub(crate) async fn send_soon(&self, lan_ops: Vec<String>) {
+        let online = self.current_session().map(|s| s.online).unwrap_or(false);
+        if online {
+            let _ = tokio::time::timeout(K_SEND_SOON_WAIT, self.drain_outbox()).await;
+        }
+        self.send_in_background(lan_ops);
+    }
+
     async fn drain_outbox(&self) -> Result<(), CoreError> {
         use std::sync::atomic::Ordering::Relaxed;
         // Single-flight: only one drain iterates the backlog at a time. A second
@@ -1099,7 +1139,7 @@ impl MadarCore {
             "kitchen.item_unbumped"
         };
         self.lan_publish("kitchen", ev, data, Some(envelope)).await;
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         Ok(())
     }
 
@@ -2018,6 +2058,8 @@ pub(crate) fn queued_ticket_view(
 }
 
 // ── outbox backoff (mirrors offline_queue.dart constants) ────────────────────
+/// The most a screen that shows the server's answer waits for its send.
+const K_SEND_SOON_WAIT: std::time::Duration = std::time::Duration::from_millis(2_500);
 const K_MAX_RETRIES: i64 = 8;
 const K_BASE_BACKOFF_MS: i64 = 2_000; // 2s
 const K_MAX_BACKOFF_MS: i64 = 300_000; // 5min
@@ -2266,13 +2308,6 @@ impl MadarCore {
         device::update(&self.store, |c| {
             c.printer_paper_dots = dots.filter(|&d| d >= 64);
         })?;
-        Ok(())
-    }
-
-    /// Re-enter device setup (keeps the binding but forces the setup screen until
-    /// `set_device_branch` confirms a — possibly new — branch).
-    pub fn start_reconfigure(&self) -> Result<(), CoreError> {
-        device::update(&self.store, |c| c.reconfiguring = true)?;
         Ok(())
     }
 
@@ -3013,6 +3048,15 @@ impl MadarCore {
     /// (mDNS + UDP beacon), advertises this till's open shift, and wires any manual
     /// hub. Safe to call after every login — a no-op if already running.
     pub async fn lan_start(&self) -> Result<(), CoreError> {
+        let result = self.lan_start_inner().await;
+        *self.lan_last_error.lock().unwrap_or_else(|e| e.into_inner()) =
+            result.as_ref().err().map(|e| e.to_string());
+        result
+    }
+}
+
+impl MadarCore {
+    async fn lan_start_inner(&self) -> Result<(), CoreError> {
         if self.lan.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
             return Ok(());
         }
@@ -3115,6 +3159,59 @@ impl MadarCore {
         }
     }
 
+    /// The LAN relay's health: running, peers, the last start error, the bound
+    /// port and which discovery layers are live.
+    pub fn lan_status(&self) -> lan::LanStatusView {
+        let last_error = self.lan_last_error.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        match self.lan.lock().unwrap_or_else(|e| e.into_inner()).clone() {
+            None => lan::LanStatusView { last_error, ..Default::default() },
+            Some(relay) => {
+                let d = relay.discovery();
+                let now = chrono::Utc::now().timestamp_millis();
+                lan::LanStatusView {
+                    running: true,
+                    peer_count: relay.peer_count(),
+                    manual_hub_count: relay.manual_hub_count(),
+                    last_error,
+                    tcp_port: Some(relay.tcp_port()),
+                    beacon_active: d.beacon,
+                    mdns_active: d.mdns,
+                    native_discovery_active: d.native_last_ms > 0
+                        && now - d.native_last_ms <= lan::PEER_TTL_MS,
+                }
+            }
+        }
+    }
+
+    /// What the host advertises over native Bonjour/NSD (`None` when the relay
+    /// isn't running — nothing to advertise yet).
+    pub fn lan_advert(&self) -> Option<lan::LanAdvertView> {
+        self.lan.lock().unwrap_or_else(|e| e.into_inner()).as_ref().map(|r| r.advert())
+    }
+
+    /// A peer resolved by the host's native Bonjour/NSD. Branch-filtered and
+    /// self-skipped; re-note live peers every few seconds to keep them past the
+    /// TTL. Returns whether it was accepted (`false` when not running).
+    #[allow(clippy::too_many_arguments)]
+    pub fn lan_note_peer(
+        &self,
+        device_id: String,
+        branch_id: String,
+        host: String,
+        port: u16,
+        role: String,
+        station_id: Option<String>,
+        device_code: Option<String>,
+    ) -> bool {
+        let Some(relay) = self.lan.lock().unwrap_or_else(|e| e.into_inner()).clone() else {
+            return false;
+        };
+        relay.note_peer(
+            lan::PeerNote { device_id, branch_id, host, port, role, station_id, device_code },
+            lan::PeerSource::Native,
+        )
+    }
+
     /// Whether the LAN relay is currently running.
     pub fn lan_active(&self) -> bool {
         self.lan.lock().unwrap_or_else(|e| e.into_inner()).is_some()
@@ -3185,6 +3282,168 @@ impl MadarCore {
 // ── receipt rendering (sync; pure byte assembly) ─────────────────────────────
 #[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 impl MadarCore {
+    /// Render ONE item as a kitchen chit — no money, no logo, no totals.
+    ///
+    /// A different document from a receipt rather than a shorter one: a cook
+    /// needs the item, the count, what was changed and which table it belongs
+    /// to, and everything else is noise on a pass. Per item on purpose, so a
+    /// chit follows its plate and the grill never reads the bar's work.
+    /// Rasterized through the same Cairo shaping engine as a receipt
+    /// (Arabic/RTL included) — text commands garbled non-Latin item names.
+    pub fn render_kitchen_chit(
+        &self,
+        chit: receipt::KitchenChit,
+        width: u32,
+        brand: receipt::PrinterBrand,
+    ) -> Vec<u8> {
+        let _ = width; // kept for API stability; the raster width is the device's own.
+        let slip = receipt::slip_for_kitchen_chit(&chit);
+        self.raster_kitchen_slip(&slip, brand)
+    }
+
+    /// The core-standard kitchen-chit labels, resolved once from i18n.
+    fn kitchen_chit_labels(&self) -> receipt::KitchenChitLabels {
+        let loc = self.current_locale();
+        let tr = |k: &str| i18n::tr(&loc, k);
+        receipt::KitchenChitLabels {
+            heading: tr("kitchen.chit_heading"),
+            table: tr("kitchen.chit_table"),
+            note: tr("kitchen.chit_note"),
+        }
+    }
+
+    /// Render a kitchen slip to bytes — through the SAME raster engine +
+    /// Cairo shaping as a receipt (Arabic/RTL included), so a chit never
+    /// garbles a non-Latin item name or note the way the old raw-text
+    /// encoder did. One `raster_for` call, so its cut (when the dialect
+    /// cuts) happens exactly once, at the end — however many items are on
+    /// the slip.
+    fn raster_kitchen_slip(&self, slip: &receipt::KitchenSlip, brand: receipt::PrinterBrand) -> Vec<u8> {
+        let labels = self.kitchen_chit_labels();
+        let cfg = device::load(&self.store);
+        let bitmap = render::render_kitchen_chit(slip, &labels, cfg.paper_dots());
+        receipt::raster_for(brand, &bitmap, cfg.printer_has_cutter())
+    }
+
+    /// ONE cart line as a kitchen chit, sent early from the cart — built with
+    /// the kitchen chit renderer and routed like a fired round would route
+    /// that item: its station's printer, else the device's till printer.
+    ///
+    /// Changes nothing: the line is not marked sent and checkout still prints
+    /// the whole round. Local only — the line, the menu, the stations and the
+    /// routes all come from the device's rows; no network.
+    ///
+    /// `till_brand` is the till printer's dialect, used when the chit falls
+    /// back to the till; a station printer's own brand wins otherwise.
+    pub fn cart_line_chit(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+        table_label: Option<String>,
+        ticket_ref: Option<String>,
+        width: u32,
+        till_brand: receipt::PrinterBrand,
+    ) -> Result<receipt::CartLineChit, CoreError> {
+        let line = cart::lines(&self.store, table_id.as_deref())?
+            .into_iter()
+            .find(|l| l.key == line_key)
+            .ok_or_else(|| CoreError::Validation { field: "line_key".into(), detail: "cart line not found".into() })?;
+        self.build_line_chit(&line, table_id.as_deref(), table_label, ticket_ref, width, till_brand)
+    }
+
+    /// Shared by [`Self::cart_line_chit`] and [`Self::cart_kitchen_chit`]: one
+    /// line, resolved and rendered with the kitchen chit renderer, routed and
+    /// worded exactly the same way whichever button asked for it. Same
+    /// layout as a whole-cart slip: the order note and the cart-level
+    /// kitchen note print once at the top, above this row's own note.
+    fn build_line_chit(
+        &self,
+        line: &cart::CartLineView,
+        table_id: Option<&str>,
+        table_label: Option<String>,
+        ticket_ref: Option<String>,
+        width: u32,
+        till_brand: receipt::PrinterBrand,
+    ) -> Result<receipt::CartLineChit, CoreError> {
+        let loc = self.current_locale();
+        let at = timefmt::format(&self.store, &self.corrected_now().to_rfc3339(), timefmt::TimeStyle::Time, &loc);
+        let teller = self.current_session().map(|s| s.display_name).filter(|n| !n.trim().is_empty());
+        let order_note = cart::note(&self.store, table_id)?;
+        let cart_kitchen_note = cart::kitchen_note(&self.store, table_id)?;
+        let slip = receipt::slip_for_cart_line(line, table_label, ticket_ref, at, teller, order_note, cart_kitchen_note);
+
+        let category_id = menu::menu_items(&self.store, &loc)
+            .ok()
+            .and_then(|items| items.into_iter().find(|i| i.id == line.item_id))
+            .and_then(|i| i.category_id);
+        let stations: Vec<kds::KdsStationView> = self
+            .branch_field::<Vec<madar_api::models::KitchenStation>>(branch_reads::F_STATIONS)
+            .ok()
+            .and_then(|s| s.value())
+            .unwrap_or_default()
+            .iter()
+            .map(kds::station_view)
+            .collect();
+        let routes = self
+            .branch_field::<madar_api::models::StationRoutes>(kds::F_ROUTES)
+            .ok()
+            .and_then(|s| s.value())
+            .unwrap_or_else(|| madar_api::models::StationRoutes { categories: vec![], items: vec![] });
+        let target = kds::resolve_chit_printer(&line.item_id, category_id.as_deref(), &routes, &stations);
+
+        let brand = match target.brand.as_deref() {
+            Some("star") if !target.is_till() => receipt::PrinterBrand::Star,
+            Some(_) if !target.is_till() => receipt::PrinterBrand::Epson,
+            _ => till_brand,
+        };
+        let labels = self.kitchen_chit_labels();
+        Ok(receipt::CartLineChit {
+            preview: receipt::kitchen_slip_preview(&slip, &labels, width),
+            bytes: self.raster_kitchen_slip(&slip, brand),
+            chit: slip,
+            target,
+        })
+    }
+
+    /// The WHOLE cart as ONE continuous kitchen slip — one header, the order
+    /// note and the cart-level kitchen note once at the top, then every
+    /// line with only its own note. An EXTRA copy for the kitchen: it
+    /// changes nothing about checkout/fire printing, and nothing is marked
+    /// sent.
+    ///
+    /// Printed to the device's own till printer — a whole-cart copy is a
+    /// backup/manual pass, not a per-station routing decision, so it does
+    /// not follow [`kds::resolve_chit_printer`] the way the per-line button
+    /// does. ONE slip, ONE cut at the very end, however many lines are on it.
+    pub fn cart_kitchen_chit(
+        &self,
+        table_id: Option<String>,
+        table_label: Option<String>,
+        ticket_ref: Option<String>,
+        width: u32,
+        till_brand: receipt::PrinterBrand,
+    ) -> Result<receipt::CartKitchenChit, CoreError> {
+        let lines = cart::lines(&self.store, table_id.as_deref())?;
+        let loc = self.current_locale();
+        let at = timefmt::format(&self.store, &self.corrected_now().to_rfc3339(), timefmt::TimeStyle::Time, &loc);
+        let teller = self.current_session().map(|s| s.display_name).filter(|n| !n.trim().is_empty());
+        let order_note = cart::note(&self.store, table_id.as_deref())?;
+        let cart_note = cart::kitchen_note(&self.store, table_id.as_deref())?;
+
+        let slip = receipt::KitchenSlip {
+            table_label,
+            ticket_ref,
+            at,
+            teller,
+            top_notes: receipt::top_notes(order_note.clone(), cart_note.clone()),
+            items: lines.iter().map(receipt::slip_item_for_cart_line).collect(),
+        };
+        let labels = self.kitchen_chit_labels();
+        let preview = receipt::kitchen_slip_preview(&slip, &labels, width);
+        let bytes = self.raster_kitchen_slip(&slip, till_brand);
+        Ok(receipt::CartKitchenChit { slip, cart_note, bytes, preview })
+    }
+
     /// Render a placed order's receipt to printer bytes ready to stream to a
     /// thermal printer. The receipt is rasterized to a 1-bit bitmap (logo +
     /// Arabic, matching the on-screen preview) and wrapped in the brand's raster
@@ -3194,28 +3453,6 @@ impl MadarCore {
     /// the raster width now comes from the device's paper config
     /// (`DeviceConfig::paper_dots` — 384 dots for a 58 mm Bluetooth portable, 576
     /// for a 72 mm LAN head). Pair with `send_to_printer`.
-    /// Render ONE item as a kitchen chit — no money, no logo, no totals.
-    ///
-    /// A different document from a receipt rather than a shorter one: a cook
-    /// needs the item, the count, what was changed and which table it belongs
-    /// to, and everything else is noise on a pass. Per item on purpose, so a
-    /// chit follows its plate and the grill never reads the bar's work.
-    pub fn render_kitchen_chit(
-        &self,
-        chit: receipt::KitchenChit,
-        width: u32,
-        brand: receipt::PrinterBrand,
-    ) -> Vec<u8> {
-        let loc = self.current_locale();
-        let tr = |k: &str| i18n::tr(&loc, k);
-        let labels = receipt::KitchenChitLabels {
-            heading: tr("kitchen.chit_heading"),
-            table: tr("kitchen.chit_table"),
-            note: tr("kitchen.chit_note"),
-        };
-        receipt::escpos_kitchen_chit(&chit, &labels, width, brand)
-    }
-
     pub fn render_receipt(
         &self,
         receipt: checkout::ReceiptView,
@@ -3229,6 +3466,11 @@ impl MadarCore {
         let tz = timefmt::branch_tz(&self.store);
         let loc = self.current_locale();
         let tr = |k: &str| i18n::tr(&loc, k);
+        // The VAT line reads "VAT (14%)" everywhere, at the bill's OWN frozen
+        // rate — never today's policy, so a reprint of an older sale still
+        // shows the rate that actually applied to it.
+        let vat_word = tr("receipt.vat");
+        let vat_label = receipt::vat_label(&vat_word, receipt.tax_rate);
         let ctx = receipt::EscPosCtx {
             store_name,
             currency,
@@ -3250,9 +3492,9 @@ impl MadarCore {
                 subtotal: tr("order.subtotal"),
                 discount: tr("order.discount"),
                 service_charge: tr("order.service_charge"),
-                tax: tr("order.tax"),
-                vat_included: tr("receipt.vat_included"),
-                prices_include_vat: tr("receipt.prices_include_vat"),
+                tax: vat_label.clone(),
+                vat_included: vat_label,
+                prices_include_vat: receipt::vat_label(&tr("receipt.prices_include_vat"), receipt.tax_rate),
                 service_waived: tr("receipt.service_waived"),
                 delivery_fee: tr("receipt.delivery_fee"),
                 total: tr("order.total"),
@@ -3263,7 +3505,7 @@ impl MadarCore {
                 teller: tr("receipt.teller"),
                 served_by: tr("receipt.served_by"),
                 queued: tr("order.queued_hint"),
-                thank_you: tr("receipt.thank_you"),
+                thank_you: self.receipt_footer(),
                 locale: loc.clone(),
                 tz,
             },
@@ -3281,6 +3523,19 @@ impl MadarCore {
         let cfg = device::load(&self.store);
         let bitmap = render::render_receipt(&receipt, &ctx, logo.as_deref(), cfg.paper_dots());
         receipt::raster_for(brand, &bitmap, cfg.printer_has_cutter())
+    }
+
+    /// The line printed at the foot of a customer receipt: the org's own
+    /// footer from the dashboard, or the localized "Thank you!" when none is
+    /// set. Local read only — prints offline.
+    pub fn receipt_footer(&self) -> String {
+        self.store
+            .kv_get(checkout::KEY_ORG_RECEIPT_FOOTER)
+            .ok()
+            .flatten()
+            .map(|f| f.trim().to_string())
+            .filter(|f| !f.is_empty())
+            .unwrap_or_else(|| i18n::tr(&self.current_locale(), "receipt.thank_you"))
     }
 
     /// Cash-drawer kick bytes for the chosen printer dialect — send via
@@ -3309,6 +3564,10 @@ impl MadarCore {
         let tz = timefmt::branch_tz(&self.store);
         let loc = self.current_locale();
         let tr = |k: &str| i18n::tr(&loc, k);
+        // The shift's VAT total is at the branch's CURRENT rate — a Z report
+        // is a per-shift aggregate, not one bill, so there is no single
+        // frozen rate to freeze it at.
+        let tax_rate = self.current_session().map(|s| s.tax_rate).unwrap_or(0.0);
         let labels = receipt::TillReportLabels {
             title: tr("till.report_title"),
             business_date: tr("till.business_date"),
@@ -3337,7 +3596,7 @@ impl MadarCore {
             refunds: tr("till.refunds"),
             refunds_cash: tr("till.refunds_cash"),
             cash_in_refunded: tr("till.cash_in_refunded"),
-            total_tax: tr("till.total_tax"),
+            total_tax: receipt::vat_label(&tr("till.total_tax"), tax_rate),
             total_service: tr("till.total_service"),
             service_waived: tr("till.service_waived"),
             transactions: tr("till.transactions"),
@@ -4338,7 +4597,7 @@ impl MadarCore {
         if draft.is_some() {
             self.sync_hold_occupancy(was_on, Some(table_id), false)?;
         }
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         Ok(())
     }
 
@@ -4394,7 +4653,7 @@ impl MadarCore {
         )?;
         // Every other device sees the table come back now, not at the next
         // heartbeat.
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         Ok(())
     }
 
@@ -4520,6 +4779,52 @@ impl MadarCore {
     /// The cart's order note, or `None`.
     pub fn cart_note(&self, table_id: Option<String>) -> Result<Option<String>, CoreError> {
         cart::note(&self.store, table_id.as_deref())
+    }
+    /// Set or clear (None / blank) ONE cart line's KITCHEN-ONLY note, by its
+    /// line key ([`cart::CartLineView::key`]). Local only: never rides the
+    /// checkout payload, never prints on the customer receipt — a scribble
+    /// for the cook, meant to be read on that line's chit and then gone.
+    pub fn cart_set_line_kitchen_note(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+        note: Option<String>,
+    ) -> Result<(), CoreError> {
+        cart::set_line_kitchen_note(&self.store, table_id.as_deref(), &line_key, note.as_deref())
+    }
+    /// Clear one line's kitchen note — call once that line's chit has
+    /// actually printed (not on preview alone).
+    pub fn cart_clear_line_kitchen_note(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+    ) -> Result<(), CoreError> {
+        cart::clear_line_kitchen_note(&self.store, table_id.as_deref(), &line_key)
+    }
+    /// Set or clear (None / blank) the CART-level kitchen note — the
+    /// whole-cart kitchen print's own note. Distinct from [`Self::cart_set_note`]'s
+    /// order note: local only, kitchen-chit only.
+    pub fn cart_set_kitchen_note(
+        &self,
+        table_id: Option<String>,
+        note: Option<String>,
+    ) -> Result<(), CoreError> {
+        cart::set_kitchen_note(&self.store, table_id.as_deref(), note.as_deref())
+    }
+    /// The cart's kitchen-only note, or `None`.
+    pub fn cart_kitchen_note(&self, table_id: Option<String>) -> Result<Option<String>, CoreError> {
+        cart::kitchen_note(&self.store, table_id.as_deref())
+    }
+    /// Clear the cart-level kitchen note — call once the whole-cart chit has
+    /// actually printed.
+    pub fn cart_clear_kitchen_note(&self, table_id: Option<String>) -> Result<(), CoreError> {
+        cart::clear_kitchen_note(&self.store, table_id.as_deref())
+    }
+    /// Clear EVERY kitchen note in this cart — the cart-level one and every
+    /// line's own — in one go. Call once the whole-cart kitchen print has
+    /// actually printed.
+    pub fn cart_clear_all_kitchen_notes(&self, table_id: Option<String>) -> Result<(), CoreError> {
+        cart::clear_all_kitchen_notes(&self.store, table_id.as_deref())
     }
     /// The selected discount id (for the tender UI), or `None`.
     pub fn cart_discount_id(&self, table_id: Option<String>) -> Result<Option<String>, CoreError> {
@@ -5201,6 +5506,19 @@ impl MadarCore {
             // kv from the same get_branch), so it survives restarts/offline and a
             // manual sync re-pulls it. Only overwrite with a non-empty value, so a
             // transient blank can't wipe a good cached logo.
+            // The receipt footer: a backend that sends the field is the truth
+            // (null/blank clears it back to the default); an older backend
+            // that omits it leaves the cached value alone.
+            if let Some(footer) = b.org_receipt_footer.clone() {
+                match footer.map(|f| f.trim().to_string()).filter(|f| !f.is_empty()) {
+                    Some(f) => {
+                        let _ = self.store.kv_put(checkout::KEY_ORG_RECEIPT_FOOTER, &f);
+                    }
+                    None => {
+                        let _ = self.store.kv_delete(checkout::KEY_ORG_RECEIPT_FOOTER);
+                    }
+                }
+            }
             if let Some(logo) = b.org_logo_url.flatten().filter(|s| !s.is_empty()) {
                 let _ = self.store.kv_put(checkout::KEY_ORG_LOGO_URL, &logo);
                 // Pull the logo BYTES too, so the (offline-capable) receipt
@@ -5790,12 +6108,10 @@ impl MadarCore {
         // The sale is committed locally; the cart is now spent.
         cart::clear(&self.store, table_id.as_deref())?;
 
-        // Best-effort: send now if online (offline leaves it queued).
-        let _ = self.drain_outbox().await;
-
-        // If the order is no longer pending, the drain sent it.
+        // Sent in the background: the sale is committed locally, so the
+        // receipt returns now (queued) and the ack folds in when it lands.
         let order_id = prepared.order_id.to_string();
-        self.lan_mirror_publish(&order_id).await;
+        self.send_in_background(vec![order_id.clone()]);
         let still_pending = self.store.pending()?.iter().any(|i| i.id == order_id);
         let mut receipt = prepared.receipt;
         receipt.queued_offline = still_pending;
@@ -6340,7 +6656,7 @@ impl MadarCore {
             ..Default::default()
         })?;
         // Try to send it straight away; offline simply leaves it queued.
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         // Queued: there is no balance to show yet. The outcome says so in as
         // many words rather than inventing a number.
         Ok(loyalty::award_queued(&locale))
@@ -6541,8 +6857,7 @@ impl MadarCore {
             touched.extend(changes::tables_for_op("void_order"));
             Ok(())
         })?;
-        let _ = self.drain_outbox().await;
-        self.lan_mirror_publish(&format!("{order_id}:void")).await;
+        self.send_in_background(vec![format!("{order_id}:void")]);
         Ok(())
     }
 
@@ -6678,8 +6993,7 @@ impl MadarCore {
             touched.extend(changes::tables_for_op("refund_order"));
             Ok(())
         })?;
-        let _ = self.drain_outbox().await;
-        self.lan_mirror_publish(&format!("{order_id}:refund:{client_ref}")).await;
+        self.send_in_background(vec![format!("{order_id}:refund:{client_ref}")]);
         Ok(())
     }
 
@@ -6901,7 +7215,7 @@ impl MadarCore {
             format!("table-hold:{table_id}:{}", uuid::Uuid::new_v4()),
             &serde_json::to_string(&cmd)?,
         )?;
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         Ok(())
     }
 
@@ -6912,7 +7226,7 @@ impl MadarCore {
         self.session_branch_id()?;
         held::set_table_state_local(&self.store, &table_id, Some("free"), None, false, None)?;
         self.sync_hold_occupancy(Some(table_id), None, false)?;
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         Ok(())
     }
 
@@ -7006,7 +7320,7 @@ impl MadarCore {
         .to_string();
         self.lan_publish("kitchen", "kitchen.fired", data, Some(envelope))
             .await;
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
 
         let tid = ticket_id.to_string();
         let queued_offline = self.store.pending()?.iter().any(|i| i.id == tid);
@@ -7075,7 +7389,7 @@ impl MadarCore {
         .to_string();
         self.lan_publish("kitchen", "kitchen.fired", data, Some(envelope))
             .await;
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         let rid = round_id.to_string();
         let queued_offline = self.store.pending()?.iter().any(|i| i.id == rid);
         Ok(tickets::TicketFiredView {
@@ -7121,8 +7435,7 @@ impl MadarCore {
             till_id: None,
             ..Default::default()
         })?;
-        let _ = self.drain_outbox().await;
-        self.lan_mirror_publish(&op_id).await;
+        self.send_in_background(vec![op_id.clone()]);
         Ok(self.store.pending()?.iter().any(|i| i.id == op_id))
     }
 
@@ -7177,8 +7490,7 @@ impl MadarCore {
             till_id: None,
             ..Default::default()
         })?;
-        let _ = self.drain_outbox().await;
-        self.lan_mirror_publish(&op_id).await;
+        self.send_in_background(vec![op_id.clone()]);
         Ok(self.store.pending()?.iter().any(|i| i.id == op_id))
     }
 
@@ -7442,8 +7754,11 @@ impl MadarCore {
             touched.extend(changes::tables_for_op("settle_open_ticket"));
             Ok(())
         })?;
-        let _ = self.drain_outbox().await;
-        self.lan_mirror_publish(&op_id).await;
+        // A settle's receipt prints from the paid order the server returns, so
+        // wait for it briefly when the device is online. Offline (or a slow
+        // link) never holds the teller: it stays queued and sends in the
+        // background.
+        self.send_soon(vec![op_id.clone()]).await;
         // The paid order the settle produced, when it acked — that is what a
         // receipt prints from. `None` means the settle is still queued: there
         // is no order yet, and inventing one would print a receipt for a sale
@@ -9125,10 +9440,12 @@ mod lifecycle_tests {
         let seen = || hits.load(std::sync::atomic::Ordering::SeqCst);
 
         core.clear_table(TB.into()).await.unwrap();
+        let _ = core.drain_outbox().await; // the send runs in the background
         assert_eq!(seen(), 1, "the clear was sent");
         assert_eq!(core.store.pending_count().unwrap(), 0);
 
         core.seat_table(TB.into(), Some(5)).await.unwrap();
+        let _ = core.drain_outbox().await; // the send runs in the background
         assert_eq!(seen(), 2, "the seat was sent");
         assert_eq!(
             table(&core, TB).covers,
@@ -9144,6 +9461,7 @@ mod lifecycle_tests {
         )
         .await
         .unwrap();
+        let _ = core.drain_outbox().await; // the send runs in the background
         assert_eq!(seen(), 3, "the booking seat was sent");
 
         let (base, hits) = replay_stub(200, r#"{"ok":true}"#).await;
@@ -9827,6 +10145,49 @@ mod lifecycle_tests {
         assert_eq!(core.app_route(), AppRoute::Order, "selling is available immediately");
     }
 
+    #[tokio::test]
+    async fn lan_status_reports_start_errors_then_the_running_relay() {
+        let core = MadarCore::new(MadarConfig {
+            base_url: "http://127.0.0.1:1".into(),
+            environment: "dev".into(),
+            db_path: String::new(),
+            locale: "en".into(),
+            app_version: None,
+        })
+        .unwrap();
+        let st = core.lan_status();
+        assert!(!st.running && st.last_error.is_none() && st.tcp_port.is_none());
+        assert!(core.lan_start().await.is_err(), "no session");
+        let st = core.lan_status();
+        assert!(!st.running);
+        assert!(st.last_error.as_deref().unwrap_or("").contains("sign in"), "{st:?}");
+        assert!(core.lan_advert().is_none());
+        assert!(!core.lan_note_peer("d".into(), "b".into(), "h".into(), 1, "waiter".into(), None, None));
+
+        let core = signed_in_offline_core().await;
+        core.lan_start().await.expect("starts even if 47600 is taken");
+        let st = core.lan_status();
+        assert!(st.running);
+        assert!(st.last_error.is_none(), "a success clears the error");
+        let port = st.tcp_port.unwrap();
+        assert_ne!(port, 0);
+        assert!(!st.native_discovery_active);
+        let ad = core.lan_advert().unwrap();
+        assert_eq!(ad.tcp_port, port);
+        assert_eq!(ad.branch_id, "00000000-0000-0000-0000-000000000001");
+        assert!(core.lan_note_peer(
+            "peer-1".into(), ad.branch_id.clone(), "127.0.0.1".into(), 9, "waiter".into(), None, Some("7C".into())
+        ));
+        assert!(!core.lan_note_peer(ad.device_id.clone(), ad.branch_id.clone(), "127.0.0.1".into(), 9, "waiter".into(), None, None), "self skipped");
+        let st = core.lan_status();
+        assert!(st.native_discovery_active);
+        assert_eq!(st.peer_count, 1);
+        core.set_device_lan_hub(Some("10.0.0.5:47600".into())).unwrap();
+        assert_eq!(core.lan_status().manual_hub_count, 1);
+        core.lan_stop();
+        assert!(!core.lan_status().running);
+    }
+
     /// Per-device order numbers: `36B-12`, sent with the device code.
     #[tokio::test]
     async fn device_order_number_display_code_dash_seq() {
@@ -9877,7 +10238,7 @@ mod lifecycle_tests {
         assert_eq!(core.app_route(), AppRoute::DeviceSetup); // unbound (no device config)
         core.set_device_branch("b".into(), Some("Main".into()))
             .unwrap();
-        core.start_reconfigure().unwrap();
+        device::update(&core.store, |c| c.reconfiguring = true).unwrap();
         assert_eq!(core.app_route(), AppRoute::DeviceSetup); // bound but mid-reconfigure
     }
 
@@ -10640,7 +11001,7 @@ impl MadarCore {
             format!("booking-seat:{booking_id}"),
             &serde_json::to_string(&cmd)?,
         )?;
-        let _ = self.drain_outbox().await;
+        self.send_in_background(Vec::new());
         Ok(())
     }
 

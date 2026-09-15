@@ -75,6 +75,20 @@ pub struct ListBundlesParams {
     pub sort: Option<String>,
 }
 
+/// struct for passing parameters to the method [`suggested_components`]
+#[derive(Clone, Debug)]
+pub struct SuggestedComponentsParams {
+    pub org_id: String,
+    /// Comma-separated menu item IDs already added to the in-progress bundle.
+    pub item_ids: String,
+    pub start_date: Option<chrono::DateTime<chrono::FixedOffset>>,
+    pub end_date: Option<chrono::DateTime<chrono::FixedOffset>>,
+    /// Max suggestions to return. Default 10.
+    pub limit: Option<i64>,
+    /// Minimum number of orders an item must co-occur with the anchor set in to be suggested. Default 3.
+    pub min_count: Option<i64>,
+}
+
 /// struct for passing parameters to the method [`update_bundle`]
 #[derive(Clone, Debug)]
 pub struct UpdateBundleParams {
@@ -178,6 +192,19 @@ pub enum GetBundleError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListBundlesError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`suggested_components`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SuggestedComponentsError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -585,6 +612,63 @@ pub async fn list_bundles(
     } else {
         let content = resp.text().await?;
         let entity: Option<ListBundlesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn suggested_components(
+    configuration: &configuration::Configuration,
+    params: SuggestedComponentsParams,
+) -> Result<Vec<models::SuggestedComponent>, Error<SuggestedComponentsError>> {
+    let uri_str = format!("{}/bundles/suggested-components", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    req_builder = req_builder.query(&[("org_id", &params.org_id.to_string())]);
+    req_builder = req_builder.query(&[("item_ids", &params.item_ids.to_string())]);
+    if let Some(ref param_value) = params.start_date {
+        req_builder = req_builder.query(&[("start_date", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.end_date {
+        req_builder = req_builder.query(&[("end_date", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.limit {
+        req_builder = req_builder.query(&[("limit", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.min_count {
+        req_builder = req_builder.query(&[("min_count", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::SuggestedComponent&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::SuggestedComponent&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<SuggestedComponentsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

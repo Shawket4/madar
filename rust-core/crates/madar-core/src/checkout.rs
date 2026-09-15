@@ -166,8 +166,9 @@ pub struct ReceiptLineView {
 }
 
 /// The order confirmation / receipt summary.
+// `Eq` dropped: `tax_rate: f64` (the bill's own frozen rate) doesn't implement it.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ReceiptView {
     /// Client-generated order id (the outbox idempotency key). The server id
     /// lands later via sync; this identifies the order locally meanwhile.
@@ -195,6 +196,11 @@ pub struct ReceiptView {
     /// Whether the prices already contained the tax: the receipt then says
     /// "Prices include VAT" and the tax line reads as included, not added.
     pub tax_inclusive: bool,
+    /// The rate this BILL was taxed at, frozen at the time it was rung up —
+    /// a fraction (`0.14` is 14%), never today's policy: a reprint of an
+    /// older sale must show the rate that actually applied to it, even if
+    /// the branch's rate has since changed. Printed as `"VAT (14%)"`.
+    pub tax_rate: f64,
     /// A service charge someone removed from this table's bill (`0` when
     /// none), and who. Printed as its own note; not part of the total.
     pub service_charge_waived_minor: i64,
@@ -318,6 +324,11 @@ pub(crate) const KEY_DEVICE_CODE: &str = "device_code";
 /// app restarts + long offline stretches and refreshes on a manual data sync,
 /// instead of living only in the host's volatile prefs from a one-time branch bind.
 pub(crate) const KEY_ORG_LOGO_URL: &str = "org_logo_url";
+
+/// The org's receipt footer (dashboard org settings), cached from the same
+/// `get_branch` as the logo so an offline print still carries it. Absent →
+/// the receipt prints the default "Thank you!".
+pub(crate) const KEY_ORG_RECEIPT_FOOTER: &str = "org_receipt_footer";
 
 /// Blob-cache key for the org logo's image BYTES (fetched from `KEY_ORG_LOGO_URL`
 /// whenever online, in the same `get_branch` flow), so the receipt rasterizer can
@@ -740,6 +751,7 @@ pub(crate) fn prepare(
         tax_minor: priced.tax_minor,
         service_charge_minor: priced.service_charge_minor,
         tax_inclusive: policy.tax_inclusive,
+        tax_rate: policy.tax_rate.to_f64().unwrap_or(0.0),
         service_charge_waived_minor: 0,
         service_charge_waived_by_name: None,
         delivery_fee_minor: 0,
@@ -825,7 +837,7 @@ fn receipt_line_from_cart(l: &cart::CartLineView) -> ReceiptLineView {
             } else {
                 a.name.clone()
             },
-            price_minor: a.price_modifier_minor,
+            price_minor: a.price_modifier_minor * a.qty.max(1) as i64,
         })
         .collect();
     let optionals = l
@@ -851,7 +863,7 @@ fn receipt_line_from_cart(l: &cart::CartLineView) -> ReceiptLineView {
                     } else {
                         a.name.clone()
                     },
-                    price_minor: a.price_modifier_minor,
+                    price_minor: a.price_modifier_minor * a.qty.max(1) as i64,
                 })
                 .collect(),
             optionals: c
@@ -1391,6 +1403,29 @@ mod tests {
         assert_eq!(rc.lines.len(), 1);
         assert_eq!(rc.lines[0].qty, 2);
         assert_eq!(rc.lines[0].line_total_minor, 2000);
+    }
+
+    /// The receipt freezes the POLICY'S rate at ring-up time, printed as
+    /// `"VAT (12.5%)"` — not whatever the branch's rate happens to be later,
+    /// which is exactly why a reprint must read this frozen figure and not
+    /// today's session.
+    #[test]
+    fn the_receipt_freezes_the_policys_tax_rate() {
+        let store = Store::open("").unwrap();
+        seed_methods(&store);
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
+        let p = prepare(
+            &store,
+            None,
+            "en",
+            BRANCH,
+            SHIFT,
+            &mk_input(CASH, 5000),
+            &tax_policy_at(0.125),
+            "2026-06-20T12:00:00+00:00".into(),
+        )
+        .unwrap();
+        assert_eq!(p.receipt.tax_rate, 0.125);
     }
 
     #[test]
@@ -2300,7 +2335,7 @@ mod tests {
             .find(|a| a.name.starts_with("shot"))
             .unwrap();
         assert_eq!(shot.name, "shot ×2");
-        assert_eq!(shot.price_minor, 800);
+        assert_eq!(shot.price_minor, 1600); // what it adds: 800 × 2
         assert_eq!(rl.optionals.len(), 1);
         assert_eq!(rl.optionals[0].name, "Vanilla");
         assert_eq!(rl.optionals[0].price_minor, 300);
@@ -2552,6 +2587,7 @@ mod tests {
                 ],
                 optionals: vec![],
             }],
+            kitchen_note: None,
         };
         let r = receipt_line_from_cart(&line);
         let comp_addons = &r.components[0].addons;
@@ -2563,5 +2599,44 @@ mod tests {
             comp_addons[1].name, "Oat Milk",
             "qty==1 must NOT show a multiplier"
         );
+    }
+
+    /// A line's kitchen-only note must never ride the checkout wire item or
+    /// the customer receipt — it is a scribble for the cook, not the order.
+    #[test]
+    fn a_kitchen_note_never_reaches_the_checkout_payload_or_the_receipt() {
+        let mut line = cart::CartLineView {
+            key: "k".into(),
+            item_id: "11111111-1111-1111-1111-111111111111".into(),
+            name: "Latte".into(),
+            size_label: None,
+            addons: vec![],
+            optionals: vec![],
+            notes: None,
+            unit_price_minor: 5000,
+            qty: 1,
+            line_total_minor: 5000,
+            bundle_id: None,
+            bundle_components: vec![],
+            kitchen_note: Some("no salt — allergy".into()),
+        };
+        let receipt_line = receipt_line_from_cart(&line);
+        assert!(
+            format!("{receipt_line:?}").contains("Latte") && !format!("{receipt_line:?}").contains("allergy"),
+            "the receipt view carries no field the kitchen note could leak through: {receipt_line:?}"
+        );
+
+        let items = lines_to_wire_items(std::slice::from_ref(&line));
+        let wire = format!("{:?}", items[0]);
+        assert!(
+            !wire.contains("allergy"),
+            "the checkout wire item must not carry the kitchen note: {wire}"
+        );
+
+        // Clearing the kitchen note changes nothing about either path — the
+        // receipt view has no field it could have flowed through anyway.
+        line.kitchen_note = None;
+        let receipt_line2 = receipt_line_from_cart(&line);
+        assert_eq!(format!("{receipt_line:?}"), format!("{receipt_line2:?}"));
     }
 }

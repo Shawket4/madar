@@ -431,8 +431,7 @@ impl MadarCore {
             touched.extend(crate::changes::tables_for_op("cash_movement"));
             Ok(())
         })?;
-        let _ = self.drain_outbox().await;
-        self.lan_mirror_publish(&client_ref.to_string()).await;
+        self.send_in_background(vec![client_ref.to_string()]);
         Ok(till::CashMovementView {
             id: client_ref.to_string(),
             kind: till_views::movement_kind(kind.as_deref(), amount_minor),
@@ -501,7 +500,7 @@ impl MadarCore {
             touched.extend(crate::changes::tables_for_op("close_till"));
             Ok(())
         })?;
-        let _ = self.drain_outbox().await;
+        self.send_soon(Vec::new()).await;
         self.lan_sync_open_tills();
         let queued = self.store.live_seq_of(&close_id)?.is_some();
         let methods = preview.as_ref().map(|p| p.methods.clone()).unwrap_or_default();

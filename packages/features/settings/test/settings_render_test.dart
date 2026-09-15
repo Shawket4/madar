@@ -342,6 +342,17 @@ class _FakeBridge implements MadarBridge {
     // The branch routes to the till, so Diagnostics names the mode.
     if (name == #kitchenRoutingMode) return Future<String?>.value('till');
     if (name == #lanActive) return true;
+    if (name == #lanStatus) {
+      return const LanStatusView(
+        running: true,
+        peerCount: 2,
+        manualHubCount: 0,
+        tcpPort: 47600,
+        beaconActive: true,
+        mdnsActive: true,
+        nativeDiscoveryActive: true,
+      );
+    }
     if (name == #lanPeerCount) return 2;
     if (name == #clockSkewMinutes) return 0;
     if (name == #baseUrl) return 'https://api.madar-pos.cloud';

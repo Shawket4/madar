@@ -16,7 +16,9 @@
 use cosmic_text::{Attrs, Buffer, Color, Family, FontSystem, Metrics, Shaping, SwashCache, Weight};
 
 use crate::checkout::{ReceiptLineView, ReceiptModifierView, ReceiptView};
-use crate::receipt::{money, short_id, Bitmap, EscPosCtx, TillReportLabels};
+use crate::receipt::{money, short_id, Bitmap, EscPosCtx, KitchenChitLabels, KitchenSlip, TillReportLabels};
+#[cfg(test)]
+use crate::receipt::KitchenSlipItem;
 use crate::till::TillReportView;
 
 /// Printable width in dots — 72 mm @ 203 dpi. Matches the Flutter `_printerWidth`
@@ -34,11 +36,20 @@ const SZ_BODY: f32 = 24.0;
 const SZ_SMALL: f32 = 22.0;
 const LINE: f32 = 1.30; // line-height multiple
 
-// Org-logo bounding box (dots). The preview caps the logo at 220×60 dp on a
-// ~360 dp paper; scaled to the 576-dot print (×1.6) that's ~352×96. Fit-inside,
-// aspect-preserved — a wide wordmark or a square mark both stay in proportion.
-const LOGO_MAX_W: u32 = 352;
-const LOGO_MAX_H: u32 = 96;
+// Customer-receipt sizes — larger and heavier than the kitchen slip / Z report
+// so a receipt reads at arm's length on a counter.
+const RS_STORE: f32 = 44.0;
+const RS_ORDER: f32 = 64.0;
+const RS_TOTAL: f32 = 38.0;
+const RS_BODY: f32 = 29.0;
+const RS_SMALL: f32 = 26.0;
+
+// Org-logo bounding box (dots) — 50% over the old 352×96. Fit-inside and
+// aspect-preserved after blank borders are trimmed; a small logo scales UP to
+// the box (see `decode_logo`), so a wide wordmark, a square mark, a tiny
+// upload and a logo padded with whitespace all print at a sensible size.
+const LOGO_MAX_W: u32 = 528;
+const LOGO_MAX_H: u32 = 144;
 
 // Embedded Cairo — the same family the Compose/Swift UI renders. Regular for
 // body, SemiBold for the payment label, Bold for headers/totals.
@@ -73,6 +84,17 @@ pub fn render_till_report(
 ) -> Bitmap {
     let mut r = Renderer::new(width);
     r.build_till(report, store, currency, labels, orders);
+    r.canvas.into_bitmap()
+}
+
+/// Render a kitchen slip to a 1-bit bitmap — the SAME font + shaping engine
+/// as a receipt (Arabic/RTL included), so a kitchen chit never garbles a
+/// non-Latin item name or note the way the old raw-UTF-8 text encoder did.
+/// No logo, no money, no footer — just the header, the notes that apply to
+/// the whole slip once, and every item with only its own note.
+pub fn render_kitchen_chit(slip: &KitchenSlip, labels: &KitchenChitLabels, width: u32) -> Bitmap {
+    let mut r = Renderer::new(width);
+    r.build_kitchen_slip(slip, labels);
     r.canvas.into_bitmap()
 }
 
@@ -282,8 +304,12 @@ impl Renderer {
 
     /// A left-aligned line indented by `indent` dots (modifiers / address).
     fn indented(&mut self, s: &str, size: f32, indent: i32) {
+        self.indented_w(s, size, Weight::NORMAL, indent);
+    }
+
+    fn indented_w(&mut self, s: &str, size: f32, weight: Weight, indent: i32) {
         let indent = self.sx(indent);
-        let buf = self.shape(s, size, Weight::NORMAL, self.content_w() - indent);
+        let buf = self.shape(s, size, weight, self.content_w() - indent);
         let (_, h) = Self::measure(&buf);
         let oy = self.y;
         self.blit(&buf, self.margin + indent, oy);
@@ -299,6 +325,28 @@ impl Renderer {
 
     fn gap(&mut self, dots: i32) {
         self.y += dots;
+    }
+
+    /// Centered text inside a drawn box — the order number.
+    fn boxed(&mut self, s: &str, size: f32) {
+        let buf = self.shape(s, size, Weight::BOLD, self.content_w() - self.sx(48));
+        let (w, h) = Self::measure(&buf);
+        let (pad_x, pad_y, t) = (self.sx(28), self.sx(6), self.sx(4).max(3));
+        let bw = (w.ceil() as i32 + pad_x * 2).min(self.content_w());
+        let bh = h.ceil() as i32 + pad_y * 2;
+        let x0 = (self.width - bw) / 2;
+        let y0 = self.y;
+        self.canvas.rule(x0, x0 + bw, y0, t);
+        self.canvas.rule(x0, x0 + bw, y0 + bh - t, t);
+        for y in y0..y0 + bh {
+            for x in 0..t {
+                self.canvas.cover(x0 + x, y, 255);
+                self.canvas.cover(x0 + bw - 1 - x, y, 255);
+            }
+        }
+        let ox = ((self.width as f32 - w) / 2.0).round() as i32;
+        self.blit(&buf, ox, y0 + pad_y);
+        self.y += bh;
     }
 
     /// Decode, scale-to-fit and dither the org logo, then composite it centered.
@@ -329,14 +377,14 @@ impl Renderer {
             self.logo(bytes);
         }
         if r.is_voided {
-            self.center(&format!("*** {} ***", lab.voided), SZ_BODY, Weight::BOLD);
+            self.center(&format!("*** {} ***", lab.voided), RS_BODY, Weight::BOLD);
         }
         let store = if ctx.store_name.trim().is_empty() {
             "MADAR".to_string()
         } else {
             ctx.store_name.to_uppercase()
         };
-        self.center(&store, SZ_STORE, Weight::BOLD);
+        self.center(&store, RS_STORE, Weight::BOLD);
         if r.is_delivery {
             if let Some(ch) = r.delivery_channel.as_deref() {
                 let label = if ch == "in_mall" {
@@ -346,55 +394,54 @@ impl Renderer {
                 };
                 self.center(
                     &format!("— {} —", label.to_uppercase()),
-                    SZ_SMALL,
-                    Weight::NORMAL,
+                    RS_SMALL,
+                    Weight::BOLD,
                 );
             }
         }
         self.rule();
 
-        // ── order meta ──
-        let title = match r.order_number {
-            _ if !r.display_number.is_empty() => format!("{} #{}", lab.order, r.display_number),
-            Some(n) => format!("{} #{}", lab.order, n),
-            None => format!("{} {}", lab.order, short_id(&r.local_order_id)),
+        // ── order meta ── the number boxed, big and centered; time under it.
+        let number = match r.order_number {
+            _ if !r.display_number.is_empty() => format!("#{}", r.display_number),
+            Some(n) => format!("#{}", n),
+            None => short_id(&r.local_order_id).to_string(),
         };
-        self.row(&title, &fmt_dt(lab, &r.created_at), SZ_BODY, Weight::NORMAL);
+        self.gap(self.sx(4));
+        self.center(&lab.order.to_uppercase(), RS_SMALL, Weight::BOLD);
+        self.boxed(&number, RS_ORDER);
+        self.gap(self.sx(6));
+        self.center(&fmt_dt(lab, &r.created_at), RS_SMALL, Weight::BOLD);
         if let Some(rf) = &r.order_ref {
-            self.row(
-                &format!("{}: {}", lab.reference, rf),
-                "",
-                SZ_BODY,
-                Weight::NORMAL,
-            );
+            self.center(&format!("{}: {}", lab.reference, rf), RS_SMALL, Weight::BOLD);
         }
         self.rule();
 
         // ── delivery block ──
         if r.is_delivery {
             if let Some(v) = &r.customer_name {
-                self.row(&lab.customer, v, SZ_SMALL, Weight::NORMAL);
+                self.row(&lab.customer, v, RS_SMALL, Weight::BOLD);
             }
             if let Some(v) = &r.customer_phone {
-                self.row(&lab.phone, v, SZ_SMALL, Weight::NORMAL);
+                self.row(&lab.phone, v, RS_SMALL, Weight::BOLD);
             }
             if let Some(v) = &r.delivery_address {
-                self.indented(&format!("{}: {}", lab.address, v), SZ_SMALL, 0);
+                self.indented(&format!("{}: {}", lab.address, v), RS_SMALL, 0);
             }
             if let Some(v) = &r.delivery_zone {
-                self.row(&lab.zone, v, SZ_SMALL, Weight::NORMAL);
+                self.row(&lab.zone, v, RS_SMALL, Weight::BOLD);
             }
             // Courier ref + COD/payment hint + customer instructions — the ESC/POS
             // text path printed these but the raster path (this) dropped them, so a
             // courier ticket lacked the ref/hint/notes the dispatcher needs.
             if let Some(v) = &r.delivery_ref {
-                self.row(&lab.delivery_ref, v, SZ_SMALL, Weight::NORMAL);
+                self.row(&lab.delivery_ref, v, RS_SMALL, Weight::BOLD);
             }
             if let Some(v) = &r.payment_hint {
-                self.row(&lab.payment_hint, v, SZ_SMALL, Weight::NORMAL);
+                self.row(&lab.payment_hint, v, RS_SMALL, Weight::BOLD);
             }
             if let Some(v) = &r.delivery_notes {
-                self.indented(&format!("{}: {}", lab.notes, v), SZ_SMALL, 0);
+                self.indented(&format!("{}: {}", lab.notes, v), RS_SMALL, 0);
             }
             self.rule();
         }
@@ -406,13 +453,13 @@ impl Renderer {
         self.rule();
 
         // ── totals ──
-        self.row(&lab.subtotal, &m(r.subtotal_minor), SZ_BODY, Weight::NORMAL);
+        self.row(&lab.subtotal, &m(r.subtotal_minor), RS_BODY, Weight::BOLD);
         if r.discount_minor > 0 {
             self.row(
                 &lab.discount,
                 &format!("−{}", m(r.discount_minor)),
-                SZ_BODY,
-                Weight::NORMAL,
+                RS_BODY,
+                Weight::BOLD,
             );
         }
         // Before the tax, in the order the money is added: the service charge
@@ -422,78 +469,70 @@ impl Renderer {
             self.row(
                 &lab.service_charge,
                 &m(r.service_charge_minor),
-                SZ_BODY,
-                Weight::NORMAL,
+                RS_BODY,
+                Weight::BOLD,
             );
         }
         // Always stated, and "included" when it is inside the prices.
         self.row(
             if r.tax_inclusive { &lab.vat_included } else { &lab.tax },
             &m(r.tax_minor),
-            SZ_BODY,
-            Weight::NORMAL,
+            RS_BODY,
+            Weight::BOLD,
         );
         if r.delivery_fee_minor > 0 {
             self.row(
                 &lab.delivery_fee,
                 &m(r.delivery_fee_minor),
-                SZ_BODY,
-                Weight::NORMAL,
+                RS_BODY,
+                Weight::BOLD,
             );
         }
         self.row(
             &lab.total.to_uppercase(),
             &m(r.total_minor),
-            SZ_TOTAL,
+            RS_TOTAL,
             Weight::BOLD,
         );
         if r.tax_inclusive {
-            self.indented(&lab.prices_include_vat, SZ_SMALL, 0);
+            self.indented(&lab.prices_include_vat, RS_SMALL, 0);
         }
         if r.service_charge_waived_minor > 0 {
             self.row(
                 &lab.service_waived,
                 &format!("−{}", m(r.service_charge_waived_minor)),
-                SZ_SMALL,
+                RS_SMALL,
                 Weight::NORMAL,
             );
             if let Some(name) = r.service_charge_waived_by_name.as_deref() {
-                self.indented(name, SZ_SMALL, 0);
+                self.indented(name, RS_SMALL, 0);
             }
         }
         if r.tip_minor > 0 {
-            self.row(&lab.tip, &m(r.tip_minor), SZ_BODY, Weight::NORMAL);
+            self.row(&lab.tip, &m(r.tip_minor), RS_BODY, Weight::BOLD);
         }
         if !r.payments.is_empty() {
             // A split prints what each method paid. It has no one "cash
             // tendered" figure, so the Cash/Change pair would read 0.00.
             for leg in &r.payments {
-                self.row(&leg.label, &m(leg.amount_minor), SZ_BODY, Weight::NORMAL);
+                self.row(&leg.label, &m(leg.amount_minor), RS_BODY, Weight::BOLD);
             }
         } else if r.is_cash {
             self.row(
                 &lab.cash,
                 &m(r.amount_tendered_minor),
-                SZ_BODY,
-                Weight::NORMAL,
+                RS_BODY,
+                Weight::BOLD,
             );
-            self.row(&lab.change, &m(r.change_minor), SZ_BODY, Weight::NORMAL);
+            self.row(&lab.change, &m(r.change_minor), RS_BODY, Weight::BOLD);
         }
         self.rule();
 
-        // ── footer ──
-        self.center(&r.payment_label.to_uppercase(), SZ_SMALL, Weight::SEMIBOLD);
-        if let Some(t) = &r.teller_name {
-            self.center(
-                &format!("{} {}", lab.served_by, t),
-                SZ_SMALL,
-                Weight::NORMAL,
-            );
-        }
-        if r.queued_offline {
-            self.center(&lab.queued, SZ_SMALL, Weight::NORMAL);
-        }
-        self.center(&lab.thank_you, SZ_BODY, Weight::NORMAL);
+        // ── footer ── the payment method, then ONLY the org's own footer
+        // (dashboard) or the default thank-you. No teller, no sync notice.
+        self.center(&r.payment_label.to_uppercase(), RS_BODY, Weight::BOLD);
+        self.gap(self.sx(6));
+        self.center(&lab.thank_you, RS_BODY, Weight::BOLD);
         self.gap(self.bottom_pad);
     }
 
@@ -756,60 +795,138 @@ impl Renderer {
         self.gap(self.bottom_pad);
     }
 
-    /// One item line + its modifier/bundle breakdown (mirrors `lineBlock`).
+    /// Walk a kitchen slip top-to-bottom: heading, table, the notes that
+    /// apply to the whole slip ONCE, then every item with only its own
+    /// note. No logo, no money, no footer beyond the ticket/time/teller.
+    fn build_kitchen_slip(&mut self, slip: &KitchenSlip, labels: &KitchenChitLabels) {
+        self.center(&labels.heading, SZ_BODY, Weight::BOLD);
+        if let Some(t) = slip.table_label.as_deref().filter(|s| !s.trim().is_empty()) {
+            self.center(&format!("{} {}", labels.table, t.trim()), SZ_TOTAL, Weight::BOLD);
+        }
+        self.rule();
+
+        let notes: Vec<&String> = slip.top_notes.iter().filter(|n| !n.trim().is_empty()).collect();
+        for n in &notes {
+            self.indented(&format!("{} {}", labels.note, n.trim()), SZ_BODY, 0);
+        }
+        if !notes.is_empty() {
+            self.rule();
+        }
+
+        for (i, it) in slip.items.iter().enumerate() {
+            if i > 0 {
+                self.gap(self.sx(8));
+            }
+            let name = name_with_size(&it.item, &it.size_label);
+            self.row(&format!("{}× {}", it.qty.max(1), name), "", SZ_TOTAL, Weight::BOLD);
+            for m in it.modifiers.iter().filter(|m| !m.trim().is_empty()) {
+                self.indented(&format!("- {}", m.trim()), SZ_SMALL, 16);
+            }
+            if let Some(n) = it.note.as_deref().filter(|s| !s.trim().is_empty()) {
+                self.indented(&format!("{} {}", labels.note, n.trim()), SZ_SMALL, 0);
+            }
+        }
+
+        self.rule();
+        let foot = match slip.ticket_ref.as_deref().filter(|s| !s.trim().is_empty()) {
+            Some(r) => format!("{}  {}", r.trim(), slip.at),
+            None => slip.at.clone(),
+        };
+        self.center(&foot, SZ_SMALL, Weight::NORMAL);
+        if let Some(by) = slip.teller.as_deref().filter(|s| !s.trim().is_empty()) {
+            self.center(by.trim(), SZ_SMALL, Weight::NORMAL);
+        }
+        self.gap(self.bottom_pad);
+    }
+
+    /// One item line: the base price for ONE unit, each paid modifier with
+    /// what it adds to one unit ("+ Extra shot ×3  +30.00"), then
+    /// "2 × 95.00  190.00" — so the rows add up on paper. A plain line (no paid
+    /// modifiers) stays one row. When the per-unit split can't be derived
+    /// exactly (a reward or a rounding line), the line prints its total only.
     fn item(&mut self, line: &ReceiptLineView, cur: &str) {
         let name = name_with_size(&line.name, &line.size_label);
-        self.row(
-            &format!("{}× {}", line.qty, name),
-            &money(line.line_total_minor, cur),
-            SZ_BODY,
-            Weight::BOLD,
-        );
+        let qty = line.qty.max(1);
+        let mods: Vec<&ReceiptModifierView> = if line.is_bundle {
+            line.components
+                .iter()
+                .flat_map(|c| c.addons.iter().chain(c.optionals.iter()))
+                .collect()
+        } else {
+            line.addons.iter().chain(line.optionals.iter()).collect()
+        };
+        let paid: i64 = mods.iter().map(|m| m.price_minor.max(0)).sum();
+        let per_unit = (line.line_total_minor % qty == 0).then(|| line.line_total_minor / qty);
+        let base = per_unit.map(|u| u - paid).filter(|b| *b >= 0 && paid > 0);
+
+        match base {
+            Some(base) => self.row(&name, &money(base, cur), RS_BODY, Weight::BOLD),
+            None if qty > 1 => self.row(
+                &format!("{}× {}", qty, name),
+                &money(line.line_total_minor, cur),
+                RS_BODY,
+                Weight::BOLD,
+            ),
+            None => self.row(&name, &money(line.line_total_minor, cur), RS_BODY, Weight::BOLD),
+        }
+        let priced = base.is_some();
         if let Some(reward) = &line.reward_label {
-            self.indented(&format!("★ {reward}"), SZ_SMALL, 16);
+            self.indented_w(&format!("★ {reward}"), RS_SMALL, Weight::BOLD, 16);
         }
         if line.is_bundle {
             for c in &line.components {
-                self.indented(
+                self.indented_w(
                     &format!("– {}", name_with_size(&c.name, &c.size_label)),
-                    SZ_SMALL,
+                    RS_SMALL,
+                    Weight::BOLD,
                     16,
                 );
                 for mo in c.addons.iter().chain(c.optionals.iter()) {
-                    self.modifier(mo, cur, 32);
+                    self.modifier(mo, cur, 32, priced);
                 }
             }
         } else {
             for mo in line.addons.iter().chain(line.optionals.iter()) {
-                self.modifier(mo, cur, 16);
+                self.modifier(mo, cur, 16, priced);
             }
         }
+        if let Some(unit) = per_unit.filter(|_| priced) {
+            self.gap(self.sx(2));
+            self.row(
+                &format!("{} × {}", qty, money(unit, cur)),
+                &money(line.line_total_minor, cur),
+                RS_BODY,
+                Weight::BOLD,
+            );
+        }
+        self.gap(self.sx(6));
     }
 
-    fn modifier(&mut self, m: &ReceiptModifierView, cur: &str, indent: i32) {
-        if m.price_minor > 0 {
-            // Indented label on the left, charge flush-right.
+    /// A modifier under its line. A paid one shows what it adds (its amount
+    /// already × its count) when `priced`; a free one is a plain instruction.
+    fn modifier(&mut self, m: &ReceiptModifierView, cur: &str, indent: i32, priced: bool) {
+        if m.price_minor > 0 && priced {
             let indent = self.sx(indent);
-            let buf = self.shape(
-                &format!("+ {}", m.name),
-                SZ_SMALL,
-                Weight::NORMAL,
-                self.content_w() - indent,
-            );
-            let (_, lh) = Self::measure(&buf);
             let right = self.shape(
                 &format!("+{}", money(m.price_minor, cur)),
-                SZ_SMALL,
-                Weight::NORMAL,
+                RS_SMALL,
+                Weight::BOLD,
                 self.content_w(),
             );
             let (rw, rh) = Self::measure(&right);
+            let buf = self.shape(
+                &format!("+ {}", m.name),
+                RS_SMALL,
+                Weight::BOLD,
+                self.content_w() - indent - rw.ceil() as i32 - self.sx(12),
+            );
+            let (_, lh) = Self::measure(&buf);
             let oy = self.y;
             self.blit(&buf, self.margin + indent, oy);
             self.blit(&right, self.width - self.margin - rw.round() as i32, oy);
             self.y += lh.max(rh).ceil() as i32;
         } else {
-            self.indented(&format!("+ {}", m.name), SZ_SMALL, indent);
+            self.indented(&format!("+ {}", m.name), RS_SMALL, indent);
         }
     }
 }
@@ -841,17 +958,44 @@ fn fmt_dt_z(lab: &TillReportLabels, rfc3339: &str) -> String {
 
 // ── logo decode + dither ─────────────────────────────────────────────────────
 
+/// Crop transparent / near-white borders so a logo padded with empty canvas
+/// sizes by its visible mark. A fully blank image is returned unchanged.
+fn trim_blank(img: image::RgbaImage) -> image::RgbaImage {
+    let (w, h) = img.dimensions();
+    let ink = |x: u32, y: u32| {
+        let [r, g, b, a] = img.get_pixel(x, y).0;
+        a > 24 && (r as u16 + g as u16 + b as u16) < 3 * 235
+    };
+    let (mut x0, mut y0, mut x1, mut y1) = (w, h, 0u32, 0u32);
+    for y in 0..h {
+        for x in 0..w {
+            if ink(x, y) {
+                x0 = x0.min(x);
+                y0 = y0.min(y);
+                x1 = x1.max(x);
+                y1 = y1.max(y);
+            }
+        }
+    }
+    if x0 > x1 || y0 > y1 {
+        return img;
+    }
+    image::imageops::crop_imm(&img, x0, y0, x1 - x0 + 1, y1 - y0 + 1).to_image()
+}
+
 /// Decode (PNG/JPEG), composite over white, scale to fit `max_w`×`max_h`
 /// preserving aspect, then Floyd–Steinberg dither to 1-bit. Returns
 /// `(width, height, ink)` where `ink[y*w+x]` is `255` (black) or `0` (white).
 /// `None` if the bytes aren't a decodable image.
 fn decode_logo(bytes: &[u8], max_w: u32, max_h: u32) -> Option<(usize, usize, Vec<u8>)> {
     let img = image::load_from_memory(bytes).ok()?;
-    let rgba = img.to_rgba8();
+    let rgba = trim_blank(img.to_rgba8());
     let (w0, h0) = (rgba.width().max(1), rgba.height().max(1));
+    // Fit the box; a small upload may grow up to 4× so it isn't a speck, but
+    // never past the box.
     let scale = (max_w as f32 / w0 as f32)
         .min(max_h as f32 / h0 as f32)
-        .min(1.0);
+        .min(4.0);
     let tw = ((w0 as f32 * scale).round() as u32).max(1);
     let th = ((h0 as f32 * scale).round() as u32).max(1);
     let scaled = image::imageops::resize(&rgba, tw, th, image::imageops::FilterType::Lanczos3);
@@ -967,6 +1111,7 @@ mod tests {
             tax_minor: 0,
             service_charge_minor: 0,
             tax_inclusive: false,
+            tax_rate: 0.0,
             service_charge_waived_minor: 0,
             service_charge_waived_by_name: None,
             delivery_fee_minor: 0,
@@ -1431,5 +1576,85 @@ mod tests {
         assert!(printed_receipt(cairo, "2026-04-23T22:00:00Z")
             .iter()
             .any(|t| t == "24/04/2026 01:00 AM"));
+    }
+
+    // ── kitchen chit: raster, not raw text (Arabic/RTL must not garble) ───────
+
+    fn kitchen_labels() -> KitchenChitLabels {
+        KitchenChitLabels {
+            heading: "المطبخ".into(),
+            table: "طاولة".into(),
+            note: "ملاحظة:".into(),
+        }
+    }
+
+    fn arabic_slip() -> KitchenSlip {
+        KitchenSlip {
+            table_label: Some("طاولة ٤".into()),
+            ticket_ref: Some("R-9".into()),
+            at: "19:42".into(),
+            teller: Some("منى".into()),
+            top_notes: vec!["عيد ميلاد — الكيك آخراً".into()],
+            items: vec![KitchenSlipItem {
+                item: "شاورما دجاج".into(), // "chicken shawarma"
+                qty: 2,
+                size_label: Some("كبير".into()), // "large"
+                modifiers: vec!["زيادة جبنة".into()],
+                note: Some("بدون بصل".into()), // "no onions"
+            }],
+        }
+    }
+
+    /// An Arabic item name + an Arabic note render to a bitmap without
+    /// panicking — the raster path shapes and blits real glyphs (Cairo +
+    /// cosmic-text bidi), unlike the old raw-UTF-8 text encoder that a
+    /// single-byte-codepage thermal head would have garbled.
+    #[test]
+    fn an_arabic_kitchen_chit_rasters_without_panicking() {
+        let bmp = render_kitchen_chit(&arabic_slip(), &kitchen_labels(), PRINT_WIDTH);
+        assert!(bmp.rows > 0 && !bmp.bytes.is_empty(), "a real bitmap, not empty");
+    }
+
+    /// The kitchen chit's bytes are a RASTER image (the brand's raster
+    /// protocol), never raw UTF-8 text — the bug that garbled Arabic.
+    #[test]
+    fn kitchen_chit_bytes_are_a_raster_not_raw_text() {
+        use crate::receipt::{raster_for, PrinterBrand};
+        let bmp = render_kitchen_chit(&arabic_slip(), &kitchen_labels(), PRINT_WIDTH);
+        let bytes = raster_for(PrinterBrand::Epson, &bmp, true);
+        // Raw UTF-8 text would carry the Arabic bytes verbatim; a raster
+        // frame never does — it's ESC/POS raster commands + packed bits.
+        let text = "شاورما دجاج";
+        assert!(
+            !bytes.windows(text.as_bytes().len()).any(|w| w == text.as_bytes()),
+            "the Arabic item name must not appear as raw text bytes in the printed frame"
+        );
+        // A real raster payload: bigger than the bare command bytes, and it
+        // is NOT valid UTF-8 as a whole (packed 1-bit pixel data isn't text).
+        assert!(bytes.len() > 64);
+    }
+
+    /// A multi-item kitchen slip is ONE raster job — the raster path never
+    /// emits more than one cut command, however many items are on it (the
+    /// commands/count-per-cut are Epson's own concern; here we assert the
+    /// slip is built as ONE bitmap, not N concatenated ones).
+    #[test]
+    fn a_multi_item_kitchen_slip_is_one_continuous_raster() {
+        let mut slip = arabic_slip();
+        slip.items.push(KitchenSlipItem {
+            item: "Fries".into(),
+            qty: 1,
+            size_label: None,
+            modifiers: vec![],
+            note: None,
+        });
+        let one_bitmap = render_kitchen_chit(&slip, &kitchen_labels(), PRINT_WIDTH);
+        let mut first_only = slip.clone();
+        first_only.items.truncate(1);
+        let smaller = render_kitchen_chit(&first_only, &kitchen_labels(), PRINT_WIDTH);
+        assert!(
+            one_bitmap.rows > smaller.rows,
+            "the second item adds rows to the SAME bitmap, not a second document"
+        );
     }
 }

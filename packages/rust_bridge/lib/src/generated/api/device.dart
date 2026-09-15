@@ -103,3 +103,154 @@ class DeviceConfigView {
           lanHub == other.lanHub &&
           configured == other.configured;
 }
+
+/// What the host advertises as `_madar._tcp` over native Bonjour/NSD (TXT keys
+/// match the core's mDNS advert).
+class LanAdvertView {
+  final String deviceId;
+  final String branchId;
+  final String role;
+  final String? stationId;
+  final String? deviceCode;
+  final int tcpPort;
+
+  const LanAdvertView({
+    required this.deviceId,
+    required this.branchId,
+    required this.role,
+    this.stationId,
+    this.deviceCode,
+    required this.tcpPort,
+  });
+
+  @override
+  int get hashCode =>
+      deviceId.hashCode ^
+      branchId.hashCode ^
+      role.hashCode ^
+      stationId.hashCode ^
+      deviceCode.hashCode ^
+      tcpPort.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LanAdvertView &&
+          runtimeType == other.runtimeType &&
+          deviceId == other.deviceId &&
+          branchId == other.branchId &&
+          role == other.role &&
+          stationId == other.stationId &&
+          deviceCode == other.deviceCode &&
+          tcpPort == other.tcpPort;
+}
+
+/// The LAN relay's health (Settings → Device → LAN, and the host's retry loop).
+class LanStatusView {
+  final bool running;
+  final int peerCount;
+  final int manualHubCount;
+  final String? lastError;
+  final int? tcpPort;
+  final bool beaconActive;
+  final bool mdnsActive;
+  final bool nativeDiscoveryActive;
+
+  const LanStatusView({
+    required this.running,
+    required this.peerCount,
+    required this.manualHubCount,
+    this.lastError,
+    this.tcpPort,
+    required this.beaconActive,
+    required this.mdnsActive,
+    required this.nativeDiscoveryActive,
+  });
+
+  @override
+  int get hashCode =>
+      running.hashCode ^
+      peerCount.hashCode ^
+      manualHubCount.hashCode ^
+      lastError.hashCode ^
+      tcpPort.hashCode ^
+      beaconActive.hashCode ^
+      mdnsActive.hashCode ^
+      nativeDiscoveryActive.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LanStatusView &&
+          runtimeType == other.runtimeType &&
+          running == other.running &&
+          peerCount == other.peerCount &&
+          manualHubCount == other.manualHubCount &&
+          lastError == other.lastError &&
+          tcpPort == other.tcpPort &&
+          beaconActive == other.beaconActive &&
+          mdnsActive == other.mdnsActive &&
+          nativeDiscoveryActive == other.nativeDiscoveryActive;
+}
+
+/// One reason reconfigure is blocked (a localized `label` with its live count).
+class ReconfigureBlockerView {
+  final String kind;
+  final int count;
+  final String label;
+  final String? tillId;
+  final String? ownerName;
+
+  const ReconfigureBlockerView({
+    required this.kind,
+    required this.count,
+    required this.label,
+    this.tillId,
+    this.ownerName,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^
+      count.hashCode ^
+      label.hashCode ^
+      tillId.hashCode ^
+      ownerName.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReconfigureBlockerView &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          count == other.count &&
+          label == other.label &&
+          tillId == other.tillId &&
+          ownerName == other.ownerName;
+}
+
+/// Whether the device may be reconfigured, and what stands in the way.
+class ReconfigureReadinessView {
+  final bool allowed;
+  final List<ReconfigureBlockerView> blockers;
+  final int outboxTotal;
+
+  const ReconfigureReadinessView({
+    required this.allowed,
+    required this.blockers,
+    required this.outboxTotal,
+  });
+
+  @override
+  int get hashCode =>
+      allowed.hashCode ^ blockers.hashCode ^ outboxTotal.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReconfigureReadinessView &&
+          runtimeType == other.runtimeType &&
+          allowed == other.allowed &&
+          blockers == other.blockers &&
+          outboxTotal == other.outboxTotal;
+}

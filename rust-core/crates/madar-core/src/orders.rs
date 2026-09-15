@@ -340,7 +340,7 @@ pub(crate) fn order_to_receipt(
                 .iter()
                 .map(|a| ReceiptModifierView {
                     name: addon_label(&a.addon_name, &a.name_translations, a.quantity, locale),
-                    price_minor: a.unit_price as i64,
+                    price_minor: a.unit_price as i64 * a.quantity.max(1) as i64,
                 })
                 .collect();
             let optionals = it
@@ -369,7 +369,7 @@ pub(crate) fn order_to_receipt(
                                         a.quantity,
                                         locale,
                                     ),
-                                    price_minor: a.unit_price as i64,
+                                    price_minor: a.unit_price as i64 * a.quantity.max(1) as i64,
                                 })
                                 .collect(),
                             optionals: c
@@ -432,6 +432,11 @@ pub(crate) fn order_to_receipt(
                 o.total_amount as i64,
             )
         }),
+        // The rate that actually applied to THIS sale — a reprint must not
+        // show today's rate for an older bill. Absent on an order from
+        // before the backend recorded it; 0 there is a rare, honest gap
+        // rather than a guess.
+        tax_rate: o.tax_rate_applied.unwrap_or(0.0),
         service_charge_waived_minor: o
             .service_charge_waived_by
             .map(|_| o.service_charge_waived_amount.unwrap_or(0) as i64)
@@ -1004,6 +1009,19 @@ mod tests {
     }
 
     #[test]
+    fn receipt_carries_the_orders_own_frozen_tax_rate() {
+        let mut o = order_full(vec![item("Latte", 1, 6000)]);
+        o.tax_rate_applied = Some(0.125);
+        let r = order_to_receipt(&o, "en");
+        assert_eq!(r.tax_rate, 0.125, "a reprint must show THIS bill's rate");
+
+        // An order from before the field existed: 0.0, not a guess.
+        o.tax_rate_applied = None;
+        let r = order_to_receipt(&o, "en");
+        assert_eq!(r.tax_rate, 0.0);
+    }
+
+    #[test]
     fn receipt_non_cash_when_no_tender() {
         let o = order_full(vec![item("Latte", 1, 6000)]);
         // amount_tendered None → not cash, tendered/change default to 0.
@@ -1055,7 +1073,7 @@ mod tests {
         assert_eq!(line.size_label.as_deref(), Some("Large"));
         assert!(!line.is_bundle);
         assert_eq!(line.addons[0].name, "Oat milk ×2");
-        assert_eq!(line.addons[0].price_minor, 500); // unit_price, not line_total
+        assert_eq!(line.addons[0].price_minor, 1000); // what it adds: unit 500 × 2
         assert_eq!(line.addons[1].name, "Caramel");
         assert_eq!(line.optionals[0].name, "No sugar");
         assert_eq!(line.optionals[1].price_minor, 700);
@@ -1080,7 +1098,7 @@ mod tests {
         assert_eq!(line.components[0].name, "Burger");
         assert_eq!(line.components[0].size_label.as_deref(), Some("Large"));
         assert_eq!(line.components[0].addons[0].name, "Cheese ×2");
-        assert_eq!(line.components[0].addons[0].price_minor, 300);
+        assert_eq!(line.components[0].addons[0].price_minor, 600);
         assert_eq!(line.components[0].optionals[0].name, "No onion");
         assert_eq!(line.components[1].name, "Fries");
         assert_eq!(line.components[1].size_label, None); // blank filtered

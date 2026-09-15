@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // `Override` moved to the misc library in Riverpod 3.
 import 'package:flutter_riverpod/misc.dart';
 import 'package:madar/app/host_vault.dart';
+import 'package:madar/app/lan_bonjour.dart';
+import 'package:madar/app/lan_retry.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -175,6 +177,18 @@ class RealtimeArmer {
   RealtimeSession? _realtime;
   StreamSubscription<RealtimeMessage>? _events;
   StreamSubscription<AlertCommand>? _alerts;
+
+  /// Keeps the LAN relay started while signed in (backoff 5s → 60s); a
+  /// failed start used to be swallowed once and never retried.
+  late final LanRetrier _lan = LanRetrier(
+    start: _core.bridge.lanStart,
+    isRunning: _core.bridge.lanActive,
+    signedIn: () => _core.bridge.currentSession() != null,
+    // Native Bonjour advertises + browses once the relay runs (the iPad's
+    // only discovery path; a second one everywhere else).
+    onStarted: () => unawaited(_bonjour.ensure()),
+  );
+  late final LanBonjour _bonjour = LanBonjour(bridge: _core.bridge);
   late final TableChangeWatcher _tables = TableChangeWatcher(
     subscribe: _core.bridge.watchTables,
     apply: (tables) => applyTableChanges(_ref, tables),
@@ -194,9 +208,13 @@ class RealtimeArmer {
     _tables.start();
     if (_core.bridge.currentSession() == null) {
       _realtime = null;
+      _lan.stop();
+      unawaited(_bonjour.stop());
       return;
     }
-    unawaited(_core.bridge.lanStart().then((_) {}, onError: (_) {}));
+    // Every arm (sign-in, shell refresh, network reconnect, app resume)
+    // retries the LAN at once if it is not running yet.
+    _lan.kick();
     if (_realtime != null) return;
     try {
       final rt = _realtime = await _core.startRealtime();
@@ -223,6 +241,8 @@ class RealtimeArmer {
   }
 
   void dispose() {
+    _lan.dispose();
+    unawaited(_bonjour.stop());
     _tables.dispose();
     unawaited(_events?.cancel());
     unawaited(_alerts?.cancel());

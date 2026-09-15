@@ -480,3 +480,32 @@ final connectivityRefreshProvider =
     NotifierProvider<ConnectivityRefreshNotifier, void Function()?>(
       ConnectivityRefreshNotifier.new,
     );
+
+/// The app-wide "this device was wiped" hook. A reconfigure wipe leaves every
+/// provider holding state derived from data that no longer exists, so the app
+/// registers a closure here that throws the whole [ProviderContainer] away and
+/// mounts a fresh one (a first launch). Unregistered (a test), [reset] is a
+/// shell refresh.
+class DeviceResetNotifier extends Notifier<void Function()?> {
+  @override
+  void Function()? build() => null;
+
+  /// The app installs its container reset here at boot.
+  // ignore: use_setters_to_change_properties
+  void register(void Function() reset) => state = reset;
+
+  /// Start over from a fresh container.
+  void reset() {
+    final hook = state;
+    if (hook != null) {
+      hook();
+    } else {
+      ref.read(shellProvider.notifier).refresh();
+    }
+  }
+}
+
+final deviceResetProvider =
+    NotifierProvider<DeviceResetNotifier, void Function()?>(
+      DeviceResetNotifier.new,
+    );

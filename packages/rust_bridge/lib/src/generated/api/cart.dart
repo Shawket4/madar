@@ -152,6 +152,10 @@ class CartLineView {
   final String? bundleId;
   final List<CartBundleComponentView> bundleComponents;
 
+  /// A KITCHEN-ONLY note for this line — never on the checkout payload,
+  /// never on the customer receipt. Cleared once this line's chit prints.
+  final String? kitchenNote;
+
   const CartLineView({
     required this.key,
     required this.itemId,
@@ -165,6 +169,7 @@ class CartLineView {
     required this.lineTotalMinor,
     this.bundleId,
     required this.bundleComponents,
+    this.kitchenNote,
   });
 
   @override
@@ -180,7 +185,8 @@ class CartLineView {
       qty.hashCode ^
       lineTotalMinor.hashCode ^
       bundleId.hashCode ^
-      bundleComponents.hashCode;
+      bundleComponents.hashCode ^
+      kitchenNote.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -198,7 +204,8 @@ class CartLineView {
           qty == other.qty &&
           lineTotalMinor == other.lineTotalMinor &&
           bundleId == other.bundleId &&
-          bundleComponents == other.bundleComponents;
+          bundleComponents == other.bundleComponents &&
+          kitchenNote == other.kitchenNote;
 }
 
 /// What `switch_to_draft` left in hand.

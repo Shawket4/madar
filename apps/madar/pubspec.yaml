@@ -4,7 +4,7 @@ description: Madar Cashier — a thin, high-performance Flutter UI over the shar
 # versionName); `+1` is the build number (CFBundleVersion / versionCode). Bump
 # the build number on EVERY upload to TestFlight / Play — both stores refuse a
 # reused one. CI may override with `--build-number=$GITHUB_RUN_NUMBER`.
-version: 0.7.4+1
+version: 0.7.8+1
 publish_to: none
 resolution: workspace
 
@@ -14,6 +14,7 @@ environment:
 dependencies:
   app_core: ^0.1.0
   audioplayers: ^6.1.0
+  bonsoir: ^7.1.5
   connectivity_plus: ^7.2.0
   design_system: ^0.1.0
   feature_auth: ^0.1.0
@@ -48,6 +49,7 @@ dependencies:
 # Launcher icons are copied directly from the native apps' sources (pixel parity)
 # rather than generated — see android res/mipmap-* and ios AppIcon.appiconset.
 dev_dependencies:
+  fake_async: ^1.3.3
   flutter_native_splash: ^2.4.6
   flutter_test:
     sdk: flutter

@@ -145,12 +145,69 @@ class ReceiptSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
     final bridge = ref.bridge;
     String tr(String key) => bridge.tr(key: key);
     final preview = ref.watch(receiptPreviewProvider);
     final branchName = bridge.deviceConfig().branchName ?? '';
     final currency = bridge.currentSession()?.currencyCode ?? '';
+    return PrintPreviewFrame(
+      title: tr('receipt.title'),
+      printLabel: tr('receipt.print'),
+      printing: preview.printing,
+      onPrint: () =>
+          unawaited(ref.read(receiptPreviewProvider.notifier).print(receipt)),
+      toast: preview.toast,
+      onDismissToast: ref.read(receiptPreviewProvider.notifier).dismissToast,
+      paper: Column(
+        children: [
+          // One-shot settle celebration — just-paid presentations
+          // only, never reprints (plays once on mount).
+          if (celebrate)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(bottom: Space.lg),
+              child: SettleMark(label: tr('receipt.settled')),
+            ),
+          Center(
+            child: ReceiptPaper(
+              receipt: receipt,
+              storeName: branchName,
+              currency: currency,
+              orgLogoPath: preview.orgLogoPath,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The print preview sheet's frame — sticky title + close, the scrolling
+/// paper, pinned Print + Done, and a local toast layer. Shared by every
+/// print preview (a receipt, a kitchen chit) so they cannot drift apart.
+class PrintPreviewFrame extends ConsumerWidget {
+  const PrintPreviewFrame({
+    required this.title,
+    required this.printLabel,
+    required this.printing,
+    required this.onPrint,
+    required this.paper,
+    required this.toast,
+    required this.onDismissToast,
+    super.key,
+  });
+
+  final String title;
+  final String printLabel;
+  final bool printing;
+  final VoidCallback onPrint;
+  final Widget paper;
+  final ToastData? toast;
+  final ValueChanged<int> onDismissToast;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    String tr(String key) => ref.bridge.tr(key: key);
     return Stack(
       children: [
         Column(
@@ -165,7 +222,7 @@ class ReceiptSheet extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      tr('receipt.title'),
+                      title,
                       style: MadarType.h3.copyWith(
                         fontWeight: FontWeight.w900,
                         color: colors.textPrimary,
@@ -197,27 +254,7 @@ class ReceiptSheet extends ConsumerWidget {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsetsDirectional.all(Space.lg),
-                child: Column(
-                  children: [
-                    // One-shot settle celebration — just-paid presentations
-                    // only, never reprints (plays once on mount).
-                    if (celebrate)
-                      Padding(
-                        padding: const EdgeInsetsDirectional.only(
-                          bottom: Space.lg,
-                        ),
-                        child: SettleMark(label: tr('receipt.settled')),
-                      ),
-                    Center(
-                      child: ReceiptPaper(
-                        receipt: receipt,
-                        storeName: branchName,
-                        currency: currency,
-                        orgLogoPath: preview.orgLogoPath,
-                      ),
-                    ),
-                  ],
-                ),
+                child: paper,
               ),
             ),
             // Pinned actions — Print + Done.
@@ -233,15 +270,11 @@ class ReceiptSheet extends ConsumerWidget {
                       children: [
                         Expanded(
                           child: MadarButton(
-                            label: tr('receipt.print'),
+                            label: printLabel,
                             icon: 'printer',
                             variant: MadarButtonVariant.outline,
-                            loading: preview.printing,
-                            onTap: () => unawaited(
-                              ref
-                                  .read(receiptPreviewProvider.notifier)
-                                  .print(receipt),
-                            ),
+                            loading: printing,
+                            onTap: onPrint,
                           ),
                         ),
                         Expanded(
@@ -261,10 +294,7 @@ class ReceiptSheet extends ConsumerWidget {
         ),
         // Local toast layer — the sheet floats above the screen's host, so
         // print feedback presents inside the sheet itself.
-        ToastHost(
-          preview.toast,
-          onDismiss: ref.read(receiptPreviewProvider.notifier).dismissToast,
-        ),
+        ToastHost(toast, onDismiss: onDismissToast),
       ],
     );
   }

@@ -8,7 +8,27 @@ use crate::api::bridge::MadarBridge;
 use crate::api::error::MadarError;
 
 pub use madar_core::device::DeviceConfigView;
+pub use madar_core::lan::{LanAdvertView, LanStatusView};
+pub use madar_core::reconfigure::{ReconfigureBlockerView, ReconfigureReadinessView};
 pub use madar_core::session::BranchView;
+
+/// One reason reconfigure is blocked (a localized `label` with its live count).
+#[frb(mirror(ReconfigureBlockerView))]
+pub struct _ReconfigureBlockerView {
+    pub kind: String,
+    pub count: u32,
+    pub label: String,
+    pub till_id: Option<String>,
+    pub owner_name: Option<String>,
+}
+
+/// Whether the device may be reconfigured, and what stands in the way.
+#[frb(mirror(ReconfigureReadinessView))]
+pub struct _ReconfigureReadinessView {
+    pub allowed: bool,
+    pub blockers: Vec<ReconfigureBlockerView>,
+    pub outbox_total: u32,
+}
 
 /// The FFI view the host reads to render device-setup / Settings (and to know which
 /// screen chrome to show). `configured` is the derived "ready to use" bit.
@@ -27,6 +47,31 @@ pub struct _DeviceConfigView {
     pub reconfiguring: bool,
     pub lan_hub: Option<String>,
     pub configured: bool,
+}
+
+/// The LAN relay's health (Settings → Device → LAN, and the host's retry loop).
+#[frb(mirror(LanStatusView))]
+pub struct _LanStatusView {
+    pub running: bool,
+    pub peer_count: u32,
+    pub manual_hub_count: u32,
+    pub last_error: Option<String>,
+    pub tcp_port: Option<u16>,
+    pub beacon_active: bool,
+    pub mdns_active: bool,
+    pub native_discovery_active: bool,
+}
+
+/// What the host advertises as `_madar._tcp` over native Bonjour/NSD (TXT keys
+/// match the core's mDNS advert).
+#[frb(mirror(LanAdvertView))]
+pub struct _LanAdvertView {
+    pub device_id: String,
+    pub branch_id: String,
+    pub role: String,
+    pub station_id: Option<String>,
+    pub device_code: Option<String>,
+    pub tcp_port: u16,
 }
 
 /// A selectable branch (device-setup picker).
@@ -125,8 +170,22 @@ impl MadarBridge {
         self.inner.set_device_code(code);
     }
 
-    /// Re-enter device setup (keeps the binding but forces the setup screen until
-    /// `set_device_branch` confirms a — possibly new — branch).
+    /// Whether this device may be reconfigured now, with every blocker and its
+    /// live count. Local only (no network) — safe on a tick.
+    #[frb(sync)]
+    pub fn reconfigure_readiness(&self) -> ReconfigureReadinessView {
+        self.inner.reconfigure_readiness()
+    }
+
+    /// "Push now": confirm online, drain the outbox, final `/sync/pull`, and
+    /// record the outcome the reconfigure gate reads.
+    pub async fn reconfigure_push_now(&self) -> ReconfigureReadinessView {
+        self.inner.reconfigure_push_now().await
+    }
+
+    /// Reconfigure = a gated fresh install: refused unless readiness allows it;
+    /// otherwise wipes every local row, cache, the session, the offline bundle
+    /// and the device id (printer settings kept) → the device-setup screen.
     pub fn start_reconfigure(&self) -> Result<(), MadarError> {
         self.inner.start_reconfigure().map_err(MadarError::from)
     }
@@ -155,6 +214,37 @@ impl MadarBridge {
     /// Stop + tear down the LAN relay (idempotent). Call on logout / branch switch.
     pub fn lan_stop(&self) {
         self.inner.lan_stop();
+    }
+
+    /// The LAN relay's health: running, peers, last start error, bound port, and
+    /// which discovery layers are live.
+    #[frb(sync)]
+    pub fn lan_status(&self) -> LanStatusView {
+        self.inner.lan_status()
+    }
+
+    /// This device's native Bonjour advert, or `None` while the relay is down.
+    #[frb(sync)]
+    pub fn lan_advert(&self) -> Option<LanAdvertView> {
+        self.inner.lan_advert()
+    }
+
+    /// Feed a peer resolved by native Bonjour/NSD into the relay. Re-note live
+    /// peers every few seconds so the TTL keeps them.
+    #[frb(sync)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn lan_note_peer(
+        &self,
+        device_id: String,
+        branch_id: String,
+        host: String,
+        port: u16,
+        role: String,
+        station_id: Option<String>,
+        device_code: Option<String>,
+    ) -> bool {
+        self.inner
+            .lan_note_peer(device_id, branch_id, host, port, role, station_id, device_code)
     }
 
     /// Whether the LAN relay is currently running.

@@ -583,6 +583,10 @@ class ReceiptView {
   /// Prices already contained the tax: "Prices include VAT", tax as included.
   final bool taxInclusive;
 
+  /// The rate THIS bill was taxed at, frozen at ring-up (`0.14` = 14%) — a
+  /// reprint shows this, never today's policy.
+  final double taxRate;
+
   /// A service charge removed from this table's bill, and by whom.
   final PlatformInt64 serviceChargeWaivedMinor;
   final String? serviceChargeWaivedByName;
@@ -636,6 +640,7 @@ class ReceiptView {
     required this.taxMinor,
     required this.serviceChargeMinor,
     required this.taxInclusive,
+    required this.taxRate,
     required this.serviceChargeWaivedMinor,
     this.serviceChargeWaivedByName,
     required this.deliveryFeeMinor,
@@ -674,6 +679,7 @@ class ReceiptView {
       taxMinor.hashCode ^
       serviceChargeMinor.hashCode ^
       taxInclusive.hashCode ^
+      taxRate.hashCode ^
       serviceChargeWaivedMinor.hashCode ^
       serviceChargeWaivedByName.hashCode ^
       deliveryFeeMinor.hashCode ^
@@ -714,6 +720,7 @@ class ReceiptView {
           taxMinor == other.taxMinor &&
           serviceChargeMinor == other.serviceChargeMinor &&
           taxInclusive == other.taxInclusive &&
+          taxRate == other.taxRate &&
           serviceChargeWaivedMinor == other.serviceChargeWaivedMinor &&
           serviceChargeWaivedByName == other.serviceChargeWaivedByName &&
           deliveryFeeMinor == other.deliveryFeeMinor &&

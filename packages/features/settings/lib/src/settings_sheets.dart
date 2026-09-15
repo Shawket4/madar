@@ -8,6 +8,7 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_auth/feature_auth.dart' show showReconfigureSheet;
 import 'package:feature_checkout/feature_checkout.dart' show PrintState;
 import 'package:feature_settings/src/labels.dart';
 import 'package:feature_settings/src/settings_provider.dart';
@@ -386,9 +387,16 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
   late final TextEditingController _code;
   late final TextEditingController _hub;
 
+  /// Re-reads the (local, sync) LAN status while the sheet is open, so peers
+  /// found and a retry that succeeded show up without reopening it.
+  Timer? _lanTick;
+
   @override
   void initState() {
     super.initState();
+    _lanTick = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted) setState(() {});
+    });
     final bridge = ref.read(bridgeProvider);
     _code = TextEditingController(text: bridge.deviceCode());
     _hub = TextEditingController(text: bridge.deviceConfig().lanHub ?? '');
@@ -396,22 +404,15 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
 
   @override
   void dispose() {
+    _lanTick?.cancel();
     _code.dispose();
     _hub.dispose();
     super.dispose();
   }
 
-  /// Pop the sheet AND the settings screen, then refresh the shell — the
-  /// route flips to DeviceSetup on the shell subtree, not under an overlay.
-  Future<void> _reconfigure() async {
-    final shell = ref.read(shellProvider.notifier);
-    final ok = await ref.read(settingsProvider.notifier).reconfigure();
-    if (!ok || !mounted) return;
-    final navigator = Navigator.of(context);
-    await navigator.maybePop();
-    await navigator.maybePop();
-    shell.refresh();
-  }
+  /// The gated fresh install: the reconfigure sheet shows every blocker and
+  /// wipes only once the core allows it.
+  Future<void> _reconfigure() => showReconfigureSheet(context);
 
   @override
   Widget build(BuildContext context) {
@@ -419,11 +420,16 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
     String t(String key) => bridge.tr(key: key);
     final notifier = ref.read(settingsProvider.notifier);
     final config = ref.watch(settingsProvider.select((s) => s.config));
-    final hasOpenTill = ref.watch(
-      settingsProvider.select((s) => s.hasOpenTill),
-    );
     final error = ref.watch(settingsProvider.select((s) => s.error));
-    final lanActive = bridge.lanActive();
+    final lan = bridge.lanStatus();
+    final lanActive = lan.running;
+    final lanError = lan.lastError;
+    final discovery = [
+      if (lan.nativeDiscoveryActive) t('settings.lan_disc_bonjour'),
+      if (lan.mdnsActive) t('settings.lan_disc_mdns'),
+      if (lan.beaconActive) t('settings.lan_disc_beacon'),
+      if (lan.manualHubCount > 0) t('settings.lan_disc_manual'),
+    ];
     return _SheetFrame(
       title: t('settings.device'),
       children: [
@@ -461,15 +467,33 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
               : '—',
           tone: lanActive ? MadarTone.success : null,
         ),
+        if (lanActive) ...[
+          MadarSummaryLine(
+            label: t('settings.lan_port'),
+            value: '${lan.tcpPort ?? '—'}',
+          ),
+          MadarSummaryLine(
+            label: t('settings.lan_discovery'),
+            value: discovery.isEmpty
+                ? t('settings.lan_discovery_none')
+                : discovery.join(' · '),
+            muted: discovery.isEmpty,
+          ),
+        ],
+        if (!lanActive && lanError != null) ...[
+          MadarSummaryLine(
+            label: t('settings.lan_last_error'),
+            value: lanError,
+            tone: MadarTone.warning,
+          ),
+          _Caption(t('settings.lan_retrying')),
+        ],
         MadarButton(
           label: t('settings.reconfigure'),
           glyph: MadarGlyph.settings,
           variant: MadarButtonVariant.secondary,
-          enabled: !hasOpenTill,
-          tooltip: hasOpenTill ? t('settings.reconfigure_shift_open') : null,
           onTap: () => unawaited(_reconfigure()),
         ),
-        if (hasOpenTill) _Caption(t('settings.reconfigure_shift_open')),
       ],
     );
   }

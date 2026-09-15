@@ -16,6 +16,7 @@ Name | Type | Description | Notes
 **old_bill_hours** | **u32** | A bill left open longer than this many hours is flagged as OLD (till open notice, close warning, Z report). 1..168, default 3. | 
 **org_id** | **uuid::Uuid** |  | 
 **org_logo_url** | Option<**String**> | Convenience field — populated from the parent org's `logo_url`. | [optional]
+**org_receipt_footer** | Option<**String**> | Convenience field — the parent org's receipt footer text (dashboard org settings). `None` → the POS prints its default footer. | [optional]
 **phone** | Option<**String**> |  | [optional]
 **printer_brand** | Option<[**models::PrinterBrand**](PrinterBrand.md)> |  | [optional]
 **printer_ip** | Option<**String**> |  | [optional]

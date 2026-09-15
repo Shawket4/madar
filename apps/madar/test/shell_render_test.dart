@@ -106,9 +106,9 @@ final _items = <MenuItemView>[
 ];
 
 const _categories = <CategoryView>[
-  CategoryView(id: 'hot', name: 'Hot', isActive: true),
-  CategoryView(id: 'cold', name: 'Cold', isActive: true),
-  CategoryView(id: 'food', name: 'Food', isActive: true),
+  CategoryView(id: 'hot', name: 'Hot', isActive: true, displayOrder: 0),
+  CategoryView(id: 'cold', name: 'Cold', isActive: true, displayOrder: 0),
+  CategoryView(id: 'food', name: 'Food', isActive: true, displayOrder: 0),
 ];
 
 CartLineView _cartLine(String id, String name, int price, int qty) =>
@@ -764,6 +764,17 @@ class _FakeBridge implements MadarBridge {
     // segment — the shell's tab set is unchanged by it either way.
     if (name == #kitchenRoutingMode) return Future<String?>.value('kds');
     if (name == #lanActive) return true;
+    if (name == #lanStatus) {
+      return const LanStatusView(
+        running: true,
+        peerCount: 2,
+        manualHubCount: 0,
+        tcpPort: 47600,
+        beaconActive: true,
+        mdnsActive: true,
+        nativeDiscoveryActive: true,
+      );
+    }
     if (name == #lanPeerCount) return 2;
     if (name == #recentLogs) return Future<List<DiagLogView>>.value(const []);
     if (name == #refreshFloor || name == #refreshCatalog) {

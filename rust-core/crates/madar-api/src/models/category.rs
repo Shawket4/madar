@@ -22,6 +22,9 @@ pub struct Category {
         skip_serializing_if = "Option::is_none"
     )]
     pub deleted_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// Drag-and-drop position (lower first); ties break on name. Set via `PUT /categories/order`.
+    #[serde(rename = "display_order")]
+    pub display_order: i32,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     /// Asset refs (Track B4, §11.10); null when no asset or not attached by this endpoint.
@@ -54,6 +57,7 @@ pub struct Category {
 impl Category {
     pub fn new(
         created_at: chrono::DateTime<chrono::FixedOffset>,
+        display_order: i32,
         id: uuid::Uuid,
         is_active: bool,
         name: String,
@@ -64,6 +68,7 @@ impl Category {
         Category {
             created_at,
             deleted_at: None,
+            display_order,
             id,
             image: None,
             image_url: None,

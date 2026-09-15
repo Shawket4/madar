@@ -491,6 +491,7 @@ pub struct PeerNote {
 /// What this device advertises over native Bonjour: the same TXT fields the Rust
 /// mDNS advert carries (`branch_id`, `device_id`, `role`, `station_id`,
 /// `device_code`, `tcp_port`).
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LanAdvertView {
     pub device_id: String,
@@ -502,6 +503,7 @@ pub struct LanAdvertView {
 }
 
 /// The LAN relay's health, for Settings and the retry loop.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct LanStatusView {
     pub running: bool,

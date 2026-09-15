@@ -222,6 +222,7 @@ const _receipt1042 = ReceiptView(
   displayNumber: '',
   serviceChargeWaivedMinor: 0,
   taxInclusive: false,
+  taxRate: 0.14,
 );
 
 /// A bridge that answers what Orders asks, from fixtures. [online] false is

@@ -231,16 +231,6 @@ class AuthNotifier extends Notifier<AuthState> {
     return failure == null;
   }
 
-  /// Re-enter device setup (natives' `beginReconfigure`) — the route/form
-  /// recomputes to the manager setup flow.
-  Future<void> beginReconfigure() async {
-    try {
-      await _bridge.startReconfigure();
-    } on Exception catch (_) {}
-    state = state.copyWith(configVersion: state.configVersion + 1);
-    _refreshShell();
-  }
-
   /// Best-effort logout — setup auth failures must never strand a session.
   Future<void> _quietLogout() async {
     try {

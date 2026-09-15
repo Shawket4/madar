@@ -127,11 +127,58 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Empty EVERY context's cart and meta (sign-out / shift close).
   Future<void> cartClearAll();
 
+  /// Clear EVERY kitchen note in this cart (cart-level + every line's own)
+  /// in one go — call once the whole-cart kitchen print has actually
+  /// printed.
+  Future<void> cartClearAllKitchenNotes({String? tableId});
+
   /// Remove the cart discount.
   Future<void> cartClearDiscount({String? tableId});
 
+  /// Clear the cart-level kitchen note — call once the whole-cart chit has
+  /// actually printed.
+  Future<void> cartClearKitchenNote({String? tableId});
+
+  /// Clear one line's kitchen note — call once that line's chit has
+  /// actually printed.
+  Future<void> cartClearLineKitchenNote({
+    String? tableId,
+    required String lineKey,
+  });
+
   /// The selected discount id (for the tender UI), or `None`.
   Future<String?> cartDiscountId({String? tableId});
+
+  /// The WHOLE cart as one kitchen print (the cart-level print button):
+  /// every line's chit, one after another, each carrying its own kitchen
+  /// note, plus the cart-level kitchen note. Always to the till printer —
+  /// a whole-cart copy is a manual/backup pass, not per-station routing.
+  /// Local only; marks nothing sent; checkout/fire printing is unchanged.
+  Future<CartKitchenChit> cartKitchenChit({
+    String? tableId,
+    String? tableLabel,
+    String? ticketRef,
+    required int width,
+    required PrinterBrand tillBrand,
+  });
+
+  /// The cart's kitchen-only note, or `None`.
+  Future<String?> cartKitchenNote({String? tableId});
+
+  /// ONE cart line as a kitchen chit, sent early from the cart (the per-line
+  /// print button). Renders the chit with the kitchen chit renderer and
+  /// routes it like a fired round: the item's station printer, else the
+  /// till printer (`target.host == null`). Returns the bytes for that
+  /// printer, the same document as preview lines for the preview sheet, and
+  /// the target. Local only; marks nothing sent.
+  Future<CartLineChit> cartLineChit({
+    String? tableId,
+    required String lineKey,
+    String? tableLabel,
+    String? ticketRef,
+    required int width,
+    required PrinterBrand tillBrand,
+  });
 
   /// The current cart lines (empty when none).
   Future<List<CartLineView>> cartLines({String? tableId});
@@ -171,6 +218,18 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// Apply a discount (by id) to the cart — reflected in `cart_totals`.
   Future<void> cartSetDiscount({String? tableId, required String discountId});
+
+  /// Set or clear (None / blank) the CART-level kitchen note (the
+  /// whole-cart kitchen print's own note). Local only.
+  Future<void> cartSetKitchenNote({String? tableId, String? note});
+
+  /// Set or clear (None / blank) ONE cart line's KITCHEN-ONLY note (by its
+  /// [`CartLineView.key`]). Local only — never checkout, never the receipt.
+  Future<void> cartSetLineKitchenNote({
+    String? tableId,
+    required String lineKey,
+    String? note,
+  });
 
   /// Replace one context's cart meta (reset when that cart is spent).
   Future<void> cartSetMeta({String? tableId, required CartMeta meta});
@@ -468,10 +527,25 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Whether the LAN relay is currently running.
   bool lanActive();
 
+  /// This device's native Bonjour advert, or `None` while the relay is down.
+  LanAdvertView? lanAdvert();
+
   /// The LAN shift-open gate: is a till at this branch advertising a FRESH open
   /// shift right now? The freshest "is the branch operating" signal (it beats the
   /// backend, which may not yet know a till opened/closed). `false` if not running.
   bool lanBranchHasOpenTill();
+
+  /// Feed a peer resolved by native Bonjour/NSD into the relay. Re-note live
+  /// peers every few seconds so the TTL keeps them.
+  bool lanNotePeer({
+    required String deviceId,
+    required String branchId,
+    required String host,
+    required int port,
+    required String role,
+    String? stationId,
+    String? deviceCode,
+  });
 
   /// Live discovered peers + manual hubs (a "LAN: N devices" diagnostics chip).
   int lanPeerCount();
@@ -481,6 +555,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// (mDNS + UDP beacon), advertises this till's open shift, and wires any manual
   /// hub. Safe to call after every login — a no-op if already running.
   Future<void> lanStart();
+
+  /// The LAN relay's health: running, peers, last start error, bound port, and
+  /// which discovery layers are live.
+  LanStatusView lanStatus();
 
   /// Stop + tear down the LAN relay (idempotent). Call on logout / branch switch.
   Future<void> lanStop();
@@ -686,9 +764,21 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// drain or pull. False when unreachable (not yet counted as offline).
   Future<bool> probeConnectivity();
 
+  /// The line at the foot of a customer receipt: the org's own footer from
+  /// the dashboard, or the localized "Thank you!" when none is set. Local.
+  String receiptFooter();
+
   /// Recent diagnostic warnings (newest first) — the Settings → Diagnostics
   /// feed. Captures sync dead-letters, cascade failures, and auth parks.
   Future<List<DiagLogView>> recentLogs();
+
+  /// "Push now": confirm online, drain the outbox, final `/sync/pull`, and
+  /// record the outcome the reconfigure gate reads.
+  Future<ReconfigureReadinessView> reconfigurePushNow();
+
+  /// Whether this device may be reconfigured now, with every blocker and its
+  /// live count. Local only (no network) — safe on a tick.
+  ReconfigureReadinessView reconfigureReadiness();
 
   Future<CashMovementView> recordCashMovement({
     required PlatformInt64 amountMinor,
@@ -965,8 +1055,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required RustStreamSink<AlertCommand> alerts,
   });
 
-  /// Re-enter device setup (keeps the binding but forces the setup screen until
-  /// `set_device_branch` confirms a — possibly new — branch).
+  /// Reconfigure = a gated fresh install: refused unless readiness allows it;
+  /// otherwise wipes every local row, cache, the session, the offline bundle
+  /// and the device id (printer settings kept) → the device-setup screen.
   Future<void> startReconfigure();
 
   Future<PlatformInt64> suggestedOpeningCashMinor();

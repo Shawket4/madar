@@ -1364,43 +1364,44 @@ class OrderNotifier extends Notifier<OrderState> {
 
   /// Print ONE dish's chit on request — the per-line button in the cart.
   /// Loud where [printRound] is silent: somebody asked for this one.
+  ///
+  /// An EXTRA early chit: nothing is marked sent and the round still prints
+  /// in full when it fires. The core builds the chit and routes it (the
+  /// item's station printer, else the till's); this only delivers it through
+  /// the shared chit print path and says how it went.
   Future<void> printKitchenChit(
     CartLineView line, {
+    required String? tableId,
     String? tableLabel,
     String? ticketRef,
   }) async {
-    final tx = ref.read(printerServiceProvider).activeTransport();
-    if (tx == null) {
-      showToast(
-        _tr('printing.no_printer'),
-        tone: ChipTone.warning,
-        icon: 'printer',
-      );
-      return;
-    }
-    final bytes = await _chitBytes(line, tableLabel, ticketRef);
-    if (bytes == null) {
-      showToast(
-        _tr('printing.failed'),
-        tone: ChipTone.danger,
-        icon: 'xmark.circle',
-      );
-      return;
-    }
+    PrintState result;
     try {
-      await tx.send(bytes);
-      showToast(
-        _tr('printing.chit_sent'),
-        tone: ChipTone.success,
-        icon: 'printer',
+      final chit = await buildCartLineChit(
+        _bridge,
+        tableId: tableId,
+        lineKey: line.key,
+        tableLabel: tableLabel,
+        ticketRef: ticketRef,
       );
-    } on Exception {
-      showToast(
-        _tr('printing.failed'),
-        tone: ChipTone.danger,
-        icon: 'xmark.circle',
+      result = await printCartLineChit(
+        _bridge,
+        ref.read(printerServiceProvider),
+        chit,
       );
+      // The kitchen note was for THIS chit only — once it is actually in the
+      // cook's hand, the scribble has done its job.
+      if (result == PrintState.printed) {
+        await _bridge.cartClearLineKitchenNote(
+          tableId: tableId,
+          lineKey: line.key,
+        );
+      }
+    } on Object {
+      result = PrintState.failed;
     }
+    final toast = chitPrintToast(_bridge, result);
+    showToast(toast.text, tone: toast.tone, icon: toast.icon);
   }
 
   /// One dish rendered for the kitchen. `null` when the core could not lay it

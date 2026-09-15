@@ -131,6 +131,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   KitchenChit dco_decode_box_autoadd_kitchen_chit(dynamic raw);
 
   @protected
+  LanAdvertView dco_decode_box_autoadd_lan_advert_view(dynamic raw);
+
+  @protected
   LastTillWarningView dco_decode_box_autoadd_last_till_warning_view(
     dynamic raw,
   );
@@ -201,6 +204,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CartBundleComponentView dco_decode_cart_bundle_component_view(dynamic raw);
 
   @protected
+  CartKitchenChit dco_decode_cart_kitchen_chit(dynamic raw);
+
+  @protected
+  CartLineChit dco_decode_cart_line_chit(dynamic raw);
+
+  @protected
   CartLineView dco_decode_cart_line_view(dynamic raw);
 
   @protected
@@ -232,6 +241,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CheckoutSplit dco_decode_checkout_split(dynamic raw);
+
+  @protected
+  ChitLineView dco_decode_chit_line_view(dynamic raw);
+
+  @protected
+  ChitPrinterTarget dco_decode_chit_printer_target(dynamic raw);
 
   @protected
   CloseCountCheck dco_decode_close_count_check(dynamic raw);
@@ -318,6 +333,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   KitchenChit dco_decode_kitchen_chit(dynamic raw);
 
   @protected
+  KitchenSlip dco_decode_kitchen_slip(dynamic raw);
+
+  @protected
+  KitchenSlipItem dco_decode_kitchen_slip_item(dynamic raw);
+
+  @protected
+  LanAdvertView dco_decode_lan_advert_view(dynamic raw);
+
+  @protected
+  LanStatusView dco_decode_lan_status_view(dynamic raw);
+
+  @protected
   LastTillWarningView dco_decode_last_till_warning_view(dynamic raw);
 
   @protected
@@ -388,6 +415,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<CheckoutSplit> dco_decode_list_checkout_split(dynamic raw);
 
   @protected
+  List<ChitLineView> dco_decode_list_chit_line_view(dynamic raw);
+
+  @protected
   List<CloseTillMethodView> dco_decode_list_close_till_method_view(dynamic raw);
 
   @protected
@@ -430,6 +460,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<KdsTicketView> dco_decode_list_kds_ticket_view(dynamic raw);
+
+  @protected
+  List<KitchenSlipItem> dco_decode_list_kitchen_slip_item(dynamic raw);
 
   @protected
   List<LoyaltyLedgerView> dco_decode_list_loyalty_ledger_view(dynamic raw);
@@ -495,6 +528,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<ReconciliationLineView> dco_decode_list_reconciliation_line_view(
+    dynamic raw,
+  );
+
+  @protected
+  List<ReconfigureBlockerView> dco_decode_list_reconfigure_blocker_view(
     dynamic raw,
   );
 
@@ -606,6 +644,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
 
   @protected
+  LanAdvertView? dco_decode_opt_box_autoadd_lan_advert_view(dynamic raw);
+
+  @protected
   LastTillWarningView? dco_decode_opt_box_autoadd_last_till_warning_view(
     dynamic raw,
   );
@@ -702,6 +743,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   ReconciliationLineView dco_decode_reconciliation_line_view(dynamic raw);
+
+  @protected
+  ReconfigureBlockerView dco_decode_reconfigure_blocker_view(dynamic raw);
+
+  @protected
+  ReconfigureReadinessView dco_decode_reconfigure_readiness_view(dynamic raw);
 
   @protected
   RefundLineView dco_decode_refund_line_view(dynamic raw);
@@ -919,6 +966,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   KitchenChit sse_decode_box_autoadd_kitchen_chit(SseDeserializer deserializer);
 
   @protected
+  LanAdvertView sse_decode_box_autoadd_lan_advert_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LastTillWarningView sse_decode_box_autoadd_last_till_warning_view(
     SseDeserializer deserializer,
   );
@@ -1011,6 +1063,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  CartKitchenChit sse_decode_cart_kitchen_chit(SseDeserializer deserializer);
+
+  @protected
+  CartLineChit sse_decode_cart_line_chit(SseDeserializer deserializer);
+
+  @protected
   CartLineView sse_decode_cart_line_view(SseDeserializer deserializer);
 
   @protected
@@ -1046,6 +1104,14 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CheckoutSplit sse_decode_checkout_split(SseDeserializer deserializer);
+
+  @protected
+  ChitLineView sse_decode_chit_line_view(SseDeserializer deserializer);
+
+  @protected
+  ChitPrinterTarget sse_decode_chit_printer_target(
+    SseDeserializer deserializer,
+  );
 
   @protected
   CloseCountCheck sse_decode_close_count_check(SseDeserializer deserializer);
@@ -1150,6 +1216,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   KitchenChit sse_decode_kitchen_chit(SseDeserializer deserializer);
 
   @protected
+  KitchenSlip sse_decode_kitchen_slip(SseDeserializer deserializer);
+
+  @protected
+  KitchenSlipItem sse_decode_kitchen_slip_item(SseDeserializer deserializer);
+
+  @protected
+  LanAdvertView sse_decode_lan_advert_view(SseDeserializer deserializer);
+
+  @protected
+  LanStatusView sse_decode_lan_status_view(SseDeserializer deserializer);
+
+  @protected
   LastTillWarningView sse_decode_last_till_warning_view(
     SseDeserializer deserializer,
   );
@@ -1250,6 +1328,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<ChitLineView> sse_decode_list_chit_line_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<CloseTillMethodView> sse_decode_list_close_till_method_view(
     SseDeserializer deserializer,
   );
@@ -1310,6 +1393,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<KdsTicketView> sse_decode_list_kds_ticket_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<KitchenSlipItem> sse_decode_list_kitchen_slip_item(
     SseDeserializer deserializer,
   );
 
@@ -1411,6 +1499,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<ReconciliationLineView> sse_decode_list_reconciliation_line_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ReconfigureBlockerView> sse_decode_list_reconfigure_blocker_view(
     SseDeserializer deserializer,
   );
 
@@ -1560,6 +1653,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
+  LanAdvertView? sse_decode_opt_box_autoadd_lan_advert_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LastTillWarningView? sse_decode_opt_box_autoadd_last_till_warning_view(
     SseDeserializer deserializer,
   );
@@ -1676,6 +1774,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   ReconciliationLineView sse_decode_reconciliation_line_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ReconfigureBlockerView sse_decode_reconfigure_blocker_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ReconfigureReadinessView sse_decode_reconfigure_readiness_view(
     SseDeserializer deserializer,
   );
 
@@ -1930,6 +2038,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_lan_advert_view(
+    LanAdvertView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_last_till_warning_view(
     LastTillWarningView self,
     SseSerializer serializer,
@@ -2044,6 +2158,15 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_cart_kitchen_chit(
+    CartKitchenChit self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cart_line_chit(CartLineChit self, SseSerializer serializer);
+
+  @protected
   void sse_encode_cart_line_view(CartLineView self, SseSerializer serializer);
 
   @protected
@@ -2087,6 +2210,15 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_checkout_split(CheckoutSplit self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_chit_line_view(ChitLineView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_chit_printer_target(
+    ChitPrinterTarget self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_close_count_check(
@@ -2218,6 +2350,21 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_kitchen_chit(KitchenChit self, SseSerializer serializer);
 
   @protected
+  void sse_encode_kitchen_slip(KitchenSlip self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_kitchen_slip_item(
+    KitchenSlipItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lan_advert_view(LanAdvertView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_lan_status_view(LanStatusView self, SseSerializer serializer);
+
+  @protected
   void sse_encode_last_till_warning_view(
     LastTillWarningView self,
     SseSerializer serializer,
@@ -2347,6 +2494,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_chit_line_view(
+    List<ChitLineView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_close_till_method_view(
     List<CloseTillMethodView> self,
     SseSerializer serializer,
@@ -2427,6 +2580,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_kds_ticket_view(
     List<KdsTicketView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_kitchen_slip_item(
+    List<KitchenSlipItem> self,
     SseSerializer serializer,
   );
 
@@ -2550,6 +2709,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_reconciliation_line_view(
     List<ReconciliationLineView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_reconfigure_blocker_view(
+    List<ReconfigureBlockerView> self,
     SseSerializer serializer,
   );
 
@@ -2740,6 +2905,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_lan_advert_view(
+    LanAdvertView? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_last_till_warning_view(
     LastTillWarningView? self,
     SseSerializer serializer,
@@ -2901,6 +3072,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_reconciliation_line_view(
     ReconciliationLineView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reconfigure_blocker_view(
+    ReconfigureBlockerView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reconfigure_readiness_view(
+    ReconfigureReadinessView self,
     SseSerializer serializer,
   );
 

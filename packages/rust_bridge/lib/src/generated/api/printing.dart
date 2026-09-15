@@ -6,6 +6,133 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+/// Mirrors `madar_core::receipt::CartKitchenChit` — the whole cart printed as
+/// ONE continuous kitchen slip.
+class CartKitchenChit {
+  final KitchenSlip slip;
+  final String? cartNote;
+  final Uint8List bytes;
+  final List<ChitLineView> preview;
+
+  const CartKitchenChit({
+    required this.slip,
+    this.cartNote,
+    required this.bytes,
+    required this.preview,
+  });
+
+  @override
+  int get hashCode =>
+      slip.hashCode ^ cartNote.hashCode ^ bytes.hashCode ^ preview.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CartKitchenChit &&
+          runtimeType == other.runtimeType &&
+          slip == other.slip &&
+          cartNote == other.cartNote &&
+          bytes == other.bytes &&
+          preview == other.preview;
+}
+
+/// Mirrors `madar_core::receipt::CartLineChit` — a cart line's chit, ready to
+/// print and to preview.
+class CartLineChit {
+  final KitchenSlip chit;
+  final List<ChitLineView> preview;
+  final Uint8List bytes;
+  final ChitPrinterTarget target;
+
+  const CartLineChit({
+    required this.chit,
+    required this.preview,
+    required this.bytes,
+    required this.target,
+  });
+
+  @override
+  int get hashCode =>
+      chit.hashCode ^ preview.hashCode ^ bytes.hashCode ^ target.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CartLineChit &&
+          runtimeType == other.runtimeType &&
+          chit == other.chit &&
+          preview == other.preview &&
+          bytes == other.bytes &&
+          target == other.target;
+}
+
+/// Mirrors `madar_core::receipt::ChitLineView` — one printed chit line for the
+/// preview sheet.
+class ChitLineView {
+  final String text;
+  final bool centered;
+  final bool bold;
+  final bool large;
+
+  const ChitLineView({
+    required this.text,
+    required this.centered,
+    required this.bold,
+    required this.large,
+  });
+
+  @override
+  int get hashCode =>
+      text.hashCode ^ centered.hashCode ^ bold.hashCode ^ large.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ChitLineView &&
+          runtimeType == other.runtimeType &&
+          text == other.text &&
+          centered == other.centered &&
+          bold == other.bold &&
+          large == other.large;
+}
+
+/// Mirrors `madar_core::kds::ChitPrinterTarget` — where a chit prints.
+/// `host == null` means the device's till printer.
+class ChitPrinterTarget {
+  final String? stationId;
+  final String? stationName;
+  final String? host;
+  final int? port;
+  final String? brand;
+
+  const ChitPrinterTarget({
+    this.stationId,
+    this.stationName,
+    this.host,
+    this.port,
+    this.brand,
+  });
+
+  @override
+  int get hashCode =>
+      stationId.hashCode ^
+      stationName.hashCode ^
+      host.hashCode ^
+      port.hashCode ^
+      brand.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ChitPrinterTarget &&
+          runtimeType == other.runtimeType &&
+          stationId == other.stationId &&
+          stationName == other.stationName &&
+          host == other.host &&
+          port == other.port &&
+          brand == other.brand;
+}
+
 /// One item, for the people cooking it.
 ///
 /// Mirrors `madar_core::receipt::KitchenChit` so the host can build one. A
@@ -21,6 +148,7 @@ class KitchenChit {
   final String? tableLabel;
   final String? ticketRef;
   final String at;
+  final String? teller;
 
   const KitchenChit({
     required this.item,
@@ -31,6 +159,7 @@ class KitchenChit {
     this.tableLabel,
     this.ticketRef,
     required this.at,
+    this.teller,
   });
 
   @override
@@ -42,7 +171,8 @@ class KitchenChit {
       note.hashCode ^
       tableLabel.hashCode ^
       ticketRef.hashCode ^
-      at.hashCode;
+      at.hashCode ^
+      teller.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -56,7 +186,87 @@ class KitchenChit {
           note == other.note &&
           tableLabel == other.tableLabel &&
           ticketRef == other.ticketRef &&
-          at == other.at;
+          at == other.at &&
+          teller == other.teller;
+}
+
+/// Mirrors `madar_core::receipt::KitchenSlip` — a kitchen slip: one header,
+/// the notes that apply to the whole slip printed once at the top, then one
+/// or more items each with only its own note.
+class KitchenSlip {
+  final String? tableLabel;
+  final String? ticketRef;
+  final String at;
+  final String? teller;
+  final List<String> topNotes;
+  final List<KitchenSlipItem> items;
+
+  const KitchenSlip({
+    this.tableLabel,
+    this.ticketRef,
+    required this.at,
+    this.teller,
+    required this.topNotes,
+    required this.items,
+  });
+
+  @override
+  int get hashCode =>
+      tableLabel.hashCode ^
+      ticketRef.hashCode ^
+      at.hashCode ^
+      teller.hashCode ^
+      topNotes.hashCode ^
+      items.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is KitchenSlip &&
+          runtimeType == other.runtimeType &&
+          tableLabel == other.tableLabel &&
+          ticketRef == other.ticketRef &&
+          at == other.at &&
+          teller == other.teller &&
+          topNotes == other.topNotes &&
+          items == other.items;
+}
+
+/// Mirrors `madar_core::receipt::KitchenSlipItem` — one item's line on a
+/// kitchen slip: no header, no top note (those print once for the slip).
+class KitchenSlipItem {
+  final String item;
+  final PlatformInt64 qty;
+  final String? sizeLabel;
+  final List<String> modifiers;
+  final String? note;
+
+  const KitchenSlipItem({
+    required this.item,
+    required this.qty,
+    this.sizeLabel,
+    required this.modifiers,
+    this.note,
+  });
+
+  @override
+  int get hashCode =>
+      item.hashCode ^
+      qty.hashCode ^
+      sizeLabel.hashCode ^
+      modifiers.hashCode ^
+      note.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is KitchenSlipItem &&
+          runtimeType == other.runtimeType &&
+          item == other.item &&
+          qty == other.qty &&
+          sizeLabel == other.sizeLabel &&
+          modifiers == other.modifiers &&
+          note == other.note;
 }
 
 /// Which thermal-printer command dialect to emit. Epson (ESC/POS) and Star

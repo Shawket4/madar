@@ -118,6 +118,9 @@ pub struct _CartLineView {
     pub line_total_minor: i64,
     pub bundle_id: Option<String>,
     pub bundle_components: Vec<CartBundleComponentView>,
+    /// A KITCHEN-ONLY note for this line — never on the checkout payload,
+    /// never on the customer receipt. Cleared once this line's chit prints.
+    pub kitchen_note: Option<String>,
 }
 
 /// The priced cart summary the host shows in the cart panel + action-bar badge.
@@ -527,6 +530,57 @@ impl MadarBridge {
     /// The cart's order note, or `None`.
     pub fn cart_note(&self, table_id: Option<String>) -> Result<Option<String>, MadarError> {
         self.inner.cart_note(table_id).map_err(MadarError::from)
+    }
+
+    /// Set or clear (None / blank) ONE cart line's KITCHEN-ONLY note (by its
+    /// [`CartLineView.key`]). Local only — never checkout, never the receipt.
+    pub fn cart_set_line_kitchen_note(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+        note: Option<String>,
+    ) -> Result<(), MadarError> {
+        self.inner
+            .cart_set_line_kitchen_note(table_id, line_key, note)
+            .map_err(MadarError::from)
+    }
+
+    /// Clear one line's kitchen note — call once that line's chit has
+    /// actually printed.
+    pub fn cart_clear_line_kitchen_note(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+    ) -> Result<(), MadarError> {
+        self.inner
+            .cart_clear_line_kitchen_note(table_id, line_key)
+            .map_err(MadarError::from)
+    }
+
+    /// Set or clear (None / blank) the CART-level kitchen note (the
+    /// whole-cart kitchen print's own note). Local only.
+    pub fn cart_set_kitchen_note(&self, table_id: Option<String>, note: Option<String>) -> Result<(), MadarError> {
+        self.inner.cart_set_kitchen_note(table_id, note).map_err(MadarError::from)
+    }
+
+    /// The cart's kitchen-only note, or `None`.
+    pub fn cart_kitchen_note(&self, table_id: Option<String>) -> Result<Option<String>, MadarError> {
+        self.inner.cart_kitchen_note(table_id).map_err(MadarError::from)
+    }
+
+    /// Clear the cart-level kitchen note — call once the whole-cart chit has
+    /// actually printed.
+    pub fn cart_clear_kitchen_note(&self, table_id: Option<String>) -> Result<(), MadarError> {
+        self.inner.cart_clear_kitchen_note(table_id).map_err(MadarError::from)
+    }
+
+    /// Clear EVERY kitchen note in this cart (cart-level + every line's own)
+    /// in one go — call once the whole-cart kitchen print has actually
+    /// printed.
+    pub fn cart_clear_all_kitchen_notes(&self, table_id: Option<String>) -> Result<(), MadarError> {
+        self.inner
+            .cart_clear_all_kitchen_notes(table_id)
+            .map_err(MadarError::from)
     }
 
     /// The selected discount id (for the tender UI), or `None`.

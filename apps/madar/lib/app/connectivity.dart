@@ -34,11 +34,16 @@ class ConnectivityService with WidgetsBindingObserver {
     required this.core,
     required this.onPulse,
     required this.onReconnect,
+    this.onNetworkSignal,
   });
 
   final MadarCore core;
   final VoidCallback onPulse;
   final VoidCallback onReconnect;
+
+  /// Any OS network change or app resume, online or not — the LAN relay
+  /// needs no internet, so it retries on these rather than on [onReconnect].
+  final VoidCallback? onNetworkSignal;
 
   /// Drain-probe cadence — active ONLY while the outbox has pending/failed
   /// rows; cancelled the moment it drains.
@@ -65,6 +70,7 @@ class ConnectivityService with WidgetsBindingObserver {
   void start() {
     WidgetsBinding.instance.addObserver(this);
     _sub = _connectivity.onConnectivityChanged.listen((_) {
+      onNetworkSignal?.call();
       // Whether the OS reports a network or none, confirm with a real probe —
       // "connected" can still be a captive portal or an unreachable server.
       unawaited(_probe(force: true));
@@ -81,7 +87,10 @@ class ConnectivityService with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_probe(force: true));
+    if (state == AppLifecycleState.resumed) {
+      onNetworkSignal?.call();
+      unawaited(_probe(force: true));
+    }
   }
 
   /// Re-check connectivity after a failed transport request. Registered on

@@ -285,6 +285,7 @@ ReceiptView _receipt({required bool queued, int? number}) => ReceiptView(
   displayNumber: '',
   serviceChargeWaivedMinor: 0,
   taxInclusive: false,
+  taxRate: 0.14,
 );
 
 const _session = SessionSnapshot(
@@ -352,6 +353,7 @@ class _FakeBridge implements MadarBridge {
       );
     }
     if (name == #orgLogoLocalPath) return null;
+    if (name == #receiptFooter) return 'Thank you!';
     // The core's effective set (branch ∩ teller ∩ device); the full org
     // list is never what Charge shows.
     if (name == #availablePaymentMethods) {

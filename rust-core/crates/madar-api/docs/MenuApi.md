@@ -48,6 +48,7 @@ Method | HTTP request | Description
 [**put_price_override**](MenuApi.md#put_price_override) | **PUT** /menu-price-overrides | 
 [**put_size_recipe**](MenuApi.md#put_size_recipe) | **PUT** /menu-item-sizes/{size_id}/recipe | 
 [**put_sizes**](MenuApi.md#put_sizes) | **PUT** /menu-items/{id}/sizes | 
+[**reorder_categories**](MenuApi.md#reorder_categories) | **PUT** /categories/order | 
 [**update_addon_item**](MenuApi.md#update_addon_item) | **PATCH** /addon-items/{id} | 
 [**update_addon_slot**](MenuApi.md#update_addon_slot) | **PATCH** /menu-items/{id}/addon-slots/{slot_id} | 
 [**update_category**](MenuApi.md#update_category) | **PATCH** /categories/{id} | 
@@ -780,7 +781,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_addon_items
 
-> Vec<models::AddonItem> list_addon_items(org_id, addon_type, branch_id)
+> Vec<models::AddonItem> list_addon_items(org_id, addon_type, branch_id, search, page, per_page)
 
 
 ### Parameters
@@ -791,6 +792,9 @@ Name | Type | Description  | Required | Notes
 **org_id** | **uuid::Uuid** |  | [required] |
 **addon_type** | Option<**String**> |  |  |
 **branch_id** | Option<**uuid::Uuid**> | When set, prices are branch-effective (override replaces default_price) and addons disabled at this branch are excluded — the per-branch addon list the POS consumes. Omitted → the plain org list (legacy behaviour). |  |
+**search** | Option<**String**> | Case-insensitive filter on the addon name. |  |
+**page** | Option<**i64**> | Sending `page` or `per_page` switches the response to the paginated shape (`PaginatedAddonItems`); without either it stays the plain array the POS and old clients read. |  |
+**per_page** | Option<**i64**> |  |  |
 
 ### Return type
 
@@ -1317,6 +1321,34 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::StudioAggregate**](StudioAggregate.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## reorder_categories
+
+> Vec<models::Category> reorder_categories(reorder_categories_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**reorder_categories_request** | [**ReorderCategoriesRequest**](ReorderCategoriesRequest.md) |  | [required] |
+
+### Return type
+
+[**Vec<models::Category>**](Category.md)
 
 ### Authorization
 
