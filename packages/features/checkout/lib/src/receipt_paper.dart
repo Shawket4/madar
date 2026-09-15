@@ -20,16 +20,17 @@ const double _paperRadius = 10;
 const double _paperPad = 18;
 const double _paperGap = 6;
 
-/// Org logo box (natives: max 60×220.dp, 6.dp bottom gap) — aspect-preserved
+/// Org logo box — 50% over the old 60×220, aspect-preserved
 /// so a wide wordmark or a square mark both render without cropping.
-const double _logoMaxHeight = 60;
-const double _logoMaxWidth = 220;
+const double _logoMaxHeight = 90;
+const double _logoMaxWidth = 320;
 
-/// Type sizes on the paper (natives: 15/13/12/11.sp).
-const double _storeSize = 15;
-const double _boldRowSize = 13;
-const double _rowSize = 12;
-const double _metaSize = 11;
+/// Type sizes on the paper — larger, like the printed receipt.
+const double _storeSize = 19;
+const double _orderNumberSize = 30;
+const double _boldRowSize = 15;
+const double _rowSize = 14;
+const double _metaSize = 13;
 
 /// The on-screen receipt paper — renders a [ReceiptView] as the printed
 /// layout: org logo/name header, order + delivery meta, line items with
@@ -59,13 +60,11 @@ class ReceiptPaper extends ConsumerWidget {
   /// from the server's ref) — else "Order #12" when only the server number is
   /// known, else the local order id's first uuid segment (the natives'
   /// orderTitle).
-  String _orderTitle(String label) {
-    if (receipt.displayNumber.isNotEmpty) {
-      return '$label #${receipt.displayNumber}';
-    }
+  String _orderNumber() {
+    if (receipt.displayNumber.isNotEmpty) return '#${receipt.displayNumber}';
     final number = receipt.orderNumber;
-    if (number != null) return '$label #$number';
-    return '$label ${receipt.localOrderId.split('-').first.toUpperCase()}';
+    if (number != null) return '#$number';
+    return receipt.localOrderId.split('-').first.toUpperCase();
   }
 
   @override
@@ -130,15 +129,47 @@ class ReceiptPaper extends ConsumerWidget {
             ],
           ),
           const _Rule(),
-          _MoneyRow(
-            left: _orderTitle(tr('receipt.order')),
-            right: bridge.formatTime(
-              rfc3339: r.createdAt,
-              style: TimeStyle.receipt,
-            ),
+          // The order number, big and boxed — the printed receipt's header.
+          Column(
+            spacing: _paperGap,
+            children: [
+              _Mono(
+                tr('receipt.order').toUpperCase(),
+                size: _metaSize,
+                weight: FontWeight.w700,
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Paper.ink, width: 2),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Space.lg,
+                    vertical: Space.xs,
+                  ),
+                  child: _Mono(
+                    _orderNumber(),
+                    size: _orderNumberSize,
+                    weight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              _Mono(
+                bridge.formatTime(
+                  rfc3339: r.createdAt,
+                  style: TimeStyle.receipt,
+                ),
+                size: _metaSize,
+                weight: FontWeight.w700,
+              ),
+              if (r.orderRef != null)
+                _Mono(
+                  '${tr('receipt.ref')}: ${r.orderRef}',
+                  size: _metaSize,
+                  weight: FontWeight.w700,
+                ),
+            ],
           ),
-          if (r.orderRef != null)
-            _MoneyRow(left: '${tr('receipt.ref')}: ${r.orderRef}', right: ''),
           const _Rule(),
           if (r.isDelivery) ...[
             if (r.customerName != null)
@@ -247,18 +278,18 @@ class ReceiptPaper extends ConsumerWidget {
           Column(
             spacing: _paperGap,
             children: [
+              // The payment method, then only the org's footer (or the
+              // default thank-you) — as printed.
               _Mono(
                 r.paymentLabel.toUpperCase(),
-                size: _metaSize,
-                weight: FontWeight.w600,
+                size: _rowSize,
+                weight: FontWeight.w700,
               ),
-              if (r.tellerName != null)
-                _Mono(
-                  '${tr('receipt.served_by')} ${r.tellerName}',
-                  size: _metaSize,
-                  color: Paper.faint,
-                ),
-              _Mono(tr('receipt.thank_you'), size: _rowSize),
+              _Mono(
+                bridge.receiptFooter(),
+                size: _rowSize,
+                weight: FontWeight.w700,
+              ),
             ],
           ),
         ],
@@ -267,8 +298,10 @@ class ReceiptPaper extends ConsumerWidget {
   }
 }
 
-/// One receipt line: `qty× name (size) … amount`, then its modifiers — a
-/// bundle indents its components with their own addons/optionals.
+/// One receipt line, as printed: the base price for ONE unit, each paid
+/// modifier with what it adds to one unit, then "2 × 95.00 … 190.00". A line
+/// with no paid modifiers stays one row; a line whose per-unit split does not
+/// divide exactly (a reward) shows its total only.
 class _LineBlock extends StatelessWidget {
   const _LineBlock({required this.line, required this.money});
 
@@ -277,14 +310,31 @@ class _LineBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final qty = line.qty < 1 ? 1 : line.qty;
+    final mods = line.isBundle
+        ? [
+            for (final c in line.components) ...[...c.addons, ...c.optionals],
+          ]
+        : [...line.addons, ...line.optionals];
+    final paid = mods.fold<int>(
+      0,
+      (sum, m) => sum + (m.priceMinor > 0 ? m.priceMinor : 0),
+    );
+    final perUnit = line.lineTotalMinor % qty == 0
+        ? line.lineTotalMinor ~/ qty
+        : null;
+    final base = perUnit == null ? null : perUnit - paid;
+    final priced = base != null && base >= 0 && paid > 0;
+    final name = _nameWithSize(line.name, line.sizeLabel);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       spacing: _paperGap,
       children: [
         _MoneyRow(
-          left: '${line.qty}× ${_nameWithSize(line.name, line.sizeLabel)}',
-          right: money(line.lineTotalMinor),
+          left: priced || qty == 1 ? name : '$qty× $name',
+          right: money(priced ? base : line.lineTotalMinor),
+          bold: true,
         ),
         if (line.isBundle)
           for (final c in line.components) ...[
@@ -294,39 +344,50 @@ class _LineBlock extends StatelessWidget {
               color: Paper.faint,
               align: TextAlign.start,
             ),
-            for (final m in c.addons)
-              _ModRow(prefix: '    + ', modifier: m, money: money),
-            for (final m in c.optionals)
-              _ModRow(prefix: '    + ', modifier: m, money: money),
+            for (final m in [...c.addons, ...c.optionals])
+              _ModRow(
+                prefix: '    + ',
+                modifier: m,
+                money: money,
+                priced: priced,
+              ),
           ]
-        else ...[
-          for (final m in line.addons)
-            _ModRow(prefix: '  + ', modifier: m, money: money),
-          for (final m in line.optionals)
-            _ModRow(prefix: '  + ', modifier: m, money: money),
-        ],
+        else
+          for (final m in mods)
+            _ModRow(prefix: '  + ', modifier: m, money: money, priced: priced),
+        if (priced)
+          _MoneyRow(
+            left: '$qty × ${money(perUnit!)}',
+            right: money(line.lineTotalMinor),
+            bold: true,
+          ),
       ],
     );
   }
 }
 
-/// A priced modifier row — faint, indented, `+amount` only when charged.
+/// A modifier row — indented; `+amount` (already × its count) only when the
+/// line shows its per-unit math.
 class _ModRow extends StatelessWidget {
   const _ModRow({
     required this.prefix,
     required this.modifier,
     required this.money,
+    required this.priced,
   });
 
   final String prefix;
   final ReceiptModifierView modifier;
   final String Function(int minor) money;
+  final bool priced;
 
   @override
   Widget build(BuildContext context) {
     return _MoneyRow(
       left: '$prefix${modifier.name}',
-      right: modifier.priceMinor > 0 ? '+${money(modifier.priceMinor)}' : '',
+      right: priced && modifier.priceMinor > 0
+          ? '+${money(modifier.priceMinor)}'
+          : '',
       faint: true,
     );
   }

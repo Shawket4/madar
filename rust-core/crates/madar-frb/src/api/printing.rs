@@ -24,6 +24,13 @@ pub enum _PrinterBrand {
 }
 
 impl MadarBridge {
+    /// The line at the foot of a customer receipt: the org's own footer from
+    /// the dashboard, or the localized "Thank you!" when none is set. Local.
+    #[frb(sync)]
+    pub fn receipt_footer(&self) -> String {
+        self.inner.receipt_footer()
+    }
+
     /// Render a placed order's receipt to printer bytes ready to stream to a
     /// thermal printer (rasterized 1-bit bitmap wrapped in the brand's raster
     /// protocol). Pair with `send_to_printer`.

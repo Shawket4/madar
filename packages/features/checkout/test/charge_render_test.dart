@@ -353,6 +353,7 @@ class _FakeBridge implements MadarBridge {
       );
     }
     if (name == #orgLogoLocalPath) return null;
+    if (name == #receiptFooter) return 'Thank you!';
     // The core's effective set (branch ∩ teller ∩ device); the full org
     // list is never what Charge shows.
     if (name == #availablePaymentMethods) {

@@ -764,6 +764,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// drain or pull. False when unreachable (not yet counted as offline).
   Future<bool> probeConnectivity();
 
+  /// The line at the foot of a customer receipt: the org's own footer from
+  /// the dashboard, or the localized "Thank you!" when none is set. Local.
+  String receiptFooter();
+
   /// Recent diagnostic warnings (newest first) — the Settings → Diagnostics
   /// feed. Captures sync dead-letters, cascade failures, and auth parks.
   Future<List<DiagLogView>> recentLogs();

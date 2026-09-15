@@ -30,6 +30,7 @@ class _Bridge implements MadarBridge {
       return coreWord(i.namedArguments[#key] as String, arabic: rtl);
     }
     if (i.memberName == #formatTime) return '10 Sep 2026 · 19:45';
+    if (i.memberName == #receiptFooter) return 'Thank you!';
     if (i.memberName == #isRtl) return rtl;
     if (i.memberName == #locale) return rtl ? 'ar' : 'en';
     return null;

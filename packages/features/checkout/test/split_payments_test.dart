@@ -4,7 +4,6 @@
 // The same flow runs offline: the sheet's figures come from the core's local
 // pricing, so these drive the real notifier over a fake bridge.
 
-import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:app_core/testing.dart';
@@ -154,6 +153,7 @@ class _Fake implements MadarBridge {
       );
     }
     if (name == #orgLogoLocalPath) return null;
+    if (name == #receiptFooter) return 'Thank you!';
     if (name == #humanMessage) return 'refused';
     if (name == #availablePaymentMethods) {
       return Future<List<PaymentMethodView>>.value(_methods);

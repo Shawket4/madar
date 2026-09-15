@@ -132,6 +132,7 @@ class _Fake implements MadarBridge {
       );
     }
     if (name == #orgLogoLocalPath) return null;
+    if (name == #receiptFooter) return 'Thank you!';
     if (name == #humanMessage) return 'refused';
     // The core's effective set (branch ∩ teller ∩ device); the full org
     // list is never what Charge shows.
