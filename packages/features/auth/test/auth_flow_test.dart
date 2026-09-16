@@ -15,6 +15,7 @@ class _Bridge implements MadarBridge {
   int logouts = 0;
   int signIns = 0;
   int pinWait = 0;
+  bool badCode = false;
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -25,6 +26,19 @@ class _Bridge implements MadarBridge {
     if (name == #appRoute) return const AppRoute.login();
     if (name == #currentSession) return null;
     if (name == #pinWaitSeconds) return pinWait;
+    if (name == #activateDevice) {
+      if (badCode) {
+        return Future<BranchView>.error(
+          const MadarError.validation(
+            field: 'activation_code',
+            detail: 'activation code not valid',
+          ),
+        );
+      }
+      return Future<BranchView>.value(
+        const BranchView(id: 'br-1', name: 'Maadi', isActive: true),
+      );
+    }
     if (name == #deviceConfig) {
       return const DeviceConfigView(
         reconfiguring: true,
@@ -74,10 +88,24 @@ void main() {
 
   AuthNotifier auth() => container.read(authProvider.notifier);
 
+  test('an activation code binds the device; a bad one says why', () async {
+    bridge.badCode = true;
+    await auth().activateDevice('00000000');
+    var s = container.read(authProvider);
+    expect(s.error, isNotNull);
+    expect(s.busy, isFalse);
+    expect(s.error!.of(bridge), 'err.activation_code_invalid');
+
+    bridge.badCode = false;
+    final version = s.configVersion;
+    await auth().activateDevice('40721958');
+    s = container.read(authProvider);
+    expect(s.error, isNull);
+    expect(s.configVersion, greaterThan(version), reason: 'screens re-read');
+  });
+
   test('too many wrong PINs disable the pad and count down', () async {
-    for (final d in '1234'.split('')) {
-      auth().pushDigit(d);
-    }
+    '1234'.split('').forEach(auth().pushDigit);
     // The server refused with PIN_THROTTLED; the core stored the wait.
     bridge.pinWait = 15;
     await auth().signInTeller(name: 'Sara');

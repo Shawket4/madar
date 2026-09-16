@@ -294,6 +294,34 @@ class AuthNotifier extends Notifier<AuthState> {
     );
   }
 
+  /// Bind this device with a dashboard activation code — no manager login
+  /// (POS_SIGNIN_OVERHAUL §4). On success the device is configured and the
+  /// login screen moves to the PIN form; a refusal stays on the form with the
+  /// reason.
+  Future<void> activateDevice(String code) async {
+    if (state.busy) return;
+    state = state.copyWith(busy: true, error: null);
+    UiText? failure;
+    try {
+      await _bridge.activateDevice(code: code);
+    } on MadarError catch (e) {
+      failure = UiText.error(e);
+    } on Exception catch (_) {
+      failure = const UiText.key('err.generic');
+    }
+    if (failure != null) {
+      state = state.copyWith(
+        busy: false,
+        error: failure,
+        failCount: state.failCount + 1,
+      );
+      return;
+    }
+    state = state.copyWith(busy: false);
+    _resetSetup();
+    _refreshShell();
+  }
+
   /// Reset the setup stepper to credentials and invalidate config-derived UI.
   void _resetSetup() {
     state = state.copyWith(

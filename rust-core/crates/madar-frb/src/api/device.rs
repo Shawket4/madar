@@ -269,6 +269,11 @@ impl MadarBridge {
 
     // ── branches (device-setup picker) ─────────────────────────────────────
 
+    /// Bind this device with a dashboard activation code (no manager login).
+    pub async fn activate_device(&self, code: String) -> Result<BranchView, MadarError> {
+        self.inner.activate_device(code).await.map_err(MadarError::from)
+    }
+
     /// List the org's active branches — for the device-setup picker. Requires a
     /// live (manager) session; online-only.
     pub async fn list_branches(&self) -> Result<Vec<BranchView>, MadarError> {

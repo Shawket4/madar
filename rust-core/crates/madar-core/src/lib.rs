@@ -206,6 +206,19 @@ struct CatalogSnapshot {
 /// kv key persisting the dashboard's active org/branch scope override.
 const K_DASHBOARD_SCOPE: &str = "dashboard:active_scope";
 
+/// The device's own credential from an activation code (POS_SIGNIN_OVERHAUL §4).
+const K_DEVICE_CREDENTIAL: &str = "device:credential";
+
+/// The one refusal for a code that does not bind (see `activate_device`).
+pub(crate) const ACTIVATION_CODE_INVALID_DETAIL: &str = "activation code not valid";
+
+fn activation_code_invalid() -> CoreError {
+    CoreError::Validation {
+        field: "activation_code".into(),
+        detail: ACTIVATION_CODE_INVALID_DETAIL.into(),
+    }
+}
+
 /// Unix seconds until which the server refuses PINs on this tablet (§3.4).
 const K_PIN_BLOCKED_UNTIL: &str = "auth:pin_blocked_until";
 
@@ -5761,6 +5774,56 @@ impl MadarCore {
         }
     }
 
+    /// Bind this device with an activation code from the dashboard
+    /// (POS_SIGNIN_OVERHAUL §4) — no manager email login. The server binds the
+    /// org + branch and returns the device's own credential, kept locally.
+    /// Online-only. A wrong, used, expired or withdrawn code is one refusal:
+    /// `Validation { field: "activation_code", detail: "activation code not valid" }`.
+    pub async fn activate_device(
+        &self,
+        code: String,
+    ) -> Result<session::BranchView, CoreError> {
+        let code: String = code.chars().filter(|c| c.is_ascii_digit()).collect();
+        if code.len() != 8 {
+            return Err(activation_code_invalid());
+        }
+        let body = serde_json::json!({
+            "code": code,
+            "device_id": self.lan_device_id(),
+            "device_code": self.device_code(),
+            "platform": std::env::consts::OS,
+            "app_version": option_env!("MADAR_APP_VERSION"),
+        });
+        let text = match self.api.post_json("/auth/activate-device", &body).await {
+            Ok(t) => t,
+            Err(CoreError::Server { status: 404, .. }) => {
+                return Err(activation_code_invalid())
+            }
+            Err(e) => return Err(e),
+        };
+        let v: serde_json::Value =
+            serde_json::from_str(&text).map_err(|e| CoreError::Internal {
+                detail: format!("decode: {e}"),
+            })?;
+        let branch_id = v["branch_id"].as_str().unwrap_or_default().to_string();
+        if branch_id.is_empty() {
+            return Err(CoreError::Internal {
+                detail: "decode: activation answer has no branch".into(),
+            });
+        }
+        let branch_name = v["branch_name"].as_str().map(str::to_string);
+        if let Some(token) = v["device_token"].as_str() {
+            self.store.kv_put(K_DEVICE_CREDENTIAL, token)?;
+        }
+        self.set_device_branch(branch_id.clone(), branch_name.clone())?;
+        Ok(session::BranchView {
+            id: branch_id,
+            name: branch_name.unwrap_or_default(),
+            is_active: true,
+            org_logo_url: None,
+        })
+    }
+
     /// List the org's active branches — for the device-setup picker. Requires a
     /// live (manager) session; online-only.
     pub async fn list_branches(&self) -> Result<Vec<session::BranchView>, CoreError> {
@@ -8693,6 +8756,69 @@ mod tests {
         assert_eq!(core.tr("login.sign_in".into()), "تسجيل الدخول");
         assert!(core.is_rtl());
         assert_eq!(core.locale(), "ar");
+    }
+
+    #[tokio::test]
+    async fn an_activation_code_binds_the_device_and_a_bad_one_is_one_refusal() {
+        use std::io::{Read, Write};
+        // A one-shot HTTP server per answer: enough to pin the wire and the
+        // local effects without a backend.
+        fn serve(status: &str, body: &'static str) -> String {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let addr = listener.local_addr().unwrap();
+            let status = status.to_string();
+            std::thread::spawn(move || {
+                let (mut sock, _) = listener.accept().unwrap();
+                let mut buf = [0u8; 8192];
+                let _ = sock.read(&mut buf);
+                let resp = format!(
+                    "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = sock.write_all(resp.as_bytes());
+            });
+            format!("http://{addr}")
+        }
+        let core_at = |url: String| {
+            MadarCore::new(MadarConfig {
+                base_url: url,
+                environment: "dev".into(),
+                db_path: String::new(),
+                locale: "en".into(),
+                app_version: None,
+            })
+            .unwrap()
+        };
+
+        let ok = core_at(serve(
+            "200 OK",
+            r#"{"org_id":"o","org_name":"Rue","branch_id":"b-1","branch_name":"Maadi","device":{},"device_token":"tok"}"#,
+        ));
+        let branch = ok.activate_device("4072 1958".into()).await.unwrap();
+        assert_eq!(branch.id, "b-1");
+        assert_eq!(ok.device_config().branch_id.as_deref(), Some("b-1"));
+        assert_eq!(ok.device_config().branch_name.as_deref(), Some("Maadi"));
+        assert_eq!(
+            ok.store.kv_get(K_DEVICE_CREDENTIAL).unwrap().as_deref(),
+            Some("tok")
+        );
+
+        let bad = core_at(serve(
+            "404 Not Found",
+            r#"{"error":"That code is not valid.","code":"ACTIVATION_CODE_INVALID"}"#,
+        ));
+        match bad.activate_device("00000000".into()).await {
+            Err(CoreError::Validation { detail, .. }) => {
+                assert_eq!(detail, ACTIVATION_CODE_INVALID_DETAIL)
+            }
+            other => panic!("expected the one refusal, got {other:?}"),
+        }
+        assert!(bad.device_config().branch_id.is_none());
+        // A short code never reaches the server.
+        assert!(matches!(
+            bad.activate_device("123".into()).await,
+            Err(CoreError::Validation { .. })
+        ));
     }
 
     /// sign_in falls back to an offline unlock when the network is unreachable

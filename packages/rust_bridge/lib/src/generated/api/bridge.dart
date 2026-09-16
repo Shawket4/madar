@@ -38,6 +38,9 @@ String greet({required String name}) =>
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>>
 abstract class MadarBridge implements RustOpaqueInterface {
+  /// Bind this device with a dashboard activation code (no manager login).
+  Future<BranchView> activateDevice({required String code});
+
   /// Add a ROUND of the current cart to an existing open ticket. Same offline-first
   /// path as `fire_ticket`; gated behind the original fire if it hasn't synced.
   Future<TicketFiredView> addTicketRound({
