@@ -197,6 +197,7 @@ Class | Method | HTTP request | Description
 *LoyaltyApi* | [**delete_loyalty_member**](docs/LoyaltyApi.md#delete_loyalty_member) | **DELETE** /loyalty/members/{id} | Forget a member. **Admin only.**
 *LoyaltyApi* | [**delete_loyalty_settings**](docs/LoyaltyApi.md#delete_loyalty_settings) | **DELETE** /loyalty/settings | 
 *LoyaltyApi* | [**get_loyalty_analytics**](docs/LoyaltyApi.md#get_loyalty_analytics) | **GET** /loyalty/analytics | 
+*LoyaltyApi* | [**get_loyalty_behavior**](docs/LoyaltyApi.md#get_loyalty_behavior) | **GET** /loyalty/behavior | 
 *LoyaltyApi* | [**get_loyalty_google_object**](docs/LoyaltyApi.md#get_loyalty_google_object) | **GET** /loyalty/members/{id}/google-object | What Google is actually holding for one member's card. **Super admin only.**
 *LoyaltyApi* | [**get_loyalty_member**](docs/LoyaltyApi.md#get_loyalty_member) | **GET** /loyalty/members/{id} | 
 *LoyaltyApi* | [**get_loyalty_reward_items**](docs/LoyaltyApi.md#get_loyalty_reward_items) | **GET** /loyalty/reward-items | 
@@ -296,7 +297,9 @@ Class | Method | HTTP request | Description
 *OrgsApi* | [**get_onboarding**](docs/OrgsApi.md#get_onboarding) | **GET** /orgs/{id}/onboarding | 
 *OrgsApi* | [**get_org**](docs/OrgsApi.md#get_org) | **GET** /orgs/{id} | 
 *OrgsApi* | [**list_orgs**](docs/OrgsApi.md#list_orgs) | **GET** /orgs | 
+*OrgsApi* | [**list_templates**](docs/OrgsApi.md#list_templates) | **GET** /orgs/templates | 
 *OrgsApi* | [**offline_auth_bundle**](docs/OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
+*OrgsApi* | [**provision_org**](docs/OrgsApi.md#provision_org) | **POST** /orgs/provision | 
 *OrgsApi* | [**public_org_brand**](docs/OrgsApi.md#public_org_brand) | **GET** /public/orgs/brand | The shop behind a guest page.
 *OrgsApi* | [**public_org_favicon**](docs/OrgsApi.md#public_org_favicon) | **GET** /public/orgs/favicon | The shop's own logo, as a favicon.
 *OrgsApi* | [**update_org**](docs/OrgsApi.md#update_org) | **PATCH** /orgs/{id} | 
@@ -374,16 +377,22 @@ Class | Method | HTTP request | Description
 *ReportsApi* | [**branch_teller_stats**](docs/ReportsApi.md#branch_teller_stats) | **GET** /reports/branches/{branch_id}/tellers | 
 *ReportsApi* | [**branch_waiter_stats**](docs/ReportsApi.md#branch_waiter_stats) | **GET** /reports/branches/{branch_id}/waiters | 
 *ReportsApi* | [**branch_waste_report**](docs/ReportsApi.md#branch_waste_report) | **GET** /reports/branches/{branch_id}/waste-report | 
+*ReportsApi* | [**discounts_audit**](docs/ReportsApi.md#discounts_audit) | **GET** /reports/orgs/{org_id}/discounts-audit | 
 *ReportsApi* | [**org_branch_comparison**](docs/ReportsApi.md#org_branch_comparison) | **GET** /reports/orgs/{org_id}/comparison | 
 *ReportsApi* | [**org_consumption**](docs/ReportsApi.md#org_consumption) | **GET** /reports/orgs/{org_id}/consumption | 
 *ReportsApi* | [**org_inventory_valuation**](docs/ReportsApi.md#org_inventory_valuation) | **GET** /reports/orgs/{org_id}/inventory-valuation | 
 *ReportsApi* | [**org_low_stock**](docs/ReportsApi.md#org_low_stock) | **GET** /reports/orgs/{org_id}/low-stock | 
 *ReportsApi* | [**org_shrinkage**](docs/ReportsApi.md#org_shrinkage) | **GET** /reports/orgs/{org_id}/shrinkage | 
+*ReportsApi* | [**org_tax_report**](docs/ReportsApi.md#org_tax_report) | **GET** /reports/orgs/{org_id}/tax | 
 *ReportsApi* | [**org_waste_report**](docs/ReportsApi.md#org_waste_report) | **GET** /reports/orgs/{org_id}/waste-report | 
+*ReportsApi* | [**price_overrides**](docs/ReportsApi.md#price_overrides) | **GET** /reports/orgs/{org_id}/price-overrides | 
+*ReportsApi* | [**refunds_audit**](docs/ReportsApi.md#refunds_audit) | **GET** /reports/orgs/{org_id}/refunds-audit | 
 *ReportsApi* | [**shift_deductions**](docs/ReportsApi.md#shift_deductions) | **GET** /reports/shifts/{shift_id}/deductions | 
 *ReportsApi* | [**shift_summary**](docs/ReportsApi.md#shift_summary) | **GET** /reports/shifts/{shift_id}/summary | 
 *ReportsApi* | [**till_deductions**](docs/ReportsApi.md#till_deductions) | **GET** /reports/tills/{till_id}/deductions | 
 *ReportsApi* | [**till_summary**](docs/ReportsApi.md#till_summary) | **GET** /reports/tills/{till_id}/summary | 
+*ReportsApi* | [**voids_audit**](docs/ReportsApi.md#voids_audit) | **GET** /reports/orgs/{org_id}/voids-audit | 
+*ReportsApi* | [**waivers_audit**](docs/ReportsApi.md#waivers_audit) | **GET** /reports/orgs/{org_id}/waivers-audit | 
 *ReservationsApi* | [**create_floor_table**](docs/ReservationsApi.md#create_floor_table) | **POST** /floor/tables | 
 *ReservationsApi* | [**create_section**](docs/ReservationsApi.md#create_section) | **POST** /floor/sections | 
 *ReservationsApi* | [**delete_floor_table**](docs/ReservationsApi.md#delete_floor_table) | **DELETE** /floor/tables/{id} | 
@@ -431,6 +440,7 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**delete_period**](docs/StaffApi.md#delete_period) | **DELETE** /staff/payroll/periods/{id} | 
 *StaffApi* | [**delete_record**](docs/StaffApi.md#delete_record) | **DELETE** /staff/attendance/{id} | 
 *StaffApi* | [**delete_work_shift**](docs/StaffApi.md#delete_work_shift) | **DELETE** /staff/work-shifts/{id} | 
+*StaffApi* | [**discipline_report**](docs/StaffApi.md#discipline_report) | **GET** /staff/discipline-report | 
 *StaffApi* | [**export_period_csv**](docs/StaffApi.md#export_period_csv) | **GET** /staff/payroll/periods/{id}/export.csv | The generated period as a bank-ready CSV.
 *StaffApi* | [**generate_period**](docs/StaffApi.md#generate_period) | **POST** /staff/payroll/periods/{id}/generate | 
 *StaffApi* | [**get_attendance_settings**](docs/StaffApi.md#get_attendance_settings) | **GET** /staff/attendance/settings | 
@@ -548,6 +558,8 @@ Class | Method | HTTP request | Description
  - [AttendanceSettings](docs/AttendanceSettings.md)
  - [AttendanceStatus](docs/AttendanceStatus.md)
  - [AttendanceSummary](docs/AttendanceSummary.md)
+ - [AuditBreakdownEntry](docs/AuditBreakdownEntry.md)
+ - [AuditReport](docs/AuditReport.md)
  - [AuthPermissionsResponse](docs/AuthPermissionsResponse.md)
  - [AuthzPublicKey](docs/AuthzPublicKey.md)
  - [AvailabilityOut](docs/AvailabilityOut.md)
@@ -701,6 +713,8 @@ Class | Method | HTTP request | Description
  - [DeviceAllowList](docs/DeviceAllowList.md)
  - [DeviceKind](docs/DeviceKind.md)
  - [Dir](docs/Dir.md)
+ - [DisciplineReport](docs/DisciplineReport.md)
+ - [DisciplineRow](docs/DisciplineRow.md)
  - [Discount](docs/Discount.md)
  - [DrinkRecipe](docs/DrinkRecipe.md)
  - [Employee](docs/Employee.md)
@@ -760,6 +774,7 @@ Class | Method | HTTP request | Description
  - [LookupRequest](docs/LookupRequest.md)
  - [LowStockRow](docs/LowStockRow.md)
  - [LoyaltyAnalytics](docs/LoyaltyAnalytics.md)
+ - [LoyaltyBehavior](docs/LoyaltyBehavior.md)
  - [LoyaltyRedemptionInput](docs/LoyaltyRedemptionInput.md)
  - [LoyaltySettings](docs/LoyaltySettings.md)
  - [ManualRecordRequest](docs/ManualRecordRequest.md)
@@ -820,6 +835,7 @@ Class | Method | HTTP request | Description
  - [OrgIngredient](docs/OrgIngredient.md)
  - [OrgInventorySettings](docs/OrgInventorySettings.md)
  - [OrgPaymentMethod](docs/OrgPaymentMethod.md)
+ - [OrgTemplate](docs/OrgTemplate.md)
  - [OtpRequestInput](docs/OtpRequestInput.md)
  - [OtpRequestResponse](docs/OtpRequestResponse.md)
  - [OtpVerifyInput](docs/OtpVerifyInput.md)
@@ -867,6 +883,10 @@ Class | Method | HTTP request | Description
  - [PriceOverrideRequest](docs/PriceOverrideRequest.md)
  - [PrinterBrand](docs/PrinterBrand.md)
  - [ProcessingGroupRef](docs/ProcessingGroupRef.md)
+ - [ProvisionBranch](docs/ProvisionBranch.md)
+ - [ProvisionOrgRequest](docs/ProvisionOrgRequest.md)
+ - [ProvisionOwner](docs/ProvisionOwner.md)
+ - [ProvisionedOrg](docs/ProvisionedOrg.md)
  - [PublicBookingBranch](docs/PublicBookingBranch.md)
  - [PublicBookingChange](docs/PublicBookingChange.md)
  - [PublicBookingInfo](docs/PublicBookingInfo.md)
@@ -998,6 +1018,7 @@ Class | Method | HTTP request | Description
  - [TablePosition](docs/TablePosition.md)
  - [TableSitting](docs/TableSitting.md)
  - [TaxPolicyPublic](docs/TaxPolicyPublic.md)
+ - [TaxReport](docs/TaxReport.md)
  - [TeamPresence](docs/TeamPresence.md)
  - [TellerStats](docs/TellerStats.md)
  - [TicketBill](docs/TicketBill.md)

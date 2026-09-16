@@ -216,6 +216,15 @@ pub struct DeleteWorkShiftParams {
     pub id: String,
 }
 
+/// struct for passing parameters to the method [`discipline_report`]
+#[derive(Clone, Debug)]
+pub struct DisciplineReportParams {
+    pub from: chrono::NaiveDate,
+    pub to: chrono::NaiveDate,
+    /// Omit for every branch in the org.
+    pub branch_id: Option<String>,
+}
+
 /// struct for passing parameters to the method [`export_period_csv`]
 #[derive(Clone, Debug)]
 pub struct ExportPeriodCsvParams {
@@ -826,6 +835,19 @@ pub enum DeleteRecordError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteWorkShiftError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`discipline_report`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DisciplineReportError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -2637,6 +2659,54 @@ pub async fn delete_work_shift(
     } else {
         let content = resp.text().await?;
         let entity: Option<DeleteWorkShiftError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn discipline_report(
+    configuration: &configuration::Configuration,
+    params: DisciplineReportParams,
+) -> Result<models::DisciplineReport, Error<DisciplineReportError>> {
+    let uri_str = format!("{}/staff/discipline-report", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    req_builder = req_builder.query(&[("from", &params.from.to_string())]);
+    req_builder = req_builder.query(&[("to", &params.to.to_string())]);
+    if let Some(ref param_value) = params.branch_id {
+        req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::DisciplineReport`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::DisciplineReport`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DisciplineReportError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

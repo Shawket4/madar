@@ -42,6 +42,8 @@ docs/AttendanceRecord.md
 docs/AttendanceSettings.md
 docs/AttendanceStatus.md
 docs/AttendanceSummary.md
+docs/AuditBreakdownEntry.md
+docs/AuditReport.md
 docs/AuthApi.md
 docs/AuthPermissionsResponse.md
 docs/AuthzApi.md
@@ -206,6 +208,8 @@ docs/DeviceAllowList.md
 docs/DeviceKind.md
 docs/DevicesApi.md
 docs/Dir.md
+docs/DisciplineReport.md
+docs/DisciplineRow.md
 docs/Discount.md
 docs/DiscountsApi.md
 docs/DrinkRecipe.md
@@ -273,6 +277,7 @@ docs/LookupRequest.md
 docs/LowStockRow.md
 docs/LoyaltyAnalytics.md
 docs/LoyaltyApi.md
+docs/LoyaltyBehavior.md
 docs/LoyaltyPublicApi.md
 docs/LoyaltyRedemptionInput.md
 docs/LoyaltySettings.md
@@ -338,6 +343,7 @@ docs/OrgComparisonReport.md
 docs/OrgIngredient.md
 docs/OrgInventorySettings.md
 docs/OrgPaymentMethod.md
+docs/OrgTemplate.md
 docs/OrgsApi.md
 docs/OtpRequestInput.md
 docs/OtpRequestResponse.md
@@ -388,6 +394,10 @@ docs/PriceOverrideOut.md
 docs/PriceOverrideRequest.md
 docs/PrinterBrand.md
 docs/ProcessingGroupRef.md
+docs/ProvisionBranch.md
+docs/ProvisionOrgRequest.md
+docs/ProvisionOwner.md
+docs/ProvisionedOrg.md
 docs/PublicBookingBranch.md
 docs/PublicBookingChange.md
 docs/PublicBookingInfo.md
@@ -530,6 +540,7 @@ docs/TableOrderRequest.md
 docs/TablePosition.md
 docs/TableSitting.md
 docs/TaxPolicyPublic.md
+docs/TaxReport.md
 docs/TeamPresence.md
 docs/TellerStats.md
 docs/TicketBill.md
@@ -702,6 +713,8 @@ src/models/attendance_record.rs
 src/models/attendance_settings.rs
 src/models/attendance_status.rs
 src/models/attendance_summary.rs
+src/models/audit_breakdown_entry.rs
+src/models/audit_report.rs
 src/models/auth_permissions_response.rs
 src/models/authz_public_key.rs
 src/models/availability_out.rs
@@ -855,6 +868,8 @@ src/models/device.rs
 src/models/device_allow_list.rs
 src/models/device_kind.rs
 src/models/dir.rs
+src/models/discipline_report.rs
+src/models/discipline_row.rs
 src/models/discount.rs
 src/models/drink_recipe.rs
 src/models/employee.rs
@@ -914,6 +929,7 @@ src/models/login_response.rs
 src/models/lookup_request.rs
 src/models/low_stock_row.rs
 src/models/loyalty_analytics.rs
+src/models/loyalty_behavior.rs
 src/models/loyalty_redemption_input.rs
 src/models/loyalty_settings.rs
 src/models/manual_record_request.rs
@@ -975,6 +991,7 @@ src/models/org_comparison_report.rs
 src/models/org_ingredient.rs
 src/models/org_inventory_settings.rs
 src/models/org_payment_method.rs
+src/models/org_template.rs
 src/models/otp_request_input.rs
 src/models/otp_request_response.rs
 src/models/otp_verify_input.rs
@@ -1022,6 +1039,10 @@ src/models/price_override_out.rs
 src/models/price_override_request.rs
 src/models/printer_brand.rs
 src/models/processing_group_ref.rs
+src/models/provision_branch.rs
+src/models/provision_org_request.rs
+src/models/provision_owner.rs
+src/models/provisioned_org.rs
 src/models/public_booking_branch.rs
 src/models/public_booking_change.rs
 src/models/public_booking_info.rs
@@ -1153,6 +1174,7 @@ src/models/table_order_request.rs
 src/models/table_position.rs
 src/models/table_sitting.rs
 src/models/tax_policy_public.rs
+src/models/tax_report.rs
 src/models/team_presence.rs
 src/models/teller_stats.rs
 src/models/ticket_bill.rs

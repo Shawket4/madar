@@ -10,7 +10,9 @@ Method | HTTP request | Description
 [**get_onboarding**](OrgsApi.md#get_onboarding) | **GET** /orgs/{id}/onboarding | 
 [**get_org**](OrgsApi.md#get_org) | **GET** /orgs/{id} | 
 [**list_orgs**](OrgsApi.md#list_orgs) | **GET** /orgs | 
+[**list_templates**](OrgsApi.md#list_templates) | **GET** /orgs/templates | 
 [**offline_auth_bundle**](OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
+[**provision_org**](OrgsApi.md#provision_org) | **POST** /orgs/provision | 
 [**public_org_brand**](OrgsApi.md#public_org_brand) | **GET** /public/orgs/brand | The shop behind a guest page.
 [**public_org_favicon**](OrgsApi.md#public_org_favicon) | **GET** /public/orgs/favicon | The shop's own logo, as a favicon.
 [**update_org**](OrgsApi.md#update_org) | **PATCH** /orgs/{id} | 
@@ -49,7 +51,7 @@ Name | Type | Description  | Required | Notes
 
 ## create_org
 
-> models::Org create_org(name, slug, currency_code, logo, receipt_footer, require_table_for_orders, service_charge_rate, service_charge_taxable, tax_inclusive, tax_rate, timezone)
+> models::Org create_org(name, slug, currency_code, logo, receipt_footer, require_table_for_orders, service_charge_rate, service_charge_taxable, tax_inclusive, tax_rate, template, timezone)
 
 
 ### Parameters
@@ -67,6 +69,7 @@ Name | Type | Description  | Required | Notes
 **service_charge_taxable** | Option<**bool**> | Is the service charge itself taxed? Default true. |  |
 **tax_inclusive** | Option<**bool**> | Are menu prices tax-inclusive? Default false (tax added on top). |  |
 **tax_rate** | Option<**f64**> | A FRACTION: 0.14 is 14%. Same unit as `PATCH /orgs/{id}`. |  |
+**template** | Option<**String**> | Role template the org starts from: `restaurant` (default) or `cafe`. |  |
 **timezone** | Option<**String**> |  |  |
 
 ### Return type
@@ -194,6 +197,31 @@ This endpoint does not need any parameter.
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## list_templates
+
+> Vec<models::OrgTemplate> list_templates()
+
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**Vec<models::OrgTemplate>**](OrgTemplate.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## offline_auth_bundle
 
 > models::OfflineAuthBundle offline_auth_bundle(id)
@@ -217,6 +245,34 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## provision_org
+
+> models::ProvisionedOrg provision_org(provision_org_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**provision_org_request** | [**ProvisionOrgRequest**](ProvisionOrgRequest.md) |  | [required] |
+
+### Return type
+
+[**models::ProvisionedOrg**](ProvisionedOrg.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

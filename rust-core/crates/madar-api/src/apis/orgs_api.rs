@@ -41,6 +41,8 @@ pub struct CreateOrgParams {
     pub tax_inclusive: Option<bool>,
     /// A FRACTION: 0.14 is 14%. Same unit as `PATCH /orgs/{id}`.
     pub tax_rate: Option<f64>,
+    /// Role template the org starts from: `restaurant` (default) or `cafe`.
+    pub template: Option<String>,
     pub timezone: Option<String>,
 }
 
@@ -70,6 +72,12 @@ pub struct GetOrgParams {
 pub struct OfflineAuthBundleParams {
     /// Organization ID
     pub id: String,
+}
+
+/// struct for passing parameters to the method [`provision_org`]
+#[derive(Clone, Debug)]
+pub struct ProvisionOrgParams {
+    pub provision_org_request: models::ProvisionOrgRequest,
 }
 
 /// struct for passing parameters to the method [`public_org_brand`]
@@ -194,10 +202,36 @@ pub enum ListOrgsError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`list_templates`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListTemplatesError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`offline_auth_bundle`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum OfflineAuthBundleError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`provision_org`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ProvisionOrgError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -370,6 +404,9 @@ pub async fn create_org(
     }
     if let Some(param_value) = params.tax_rate {
         multipart_form = multipart_form.text("tax_rate", param_value.to_string());
+    }
+    if let Some(param_value) = params.template {
+        multipart_form = multipart_form.text("template", param_value.to_string());
     }
     if let Some(param_value) = params.timezone {
         multipart_form = multipart_form.text("timezone", param_value.to_string());
@@ -579,6 +616,48 @@ pub async fn list_orgs(
     }
 }
 
+pub async fn list_templates(
+    configuration: &configuration::Configuration,
+) -> Result<Vec<models::OrgTemplate>, Error<ListTemplatesError>> {
+    let uri_str = format!("{}/orgs/templates", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::OrgTemplate&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::OrgTemplate&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ListTemplatesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn offline_auth_bundle(
     configuration: &configuration::Configuration,
     params: OfflineAuthBundleParams,
@@ -618,6 +697,52 @@ pub async fn offline_auth_bundle(
     } else {
         let content = resp.text().await?;
         let entity: Option<OfflineAuthBundleError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn provision_org(
+    configuration: &configuration::Configuration,
+    params: ProvisionOrgParams,
+) -> Result<models::ProvisionedOrg, Error<ProvisionOrgError>> {
+    let uri_str = format!("{}/orgs/provision", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.provision_org_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ProvisionedOrg`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ProvisionedOrg`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ProvisionOrgError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

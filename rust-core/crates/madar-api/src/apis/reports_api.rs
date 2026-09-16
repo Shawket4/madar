@@ -147,6 +147,15 @@ pub struct BranchWasteReportParams {
     pub limit: Option<i64>,
 }
 
+/// struct for passing parameters to the method [`discounts_audit`]
+#[derive(Clone, Debug)]
+pub struct DiscountsAuditParams {
+    pub org_id: String,
+    pub from: Option<chrono::DateTime<chrono::FixedOffset>>,
+    pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
+    pub limit: Option<i64>,
+}
+
 /// struct for passing parameters to the method [`org_branch_comparison`]
 #[derive(Clone, Debug)]
 pub struct OrgBranchComparisonParams {
@@ -190,10 +199,37 @@ pub struct OrgShrinkageParams {
     pub limit: Option<i64>,
 }
 
+/// struct for passing parameters to the method [`org_tax_report`]
+#[derive(Clone, Debug)]
+pub struct OrgTaxReportParams {
+    pub org_id: String,
+    pub from: Option<chrono::DateTime<chrono::FixedOffset>>,
+    pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
+    pub limit: Option<i64>,
+}
+
 /// struct for passing parameters to the method [`org_waste_report`]
 #[derive(Clone, Debug)]
 pub struct OrgWasteReportParams {
     /// Organization ID
+    pub org_id: String,
+    pub from: Option<chrono::DateTime<chrono::FixedOffset>>,
+    pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
+    pub limit: Option<i64>,
+}
+
+/// struct for passing parameters to the method [`price_overrides`]
+#[derive(Clone, Debug)]
+pub struct PriceOverridesParams {
+    pub org_id: String,
+    pub from: Option<chrono::DateTime<chrono::FixedOffset>>,
+    pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
+    pub limit: Option<i64>,
+}
+
+/// struct for passing parameters to the method [`refunds_audit`]
+#[derive(Clone, Debug)]
+pub struct RefundsAuditParams {
     pub org_id: String,
     pub from: Option<chrono::DateTime<chrono::FixedOffset>>,
     pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
@@ -226,6 +262,24 @@ pub struct TillDeductionsParams {
 pub struct TillSummaryParams {
     /// Till ID
     pub till_id: String,
+}
+
+/// struct for passing parameters to the method [`voids_audit`]
+#[derive(Clone, Debug)]
+pub struct VoidsAuditParams {
+    pub org_id: String,
+    pub from: Option<chrono::DateTime<chrono::FixedOffset>>,
+    pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
+    pub limit: Option<i64>,
+}
+
+/// struct for passing parameters to the method [`waivers_audit`]
+#[derive(Clone, Debug)]
+pub struct WaiversAuditParams {
+    pub org_id: String,
+    pub from: Option<chrono::DateTime<chrono::FixedOffset>>,
+    pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
+    pub limit: Option<i64>,
 }
 
 /// struct for typed errors of method [`branch_addon_sales`]
@@ -423,6 +477,19 @@ pub enum BranchWasteReportError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`discounts_audit`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DiscountsAuditError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`org_branch_comparison`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -488,10 +555,49 @@ pub enum OrgShrinkageError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`org_tax_report`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum OrgTaxReportError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`org_waste_report`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum OrgWasteReportError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`price_overrides`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PriceOverridesError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`refunds_audit`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RefundsAuditError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -544,6 +650,32 @@ pub enum TillDeductionsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum TillSummaryError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`voids_audit`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum VoidsAuditError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`waivers_audit`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum WaiversAuditError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1369,6 +1501,62 @@ pub async fn branch_waste_report(
     }
 }
 
+pub async fn discounts_audit(
+    configuration: &configuration::Configuration,
+    params: DiscountsAuditParams,
+) -> Result<models::AuditReport, Error<DiscountsAuditError>> {
+    let uri_str = format!(
+        "{}/reports/orgs/{org_id}/discounts-audit",
+        configuration.base_path,
+        org_id = crate::apis::urlencode(params.org_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.from {
+        req_builder = req_builder.query(&[("from", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.to {
+        req_builder = req_builder.query(&[("to", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.limit {
+        req_builder = req_builder.query(&[("limit", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AuditReport`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AuditReport`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DiscountsAuditError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn org_branch_comparison(
     configuration: &configuration::Configuration,
     params: OrgBranchComparisonParams,
@@ -1631,6 +1819,62 @@ pub async fn org_shrinkage(
     }
 }
 
+pub async fn org_tax_report(
+    configuration: &configuration::Configuration,
+    params: OrgTaxReportParams,
+) -> Result<models::TaxReport, Error<OrgTaxReportError>> {
+    let uri_str = format!(
+        "{}/reports/orgs/{org_id}/tax",
+        configuration.base_path,
+        org_id = crate::apis::urlencode(params.org_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.from {
+        req_builder = req_builder.query(&[("from", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.to {
+        req_builder = req_builder.query(&[("to", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.limit {
+        req_builder = req_builder.query(&[("limit", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::TaxReport`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TaxReport`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<OrgTaxReportError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn org_waste_report(
     configuration: &configuration::Configuration,
     params: OrgWasteReportParams,
@@ -1679,6 +1923,118 @@ pub async fn org_waste_report(
     } else {
         let content = resp.text().await?;
         let entity: Option<OrgWasteReportError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn price_overrides(
+    configuration: &configuration::Configuration,
+    params: PriceOverridesParams,
+) -> Result<models::AuditReport, Error<PriceOverridesError>> {
+    let uri_str = format!(
+        "{}/reports/orgs/{org_id}/price-overrides",
+        configuration.base_path,
+        org_id = crate::apis::urlencode(params.org_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.from {
+        req_builder = req_builder.query(&[("from", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.to {
+        req_builder = req_builder.query(&[("to", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.limit {
+        req_builder = req_builder.query(&[("limit", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AuditReport`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AuditReport`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PriceOverridesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn refunds_audit(
+    configuration: &configuration::Configuration,
+    params: RefundsAuditParams,
+) -> Result<models::AuditReport, Error<RefundsAuditError>> {
+    let uri_str = format!(
+        "{}/reports/orgs/{org_id}/refunds-audit",
+        configuration.base_path,
+        org_id = crate::apis::urlencode(params.org_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.from {
+        req_builder = req_builder.query(&[("from", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.to {
+        req_builder = req_builder.query(&[("to", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.limit {
+        req_builder = req_builder.query(&[("limit", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AuditReport`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AuditReport`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<RefundsAuditError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1867,6 +2223,118 @@ pub async fn till_summary(
     } else {
         let content = resp.text().await?;
         let entity: Option<TillSummaryError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn voids_audit(
+    configuration: &configuration::Configuration,
+    params: VoidsAuditParams,
+) -> Result<models::AuditReport, Error<VoidsAuditError>> {
+    let uri_str = format!(
+        "{}/reports/orgs/{org_id}/voids-audit",
+        configuration.base_path,
+        org_id = crate::apis::urlencode(params.org_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.from {
+        req_builder = req_builder.query(&[("from", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.to {
+        req_builder = req_builder.query(&[("to", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.limit {
+        req_builder = req_builder.query(&[("limit", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AuditReport`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AuditReport`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<VoidsAuditError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn waivers_audit(
+    configuration: &configuration::Configuration,
+    params: WaiversAuditParams,
+) -> Result<models::AuditReport, Error<WaiversAuditError>> {
+    let uri_str = format!(
+        "{}/reports/orgs/{org_id}/waivers-audit",
+        configuration.base_path,
+        org_id = crate::apis::urlencode(params.org_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.from {
+        req_builder = req_builder.query(&[("from", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.to {
+        req_builder = req_builder.query(&[("to", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.limit {
+        req_builder = req_builder.query(&[("limit", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AuditReport`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AuditReport`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<WaiversAuditError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

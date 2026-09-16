@@ -7,6 +7,7 @@ Method | HTTP request | Description
 [**delete_loyalty_member**](LoyaltyApi.md#delete_loyalty_member) | **DELETE** /loyalty/members/{id} | Forget a member. **Admin only.**
 [**delete_loyalty_settings**](LoyaltyApi.md#delete_loyalty_settings) | **DELETE** /loyalty/settings | 
 [**get_loyalty_analytics**](LoyaltyApi.md#get_loyalty_analytics) | **GET** /loyalty/analytics | 
+[**get_loyalty_behavior**](LoyaltyApi.md#get_loyalty_behavior) | **GET** /loyalty/behavior | 
 [**get_loyalty_google_object**](LoyaltyApi.md#get_loyalty_google_object) | **GET** /loyalty/members/{id}/google-object | What Google is actually holding for one member's card. **Super admin only.**
 [**get_loyalty_member**](LoyaltyApi.md#get_loyalty_member) | **GET** /loyalty/members/{id} | 
 [**get_loyalty_reward_items**](LoyaltyApi.md#get_loyalty_reward_items) | **GET** /loyalty/reward-items | 
@@ -98,6 +99,36 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::LoyaltyAnalytics**](LoyaltyAnalytics.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## get_loyalty_behavior
+
+> models::LoyaltyBehavior get_loyalty_behavior(branch_id, from, to)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**branch_id** | Option<**uuid::Uuid**> | Omit for the whole organisation; supply a branch to narrow the redemption figures to it (the liability is org-wide either way — a balance can be spent at any branch). |  |
+**from** | Option<**chrono::DateTime<chrono::FixedOffset>**> | Inclusive start of the range. Defaults to 30 days before `to`. |  |
+**to** | Option<**chrono::DateTime<chrono::FixedOffset>**> | Exclusive end of the range. Defaults to now. |  |
+
+### Return type
+
+[**models::LoyaltyBehavior**](LoyaltyBehavior.md)
 
 ### Authorization
 

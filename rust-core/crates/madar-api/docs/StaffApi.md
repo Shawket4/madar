@@ -34,6 +34,7 @@ Method | HTTP request | Description
 [**delete_period**](StaffApi.md#delete_period) | **DELETE** /staff/payroll/periods/{id} | 
 [**delete_record**](StaffApi.md#delete_record) | **DELETE** /staff/attendance/{id} | 
 [**delete_work_shift**](StaffApi.md#delete_work_shift) | **DELETE** /staff/work-shifts/{id} | 
+[**discipline_report**](StaffApi.md#discipline_report) | **GET** /staff/discipline-report | 
 [**export_period_csv**](StaffApi.md#export_period_csv) | **GET** /staff/payroll/periods/{id}/export.csv | The generated period as a bank-ready CSV.
 [**generate_period**](StaffApi.md#generate_period) | **POST** /staff/payroll/periods/{id}/generate | 
 [**get_attendance_settings**](StaffApi.md#get_attendance_settings) | **GET** /staff/attendance/settings | 
@@ -910,6 +911,36 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
  (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## discipline_report
+
+> models::DisciplineReport discipline_report(from, to, branch_id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**from** | **chrono::NaiveDate** |  | [required] |
+**to** | **chrono::NaiveDate** |  | [required] |
+**branch_id** | Option<**uuid::Uuid**> | Omit for every branch in the org. |  |
+
+### Return type
+
+[**models::DisciplineReport**](DisciplineReport.md)
 
 ### Authorization
 
