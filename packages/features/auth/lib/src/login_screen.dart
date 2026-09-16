@@ -86,8 +86,27 @@ class _TellerFormState extends ConsumerState<_TellerForm>
     ]),
   );
 
+  /// Ticks the wrong-PIN countdown. Cheap: one synchronous core read a second.
+  Timer? _waitTicker;
+
+  @override
+  void initState() {
+    super.initState();
+    // A delay owed from before a restart shows at once.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(authProvider.notifier).tickPinWait();
+    });
+    _waitTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final notifier = ref.read(authProvider.notifier);
+      if (ref.read(authProvider).pinWaitSeconds > 0) notifier.tickPinWait();
+    });
+  }
+
   @override
   void dispose() {
+    _waitTicker?.cancel();
     _name.dispose();
     _shake.dispose();
     super.dispose();
@@ -151,6 +170,7 @@ class _TellerFormState extends ConsumerState<_TellerForm>
     final busy = ref.watch(authProvider.select((s) => s.busy));
     final pin = ref.watch(authProvider.select((s) => s.pin));
     final error = ref.watch(authProvider.select((s) => s.error));
+    final wait = ref.watch(authProvider.select((s) => s.pinWaitSeconds));
 
     final colors = context.madarColors;
     final bridge = ref.bridge;
@@ -224,8 +244,15 @@ class _TellerFormState extends ConsumerState<_TellerForm>
           pin: pin,
           onDigit: _digit,
           onBackspace: ref.read(authProvider.notifier).popDigit,
+          enabled: wait <= 0 && !busy,
         ),
-        if (error != null) ...[
+        if (wait > 0) ...[
+          const SizedBox(height: Space.sm),
+          NoticeBanner(
+            text: t('login.pin_wait').replaceAll('{seconds}', '$wait'),
+            icon: 'clock',
+          ),
+        ] else if (error != null) ...[
           const SizedBox(height: Space.sm),
           NoticeBanner(
             text: error.of(ref.bridge),
@@ -237,6 +264,7 @@ class _TellerFormState extends ConsumerState<_TellerForm>
         MadarButton(
           label: t('login.sign_in'),
           onTap: _submit,
+          enabled: wait <= 0,
           loading: busy,
           icon: 'arrow.right.circle',
         ),

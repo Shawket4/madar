@@ -86,6 +86,13 @@ impl MadarBridge {
         self.inner.login(req).await.map_err(MadarError::from)
     }
 
+    /// Seconds before this tablet may try a PIN again (the server's growing
+    /// delay, persisted across restarts); 0 when it may now.
+    #[frb(sync)]
+    pub fn pin_wait_seconds(&self) -> u32 {
+        self.inner.pin_wait_seconds()
+    }
+
     /// One-call sign-in: online first, offline PIN unlock fallback.
     pub async fn sign_in(&self, req: LoginRequest) -> Result<SessionSnapshot, MadarError> {
         self.inner.sign_in(req).await.map_err(MadarError::from)

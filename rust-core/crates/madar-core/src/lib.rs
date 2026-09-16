@@ -206,6 +206,34 @@ struct CatalogSnapshot {
 /// kv key persisting the dashboard's active org/branch scope override.
 const K_DASHBOARD_SCOPE: &str = "dashboard:active_scope";
 
+/// Unix seconds until which the server refuses PINs on this tablet (§3.4).
+const K_PIN_BLOCKED_UNTIL: &str = "auth:pin_blocked_until";
+
+/// Whole seconds left before `until` (a stored unix timestamp), 0 when past,
+/// absent or unreadable. Capped at the server's longest step (300 s) plus a
+/// margin, so a device clock jumped backwards cannot show an hour-long wait.
+fn pin_wait_left(until: Option<&str>, now: i64) -> u32 {
+    let Some(until) = until.and_then(|u| u.trim().parse::<i64>().ok()) else {
+        return 0;
+    };
+    (until - now).clamp(0, 330) as u32
+}
+
+#[cfg(test)]
+mod pin_wait_tests {
+    use super::pin_wait_left;
+
+    #[test]
+    fn the_wait_counts_down_and_never_goes_negative_or_wild() {
+        assert_eq!(pin_wait_left(None, 100), 0);
+        assert_eq!(pin_wait_left(Some("junk"), 100), 0);
+        assert_eq!(pin_wait_left(Some("145"), 100), 45);
+        assert_eq!(pin_wait_left(Some("100"), 100), 0);
+        assert_eq!(pin_wait_left(Some("90"), 100), 0);
+        assert_eq!(pin_wait_left(Some("99999"), 100), 330);
+    }
+}
+
 /// The dashboard's runtime-selected org/branch scope. A `None` field means
 /// "fall back to the session-derived value" (see `MadarCore::effective_scope`).
 /// Dashboard-only; the POS never sets it.
@@ -5483,14 +5511,35 @@ impl MadarCore {
         // open shift, EXCEPT one we acknowledge here — that's a legitimate offline
         // handover whose close lands via /sync/replay moments after this login.
         let ack_closing = self.closing_shift_ids_csv();
+        // The device id lets the server count wrong PINs against THIS tablet
+        // (the growing delay, POS_SIGNIN_OVERHAUL §3.4); old servers ignore it.
+        let device_id = self.lan_device_id();
         let body = self
             .api
             .post_with_header(
                 "/auth/login",
                 &wire,
-                ("X-Madar-Closing-Shifts", &ack_closing),
+                &[
+                    ("X-Madar-Closing-Shifts", &ack_closing),
+                    ("X-Madar-Device-Id", &device_id),
+                ],
             )
-            .await?;
+            .await;
+        let body = match body {
+            Ok(b) => {
+                let _ = self.store.kv_delete(K_PIN_BLOCKED_UNTIL);
+                b
+            }
+            Err(e) => {
+                if let Some(secs) = net::pin_throttle_seconds(&e) {
+                    // Kept locally so the countdown survives an app restart;
+                    // the server stays the authority on the next attempt.
+                    let until = chrono::Utc::now().timestamp() + secs;
+                    let _ = self.store.kv_put(K_PIN_BLOCKED_UNTIL, &until.to_string());
+                }
+                return Err(e);
+            }
+        };
         let resp: madar_api::models::LoginResponse =
             serde_json::from_str(&body).map_err(|e| CoreError::Internal {
                 detail: format!("decode: {e}"),
@@ -5643,6 +5692,21 @@ impl MadarCore {
         checkout::device_code_or_default(&self.store)
     }
 
+
+    /// Seconds before this tablet may try a PIN again, 0 when it may now. Set
+    /// from the server's growing-delay refusal (`PIN_THROTTLED`) and persisted,
+    /// so the PIN pad's countdown survives a restart. The host polls it once a
+    /// second while it is above zero.
+    pub fn pin_wait_seconds(&self) -> u32 {
+        pin_wait_left(
+            self.store
+                .kv_get(K_PIN_BLOCKED_UNTIL)
+                .ok()
+                .flatten()
+                .as_deref(),
+            chrono::Utc::now().timestamp(),
+        )
+    }
 
     /// One-call sign-in. The online→offline decision lives HERE, not in the host
     /// UI (the One Rule): try an online `login` first; if the network is down and

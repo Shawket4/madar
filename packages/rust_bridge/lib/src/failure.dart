@@ -18,6 +18,10 @@ extension MadarErrorMessage on MadarBridge {
             ? detail
             : '${field.replaceAll('_', ' ')} $detail',
       ),
+      // The growing delay after wrong PINs: `detail` is the wait in seconds.
+      MadarError_Server(code: 'PIN_THROTTLED', :final detail) => tr(
+        key: 'login.pin_wait',
+      ).replaceAll('{seconds}', detail),
       MadarError_Server(:final detail) => _or(detail),
       MadarError_Transient() => tr(key: 'err.network'),
       MadarError_Forbidden() => tr(key: 'err.not_allowed'),

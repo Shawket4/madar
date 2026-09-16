@@ -30,6 +30,7 @@ class AuthState {
     this.error,
     this.pin = '',
     this.failCount = 0,
+    this.pinWaitSeconds = 0,
     this.configVersion = 0,
     this.branches = const [],
     this.stations = const [],
@@ -54,6 +55,12 @@ class AuthState {
   /// can `ref.listen` and run the shake + warning haptic exactly once per
   /// failure, like the natives' `fail()`.
   final int failCount;
+
+  /// Seconds before this tablet may try a PIN again — the server's growing
+  /// delay after wrong PINs (POS_SIGNIN_OVERHAUL §3.4). Above zero the keypad
+  /// is disabled and the form counts down; it survives a restart because the
+  /// core persists it.
+  final int pinWaitSeconds;
 
   /// Bumped whenever a bridge call mutates `deviceConfig()` (reconfigure
   /// begin/cancel, branch bind) — screens that render from `deviceConfig()`
@@ -81,6 +88,7 @@ class AuthState {
     Object? error = _unset,
     String? pin,
     int? failCount,
+    int? pinWaitSeconds,
     int? configVersion,
     List<BranchView>? branches,
     List<KdsStationView>? stations,
@@ -93,6 +101,7 @@ class AuthState {
       error: identical(error, _unset) ? this.error : error as UiText?,
       pin: pin ?? this.pin,
       failCount: failCount ?? this.failCount,
+      pinWaitSeconds: pinWaitSeconds ?? this.pinWaitSeconds,
       configVersion: configVersion ?? this.configVersion,
       branches: branches ?? this.branches,
       stations: stations ?? this.stations,
@@ -121,9 +130,19 @@ class AuthNotifier extends Notifier<AuthState> {
   /// ASCII digit is ignored (a hardware keyboard can send anything).
   bool pushDigit(String digit) {
     if (digit.length != 1 || !'0123456789'.contains(digit)) return false;
-    if (state.busy || state.pin.length >= _maxPin) return false;
+    if (state.busy || state.pinWaitSeconds > 0) return false;
+    if (state.pin.length >= _maxPin) return false;
     state = state.copyWith(error: null, pin: state.pin + digit);
     return state.pin.length == _maxPin;
+  }
+
+  /// Re-read the growing-delay wait from the core. The PIN form calls it
+  /// once a second; state only changes when the number does.
+  void tickPinWait() {
+    final left = _bridge.pinWaitSeconds();
+    if (left != state.pinWaitSeconds) {
+      state = state.copyWith(pinWaitSeconds: left);
+    }
   }
 
   /// Delete the last keypad digit.
@@ -157,9 +176,13 @@ class AuthNotifier extends Notifier<AuthState> {
       failure = const UiText.key('err.generic');
     }
     _refreshShell();
+    // A refusal for too many wrong PINs is shown as the live countdown, not
+    // as a banner with a bare number in it.
+    final wait = _bridge.pinWaitSeconds();
     state = state.copyWith(
       busy: false,
-      error: failure,
+      error: wait > 0 ? null : failure,
+      pinWaitSeconds: wait,
       pin: failure != null ? '' : state.pin,
       failCount: failure != null ? state.failCount + 1 : state.failCount,
     );

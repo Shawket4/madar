@@ -757,6 +757,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   Future<int> pendingOutboxCount();
 
+  /// Seconds before this tablet may try a PIN again (the server's growing
+  /// delay, persisted across restarts); 0 when it may now.
+  int pinWaitSeconds();
+
   /// What a configured line would cost (unit, extras, whole line) — priced
   /// by the resolver the add uses. Adds nothing.
   Future<LinePreviewView> previewConfiguredLine({

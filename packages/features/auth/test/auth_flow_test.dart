@@ -14,6 +14,7 @@ class _Bridge implements MadarBridge {
   bool failStations = false;
   int logouts = 0;
   int signIns = 0;
+  int pinWait = 0;
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -23,6 +24,7 @@ class _Bridge implements MadarBridge {
     if (name == #tr) return invocation.namedArguments[#key];
     if (name == #appRoute) return const AppRoute.login();
     if (name == #currentSession) return null;
+    if (name == #pinWaitSeconds) return pinWait;
     if (name == #deviceConfig) {
       return const DeviceConfigView(
         reconfiguring: true,
@@ -71,6 +73,28 @@ void main() {
   tearDown(() => container.dispose());
 
   AuthNotifier auth() => container.read(authProvider.notifier);
+
+  test('too many wrong PINs disable the pad and count down', () async {
+    for (final d in '1234'.split('')) {
+      auth().pushDigit(d);
+    }
+    // The server refused with PIN_THROTTLED; the core stored the wait.
+    bridge.pinWait = 15;
+    await auth().signInTeller(name: 'Sara');
+    final s = container.read(authProvider);
+    expect(s.pinWaitSeconds, 15);
+    expect(s.error, isNull, reason: 'the countdown speaks, not a banner');
+    expect(auth().pushDigit('1'), isFalse, reason: 'keypad disabled');
+
+    bridge.pinWait = 14;
+    auth().tickPinWait();
+    expect(container.read(authProvider).pinWaitSeconds, 14);
+
+    bridge.pinWait = 0;
+    auth().tickPinWait();
+    expect(auth().pushDigit('1'), isFalse, reason: 'first digit, not full');
+    expect(container.read(authProvider).pin, '1');
+  });
 
   test('a sixth digit with no name clears the pad and says why', () async {
     for (final d in '12345'.split('')) {
