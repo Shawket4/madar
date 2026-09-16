@@ -1191,10 +1191,18 @@ impl MadarCore {
         Ok(self.sync_status())
     }
 
-    /// Long-press: full snapshot (unsent local work is kept).
+    /// Long-press: download EVERYTHING again (unsent local work is kept).
+    ///
+    /// A full snapshot of the feed, then the catalog refresh with its revision
+    /// gate off. It used to stop after the snapshot, so the "full" sync
+    /// refreshed LESS of the menu than a plain tap (whose host also runs the
+    /// catalog refresh): the option sheet's unified catalog, the branch context
+    /// (logo, receipt footer), menu images outside the bundle and step
+    /// animations were never re-fetched by it at all.
     pub async fn sync_full(&self) -> Result<SyncStatusView, CoreError> {
         let _ = self.push_and_refresh().await;
         let _ = self.pull(true).await;
+        let _ = self.refresh_catalog_with(true).await;
         Ok(self.sync_status())
     }
 

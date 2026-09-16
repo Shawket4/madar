@@ -5638,6 +5638,15 @@ impl MadarCore {
     /// Atomic-ish: every stream is fetched before any is written, so a mid-pull
     /// failure leaves the previous mirror intact.
     pub async fn refresh_catalog(&self) -> Result<(), CoreError> {
+        self.refresh_catalog_with(false).await
+    }
+
+    /// The catalog refresh. `force` skips the unified catalog's revision gate
+    /// (`since`), so the device re-downloads it even when its revision number
+    /// matches — the full sync's promise to fetch everything again. A revision
+    /// that was never bumped (a direct database edit, a missed bump) otherwise
+    /// leaves the option sheet stale no matter how often anyone syncs.
+    pub(crate) async fn refresh_catalog_with(&self, force: bool) -> Result<(), CoreError> {
         use madar_api::apis::{bundles_api, discounts_api, menu_api, payment_methods_api};
         use madar_api::models::BundleStatus;
 
@@ -5728,7 +5737,7 @@ impl MadarCore {
         let unified_json: Option<String> = match &branch_id {
             Some(b) => {
                 let mut uq: Vec<(&str, String)> = vec![("branch_id", b.clone())];
-                if let Some(rev) = menu::unified_revision(&self.store) {
+                if let Some(rev) = menu::unified_revision(&self.store).filter(|_| !force) {
                     uq.push(("since", rev.to_string()));
                 }
                 match self.api.get_text("/catalog/sync", &uq).await {
