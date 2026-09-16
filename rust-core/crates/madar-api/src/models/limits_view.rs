@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LimitsView {
+    /// How old the thing acted on may be, in minutes.
+    #[serde(
+        rename = "max_age_minutes",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub max_age_minutes: Option<Option<i64>>,
     /// Money, minor units.
     #[serde(
         rename = "max_amount",
@@ -37,14 +45,24 @@ pub struct LimitsView {
         skip_serializing_if = "Option::is_none"
     )]
     pub max_value: Option<Option<i64>>,
+    /// Only the person's own work. Absent means unrestricted, so a dashboard that predates the field keeps meaning what it always meant.
+    #[serde(
+        rename = "own",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub own: Option<Option<bool>>,
 }
 
 impl LimitsView {
     pub fn new() -> LimitsView {
         LimitsView {
+            max_age_minutes: None,
             max_amount: None,
             max_percent: None,
             max_value: None,
+            own: None,
         }
     }
 }

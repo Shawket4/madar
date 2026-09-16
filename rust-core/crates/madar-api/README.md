@@ -45,8 +45,10 @@ Class | Method | HTTP request | Description
 *AuthzApi* | [**explain**](docs/AuthzApi.md#explain) | **GET** /authz/explain | 
 *AuthzApi* | [**get_my_authz**](docs/AuthzApi.md#get_my_authz) | **GET** /authz/me | 
 *AuthzApi* | [**get_policy**](docs/AuthzApi.md#get_policy) | **GET** /authz/policy | 
+*AuthzApi* | [**list_flags**](docs/AuthzApi.md#list_flags) | **GET** /authz/flags | 
 *AuthzApi* | [**list_roles**](docs/AuthzApi.md#list_roles) | **GET** /authz/roles | 
 *AuthzApi* | [**rename_role**](docs/AuthzApi.md#rename_role) | **PATCH** /authz/roles/{id} | 
+*AuthzApi* | [**review_flag**](docs/AuthzApi.md#review_flag) | **POST** /authz/flags/{id}/review | Mark one flag as looked at. It is an acknowledgement, not an approval: the act is already on the books either way, so there is nothing here to undo or let through.
 *AuthzApi* | [**set_assignments**](docs/AuthzApi.md#set_assignments) | **PUT** /authz/users/{id}/assignments | 
 *AuthzApi* | [**set_override**](docs/AuthzApi.md#set_override) | **PUT** /authz/users/{id}/overrides | 
 *AuthzApi* | [**set_policy**](docs/AuthzApi.md#set_policy) | **PUT** /authz/policy | 
@@ -901,6 +903,7 @@ Class | Method | HTTP request | Description
  - [ReorderCategoriesRequest](docs/ReorderCategoriesRequest.md)
  - [ReorderLine](docs/ReorderLine.md)
  - [ReorderSuggestion](docs/ReorderSuggestion.md)
+ - [ReplayFlag](docs/ReplayFlag.md)
  - [RepricingReport](docs/RepricingReport.md)
  - [RepricingSuggestion](docs/RepricingSuggestion.md)
  - [RequestDecision](docs/RequestDecision.md)

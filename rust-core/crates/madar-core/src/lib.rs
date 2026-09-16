@@ -595,6 +595,8 @@ impl MadarCore {
                             max_amount: l.max_amount.flatten(),
                             max_percent: l.max_percent.flatten(),
                             max_value: l.max_value.flatten(),
+                            max_age_minutes: l.max_age_minutes.flatten(),
+                            own: l.own.flatten().unwrap_or(false),
                         },
                     )
                 })

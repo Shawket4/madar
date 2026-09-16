@@ -9,8 +9,10 @@ Method | HTTP request | Description
 [**explain**](AuthzApi.md#explain) | **GET** /authz/explain | 
 [**get_my_authz**](AuthzApi.md#get_my_authz) | **GET** /authz/me | 
 [**get_policy**](AuthzApi.md#get_policy) | **GET** /authz/policy | 
+[**list_flags**](AuthzApi.md#list_flags) | **GET** /authz/flags | 
 [**list_roles**](AuthzApi.md#list_roles) | **GET** /authz/roles | 
 [**rename_role**](AuthzApi.md#rename_role) | **PATCH** /authz/roles/{id} | 
+[**review_flag**](AuthzApi.md#review_flag) | **POST** /authz/flags/{id}/review | Mark one flag as looked at. It is an acknowledgement, not an approval: the act is already on the books either way, so there is nothing here to undo or let through.
 [**set_assignments**](AuthzApi.md#set_assignments) | **PUT** /authz/users/{id}/assignments | 
 [**set_override**](AuthzApi.md#set_override) | **PUT** /authz/users/{id}/overrides | 
 [**set_policy**](AuthzApi.md#set_policy) | **PUT** /authz/policy | 
@@ -158,6 +160,34 @@ This endpoint does not need any parameter.
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## list_flags
+
+> Vec<models::ReplayFlag> list_flags(include_reviewed)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**include_reviewed** | Option<**bool**> | Include flags already reviewed. Default false: the queue is what is left to look at. |  |
+
+### Return type
+
+[**Vec<models::ReplayFlag>**](ReplayFlag.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## list_roles
 
 > Vec<models::RoleView> list_roles()
@@ -207,6 +237,34 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## review_flag
+
+> models::ReplayFlag review_flag(id)
+Mark one flag as looked at. It is an acknowledgement, not an approval: the act is already on the books either way, so there is nothing here to undo or let through.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **i64** |  | [required] |
+
+### Return type
+
+[**models::ReplayFlag**](ReplayFlag.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

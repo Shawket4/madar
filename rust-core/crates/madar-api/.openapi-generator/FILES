@@ -441,6 +441,7 @@ docs/RenameRoleRequest.md
 docs/ReorderCategoriesRequest.md
 docs/ReorderLine.md
 docs/ReorderSuggestion.md
+docs/ReplayFlag.md
 docs/ReportsApi.md
 docs/RepricingReport.md
 docs/RepricingSuggestion.md
@@ -1055,6 +1056,7 @@ src/models/rename_role_request.rs
 src/models/reorder_categories_request.rs
 src/models/reorder_line.rs
 src/models/reorder_suggestion.rs
+src/models/replay_flag.rs
 src/models/repricing_report.rs
 src/models/repricing_suggestion.rs
 src/models/request_decision.rs

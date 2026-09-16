@@ -808,6 +808,8 @@ pub mod reorder_line;
 pub use self::reorder_line::ReorderLine;
 pub mod reorder_suggestion;
 pub use self::reorder_suggestion::ReorderSuggestion;
+pub mod replay_flag;
+pub use self::replay_flag::ReplayFlag;
 pub mod repricing_report;
 pub use self::repricing_report::RepricingReport;
 pub mod repricing_suggestion;
