@@ -3548,7 +3548,7 @@ impl MadarCore {
     /// config (`DeviceConfig::paper_dots`). Pair with `send_to_printer`.
     pub fn render_till_report(
         &self,
-        report: till::TillReportView,
+        mut report: till::TillReportView,
         store_name: String,
         currency: String,
         width: u32,
@@ -3556,6 +3556,10 @@ impl MadarCore {
         orders: Vec<orders::OrderSummaryView>,
     ) -> Vec<u8> {
         let _ = width;
+        // `report.printed_at` came from whenever this report was fetched or
+        // cached — reprinting the same held state later kept showing that
+        // stale moment. This call IS the print, so it gets the actual instant.
+        report.printed_at = self.corrected_now().to_rfc3339();
         // Every printed time (header, order rows, cash moves) is formatted in the
         // BRANCH zone via `labels.tz` — none prints in a raw offset.
         let tz = timefmt::branch_tz(&self.store);

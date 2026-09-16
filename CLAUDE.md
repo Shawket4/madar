@@ -65,6 +65,30 @@ cd /Users/magd/madar/apps/madar && flutter run -d macos \
 Prefer `localhost` over a LAN IP — a LAN address silently breaks the moment the machine
 changes networks, and the app then shows an empty, "unsynced" UI with no obvious cause.
 
+### Before pushing or opening a PR — run CI locally first, every time
+
+CI (`.github/workflows/ci.yml`) has failed more than once on a push whose
+diff looked unrelated to the failure — the format check and the Rust test
+suite run over the WHOLE tracked tree, not just the files a change touched, so
+a change confined to one crate or one `.dart` file is not proof the repo is
+green. Run the full sequence below before every push and before opening a PR,
+not just the pieces that seem relevant to what changed:
+
+```bash
+flutter analyze .
+git ls-files '*.dart' | grep -v '/cargokit/' | xargs dart format --set-exit-if-changed --output=none
+cd rust-core && cargo test -p madar-core && cd ..
+```
+
+Touched anything FRB-bound (`madar-frb`, or a `madar-core` type/fn a bridge
+method exposes)? Also run the host-test job CI runs on macOS:
+```bash
+cd rust-core && cargo build -p madar_frb --release && cd ..
+cd packages/rust_bridge && flutter test && cd ../..
+```
+All of the above must pass locally before a push or a PR — don't rely on CI
+to find a problem you could have caught here first.
+
 ### Regenerating from the backend
 ```bash
 cd /Users/magd/MadarRust && cargo run --bin export-openapi
