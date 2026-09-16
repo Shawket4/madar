@@ -151,3 +151,102 @@ async fn an_offline_unlock_adopts_capabilities_from_the_feed() {
         "offline answers equal online answers"
     );
 }
+
+/// Phase 5 (PERMISSIONS_ARCHITECTURE §4.2): the owner took voids away from a
+/// teller and lets them ask a manager. On the till the void needs approval; a
+/// manager types THEIR PIN on the same device; the void queues with the
+/// approval, lands, and the server keeps a verified approval record.
+#[tokio::test]
+#[ignore]
+async fn a_manager_approves_a_void_the_teller_may_only_ask_for() {
+    let fx = fixture(1).await;
+    let (teller_id, teller) = fx.tellers[0].clone();
+    let branch = uuid::Uuid::parse_str(&fx.branch).unwrap();
+    let org: uuid::Uuid = fx
+        .db
+        .query_one("SELECT org_id FROM branches WHERE id = $1", &[&branch])
+        .await
+        .unwrap()
+        .get(0);
+    // A manager with a PIN nobody else in the fixture shares.
+    let manager_id = uuid::Uuid::new_v4();
+    let manager = format!("PERM-approver-{}", &manager_id.simple().to_string()[..6]);
+    fx.db
+        .execute(
+            "INSERT INTO users (id, org_id, name, role, pin_hash)
+             VALUES ($1, $2, $3, 'branch_manager'::public.user_role, crypt('864209', gen_salt('bf', 4)))",
+            &[&manager_id, &org, &manager],
+        )
+        .await
+        .unwrap();
+    fx.db
+        .execute(
+            "INSERT INTO user_branch_assignments (user_id, branch_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            &[&manager_id, &branch],
+        )
+        .await
+        .unwrap();
+    // The owner's settings: no voids for this teller, but they may ask.
+    let void_cap: i16 = 64;
+    fx.db
+        .execute(
+            "INSERT INTO user_overrides (org_id, user_id, capability_id, effect, reason)
+             VALUES ($1, $2, $3, 'deny', 'scenario')",
+            &[&org, &teller_id, &void_cap],
+        )
+        .await
+        .unwrap();
+    fx.db
+        .execute(
+            "INSERT INTO org_capability_policy (org_id, capability_id, ask_manager) VALUES ($1, $2, true)
+             ON CONFLICT (org_id, capability_id) DO UPDATE SET ask_manager = true",
+            &[&org, &void_cap],
+        )
+        .await
+        .unwrap();
+
+    let db = temp_db("perm-approval");
+    // The manager signs in online once on this device, so the bundle carries
+    // their offline verifier; then the teller works the till.
+    {
+        let core = signed_in_pin(&fx.base, &db, &manager, &fx.branch, "864209").await;
+        core.logout(false).ok();
+    }
+    let core = core_at(&fx.base, &db, &teller, &fx.branch).await;
+    core.open_till(10_000, None).await.expect("open");
+    let cash = method(&core, true).expect("cash");
+    let sale = sell(&core, 1, &cash, 1_000_000).await;
+    settle(&core, 60).await;
+
+    let d = core.decide_order_act("orders.void".into(), sale.clone(), None);
+    assert_eq!(d.outcome, "needs_approval", "{d:?}");
+    assert!(core.approve_order_act("1234".into(), "orders.void".into(), sale.clone(), None).is_err(),
+        "the teller cannot approve their own ask");
+    let approval = core
+        .approve_order_act("864209".into(), "orders.void".into(), sale.clone(), None)
+        .expect("the manager approves");
+    assert_eq!(approval.approver_name, manager);
+
+    core.void_order_approved(sale.clone(), "customer_changed_mind".into(), None, false, Some(approval.clone()))
+        .await
+        .expect("void queues");
+    for _ in 0..30 {
+        if core.sync_status().pending_outbox == 0 {
+            break;
+        }
+        let _ = core.sync_now().await;
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
+    let left = core.list_outbox().unwrap_or_default();
+    assert!(left.is_empty(), "the void landed: {left:?}");
+    let row = fx
+        .db
+        .query_one(
+            "SELECT verified, approver_user_id FROM approvals WHERE id = $1",
+            &[&uuid::Uuid::parse_str(&approval.id).unwrap()],
+        )
+        .await
+        .expect("the approval is on record");
+    assert!(row.get::<_, bool>(0));
+    assert_eq!(row.get::<_, uuid::Uuid>(1), manager_id);
+}
