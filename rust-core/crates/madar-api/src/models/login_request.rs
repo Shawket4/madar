@@ -29,7 +29,7 @@ pub struct LoginRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub email: Option<Option<String>>,
-    /// Teller's display name (required for PIN login, unused otherwise).
+    /// The person's display name. Optional for PIN login: without it the PIN alone identifies the person (PIN-only sign-in, org-wide unique PINs). Old tablets send it and keep the name-narrowed lookup.
     #[serde(
         rename = "name",
         default,

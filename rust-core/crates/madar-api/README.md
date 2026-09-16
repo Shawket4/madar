@@ -36,10 +36,12 @@ Class | Method | HTTP request | Description
 *AssetsApi* | [**get_asset_bundle**](docs/AssetsApi.md#get_asset_bundle) | **GET** /sync/asset-bundles/{org_id}/{file_name} | 
 *AssetsApi* | [**get_job**](docs/AssetsApi.md#get_job) | **GET** /assets/jobs/{id} | 
 *AssetsApi* | [**top_up**](docs/AssetsApi.md#top_up) | **POST** /sync/assets | 
+*AuthApi* | [**activate**](docs/AuthApi.md#activate) | **POST** /auth/activate-device | 
 *AuthApi* | [**get_my_permissions**](docs/AuthApi.md#get_my_permissions) | **GET** /auth/permissions | 
 *AuthApi* | [**login**](docs/AuthApi.md#login) | **POST** /auth/login | 
 *AuthApi* | [**me**](docs/AuthApi.md#me) | **GET** /auth/me | 
 *AuthApi* | [**resolve_branch**](docs/AuthApi.md#resolve_branch) | **POST** /auth/resolve-branch | 
+*AuthzApi* | [**authz_keys**](docs/AuthzApi.md#authz_keys) | **GET** /auth/authz-keys | 
 *AuthzApi* | [**create_role**](docs/AuthzApi.md#create_role) | **POST** /authz/roles | 
 *AuthzApi* | [**delete_role**](docs/AuthzApi.md#delete_role) | **DELETE** /authz/roles/{id} | 
 *AuthzApi* | [**explain**](docs/AuthzApi.md#explain) | **GET** /authz/explain | 
@@ -92,6 +94,12 @@ Class | Method | HTTP request | Description
 *BundlesApi* | [**update_bundle**](docs/BundlesApi.md#update_bundle) | **PATCH** /bundles/{id} | 
 *CostingApi* | [**list_addon_costs**](docs/CostingApi.md#list_addon_costs) | **GET** /costing/addon-items | 
 *CostingApi* | [**list_sku_costs**](docs/CostingApi.md#list_sku_costs) | **GET** /costing/menu-items | 
+*CustomersApi* | [**create_customer**](docs/CustomersApi.md#create_customer) | **POST** /customers | 
+*CustomersApi* | [**erase_customer**](docs/CustomersApi.md#erase_customer) | **POST** /customers/{id}/erase | 
+*CustomersApi* | [**get_customer**](docs/CustomersApi.md#get_customer) | **GET** /customers/{id} | 
+*CustomersApi* | [**list_customers**](docs/CustomersApi.md#list_customers) | **GET** /customers | 
+*CustomersApi* | [**merge_customer**](docs/CustomersApi.md#merge_customer) | **POST** /customers/{id}/merge | 
+*CustomersApi* | [**update_customer**](docs/CustomersApi.md#update_customer) | **PATCH** /customers/{id} | 
 *DeliveryApi* | [**cancel_delivery_order**](docs/DeliveryApi.md#cancel_delivery_order) | **POST** /delivery-orders/{id}/cancel | 
 *DeliveryApi* | [**create_zone**](docs/DeliveryApi.md#create_zone) | **POST** /delivery/zones | 
 *DeliveryApi* | [**delete_channel_addon_override**](docs/DeliveryApi.md#delete_channel_addon_override) | **DELETE** /delivery/channel-addon-overrides | 
@@ -120,9 +128,13 @@ Class | Method | HTTP request | Description
 *DeliveryPublicApi* | [**public_branches**](docs/DeliveryPublicApi.md#public_branches) | **GET** /public/branches | 
 *DeliveryPublicApi* | [**public_menu**](docs/DeliveryPublicApi.md#public_menu) | **GET** /public/branches/{id}/menu | 
 *DeliveryPublicApi* | [**track_delivery_order**](docs/DeliveryPublicApi.md#track_delivery_order) | **GET** /public/delivery-orders/{id}/track | 
+*DevicesApi* | [**create_code**](docs/DevicesApi.md#create_code) | **POST** /devices/activation-codes | 
+*DevicesApi* | [**device_snapshot**](docs/DevicesApi.md#device_snapshot) | **GET** /devices/me/authz-snapshot | 
 *DevicesApi* | [**list_client_versions**](docs/DevicesApi.md#list_client_versions) | **GET** /devices/client-versions | 
+*DevicesApi* | [**list_codes**](docs/DevicesApi.md#list_codes) | **GET** /devices/activation-codes | 
 *DevicesApi* | [**list_devices**](docs/DevicesApi.md#list_devices) | **GET** /devices | 
 *DevicesApi* | [**register_device**](docs/DevicesApi.md#register_device) | **POST** /devices/register | 
+*DevicesApi* | [**revoke_code**](docs/DevicesApi.md#revoke_code) | **POST** /devices/activation-codes/{id}/revoke | 
 *DevicesApi* | [**update_device**](docs/DevicesApi.md#update_device) | **PATCH** /devices/{id} | 
 *DiscountsApi* | [**create_discount**](docs/DiscountsApi.md#create_discount) | **POST** /discounts | 
 *DiscountsApi* | [**delete_discount**](docs/DiscountsApi.md#delete_discount) | **DELETE** /discounts/{id} | 
@@ -488,6 +500,7 @@ Class | Method | HTTP request | Description
 *UsersApi* | [**get_user**](docs/UsersApi.md#get_user) | **GET** /users/{id} | 
 *UsersApi* | [**list_user_branches**](docs/UsersApi.md#list_user_branches) | **GET** /users/{id}/branches | 
 *UsersApi* | [**list_users**](docs/UsersApi.md#list_users) | **GET** /users | 
+*UsersApi* | [**suggest_pin**](docs/UsersApi.md#suggest_pin) | **GET** /users/pin-suggestion | A free PIN for this org.
 *UsersApi* | [**unassign_branch**](docs/UsersApi.md#unassign_branch) | **DELETE** /users/{id}/branches/{branch_id} | 
 *UsersApi* | [**update_user**](docs/UsersApi.md#update_user) | **PATCH** /users/{id} | 
 *WhatsappApi* | [**whatsapp_logout**](docs/WhatsappApi.md#whatsapp_logout) | **POST** /whatsapp/logout | Unlink the current number. Idempotent — logging out an already-unlinked session still returns the (now logged-out) status.
@@ -499,6 +512,10 @@ Class | Method | HTTP request | Description
 ## Documentation For Models
 
  - [AcceptingInput](docs/AcceptingInput.md)
+ - [ActivateDeviceRequest](docs/ActivateDeviceRequest.md)
+ - [ActivateDeviceResponse](docs/ActivateDeviceResponse.md)
+ - [ActivationCode](docs/ActivationCode.md)
+ - [ActivationCodeState](docs/ActivationCodeState.md)
  - [AddRoundRequest](docs/AddRoundRequest.md)
  - [AddonCost](docs/AddonCost.md)
  - [AddonIngredient](docs/AddonIngredient.md)
@@ -532,6 +549,7 @@ Class | Method | HTTP request | Description
  - [AttendanceStatus](docs/AttendanceStatus.md)
  - [AttendanceSummary](docs/AttendanceSummary.md)
  - [AuthPermissionsResponse](docs/AuthPermissionsResponse.md)
+ - [AuthzPublicKey](docs/AuthzPublicKey.md)
  - [AvailabilityOut](docs/AvailabilityOut.md)
  - [AvailabilityResponse](docs/AvailabilityResponse.md)
  - [AwardRequest](docs/AwardRequest.md)
@@ -612,6 +630,7 @@ Class | Method | HTTP request | Description
  - [ConversationList](docs/ConversationList.md)
  - [ConversationSummary](docs/ConversationSummary.md)
  - [CorrectRecordRequest](docs/CorrectRecordRequest.md)
+ - [CreateActivationCodeRequest](docs/CreateActivationCodeRequest.md)
  - [CreateAddonItemRequest](docs/CreateAddonItemRequest.md)
  - [CreateAddonSlotRequest](docs/CreateAddonSlotRequest.md)
  - [CreateAdjustmentRequest](docs/CreateAdjustmentRequest.md)
@@ -624,6 +643,7 @@ Class | Method | HTTP request | Description
  - [CreateCatalogItemRequest](docs/CreateCatalogItemRequest.md)
  - [CreateCategoryRequest](docs/CreateCategoryRequest.md)
  - [CreateCredentialRequest](docs/CreateCredentialRequest.md)
+ - [CreateCustomerRequest](docs/CreateCustomerRequest.md)
  - [CreateDecisionRequest](docs/CreateDecisionRequest.md)
  - [CreateDiscountRequest](docs/CreateDiscountRequest.md)
  - [CreateDocumentRequest](docs/CreateDocumentRequest.md)
@@ -655,6 +675,9 @@ Class | Method | HTTP request | Description
  - [CreateWasteRequest](docs/CreateWasteRequest.md)
  - [CredentialSummary](docs/CredentialSummary.md)
  - [CredentialWithSecret](docs/CredentialWithSecret.md)
+ - [Customer](docs/Customer.md)
+ - [CustomerDetail](docs/CustomerDetail.md)
+ - [CustomerOrder](docs/CustomerOrder.md)
  - [DatasetInfo](docs/DatasetInfo.md)
  - [DecisionOut](docs/DecisionOut.md)
  - [DeductionLogRow](docs/DeductionLogRow.md)
@@ -753,6 +776,7 @@ Class | Method | HTTP request | Description
  - [MenuItemFull](docs/MenuItemFull.md)
  - [MenuItemRecipe](docs/MenuItemRecipe.md)
  - [MenuItemWithCosts](docs/MenuItemWithCosts.md)
+ - [MergeCustomerRequest](docs/MergeCustomerRequest.md)
  - [MethodTotal](docs/MethodTotal.md)
  - [MetricResult](docs/MetricResult.md)
  - [MetricsQueryRequest](docs/MetricsQueryRequest.md)
@@ -829,6 +853,7 @@ Class | Method | HTTP request | Description
  - [PeriodStatusRequest](docs/PeriodStatusRequest.md)
  - [Permission](docs/Permission.md)
  - [PermissionMatrix](docs/PermissionMatrix.md)
+ - [PinSuggestion](docs/PinSuggestion.md)
  - [PoLineInput](docs/PoLineInput.md)
  - [PointsLiability](docs/PointsLiability.md)
  - [PolicyEntry](docs/PolicyEntry.md)
@@ -1000,6 +1025,7 @@ Class | Method | HTTP request | Description
  - [UpdateBundleRequest](docs/UpdateBundleRequest.md)
  - [UpdateCatalogItemRequest](docs/UpdateCatalogItemRequest.md)
  - [UpdateCategoryRequest](docs/UpdateCategoryRequest.md)
+ - [UpdateCustomerRequest](docs/UpdateCustomerRequest.md)
  - [UpdateDeviceRequest](docs/UpdateDeviceRequest.md)
  - [UpdateDiscountRequest](docs/UpdateDiscountRequest.md)
  - [UpdateFloorTableRequest](docs/UpdateFloorTableRequest.md)

@@ -44,7 +44,7 @@ pub struct ReplayFlag {
     /// The replayed op, e.g. `CashMovement`.
     #[serde(rename = "op")]
     pub op: String,
-    /// `stale_snapshot` — they held it when they acted and the device had not heard the revocation yet. `unauthorized_offline` — nothing explains it.
+    /// `stale_snapshot` — they held it when they acted and the device had not heard the revocation yet. `unauthorized_offline` — nothing explains it. `pin_wrong_branch` — their correct PIN was typed at a branch they may not sign in at (`op` = `PinSignIn`, `details.attempts` counts the tries).
     #[serde(rename = "reason")]
     pub reason: String,
     #[serde(

@@ -4,11 +4,40 @@ All URIs are relative to *http://localhost:8080*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
+[**activate**](AuthApi.md#activate) | **POST** /auth/activate-device | 
 [**get_my_permissions**](AuthApi.md#get_my_permissions) | **GET** /auth/permissions | 
 [**login**](AuthApi.md#login) | **POST** /auth/login | 
 [**me**](AuthApi.md#me) | **GET** /auth/me | 
 [**resolve_branch**](AuthApi.md#resolve_branch) | **POST** /auth/resolve-branch | 
 
+
+
+## activate
+
+> models::ActivateDeviceResponse activate(activate_device_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**activate_device_request** | [**ActivateDeviceRequest**](ActivateDeviceRequest.md) |  | [required] |
+
+### Return type
+
+[**models::ActivateDeviceResponse**](ActivateDeviceResponse.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
 ## get_my_permissions

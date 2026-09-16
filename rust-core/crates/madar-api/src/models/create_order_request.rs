@@ -36,6 +36,14 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub created_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// A manual customer (phase 6), attached when the actor holds `customers.attach`. A merged id resolves; an unknown one is ignored — a sale is never refused over its customer.
+    #[serde(
+        rename = "customer_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub customer_id: Option<Option<uuid::Uuid>>,
     #[serde(
         rename = "customer_name",
         default,
@@ -209,6 +217,7 @@ impl CreateOrderRequest {
             branch_id,
             change_given: None,
             created_at: None,
+            customer_id: None,
             customer_name: None,
             device_code: None,
             device_id: None,

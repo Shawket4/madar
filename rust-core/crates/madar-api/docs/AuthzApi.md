@@ -4,6 +4,7 @@ All URIs are relative to *http://localhost:8080*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
+[**authz_keys**](AuthzApi.md#authz_keys) | **GET** /auth/authz-keys | 
 [**create_role**](AuthzApi.md#create_role) | **POST** /authz/roles | 
 [**delete_role**](AuthzApi.md#delete_role) | **DELETE** /authz/roles/{id} | 
 [**explain**](AuthzApi.md#explain) | **GET** /authz/explain | 
@@ -19,6 +20,31 @@ Method | HTTP request | Description
 [**set_role_grant**](AuthzApi.md#set_role_grant) | **PUT** /authz/roles/{id}/grants | 
 [**user_access**](AuthzApi.md#user_access) | **GET** /authz/users/{id} | 
 
+
+
+## authz_keys
+
+> Vec<models::AuthzPublicKey> authz_keys()
+
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**Vec<models::AuthzPublicKey>**](AuthzPublicKey.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
 ## create_role

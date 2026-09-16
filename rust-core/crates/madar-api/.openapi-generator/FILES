@@ -4,6 +4,10 @@
 Cargo.toml
 README.md
 docs/AcceptingInput.md
+docs/ActivateDeviceRequest.md
+docs/ActivateDeviceResponse.md
+docs/ActivationCode.md
+docs/ActivationCodeState.md
 docs/AddRoundRequest.md
 docs/AddonCost.md
 docs/AddonIngredient.md
@@ -41,6 +45,7 @@ docs/AttendanceSummary.md
 docs/AuthApi.md
 docs/AuthPermissionsResponse.md
 docs/AuthzApi.md
+docs/AuthzPublicKey.md
 docs/AvailabilityOut.md
 docs/AvailabilityResponse.md
 docs/AwardRequest.md
@@ -126,6 +131,7 @@ docs/ConversationList.md
 docs/ConversationSummary.md
 docs/CorrectRecordRequest.md
 docs/CostingApi.md
+docs/CreateActivationCodeRequest.md
 docs/CreateAddonItemRequest.md
 docs/CreateAddonSlotRequest.md
 docs/CreateAdjustmentRequest.md
@@ -138,6 +144,7 @@ docs/CreateBundleRequest.md
 docs/CreateCatalogItemRequest.md
 docs/CreateCategoryRequest.md
 docs/CreateCredentialRequest.md
+docs/CreateCustomerRequest.md
 docs/CreateDecisionRequest.md
 docs/CreateDiscountRequest.md
 docs/CreateDocumentRequest.md
@@ -169,6 +176,10 @@ docs/CreateUserResponse.md
 docs/CreateWasteRequest.md
 docs/CredentialSummary.md
 docs/CredentialWithSecret.md
+docs/Customer.md
+docs/CustomerDetail.md
+docs/CustomerOrder.md
+docs/CustomersApi.md
 docs/DatasetInfo.md
 docs/DecisionOut.md
 docs/DeductionLogRow.md
@@ -280,6 +291,7 @@ docs/MenuItem.md
 docs/MenuItemFull.md
 docs/MenuItemRecipe.md
 docs/MenuItemWithCosts.md
+docs/MergeCustomerRequest.md
 docs/MethodTotal.md
 docs/MetricResult.md
 docs/MetricsApi.md
@@ -362,6 +374,7 @@ docs/PeriodStatusRequest.md
 docs/Permission.md
 docs/PermissionMatrix.md
 docs/PermissionsApi.md
+docs/PinSuggestion.md
 docs/PoLineInput.md
 docs/PointsLiability.md
 docs/PolicyEntry.md
@@ -545,6 +558,7 @@ docs/UpdateBranchRequest.md
 docs/UpdateBundleRequest.md
 docs/UpdateCatalogItemRequest.md
 docs/UpdateCategoryRequest.md
+docs/UpdateCustomerRequest.md
 docs/UpdateDeviceRequest.md
 docs/UpdateDiscountRequest.md
 docs/UpdateFloorTableRequest.md
@@ -614,6 +628,7 @@ src/apis/branches_api.rs
 src/apis/bundles_api.rs
 src/apis/configuration.rs
 src/apis/costing_api.rs
+src/apis/customers_api.rs
 src/apis/delivery_api.rs
 src/apis/delivery_public_api.rs
 src/apis/devices_api.rs
@@ -651,6 +666,10 @@ src/apis/users_api.rs
 src/apis/whatsapp_api.rs
 src/lib.rs
 src/models/accepting_input.rs
+src/models/activate_device_request.rs
+src/models/activate_device_response.rs
+src/models/activation_code.rs
+src/models/activation_code_state.rs
 src/models/add_round_request.rs
 src/models/addon_cost.rs
 src/models/addon_ingredient.rs
@@ -684,6 +703,7 @@ src/models/attendance_settings.rs
 src/models/attendance_status.rs
 src/models/attendance_summary.rs
 src/models/auth_permissions_response.rs
+src/models/authz_public_key.rs
 src/models/availability_out.rs
 src/models/availability_response.rs
 src/models/award_request.rs
@@ -764,6 +784,7 @@ src/models/conversation_detail.rs
 src/models/conversation_list.rs
 src/models/conversation_summary.rs
 src/models/correct_record_request.rs
+src/models/create_activation_code_request.rs
 src/models/create_addon_item_request.rs
 src/models/create_addon_slot_request.rs
 src/models/create_adjustment_request.rs
@@ -776,6 +797,7 @@ src/models/create_bundle_request.rs
 src/models/create_catalog_item_request.rs
 src/models/create_category_request.rs
 src/models/create_credential_request.rs
+src/models/create_customer_request.rs
 src/models/create_decision_request.rs
 src/models/create_discount_request.rs
 src/models/create_document_request.rs
@@ -807,6 +829,9 @@ src/models/create_user_response.rs
 src/models/create_waste_request.rs
 src/models/credential_summary.rs
 src/models/credential_with_secret.rs
+src/models/customer.rs
+src/models/customer_detail.rs
+src/models/customer_order.rs
 src/models/dataset_info.rs
 src/models/decision_out.rs
 src/models/deduction_log_row.rs
@@ -905,6 +930,7 @@ src/models/menu_item.rs
 src/models/menu_item_full.rs
 src/models/menu_item_recipe.rs
 src/models/menu_item_with_costs.rs
+src/models/merge_customer_request.rs
 src/models/method_total.rs
 src/models/metric_result.rs
 src/models/metrics_query_request.rs
@@ -982,6 +1008,7 @@ src/models/period_preset.rs
 src/models/period_status_request.rs
 src/models/permission.rs
 src/models/permission_matrix.rs
+src/models/pin_suggestion.rs
 src/models/po_line_input.rs
 src/models/points_liability.rs
 src/models/policy_entry.rs
@@ -1153,6 +1180,7 @@ src/models/update_branch_request.rs
 src/models/update_bundle_request.rs
 src/models/update_catalog_item_request.rs
 src/models/update_category_request.rs
+src/models/update_customer_request.rs
 src/models/update_device_request.rs
 src/models/update_discount_request.rs
 src/models/update_floor_table_request.rs

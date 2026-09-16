@@ -12,7 +12,7 @@ Name | Type | Description | Notes
 **id** | **i64** |  | 
 **occurred_at** | **chrono::DateTime<chrono::FixedOffset>** | When the act happened on the device. | 
 **op** | **String** | The replayed op, e.g. `CashMovement`. | 
-**reason** | **String** | `stale_snapshot` — they held it when they acted and the device had not heard the revocation yet. `unauthorized_offline` — nothing explains it. | 
+**reason** | **String** | `stale_snapshot` — they held it when they acted and the device had not heard the revocation yet. `unauthorized_offline` — nothing explains it. `pin_wrong_branch` — their correct PIN was typed at a branch they may not sign in at (`op` = `PinSignIn`, `details.attempts` counts the tries). | 
 **reviewed_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **reviewed_by** | Option<**uuid::Uuid**> |  | [optional]
 

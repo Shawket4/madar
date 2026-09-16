@@ -12,36 +12,39 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct UpdateUserRequest {
+pub struct CreateCustomerRequest {
+    /// The branch where the customer was added (a till sends its own).
     #[serde(
-        rename = "email",
+        rename = "branch_id",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub email: Option<Option<String>>,
+    pub branch_id: Option<Option<uuid::Uuid>>,
+    /// Client-minted id; a repeat with the same id returns the stored customer.
     #[serde(
-        rename = "is_active",
+        rename = "id",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub is_active: Option<Option<bool>>,
+    pub id: Option<Option<uuid::Uuid>>,
     #[serde(
-        rename = "name",
+        rename = "loyalty_customer_id",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub name: Option<Option<String>>,
-    /// Plain-text new password. Server-side bcrypt-hashed.
+    pub loyalty_customer_id: Option<Option<uuid::Uuid>>,
+    #[serde(rename = "name")]
+    pub name: String,
     #[serde(
-        rename = "password",
+        rename = "notes",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub password: Option<Option<String>>,
+    pub notes: Option<Option<String>>,
     #[serde(
         rename = "phone",
         default,
@@ -49,34 +52,17 @@ pub struct UpdateUserRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub phone: Option<Option<String>>,
-    /// A NEW PIN is exactly 6 digits; an existing shorter one keeps working until it is changed.
-    #[serde(
-        rename = "pin",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub pin: Option<Option<String>>,
-    /// Only org-admins and above can change roles. Promoting to `super_admin` requires the caller to be a super-admin.
-    #[serde(
-        rename = "role",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub role: Option<Option<models::UserRole>>,
 }
 
-impl UpdateUserRequest {
-    pub fn new() -> UpdateUserRequest {
-        UpdateUserRequest {
-            email: None,
-            is_active: None,
-            name: None,
-            password: None,
+impl CreateCustomerRequest {
+    pub fn new(name: String) -> CreateCustomerRequest {
+        CreateCustomerRequest {
+            branch_id: None,
+            id: None,
+            loyalty_customer_id: None,
+            name,
+            notes: None,
             phone: None,
-            pin: None,
-            role: None,
         }
     }
 }
