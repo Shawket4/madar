@@ -30,6 +30,14 @@ class BundleComponentDraft {
   final int extrasMinor;
 }
 
+/// Whether the size row is a real choice. One `one_size` row is a
+/// placeholder (see the importer), not something to render.
+bool _hasSizeChoice(List<ItemSizeView> sizes) =>
+      sizes.length > 1 ||
+      (sizes.length == 1 &&
+          sizes.first.label.toLowerCase().replaceAll(' ', '_') != 'one_size');
+
+
 /// An addon group shown in the sheet — a slot (labelled, min/max, required)
 /// or a global `type:` bucket.
 class AddonGroup {
@@ -279,6 +287,18 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
   /// preselection into a group the sheet never renders for a slotted item:
   /// the milk group showed nothing chosen while the line still carried
   /// full-fat, so picking oat added a second milk instead of replacing it.
+  /// Open every swap group on the choice the item's recipe already names — the
+  /// teller taps only to CHANGE the drink, not to confirm how it is made. The
+  /// core decides which option that is (`defaultOptionId`), from the recipe
+  /// line of the group's ingredient family.
+  static void _seedSwapDefaults(ItemSheetArgs args, Map<String, String> single) {
+    for (final g in args.groups) {
+      final id = g.defaultOptionId;
+      if (id == null || single.containsKey(g.groupId)) continue;
+      if (g.options.any((o) => o.id == id)) single[g.groupId] = id;
+    }
+  }
+
   static void _seedDefaultMilk(ItemSheetArgs args, Map<String, String> single) {
     final milk = args.item.defaultMilkAddonId;
     if (milk == null) return;
@@ -331,9 +351,13 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
         }
         optionals = seed.optionalIds.toSet();
       } else {
+        _seedSwapDefaults(args, single);
         _seedDefaultMilk(args, single);
       }
-    } else if (editLine != null) {
+    } else if (editLine == null) {
+      _seedSwapDefaults(args, single);
+    }
+    if (editLine != null) {
       // Edit mode: reconstruct the selection from the existing line.
       size = editLine.sizeLabel ?? size;
       for (final a in editLine.addons) {
@@ -946,7 +970,9 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                           )
                         : const SizedBox(width: double.infinity),
                   ),
-                  if (_item.sizes.isNotEmpty) ...[
+                  // A single `one_size` is a placeholder the dashboard needs so
+                  // a recipe has a column to hang on — never a choice to make.
+                  if (_hasSizeChoice(_item.sizes)) ...[
                     MadarSectionHeader(text: bridge.tr(key: 'order.size')),
                     const SizedBox(height: Space.sm),
                     SingleChildScrollView(

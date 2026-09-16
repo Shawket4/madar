@@ -12078,8 +12078,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   ModifierGroupView dco_decode_modifier_group_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return ModifierGroupView(
       groupId: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
@@ -12088,7 +12088,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       isRequired: dco_decode_bool(arr[4]),
       minSelections: dco_decode_i_32(arr[5]),
       maxSelections: dco_decode_opt_box_autoadd_i_32(arr[6]),
-      options: dco_decode_list_modifier_option_view(arr[7]),
+      defaultOptionId: dco_decode_opt_String(arr[7]),
+      options: dco_decode_list_modifier_option_view(arr[8]),
     );
   }
 
@@ -15955,6 +15956,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_isRequired = sse_decode_bool(deserializer);
     var var_minSelections = sse_decode_i_32(deserializer);
     var var_maxSelections = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_defaultOptionId = sse_decode_opt_String(deserializer);
     var var_options = sse_decode_list_modifier_option_view(deserializer);
     return ModifierGroupView(
       groupId: var_groupId,
@@ -15964,6 +15966,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       isRequired: var_isRequired,
       minSelections: var_minSelections,
       maxSelections: var_maxSelections,
+      defaultOptionId: var_defaultOptionId,
       options: var_options,
     );
   }
@@ -19661,6 +19664,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_bool(self.isRequired, serializer);
     sse_encode_i_32(self.minSelections, serializer);
     sse_encode_opt_box_autoadd_i_32(self.maxSelections, serializer);
+    sse_encode_opt_String(self.defaultOptionId, serializer);
     sse_encode_list_modifier_option_view(self.options, serializer);
   }
 

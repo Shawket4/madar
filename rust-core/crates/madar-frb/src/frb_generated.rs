@@ -13212,6 +13212,7 @@ const _: fn() = || {
         let _: bool = ModifierGroupView.is_required;
         let _: i32 = ModifierGroupView.min_selections;
         let _: Option<i32> = ModifierGroupView.max_selections;
+        let _: Option<String> = ModifierGroupView.default_option_id;
         let _: Vec<crate::api::cart::ModifierOptionView> = ModifierGroupView.options;
     }
     {
@@ -16349,6 +16350,7 @@ impl SseDecode for crate::api::cart::ModifierGroupView {
         let mut var_isRequired = <bool>::sse_decode(deserializer);
         let mut var_minSelections = <i32>::sse_decode(deserializer);
         let mut var_maxSelections = <Option<i32>>::sse_decode(deserializer);
+        let mut var_defaultOptionId = <Option<String>>::sse_decode(deserializer);
         let mut var_options = <Vec<crate::api::cart::ModifierOptionView>>::sse_decode(deserializer);
         return crate::api::cart::ModifierGroupView {
             group_id: var_groupId,
@@ -16358,6 +16360,7 @@ impl SseDecode for crate::api::cart::ModifierGroupView {
             is_required: var_isRequired,
             min_selections: var_minSelections,
             max_selections: var_maxSelections,
+            default_option_id: var_defaultOptionId,
             options: var_options,
         };
     }
@@ -20967,6 +20970,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::cart::ModifierGrou
             self.0.is_required.into_into_dart().into_dart(),
             self.0.min_selections.into_into_dart().into_dart(),
             self.0.max_selections.into_into_dart().into_dart(),
+            self.0.default_option_id.into_into_dart().into_dart(),
             self.0.options.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -24333,6 +24337,7 @@ impl SseEncode for crate::api::cart::ModifierGroupView {
         <bool>::sse_encode(self.is_required, serializer);
         <i32>::sse_encode(self.min_selections, serializer);
         <Option<i32>>::sse_encode(self.max_selections, serializer);
+        <Option<String>>::sse_encode(self.default_option_id, serializer);
         <Vec<crate::api::cart::ModifierOptionView>>::sse_encode(self.options, serializer);
     }
 }
