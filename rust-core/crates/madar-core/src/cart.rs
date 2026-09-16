@@ -607,10 +607,16 @@ fn swap_default_in<T>(
         "coffee_type" => "coffee_bean",
         _ => return None,
     };
-    swap_base_candidates(item, addon_catalog, family, category)
-        .into_iter()
-        .find(|a| offered(&a.id))
-        .map(|a| a.id.clone())
+    // First OFFERED option (in the group's own order) that carries the recipe's
+    // ingredient. The group order is deterministic — the unified wire sorts by
+    // option `sort` then name; the legacy projection keeps catalog order, so
+    // the legacy result is unchanged.
+    let candidates = swap_base_candidates(item, addon_catalog, family, category);
+    options
+        .iter()
+        .map(|o| id_of(o))
+        .find(|id| candidates.iter().any(|a| a.id == *id))
+        .map(str::to_string)
 }
 
 fn swap_base_candidates<'a>(
@@ -1959,6 +1965,15 @@ mod tests {
         assert_eq!(
             swap_default_in(&espresso, &catalog, "coffee_type", &none, |o| o),
             None
+        );
+
+        // Both options in ONE group carry the bean: the GROUP's order decides
+        // (the unified wire sends options by `sort`, then name), not the addon
+        // catalog's arbitrary row order.
+        let both = ["colombian-espresso", "colombian"];
+        assert_eq!(
+            swap_default_in(&espresso, &catalog, "coffee_type", &both, |o| o),
+            Some("colombian-espresso".to_string())
         );
     }
 
