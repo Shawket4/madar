@@ -38,6 +38,12 @@ fn parse(model: &str, v: Value) -> Result<(), String> {
         "ShiftRefunds" => p!(models::ShiftRefunds),
         #[cfg(any(feature = "v060", feature = "v061"))]
         "RefundIssued" => p!(models::RefundIssued),
+        // An error answer: every old build shows the `{ "error": "…" }`
+        // sentence (net.rs `server_message`), so that is what must survive.
+        "ErrorEnvelope" => match v.get("error").and_then(|x| x.as_str()) {
+            Some(e) if !e.is_empty() => Ok(()),
+            _ => Err("no top-level string error".into()),
+        },
         // The drain only needs a JSON object with a top-level string `id`.
         "ReplayCreateOrderAck" => match v.get("id").and_then(|x| x.as_str()) {
             Some(_) => Ok(()),

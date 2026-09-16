@@ -9,7 +9,7 @@ Name | Type | Description | Notes
 **can_edit** | **bool** | Can the caller edit this person's access at all? | 
 **capabilities** | [**Vec<models::CapabilityAccess>**](CapabilityAccess.md) |  | 
 **is_owner** | **bool** |  | 
-**locked_reason** | Option<**String**> | Why not, when not (self | owner | not_dominant | missing_authority). | [optional]
+**locked_reason** | Option<**String**> | Why not, when not (self | owner | not_dominant | not_above | missing_authority). | [optional]
 **name** | **String** |  | 
 **user_id** | **uuid::Uuid** |  | 
 
