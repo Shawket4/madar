@@ -915,6 +915,8 @@ fn en(key: &str) -> Option<&'static str> {
         // charge (the one tender drawer) + the done card
         "charge.title" => "Charge",
         "charge.takeaway" => "Takeaway",
+        "charge.pickup" => "Pickup",
+        "charge.dine_in" => "Dine in",
         "charge.bill" => "bill",
         "charge.vat_included" => "VAT included",
         "charge.subtotal_hint" => "Service and VAT are added by the server",
@@ -2054,6 +2056,8 @@ fn ar(key: &str) -> Option<&'static str> {
         // charge (the one tender drawer) + the done card
         "charge.title" => "تحصيل",
         "charge.takeaway" => "تيك أواي",
+        "charge.pickup" => "استلام",
+        "charge.dine_in" => "تناول بالمحل",
         "charge.bill" => "فاتورة",
         "charge.vat_included" => "شامل ضريبة القيمة المضافة",
         "charge.subtotal_hint" => "تُضاف الخدمة والضريبة من الخادم",

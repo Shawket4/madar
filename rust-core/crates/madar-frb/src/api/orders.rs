@@ -218,6 +218,9 @@ pub struct _CheckoutInput {
     /// Rewards covering lines of the cart. The till says WHICH lines; the
     /// server prices them and checks the balance.
     pub loyalty_redemptions: Vec<CheckoutRedemption>,
+    /// Drinking in, so no cup, lid or straw comes off stock. Never moves a
+    /// total — the service charge stays tied to a table.
+    pub dine_in: bool,
 }
 
 pub use madar_core::checkout::CheckoutRedemption;

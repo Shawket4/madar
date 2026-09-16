@@ -108,6 +108,7 @@ class CheckoutState {
     this.tipOpen = false,
     this.tipMinor = 0,
     this.tipMethodId,
+    this.dineIn = false,
     this.splitMode = false,
     this.splitAmounts = const {},
     this.baseSummary,
@@ -199,6 +200,11 @@ class CheckoutState {
   final bool tipOpen;
   final int tipMinor;
   final String? tipMethodId;
+  /// The customer is drinking in, so no cup, lid or straw comes off stock.
+  /// Defaults to false — a pickup. Independent of the floor: a counter shop
+  /// with no tables can say it, which is the whole point. It never moves a
+  /// total; the service charge stays tied to a table.
+  final bool dineIn;
   final bool splitMode;
   final Map<String, int> splitAmounts;
 
@@ -428,6 +434,7 @@ class CheckoutState {
     bool? tipOpen,
     int? tipMinor,
     Object? tipMethodId = _unset,
+    bool? dineIn,
     bool? splitMode,
     Map<String, int>? splitAmounts,
     Object? baseSummary = _unset,
@@ -481,6 +488,7 @@ class CheckoutState {
       tipMethodId: tipMethodId == _unset
           ? this.tipMethodId
           : tipMethodId as String?,
+      dineIn: dineIn ?? this.dineIn,
       splitMode: splitMode ?? this.splitMode,
       splitAmounts: splitAmounts ?? this.splitAmounts,
       baseSummary: baseSummary == _unset
@@ -939,6 +947,10 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
 
   void setTipMethod(String id) => _update((s) => s.copyWith(tipMethodId: id));
 
+  /// Drinking in, or taking it away. Nothing else on the sale moves.
+  void setDineIn({required bool dineIn}) =>
+      _update((s) => s.copyWith(dineIn: dineIn));
+
   /// Split on or off. Turning it OFF drops every leg: the amounts typed for a
   /// split must never ride along with the single payment that replaced it.
   void toggleSplit() {
@@ -1212,6 +1224,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         tipMinor: s.tipMinor,
         tipPaymentMethodId: s.tipMinor > 0 ? s.effectiveTipMethodId : null,
         splits: s.splitMode ? s.splitLegs : const [],
+        dineIn: s.dineIn,
         // WHICH lines, never a price. The server looks each reward up in the
         // branch's catalogue, checks the balance against the whole basket, and
         // refuses the sale outright if it does not cover it.

@@ -44,6 +44,7 @@ pub struct OpenTillRequest {
     pub opened_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "opening_cash")]
     pub opening_cash: i32,
+    /// Ignored. The server decides whether the opening was an edit, from its own expected carryover — a stale device computes this against a figure that has since moved on. Kept so older tablets keep parsing.
     #[serde(
         rename = "opening_cash_edited",
         default,

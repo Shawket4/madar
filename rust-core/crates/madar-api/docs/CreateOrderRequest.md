@@ -24,6 +24,7 @@ Name | Type | Description | Notes
 **order_ref** | Option<**String**> | Client-minted order reference (`<BRANCH>-<YYMMDD>-<DEVICE>-<NNNN>`). Stored verbatim when present; absent → the server mints the deterministic shift-based ref. The global `UNIQUE(order_ref)` index keeps both paths collision-safe (a managed per-device code makes concurrent tills unique). | [optional]
 **payment_method** | **String** |  | 
 **payment_splits** | Option<[**Vec<models::PaymentSplitInput>**](PaymentSplitInput.md)> |  | [optional]
+**service_mode** | Option<**String**> | Where the drink is going: `\"takeaway\"` (default) or `\"dine_in\"`. NOT `order_type`: that is derived from whether a waiter's ticket was settled and decides the service charge. This says only whether the customer is drinking in — so a counter shop with no floor can say it — and its only effect is that packaging (cups, lids, straws) is not deducted from stock. Absent ⇒ takeaway, which is what every client before this did. | [optional]
 **subtotal** | Option<**i32**> |  | [optional]
 **tax_amount** | Option<**i32**> |  | [optional]
 **till_id** | **uuid::Uuid** |  | 

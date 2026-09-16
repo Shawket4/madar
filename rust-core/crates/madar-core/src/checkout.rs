@@ -294,6 +294,11 @@ pub struct CheckoutInput {
     /// Earning is a separate, later act — a sale that redeems nothing leaves
     /// this empty.
     pub loyalty_customer_id: Option<String>,
+    /// Where the drink is going: `true` when the customer is drinking in, so
+    /// no cup, lid or straw comes off stock. Defaults to false — a pickup —
+    /// which is what every build before this did. It is NOT the order type:
+    /// the service charge stays tied to a table, so this never moves a total.
+    pub dine_in: bool,
     /// Rewards covering lines of the cart: which line, and how many of its
     /// units. The server prices them; the till only says which.
     pub loyalty_redemptions: Vec<CheckoutRedemption>,
@@ -664,6 +669,7 @@ pub(crate) fn prepare(
     // Who and which lines — never a price. The server looks the reward up in the
     // branch's catalogue, checks the balance against the WHOLE basket, and
     // refuses the sale outright if it does not cover it.
+    request.service_mode = input.dine_in.then(|| Some("dine_in".to_string()));
     request.loyalty_customer_id = input
         .loyalty_customer_id
         .as_deref()
@@ -1338,6 +1344,7 @@ mod tests {
             notes: None,
             splits: vec![],
             loyalty_customer_id: None,
+        dine_in: false,
             loyalty_redemptions: vec![],
         }
     }

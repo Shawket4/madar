@@ -142,6 +142,14 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub payment_splits: Option<Option<Vec<models::PaymentSplitInput>>>,
+    /// Where the drink is going: `\"takeaway\"` (default) or `\"dine_in\"`. NOT `order_type`: that is derived from whether a waiter's ticket was settled and decides the service charge. This says only whether the customer is drinking in — so a counter shop with no floor can say it — and its only effect is that packaging (cups, lids, straws) is not deducted from stock. Absent ⇒ takeaway, which is what every client before this did.
+    #[serde(
+        rename = "service_mode",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_mode: Option<Option<String>>,
     #[serde(
         rename = "subtotal",
         default,
@@ -217,6 +225,7 @@ impl CreateOrderRequest {
             order_ref: None,
             payment_method,
             payment_splits: None,
+            service_mode: None,
             subtotal: None,
             tax_amount: None,
             till_id,

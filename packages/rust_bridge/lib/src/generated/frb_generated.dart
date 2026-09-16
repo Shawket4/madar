@@ -10780,8 +10780,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   CheckoutInput dco_decode_checkout_input(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
     return CheckoutInput(
       paymentMethodId: dco_decode_String(arr[0]),
       amountTenderedMinor: dco_decode_i_64(arr[1]),
@@ -10792,6 +10792,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       splits: dco_decode_list_checkout_split(arr[6]),
       loyaltyCustomerId: dco_decode_opt_String(arr[7]),
       loyaltyRedemptions: dco_decode_list_checkout_redemption(arr[8]),
+      dineIn: dco_decode_bool(arr[9]),
     );
   }
 
@@ -13988,6 +13989,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_loyaltyRedemptions = sse_decode_list_checkout_redemption(
       deserializer,
     );
+    var var_dineIn = sse_decode_bool(deserializer);
     return CheckoutInput(
       paymentMethodId: var_paymentMethodId,
       amountTenderedMinor: var_amountTenderedMinor,
@@ -13998,6 +14000,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       splits: var_splits,
       loyaltyCustomerId: var_loyaltyCustomerId,
       loyaltyRedemptions: var_loyaltyRedemptions,
+      dineIn: var_dineIn,
     );
   }
 
@@ -18132,6 +18135,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_list_checkout_split(self.splits, serializer);
     sse_encode_opt_String(self.loyaltyCustomerId, serializer);
     sse_encode_list_checkout_redemption(self.loyaltyRedemptions, serializer);
+    sse_encode_bool(self.dineIn, serializer);
   }
 
   @protected

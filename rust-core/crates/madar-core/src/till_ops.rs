@@ -276,12 +276,15 @@ impl MadarCore {
         }
         let rows = till::branch_records(&self.store, &sp.branch_id);
         if self.store.pending_count().map(|n| n == 0).unwrap_or(false) {
-            let s = till::last_close_declared_rows(&rows, &sp.user_id)
+            // The DRAWER's carryover, not the person's: this device's own last
+            // close where it has one, else the branch's. Cached unconditionally
+            // — a genuine zero (the drawer emptied into the safe) has to clear
+            // the last figure, and the old `if s > 0` guard left it standing.
+            let dev = self.lan_device_id();
+            let s = till::last_close_declared_rows(&rows, Some(dev.as_str()))
                 .or_else(|| crate::sync_pull::standard_float(&self.store, &sp.branch_id))
                 .unwrap_or(0);
-            if s > 0 {
-                till::cache_suggested_opening_cash(&self.store, s)?;
-            }
+            till::cache_suggested_opening_cash(&self.store, s)?;
         }
         let pending = |op: &[&str]| {
             local
@@ -472,6 +475,8 @@ impl MadarCore {
             reconciliation: Some(Some(inputs.clone())),
         };
         crate::cart::clear_all(&self.store)?;
+        // What this drawer was just closed at IS the next opening's carryover,
+        // whoever opens it next.
         till::cache_suggested_opening_cash(&self.store, closing_cash_minor)?;
         let cmd = till::CloseTillCommand {
             till_id: t.id.clone(),

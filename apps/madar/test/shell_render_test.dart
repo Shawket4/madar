@@ -1195,7 +1195,7 @@ void main() {
           ),
         )
         .title;
-    expect(sellTitle(), 'Takeaway', reason: 'a launch opens takeaway');
+    expect(sellTitle(), 'Pickup', reason: 'a launch opens takeaway');
     container.read(orderProvider.notifier).setPendingCovers('t1', 4);
 
     await _tab(tester, 'floor');
@@ -1212,7 +1212,7 @@ void main() {
     await _tab(tester, 'sell');
     await _tab(tester, 'sell');
     await _settle(tester);
-    expect(sellTitle(), 'Takeaway');
+    expect(sellTitle(), 'Pickup');
     expect(container.read(cartProvider(null)).lines, _cart);
     await _tab(tester, 'floor');
     await _settle(tester);
@@ -1443,7 +1443,7 @@ void main() {
       // The Sell tab is the counter.
       await _tab(tester, 'sell');
       await _settle(tester);
-      expect(find.text('Takeaway'), findsWidgets);
+      expect(find.text('Pickup'), findsWidgets);
 
       // Back on Floor: the table's screen is still there, still for T1.
       await _tab(tester, 'floor');
@@ -1488,7 +1488,7 @@ void main() {
       expect(find.byType(SyncScreen), findsNothing);
       expect(find.byType(SettingsScreen), findsNothing);
       expect(_pageStack(tester).canPop(), isFalse);
-      expect(find.text('Takeaway'), findsWidgets);
+      expect(find.text('Pickup'), findsWidgets);
       expect(container.read(cartProvider(null)).lines, _cart);
       expect(railTabs(tester).singleWhere((t) => t.selected).tab.key, 'sell');
     });

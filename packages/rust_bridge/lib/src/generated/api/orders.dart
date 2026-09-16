@@ -53,6 +53,10 @@ class CheckoutInput {
   /// server prices them and checks the balance.
   final List<CheckoutRedemption> loyaltyRedemptions;
 
+  /// Drinking in, so no cup, lid or straw comes off stock. Never moves a
+  /// total — the service charge stays tied to a table.
+  final bool dineIn;
+
   const CheckoutInput({
     required this.paymentMethodId,
     required this.amountTenderedMinor,
@@ -63,6 +67,7 @@ class CheckoutInput {
     required this.splits,
     this.loyaltyCustomerId,
     required this.loyaltyRedemptions,
+    required this.dineIn,
   });
 
   @override
@@ -75,7 +80,8 @@ class CheckoutInput {
       notes.hashCode ^
       splits.hashCode ^
       loyaltyCustomerId.hashCode ^
-      loyaltyRedemptions.hashCode;
+      loyaltyRedemptions.hashCode ^
+      dineIn.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -90,7 +96,8 @@ class CheckoutInput {
           notes == other.notes &&
           splits == other.splits &&
           loyaltyCustomerId == other.loyaltyCustomerId &&
-          loyaltyRedemptions == other.loyaltyRedemptions;
+          loyaltyRedemptions == other.loyaltyRedemptions &&
+          dineIn == other.dineIn;
 }
 
 /// One reward applied to one cart line.

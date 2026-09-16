@@ -307,6 +307,7 @@ pub async fn sell(core: &MadarCore, qty: usize, method_id: &str, tendered: i64) 
                 notes: None,
                 splits: vec![],
                 loyalty_customer_id: None,
+                dine_in: false,
                 loyalty_redemptions: vec![],
             },
         )

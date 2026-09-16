@@ -12779,6 +12779,7 @@ const _: fn() = || {
         let _: Vec<crate::api::orders::CheckoutSplit> = CheckoutInput.splits;
         let _: Option<String> = CheckoutInput.loyalty_customer_id;
         let _: Vec<crate::api::orders::CheckoutRedemption> = CheckoutInput.loyalty_redemptions;
+        let _: bool = CheckoutInput.dine_in;
     }
     {
         let CheckoutRedemption = None::<crate::api::orders::CheckoutRedemption>.unwrap();
@@ -14352,6 +14353,7 @@ impl SseDecode for crate::api::orders::CheckoutInput {
         let mut var_loyaltyCustomerId = <Option<String>>::sse_decode(deserializer);
         let mut var_loyaltyRedemptions =
             <Vec<crate::api::orders::CheckoutRedemption>>::sse_decode(deserializer);
+        let mut var_dineIn = <bool>::sse_decode(deserializer);
         return crate::api::orders::CheckoutInput {
             payment_method_id: var_paymentMethodId,
             amount_tendered_minor: var_amountTenderedMinor,
@@ -14362,6 +14364,7 @@ impl SseDecode for crate::api::orders::CheckoutInput {
             splits: var_splits,
             loyalty_customer_id: var_loyaltyCustomerId,
             loyalty_redemptions: var_loyaltyRedemptions,
+            dine_in: var_dineIn,
         };
     }
 }
@@ -19708,6 +19711,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::CheckoutIn
             self.0.splits.into_into_dart().into_dart(),
             self.0.loyalty_customer_id.into_into_dart().into_dart(),
             self.0.loyalty_redemptions.into_into_dart().into_dart(),
+            self.0.dine_in.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -22969,6 +22973,7 @@ impl SseEncode for crate::api::orders::CheckoutInput {
             self.loyalty_redemptions,
             serializer,
         );
+        <bool>::sse_encode(self.dine_in, serializer);
     }
 }
 
