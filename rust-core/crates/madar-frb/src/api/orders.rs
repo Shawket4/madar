@@ -221,6 +221,8 @@ pub struct _CheckoutInput {
     /// Drinking in, so no cup, lid or straw comes off stock. Never moves a
     /// total — the service charge stays tied to a table.
     pub dine_in: bool,
+    /// A manual customer attached to the sale.
+    pub customer_id: Option<String>,
 }
 
 pub use madar_core::checkout::CheckoutRedemption;

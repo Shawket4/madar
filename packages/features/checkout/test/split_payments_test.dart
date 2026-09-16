@@ -303,6 +303,32 @@ Map<String, int> _legs(List<CheckoutSplit> legs) => {
 };
 
 void main() {
+  testWidgets('an attached customer rides the counter sale, and clears', (
+    tester,
+  ) async {
+    final bridge = _Fake();
+    final (c, session) = await _session_(
+      tester,
+      bridge,
+      const ChargeTarget.cart(),
+    );
+    const hana = CustomerView(
+      id: 'c-1',
+      name: 'Hana',
+      phoneHint: '•••• 4444',
+      pending: true,
+    );
+    session.attachCustomer(hana);
+    expect(c.read(checkoutProvider).customer?.id, 'c-1');
+    session.selectMethod('card');
+    await session.charge();
+    expect(bridge.checkedOut!.customerId, 'c-1');
+    expect(bridge.checkedOut!.customerName, 'Hana');
+
+    session.clearCustomer();
+    expect(c.read(checkoutProvider).customer, isNull);
+  });
+
   testWidgets('a 2-way cart split follows a discount applied after it', (
     tester,
   ) async {

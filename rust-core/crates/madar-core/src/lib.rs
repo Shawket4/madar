@@ -34,6 +34,7 @@ pub mod cart;
 pub mod catstyle;
 /// Checkout — assemble an order from the cart + place it via the outbox.
 pub mod checkout;
+pub mod customers;
 /// Delivery-order management (teller side) — list/advance/cancel/finalize.
 pub mod delivery;
 /// Device binding (branch / till / station / printer / reconfigure) — persisted in
@@ -1430,6 +1431,16 @@ impl MadarCore {
                         cmd.approval,
                     ),
                     Idem::VoidIdem,
+                )
+            }
+            "create_customer" => {
+                let request: serde_json::Value = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
+                };
+                (
+                    serde_json::json!({ "op": "create_customer", "teller_id": teller_id, "request": request }),
+                    Idem::Yes,
                 )
             }
             "award_loyalty_points" => {
@@ -6326,7 +6337,16 @@ impl MadarCore {
             idempotency_key: okey.clone(),
             payload: serde_json::to_string(&prepared.command)?,
             event_at: prepared.event_at.clone(),
-            depends_on_seq: self.store.live_seq_of(&shift.id)?,
+            // Behind the till's open; else behind the customer the sale names
+            // when that customer was added on this till and is still queued,
+            // so the server knows the customer before it attaches it.
+            depends_on_seq: match self.store.live_seq_of(&shift.id)? {
+                Some(seq) => Some(seq),
+                None => match input.customer_id.as_deref() {
+                    Some(c) => self.store.live_seq_of(&format!("customer:{c}"))?,
+                    None => None,
+                },
+            },
             user_id: user_id.clone(),
             clock_offset_ms,
             till_id: Some(shift.id.clone()),

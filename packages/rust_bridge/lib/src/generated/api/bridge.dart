@@ -8,6 +8,7 @@ import 'approvals.dart';
 import 'bookings.dart';
 import 'cart.dart';
 import 'catalog.dart';
+import 'customers.dart';
 import 'delivery.dart';
 import 'device.dart';
 import 'drawer.dart';
@@ -367,6 +368,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<String> optionalFieldIds,
   });
 
+  /// Add a customer; usable at once, synced through the queue.
+  CustomerView createCustomer({required String name, String? phone});
+
   /// Queue a party — a held order (`occupant_kind: "held_order"`) or an open
   /// ticket (`"open_ticket"`) — to move to a section or a specific table.
   Future<void> createTransfer({
@@ -383,6 +387,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   SessionSnapshot? currentSession();
 
   Future<TillView?> currentTill();
+
+  /// One customer from the till's list.
+  CustomerView? customerById({required String id});
 
   /// SQLite path the host handed us (empty => in-memory).
   String dbPath();
@@ -993,6 +1000,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required PlatformInt64 taxMinor,
     required PlatformInt64 totalMinor,
   });
+
+  /// Customers matching a name or phone digits, best first. Offline.
+  List<CustomerView> searchCustomers({required String query});
 
   /// Search the branch's orders ACROSS shifts (history lookup) with optional
   /// filters (status / teller / payment method / from-to dates) + pagination
