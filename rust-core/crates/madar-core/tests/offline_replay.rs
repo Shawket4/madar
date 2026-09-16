@@ -230,6 +230,7 @@ fn cash_checkout(core: &MadarCore) -> CheckoutInput {
         notes: None,
         splits: vec![],
         loyalty_customer_id: None,
+    dine_in: false,
         loyalty_redemptions: vec![],
     }
 }

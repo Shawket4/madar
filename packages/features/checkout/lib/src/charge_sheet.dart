@@ -317,6 +317,39 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
           onSelect: notifier.selectMethod,
           onToggleSplit: notifier.toggleSplit,
         ),
+      // Drinking in or taking it away. Only on a COUNTER sale: a table's bill
+      // is dine-in by definition, and this must not depend on the floor module
+      // — a counter shop with no tables is exactly who needs it. It changes no
+      // money, only whether the cup, lid and straw come off stock.
+      if (!s.isBill)
+        Padding(
+          padding: const EdgeInsetsDirectional.only(top: Space.sm),
+          child: Row(
+            spacing: Space.sm,
+            children: [
+              Expanded(
+                child: MadarButton(
+                  label: tr('charge.pickup'),
+                  size: MadarButtonSize.compact,
+                  variant: s.dineIn
+                      ? MadarButtonVariant.outline
+                      : MadarButtonVariant.secondary,
+                  onTap: () => notifier.setDineIn(dineIn: false),
+                ),
+              ),
+              Expanded(
+                child: MadarButton(
+                  label: tr('charge.dine_in'),
+                  size: MadarButtonSize.compact,
+                  variant: s.dineIn
+                      ? MadarButtonVariant.secondary
+                      : MadarButtonVariant.outline,
+                  onTap: () => notifier.setDineIn(dineIn: true),
+                ),
+              ),
+            ],
+          ),
+        ),
       if (s.splitMode)
         _SplitAllocator(
           state: s,

@@ -16,6 +16,21 @@ pub struct RecipeStepInput {
     /// `preset` | `custom`.
     #[serde(rename = "kind")]
     pub kind: String,
+    /// What THIS item does at this step (\"40ml condensed milk, mixed with the shot first\"). Valid on a preset step too, where it replaces the library's generic note without giving up the animation.
+    #[serde(
+        rename = "note",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub note: Option<Option<String>>,
+    #[serde(
+        rename = "note_ar",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub note_ar: Option<Option<String>>,
     /// Required for `preset`.
     #[serde(
         rename = "preset_slug",
@@ -45,6 +60,8 @@ impl RecipeStepInput {
     pub fn new(kind: String) -> RecipeStepInput {
         RecipeStepInput {
             kind,
+            note: None,
+            note_ar: None,
             preset_slug: None,
             title: None,
             title_ar: None,

@@ -309,7 +309,7 @@ const _en = {
   'setup.continue': 'Continue',
   // The Sell / Floor / Bill vocabulary — once served by the package's
   // own fallback table, which is gone; the core carries these keys now.
-  'sell.takeaway': 'Takeaway',
+  'sell.takeaway': 'Pickup',
   'sell.parked': 'Parked',
   'sell.park': 'Park',
   'sell.parked_empty': 'Nothing parked',
@@ -364,7 +364,7 @@ const _ar = {
   'waiter.items': 'أصناف',
   'waiter.need_shift': 'افتح وردية للتحصيل',
   'chrome.more': 'المزيد',
-  'sell.takeaway': 'تيك أواي',
+  'sell.takeaway': 'استلام',
   'sell.parked': 'مركونة',
   'sell.park': 'اركن الطلب',
   'sell.parked_empty': 'لا طلبات مركونة',
@@ -964,7 +964,7 @@ void main() {
     ) async {
       await _mount(tester, screen: const TakeawaySellScreen(), size: _ipad);
       expect(find.text('Espresso'), findsWidgets);
-      expect(find.text('Takeaway'), findsWidgets);
+      expect(find.text('Pickup'), findsWidgets);
       await _capture(tester, 'sell-ipad');
     });
 
@@ -1221,7 +1221,7 @@ void _cartContextTests() {
           bridge: bridge,
         );
         await settle(tester);
-        expect(titleOf(tester, find.byType(OrderScreen)), 'Takeaway');
+        expect(titleOf(tester, find.byType(OrderScreen)), 'Pickup');
         expect(linesOf(c, null), empty ? isEmpty : takeaway);
         expect(find.textContaining('T2'), findsNothing);
         expect(find.text('Latte'), findsWidgets, reason: 'the menu tile only');
@@ -1257,7 +1257,7 @@ void _cartContextTests() {
       await c.read(orderProvider.notifier).reconcileTill();
       await settle(tester);
       expect(find.byType(SellNoTillNotice), findsNothing);
-      expect(titleOf(tester, find.byType(OrderScreen)), 'Takeaway');
+      expect(titleOf(tester, find.byType(OrderScreen)), 'Pickup');
       expect(linesOf(c, null), takeaway);
       expect(linesOf(c, 't2'), ['Lattex2']);
     });
@@ -1280,7 +1280,7 @@ void _cartContextTests() {
       await settle(tester);
       final sell = find.byType(TakeawaySellScreen, skipOffstage: false);
       final table = find.byType(TableOrderScreen, skipOffstage: false);
-      expect(titleOf(tester, sell), 'Takeaway');
+      expect(titleOf(tester, sell), 'Pickup');
       expect(titleOf(tester, table), 'T2 · 4 guests');
       expect(linesOf(c, null), takeaway);
       expect(linesOf(c, 't2'), ['Lattex2']);
@@ -1299,7 +1299,7 @@ void _cartContextTests() {
       await settle(tester);
       expect(qty(bridge, 't2'), before.$2 + 1, reason: 'T2 adds to T2');
       expect(qty(bridge, null), before.$1 + 1);
-      expect(titleOf(tester, sell), 'Takeaway');
+      expect(titleOf(tester, sell), 'Pickup');
       expect(titleOf(tester, table), 'T2 · 4 guests');
       await tester.pump(const Duration(seconds: 5));
     });
@@ -1339,7 +1339,7 @@ void _cartContextTests() {
       Navigator.of(tester.element(pushed)).pop();
       await settle(tester);
       expect(find.byType(TableOrderScreen), findsNothing);
-      expect(titleOf(tester, find.byType(OrderScreen)), 'Takeaway');
+      expect(titleOf(tester, find.byType(OrderScreen)), 'Pickup');
       expect(linesOf(c, null), takeaway);
       await tester.pump(const Duration(seconds: 5));
     });
@@ -1473,7 +1473,7 @@ void _cartContextTests() {
       c.read(connectivityPulseProvider.notifier).pulse();
       await settle(tester);
       final sell = find.byType(TakeawaySellScreen, skipOffstage: false);
-      expect(titleOf(tester, sell), 'Takeaway');
+      expect(titleOf(tester, sell), 'Pickup');
       expect(titleOf(tester, find.byType(TableOrderScreen)), 'T2 · 4 guests');
       expect(linesOf(c, null), takeaway);
       expect(linesOf(c, 't2'), ['Lattex2']);
@@ -1528,7 +1528,7 @@ void _cartContextTests() {
       expect(linesOf(c, null), isEmpty);
       expect(linesOf(c, 't2'), isEmpty);
       expect(c.read(cartProvider('t2')).name, isNull);
-      expect(titleOf(tester, find.byType(OrderScreen)), 'Takeaway');
+      expect(titleOf(tester, find.byType(OrderScreen)), 'Pickup');
     });
   });
 }

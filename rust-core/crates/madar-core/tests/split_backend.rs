@@ -137,6 +137,7 @@ async fn takeaway(core: &MadarCore, n: &BTreeMap<String, String>, discount: &str
                 notes: None,
                 splits: splits.clone(),
                 loyalty_customer_id: None,
+                dine_in: false,
                 loyalty_redemptions: vec![],
             },
         )

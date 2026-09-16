@@ -285,7 +285,7 @@ const _en = {
   'setup.continue': 'Continue',
   // The Sell / Floor / Bill vocabulary — once served by the package's
   // own fallback table, which is gone; the core carries these keys now.
-  'sell.takeaway': 'Takeaway',
+  'sell.takeaway': 'Pickup',
   'sell.parked': 'Parked',
   'sell.park': 'Park',
   'sell.parked_empty': 'Nothing parked',
@@ -340,7 +340,7 @@ const _ar = {
   'waiter.items': 'أصناف',
   'waiter.need_shift': 'افتح وردية للتحصيل',
   'chrome.more': 'المزيد',
-  'sell.takeaway': 'تيك أواي',
+  'sell.takeaway': 'استلام',
   'sell.parked': 'مركونة',
   'sell.park': 'اركن الطلب',
   'sell.parked_empty': 'لا طلبات مركونة',

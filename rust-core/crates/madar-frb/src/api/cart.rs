@@ -60,6 +60,7 @@ pub struct _ModifierGroupView {
     pub is_required: bool,
     pub min_selections: i32,
     pub max_selections: Option<i32>,
+    pub default_option_id: Option<String>,
     pub options: Vec<ModifierOptionView>,
 }
 

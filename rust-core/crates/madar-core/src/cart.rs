@@ -550,24 +550,46 @@ fn adjusted_addon_price(a: &menu::AddonItemView, milk_base: i64, coffee_base: i6
 /// matches that line's org-ingredient — its default price is the base. Recipe-driven
 /// (mirrors the backend's component_resolve; no precomputed default-coffee id).
 fn coffee_swap_base(item: &menu::MenuItemView, addon_catalog: &[menu::AddonItemView]) -> i64 {
-    let Some(base_ing) = item
+    swap_base_addon(item, addon_catalog, "coffee_type")
+        .map(|a| a.default_price_minor)
+        .unwrap_or(0)
+}
+
+/// The addon that IS the item's recipe for a swap family — the "as it comes"
+/// choice. Matches the recipe line of the family's ingredient category against
+/// each addon's embedded ingredient, exactly as the backend's
+/// `component_resolve` decides whether a pick is a real swap or the base.
+fn swap_base_addon<'a>(
+    item: &menu::MenuItemView,
+    addon_catalog: &'a [menu::AddonItemView],
+    family: &str,
+) -> Option<&'a menu::AddonItemView> {
+    let category = match family {
+        "milk_type" => "milk",
+        "coffee_type" => "coffee_bean",
+        _ => return None,
+    };
+    // A milk base may be authored outright; a coffee base is always derived.
+    if family == "milk_type" {
+        if let Some(id) = item.default_milk_addon_id.as_deref() {
+            if let Some(a) = addon_catalog.iter().find(|a| a.id == id) {
+                return Some(a);
+            }
+        }
+    }
+    let base_ing = item
         .recipes
         .iter()
-        .find(|r| r.category == "coffee_bean")
-        .and_then(|r| r.org_ingredient_id.as_deref())
-    else {
-        return 0;
-    };
+        .find(|r| r.category == category)
+        .and_then(|r| r.org_ingredient_id.as_deref())?;
     addon_catalog
         .iter()
-        .filter(|a| a.addon_type == "coffee_type")
+        .filter(|a| a.addon_type == family)
         .find(|a| {
             a.ingredients
                 .iter()
                 .any(|ing| ing.org_ingredient_id.as_deref() == Some(base_ing))
         })
-        .map(|a| a.default_price_minor)
-        .unwrap_or(0)
 }
 
 /// Resolve a configured line's charged prices from the cached catalog. PURE so
@@ -773,6 +795,14 @@ pub struct ModifierGroupView {
     pub min_selections: i32,
     /// `None` ⇒ multi-select with no cap.
     pub max_selections: Option<i32>,
+    /// For a swap family (milk / coffee), the option that IS the item's recipe —
+    /// the sheet opens with it chosen so a teller only taps to CHANGE the drink,
+    /// not to confirm how it is already made. `None` for every other group, and
+    /// for a swap family whose recipe names no ingredient of that category.
+    ///
+    /// Safe only because these groups are single-select (see below): preselecting
+    /// while multi-select was allowed once sent a line out with two milks.
+    pub default_option_id: Option<String>,
     pub options: Vec<ModifierOptionView>,
 }
 
@@ -842,6 +872,9 @@ pub(crate) fn item_modifier_groups(
         } else {
             slot.max_selections
         };
+        let default_option_id = swap_base_addon(item, addon_catalog, &slot.addon_type)
+            .map(|a| a.id.clone())
+            .filter(|id| options.iter().any(|o| &o.id == id));
         groups.push(ModifierGroupView {
             group_id: slot.id.clone(),
             name: slot
@@ -853,6 +886,7 @@ pub(crate) fn item_modifier_groups(
             is_required: slot.is_required,
             min_selections: slot.min_selections.max(0),
             max_selections,
+            default_option_id,
             options,
         });
     }
@@ -873,6 +907,10 @@ pub(crate) fn item_modifier_groups(
     };
     rest.sort_by(|a, b| rank(a).cmp(&rank(b)).then(a.cmp(b)));
     for ty in rest {
+        let options = options_of(ty);
+        let default_option_id = swap_base_addon(item, addon_catalog, ty)
+            .map(|a| a.id.clone())
+            .filter(|id| options.iter().any(|o| &o.id == id));
         groups.push(ModifierGroupView {
             group_id: format!("type:{ty}"),
             name: ty.to_string(),
@@ -881,7 +919,8 @@ pub(crate) fn item_modifier_groups(
             is_required: false,
             min_selections: 0,
             max_selections: if is_swap_family(ty) { Some(1) } else { None },
-            options: options_of(ty),
+            default_option_id,
+            options,
         });
     }
 
@@ -910,6 +949,7 @@ fn optionals_group(item: &menu::MenuItemView) -> Option<ModifierGroupView> {
         return None;
     }
     Some(ModifierGroupView {
+        default_option_id: None,
         group_id: "options".into(),
         name: "options".into(),
         kind: ModifierGroupKind::Optional,
@@ -984,6 +1024,7 @@ pub(crate) fn item_modifier_groups_unified(
                 g.legacy_addon_type.clone()
             };
             Some(ModifierGroupView {
+                default_option_id: None,
                 group_id: g.group_id.clone(),
                 // Custom groups carry an authored name; legacy-typed groups fall
                 // back to the type string, which the host localizes (same rule

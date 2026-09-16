@@ -29,16 +29,11 @@ const MARGIN: i32 = 16; // left/right quiet zone, dots
 const TOP_PAD: i32 = 16;
 const BOTTOM_PAD: i32 = 28; // trailing whitespace before the cut
 
-// Font sizes (dots). Tuned to the preview's sp ratios scaled to 576 px.
-const SZ_STORE: f32 = 34.0;
-const SZ_TOTAL: f32 = 28.0;
-const SZ_BODY: f32 = 24.0;
-const SZ_SMALL: f32 = 22.0;
 const LINE: f32 = 1.30; // line-height multiple
 
-// Customer-receipt sizes — larger and heavier than the kitchen slip / Z report
-// so a receipt reads at arm's length on a counter.
-const RS_STORE: f32 = 44.0;
+// Font sizes (dots), tuned to the preview's sp ratios scaled to 576 px —
+// shared by the receipt, the kitchen slip and the till report, so all three
+// read at the same bold, larger weight.
 const RS_ORDER: f32 = 64.0;
 const RS_TOTAL: f32 = 38.0;
 const RS_BODY: f32 = 29.0;
@@ -48,8 +43,11 @@ const RS_SMALL: f32 = 26.0;
 // aspect-preserved after blank borders are trimmed; a small logo scales UP to
 // the box (see `decode_logo`), so a wide wordmark, a square mark, a tiny
 // upload and a logo padded with whitespace all print at a sensible size.
-const LOGO_MAX_W: u32 = 528;
-const LOGO_MAX_H: u32 = 144;
+const LOGO_MAX_W: u32 = 792;
+const LOGO_MAX_H: u32 = 216;
+
+// Branch name under the hairline — smaller than the old above-hairline size.
+const RS_BRANCH: f32 = 30.0;
 
 // Embedded Cairo — the same family the Compose/Swift UI renders. Regular for
 // body, SemiBold for the payment label, Bold for headers/totals.
@@ -349,7 +347,7 @@ impl Renderer {
         self.y += bh;
     }
 
-    /// Decode, scale-to-fit and dither the org logo, then composite it centered.
+    /// Decode, scale-to-fit and threshold the org logo to solid black, then composite it centered.
     fn logo(&mut self, bytes: &[u8]) {
         let Some((w, h, ink)) = decode_logo(bytes, self.logo_w, self.logo_h) else {
             return;
@@ -372,19 +370,21 @@ impl Renderer {
         let lab = &ctx.labels;
         let m = |minor: i64| money(minor, cur);
 
-        // ── header ──
-        if let Some(bytes) = logo {
-            self.logo(bytes);
-        }
+        // ── header ── logo sits directly above the hairline; the branch
+        // name (smaller) goes directly below it.
         if r.is_voided {
             self.center(&format!("*** {} ***", lab.voided), RS_BODY, Weight::BOLD);
         }
+        if let Some(bytes) = logo {
+            self.logo(bytes);
+        }
+        self.rule();
         let store = if ctx.store_name.trim().is_empty() {
             "MADAR".to_string()
         } else {
             ctx.store_name.to_uppercase()
         };
-        self.center(&store, RS_STORE, Weight::BOLD);
+        self.center(&store, RS_BRANCH, Weight::BOLD);
         if r.is_delivery {
             if let Some(ch) = r.delivery_channel.as_deref() {
                 let label = if ch == "in_mall" {
@@ -537,47 +537,42 @@ impl Renderer {
     }
 
     /// Walk the Z-report top-to-bottom — the full detailed layout, mirroring the
-    /// Flutter `_buildShiftReportPdf`: header (store, business date, print/close
-    /// time) → shift info (teller, opened, closed / interim) → PAYMENTS (per
+    /// Flutter `_buildShiftReportPdf`: header (title, business date, print/close
+    /// time — no branch name or logo, unlike the receipt) → shift info (teller,
+    /// opened, closed / interim) → PAYMENTS (per
     /// method + order count, total collected, transactions) → DRAWER OPERATIONS
     /// (pay-in/out + itemised movements with times) → CASH RECONCILIATION
     /// (opening, expected, actual, over/short) → voided → end.
     fn build_till(
         &mut self,
         r: &TillReportView,
-        store: &str,
+        _store: &str,
         currency: &str,
         lab: &TillReportLabels,
         orders: &[crate::orders::OrderSummaryView],
     ) {
         let m = |minor: i64| money(minor, currency);
-        let store_up = if store.trim().is_empty() {
-            "MADAR".to_string()
-        } else {
-            store.to_uppercase()
-        };
 
-        // ── header ──
-        self.center(&store_up, SZ_STORE, Weight::BOLD);
-        self.center(&lab.title, SZ_BODY, Weight::SEMIBOLD);
+        // ── header ── concise: no branch name or logo, unlike the receipt.
+        self.center(&lab.title, RS_TOTAL, Weight::BOLD);
         self.center(
             &format!(
                 "{}: {}",
                 lab.business_date,
                 crate::timefmt::date_in(lab.tz, &r.opened_at)
             ),
-            SZ_SMALL,
+            RS_SMALL,
             Weight::NORMAL,
         );
         match (r.is_open, &r.closed_at) {
             (false, Some(c)) => self.center(
                 &format!("{}: {}", lab.closed, fmt_dt_z(lab, c)),
-                SZ_SMALL,
+                RS_SMALL,
                 Weight::NORMAL,
             ),
             _ => self.center(
                 &format!("{}: {}", lab.printed_at, fmt_dt_z(lab, &r.printed_at)),
-                SZ_SMALL,
+                RS_SMALL,
                 Weight::NORMAL,
             ),
         }
@@ -585,62 +580,62 @@ impl Renderer {
 
         // ── till info ──
         let t = |k: &str| crate::i18n::tr(&lab.locale, k);
-        self.row(&lab.teller, &r.teller_name, SZ_BODY, Weight::NORMAL);
+        self.row(&lab.teller, &r.teller_name, RS_BODY, Weight::NORMAL);
         if let Some(code) = r.device_code.as_deref().filter(|c| !c.is_empty()) {
             let range = match (r.order_number_first, r.order_number_last) {
                 (Some(a), Some(b)) => format!("{code}  #{code}-{a} … #{code}-{b}"),
                 _ => code.to_string(),
             };
-            self.row(&t("till.z_device"), &range, SZ_SMALL, Weight::NORMAL);
+            self.row(&t("till.z_device"), &range, RS_SMALL, Weight::NORMAL);
         }
         if r.opened_while_another_open {
-            self.center(&format!("! {}", t("till.flagged_badge")), SZ_SMALL, Weight::SEMIBOLD);
+            self.center(&format!("! {}", t("till.flagged_badge")), RS_SMALL, Weight::SEMIBOLD);
         }
         if r.verification == "unverified" {
-            self.center(&t("till.unverified_badge"), SZ_SMALL, Weight::NORMAL);
+            self.center(&t("till.unverified_badge"), RS_SMALL, Weight::NORMAL);
         }
         self.row(
             &lab.opened,
             &fmt_dt_z(lab, &r.opened_at),
-            SZ_SMALL,
+            RS_SMALL,
             Weight::NORMAL,
         );
         if r.is_open {
-            self.center(&format!("— {} —", lab.interim), SZ_SMALL, Weight::NORMAL);
+            self.center(&format!("— {} —", lab.interim), RS_SMALL, Weight::NORMAL);
         } else if let Some(c) = &r.closed_at {
-            self.row(&lab.closed, &fmt_dt_z(lab, c), SZ_SMALL, Weight::NORMAL);
+            self.row(&lab.closed, &fmt_dt_z(lab, c), RS_SMALL, Weight::NORMAL);
         }
         self.rule();
 
         // ── payments ──
-        self.center(&lab.payments.to_uppercase(), SZ_SMALL, Weight::SEMIBOLD);
+        self.center(&lab.payments.to_uppercase(), RS_SMALL, Weight::SEMIBOLD);
         let mut total_orders = 0i64;
         for pl in &r.payment_lines {
             total_orders += pl.order_count;
-            self.row(&pl.method, &m(pl.total_minor), SZ_BODY, Weight::BOLD);
-            self.indented(&format!("{} {}", pl.order_count, lab.orders), SZ_SMALL, 16);
+            self.row(&pl.method, &m(pl.total_minor), RS_BODY, Weight::BOLD);
+            self.indented(&format!("{} {}", pl.order_count, lab.orders), RS_SMALL, 16);
         }
         self.row(
             &lab.total_collected,
             &m(r.total_payments_minor),
-            SZ_BODY,
+            RS_BODY,
             Weight::BOLD,
         );
         self.row(
             &lab.transactions,
             &total_orders.to_string(),
-            SZ_SMALL,
+            RS_SMALL,
             Weight::NORMAL,
         );
         self.rule();
 
         // ── drawer operations ──
-        self.center(&lab.drawer_ops.to_uppercase(), SZ_SMALL, Weight::SEMIBOLD);
-        self.row(&lab.cash_in, &m(r.cash_in_minor), SZ_BODY, Weight::NORMAL);
+        self.center(&lab.drawer_ops.to_uppercase(), RS_SMALL, Weight::SEMIBOLD);
+        self.row(&lab.cash_in, &m(r.cash_in_minor), RS_BODY, Weight::NORMAL);
         self.row(
             &lab.cash_out,
             &m(-r.cash_out_minor),
-            SZ_BODY,
+            RS_BODY,
             Weight::NORMAL,
         );
         for mv in &r.cash_movements {
@@ -649,7 +644,7 @@ impl Renderer {
             } else {
                 &mv.note
             };
-            self.indented(label, SZ_SMALL, 0);
+            self.indented(label, RS_SMALL, 0);
             let sign = if mv.amount_minor < 0 { "−" } else { "+" };
             self.row(
                 &format!(
@@ -662,18 +657,18 @@ impl Renderer {
                     )
                 ),
                 &format!("{}{}", sign, m(mv.amount_minor.abs())),
-                SZ_SMALL,
+                RS_SMALL,
                 Weight::NORMAL,
             );
         }
         self.rule();
 
         // ── cash reconciliation ──
-        self.center(&lab.cash_recon.to_uppercase(), SZ_SMALL, Weight::SEMIBOLD);
+        self.center(&lab.cash_recon.to_uppercase(), RS_SMALL, Weight::SEMIBOLD);
         self.row(
             &lab.opening,
             &m(r.opening_cash_minor),
-            SZ_BODY,
+            RS_BODY,
             Weight::NORMAL,
         );
         // Opening mismatch: the teller counted a different opening float than the
@@ -685,7 +680,7 @@ impl Renderer {
                 self.row(
                     &lab.opening_mismatch,
                     &format!("{}{}", sign, m(diff.abs())),
-                    SZ_SMALL,
+                    RS_SMALL,
                     Weight::NORMAL,
                 );
             }
@@ -694,18 +689,18 @@ impl Renderer {
                 .as_deref()
                 .filter(|s| !s.trim().is_empty())
             {
-                self.indented(&format!("{}: {}", lab.opening_reason, reason), SZ_SMALL, 16);
+                self.indented(&format!("{}: {}", lab.opening_reason, reason), RS_SMALL, 16);
             }
         }
         self.row(
             &lab.expected,
             &m(r.expected_cash_minor),
-            SZ_BODY,
+            RS_BODY,
             Weight::NORMAL,
         );
         match r.closing_cash_declared_minor {
             Some(declared) => {
-                self.row(&lab.actual, &m(declared), SZ_BODY, Weight::BOLD);
+                self.row(&lab.actual, &m(declared), RS_BODY, Weight::BOLD);
                 // Difference = expected (system) − counted. Positive = short, negative = over.
                 let diff = r.expected_cash_minor - declared;
                 let (label, amount) = if diff == 0 {
@@ -715,40 +710,40 @@ impl Renderer {
                 } else {
                     (&lab.over_by, -diff)
                 };
-                self.row(label, &m(amount), SZ_BODY, Weight::BOLD);
+                self.row(label, &m(amount), RS_BODY, Weight::BOLD);
             }
-            None => self.center(&format!("({})", lab.not_closed), SZ_SMALL, Weight::NORMAL),
+            None => self.center(&format!("({})", lab.not_closed), RS_SMALL, Weight::NORMAL),
         }
         // ── payment check (per-method close reconciliation) ──
         if !r.reconciliation.is_empty() {
             self.rule();
-            self.center(&t("till.z_reconciliation").to_uppercase(), SZ_SMALL, Weight::SEMIBOLD);
+            self.center(&t("till.z_reconciliation").to_uppercase(), RS_SMALL, Weight::SEMIBOLD);
             for l in &r.reconciliation {
                 let label = if l.label.is_empty() { &l.method } else { &l.label };
-                self.row(label, &m(l.system_total_minor), SZ_BODY, Weight::NORMAL);
+                self.row(label, &m(l.system_total_minor), RS_BODY, Weight::NORMAL);
                 match l.status.as_str() {
-                    "checked" => self.indented(&format!("✓ {}", t("till.reconcile_checked")), SZ_SMALL, 16),
+                    "checked" => self.indented(&format!("✓ {}", t("till.reconcile_checked")), RS_SMALL, 16),
                     "disagreed" => {
                         let declared = l.declared_amount_minor.map(|v| m(v)).unwrap_or_default();
-                        self.indented(&format!("✗ {} {}", t("till.reconcile_disagree"), declared), SZ_SMALL, 16);
+                        self.indented(&format!("✗ {} {}", t("till.reconcile_disagree"), declared), RS_SMALL, 16);
                         if let Some(n) = l.note.as_deref().filter(|n| !n.trim().is_empty()) {
-                            self.indented(n, SZ_SMALL, 32);
+                            self.indented(n, RS_SMALL, 32);
                         }
                     }
-                    _ => self.indented(&t("till.reconcile_unreviewed"), SZ_SMALL, 16),
+                    _ => self.indented(&t("till.reconcile_unreviewed"), RS_SMALL, 16),
                 }
             }
         }
         if let Some(old) = r.old_bills_count {
             self.rule();
-            self.row(&t("till.z_old_bills"), &old.to_string(), SZ_BODY, Weight::NORMAL);
+            self.row(&t("till.z_old_bills"), &old.to_string(), RS_BODY, Weight::NORMAL);
         }
         if r.voided_amount_minor > 0 {
             self.rule();
             self.row(
                 &lab.voided,
                 &m(r.voided_amount_minor),
-                SZ_BODY,
+                RS_BODY,
                 Weight::NORMAL,
             );
         }
@@ -756,7 +751,7 @@ impl Renderer {
         // ── orders (only when the teller expanded + printed) ──
         if !orders.is_empty() {
             self.rule();
-            self.center(&lab.orders.to_uppercase(), SZ_SMALL, Weight::SEMIBOLD);
+            self.center(&lab.orders.to_uppercase(), RS_SMALL, Weight::SEMIBOLD);
             for o in orders {
                 let num = match o.order_number {
                     _ if !o.display_number.is_empty() => format!("#{}", o.display_number),
@@ -773,15 +768,15 @@ impl Renderer {
                         &lab.locale
                     )
                 );
-                self.row(&left, &m(o.total_minor), SZ_SMALL, Weight::NORMAL);
+                self.row(&left, &m(o.total_minor), RS_SMALL, Weight::NORMAL);
                 // Payment method under the row — the on-screen preview shows
                 // it, so the printed report must too (parity).
                 if !o.payment_label.is_empty() {
-                    self.indented(&o.payment_label, SZ_SMALL, 16);
+                    self.indented(&o.payment_label, RS_SMALL, 16);
                 }
                 // Voided orders were never collected — flag them under the row.
                 if o.status == "voided" {
-                    self.indented(&lab.voided, SZ_SMALL, 16);
+                    self.indented(&lab.voided, RS_SMALL, 16);
                 }
             }
         }
@@ -789,7 +784,7 @@ impl Renderer {
         self.rule();
         self.center(
             &format!("— {} —", lab.end_of_report),
-            SZ_SMALL,
+            RS_SMALL,
             Weight::SEMIBOLD,
         );
         self.gap(self.bottom_pad);
@@ -799,15 +794,15 @@ impl Renderer {
     /// apply to the whole slip ONCE, then every item with only its own
     /// note. No logo, no money, no footer beyond the ticket/time/teller.
     fn build_kitchen_slip(&mut self, slip: &KitchenSlip, labels: &KitchenChitLabels) {
-        self.center(&labels.heading, SZ_BODY, Weight::BOLD);
+        self.center(&labels.heading, RS_BODY, Weight::BOLD);
         if let Some(t) = slip.table_label.as_deref().filter(|s| !s.trim().is_empty()) {
-            self.center(&format!("{} {}", labels.table, t.trim()), SZ_TOTAL, Weight::BOLD);
+            self.center(&format!("{} {}", labels.table, t.trim()), RS_TOTAL, Weight::BOLD);
         }
         self.rule();
 
         let notes: Vec<&String> = slip.top_notes.iter().filter(|n| !n.trim().is_empty()).collect();
         for n in &notes {
-            self.indented(&format!("{} {}", labels.note, n.trim()), SZ_BODY, 0);
+            self.indented(&format!("{} {}", labels.note, n.trim()), RS_BODY, 0);
         }
         if !notes.is_empty() {
             self.rule();
@@ -818,12 +813,12 @@ impl Renderer {
                 self.gap(self.sx(8));
             }
             let name = name_with_size(&it.item, &it.size_label);
-            self.row(&format!("{}× {}", it.qty.max(1), name), "", SZ_TOTAL, Weight::BOLD);
+            self.row(&format!("{}× {}", it.qty.max(1), name), "", RS_TOTAL, Weight::BOLD);
             for m in it.modifiers.iter().filter(|m| !m.trim().is_empty()) {
-                self.indented(&format!("- {}", m.trim()), SZ_SMALL, 16);
+                self.indented(&format!("- {}", m.trim()), RS_SMALL, 16);
             }
             if let Some(n) = it.note.as_deref().filter(|s| !s.trim().is_empty()) {
-                self.indented(&format!("{} {}", labels.note, n.trim()), SZ_SMALL, 0);
+                self.indented(&format!("{} {}", labels.note, n.trim()), RS_SMALL, 0);
             }
         }
 
@@ -832,9 +827,9 @@ impl Renderer {
             Some(r) => format!("{}  {}", r.trim(), slip.at),
             None => slip.at.clone(),
         };
-        self.center(&foot, SZ_SMALL, Weight::NORMAL);
+        self.center(&foot, RS_SMALL, Weight::NORMAL);
         if let Some(by) = slip.teller.as_deref().filter(|s| !s.trim().is_empty()) {
-            self.center(by.trim(), SZ_SMALL, Weight::NORMAL);
+            self.center(by.trim(), RS_SMALL, Weight::NORMAL);
         }
         self.gap(self.bottom_pad);
     }
@@ -931,9 +926,16 @@ impl Renderer {
     }
 }
 
+/// The catalog's sentinel for an item with no real size choice — noise on a
+/// receipt, not a size the customer picked.
+fn is_one_size(s: &str) -> bool {
+    let s = s.trim();
+    s.eq_ignore_ascii_case("one_size") || s.eq_ignore_ascii_case("one size")
+}
+
 fn name_with_size(base: &str, size: &Option<String>) -> String {
     match size {
-        Some(s) if !s.is_empty() => format!("{} ({})", base, s),
+        Some(s) if !s.is_empty() && !is_one_size(s) => format!("{} ({})", base, s),
         _ => base.to_string(),
     }
 }
@@ -956,7 +958,7 @@ fn fmt_dt_z(lab: &TillReportLabels, rfc3339: &str) -> String {
     )
 }
 
-// ── logo decode + dither ─────────────────────────────────────────────────────
+// ── logo decode + threshold ──────────────────────────────────────────────────
 
 /// Crop transparent / near-white borders so a logo padded with empty canvas
 /// sizes by its visible mark. A fully blank image is returned unchanged.
@@ -984,7 +986,9 @@ fn trim_blank(img: image::RgbaImage) -> image::RgbaImage {
 }
 
 /// Decode (PNG/JPEG), composite over white, scale to fit `max_w`×`max_h`
-/// preserving aspect, then Floyd–Steinberg dither to 1-bit. Returns
+/// preserving aspect, then threshold to 1-bit — any pixel with visible ink
+/// prints solid black rather than a dithered halftone, since a logo on
+/// thermal paper reads as a clean mark, not a gray dot pattern. Returns
 /// `(width, height, ink)` where `ink[y*w+x]` is `255` (black) or `0` (white).
 /// `None` if the bytes aren't a decodable image.
 fn decode_logo(bytes: &[u8], max_w: u32, max_h: u32) -> Option<(usize, usize, Vec<u8>)> {
@@ -1001,37 +1005,15 @@ fn decode_logo(bytes: &[u8], max_w: u32, max_h: u32) -> Option<(usize, usize, Ve
     let scaled = image::imageops::resize(&rgba, tw, th, image::imageops::FilterType::Lanczos3);
 
     let (w, h) = (scaled.width() as usize, scaled.height() as usize);
-    // ink amount, 0.0 = white .. 1.0 = black (composited over white paper).
-    let mut g = vec![0f32; w * h];
+    // Any pixel with meaningfully more ink than paper prints solid black —
+    // no gray survives as a halftone dot.
+    let mut out = vec![0u8; w * h];
     for (i, p) in scaled.pixels().enumerate() {
         let [r, gc, b, a] = p.0;
         let af = a as f32 / 255.0;
         let over = |c: u8| c as f32 * af + 255.0 * (1.0 - af);
         let lum = 0.299 * over(r) + 0.587 * over(gc) + 0.114 * over(b);
-        g[i] = 1.0 - lum / 255.0;
-    }
-    // Floyd–Steinberg.
-    let mut out = vec![0u8; w * h];
-    for y in 0..h {
-        for x in 0..w {
-            let i = y * w + x;
-            let old = g[i];
-            let newp = if old >= 0.5 { 1.0 } else { 0.0 };
-            out[i] = if newp == 1.0 { 255 } else { 0 };
-            let err = old - newp;
-            if x + 1 < w {
-                g[i + 1] += err * 7.0 / 16.0;
-            }
-            if y + 1 < h {
-                if x > 0 {
-                    g[i + w - 1] += err * 3.0 / 16.0;
-                }
-                g[i + w] += err * 5.0 / 16.0;
-                if x + 1 < w {
-                    g[i + w + 1] += err * 1.0 / 16.0;
-                }
-            }
-        }
+        out[i] = if 1.0 - lum / 255.0 >= 0.35 { 255 } else { 0 };
     }
     Some((w, h, out))
 }

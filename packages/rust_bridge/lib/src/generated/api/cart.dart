@@ -589,6 +589,7 @@ class ModifierGroupView {
   final bool isRequired;
   final int minSelections;
   final int? maxSelections;
+  final String? defaultOptionId;
   final List<ModifierOptionView> options;
 
   const ModifierGroupView({
@@ -599,6 +600,7 @@ class ModifierGroupView {
     required this.isRequired,
     required this.minSelections,
     this.maxSelections,
+    this.defaultOptionId,
     required this.options,
   });
 
@@ -611,6 +613,7 @@ class ModifierGroupView {
       isRequired.hashCode ^
       minSelections.hashCode ^
       maxSelections.hashCode ^
+      defaultOptionId.hashCode ^
       options.hashCode;
 
   @override
@@ -625,6 +628,7 @@ class ModifierGroupView {
           isRequired == other.isRequired &&
           minSelections == other.minSelections &&
           maxSelections == other.maxSelections &&
+          defaultOptionId == other.defaultOptionId &&
           options == other.options;
 }
 

@@ -206,6 +206,7 @@ async fn ring(core: &crate::MadarCore, price: i64, method_id: &str, tendered: i6
             notes: None,
             splits: vec![],
             loyalty_customer_id: None,
+        dine_in: false,
             loyalty_redemptions: vec![],
         },
     )

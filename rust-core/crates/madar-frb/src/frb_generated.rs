@@ -12927,6 +12927,7 @@ const _: fn() = || {
         let _: Vec<crate::api::orders::CheckoutSplit> = CheckoutInput.splits;
         let _: Option<String> = CheckoutInput.loyalty_customer_id;
         let _: Vec<crate::api::orders::CheckoutRedemption> = CheckoutInput.loyalty_redemptions;
+        let _: bool = CheckoutInput.dine_in;
     }
     {
         let CheckoutRedemption = None::<crate::api::orders::CheckoutRedemption>.unwrap();
@@ -13360,6 +13361,7 @@ const _: fn() = || {
         let _: bool = ModifierGroupView.is_required;
         let _: i32 = ModifierGroupView.min_selections;
         let _: Option<i32> = ModifierGroupView.max_selections;
+        let _: Option<String> = ModifierGroupView.default_option_id;
         let _: Vec<crate::api::cart::ModifierOptionView> = ModifierGroupView.options;
     }
     {
@@ -14499,6 +14501,7 @@ impl SseDecode for crate::api::orders::CheckoutInput {
         let mut var_loyaltyCustomerId = <Option<String>>::sse_decode(deserializer);
         let mut var_loyaltyRedemptions =
             <Vec<crate::api::orders::CheckoutRedemption>>::sse_decode(deserializer);
+        let mut var_dineIn = <bool>::sse_decode(deserializer);
         return crate::api::orders::CheckoutInput {
             payment_method_id: var_paymentMethodId,
             amount_tendered_minor: var_amountTenderedMinor,
@@ -14509,6 +14512,7 @@ impl SseDecode for crate::api::orders::CheckoutInput {
             splits: var_splits,
             loyalty_customer_id: var_loyaltyCustomerId,
             loyalty_redemptions: var_loyaltyRedemptions,
+            dine_in: var_dineIn,
         };
     }
 }
@@ -16497,6 +16501,7 @@ impl SseDecode for crate::api::cart::ModifierGroupView {
         let mut var_isRequired = <bool>::sse_decode(deserializer);
         let mut var_minSelections = <i32>::sse_decode(deserializer);
         let mut var_maxSelections = <Option<i32>>::sse_decode(deserializer);
+        let mut var_defaultOptionId = <Option<String>>::sse_decode(deserializer);
         let mut var_options = <Vec<crate::api::cart::ModifierOptionView>>::sse_decode(deserializer);
         return crate::api::cart::ModifierGroupView {
             group_id: var_groupId,
@@ -16506,6 +16511,7 @@ impl SseDecode for crate::api::cart::ModifierGroupView {
             is_required: var_isRequired,
             min_selections: var_minSelections,
             max_selections: var_maxSelections,
+            default_option_id: var_defaultOptionId,
             options: var_options,
         };
     }
@@ -19858,6 +19864,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::CheckoutIn
             self.0.splits.into_into_dart().into_dart(),
             self.0.loyalty_customer_id.into_into_dart().into_dart(),
             self.0.loyalty_redemptions.into_into_dart().into_dart(),
+            self.0.dine_in.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -21120,6 +21127,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::cart::ModifierGrou
             self.0.is_required.into_into_dart().into_dart(),
             self.0.min_selections.into_into_dart().into_dart(),
             self.0.max_selections.into_into_dart().into_dart(),
+            self.0.default_option_id.into_into_dart().into_dart(),
             self.0.options.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -23118,6 +23126,7 @@ impl SseEncode for crate::api::orders::CheckoutInput {
             self.loyalty_redemptions,
             serializer,
         );
+        <bool>::sse_encode(self.dine_in, serializer);
     }
 }
 
@@ -24486,6 +24495,7 @@ impl SseEncode for crate::api::cart::ModifierGroupView {
         <bool>::sse_encode(self.is_required, serializer);
         <i32>::sse_encode(self.min_selections, serializer);
         <Option<i32>>::sse_encode(self.max_selections, serializer);
+        <Option<String>>::sse_encode(self.default_option_id, serializer);
         <Vec<crate::api::cart::ModifierOptionView>>::sse_encode(self.options, serializer);
     }
 }

@@ -147,6 +147,7 @@ void main() {
         tipMinor: 0,
         splits: const [],
         loyaltyRedemptions: const [],
+      dineIn: false,
       ),
     );
     expect(receipt.localOrderId, isNotEmpty);

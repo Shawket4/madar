@@ -963,13 +963,27 @@ pub(crate) fn reconcile_rows(
     }
 }
 
-/// The person's most recent declared close at the branch (the server's
+/// The DRAWER's most recent declared close (the server's
 /// `last_close_declared`), from the rows. PURE.
-pub(crate) fn last_close_declared_rows(rows: &[TillRecord], user_id: &str) -> Option<i64> {
-    rows.iter()
-        .filter(|t| t.teller_id == user_id && matches!(t.status.as_str(), "closed" | "force_closed"))
-        .filter(|t| t.closing_cash_declared.is_some())
-        .max_by_key(|t| opened_instant(t))
+///
+/// Mirrors the backend exactly: a drawer is a physical box, identified by
+/// DEVICE where one is known and by the branch otherwise — never by the
+/// person, because cash stays in the drawer when a shift changes. `rows` is
+/// already this branch's; the caller must not pass another branch's.
+pub(crate) fn last_close_declared_rows(rows: &[TillRecord], device_id: Option<&str>) -> Option<i64> {
+    let closed = || {
+        rows.iter()
+            .filter(|t| matches!(t.status.as_str(), "closed" | "force_closed"))
+            .filter(|t| t.closing_cash_declared.is_some())
+    };
+    // This device's own last close wins; otherwise the drawer this branch ran.
+    device_id
+        .and_then(|dev| {
+            closed()
+                .filter(|t| t.device_id.as_deref() == Some(dev))
+                .max_by_key(|t| opened_instant(t))
+        })
+        .or_else(|| closed().max_by_key(|t| opened_instant(t)))
         .and_then(|t| t.closing_cash_declared)
 }
 
@@ -1504,10 +1518,24 @@ mod tests {
         newer.closing_cash_declared = Some(900);
         let mut undeclared = rec("T7", u, "closed");
         undeclared.opened_at = "2026-09-12T12:00:00Z".into();
+        // ANOTHER person's close still counts: the money is in the drawer,
+        // not in the person. This is the whole point of the change.
         let mut other = rec("T8", "U2", "closed");
+        other.opened_at = "2026-09-13T09:00:00Z".into();
         other.closing_cash_declared = Some(5);
-        assert_eq!(last_close_declared_rows(&[old.clone(), newer, undeclared, other], u), Some(900));
-        assert_eq!(last_close_declared_rows(&[old], "U2"), None);
+        other.device_id = Some(OTHER_DEV.into());
+        let rows = [old.clone(), newer.clone(), undeclared, other.clone()];
+        assert_eq!(last_close_declared_rows(&rows, None), Some(5), "newest close wins, whoever closed it");
+        // This device's own last close wins over a newer one on another device.
+        let mut mine = rec("T9", u, "closed");
+        mine.opened_at = "2026-09-12T20:00:00Z".into();
+        mine.closing_cash_declared = Some(450);
+        mine.device_id = Some(DEV.into());
+        assert_eq!(last_close_declared_rows(&[other, mine], Some(DEV)), Some(450));
+        // A device with no history of its own falls back to the branch's.
+        assert_eq!(last_close_declared_rows(&[newer], Some(OTHER_DEV)), Some(900));
+        assert_eq!(last_close_declared_rows(&[old], Some(DEV)), Some(700));
+        assert_eq!(last_close_declared_rows(&[], Some(DEV)), None);
     }
 
     #[test]

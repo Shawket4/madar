@@ -55,11 +55,26 @@ pub fn display_number(device_code: &str, order_number: i64) -> String {
 
 /// The number to show for a server order: the server's own `display_number`
 /// (the tills-rework backend sends it on every order response), else — an older
-/// backend — derived from `order_ref` by [`display_number_from_ref`].
-pub fn server_display_number(display_number: Option<&str>, order_ref: Option<&str>, order_number: i64) -> String {
+/// backend, or a cache from before the `order_ref` backfill reached this sale —
+/// derived from `order_ref` by [`display_number_from_ref`], else straight from
+/// the order's own `device_code` (stored with the order independently of the
+/// backfill, so it survives when `order_ref` doesn't) — all local, never a
+/// reason to hit the network for a number the row already carries.
+pub fn server_display_number(
+    display_number: Option<&str>,
+    order_ref: Option<&str>,
+    device_code: Option<&str>,
+    order_number: i64,
+) -> String {
     match display_number.map(str::trim).filter(|s| !s.is_empty()) {
         Some(d) => d.to_string(),
-        None => display_number_from_ref(order_ref, order_number),
+        None => match order_ref {
+            Some(_) => display_number_from_ref(order_ref, order_number),
+            None => match device_code.map(str::trim).filter(|s| !s.is_empty()) {
+                Some(code) => self::display_number(code, order_number),
+                None => order_number.to_string(),
+            },
+        },
     }
 }
 
@@ -279,6 +294,11 @@ pub struct CheckoutInput {
     /// Earning is a separate, later act — a sale that redeems nothing leaves
     /// this empty.
     pub loyalty_customer_id: Option<String>,
+    /// Where the drink is going: `true` when the customer is drinking in, so
+    /// no cup, lid or straw comes off stock. Defaults to false — a pickup —
+    /// which is what every build before this did. It is NOT the order type:
+    /// the service charge stays tied to a table, so this never moves a total.
+    pub dine_in: bool,
     /// Rewards covering lines of the cart: which line, and how many of its
     /// units. The server prices them; the till only says which.
     pub loyalty_redemptions: Vec<CheckoutRedemption>,
@@ -649,6 +669,7 @@ pub(crate) fn prepare(
     // Who and which lines — never a price. The server looks the reward up in the
     // branch's catalogue, checks the balance against the WHOLE basket, and
     // refuses the sale outright if it does not cover it.
+    request.service_mode = input.dine_in.then(|| Some("dine_in".to_string()));
     request.loyalty_customer_id = input
         .loyalty_customer_id
         .as_deref()
@@ -1323,6 +1344,7 @@ mod tests {
             notes: None,
             splits: vec![],
             loyalty_customer_id: None,
+        dine_in: false,
             loyalty_redemptions: vec![],
         }
     }

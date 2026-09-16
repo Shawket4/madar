@@ -65,6 +65,30 @@ cd /Users/magd/madar/apps/madar && flutter run -d macos \
 Prefer `localhost` over a LAN IP — a LAN address silently breaks the moment the machine
 changes networks, and the app then shows an empty, "unsynced" UI with no obvious cause.
 
+### Before pushing or opening a PR — run CI locally first, every time
+
+CI (`.github/workflows/ci.yml`) has failed more than once on a push whose
+diff looked unrelated to the failure — the format check and the Rust test
+suite run over the WHOLE tracked tree, not just the files a change touched, so
+a change confined to one crate or one `.dart` file is not proof the repo is
+green. Run the full sequence below before every push and before opening a PR,
+not just the pieces that seem relevant to what changed:
+
+```bash
+flutter analyze .
+git ls-files '*.dart' | grep -v '/cargokit/' | xargs dart format --set-exit-if-changed --output=none
+cd rust-core && cargo test -p madar-core && cd ..
+```
+
+Touched anything FRB-bound (`madar-frb`, or a `madar-core` type/fn a bridge
+method exposes)? Also run the host-test job CI runs on macOS:
+```bash
+cd rust-core && cargo build -p madar_frb --release && cd ..
+cd packages/rust_bridge && flutter test && cd ../..
+```
+All of the above must pass locally before a push or a PR — don't rely on CI
+to find a problem you could have caught here first.
+
 ### Regenerating from the backend
 ```bash
 cd /Users/magd/MadarRust && cargo run --bin export-openapi
@@ -148,6 +172,12 @@ its outbox op commit in ONE transaction; acks fold the server's answer in.
   counts every request against the real backend, and
   `apps/madar/test/network_budget_test.dart` pins that no tick calls a
   network-capable bridge method.
+- **Before adding a network call, check the local model first.** A value that
+  looks missing is often already on the cached record under a different field
+  (e.g. an order's `device_code`, kept independently of the `order_ref`
+  backfill, reconstructs the real display number without a `GetOrder` call).
+  Derive from what's already local before reaching for the network — a new
+  call is the last resort, not the first fix.
 - Real-backend scenarios: `tool/offline_b_backend.sh` (see its header);
   `MADAR_OB_TESTS=readpath_parity` checks every screen read against the server.
 

@@ -22,11 +22,11 @@ const double _paperGap = 6;
 
 /// Org logo box — 50% over the old 60×220, aspect-preserved
 /// so a wide wordmark or a square mark both render without cropping.
-const double _logoMaxHeight = 90;
-const double _logoMaxWidth = 320;
+const double _logoMaxHeight = 135;
+const double _logoMaxWidth = 480;
 
 /// Type sizes on the paper — larger, like the printed receipt.
-const double _storeSize = 19;
+const double _storeSize = 14;
 const double _orderNumberSize = 30;
 const double _boldRowSize = 15;
 const double _rowSize = 14;
@@ -90,16 +90,28 @@ class ReceiptPaper extends ConsumerWidget {
           Column(
             spacing: _paperGap,
             children: [
-              // Org brand mark at the top of the paper — the CORE-cached
+              if (r.isVoided)
+                _Mono(
+                  '*** ${tr('receipt.voided')} ***',
+                  size: _boldRowSize,
+                  weight: FontWeight.w700,
+                  color: Paper.danger,
+                ),
+              // Org brand mark, directly above the hairline — the CORE-cached
               // local file (downloaded during refresh_catalog); nothing draws
               // on failure, so an offline reprint just shows the store name.
+              // Forced to solid black, as it prints — the preview shouldn't
+              // show a color the paper can't.
               if (logo != null && logo.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsetsDirectional.only(bottom: _paperGap),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxHeight: _logoMaxHeight,
-                      maxWidth: _logoMaxWidth,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxHeight: _logoMaxHeight,
+                    maxWidth: _logoMaxWidth,
+                  ),
+                  child: ColorFiltered(
+                    colorFilter: const ColorFilter.mode(
+                      Paper.ink,
+                      BlendMode.srcIn,
                     ),
                     child: Image(
                       image: FileImage(File(logo)),
@@ -108,13 +120,13 @@ class ReceiptPaper extends ConsumerWidget {
                     ),
                   ),
                 ),
-              if (r.isVoided)
-                _Mono(
-                  '*** ${tr('receipt.voided')} ***',
-                  size: _boldRowSize,
-                  weight: FontWeight.w700,
-                  color: Paper.danger,
-                ),
+            ],
+          ),
+          const _Rule(),
+          // The branch name, smaller, directly below the hairline.
+          Column(
+            spacing: _paperGap,
+            children: [
               _Mono(
                 storeName.trim().isEmpty ? 'MADAR' : storeName.toUpperCase(),
                 size: _storeSize,
@@ -393,8 +405,15 @@ class _ModRow extends StatelessWidget {
   }
 }
 
+// The catalog's sentinel for an item with no real size choice — noise on
+// the receipt preview, not a size the customer picked.
+bool _isOneSize(String s) {
+  final t = s.trim().toLowerCase();
+  return t == 'one_size' || t == 'one size';
+}
+
 String _nameWithSize(String base, String? size) =>
-    size == null || size.isEmpty ? base : '$base ($size)';
+    size == null || size.isEmpty || _isOneSize(size) ? base : '$base ($size)';
 
 /// Centered ink text in the paper's mono-feel scale (tabular figures).
 class _Mono extends StatelessWidget {
