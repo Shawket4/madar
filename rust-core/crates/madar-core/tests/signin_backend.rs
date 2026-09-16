@@ -16,7 +16,9 @@
 //! * wrong PINs earn the growing delay, the refusal names the wait, and the core
 //!   keeps it for the PIN pad's countdown;
 //! * once the wait is over, the PIN ALONE signs the right person in (no name on
-//!   the wire), and that clears the wait.
+//!   the wire), and that clears the wait;
+//! * the activated device then holds a verified server-signed permission
+//!   snapshot (PERMISSIONS_ARCHITECTURE §4.4).
 
 mod common;
 
@@ -117,5 +119,8 @@ async fn a_code_binds_the_device_wrong_pins_wait_and_the_pin_alone_signs_in() {
     assert_eq!(session.display_name, name);
     assert!(session.online);
     assert_eq!(core.pin_wait_seconds(), 0, "a correct PIN clears the wait");
+    // Phase 4: the activated device now holds a server-signed snapshot of its
+    // branch that verifies against the published key.
+    assert!(core.has_verified_authz_snapshot(), "signed snapshot kept");
     core.logout(false).ok();
 }

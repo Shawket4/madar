@@ -72,6 +72,8 @@ sentry = { version = "0.49", default-features = false, features = ["backtrace", 
 # Offline-PIN verifier — argon2id, byte-compatible with the backend's
 # `auth::offline::hash_offline_pin` (verifies any PHC string it ships in the bundle).
 argon2 = "0.5"
+# Verifies the server-signed permission snapshot (PERMISSIONS_ARCHITECTURE §4.4).
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
 
 # ── LAN offline relay (lan.rs, Phase E) ───────────────────────────────────────
 # mDNS / DNS-SD service discovery — pure Rust (no Bonjour/avahi system dep), so it

@@ -161,6 +161,24 @@ impl ApiClient {
     /// e.g. `GET /menu-items?full=true` returns the rich `MenuItemFull` array but
     /// the generator types it `Vec<MenuItem>` (dropping sizes/slots). The mirror
     /// stores canonical JSON anyway (§8), so a text body is exactly what we want.
+    /// GET `path` with extra headers and no bearer (a device-authenticated read).
+    pub async fn get_with_headers(&self, path: &str, headers: &[(&str, &str)]) -> CoreResult<String> {
+        let url = format!("{}{}", self.base_url, path);
+        let mut rb = self.http().request(reqwest::Method::GET, &url);
+        for (name, value) in headers {
+            rb = rb.header(*name, *value);
+        }
+        let resp = rb.send().await.map_err(|e| classify_reqwest(&e))?;
+        self.observe_clock(&resp);
+        let status = resp.status();
+        let body = resp.text().await.map_err(|e| classify_reqwest(&e))?;
+        if status.is_success() {
+            Ok(body)
+        } else {
+            Err(status_to_error(status.as_u16(), &body))
+        }
+    }
+
     pub async fn get_text(&self, path: &str, query: &[(&str, String)]) -> CoreResult<String> {
         let url = format!("{}{}", self.base_url, path);
         let mut rb = self.http().request(reqwest::Method::GET, &url).query(query);

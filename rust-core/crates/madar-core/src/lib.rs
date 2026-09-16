@@ -16,6 +16,7 @@
 #[cfg(feature = "uniffi-ffi")]
 uniffi::setup_scaffolding!();
 
+mod authz_snapshot;
 mod config;
 pub use config::MadarConfig;
 
@@ -207,7 +208,7 @@ struct CatalogSnapshot {
 const K_DASHBOARD_SCOPE: &str = "dashboard:active_scope";
 
 /// The device's own credential from an activation code (POS_SIGNIN_OVERHAUL §4).
-const K_DEVICE_CREDENTIAL: &str = "device:credential";
+pub(crate) const K_DEVICE_CREDENTIAL: &str = "device:credential";
 
 /// The one refusal for a code that does not bind (see `activate_device`).
 pub(crate) const ACTIVATION_CODE_INVALID_DETAIL: &str = "activation code not valid";
@@ -5605,6 +5606,13 @@ impl MadarCore {
         // Effective capabilities at this branch (an older backend answers 404 and
         // the legacy grid stands in).
         let authz = self.fetch_authz(snapshot.branch_id.clone()).await;
+        // Refresh the signed permission snapshot for offline unlocks (an
+        // activated device only; bounded so a slow server never holds sign-in).
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            self.refresh_authz_snapshot(),
+        )
+        .await;
         let state = session::SessionState {
             snapshot: snapshot.clone(),
             permissions,
@@ -5817,6 +5825,12 @@ impl MadarCore {
             self.store.kv_put(K_DEVICE_CREDENTIAL, token)?;
         }
         self.set_device_branch(branch_id.clone(), branch_name.clone())?;
+        // The keys that sign this device's permission snapshot, and the first
+        // snapshot itself. Best-effort: sign-in fetches it again.
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            self.refresh_authz_snapshot().await;
+        })
+        .await;
         Ok(session::BranchView {
             id: branch_id,
             name: branch_name.unwrap_or_default(),
