@@ -16,6 +16,7 @@
 #[cfg(feature = "uniffi-ffi")]
 uniffi::setup_scaffolding!();
 
+pub mod approvals;
 mod authz_snapshot;
 mod config;
 pub use config::MadarConfig;
@@ -206,6 +207,17 @@ struct CatalogSnapshot {
 
 /// kv key persisting the dashboard's active org/branch scope override.
 const K_DASHBOARD_SCOPE: &str = "dashboard:active_scope";
+
+/// Put a manager's approval on a replay envelope (phase 5), when there is one.
+fn with_approval(
+    mut envelope: serde_json::Value,
+    approval: Option<serde_json::Value>,
+) -> serde_json::Value {
+    if let (Some(a), Some(obj)) = (approval, envelope.as_object_mut()) {
+        obj.insert("approval".into(), a);
+    }
+    envelope
+}
 
 /// The device's own credential from an activation code (POS_SIGNIN_OVERHAUL §4).
 pub(crate) const K_DEVICE_CREDENTIAL: &str = "device:credential";
@@ -1413,7 +1425,10 @@ impl MadarCore {
                 }
                 rebase_dopt(&mut cmd.request.voided_at, delta);
                 (
-                    serde_json::json!({ "op": "void_order", "teller_id": teller_id, "order_id": cmd.order_id, "request": cmd.request }),
+                    with_approval(
+                        serde_json::json!({ "op": "void_order", "teller_id": teller_id, "order_id": cmd.order_id, "request": cmd.request }),
+                        cmd.approval,
+                    ),
                     Idem::VoidIdem,
                 )
             }
@@ -1438,7 +1453,10 @@ impl MadarCore {
                     Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
-                    serde_json::json!({ "op": "refund_order", "teller_id": teller_id, "request": cmd.request }),
+                    with_approval(
+                        serde_json::json!({ "op": "refund_order", "teller_id": teller_id, "request": cmd.request }),
+                        cmd.approval,
+                    ),
                     Idem::Yes,
                 )
             }
@@ -7029,6 +7047,19 @@ impl MadarCore {
         note: Option<String>,
         restore_inventory: bool,
     ) -> Result<(), CoreError> {
+        self.void_order_approved(order_id, reason, note, restore_inventory, None)
+            .await
+    }
+
+    /// [`Self::void_order`] carrying a manager's approval (phase 5).
+    pub async fn void_order_approved(
+        &self,
+        order_id: String,
+        reason: String,
+        note: Option<String>,
+        restore_inventory: bool,
+        approval: Option<approvals::ApprovalView>,
+    ) -> Result<(), CoreError> {
         // Must be signed in (the replay needs a token).
         if !self.is_authenticated() {
             return Err(CoreError::Unauthenticated {
@@ -7053,6 +7084,7 @@ impl MadarCore {
         let cmd = orders::VoidOrderCommand {
             order_id: order_id.clone(),
             request,
+            approval: approval.as_ref().map(approvals::approval_wire),
         };
         let (user_id, clock_offset_ms) = self.outbox_meta();
         // The void is held against the sale's ONE row, whatever id the screen
@@ -7137,6 +7169,20 @@ impl MadarCore {
         reason: String,
         note: Option<String>,
     ) -> Result<(), CoreError> {
+        self.refund_order_approved(order_id, amount_minor, method, reason, note, None)
+            .await
+    }
+
+    /// [`Self::refund_order`] carrying a manager's approval (phase 5).
+    pub async fn refund_order_approved(
+        &self,
+        order_id: String,
+        amount_minor: i64,
+        method: String,
+        reason: String,
+        note: Option<String>,
+        approval: Option<approvals::ApprovalView>,
+    ) -> Result<(), CoreError> {
         if !self.is_authenticated() {
             return Err(CoreError::Unauthenticated {
                 detail: "not signed in".into(),
@@ -7202,7 +7248,10 @@ impl MadarCore {
             "created_at": issued_at.to_rfc3339(),
             "lines": [],
         });
-        let cmd = orders::RefundOrderCommand { request };
+        let cmd = orders::RefundOrderCommand {
+            request,
+            approval: approval.as_ref().map(approvals::approval_wire),
+        };
         let (user_id, clock_offset_ms) = self.outbox_meta();
         let op = store::NewOutboxOp {
             id: format!("{order_id}:refund:{client_ref}"),

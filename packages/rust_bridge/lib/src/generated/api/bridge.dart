@@ -4,6 +4,7 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'approvals.dart';
 import 'bookings.dart';
 import 'cart.dart';
 import 'catalog.dart';
@@ -50,6 +51,23 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// The screen to show. Re-read at deliberate transitions only.
   AppRoute appRoute();
+
+  /// A manager approves the act with their own PIN on this device.
+  Future<ApprovalView> approveAct({
+    required String approverPin,
+    required String capKey,
+    PlatformInt64? amountMinor,
+    PlatformInt64? ageMinutes,
+    bool? own,
+  });
+
+  /// A manager approves an act on one sale with their PIN.
+  Future<ApprovalView> approveOrderAct({
+    required String approverPin,
+    required String capKey,
+    required String orderId,
+    PlatformInt64? amountMinor,
+  });
 
   /// Assign / move / unassign a parked draft's table. Errors loudly when the
   /// table is taken (interactive path — the teller picks another).
@@ -368,6 +386,22 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// SQLite path the host handed us (empty => in-memory).
   String dbPath();
+
+  /// Allowed, needs a manager, or refused — for the signed-in person, offline.
+  ActDecisionView decideAct({
+    required String capKey,
+    PlatformInt64? amountMinor,
+    PlatformInt64? ageMinutes,
+    bool? own,
+  });
+
+  /// Allowed / needs a manager / refused for an act on one sale (whose sale
+  /// and how old come from the core's ledger).
+  ActDecisionView decideOrderAct({
+    required String capKey,
+    required String orderId,
+    PlatformInt64? amountMinor,
+  });
 
   /// Advance one step in the lifecycle from `current` (received→confirmed→…→
   /// delivered). Errors if there's no further forward step.
@@ -852,6 +886,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? note,
   });
 
+  /// Refund with a manager's approval.
+  Future<void> refundOrderApproved({
+    required String orderId,
+    required PlatformInt64 amountMinor,
+    required String method,
+    required String reason,
+    String? note,
+    ApprovalView? approval,
+  });
+
   /// Give a restored draft's claim back without changes (the "never mind"
   /// path out of a resume).
   Future<void> releaseDraft({required String id});
@@ -1196,6 +1240,15 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String reason,
     String? note,
     required bool restoreInventory,
+  });
+
+  /// Void a sale with a manager's approval.
+  Future<void> voidOrderApproved({
+    required String orderId,
+    required String reason,
+    String? note,
+    required bool restoreInventory,
+    ApprovalView? approval,
   });
 
   /// VOID an open ticket (and pull its kitchen tickets off the KDS). Offline-first.

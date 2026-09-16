@@ -755,6 +755,26 @@ pub(crate) fn local_checksums(store: &Store, branch: &str, types: &[String]) -> 
 }
 
 /// Every row of a type for the branch (mirror re-pointing reads these).
+/// Architecture E capabilities from a feed teller row; `None` for an older
+/// backend's row, which carries only the legacy grid.
+pub(crate) fn grants_from_teller_row(row: &serde_json::Value) -> Option<crate::session::AuthzGrants> {
+    let keys = |f: &str| -> Option<Vec<String>> {
+        row.get(f)
+            .and_then(|p| p.as_array())
+            .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+    };
+    keys("capabilities").map(|capabilities| crate::session::AuthzGrants {
+        capabilities,
+        ask_manager: keys("ask_manager").unwrap_or_default(),
+        limits: row
+            .get("limits")
+            .cloned()
+            .and_then(|l| serde_json::from_value(l).ok())
+            .unwrap_or_default(),
+        owner: row.get("is_owner").and_then(|x| x.as_bool()).unwrap_or(false),
+    })
+}
+
 pub(crate) fn rows_of_type(store: &Store, branch: &str, ty: &str) -> Vec<serde_json::Value> {
     store
         .with_conn(|c| {
@@ -1150,21 +1170,7 @@ impl MadarCore {
         };
         // Architecture E rows also carry the resolved capabilities; an older
         // backend's row does not, and the legacy grid then answers `can`.
-        let keys = |f: &str| -> Option<Vec<String>> {
-            row.get(f).and_then(|p| p.as_array()).map(|a| {
-                a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()
-            })
-        };
-        let authz = keys("capabilities").map(|capabilities| crate::session::AuthzGrants {
-            capabilities,
-            ask_manager: keys("ask_manager").unwrap_or_default(),
-            limits: row
-                .get("limits")
-                .cloned()
-                .and_then(|l| serde_json::from_value(l).ok())
-                .unwrap_or_default(),
-            owner: row.get("is_owner").and_then(|x| x.as_bool()).unwrap_or(false),
-        });
+        let authz = grants_from_teller_row(row);
         let entries: Vec<crate::session::PermissionEntry> = granted
             .iter()
             .filter_map(|p| p.as_str())

@@ -18,6 +18,7 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart';
+import 'package:feature_history/src/approval_sheet.dart';
 import 'package:feature_history/src/history_provider.dart';
 import 'package:feature_history/src/history_strings.dart';
 import 'package:feature_history/src/orders_table.dart';
@@ -709,7 +710,11 @@ class _VoidFormNotifier extends Notifier<_VoidFormState> {
   /// till stats, so the shell refreshes here; a refusal (the till is
   /// closed, the order is not this branch's) lands in [_VoidFormState.error]
   /// in the server's words — the till cannot pre-check them.
-  Future<bool> confirm({required String orderId, required String note}) async {
+  Future<bool> confirm({
+    required String orderId,
+    required String note,
+    required Future<ApprovalView?> Function(String reason) askManager,
+  }) async {
     final reason = state.reason;
     if (reason == null) {
       state = state.copyWith(
@@ -718,13 +723,28 @@ class _VoidFormNotifier extends Notifier<_VoidFormState> {
       return false;
     }
     final bridge = ref.read(bridgeProvider);
+    // Phase 5: the core decides (whose sale, how old, the person's limits).
+    final decision = bridge.decideOrderAct(
+      capKey: 'orders.void',
+      orderId: orderId,
+    );
+    ApprovalView? approval;
+    if (decision.outcome == 'deny') {
+      state = state.copyWith(error: UiText.raw(decision.reason));
+      return false;
+    }
+    if (decision.outcome == 'needs_approval') {
+      approval = await askManager(decision.reason);
+      if (approval == null) return false;
+    }
     state = state.copyWith(busy: true, error: null);
     try {
-      await bridge.voidOrder(
+      await bridge.voidOrderApproved(
         orderId: orderId,
         reason: reason,
         note: note.isEmpty ? null : note,
         restoreInventory: state.restock,
+        approval: approval,
       );
       ref.read(shellProvider.notifier).refresh();
       ref.read(drawerTickProvider.notifier).bump();
@@ -847,12 +867,33 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
       setState(() => _error = const UiText.key('history.refund_over'));
       return;
     }
+    final decision = bridge.decideOrderAct(
+      capKey: 'refunds.create',
+      orderId: widget.order.id,
+      amountMinor: minor,
+    );
+    ApprovalView? approval;
+    if (decision.outcome == 'deny') {
+      setState(() => _error = UiText.raw(decision.reason));
+      return;
+    }
+    if (decision.outcome == 'needs_approval') {
+      approval = await askManager(
+        context,
+        reason: decision.reason,
+        capKey: 'refunds.create',
+        orderId: widget.order.id,
+        amountMinor: minor,
+      );
+      if (approval == null) return;
+    }
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await bridge.refundOrder(
+      await bridge.refundOrderApproved(
+        approval: approval,
         orderId: widget.order.id,
         amountMinor: minor,
         // A method the server accepts: back the way it came when it can,
@@ -1051,7 +1092,16 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
   Future<void> _confirm() async {
     final ok = await ref
         .read(_voidFormProvider.notifier)
-        .confirm(orderId: widget.order.id, note: _note.text.trim());
+        .confirm(
+          orderId: widget.order.id,
+          note: _note.text.trim(),
+          askManager: (why) => askManager(
+            context,
+            reason: why,
+            capKey: 'orders.void',
+            orderId: widget.order.id,
+          ),
+        );
     if (ok && mounted) await Navigator.of(context).maybePop(true);
   }
 

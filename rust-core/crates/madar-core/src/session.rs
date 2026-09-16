@@ -498,6 +498,33 @@ pub(crate) fn unlock_from_bundle(
     session_from_bundle_teller(store, &bundle, teller, branch_id)
 }
 
+/// Who in the offline bundle holds `pin` — a manager approving on this device
+/// (phase 5). Exactly one active person with a verifier, or a refusal.
+pub(crate) fn bundle_person_by_pin(store: &Store, pin: &str) -> CoreResult<(String, String)> {
+    let raw = store
+        .kv_get(BUNDLE_KEY)?
+        .ok_or_else(|| CoreError::Unauthenticated {
+            detail: "no offline bundle cached — sign in online once first".into(),
+        })?;
+    let bundle: models::OfflineAuthBundle = serde_json::from_str(&raw)?;
+    let mut hits = bundle.tellers.iter().filter(|t| {
+        t.is_active
+            && t.offline_pin_hash
+                .clone()
+                .flatten()
+                .is_some_and(|h| verify_offline_pin(pin, &h))
+    });
+    match (hits.next(), hits.next()) {
+        (Some(t), None) => Ok((t.user_id.to_string(), t.name.clone())),
+        (Some(_), Some(_)) => Err(CoreError::Unauthenticated {
+            detail: PIN_NOT_UNIQUE_OFFLINE.into(),
+        }),
+        _ => Err(CoreError::Unauthenticated {
+            detail: "PIN not recognized.".into(),
+        }),
+    }
+}
+
 /// The offline refusal when a PIN typed without a name opens more than one
 /// person's verifier (pre-rollout duplicate PINs).
 pub(crate) const PIN_NOT_UNIQUE_OFFLINE: &str = "this PIN belongs to more than one person";
