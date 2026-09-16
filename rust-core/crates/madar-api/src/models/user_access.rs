@@ -29,7 +29,7 @@ pub struct UserAccess {
     pub capabilities: Vec<models::CapabilityAccess>,
     #[serde(rename = "is_owner")]
     pub is_owner: bool,
-    /// Why not, when not (self | owner | not_dominant | missing_authority).
+    /// Why not, when not (self | owner | not_dominant | not_above | missing_authority).
     #[serde(
         rename = "locked_reason",
         default,
