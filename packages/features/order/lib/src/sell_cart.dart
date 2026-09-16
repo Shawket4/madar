@@ -873,140 +873,166 @@ class _CartFooter extends ConsumerWidget {
     final kitchenNote = ref
         .watch(_cartKitchenNoteProvider((tableId, lineCount)))
         .value;
+    // A short viewport — a small tablet in landscape — is the case the footer
+    // used to eat alive: every control here is worth its height on a phone,
+    // and together they left the cart itself a couple of rows tall. Below the
+    // threshold the footer tightens (smaller padding and gaps, a compact
+    // kitchen button beside its note instead of stacked) AND is capped at a
+    // share of the screen, scrolling inside that cap rather than stealing more.
+    final viewport = MediaQuery.sizeOf(context).height;
+    final tight = viewport < 640;
+
     return ColoredBox(
       color: colors.bg,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.all(Space.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.sm,
-          children: [
-            const MadarHairline(light: true),
-            // The whole-cart kitchen print, clearly separate from Charge/
-            // Fire: an extra early copy for the kitchen, never instead of
-            // it. Short press prints now, long press previews first — the
-            // same contract as every other print button in the app. Its own
-            // note sits right under it, never crammed into the same row —
-            // that is what overflowed at a narrow width.
-            MadarButton(
-              key: const ValueKey('print-cart-kitchen'),
-              label:
-                  '${orderWord(bridge, 'sell.kitchen_cart_button')} '
-                  '($lineCount $itemsWord)',
-              glyph: MadarGlyph.printer,
-              variant: MadarButtonVariant.secondary,
-              onTap: () => unawaited(
-                _printWholeCartToKitchen(
-                  context,
-                  ref,
-                  tableId: tableId,
-                  tableLabel: tableLabel,
-                  ticketRef: ticketRef,
-                ),
-              ),
-              onLongPress: () => unawaited(
-                _previewWholeCartKitchenChit(
-                  context,
-                  ref,
-                  tableId: tableId,
-                  tableLabel: tableLabel,
-                  ticketRef: ticketRef,
-                ),
-              ),
-            ),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: MadarChip(
-                label: orderWord(bridge, 'sell.kitchen_cart_note_field'),
-                glyph: MadarGlyph.note,
-                selected: kitchenNote != null && kitchenNote.trim().isNotEmpty,
-                onTap: () =>
-                    unawaited(editCartKitchenNote(context, ref, tableId)),
-              ),
-            ),
-            if (cta.sendsToKitchen) ...[
-              _FigureRow(
-                label: orderWord(bridge, 'sell.round_total'),
-                minor: totals.subtotalMinor,
-                currency: currency,
-              ),
-              if (ticket != null)
-                // A SUBTOTAL: the ticket view carries no tax or service, and
-                // the label says so rather than calling it a total. Summed by
-                // the core, keyed on both figures so it follows either.
-                _FigureRow(
-                  label: orderWord(bridge, 'sell.bill_so_far'),
-                  minor:
-                      ref
-                          .watch(
-                            _billSoFarProvider((
-                              tableId,
-                              ticket!.subtotalMinor,
-                              totals.subtotalMinor,
-                            )),
-                          )
-                          .value ??
-                      ticket!.subtotalMinor,
-                  currency: currency,
-                  muted: true,
-                ),
-              MadarButton(
-                label: '${cta.label} · ${cta.itemCount} $itemsWord',
-                glyph: MadarGlyph.flame,
-                loading: isBusy,
-                enabled: cta.enabled,
-                onTap: onTerminal,
-              ),
-            ] else ...[
-              if (cta.needsTill) SellNoTillNotice(text: cta.reason!),
-              // The discount the Charge drawer applied stays on the cart after
-              // the drawer closes; say so here, not only inside Charge.
-              if (totals.discountMinor > 0)
-                _FigureRow(
-                  label: orderWord(bridge, 'sell.discount_on_cart'),
-                  minor: -totals.discountMinor,
-                  currency: currency,
-                  muted: true,
-                ),
-              Row(
-                spacing: Space.sm,
-                children: [
-                  // Park, right beside Charge — not a tap buried in the ⋯
-                  // menu. The owner's report was that parking read as a dead
-                  // end; a control nobody finds might as well not exist.
-                  if (canPark)
-                    MadarGlyphTile(
-                      glyph: MadarGlyph.bag,
-                      tint: colors.accent,
-                      background: colors.accentBg,
-                      semanticLabel: bridge.tr(key: 'drafts.hold'),
-                      onTap: onHold,
-                    ),
-                  Expanded(
-                    child: MadarMoneyBar(
-                      label: cta.label,
-                      amountMinor: cta.amountMinor,
-                      currency: currency,
-                      enabled: cta.enabled,
-                      // The notice above says it, with its action.
-                      reason: cta.needsTill ? null : cta.reason,
-                      loading: isBusy,
-                      onTap: onTerminal,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: tight ? viewport * 0.52 : double.infinity,
+        ),
+        child: SingleChildScrollView(
+          physics: tight
+              ? const ClampingScrollPhysics()
+              : const NeverScrollableScrollPhysics(),
+          child: Padding(
+            padding: EdgeInsetsDirectional.all(tight ? Space.md : Space.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: tight ? Space.xs : Space.sm,
+              children: [
+                const MadarHairline(light: true),
+                // The whole-cart kitchen print, clearly separate from Charge/
+                // Fire: an extra early copy for the kitchen, never instead of
+                // it. Short press prints now, long press previews first — the
+                // same contract as every other print button in the app. Its own
+                // note sits right under it, never crammed into the same row —
+                // that is what overflowed at a narrow width.
+                MadarButton(
+                  key: const ValueKey('print-cart-kitchen'),
+                  size: tight
+                      ? MadarButtonSize.compact
+                      : MadarButtonSize.regular,
+                  label: tight
+                      ? '${orderWord(bridge, 'sell.kitchen_cart_button')} ($lineCount)'
+                      : '${orderWord(bridge, 'sell.kitchen_cart_button')} '
+                            '($lineCount $itemsWord)',
+                  glyph: MadarGlyph.printer,
+                  variant: MadarButtonVariant.secondary,
+                  onTap: () => unawaited(
+                    _printWholeCartToKitchen(
+                      context,
+                      ref,
+                      tableId: tableId,
+                      tableLabel: tableLabel,
+                      ticketRef: ticketRef,
                     ),
                   ),
+                  onLongPress: () => unawaited(
+                    _previewWholeCartKitchenChit(
+                      context,
+                      ref,
+                      tableId: tableId,
+                      tableLabel: tableLabel,
+                      ticketRef: ticketRef,
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: MadarChip(
+                    label: orderWord(bridge, 'sell.kitchen_cart_note_field'),
+                    glyph: MadarGlyph.note,
+                    selected:
+                        kitchenNote != null && kitchenNote.trim().isNotEmpty,
+                    onTap: () =>
+                        unawaited(editCartKitchenNote(context, ref, tableId)),
+                  ),
+                ),
+                if (cta.sendsToKitchen) ...[
+                  _FigureRow(
+                    label: orderWord(bridge, 'sell.round_total'),
+                    minor: totals.subtotalMinor,
+                    currency: currency,
+                  ),
+                  if (ticket != null)
+                    // A SUBTOTAL: the ticket view carries no tax or service, and
+                    // the label says so rather than calling it a total. Summed by
+                    // the core, keyed on both figures so it follows either.
+                    _FigureRow(
+                      label: orderWord(bridge, 'sell.bill_so_far'),
+                      minor:
+                          ref
+                              .watch(
+                                _billSoFarProvider((
+                                  tableId,
+                                  ticket!.subtotalMinor,
+                                  totals.subtotalMinor,
+                                )),
+                              )
+                              .value ??
+                          ticket!.subtotalMinor,
+                      currency: currency,
+                      muted: true,
+                    ),
+                  MadarButton(
+                    label: '${cta.label} · ${cta.itemCount} $itemsWord',
+                    glyph: MadarGlyph.flame,
+                    loading: isBusy,
+                    enabled: cta.enabled,
+                    onTap: onTerminal,
+                  ),
+                ] else ...[
+                  if (cta.needsTill) SellNoTillNotice(text: cta.reason!),
+                  // The discount the Charge drawer applied stays on the cart after
+                  // the drawer closes; say so here, not only inside Charge.
+                  if (totals.discountMinor > 0)
+                    _FigureRow(
+                      label: orderWord(bridge, 'sell.discount_on_cart'),
+                      minor: -totals.discountMinor,
+                      currency: currency,
+                      muted: true,
+                    ),
+                  Row(
+                    spacing: Space.sm,
+                    children: [
+                      // Park, right beside Charge — not a tap buried in the ⋯
+                      // menu. The owner's report was that parking read as a dead
+                      // end; a control nobody finds might as well not exist.
+                      if (canPark)
+                        MadarGlyphTile(
+                          glyph: MadarGlyph.bag,
+                          tint: colors.accent,
+                          background: colors.accentBg,
+                          semanticLabel: bridge.tr(key: 'drafts.hold'),
+                          onTap: onHold,
+                        ),
+                      Expanded(
+                        child: MadarMoneyBar(
+                          label: cta.label,
+                          amountMinor: cta.amountMinor,
+                          currency: currency,
+                          enabled: cta.enabled,
+                          // The notice above says it, with its action.
+                          reason: cta.needsTill ? null : cta.reason,
+                          loading: isBusy,
+                          onTap: onTerminal,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
-              ),
-            ],
-            // When this order was started — the held chips show its number,
-            // so the time lives here, in the branch's clock.
-            if (startedAt != null && startedAt.isNotEmpty)
-              Text(
-                '${orderWord(bridge, 'sell.cart_started_at')} '
-                '${bridge.formatTime(rfc3339: startedAt, style: TimeStyle.time)}',
-                textAlign: TextAlign.center,
-                style: MadarType.bodySm.copyWith(color: colors.textSecondary),
-              ),
-          ],
+                // When this order was started — the held chips show its number,
+                // so the time lives here, in the branch's clock.
+                if (startedAt != null && startedAt.isNotEmpty)
+                  Text(
+                    '${orderWord(bridge, 'sell.cart_started_at')} '
+                    '${bridge.formatTime(rfc3339: startedAt, style: TimeStyle.time)}',
+                    textAlign: TextAlign.center,
+                    style: MadarType.bodySm.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
