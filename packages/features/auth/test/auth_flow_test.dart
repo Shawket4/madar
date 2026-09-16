@@ -14,6 +14,7 @@ class _Bridge implements MadarBridge {
   bool failStations = false;
   int logouts = 0;
   int signIns = 0;
+  String? lastName = 'unset';
   int pinWait = 0;
   bool badCode = false;
 
@@ -58,6 +59,7 @@ class _Bridge implements MadarBridge {
     }
     if (name == #signIn) {
       signIns++;
+      lastName = (invocation.namedArguments[#req] as LoginRequest).name;
       return Future<SessionSnapshot>.error(
         const MadarError.offline(detail: 'offline'),
       );
@@ -108,7 +110,7 @@ void main() {
     '1234'.split('').forEach(auth().pushDigit);
     // The server refused with PIN_THROTTLED; the core stored the wait.
     bridge.pinWait = 15;
-    await auth().signInTeller(name: 'Sara');
+    await auth().signInTeller();
     final s = container.read(authProvider);
     expect(s.pinWaitSeconds, 15);
     expect(s.error, isNull, reason: 'the countdown speaks, not a banner');
@@ -124,24 +126,25 @@ void main() {
     expect(container.read(authProvider).pin, '1');
   });
 
-  test('a sixth digit with no name clears the pad and says why', () async {
+  test('a sixth digit signs in with the PIN alone', () async {
     for (final d in '12345'.split('')) {
       expect(auth().pushDigit(d), isFalse);
     }
     expect(auth().pushDigit('6'), isTrue);
-    await auth().signInTeller(name: '  ');
+    await auth().signInTeller();
+    expect(bridge.signIns, 1);
+    expect(bridge.lastName, isNull, reason: 'no name on the wire');
+    // The refusal cleared the pad, which takes digits again.
     final s = container.read(authProvider);
-    expect(s.pin, isEmpty, reason: 'a full buffer refuses every digit');
+    expect(s.pin, isEmpty);
     expect(s.error, isNotNull);
-    expect(bridge.signIns, 0);
-    // The pad takes digits again.
     expect(auth().pushDigit('1'), isFalse);
     expect(container.read(authProvider).pin, '1');
   });
 
   test('a four digit PIN signs in on submit', () async {
     '1234'.split('').forEach(auth().pushDigit);
-    await auth().signInTeller(name: 'Sara');
+    await auth().signInTeller();
     expect(bridge.signIns, 1);
   });
 

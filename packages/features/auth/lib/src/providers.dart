@@ -158,7 +158,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
   /// Shared PIN sign-in tail (teller login and mid-till re-auth). Returns
   /// true on success; on failure clears the PIN and bumps [AuthState.failCount].
-  Future<bool> _signInPin(String name) async {
+  Future<bool> _signInPin(String? name) async {
     state = state.copyWith(busy: true, error: null);
     UiText? failure;
     try {
@@ -189,22 +189,12 @@ class AuthNotifier extends Notifier<AuthState> {
     return failure == null;
   }
 
-  /// Daily teller PIN sign-in (natives' `signIn`). Rejects an empty name or
-  /// a short PIN locally (fail bump → shake), otherwise hits the bridge.
-  ///
-  /// A local rejection says why and CLEARS the PIN. It used to keep it: the
-  /// sixth digit auto-submits, a blank name refused it silently, and a full
-  /// buffer refuses every further digit — the pad looked frozen.
-  Future<void> signInTeller({required String name}) async {
-    final trimmed = name.trim();
-    if (trimmed.isEmpty) {
-      state = state.copyWith(
-        pin: '',
-        error: const UiText.key('login.name_required'),
-        failCount: state.failCount + 1,
-      );
-      return;
-    }
+  /// Daily PIN sign-in. The PIN alone identifies the person (PIN-only
+  /// sign-in, POS_SIGNIN_OVERHAUL §8.5); [name] is optional and only narrows
+  /// the lookup when a caller has one. Rejects a short PIN locally (fail bump
+  /// → shake), otherwise hits the bridge.
+  Future<void> signInTeller({String? name}) async {
+    final trimmed = name?.trim();
     if (state.pin.length < _minPin) {
       state = state.copyWith(
         error: const UiText.key('login.pin_too_short'),
@@ -212,7 +202,7 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       return;
     }
-    await _signInPin(trimmed);
+    await _signInPin(trimmed == null || trimmed.isEmpty ? null : trimmed);
   }
 
   /// Re-authenticate the SAME teller who owns the open till (no handover) —

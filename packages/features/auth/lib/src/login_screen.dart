@@ -53,8 +53,8 @@ class LoginScreen extends ConsumerWidget {
   }
 }
 
-/// Daily teller PIN sign-in — name + 6-digit PIN pad, auto-submit, shake on
-/// failure. Offline-capable: `signIn` falls back to the core's offline PIN
+/// Daily PIN sign-in — the PIN alone (POS_SIGNIN_OVERHAUL §8.5), 6-digit
+/// pad, auto-submit, shake on failure. Offline-capable: `signIn` falls back to the core's offline PIN
 /// unlock. Mirror of the natives' `TellerForm`.
 class _TellerForm extends ConsumerStatefulWidget {
   const _TellerForm({required this.showLogo});
@@ -67,8 +67,6 @@ class _TellerForm extends ConsumerStatefulWidget {
 
 class _TellerFormState extends ConsumerState<_TellerForm>
     with SingleTickerProviderStateMixin {
-  final TextEditingController _name = TextEditingController();
-
   late final AnimationController _shake = AnimationController(
     vsync: this,
     duration: _shakeDuration,
@@ -107,7 +105,6 @@ class _TellerFormState extends ConsumerState<_TellerForm>
   @override
   void dispose() {
     _waitTicker?.cancel();
-    _name.dispose();
     _shake.dispose();
     super.dispose();
   }
@@ -118,7 +115,7 @@ class _TellerFormState extends ConsumerState<_TellerForm>
   }
 
   void _submit() {
-    unawaited(ref.read(authProvider.notifier).signInTeller(name: _name.text));
+    unawaited(ref.read(authProvider.notifier).signInTeller());
   }
 
   void _digit(String digit) {
@@ -233,13 +230,6 @@ class _TellerFormState extends ConsumerState<_TellerForm>
           ],
         ),
         const SizedBox(height: Space.xxl),
-        MadarField(
-          controller: _name,
-          placeholder: t('login.name'),
-          icon: 'person',
-          enabled: !busy,
-        ),
-        const SizedBox(height: Space.xl),
         PinPad(
           pin: pin,
           onDigit: _digit,

@@ -313,12 +313,19 @@ pub(crate) fn wire_login_request(req: &LoginRequest) -> CoreResult<models::Login
     let mut w = models::LoginRequest::new();
     match req.mode {
         LoginMode::Pin => {
-            let name = nonblank(&req.name, "name")?;
+            // PIN-only sign-in (POS_SIGNIN_OVERHAUL §8.5): the name is
+            // optional — the backend finds the person by the PIN alone.
+            let name = req
+                .name
+                .as_deref()
+                .map(str::trim)
+                .filter(|n| !n.is_empty())
+                .map(str::to_string);
             let pin = nonblank(&req.pin, "pin")?;
             let branch = nonblank(&req.branch_id, "branch_id")?;
             let branch = uuid::Uuid::parse_str(&branch)
                 .map_err(|_| invalid("branch_id", "not a valid uuid"))?;
-            w.name = Some(Some(name));
+            w.name = name.map(Some);
             w.pin = Some(Some(pin));
             w.branch_id = Some(Some(branch));
         }
@@ -421,6 +428,33 @@ pub(crate) fn unlock_from_bundle(
         })?;
     let bundle: models::OfflineAuthBundle = serde_json::from_str(&raw)?;
 
+    // PIN-only (§8.5): no name, so try the PIN against every verifier in the
+    // bundle. A few hundred ms per person on a tablet, and only while offline.
+    let name = name.trim();
+    if name.is_empty() {
+        let mut hits = bundle.tellers.iter().filter(|t| {
+            t.is_active
+                && t.offline_pin_hash
+                    .clone()
+                    .flatten()
+                    .is_some_and(|h| verify_offline_pin(pin, &h))
+        });
+        let teller = match (hits.next(), hits.next()) {
+            (Some(t), None) => t,
+            (Some(_), Some(_)) => {
+                return Err(CoreError::Unauthenticated {
+                    detail: PIN_NOT_UNIQUE_OFFLINE.into(),
+                })
+            }
+            _ => {
+                return Err(CoreError::Unauthenticated {
+                    detail: "PIN not recognized.".into(),
+                })
+            }
+        };
+        return session_from_bundle_teller(store, &bundle, teller, branch_id);
+    }
+
     // Resolve by name FIRST so we can give a precise reason instead of a blanket
     // "PIN not recognized" — a user who simply hasn't synced an offline verifier
     // yet would otherwise be told their (correct) PIN is wrong. The bundle carries
@@ -461,7 +495,20 @@ pub(crate) fn unlock_from_bundle(
         .ok_or_else(|| CoreError::Unauthenticated {
             detail: "PIN not recognized.".into(),
         })?;
+    session_from_bundle_teller(store, &bundle, teller, branch_id)
+}
 
+/// The offline refusal when a PIN typed without a name opens more than one
+/// person's verifier (pre-rollout duplicate PINs).
+pub(crate) const PIN_NOT_UNIQUE_OFFLINE: &str = "this PIN belongs to more than one person";
+
+/// The offline session for a teller the bundle vouched for.
+fn session_from_bundle_teller(
+    store: &Store,
+    bundle: &models::OfflineAuthBundle,
+    teller: &models::OfflineTellerCredential,
+    branch_id: &str,
+) -> CoreResult<SessionState> {
     // The whole policy, not just the rate: an offline unlock has to price a
     // cart exactly as the server would, and a service charge or tax-inclusive
     // pricing it never heard about is a bill the server will refuse.
@@ -696,6 +743,38 @@ mod tests {
     }
 
     #[test]
+    fn offline_unlock_by_pin_alone_finds_the_one_person_or_refuses() {
+        let bundle = serde_json::json!({
+            "org_id": "00000000-0000-0000-0000-0000000000aa",
+            "generated_at": "2026-06-19T10:00:00Z",
+            "lan_secret": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+            "tellers": [
+                {"user_id": "00000000-0000-0000-0000-0000000000bb", "name": "Sara",
+                 "role": "teller", "is_active": true, "offline_pin_hash": backend_hash("246810")},
+                {"user_id": "00000000-0000-0000-0000-0000000000cc", "name": "Omar",
+                 "role": "teller", "is_active": true, "offline_pin_hash": backend_hash("135790")},
+                {"user_id": "00000000-0000-0000-0000-0000000000dd", "name": "Dup",
+                 "role": "teller", "is_active": true, "offline_pin_hash": backend_hash("135790")}
+            ]
+        });
+        let store = Store::open("").unwrap();
+        store.kv_put(BUNDLE_KEY, &bundle.to_string()).unwrap();
+        let branch = "00000000-0000-0000-0000-000000000001";
+
+        let s = unlock_from_bundle(&store, "", "246810", branch).unwrap();
+        assert_eq!(s.snapshot.display_name, "Sara");
+        match unlock_from_bundle(&store, "", "135790", branch) {
+            Err(CoreError::Unauthenticated { detail }) => assert_eq!(detail, PIN_NOT_UNIQUE_OFFLINE),
+            Err(other) => panic!("expected an ambiguous refusal, got {other:?}"),
+            Ok(_) => panic!("a shared PIN must not pick someone"),
+        }
+        assert!(matches!(
+            unlock_from_bundle(&store, "", "000000", branch),
+            Err(CoreError::Unauthenticated { .. })
+        ));
+    }
+
+    #[test]
     fn unlock_without_a_bundle_is_unauthenticated() {
         let store = Store::open("").unwrap();
         assert!(matches!(
@@ -725,12 +804,14 @@ mod tests {
     // ── wire_login_request: PIN mode ─────────────────────────────────────
 
     #[test]
-    fn pin_request_missing_name_is_validation_error() {
+    fn pin_request_without_a_name_is_pin_only() {
+        // PIN-only sign-in (§8.5): no name on the wire at all.
         let mut r = pin_req();
         r.name = None;
-        assert!(
-            matches!(wire_login_request(&r), Err(CoreError::Validation { field, .. }) if field == "name")
-        );
+        let w = wire_login_request(&r).unwrap();
+        assert!(w.name.is_none());
+        let json = serde_json::to_value(&w).unwrap();
+        assert!(json.get("name").is_none(), "{json}");
     }
 
     #[test]
@@ -743,12 +824,10 @@ mod tests {
     }
 
     #[test]
-    fn pin_request_blank_name_is_validation_error() {
+    fn pin_request_blank_name_is_pin_only() {
         let mut r = pin_req();
         r.name = Some("   ".into());
-        assert!(
-            matches!(wire_login_request(&r), Err(CoreError::Validation { field, .. }) if field == "name")
-        );
+        assert!(wire_login_request(&r).unwrap().name.is_none());
     }
 
     #[test]

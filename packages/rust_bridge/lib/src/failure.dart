@@ -46,6 +46,9 @@ const Map<String, String> coreDetailKeys = {
   'token expired': 'err.session_expired',
   'wrong pin': 'err.wrong_pin',
   'activation code not valid': 'err.activation_code_invalid',
+  'this PIN belongs to more than one person': 'err.pin_not_unique',
+  'This PIN belongs to more than one person. Ask a manager for a new PIN.':
+      'err.pin_not_unique',
   'PIN not recognized.': 'err.wrong_pin',
   'no offline bundle cached — sign in online once first':
       'err.no_offline_bundle',

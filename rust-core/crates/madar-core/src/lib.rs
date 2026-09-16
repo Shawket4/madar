@@ -5740,8 +5740,9 @@ impl MadarCore {
         // No device-level ownership gate: each person holds their OWN till on this
         // device (decision 6); another teller signing in gets their own.
         // Whether a connectivity failure may fall back to an offline unlock.
+        // The name is optional (PIN-only sign-in): the offline unlock tries the
+        // PIN against the bundle when there is none.
         let offline_ok = matches!(req.mode, session::LoginMode::Pin)
-            && req.name.is_some()
             && req.pin.is_some()
             && req.branch_id.is_some();
         let offline = |this: &Self| {
