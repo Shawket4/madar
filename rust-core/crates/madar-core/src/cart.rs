@@ -577,19 +577,62 @@ fn swap_base_addon<'a>(
             }
         }
     }
+    swap_base_candidates(item, addon_catalog, family, category)
+        .into_iter()
+        .next()
+}
+
+/// The swap default for ONE group: the first catalog addon carrying the
+/// recipe's own ingredient that this group actually offers. Two groups can
+/// each hold an option for the same bean (Coffee Beans' "Colombian" and
+/// Espresso Beans' "Colombian Espresso"), so picking catalog-wide first and
+/// then checking membership left the second group with no default.
+fn swap_default_in<T>(
+    item: &menu::MenuItemView,
+    addon_catalog: &[menu::AddonItemView],
+    family: &str,
+    options: &[T],
+    id_of: impl Fn(&T) -> &str,
+) -> Option<String> {
+    let offered = |id: &str| options.iter().any(|o| id_of(o) == id);
+    if family == "milk_type" {
+        if let Some(id) = item.default_milk_addon_id.as_deref() {
+            if offered(id) && addon_catalog.iter().any(|a| a.id == id) {
+                return Some(id.to_string());
+            }
+        }
+    }
+    let category = match family {
+        "milk_type" => "milk",
+        "coffee_type" => "coffee_bean",
+        _ => return None,
+    };
+    swap_base_candidates(item, addon_catalog, family, category)
+        .into_iter()
+        .find(|a| offered(&a.id))
+        .map(|a| a.id.clone())
+}
+
+fn swap_base_candidates<'a>(
+    item: &menu::MenuItemView,
+    addon_catalog: &'a [menu::AddonItemView],
+    family: &str,
+    category: &str,
+) -> Vec<&'a menu::AddonItemView> {
     let base_ing = item
         .recipes
         .iter()
         .find(|r| r.category == category)
-        .and_then(|r| r.org_ingredient_id.as_deref())?;
+        .and_then(|r| r.org_ingredient_id.as_deref());
     addon_catalog
         .iter()
-        .filter(|a| a.addon_type == family)
-        .find(|a| {
+        .filter(move |a| a.addon_type == family && base_ing.is_some())
+        .filter(move |a| {
             a.ingredients
                 .iter()
-                .any(|ing| ing.org_ingredient_id.as_deref() == Some(base_ing))
+                .any(|ing| ing.org_ingredient_id.as_deref() == base_ing)
         })
+        .collect()
 }
 
 /// Resolve a configured line's charged prices from the cached catalog. PURE so
@@ -872,9 +915,8 @@ pub(crate) fn item_modifier_groups(
         } else {
             slot.max_selections
         };
-        let default_option_id = swap_base_addon(item, addon_catalog, &slot.addon_type)
-            .map(|a| a.id.clone())
-            .filter(|id| options.iter().any(|o| &o.id == id));
+        let default_option_id =
+            swap_default_in(item, addon_catalog, &slot.addon_type, &options, |o| &o.id);
         groups.push(ModifierGroupView {
             group_id: slot.id.clone(),
             name: slot
@@ -908,9 +950,7 @@ pub(crate) fn item_modifier_groups(
     rest.sort_by(|a, b| rank(a).cmp(&rank(b)).then(a.cmp(b)));
     for ty in rest {
         let options = options_of(ty);
-        let default_option_id = swap_base_addon(item, addon_catalog, ty)
-            .map(|a| a.id.clone())
-            .filter(|id| options.iter().any(|o| &o.id == id));
+        let default_option_id = swap_default_in(item, addon_catalog, ty, &options, |o| &o.id);
         groups.push(ModifierGroupView {
             group_id: format!("type:{ty}"),
             name: ty.to_string(),
@@ -1027,12 +1067,9 @@ pub(crate) fn item_modifier_groups_unified(
             // legacy projection. This path is the one every unified-catalog
             // org actually uses, and it had been left at None, so the sheet
             // opened blank for every coffee and milk choice.
-            let default_option_id = swap_type
-                .as_deref()
-                .filter(|_| swap)
-                .and_then(|family| swap_base_addon(item, addon_catalog, family))
-                .map(|a| a.id.clone())
-                .filter(|id| options.iter().any(|o| &o.id == id));
+            let default_option_id = swap_type.as_deref().filter(|_| swap).and_then(|family| {
+                swap_default_in(item, addon_catalog, family, &options, |o| &o.id)
+            });
             Some(ModifierGroupView {
                 default_option_id,
                 group_id: g.group_id.clone(),
@@ -1128,8 +1165,15 @@ fn kitchen_notes_map(store: &Store, ctx: Ctx<'_>) -> CoreResult<HashMap<String, 
     })
 }
 
-fn save_kitchen_notes_map(store: &Store, ctx: Ctx<'_>, map: &HashMap<String, String>) -> CoreResult<()> {
-    store.kv_put(&ctx_key(ctx, K_KITCHEN_NOTES)?, &serde_json::to_string(map)?)
+fn save_kitchen_notes_map(
+    store: &Store,
+    ctx: Ctx<'_>,
+    map: &HashMap<String, String>,
+) -> CoreResult<()> {
+    store.kv_put(
+        &ctx_key(ctx, K_KITCHEN_NOTES)?,
+        &serde_json::to_string(map)?,
+    )
 }
 
 /// Set (or, blank/`None`, clear) ONE line's kitchen-only note, by its cart
@@ -1155,7 +1199,11 @@ pub(crate) fn set_line_kitchen_note(
 
 /// Clear one line's kitchen note — called the moment that line's chit
 /// actually printed, never on preview alone.
-pub(crate) fn clear_line_kitchen_note(store: &Store, ctx: Ctx<'_>, line_key: &str) -> CoreResult<()> {
+pub(crate) fn clear_line_kitchen_note(
+    store: &Store,
+    ctx: Ctx<'_>,
+    line_key: &str,
+) -> CoreResult<()> {
     set_line_kitchen_note(store, ctx, line_key, None)
 }
 
@@ -1834,6 +1882,44 @@ mod tests {
             addon("whole", "milk_type", 0),     // downgrade → 0
             addon("shot", "extra", 800),        // additive → full
         ]
+    }
+
+    /// Two groups can each offer an option for the recipe's bean (Coffee
+    /// Beans' "Colombian", Espresso Beans' "Colombian Espresso"). Each group
+    /// preselects ITS OWN match — not the catalog's first, which the other
+    /// group doesn't carry.
+    #[test]
+    fn swap_default_picks_the_match_this_group_offers() {
+        let bean = |id: &str| {
+            let mut a = addon(id, "coffee_type", 0);
+            a.ingredients = vec![menu::AddonIngredientView {
+                ingredient_name: "Colombian Espresso".into(),
+                unit: "g".into(),
+                quantity: 18.0,
+                org_ingredient_id: Some("ing-col".into()),
+            }];
+            a
+        };
+        let catalog = vec![bean("colombian"), bean("colombian-espresso")];
+        let mut espresso = item();
+        espresso.recipes = vec![menu::RecipeLineView {
+            ingredient_name: "Colombian Espresso".into(),
+            quantity: 18.0,
+            unit: "g".into(),
+            size_label: None,
+            category: "coffee_bean".into(),
+            org_ingredient_id: Some("ing-col".into()),
+        }];
+        let offered = ["colombian-espresso", "decaf"];
+        assert_eq!(
+            swap_default_in(&espresso, &catalog, "coffee_type", &offered, |o| o),
+            Some("colombian-espresso".to_string())
+        );
+        let none: [&str; 1] = ["decaf"];
+        assert_eq!(
+            swap_default_in(&espresso, &catalog, "coffee_type", &none, |o| o),
+            None
+        );
     }
 
     fn names(v: &[CartLineView]) -> Vec<String> {
@@ -3691,7 +3777,11 @@ mod tests {
         assert_eq!(note(&s, None).unwrap().as_deref(), Some("extra hot"));
 
         clear_line_kitchen_note(&s, None, &key).unwrap();
-        assert_eq!(lines(&s, None).unwrap()[0].kitchen_note, None, "cleared on print");
+        assert_eq!(
+            lines(&s, None).unwrap()[0].kitchen_note,
+            None,
+            "cleared on print"
+        );
         assert_eq!(
             note(&s, None).unwrap().as_deref(),
             Some("extra hot"),
@@ -3713,7 +3803,10 @@ mod tests {
         let s = store();
         assert_eq!(kitchen_note(&s, None).unwrap(), None);
         set_kitchen_note(&s, None, Some("fire on the pass call")).unwrap();
-        assert_eq!(kitchen_note(&s, None).unwrap().as_deref(), Some("fire on the pass call"));
+        assert_eq!(
+            kitchen_note(&s, None).unwrap().as_deref(),
+            Some("fire on the pass call")
+        );
         clear_kitchen_note(&s, None).unwrap();
         assert_eq!(kitchen_note(&s, None).unwrap(), None);
     }
