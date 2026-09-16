@@ -663,7 +663,7 @@ pub(crate) fn resolve_line(
         qty: qty.max(1),
         size_label,
         addons: resolve_addons(item, addon_catalog, addon_sels),
-        optionals: resolve_optionals(item, optional_ids),
+        optionals: resolve_optionals(item, addon_catalog, addon_sels, optional_ids),
         notes,
         bundle_id: None,
         bundle_components: vec![],
@@ -700,9 +700,29 @@ fn resolve_addons(
 }
 
 /// Resolve selected optional-field ids to stored optionals (price + name).
-fn resolve_optionals(item: &menu::MenuItemView, optional_ids: &[String]) -> Vec<StoredOptional> {
-    optional_ids
+///
+/// An ADDON selection whose id is not an addon but IS one of the item's
+/// optional fields is the item-private "Options" group picked through an addon
+/// sheet (F17: `/catalog/sync` also lists that group). The server resolves it
+/// only as an optional, so it is carried in the optional slot (once) instead
+/// of being dropped or submitted as an unknown addon id.
+fn resolve_optionals(
+    item: &menu::MenuItemView,
+    addon_catalog: &[menu::AddonItemView],
+    addon_sels: &[AddonSelection],
+    optional_ids: &[String],
+) -> Vec<StoredOptional> {
+    let mut ids: Vec<&String> = Vec::new();
+    let rerouted = addon_sels
         .iter()
+        .map(|s| &s.addon_item_id)
+        .filter(|id| is_private_optional(item, addon_catalog, id));
+    for id in optional_ids.iter().chain(rerouted) {
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
+    }
+    ids.into_iter()
         .filter_map(|oid| {
             let o = item.optional_fields.iter().find(|f| &f.id == oid)?;
             Some(StoredOptional {
@@ -746,7 +766,12 @@ pub(crate) fn resolve_bundle_line(
                 qty: sel.qty.max(1),
                 size_label: sel.size_label.clone(),
                 addons: resolve_addons(item, addon_catalog, &sel.addons),
-                optionals: resolve_optionals(item, &sel.optional_field_ids),
+                optionals: resolve_optionals(
+                    item,
+                    addon_catalog,
+                    &sel.addons,
+                    &sel.optional_field_ids,
+                ),
             })
         })
         .collect();
@@ -971,6 +996,17 @@ pub(crate) fn item_modifier_groups(
     groups
 }
 
+/// Is `id` one of the item's optional fields that the addon catalog does not
+/// know — i.e. an option of the item-private "Options" group
+/// (`legacy_source='optional'`), which the server only accepts as an optional.
+fn is_private_optional(
+    item: &menu::MenuItemView,
+    addon_catalog: &[menu::AddonItemView],
+    id: &str,
+) -> bool {
+    item.optional_fields.iter().any(|f| f.id == id) && !addon_catalog.iter().any(|a| a.id == id)
+}
+
 /// The per-item priced-optionals group (shared by the legacy and unified
 /// projections — optionals ride their own wire either way, keyed by the same
 /// stable `optional_field_id`s the order payload submits).
@@ -1028,6 +1064,10 @@ pub(crate) fn item_modifier_groups_unified(
                 .options
                 .iter()
                 .filter(|o| o.is_available)
+                // F17: the item-private "Options" group rides this wire too;
+                // its options already render once in the Optional group below
+                // (and must be submitted as optionals), so never as addons.
+                .filter(|o| !is_private_optional(item, addon_catalog, &o.id))
                 .map(|o| ModifierOptionView {
                     id: o.id.clone(),
                     name: menu::resolve(&o.name_translations, &o.name, locale),
@@ -2714,6 +2754,80 @@ mod tests {
         // Priced optionals still appended, same as the legacy projection.
         assert_eq!(groups.last().unwrap().kind, ModifierGroupKind::Optional);
         assert_eq!(groups.last().unwrap().options[0].id, "van");
+    }
+
+    /// F17: the item-private "Options" group (backend `legacy_origin='options'`,
+    /// options `legacy_source='optional'`) is ALSO in `/catalog/sync`'s
+    /// modifier_groups — with `legacy_addon_type` NULL and option ids equal to
+    /// the item's `optional_field` ids. Rendered as an Addon group it listed
+    /// "Vanilla" twice, and the addon copy submitted an `addon_item_id` the
+    /// server does not know as an addon (404 → order fails).
+    #[test]
+    fn unified_private_options_group_is_listed_once_as_optional() {
+        let unified = vec![
+            menu::UnifiedGroup {
+                group_id: "g-milk".into(),
+                name: "Milk".into(),
+                name_translations: serde_json::json!({}),
+                selection_type: "single".into(),
+                min: 0,
+                max: Some(1),
+                is_required: false,
+                legacy_addon_type: Some("milk_type".into()),
+                options: vec![uopt("oat"), uopt("almond")],
+            },
+            menu::UnifiedGroup {
+                group_id: "g-options-latte".into(),
+                name: "Options".into(),
+                name_translations: serde_json::json!({}),
+                selection_type: "multi".into(),
+                min: 0,
+                max: None,
+                is_required: false,
+                legacy_addon_type: None,
+                options: vec![menu::UnifiedOption {
+                    id: "van".into(),
+                    name: "Vanilla".into(),
+                    name_translations: serde_json::json!({}),
+                    price: 300,
+                    is_available: true,
+                }],
+            },
+        ];
+        let groups = item_modifier_groups_unified(&item(), &catalog(), unified, "en");
+        // (a) exactly once, and in the Optional-kind group.
+        let hits: Vec<(&ModifierGroupView, &ModifierOptionView)> = groups
+            .iter()
+            .flat_map(|g| g.options.iter().map(move |o| (g, o)))
+            .filter(|(_, o)| o.id == "van")
+            .collect();
+        assert_eq!(hits.len(), 1, "private option listed once: {groups:?}");
+        assert_eq!(hits[0].0.kind, ModifierGroupKind::Optional);
+        assert!(groups.iter().all(|g| g.group_id != "g-options-latte"));
+        assert!(groups.iter().any(|g| g.group_id == "g-milk"));
+
+        // (b) payload: picked through the Optional group → optional-field slot.
+        let line = resolve_line(&item(), &catalog(), None, &[], &["van".into()], 1, None);
+        assert!(line.addons.is_empty());
+        assert_eq!(line.optionals.len(), 1);
+        assert_eq!(line.optionals[0].optional_field_id, "van");
+        assert_eq!(line.optionals[0].price_minor, 300);
+
+        // A host holding a stale sheet that submits it as an ADDON still lands
+        // in the optional slot (never an addon id), without double-counting.
+        let stale = [AddonSelection {
+            addon_item_id: "van".into(),
+            qty: 1,
+        }];
+        let line = resolve_line(&item(), &catalog(), None, &stale, &["van".into()], 1, None);
+        assert!(line.addons.is_empty());
+        assert_eq!(line.optionals.len(), 1);
+        let line = resolve_line(&item(), &catalog(), None, &stale, &[], 1, None);
+        assert!(line.addons.iter().all(|a| a.addon_item_id != "van"));
+        assert_eq!(
+            line.optionals.iter().map(|o| o.optional_field_id.as_str()).collect::<Vec<_>>(),
+            vec!["van"]
+        );
     }
 
     #[test]
