@@ -10,6 +10,7 @@ Method | HTTP request | Description
 [**get_user**](UsersApi.md#get_user) | **GET** /users/{id} | 
 [**list_user_branches**](UsersApi.md#list_user_branches) | **GET** /users/{id}/branches | 
 [**list_users**](UsersApi.md#list_users) | **GET** /users | 
+[**suggest_pin**](UsersApi.md#suggest_pin) | **GET** /users/pin-suggestion | A free PIN for this org.
 [**unassign_branch**](UsersApi.md#unassign_branch) | **DELETE** /users/{id}/branches/{branch_id} | 
 [**update_user**](UsersApi.md#update_user) | **PATCH** /users/{id} | 
 
@@ -171,6 +172,33 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::UserPublic>**](UserPublic.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## suggest_pin
+
+> models::PinSuggestion suggest_pin()
+A free PIN for this org.
+
+The owner's question was how the server can suggest a PIN when it stores no plaintext. The fingerprint answers it: pick a candidate, fingerprint it, one indexed lookup says taken or free. A handful of tries at most, and uniqueness stays a database property rather than something the application hopes it got right.
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**models::PinSuggestion**](PinSuggestion.md)
 
 ### Authorization
 

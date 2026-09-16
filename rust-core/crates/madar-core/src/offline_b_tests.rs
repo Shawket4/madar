@@ -207,6 +207,7 @@ async fn ring(core: &crate::MadarCore, price: i64, method_id: &str, tendered: i6
             splits: vec![],
             loyalty_customer_id: None,
         dine_in: false,
+        customer_id: None,
             loyalty_redemptions: vec![],
         },
     )
@@ -532,7 +533,8 @@ async fn permissions_addons_and_prep_minutes_arrive_with_the_feed() {
     .await;
     let core = testkit::online_core(&stub.base, "").await;
     core.store.kv_put(menu::K_ADDONS, r#"[{"id":"fetched"}]"#).unwrap();
-    assert!(core.has_permission("anything".into(), "at_all".into()), "an offline unlock is optimistic");
+    assert!(!core.has_permission("anything".into(), "at_all".into()), "unloaded grants deny all but selling");
+    assert!(core.has_permission("orders".into(), "create".into()), "selling continues while unloaded");
     core.pull(true).await.unwrap();
     assert!(core.has_permission("orders".into(), "create".into()));
     assert!(!core.has_permission("orders".into(), "delete".into()), "the feed's grants replace the optimistic gate");
@@ -1617,4 +1619,58 @@ async fn an_offline_bill_shows_its_rounds_and_reprices_a_discount() {
     assert_eq!(full.subtotal_minor, 800);
     assert_eq!(discounted.discount_minor, 80);
     assert!(discounted.total_minor < full.total_minor, "the discount moves the due offline");
+}
+
+/// Phase 6: a customer added offline is usable at once, rides the queue ahead
+/// of the sale that names it, and the sale carries its id.
+#[tokio::test]
+async fn a_customer_added_offline_rides_ahead_of_the_sale_that_names_it() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    core.open_till(0, None).await.unwrap();
+    assert!(!core.can("customers.create".into()), "unknown grants: customers stay hidden");
+    if let Some(sess) = core.session.write().unwrap().as_mut() {
+        let mut caps = vec!["customers.create".to_string(), "customers.attach".to_string()];
+        caps.extend(["orders.create", "payments.create", "till.open"].map(String::from));
+        sess.authz = Some(crate::session::AuthzGrants { capabilities: caps, ..Default::default() });
+    }
+
+    let c = core.create_customer("  Hana Adel ".into(), Some("+20 122 333 4444".into())).unwrap();
+    assert_eq!(c.name, "Hana Adel");
+    assert!(c.pending);
+    let found = core.search_customers("01223334444".into()).unwrap();
+    assert_eq!(found.iter().map(|x| x.id.clone()).collect::<Vec<_>>(), vec![c.id.clone()]);
+    assert_eq!(found[0].phone, None, "no customers.view: the phone stays hidden");
+    assert_eq!(found[0].phone_hint.as_deref(), Some("•••• 4444"));
+    assert_eq!(core.search_customers("hana".into()).unwrap().len(), 1);
+
+    core.cart_add(None, uuid::Uuid::new_v4().to_string(), "Latte".into(), 1_000).unwrap();
+    core.checkout(
+        None,
+        crate::checkout::CheckoutInput {
+            payment_method_id: CASH.into(),
+            amount_tendered_minor: 1_000,
+            tip_minor: 0,
+            tip_payment_method_id: None,
+            customer_name: Some(c.name.clone()),
+            notes: None,
+            splits: vec![],
+            loyalty_customer_id: None,
+            dine_in: false,
+            customer_id: Some(c.id.clone()),
+            loyalty_redemptions: vec![],
+        },
+    )
+    .await
+    .unwrap();
+
+    let ops = core.store.list_active().unwrap();
+    let create = ops.iter().find(|o| o.op_type == "create_customer").expect("queued");
+    let sale = ops.iter().find(|o| o.op_type == "create_order").expect("queued");
+    let payload: serde_json::Value = serde_json::from_str(&sale.payload).unwrap();
+    assert_eq!(payload["request"]["customer_id"], c.id.as_str());
+    let till_open_pending = ops.iter().any(|o| o.op_type == "open_till");
+    if !till_open_pending {
+        assert_eq!(sale.depends_on_seq, Some(create.seq), "the sale waits for its customer");
+    }
 }

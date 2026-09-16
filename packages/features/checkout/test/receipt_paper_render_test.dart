@@ -26,6 +26,8 @@ class _Bridge implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation i) {
+    final can = fakeCanInvocation(i, () => currentSession()?.role);
+    if (can != null) return can;
     if (i.memberName == #tr) {
       return coreWord(i.namedArguments[#key] as String, arabic: rtl);
     }

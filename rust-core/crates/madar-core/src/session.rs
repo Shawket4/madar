@@ -151,6 +151,35 @@ pub(crate) struct PermissionEntry {
     pub granted: bool,
 }
 
+/// The only grants assumed while a session's permissions are not loaded: ringing
+/// up and taking payment for a sale, working a table's bill, and the kitchen
+/// screen. Everything else waits for the real grants.
+pub(crate) const SELL_WHILE_UNLOADED: &[(&str, &str)] = &[
+    ("orders", "create"),
+    ("orders", "read"),
+    ("payments", "create"),
+    ("open_tickets", "create"),
+    ("open_tickets", "read"),
+    ("open_tickets", "update"),
+    ("kitchen_orders", "read"),
+    ("kitchen_orders", "update"),
+    ("menu_items", "read"),
+    ("categories", "read"),
+];
+
+/// A person's effective capabilities (architecture E) as the server resolved
+/// them: `GET /authz/me` online, the synced teller row's `capabilities` offline.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub(crate) struct AuthzGrants {
+    pub capabilities: Vec<String>,
+    #[serde(default)]
+    pub ask_manager: Vec<String>,
+    #[serde(default)]
+    pub limits: std::collections::BTreeMap<String, madar_authz::Limits>,
+    #[serde(default)]
+    pub owner: bool,
+}
+
 /// The live session the core holds in memory (and persists, minus nothing, into
 /// the host's secure blob).
 #[derive(Clone, Serialize, Deserialize)]
@@ -159,14 +188,24 @@ pub(crate) struct SessionState {
     pub permissions: Vec<PermissionEntry>,
     /// `None` for an offline-unlocked session.
     pub token: Option<String>,
+    /// `None` until capabilities are known (an older backend, or not loaded yet);
+    /// [`SessionState::can`] then answers from the legacy grid.
+    #[serde(default)]
+    pub authz: Option<AuthzGrants>,
 }
 
 impl SessionState {
-    /// Does this session grant `resource`/`action`? Optimistic until permissions
-    /// are loaded (offline unlock) — see `permissions_loaded`.
+    /// Does this session grant `resource`/`action`?
+    ///
+    /// Until the grants are loaded (an offline unlock on a device whose feed
+    /// holds no row for this person, or a failed fetch) the answer is DENY,
+    /// except for the plain selling acts in [`SELL_WHILE_UNLOADED`], so offline
+    /// selling continues. Money exceptions (voids, refunds, discounts, cash
+    /// movements, waivers) are never assumed: offering them on a guess used to
+    /// dead-letter the sale at replay (audit S7).
     pub fn has_permission(&self, resource: &str, action: &str) -> bool {
         if !self.snapshot.permissions_loaded {
-            return true;
+            return SELL_WHILE_UNLOADED.contains(&(resource, action));
         }
         self.permissions
             .iter()
@@ -183,6 +222,78 @@ impl SessionState {
                 .permissions
                 .iter()
                 .any(|p| p.resource == resource && p.action == action && p.granted)
+    }
+
+    /// Does this session hold capability `key`? Ask this, never the role.
+    ///
+    /// - Capabilities known (server `/authz/me` or the feed's teller row): exact.
+    /// - Otherwise, grants loaded from `/auth/permissions` (an older backend): a
+    ///   capability with a legacy cell answers from that cell; a newer one
+    ///   (no cell) from the role kind's registry defaults.
+    /// - Nothing loaded: only the plain selling acts ([`SELL_WHILE_UNLOADED`]).
+    pub fn can(&self, key: &str) -> bool {
+        let Some(cap) = madar_authz::Cap::from_key(key) else {
+            return false;
+        };
+        if let Some(a) = &self.authz {
+            return a.capabilities.iter().any(|c| c == key);
+        }
+        let meta = cap.meta();
+        match meta.legacy {
+            Some((r, a)) => self.has_permission(r, a),
+            None => {
+                self.snapshot.permissions_loaded
+                    && madar_authz::RoleKind::parse(&self.snapshot.role)
+                        .map(|k| meta.defaults.contains(k))
+                        .unwrap_or(false)
+            }
+        }
+    }
+
+    /// Not held, but the owner lets this person ask a manager to approve it.
+    pub fn can_ask(&self, key: &str) -> bool {
+        !self.can(key)
+            && self
+                .authz
+                .as_ref()
+                .map(|a| a.ask_manager.iter().any(|c| c == key))
+                .unwrap_or(false)
+    }
+
+    /// The kind of work this person does on a device — `"kitchen"`, `"waiter"`
+    /// or `"teller"` — from their capabilities, not their role name: someone who
+    /// takes money works a till; someone who only reads the kitchen screen is
+    /// the kitchen; everyone else works tables. It picks the route, the realtime
+    /// topics, the alerts and the LAN advert (whose `role` older peers read with
+    /// exactly these three meanings). With nothing loaded yet it falls back to
+    /// the role's kind, since a guess from the selling defaults would put a
+    /// kitchen screen on a till.
+    pub fn work_kind(&self) -> &'static str {
+        if self.authz.is_none() && !self.snapshot.permissions_loaded {
+            return match self.snapshot.role.as_str() {
+                "kitchen" => "kitchen",
+                "waiter" => "waiter",
+                _ => "teller",
+            };
+        }
+        use madar_authz::Cap;
+        let can = |c: Cap| self.can(c.key());
+        if can(Cap::PaymentsTake) || can(Cap::TillOpen) {
+            "teller"
+        } else if can(Cap::KitchenDisplayRead) && !can(Cap::OrdersCreate) && !can(Cap::TicketsOpen) {
+            "kitchen"
+        } else {
+            "waiter"
+        }
+    }
+
+    /// Every capability key this session holds.
+    pub fn capabilities(&self) -> Vec<String> {
+        madar_authz::Cap::all()
+            .map(|c| c.key())
+            .filter(|k| self.can(k))
+            .map(str::to_string)
+            .collect()
     }
 
     /// Serialize for the host's secure vault.
@@ -202,12 +313,19 @@ pub(crate) fn wire_login_request(req: &LoginRequest) -> CoreResult<models::Login
     let mut w = models::LoginRequest::new();
     match req.mode {
         LoginMode::Pin => {
-            let name = nonblank(&req.name, "name")?;
+            // PIN-only sign-in (POS_SIGNIN_OVERHAUL §8.5): the name is
+            // optional — the backend finds the person by the PIN alone.
+            let name = req
+                .name
+                .as_deref()
+                .map(str::trim)
+                .filter(|n| !n.is_empty())
+                .map(str::to_string);
             let pin = nonblank(&req.pin, "pin")?;
             let branch = nonblank(&req.branch_id, "branch_id")?;
             let branch = uuid::Uuid::parse_str(&branch)
                 .map_err(|_| invalid("branch_id", "not a valid uuid"))?;
-            w.name = Some(Some(name));
+            w.name = name.map(Some);
             w.pin = Some(Some(pin));
             w.branch_id = Some(Some(branch));
         }
@@ -310,6 +428,33 @@ pub(crate) fn unlock_from_bundle(
         })?;
     let bundle: models::OfflineAuthBundle = serde_json::from_str(&raw)?;
 
+    // PIN-only (§8.5): no name, so try the PIN against every verifier in the
+    // bundle. A few hundred ms per person on a tablet, and only while offline.
+    let name = name.trim();
+    if name.is_empty() {
+        let mut hits = bundle.tellers.iter().filter(|t| {
+            t.is_active
+                && t.offline_pin_hash
+                    .clone()
+                    .flatten()
+                    .is_some_and(|h| verify_offline_pin(pin, &h))
+        });
+        let teller = match (hits.next(), hits.next()) {
+            (Some(t), None) => t,
+            (Some(_), Some(_)) => {
+                return Err(CoreError::Unauthenticated {
+                    detail: PIN_NOT_UNIQUE_OFFLINE.into(),
+                })
+            }
+            _ => {
+                return Err(CoreError::Unauthenticated {
+                    detail: "PIN not recognized.".into(),
+                })
+            }
+        };
+        return session_from_bundle_teller(store, &bundle, teller, branch_id);
+    }
+
     // Resolve by name FIRST so we can give a precise reason instead of a blanket
     // "PIN not recognized" — a user who simply hasn't synced an offline verifier
     // yet would otherwise be told their (correct) PIN is wrong. The bundle carries
@@ -350,7 +495,47 @@ pub(crate) fn unlock_from_bundle(
         .ok_or_else(|| CoreError::Unauthenticated {
             detail: "PIN not recognized.".into(),
         })?;
+    session_from_bundle_teller(store, &bundle, teller, branch_id)
+}
 
+/// Who in the offline bundle holds `pin` — a manager approving on this device
+/// (phase 5). Exactly one active person with a verifier, or a refusal.
+pub(crate) fn bundle_person_by_pin(store: &Store, pin: &str) -> CoreResult<(String, String)> {
+    let raw = store
+        .kv_get(BUNDLE_KEY)?
+        .ok_or_else(|| CoreError::Unauthenticated {
+            detail: "no offline bundle cached — sign in online once first".into(),
+        })?;
+    let bundle: models::OfflineAuthBundle = serde_json::from_str(&raw)?;
+    let mut hits = bundle.tellers.iter().filter(|t| {
+        t.is_active
+            && t.offline_pin_hash
+                .clone()
+                .flatten()
+                .is_some_and(|h| verify_offline_pin(pin, &h))
+    });
+    match (hits.next(), hits.next()) {
+        (Some(t), None) => Ok((t.user_id.to_string(), t.name.clone())),
+        (Some(_), Some(_)) => Err(CoreError::Unauthenticated {
+            detail: PIN_NOT_UNIQUE_OFFLINE.into(),
+        }),
+        _ => Err(CoreError::Unauthenticated {
+            detail: "PIN not recognized.".into(),
+        }),
+    }
+}
+
+/// The offline refusal when a PIN typed without a name opens more than one
+/// person's verifier (pre-rollout duplicate PINs).
+pub(crate) const PIN_NOT_UNIQUE_OFFLINE: &str = "this PIN belongs to more than one person";
+
+/// The offline session for a teller the bundle vouched for.
+fn session_from_bundle_teller(
+    store: &Store,
+    bundle: &models::OfflineAuthBundle,
+    teller: &models::OfflineTellerCredential,
+    branch_id: &str,
+) -> CoreResult<SessionState> {
     // The whole policy, not just the rate: an offline unlock has to price a
     // cart exactly as the server would, and a service charge or tax-inclusive
     // pricing it never heard about is a bill the server will refuse.
@@ -400,6 +585,7 @@ pub(crate) fn unlock_from_bundle(
         snapshot,
         permissions: Vec::new(),
         token: None,
+        authz: None,
     })
 }
 
@@ -584,6 +770,38 @@ mod tests {
     }
 
     #[test]
+    fn offline_unlock_by_pin_alone_finds_the_one_person_or_refuses() {
+        let bundle = serde_json::json!({
+            "org_id": "00000000-0000-0000-0000-0000000000aa",
+            "generated_at": "2026-06-19T10:00:00Z",
+            "lan_secret": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+            "tellers": [
+                {"user_id": "00000000-0000-0000-0000-0000000000bb", "name": "Sara",
+                 "role": "teller", "is_active": true, "offline_pin_hash": backend_hash("246810")},
+                {"user_id": "00000000-0000-0000-0000-0000000000cc", "name": "Omar",
+                 "role": "teller", "is_active": true, "offline_pin_hash": backend_hash("135790")},
+                {"user_id": "00000000-0000-0000-0000-0000000000dd", "name": "Dup",
+                 "role": "teller", "is_active": true, "offline_pin_hash": backend_hash("135790")}
+            ]
+        });
+        let store = Store::open("").unwrap();
+        store.kv_put(BUNDLE_KEY, &bundle.to_string()).unwrap();
+        let branch = "00000000-0000-0000-0000-000000000001";
+
+        let s = unlock_from_bundle(&store, "", "246810", branch).unwrap();
+        assert_eq!(s.snapshot.display_name, "Sara");
+        match unlock_from_bundle(&store, "", "135790", branch) {
+            Err(CoreError::Unauthenticated { detail }) => assert_eq!(detail, PIN_NOT_UNIQUE_OFFLINE),
+            Err(other) => panic!("expected an ambiguous refusal, got {other:?}"),
+            Ok(_) => panic!("a shared PIN must not pick someone"),
+        }
+        assert!(matches!(
+            unlock_from_bundle(&store, "", "000000", branch),
+            Err(CoreError::Unauthenticated { .. })
+        ));
+    }
+
+    #[test]
     fn unlock_without_a_bundle_is_unauthenticated() {
         let store = Store::open("").unwrap();
         assert!(matches!(
@@ -613,12 +831,14 @@ mod tests {
     // ── wire_login_request: PIN mode ─────────────────────────────────────
 
     #[test]
-    fn pin_request_missing_name_is_validation_error() {
+    fn pin_request_without_a_name_is_pin_only() {
+        // PIN-only sign-in (§8.5): no name on the wire at all.
         let mut r = pin_req();
         r.name = None;
-        assert!(
-            matches!(wire_login_request(&r), Err(CoreError::Validation { field, .. }) if field == "name")
-        );
+        let w = wire_login_request(&r).unwrap();
+        assert!(w.name.is_none());
+        let json = serde_json::to_value(&w).unwrap();
+        assert!(json.get("name").is_none(), "{json}");
     }
 
     #[test]
@@ -631,12 +851,10 @@ mod tests {
     }
 
     #[test]
-    fn pin_request_blank_name_is_validation_error() {
+    fn pin_request_blank_name_is_pin_only() {
         let mut r = pin_req();
         r.name = Some("   ".into());
-        assert!(
-            matches!(wire_login_request(&r), Err(CoreError::Validation { field, .. }) if field == "name")
-        );
+        assert!(wire_login_request(&r).unwrap().name.is_none());
     }
 
     #[test]
@@ -863,15 +1081,27 @@ mod tests {
             },
             permissions: perms,
             token: if online { Some("t".into()) } else { None },
+            authz: None,
         }
     }
 
     #[test]
-    fn has_permission_is_optimistic_when_not_loaded() {
+    fn unloaded_grants_allow_selling_and_deny_money_exceptions() {
         let s = state_with(vec![], false, false);
-        // Anything is granted while permissions_loaded == false.
-        assert!(s.has_permission("orders", "void"));
-        assert!(s.has_permission("anything", "at_all"));
+        assert!(s.has_permission("orders", "create"));
+        assert!(s.has_permission("payments", "create"));
+        assert!(s.has_permission("open_tickets", "update"));
+        for (r, a) in [
+            ("orders", "delete"),
+            ("refunds", "create"),
+            ("tills", "update"),
+            ("open_tickets", "delete"),
+            ("discounts", "read"),
+            ("orders", "waive_service"),
+            ("anything", "at_all"),
+        ] {
+            assert!(!s.has_permission(r, a), "{r}:{a} assumed while unloaded");
+        }
     }
 
     #[test]

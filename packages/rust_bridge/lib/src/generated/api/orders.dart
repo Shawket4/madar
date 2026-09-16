@@ -57,6 +57,9 @@ class CheckoutInput {
   /// total — the service charge stays tied to a table.
   final bool dineIn;
 
+  /// A manual customer attached to the sale.
+  final String? customerId;
+
   const CheckoutInput({
     required this.paymentMethodId,
     required this.amountTenderedMinor,
@@ -68,6 +71,7 @@ class CheckoutInput {
     this.loyaltyCustomerId,
     required this.loyaltyRedemptions,
     required this.dineIn,
+    this.customerId,
   });
 
   @override
@@ -81,7 +85,8 @@ class CheckoutInput {
       splits.hashCode ^
       loyaltyCustomerId.hashCode ^
       loyaltyRedemptions.hashCode ^
-      dineIn.hashCode;
+      dineIn.hashCode ^
+      customerId.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -97,7 +102,8 @@ class CheckoutInput {
           splits == other.splits &&
           loyaltyCustomerId == other.loyaltyCustomerId &&
           loyaltyRedemptions == other.loyaltyRedemptions &&
-          dineIn == other.dineIn;
+          dineIn == other.dineIn &&
+          customerId == other.customerId;
 }
 
 /// One reward applied to one cart line.

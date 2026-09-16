@@ -41,8 +41,12 @@ class PinPad extends StatelessWidget {
     required this.onBackspace,
     this.maxLength = 6,
     this.keySize = Metrics.pinKey,
+    this.enabled = true,
     super.key,
   });
+
+  /// False while the server's wrong-PIN delay runs: keys dim and ignore taps.
+  final bool enabled;
 
   /// Digits entered so far (drives the dots).
   final String pin;
@@ -86,18 +90,24 @@ class PinPad extends StatelessWidget {
             ),
           ),
           for (final row in _rows)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              spacing: _keyGap,
-              children: [
-                for (final key in row)
-                  _PinKey(
-                    glyph: key,
-                    size: keySize,
-                    onDigit: onDigit,
-                    onBackspace: onBackspace,
-                  ),
-              ],
+            Opacity(
+              opacity: enabled ? 1 : 0.4,
+              child: IgnorePointer(
+                ignoring: !enabled,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: _keyGap,
+                  children: [
+                    for (final key in row)
+                      _PinKey(
+                        glyph: key,
+                        size: keySize,
+                        onDigit: onDigit,
+                        onBackspace: onBackspace,
+                      ),
+                  ],
+                ),
+              ),
             ),
         ],
       ),

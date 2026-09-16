@@ -982,7 +982,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_menu_catalog
 
-> models::PaginatedMenuItems list_menu_catalog(org_id, category_id, search, page, per_page, branch_id, overridden, sort)
+> models::PaginatedMenuItems list_menu_catalog(org_id, category_id, search, page, per_page, branch_id, overridden, sort, has_recipe)
 
 
 ### Parameters
@@ -998,6 +998,7 @@ Name | Type | Description  | Required | Notes
 **branch_id** | Option<**uuid::Uuid**> | When set, enables the per-branch override filter/sort (LEFT JOINs the branch's overrides). Prices in the response stay org-level. |  |
 **overridden** | Option<**bool**> | With `branch_id`: true → only items overridden at the branch; false → only un-overridden; null → all. |  |
 **sort** | Option<**String**> | `\"overridden\"` → overridden items first (needs `branch_id`); otherwise A–Z. |  |
+**has_recipe** | Option<**bool**> | `false` → only items with NO recipe on any size: the onboarding worklist, everything that still deducts nothing and costs zero. `true` → only items that have one. Absent → all. |  |
 
 ### Return type
 

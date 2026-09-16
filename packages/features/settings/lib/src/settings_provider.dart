@@ -145,8 +145,7 @@ class SettingsState {
 class SettingsNotifier extends Notifier<SettingsState> {
   MadarBridge get _bridge => ref.read(bridgeProvider);
 
-  bool get _isKitchenDevice =>
-      ref.read(shellProvider).session?.role == 'kitchen';
+  bool get _isKitchenDevice => isKitchenOnly((c) => _bridge.can(cap: c));
 
   @override
   SettingsState build() {

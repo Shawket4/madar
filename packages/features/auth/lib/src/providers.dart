@@ -30,6 +30,7 @@ class AuthState {
     this.error,
     this.pin = '',
     this.failCount = 0,
+    this.pinWaitSeconds = 0,
     this.configVersion = 0,
     this.branches = const [],
     this.stations = const [],
@@ -54,6 +55,12 @@ class AuthState {
   /// can `ref.listen` and run the shake + warning haptic exactly once per
   /// failure, like the natives' `fail()`.
   final int failCount;
+
+  /// Seconds before this tablet may try a PIN again — the server's growing
+  /// delay after wrong PINs (POS_SIGNIN_OVERHAUL §3.4). Above zero the keypad
+  /// is disabled and the form counts down; it survives a restart because the
+  /// core persists it.
+  final int pinWaitSeconds;
 
   /// Bumped whenever a bridge call mutates `deviceConfig()` (reconfigure
   /// begin/cancel, branch bind) — screens that render from `deviceConfig()`
@@ -81,6 +88,7 @@ class AuthState {
     Object? error = _unset,
     String? pin,
     int? failCount,
+    int? pinWaitSeconds,
     int? configVersion,
     List<BranchView>? branches,
     List<KdsStationView>? stations,
@@ -93,6 +101,7 @@ class AuthState {
       error: identical(error, _unset) ? this.error : error as UiText?,
       pin: pin ?? this.pin,
       failCount: failCount ?? this.failCount,
+      pinWaitSeconds: pinWaitSeconds ?? this.pinWaitSeconds,
       configVersion: configVersion ?? this.configVersion,
       branches: branches ?? this.branches,
       stations: stations ?? this.stations,
@@ -121,9 +130,19 @@ class AuthNotifier extends Notifier<AuthState> {
   /// ASCII digit is ignored (a hardware keyboard can send anything).
   bool pushDigit(String digit) {
     if (digit.length != 1 || !'0123456789'.contains(digit)) return false;
-    if (state.busy || state.pin.length >= _maxPin) return false;
+    if (state.busy || state.pinWaitSeconds > 0) return false;
+    if (state.pin.length >= _maxPin) return false;
     state = state.copyWith(error: null, pin: state.pin + digit);
     return state.pin.length == _maxPin;
+  }
+
+  /// Re-read the growing-delay wait from the core. The PIN form calls it
+  /// once a second; state only changes when the number does.
+  void tickPinWait() {
+    final left = _bridge.pinWaitSeconds();
+    if (left != state.pinWaitSeconds) {
+      state = state.copyWith(pinWaitSeconds: left);
+    }
   }
 
   /// Delete the last keypad digit.
@@ -139,7 +158,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
   /// Shared PIN sign-in tail (teller login and mid-till re-auth). Returns
   /// true on success; on failure clears the PIN and bumps [AuthState.failCount].
-  Future<bool> _signInPin(String name) async {
+  Future<bool> _signInPin(String? name) async {
     state = state.copyWith(busy: true, error: null);
     UiText? failure;
     try {
@@ -157,31 +176,25 @@ class AuthNotifier extends Notifier<AuthState> {
       failure = const UiText.key('err.generic');
     }
     _refreshShell();
+    // A refusal for too many wrong PINs is shown as the live countdown, not
+    // as a banner with a bare number in it.
+    final wait = _bridge.pinWaitSeconds();
     state = state.copyWith(
       busy: false,
-      error: failure,
+      error: wait > 0 ? null : failure,
+      pinWaitSeconds: wait,
       pin: failure != null ? '' : state.pin,
       failCount: failure != null ? state.failCount + 1 : state.failCount,
     );
     return failure == null;
   }
 
-  /// Daily teller PIN sign-in (natives' `signIn`). Rejects an empty name or
-  /// a short PIN locally (fail bump → shake), otherwise hits the bridge.
-  ///
-  /// A local rejection says why and CLEARS the PIN. It used to keep it: the
-  /// sixth digit auto-submits, a blank name refused it silently, and a full
-  /// buffer refuses every further digit — the pad looked frozen.
-  Future<void> signInTeller({required String name}) async {
-    final trimmed = name.trim();
-    if (trimmed.isEmpty) {
-      state = state.copyWith(
-        pin: '',
-        error: const UiText.key('login.name_required'),
-        failCount: state.failCount + 1,
-      );
-      return;
-    }
+  /// Daily PIN sign-in. The PIN alone identifies the person (PIN-only
+  /// sign-in, POS_SIGNIN_OVERHAUL §8.5); [name] is optional and only narrows
+  /// the lookup when a caller has one. Rejects a short PIN locally (fail bump
+  /// → shake), otherwise hits the bridge.
+  Future<void> signInTeller({String? name}) async {
+    final trimmed = name?.trim();
     if (state.pin.length < _minPin) {
       state = state.copyWith(
         error: const UiText.key('login.pin_too_short'),
@@ -189,7 +202,7 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       return;
     }
-    await _signInPin(trimmed);
+    await _signInPin(trimmed == null || trimmed.isEmpty ? null : trimmed);
   }
 
   /// Re-authenticate the SAME teller who owns the open till (no handover) —
@@ -269,6 +282,34 @@ class AuthNotifier extends Notifier<AuthState> {
       phase: failure == null ? SetupPhase.pickBranch : state.phase,
       branches: failure == null ? branches : state.branches,
     );
+  }
+
+  /// Bind this device with a dashboard activation code — no manager login
+  /// (POS_SIGNIN_OVERHAUL §4). On success the device is configured and the
+  /// login screen moves to the PIN form; a refusal stays on the form with the
+  /// reason.
+  Future<void> activateDevice(String code) async {
+    if (state.busy) return;
+    state = state.copyWith(busy: true, error: null);
+    UiText? failure;
+    try {
+      await _bridge.activateDevice(code: code);
+    } on MadarError catch (e) {
+      failure = UiText.error(e);
+    } on Exception catch (_) {
+      failure = const UiText.key('err.generic');
+    }
+    if (failure != null) {
+      state = state.copyWith(
+        busy: false,
+        error: failure,
+        failCount: state.failCount + 1,
+      );
+      return;
+    }
+    state = state.copyWith(busy: false);
+    _resetSetup();
+    _refreshShell();
   }
 
   /// Reset the setup stepper to credentials and invalidate config-derived UI.

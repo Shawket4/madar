@@ -49,6 +49,7 @@ pub struct UpdateUserRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub phone: Option<Option<String>>,
+    /// A NEW PIN is exactly 6 digits; an existing shorter one keeps working until it is changed.
     #[serde(
         rename = "pin",
         default,

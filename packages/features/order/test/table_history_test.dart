@@ -3,6 +3,7 @@
 // nothing"; a table that earns nothing and a table nobody can reach are
 // different facts and a manager acts differently on each.
 import 'package:app_core/app_core.dart';
+import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/table_history_sheet.dart';
 import 'package:flutter/material.dart';
@@ -43,6 +44,8 @@ class _FakeBridge implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
+    final can = fakeCanInvocation(invocation, () => currentSession()?.role);
+    if (can != null) return can;
     final name = invocation.memberName;
     if (name == #tr) return invocation.namedArguments[#key] as String? ?? '';
     if (name == #isRtl) return false;

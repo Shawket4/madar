@@ -34,6 +34,7 @@ export 'src/checkout_provider.dart'
         CheckoutState,
         CheckoutSummary,
         checkoutProvider;
+export 'src/customer_sheet.dart' show CustomerSheet;
 export 'src/done_card.dart' show DoneCard, DoneCardResult, showDoneCard;
 export 'src/kitchen_chit_sheet.dart'
     show

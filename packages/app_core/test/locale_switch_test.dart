@@ -7,6 +7,7 @@
 // settings sheet over a stack of English ones — which reads as missing
 // translations and was reported as exactly that.
 import 'package:app_core/app_core.dart';
+import 'package:app_core/testing.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +20,8 @@ class _FakeBridge implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
+    final can = fakeCanInvocation(invocation, () => currentSession()?.role);
+    if (can != null) return can;
     final name = invocation.memberName;
     if (name == #tr) {
       final key = invocation.namedArguments[#key] as String? ?? '';
@@ -47,7 +50,8 @@ class _FakeCore implements MadarCore {
   MadarBridge get bridge => _bridge;
 
   @override
-  dynamic noSuchMethod(Invocation invocation) => null;
+  dynamic noSuchMethod(Invocation invocation) =>
+      fakeCanInvocation(invocation, () => null);
 }
 
 /// A screen of the shape every screen in this app has: read the bridge, pull

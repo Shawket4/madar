@@ -299,6 +299,9 @@ pub struct CheckoutInput {
     /// which is what every build before this did. It is NOT the order type:
     /// the service charge stays tied to a table, so this never moves a total.
     pub dine_in: bool,
+    /// A manual customer attached to the sale (phase 6). The server keeps it
+    /// only when the teller holds `customers.attach`; it never refuses a sale.
+    pub customer_id: Option<String>,
     /// Rewards covering lines of the cart: which line, and how many of its
     /// units. The server prices them; the till only says which.
     pub loyalty_redemptions: Vec<CheckoutRedemption>,
@@ -692,6 +695,11 @@ pub(crate) fn prepare(
         .customer_name
         .clone()
         .filter(|s| !s.trim().is_empty())
+        .map(Some);
+    request.customer_id = input
+        .customer_id
+        .as_deref()
+        .and_then(|id| uuid::Uuid::parse_str(id).ok())
         .map(Some);
     // The teller's typed note wins; otherwise the cart's own order note.
     request.notes = input
@@ -1345,6 +1353,7 @@ mod tests {
             splits: vec![],
             loyalty_customer_id: None,
         dine_in: false,
+        customer_id: None,
             loyalty_redemptions: vec![],
         }
     }

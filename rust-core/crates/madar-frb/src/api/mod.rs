@@ -1,6 +1,8 @@
+pub mod approvals;
 pub mod bookings;
 pub mod bridge;
 pub mod cart;
+pub mod customers;
 pub mod catalog;
 pub mod delivery;
 pub mod device;

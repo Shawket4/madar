@@ -19,16 +19,22 @@ Method | HTTP request | Description
 [**branch_teller_stats**](ReportsApi.md#branch_teller_stats) | **GET** /reports/branches/{branch_id}/tellers | 
 [**branch_waiter_stats**](ReportsApi.md#branch_waiter_stats) | **GET** /reports/branches/{branch_id}/waiters | 
 [**branch_waste_report**](ReportsApi.md#branch_waste_report) | **GET** /reports/branches/{branch_id}/waste-report | 
+[**discounts_audit**](ReportsApi.md#discounts_audit) | **GET** /reports/orgs/{org_id}/discounts-audit | 
 [**org_branch_comparison**](ReportsApi.md#org_branch_comparison) | **GET** /reports/orgs/{org_id}/comparison | 
 [**org_consumption**](ReportsApi.md#org_consumption) | **GET** /reports/orgs/{org_id}/consumption | 
 [**org_inventory_valuation**](ReportsApi.md#org_inventory_valuation) | **GET** /reports/orgs/{org_id}/inventory-valuation | 
 [**org_low_stock**](ReportsApi.md#org_low_stock) | **GET** /reports/orgs/{org_id}/low-stock | 
 [**org_shrinkage**](ReportsApi.md#org_shrinkage) | **GET** /reports/orgs/{org_id}/shrinkage | 
+[**org_tax_report**](ReportsApi.md#org_tax_report) | **GET** /reports/orgs/{org_id}/tax | 
 [**org_waste_report**](ReportsApi.md#org_waste_report) | **GET** /reports/orgs/{org_id}/waste-report | 
+[**price_overrides**](ReportsApi.md#price_overrides) | **GET** /reports/orgs/{org_id}/price-overrides | 
+[**refunds_audit**](ReportsApi.md#refunds_audit) | **GET** /reports/orgs/{org_id}/refunds-audit | 
 [**shift_deductions**](ReportsApi.md#shift_deductions) | **GET** /reports/shifts/{shift_id}/deductions | 
 [**shift_summary**](ReportsApi.md#shift_summary) | **GET** /reports/shifts/{shift_id}/summary | 
 [**till_deductions**](ReportsApi.md#till_deductions) | **GET** /reports/tills/{till_id}/deductions | 
 [**till_summary**](ReportsApi.md#till_summary) | **GET** /reports/tills/{till_id}/summary | 
+[**voids_audit**](ReportsApi.md#voids_audit) | **GET** /reports/orgs/{org_id}/voids-audit | 
+[**waivers_audit**](ReportsApi.md#waivers_audit) | **GET** /reports/orgs/{org_id}/waivers-audit | 
 
 
 
@@ -489,6 +495,37 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## discounts_audit
+
+> models::AuditReport discounts_audit(org_id, from, to, limit)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** |  | [required] |
+**from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
+**to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
+**limit** | Option<**i64**> |  |  |
+
+### Return type
+
+[**models::AuditReport**](AuditReport.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## org_branch_comparison
 
 > models::OrgComparisonReport org_branch_comparison(org_id, from, to, limit)
@@ -638,6 +675,37 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## org_tax_report
+
+> models::TaxReport org_tax_report(org_id, from, to, limit)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** |  | [required] |
+**from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
+**to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
+**limit** | Option<**i64**> |  |  |
+
+### Return type
+
+[**models::TaxReport**](TaxReport.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## org_waste_report
 
 > Vec<models::WasteReportRow> org_waste_report(org_id, from, to, limit)
@@ -656,6 +724,68 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::WasteReportRow>**](WasteReportRow.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## price_overrides
+
+> models::AuditReport price_overrides(org_id, from, to, limit)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** |  | [required] |
+**from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
+**to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
+**limit** | Option<**i64**> |  |  |
+
+### Return type
+
+[**models::AuditReport**](AuditReport.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## refunds_audit
+
+> models::AuditReport refunds_audit(org_id, from, to, limit)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** |  | [required] |
+**from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
+**to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
+**limit** | Option<**i64**> |  |  |
+
+### Return type
+
+[**models::AuditReport**](AuditReport.md)
 
 ### Authorization
 
@@ -768,6 +898,68 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::ShiftSummary**](ShiftSummary.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## voids_audit
+
+> models::AuditReport voids_audit(org_id, from, to, limit)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** |  | [required] |
+**from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
+**to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
+**limit** | Option<**i64**> |  |  |
+
+### Return type
+
+[**models::AuditReport**](AuditReport.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## waivers_audit
+
+> models::AuditReport waivers_audit(org_id, from, to, limit)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** |  | [required] |
+**from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
+**to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
+**limit** | Option<**i64**> |  |  |
+
+### Return type
+
+[**models::AuditReport**](AuditReport.md)
 
 ### Authorization
 

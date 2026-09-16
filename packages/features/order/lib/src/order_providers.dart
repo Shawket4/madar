@@ -249,7 +249,7 @@ class OrderNotifier extends Notifier<OrderState> {
   OrderState build() {
     final session = _bridge.currentSession();
     return OrderState(
-      isWaiter: session?.role == 'waiter',
+      isWaiter: !takesMoney((c) => _bridge.can(cap: c)),
       currency: session?.currencyCode ?? '',
       displayName: session?.displayName ?? '',
       requireTableForOrders: session?.requireTableForOrders ?? false,
@@ -327,7 +327,7 @@ class OrderNotifier extends Notifier<OrderState> {
   Future<void> init() async {
     final session = _bridge.currentSession();
     state = state.copyWith(
-      isWaiter: session?.role == 'waiter',
+      isWaiter: !takesMoney((c) => _bridge.can(cap: c)),
       currency: session?.currencyCode ?? '',
       displayName: session?.displayName ?? '',
       requireTableForOrders: session?.requireTableForOrders ?? false,

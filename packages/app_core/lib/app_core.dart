@@ -4,6 +4,7 @@
 /// package — and the app overrides `coreProvider` once boot completes.
 library;
 
+export 'src/generated/capabilities.dart';
 export 'src/orientation.dart';
 export 'src/printing/printer_service.dart';
 export 'src/printing/printer_transport.dart';

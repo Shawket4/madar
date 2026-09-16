@@ -48,7 +48,7 @@ pub struct CreateUserRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub phone: Option<Option<String>>,
-    /// Required when `role = teller`. 4–6 ASCII digits.
+    /// Required when `role = teller`. A NEW PIN is exactly 6 ASCII digits (owner decision, 2026-09-16); PINs already in use keep working at their old length. Ask `GET /users/pin-suggestion` for a free one.
     #[serde(
         rename = "pin",
         default,

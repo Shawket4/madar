@@ -11,6 +11,7 @@
 // action (search, a loyalty scan, a manual sync) or the ConnectivityService.
 
 import 'package:app_core/app_core.dart';
+import 'package:app_core/testing.dart';
 import 'package:feature_history/feature_history.dart';
 import 'package:feature_incoming/feature_incoming.dart';
 import 'package:feature_till/feature_till.dart';
@@ -62,6 +63,8 @@ class _CountingBridge implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
+    final can = fakeCanInvocation(invocation, () => currentSession()?.role);
+    if (can != null) return can;
     final name = invocation.memberName;
     calls[name] = (calls[name] ?? 0) + 1;
     final args = invocation.namedArguments;

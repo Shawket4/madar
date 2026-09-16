@@ -36,10 +36,26 @@ Class | Method | HTTP request | Description
 *AssetsApi* | [**get_asset_bundle**](docs/AssetsApi.md#get_asset_bundle) | **GET** /sync/asset-bundles/{org_id}/{file_name} | 
 *AssetsApi* | [**get_job**](docs/AssetsApi.md#get_job) | **GET** /assets/jobs/{id} | 
 *AssetsApi* | [**top_up**](docs/AssetsApi.md#top_up) | **POST** /sync/assets | 
+*AuthApi* | [**activate**](docs/AuthApi.md#activate) | **POST** /auth/activate-device | 
 *AuthApi* | [**get_my_permissions**](docs/AuthApi.md#get_my_permissions) | **GET** /auth/permissions | 
 *AuthApi* | [**login**](docs/AuthApi.md#login) | **POST** /auth/login | 
 *AuthApi* | [**me**](docs/AuthApi.md#me) | **GET** /auth/me | 
 *AuthApi* | [**resolve_branch**](docs/AuthApi.md#resolve_branch) | **POST** /auth/resolve-branch | 
+*AuthzApi* | [**authz_keys**](docs/AuthzApi.md#authz_keys) | **GET** /auth/authz-keys | 
+*AuthzApi* | [**create_role**](docs/AuthzApi.md#create_role) | **POST** /authz/roles | 
+*AuthzApi* | [**delete_role**](docs/AuthzApi.md#delete_role) | **DELETE** /authz/roles/{id} | 
+*AuthzApi* | [**explain**](docs/AuthzApi.md#explain) | **GET** /authz/explain | 
+*AuthzApi* | [**get_my_authz**](docs/AuthzApi.md#get_my_authz) | **GET** /authz/me | 
+*AuthzApi* | [**get_policy**](docs/AuthzApi.md#get_policy) | **GET** /authz/policy | 
+*AuthzApi* | [**list_flags**](docs/AuthzApi.md#list_flags) | **GET** /authz/flags | 
+*AuthzApi* | [**list_roles**](docs/AuthzApi.md#list_roles) | **GET** /authz/roles | 
+*AuthzApi* | [**rename_role**](docs/AuthzApi.md#rename_role) | **PATCH** /authz/roles/{id} | 
+*AuthzApi* | [**review_flag**](docs/AuthzApi.md#review_flag) | **POST** /authz/flags/{id}/review | Mark one flag as looked at. It is an acknowledgement, not an approval: the act is already on the books either way, so there is nothing here to undo or let through.
+*AuthzApi* | [**set_assignments**](docs/AuthzApi.md#set_assignments) | **PUT** /authz/users/{id}/assignments | 
+*AuthzApi* | [**set_override**](docs/AuthzApi.md#set_override) | **PUT** /authz/users/{id}/overrides | 
+*AuthzApi* | [**set_policy**](docs/AuthzApi.md#set_policy) | **PUT** /authz/policy | 
+*AuthzApi* | [**set_role_grant**](docs/AuthzApi.md#set_role_grant) | **PUT** /authz/roles/{id}/grants | 
+*AuthzApi* | [**user_access**](docs/AuthzApi.md#user_access) | **GET** /authz/users/{id} | 
 *BookingsApi* | [**booking_availability**](docs/BookingsApi.md#booking_availability) | **GET** /bookings/availability | 
 *BookingsApi* | [**booking_stats**](docs/BookingsApi.md#booking_stats) | **GET** /bookings/stats | 
 *BookingsApi* | [**cancel_booking**](docs/BookingsApi.md#cancel_booking) | **POST** /bookings/{id}/cancel | 
@@ -78,6 +94,12 @@ Class | Method | HTTP request | Description
 *BundlesApi* | [**update_bundle**](docs/BundlesApi.md#update_bundle) | **PATCH** /bundles/{id} | 
 *CostingApi* | [**list_addon_costs**](docs/CostingApi.md#list_addon_costs) | **GET** /costing/addon-items | 
 *CostingApi* | [**list_sku_costs**](docs/CostingApi.md#list_sku_costs) | **GET** /costing/menu-items | 
+*CustomersApi* | [**create_customer**](docs/CustomersApi.md#create_customer) | **POST** /customers | 
+*CustomersApi* | [**erase_customer**](docs/CustomersApi.md#erase_customer) | **POST** /customers/{id}/erase | 
+*CustomersApi* | [**get_customer**](docs/CustomersApi.md#get_customer) | **GET** /customers/{id} | 
+*CustomersApi* | [**list_customers**](docs/CustomersApi.md#list_customers) | **GET** /customers | 
+*CustomersApi* | [**merge_customer**](docs/CustomersApi.md#merge_customer) | **POST** /customers/{id}/merge | 
+*CustomersApi* | [**update_customer**](docs/CustomersApi.md#update_customer) | **PATCH** /customers/{id} | 
 *DeliveryApi* | [**cancel_delivery_order**](docs/DeliveryApi.md#cancel_delivery_order) | **POST** /delivery-orders/{id}/cancel | 
 *DeliveryApi* | [**create_zone**](docs/DeliveryApi.md#create_zone) | **POST** /delivery/zones | 
 *DeliveryApi* | [**delete_channel_addon_override**](docs/DeliveryApi.md#delete_channel_addon_override) | **DELETE** /delivery/channel-addon-overrides | 
@@ -106,9 +128,13 @@ Class | Method | HTTP request | Description
 *DeliveryPublicApi* | [**public_branches**](docs/DeliveryPublicApi.md#public_branches) | **GET** /public/branches | 
 *DeliveryPublicApi* | [**public_menu**](docs/DeliveryPublicApi.md#public_menu) | **GET** /public/branches/{id}/menu | 
 *DeliveryPublicApi* | [**track_delivery_order**](docs/DeliveryPublicApi.md#track_delivery_order) | **GET** /public/delivery-orders/{id}/track | 
+*DevicesApi* | [**create_code**](docs/DevicesApi.md#create_code) | **POST** /devices/activation-codes | 
+*DevicesApi* | [**device_snapshot**](docs/DevicesApi.md#device_snapshot) | **GET** /devices/me/authz-snapshot | 
 *DevicesApi* | [**list_client_versions**](docs/DevicesApi.md#list_client_versions) | **GET** /devices/client-versions | 
+*DevicesApi* | [**list_codes**](docs/DevicesApi.md#list_codes) | **GET** /devices/activation-codes | 
 *DevicesApi* | [**list_devices**](docs/DevicesApi.md#list_devices) | **GET** /devices | 
 *DevicesApi* | [**register_device**](docs/DevicesApi.md#register_device) | **POST** /devices/register | 
+*DevicesApi* | [**revoke_code**](docs/DevicesApi.md#revoke_code) | **POST** /devices/activation-codes/{id}/revoke | 
 *DevicesApi* | [**update_device**](docs/DevicesApi.md#update_device) | **PATCH** /devices/{id} | 
 *DiscountsApi* | [**create_discount**](docs/DiscountsApi.md#create_discount) | **POST** /discounts | 
 *DiscountsApi* | [**delete_discount**](docs/DiscountsApi.md#delete_discount) | **DELETE** /discounts/{id} | 
@@ -171,6 +197,7 @@ Class | Method | HTTP request | Description
 *LoyaltyApi* | [**delete_loyalty_member**](docs/LoyaltyApi.md#delete_loyalty_member) | **DELETE** /loyalty/members/{id} | Forget a member. **Admin only.**
 *LoyaltyApi* | [**delete_loyalty_settings**](docs/LoyaltyApi.md#delete_loyalty_settings) | **DELETE** /loyalty/settings | 
 *LoyaltyApi* | [**get_loyalty_analytics**](docs/LoyaltyApi.md#get_loyalty_analytics) | **GET** /loyalty/analytics | 
+*LoyaltyApi* | [**get_loyalty_behavior**](docs/LoyaltyApi.md#get_loyalty_behavior) | **GET** /loyalty/behavior | 
 *LoyaltyApi* | [**get_loyalty_google_object**](docs/LoyaltyApi.md#get_loyalty_google_object) | **GET** /loyalty/members/{id}/google-object | What Google is actually holding for one member's card. **Super admin only.**
 *LoyaltyApi* | [**get_loyalty_member**](docs/LoyaltyApi.md#get_loyalty_member) | **GET** /loyalty/members/{id} | 
 *LoyaltyApi* | [**get_loyalty_reward_items**](docs/LoyaltyApi.md#get_loyalty_reward_items) | **GET** /loyalty/reward-items | 
@@ -270,7 +297,9 @@ Class | Method | HTTP request | Description
 *OrgsApi* | [**get_onboarding**](docs/OrgsApi.md#get_onboarding) | **GET** /orgs/{id}/onboarding | 
 *OrgsApi* | [**get_org**](docs/OrgsApi.md#get_org) | **GET** /orgs/{id} | 
 *OrgsApi* | [**list_orgs**](docs/OrgsApi.md#list_orgs) | **GET** /orgs | 
+*OrgsApi* | [**list_templates**](docs/OrgsApi.md#list_templates) | **GET** /orgs/templates | 
 *OrgsApi* | [**offline_auth_bundle**](docs/OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
+*OrgsApi* | [**provision_org**](docs/OrgsApi.md#provision_org) | **POST** /orgs/provision | 
 *OrgsApi* | [**public_org_brand**](docs/OrgsApi.md#public_org_brand) | **GET** /public/orgs/brand | The shop behind a guest page.
 *OrgsApi* | [**public_org_favicon**](docs/OrgsApi.md#public_org_favicon) | **GET** /public/orgs/favicon | The shop's own logo, as a favicon.
 *OrgsApi* | [**update_org**](docs/OrgsApi.md#update_org) | **PATCH** /orgs/{id} | 
@@ -348,16 +377,22 @@ Class | Method | HTTP request | Description
 *ReportsApi* | [**branch_teller_stats**](docs/ReportsApi.md#branch_teller_stats) | **GET** /reports/branches/{branch_id}/tellers | 
 *ReportsApi* | [**branch_waiter_stats**](docs/ReportsApi.md#branch_waiter_stats) | **GET** /reports/branches/{branch_id}/waiters | 
 *ReportsApi* | [**branch_waste_report**](docs/ReportsApi.md#branch_waste_report) | **GET** /reports/branches/{branch_id}/waste-report | 
+*ReportsApi* | [**discounts_audit**](docs/ReportsApi.md#discounts_audit) | **GET** /reports/orgs/{org_id}/discounts-audit | 
 *ReportsApi* | [**org_branch_comparison**](docs/ReportsApi.md#org_branch_comparison) | **GET** /reports/orgs/{org_id}/comparison | 
 *ReportsApi* | [**org_consumption**](docs/ReportsApi.md#org_consumption) | **GET** /reports/orgs/{org_id}/consumption | 
 *ReportsApi* | [**org_inventory_valuation**](docs/ReportsApi.md#org_inventory_valuation) | **GET** /reports/orgs/{org_id}/inventory-valuation | 
 *ReportsApi* | [**org_low_stock**](docs/ReportsApi.md#org_low_stock) | **GET** /reports/orgs/{org_id}/low-stock | 
 *ReportsApi* | [**org_shrinkage**](docs/ReportsApi.md#org_shrinkage) | **GET** /reports/orgs/{org_id}/shrinkage | 
+*ReportsApi* | [**org_tax_report**](docs/ReportsApi.md#org_tax_report) | **GET** /reports/orgs/{org_id}/tax | 
 *ReportsApi* | [**org_waste_report**](docs/ReportsApi.md#org_waste_report) | **GET** /reports/orgs/{org_id}/waste-report | 
+*ReportsApi* | [**price_overrides**](docs/ReportsApi.md#price_overrides) | **GET** /reports/orgs/{org_id}/price-overrides | 
+*ReportsApi* | [**refunds_audit**](docs/ReportsApi.md#refunds_audit) | **GET** /reports/orgs/{org_id}/refunds-audit | 
 *ReportsApi* | [**shift_deductions**](docs/ReportsApi.md#shift_deductions) | **GET** /reports/shifts/{shift_id}/deductions | 
 *ReportsApi* | [**shift_summary**](docs/ReportsApi.md#shift_summary) | **GET** /reports/shifts/{shift_id}/summary | 
 *ReportsApi* | [**till_deductions**](docs/ReportsApi.md#till_deductions) | **GET** /reports/tills/{till_id}/deductions | 
 *ReportsApi* | [**till_summary**](docs/ReportsApi.md#till_summary) | **GET** /reports/tills/{till_id}/summary | 
+*ReportsApi* | [**voids_audit**](docs/ReportsApi.md#voids_audit) | **GET** /reports/orgs/{org_id}/voids-audit | 
+*ReportsApi* | [**waivers_audit**](docs/ReportsApi.md#waivers_audit) | **GET** /reports/orgs/{org_id}/waivers-audit | 
 *ReservationsApi* | [**create_floor_table**](docs/ReservationsApi.md#create_floor_table) | **POST** /floor/tables | 
 *ReservationsApi* | [**create_section**](docs/ReservationsApi.md#create_section) | **POST** /floor/sections | 
 *ReservationsApi* | [**delete_floor_table**](docs/ReservationsApi.md#delete_floor_table) | **DELETE** /floor/tables/{id} | 
@@ -405,6 +440,7 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**delete_period**](docs/StaffApi.md#delete_period) | **DELETE** /staff/payroll/periods/{id} | 
 *StaffApi* | [**delete_record**](docs/StaffApi.md#delete_record) | **DELETE** /staff/attendance/{id} | 
 *StaffApi* | [**delete_work_shift**](docs/StaffApi.md#delete_work_shift) | **DELETE** /staff/work-shifts/{id} | 
+*StaffApi* | [**discipline_report**](docs/StaffApi.md#discipline_report) | **GET** /staff/discipline-report | 
 *StaffApi* | [**export_period_csv**](docs/StaffApi.md#export_period_csv) | **GET** /staff/payroll/periods/{id}/export.csv | The generated period as a bank-ready CSV.
 *StaffApi* | [**generate_period**](docs/StaffApi.md#generate_period) | **POST** /staff/payroll/periods/{id}/generate | 
 *StaffApi* | [**get_attendance_settings**](docs/StaffApi.md#get_attendance_settings) | **GET** /staff/attendance/settings | 
@@ -474,6 +510,7 @@ Class | Method | HTTP request | Description
 *UsersApi* | [**get_user**](docs/UsersApi.md#get_user) | **GET** /users/{id} | 
 *UsersApi* | [**list_user_branches**](docs/UsersApi.md#list_user_branches) | **GET** /users/{id}/branches | 
 *UsersApi* | [**list_users**](docs/UsersApi.md#list_users) | **GET** /users | 
+*UsersApi* | [**suggest_pin**](docs/UsersApi.md#suggest_pin) | **GET** /users/pin-suggestion | A free PIN for this org.
 *UsersApi* | [**unassign_branch**](docs/UsersApi.md#unassign_branch) | **DELETE** /users/{id}/branches/{branch_id} | 
 *UsersApi* | [**update_user**](docs/UsersApi.md#update_user) | **PATCH** /users/{id} | 
 *WhatsappApi* | [**whatsapp_logout**](docs/WhatsappApi.md#whatsapp_logout) | **POST** /whatsapp/logout | Unlink the current number. Idempotent — logging out an already-unlinked session still returns the (now logged-out) status.
@@ -485,6 +522,10 @@ Class | Method | HTTP request | Description
 ## Documentation For Models
 
  - [AcceptingInput](docs/AcceptingInput.md)
+ - [ActivateDeviceRequest](docs/ActivateDeviceRequest.md)
+ - [ActivateDeviceResponse](docs/ActivateDeviceResponse.md)
+ - [ActivationCode](docs/ActivationCode.md)
+ - [ActivationCodeState](docs/ActivationCodeState.md)
  - [AddRoundRequest](docs/AddRoundRequest.md)
  - [AddonCost](docs/AddonCost.md)
  - [AddonIngredient](docs/AddonIngredient.md)
@@ -511,11 +552,16 @@ Class | Method | HTTP request | Description
  - [AssetJobView](docs/AssetJobView.md)
  - [AssetRef](docs/AssetRef.md)
  - [AssignBranchRequest](docs/AssignBranchRequest.md)
+ - [AssignmentInput](docs/AssignmentInput.md)
+ - [AssignmentView](docs/AssignmentView.md)
  - [AttendanceRecord](docs/AttendanceRecord.md)
  - [AttendanceSettings](docs/AttendanceSettings.md)
  - [AttendanceStatus](docs/AttendanceStatus.md)
  - [AttendanceSummary](docs/AttendanceSummary.md)
+ - [AuditBreakdownEntry](docs/AuditBreakdownEntry.md)
+ - [AuditReport](docs/AuditReport.md)
  - [AuthPermissionsResponse](docs/AuthPermissionsResponse.md)
+ - [AuthzPublicKey](docs/AuthzPublicKey.md)
  - [AvailabilityOut](docs/AvailabilityOut.md)
  - [AvailabilityResponse](docs/AvailabilityResponse.md)
  - [AwardRequest](docs/AwardRequest.md)
@@ -550,6 +596,7 @@ Class | Method | HTTP request | Description
  - [BundleWithComponents](docs/BundleWithComponents.md)
  - [CancelBookingRequest](docs/CancelBookingRequest.md)
  - [CancelInput](docs/CancelInput.md)
+ - [CapabilityAccess](docs/CapabilityAccess.md)
  - [CardBrand](docs/CardBrand.md)
  - [CardPreferences](docs/CardPreferences.md)
  - [CardView](docs/CardView.md)
@@ -595,6 +642,7 @@ Class | Method | HTTP request | Description
  - [ConversationList](docs/ConversationList.md)
  - [ConversationSummary](docs/ConversationSummary.md)
  - [CorrectRecordRequest](docs/CorrectRecordRequest.md)
+ - [CreateActivationCodeRequest](docs/CreateActivationCodeRequest.md)
  - [CreateAddonItemRequest](docs/CreateAddonItemRequest.md)
  - [CreateAddonSlotRequest](docs/CreateAddonSlotRequest.md)
  - [CreateAdjustmentRequest](docs/CreateAdjustmentRequest.md)
@@ -607,6 +655,7 @@ Class | Method | HTTP request | Description
  - [CreateCatalogItemRequest](docs/CreateCatalogItemRequest.md)
  - [CreateCategoryRequest](docs/CreateCategoryRequest.md)
  - [CreateCredentialRequest](docs/CreateCredentialRequest.md)
+ - [CreateCustomerRequest](docs/CreateCustomerRequest.md)
  - [CreateDecisionRequest](docs/CreateDecisionRequest.md)
  - [CreateDiscountRequest](docs/CreateDiscountRequest.md)
  - [CreateDocumentRequest](docs/CreateDocumentRequest.md)
@@ -625,6 +674,7 @@ Class | Method | HTTP request | Description
  - [CreatePurchaseOrderRequest](docs/CreatePurchaseOrderRequest.md)
  - [CreateRefundRequest](docs/CreateRefundRequest.md)
  - [CreateReturnRequest](docs/CreateReturnRequest.md)
+ - [CreateRoleRequest](docs/CreateRoleRequest.md)
  - [CreateSectionRequest](docs/CreateSectionRequest.md)
  - [CreateStaffRequest](docs/CreateStaffRequest.md)
  - [CreateStationRequest](docs/CreateStationRequest.md)
@@ -637,6 +687,9 @@ Class | Method | HTTP request | Description
  - [CreateWasteRequest](docs/CreateWasteRequest.md)
  - [CredentialSummary](docs/CredentialSummary.md)
  - [CredentialWithSecret](docs/CredentialWithSecret.md)
+ - [Customer](docs/Customer.md)
+ - [CustomerDetail](docs/CustomerDetail.md)
+ - [CustomerOrder](docs/CustomerOrder.md)
  - [DatasetInfo](docs/DatasetInfo.md)
  - [DecisionOut](docs/DecisionOut.md)
  - [DeductionLogRow](docs/DeductionLogRow.md)
@@ -660,10 +713,14 @@ Class | Method | HTTP request | Description
  - [DeviceAllowList](docs/DeviceAllowList.md)
  - [DeviceKind](docs/DeviceKind.md)
  - [Dir](docs/Dir.md)
+ - [DisciplineReport](docs/DisciplineReport.md)
+ - [DisciplineRow](docs/DisciplineRow.md)
  - [Discount](docs/Discount.md)
  - [DrinkRecipe](docs/DrinkRecipe.md)
  - [Employee](docs/Employee.md)
  - [ErrorBody](docs/ErrorBody.md)
+ - [ExplainStep](docs/ExplainStep.md)
+ - [Explanation](docs/Explanation.md)
  - [ExportResponse](docs/ExportResponse.md)
  - [FieldInfo](docs/FieldInfo.md)
  - [FilterInfo](docs/FilterInfo.md)
@@ -678,6 +735,7 @@ Class | Method | HTTP request | Description
  - [GoogleObjectDump](docs/GoogleObjectDump.md)
  - [GoogleRefreshReport](docs/GoogleRefreshReport.md)
  - [Grain](docs/Grain.md)
+ - [GrantView](docs/GrantView.md)
  - [GroupAttachInput](docs/GroupAttachInput.md)
  - [GroupOptionOut](docs/GroupOptionOut.md)
  - [GroupOut](docs/GroupOut.md)
@@ -710,11 +768,13 @@ Class | Method | HTTP request | Description
  - [LedgerTotals](docs/LedgerTotals.md)
  - [LedgerWindow](docs/LedgerWindow.md)
  - [LegacyTill](docs/LegacyTill.md)
+ - [LimitsView](docs/LimitsView.md)
  - [LoginRequest](docs/LoginRequest.md)
  - [LoginResponse](docs/LoginResponse.md)
  - [LookupRequest](docs/LookupRequest.md)
  - [LowStockRow](docs/LowStockRow.md)
  - [LoyaltyAnalytics](docs/LoyaltyAnalytics.md)
+ - [LoyaltyBehavior](docs/LoyaltyBehavior.md)
  - [LoyaltyRedemptionInput](docs/LoyaltyRedemptionInput.md)
  - [LoyaltySettings](docs/LoyaltySettings.md)
  - [ManualRecordRequest](docs/ManualRecordRequest.md)
@@ -731,6 +791,7 @@ Class | Method | HTTP request | Description
  - [MenuItemFull](docs/MenuItemFull.md)
  - [MenuItemRecipe](docs/MenuItemRecipe.md)
  - [MenuItemWithCosts](docs/MenuItemWithCosts.md)
+ - [MergeCustomerRequest](docs/MergeCustomerRequest.md)
  - [MethodTotal](docs/MethodTotal.md)
  - [MetricResult](docs/MetricResult.md)
  - [MetricsQueryRequest](docs/MetricsQueryRequest.md)
@@ -739,6 +800,7 @@ Class | Method | HTTP request | Description
  - [ModifierOptionOut](docs/ModifierOptionOut.md)
  - [MoveTicketTableRequest](docs/MoveTicketTableRequest.md)
  - [MyAttendanceToday](docs/MyAttendanceToday.md)
+ - [MyAuthz](docs/MyAuthz.md)
  - [OfflineAuthBundle](docs/OfflineAuthBundle.md)
  - [OfflineTellerCredential](docs/OfflineTellerCredential.md)
  - [OnboardingStatus](docs/OnboardingStatus.md)
@@ -773,11 +835,13 @@ Class | Method | HTTP request | Description
  - [OrgIngredient](docs/OrgIngredient.md)
  - [OrgInventorySettings](docs/OrgInventorySettings.md)
  - [OrgPaymentMethod](docs/OrgPaymentMethod.md)
+ - [OrgTemplate](docs/OrgTemplate.md)
  - [OtpRequestInput](docs/OtpRequestInput.md)
  - [OtpRequestResponse](docs/OtpRequestResponse.md)
  - [OtpVerifyInput](docs/OtpVerifyInput.md)
  - [OtpVerifyResponse](docs/OtpVerifyResponse.md)
  - [OverrideDeductionRequest](docs/OverrideDeductionRequest.md)
+ - [OverrideView](docs/OverrideView.md)
  - [PaginatedAddonItems](docs/PaginatedAddonItems.md)
  - [PaginatedBundles](docs/PaginatedBundles.md)
  - [PaginatedMenuItems](docs/PaginatedMenuItems.md)
@@ -805,8 +869,10 @@ Class | Method | HTTP request | Description
  - [PeriodStatusRequest](docs/PeriodStatusRequest.md)
  - [Permission](docs/Permission.md)
  - [PermissionMatrix](docs/PermissionMatrix.md)
+ - [PinSuggestion](docs/PinSuggestion.md)
  - [PoLineInput](docs/PoLineInput.md)
  - [PointsLiability](docs/PointsLiability.md)
+ - [PolicyEntry](docs/PolicyEntry.md)
  - [PrepTimeInput](docs/PrepTimeInput.md)
  - [PresenceRow](docs/PresenceRow.md)
  - [PresetInfo](docs/PresetInfo.md)
@@ -817,6 +883,10 @@ Class | Method | HTTP request | Description
  - [PriceOverrideRequest](docs/PriceOverrideRequest.md)
  - [PrinterBrand](docs/PrinterBrand.md)
  - [ProcessingGroupRef](docs/ProcessingGroupRef.md)
+ - [ProvisionBranch](docs/ProvisionBranch.md)
+ - [ProvisionOrgRequest](docs/ProvisionOrgRequest.md)
+ - [ProvisionOwner](docs/ProvisionOwner.md)
+ - [ProvisionedOrg](docs/ProvisionedOrg.md)
  - [PublicBookingBranch](docs/PublicBookingBranch.md)
  - [PublicBookingChange](docs/PublicBookingChange.md)
  - [PublicBookingInfo](docs/PublicBookingInfo.md)
@@ -874,9 +944,11 @@ Class | Method | HTTP request | Description
  - [RegistryInfo](docs/RegistryInfo.md)
  - [ReleaseTableRequest](docs/ReleaseTableRequest.md)
  - [RenameConversationRequest](docs/RenameConversationRequest.md)
+ - [RenameRoleRequest](docs/RenameRoleRequest.md)
  - [ReorderCategoriesRequest](docs/ReorderCategoriesRequest.md)
  - [ReorderLine](docs/ReorderLine.md)
  - [ReorderSuggestion](docs/ReorderSuggestion.md)
+ - [ReplayFlag](docs/ReplayFlag.md)
  - [RepricingReport](docs/RepricingReport.md)
  - [RepricingSuggestion](docs/RepricingSuggestion.md)
  - [RequestDecision](docs/RequestDecision.md)
@@ -889,6 +961,7 @@ Class | Method | HTTP request | Description
  - [RewardItem](docs/RewardItem.md)
  - [RewardItemInput](docs/RewardItemInput.md)
  - [RolePermission](docs/RolePermission.md)
+ - [RoleView](docs/RoleView.md)
  - [RoutingModeResponse](docs/RoutingModeResponse.md)
  - [SalaryAdvance](docs/SalaryAdvance.md)
  - [SaveLayoutRequest](docs/SaveLayoutRequest.md)
@@ -898,6 +971,9 @@ Class | Method | HTTP request | Description
  - [ScheduledDay](docs/ScheduledDay.md)
  - [ScopeInfo](docs/ScopeInfo.md)
  - [SeatBookingRequest](docs/SeatBookingRequest.md)
+ - [SetAssignmentsRequest](docs/SetAssignmentsRequest.md)
+ - [SetGrantRequest](docs/SetGrantRequest.md)
+ - [SetOverrideRequest](docs/SetOverrideRequest.md)
  - [SetParRequest](docs/SetParRequest.md)
  - [SetRoutingModeRequest](docs/SetRoutingModeRequest.md)
  - [SettleOpenTicketRequest](docs/SettleOpenTicketRequest.md)
@@ -942,6 +1018,7 @@ Class | Method | HTTP request | Description
  - [TablePosition](docs/TablePosition.md)
  - [TableSitting](docs/TableSitting.md)
  - [TaxPolicyPublic](docs/TaxPolicyPublic.md)
+ - [TaxReport](docs/TaxReport.md)
  - [TeamPresence](docs/TeamPresence.md)
  - [TellerStats](docs/TellerStats.md)
  - [TicketBill](docs/TicketBill.md)
@@ -969,6 +1046,7 @@ Class | Method | HTTP request | Description
  - [UpdateBundleRequest](docs/UpdateBundleRequest.md)
  - [UpdateCatalogItemRequest](docs/UpdateCatalogItemRequest.md)
  - [UpdateCategoryRequest](docs/UpdateCategoryRequest.md)
+ - [UpdateCustomerRequest](docs/UpdateCustomerRequest.md)
  - [UpdateDeviceRequest](docs/UpdateDeviceRequest.md)
  - [UpdateDiscountRequest](docs/UpdateDiscountRequest.md)
  - [UpdateFloorTableRequest](docs/UpdateFloorTableRequest.md)
@@ -995,6 +1073,7 @@ Class | Method | HTTP request | Description
  - [UpsertSizeRequest](docs/UpsertSizeRequest.md)
  - [UpsertWorkShiftRequest](docs/UpsertWorkShiftRequest.md)
  - [UsedInBundleOut](docs/UsedInBundleOut.md)
+ - [UserAccess](docs/UserAccess.md)
  - [UserAllowList](docs/UserAllowList.md)
  - [UserBranch](docs/UserBranch.md)
  - [UserPermissionItem](docs/UserPermissionItem.md)

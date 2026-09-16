@@ -19,7 +19,7 @@ type Step = fn(&Transaction<'_>) -> CoreResult<()>;
 
 /// The steps, in order. Step N brings the store from `user_version = N-1` to N.
 /// Append only: a shipped step is never edited.
-const STEPS: &[Step] = &[step1_sync_streams, step2_ledger, step3_order_details, step4_backfill_ledger, step5_drop_legacy_read_caches];
+const STEPS: &[Step] = &[step1_sync_streams, step2_ledger, step3_order_details, step4_backfill_ledger, step5_drop_legacy_read_caches, step6_lan_authz_flags];
 
 /// The schema version this build writes.
 pub(crate) fn latest() -> i64 {
@@ -276,6 +276,25 @@ pub(crate) const LEGACY_READ_CACHES: &[&str] = &[
 /// Delete the legacy read caches. A server Z report cached under the pre-rework
 /// shape is first normalised into `till_reports` (step 4 copied it raw), so a
 /// device updated mid-till keeps its figures. The outbox is not touched.
+/// Peer rows whose author did not hold the act by this device's grants
+/// (PERMISSIONS_ARCHITECTURE §4.4.4): the money fact is kept — it happened on
+/// the other till — and recorded here for the owner's review.
+fn step6_lan_authz_flags(tx: &Transaction<'_>) -> CoreResult<()> {
+    tx.execute_batch(
+        "CREATE TABLE IF NOT EXISTS lan_authz_flags (
+           branch_id   TEXT NOT NULL,
+           type        TEXT NOT NULL,
+           id          TEXT NOT NULL,
+           author      TEXT NOT NULL,
+           cell        TEXT NOT NULL,
+           reason      TEXT NOT NULL,
+           recorded_at INTEGER NOT NULL,
+           PRIMARY KEY (branch_id, type, id, cell)
+         );",
+    )?;
+    Ok(())
+}
+
 fn step5_drop_legacy_read_caches(tx: &Transaction<'_>) -> CoreResult<()> {
     let mut ids: Vec<String> = {
         let mut st = tx.prepare(

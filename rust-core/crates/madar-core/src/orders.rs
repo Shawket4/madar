@@ -15,6 +15,9 @@ use crate::store::Store;
 pub(crate) struct VoidOrderCommand {
     pub order_id: String,
     pub request: models::VoidOrderRequest,
+    /// A manager's approval (phase 5); absent on every older queued void.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval: Option<serde_json::Value>,
 }
 
 /// Outbox payload for a refund. The whole request travels, including the shift
@@ -25,6 +28,9 @@ pub(crate) struct VoidOrderCommand {
 pub(crate) struct RefundOrderCommand {
     #[serde(deserialize_with = "crate::till::de_legacy_till_request")]
     pub request: models::CreateRefundRequest,
+    /// A manager's approval (phase 5); absent on every older queued refund.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval: Option<serde_json::Value>,
 }
 
 /// Refunds for one order still waiting in the outbox, newest last.
@@ -749,7 +755,7 @@ mod tests {
             models::RefundReason::WrongOrder,
         );
         request.note = Some(Some("spilled".into()));
-        let cmd = RefundOrderCommand { request };
+        let cmd = RefundOrderCommand { request, approval: None };
         store
             .enqueue(&crate::store::NewOutboxOp {
                 id: "r1".into(),

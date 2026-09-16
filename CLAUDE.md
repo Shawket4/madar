@@ -181,6 +181,20 @@ its outbox op commit in ONE transaction; acks fold the server's answer in.
 - Real-backend scenarios: `tool/offline_b_backend.sh` (see its header);
   `MADAR_OB_TESTS=readpath_parity` checks every screen read against the server.
 
+## Permissions (architecture E — PERMISSIONS_ARCHITECTURE.md)
+- **Ask for a capability, never a role.** Gate a screen or action on the signed-in
+  person's effective capabilities from the core (the generated `Cap` keys in
+  `app_core/lib/src/generated/capabilities.dart`). `isManagerRole`-style checks are
+  being removed; do not add new ones.
+- **The registry is generated.** `rust-core/crates/madar-authz` is a byte-identical copy
+  of `MadarRust/authz/crate`, and `capabilities.dart` comes from the backend's spec.
+  Regenerate with `tool/sync_authz.sh`; never hand-edit either (`crate_hash_matches_its_files`).
+- **Unknown means no.** While grants are not loaded, only plain selling is assumed
+  (`session::SELL_WHILE_UNLOADED`); money exceptions wait for real grants. An offline
+  unlock adopts the person's last-known grants from the synced teller row.
+- **LAN rows are checked, never dropped.** A peer's money row whose author lacks the
+  grant is kept (the money moved) and recorded in `lan_authz_flags`.
+
 ## Floor / tables — shared with the dashboard
 `packages/features/order/lib/src/tables_screen.dart`.
 

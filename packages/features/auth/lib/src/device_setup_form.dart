@@ -32,9 +32,15 @@ class DeviceSetupForm extends ConsumerStatefulWidget {
 class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
   final TextEditingController _email = TextEditingController();
   final TextEditingController _password = TextEditingController();
+  final TextEditingController _code = TextEditingController();
+
+  /// An activation code from the dashboard is the primary way to bind a
+  /// device (POS_SIGNIN_OVERHAUL §4); the manager login stays for now.
+  bool _useCode = true;
 
   @override
   void dispose() {
+    _code.dispose();
     _email.dispose();
     _password.dispose();
     super.dispose();
@@ -48,6 +54,14 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
     );
   }
 
+  void _activate() {
+    unawaited(ref.read(authProvider.notifier).activateDevice(_code.text));
+  }
+
+  void _switchMode() {
+    setState(() => _useCode = !_useCode);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
@@ -59,6 +73,7 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final picking = phase == SetupPhase.pickBranch;
+    final byCode = _useCode && !picking;
     final isBranchConfigured =
         (bridge.deviceConfig().branchId ?? '').isNotEmpty;
 
@@ -76,7 +91,11 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
             spacing: Space.xs,
             children: [
               Text(
-                picking ? t('setup.choose_branch') : t('setup.title'),
+                picking
+                    ? t('setup.choose_branch')
+                    : byCode
+                    ? t('setup.activate_title')
+                    : t('setup.title'),
                 textAlign: TextAlign.center,
                 style: MadarType.h2.copyWith(
                   fontSize: _titleSize,
@@ -86,7 +105,11 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
                 ),
               ),
               Text(
-                picking ? t('setup.choose_branch_desc') : t('setup.desc'),
+                picking
+                    ? t('setup.choose_branch_desc')
+                    : byCode
+                    ? t('setup.activate_desc')
+                    : t('setup.desc'),
                 textAlign: TextAlign.center,
                 style: MadarType.bodySm.copyWith(
                   fontWeight: FontWeight.w500,
@@ -115,6 +138,16 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
               ],
             ],
           )
+        else if (byCode)
+          MadarField(
+            controller: _code,
+            placeholder: t('setup.activation_code'),
+            icon: 'lock.open',
+            enabled: !busy,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            onSubmitted: (_) => _activate(),
+          )
         else ...[
           MadarField(
             controller: _email,
@@ -138,12 +171,27 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
             tone: ChipTone.danger,
             icon: 'exclamationmark.circle',
           ),
-        if (!picking)
+        if (byCode)
+          MadarButton(
+            label: t('setup.activate'),
+            onTap: _activate,
+            loading: busy,
+            icon: 'arrow.right.circle',
+          )
+        else if (!picking)
           MadarButton(
             label: t('setup.continue'),
             onTap: _authenticate,
             loading: busy,
             icon: 'arrow.right.circle',
+          ),
+        if (!picking)
+          MadarButton(
+            label: byCode ? t('setup.use_manager_login') : t('setup.use_code'),
+            onTap: _switchMode,
+            enabled: !busy,
+            variant: MadarButtonVariant.ghost,
+            size: MadarButtonSize.compact,
           ),
         if (picking || isBranchConfigured)
           MadarButton(

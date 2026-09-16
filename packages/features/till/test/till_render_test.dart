@@ -15,6 +15,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:app_core/app_core.dart';
+import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_till/feature_till.dart';
 import 'package:flutter/material.dart';
@@ -338,6 +339,8 @@ class _FakeBridge implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
+    final can = fakeCanInvocation(invocation, () => currentSession()?.role);
+    if (can != null) return can;
     final name = invocation.memberName;
     // The core's drawer and Orders decisions (till_views), in miniature.
     if (name == #paymentMethodLabel) {

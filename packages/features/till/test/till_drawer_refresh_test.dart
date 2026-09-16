@@ -8,6 +8,7 @@
 // `till_report` does), so the test pins the signal, not a fixture number.
 
 import 'package:app_core/app_core.dart';
+import 'package:app_core/testing.dart';
 import 'package:feature_till/feature_till.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -71,6 +72,8 @@ class _CoreBridge implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
+    final can = fakeCanInvocation(invocation, () => currentSession()?.role);
+    if (can != null) return can;
     final name = invocation.memberName;
     // The core's drawer and Orders decisions (till_views), in miniature.
     if (name == #paymentMethodLabel) {
