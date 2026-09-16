@@ -1023,8 +1023,18 @@ pub(crate) fn item_modifier_groups_unified(
             } else {
                 g.legacy_addon_type.clone()
             };
+            // The recipe's own milk / bean, preselected — the SAME rule as the
+            // legacy projection. This path is the one every unified-catalog
+            // org actually uses, and it had been left at None, so the sheet
+            // opened blank for every coffee and milk choice.
+            let default_option_id = swap_type
+                .as_deref()
+                .filter(|_| swap)
+                .and_then(|family| swap_base_addon(item, addon_catalog, family))
+                .map(|a| a.id.clone())
+                .filter(|id| options.iter().any(|o| &o.id == id));
             Some(ModifierGroupView {
-                default_option_id: None,
+                default_option_id,
                 group_id: g.group_id.clone(),
                 // Custom groups carry an authored name; legacy-typed groups fall
                 // back to the type string, which the host localizes (same rule
@@ -2599,6 +2609,11 @@ mod tests {
             (true, 1, Some(1))
         );
         assert_eq!(p(milk, "oat"), 0, "re-selecting the default milk is free");
+        assert_eq!(
+            milk.default_option_id.as_deref(),
+            Some("oat"),
+            "the unified path preselects the recipe's own milk, like the legacy one"
+        );
         assert_eq!(p(milk, "almond"), 500, "swap delta over the 1500 oat base");
         assert!(
             milk.options.iter().all(|o| o.id != "soy"),
