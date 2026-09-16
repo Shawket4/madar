@@ -120,6 +120,7 @@ class CheckoutState {
     this.loyaltyBusy = false,
     this.loyaltyError,
     this.loyaltyProgramme,
+    this.customer,
   });
 
   // ── what is being charged ─────────────────────────────────────────────────
@@ -200,6 +201,7 @@ class CheckoutState {
   final bool tipOpen;
   final int tipMinor;
   final String? tipMethodId;
+
   /// The customer is drinking in, so no cup, lid or straw comes off stock.
   /// Defaults to false — a pickup. Independent of the floor: a counter shop
   /// with no tables can say it, which is the whole point. It never moves a
@@ -248,6 +250,11 @@ class CheckoutState {
   final CheckoutSummary? baseSummary;
 
   final bool loyaltyBusy;
+
+  // ── Manual customer (phase 6) ─────────────────────────────────────────────
+  /// The customer this counter sale is for, when the teller attached one.
+  /// Separate from the loyalty member: no balance, just who bought it.
+  final CustomerView? customer;
 
   /// Why the last scan failed. Never blocks the sale — a card that will not
   /// scan must not stop a customer from paying.
@@ -446,6 +453,7 @@ class CheckoutState {
     bool? loyaltyBusy,
     Object? loyaltyError = _unset,
     LoyaltyProgrammeView? loyaltyProgramme,
+    Object? customer = _unset,
   }) {
     return CheckoutState(
       target: target == _unset ? this.target : target as ChargeTarget?,
@@ -507,6 +515,7 @@ class CheckoutState {
       loyaltyError: loyaltyError == _unset
           ? this.loyaltyError
           : loyaltyError as UiText?,
+      customer: customer == _unset ? this.customer : customer as CustomerView?,
     );
   }
 }
@@ -919,6 +928,12 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     }
   }
 
+  /// Attach a manual customer to this counter sale.
+  void attachCustomer(CustomerView customer) =>
+      _update((s) => s.copyWith(customer: customer));
+
+  void clearCustomer() => _update((s) => s.copyWith(customer: null));
+
   /// Drop the member and every reward with them.
   void clearLoyalty() => _update(
     (s) => s.copyWith(
@@ -1225,6 +1240,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         tipPaymentMethodId: s.tipMinor > 0 ? s.effectiveTipMethodId : null,
         splits: s.splitMode ? s.splitLegs : const [],
         dineIn: s.dineIn,
+        customerId: s.customer?.id,
+        customerName: s.customer?.name,
         // WHICH lines, never a price. The server looks each reward up in the
         // branch's catalogue, checks the balance against the whole basket, and
         // refuses the sale outright if it does not cover it.

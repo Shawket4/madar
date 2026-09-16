@@ -278,6 +278,8 @@ pub struct ListMenuCatalogParams {
     pub overridden: Option<bool>,
     /// `\"overridden\"` → overridden items first (needs `branch_id`); otherwise A–Z.
     pub sort: Option<String>,
+    /// `false` → only items with NO recipe on any size: the onboarding worklist, everything that still deducts nothing and costs zero. `true` → only items that have one. Absent → all.
+    pub has_recipe: Option<bool>,
 }
 
 /// struct for passing parameters to the method [`list_menu_items`]
@@ -2597,6 +2599,9 @@ pub async fn list_menu_catalog(
     }
     if let Some(ref param_value) = params.sort {
         req_builder = req_builder.query(&[("sort", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.has_recipe {
+        req_builder = req_builder.query(&[("has_recipe", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());

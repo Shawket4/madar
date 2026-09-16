@@ -8,10 +8,12 @@ library;
 
 export 'src/core.dart';
 export 'src/failure.dart';
+export 'src/generated/api/approvals.dart';
 export 'src/generated/api/bookings.dart';
 export 'src/generated/api/bridge.dart';
 export 'src/generated/api/cart.dart';
 export 'src/generated/api/catalog.dart';
+export 'src/generated/api/customers.dart';
 export 'src/generated/api/delivery.dart';
 export 'src/generated/api/device.dart';
 export 'src/generated/api/drawer.dart';

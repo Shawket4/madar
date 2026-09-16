@@ -424,6 +424,61 @@ pub(crate) enum Refused {
     NotNewer,
 }
 
+/// The person a mirrored money row is attributed to, and the grant that act
+/// needs: a sale (`orders:create`) or a void (`orders:delete`), a refund, a cash
+/// movement, a till opened.
+pub(crate) fn author_and_cell(ty: &str, v: &Value) -> Option<(String, &'static str)> {
+    let s = |k: &str| v.get(k).and_then(Value::as_str).filter(|x| !x.is_empty()).map(str::to_string);
+    match ty {
+        crate::ledger::T_ORDER if v.get("status").and_then(Value::as_str) == Some("voided") => {
+            s("voided_by").or_else(|| s("teller_id")).map(|a| (a, "orders:delete"))
+        }
+        crate::ledger::T_ORDER => s("teller_id").map(|a| (a, "orders:create")),
+        crate::ledger::T_REFUND => s("issued_by").map(|a| (a, "refunds:create")),
+        crate::ledger::T_CASH => s("moved_by").map(|a| (a, "tills:update")),
+        crate::ledger::T_TILL => s("teller_id").map(|a| (a, "tills:create")),
+        _ => None,
+    }
+}
+
+/// Phase 0 LAN author check: a peer's money row is authored by someone who,
+/// by THIS device's synced grants, holds the act. When they do not (or are not
+/// known here), the row is still kept — the money moved on the other till —
+/// and recorded in `lan_authz_flags` for review, never dropped.
+fn flag_unauthorized_author(conn: &Connection, branch: &str, ty: &str, id: &str, v: &Value) -> CoreResult<()> {
+    let Some((author, cell)) = author_and_cell(ty, v) else { return Ok(()) };
+    let teller: Option<String> = conn
+        .query_row(
+            "SELECT data FROM sync_rows WHERE branch_id=?1 AND type='teller' AND id=?2",
+            params![branch, author],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let any_tellers = conn
+        .query_row("SELECT 1 FROM sync_rows WHERE branch_id=?1 AND type='teller' LIMIT 1", [branch], |_| Ok(()))
+        .optional()?
+        .is_some();
+    let reason = match teller.and_then(|d| serde_json::from_str::<Value>(&d).ok()) {
+        // No staff rows here at all (an older server, a fresh store): no basis.
+        None if !any_tellers => None,
+        None => Some("unknown_author"),
+        Some(t) => match t.get("permissions").and_then(Value::as_array) {
+            // An older server sends no grants: nothing to check against.
+            None => None,
+            Some(granted) if granted.iter().any(|p| p.as_str() == Some(cell)) => None,
+            Some(_) => Some("not_granted"),
+        },
+    };
+    if let Some(reason) = reason {
+        conn.execute(
+            "INSERT OR REPLACE INTO lan_authz_flags (branch_id, type, id, author, cell, reason, recorded_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, strftime('%s','now'))",
+            params![branch, ty, id, author, cell, reason],
+        )?;
+    }
+    Ok(())
+}
+
 /// Apply one peer row. `Ok(Err(reason))` when refused.
 pub(crate) fn apply_peer_row(conn: &Connection, branch: &str, row: &PeerRow) -> CoreResult<Result<(), Refused>> {
     if !crate::sync_pull::SYNCED_TYPES.contains(&row.ty.as_str()) {
@@ -466,6 +521,7 @@ pub(crate) fn apply_peer_row(conn: &Connection, branch: &str, row: &PeerRow) -> 
             }
         }
         crate::ledger::write_row(conn, &row.ty, &key, &v, crate::ledger::Origin::Peer(row.seq), None)?;
+        flag_unauthorized_author(conn, branch, &row.ty, &row.id, &v)?;
         return Ok(Ok(()));
     }
     let protected = conn
@@ -762,4 +818,66 @@ pub(crate) fn bucket_counts(conn: &Connection, branch: &str) -> CoreResult<BTree
         *out.entry(bucket_of(h?)).or_insert(0) += 1;
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod authz_tests {
+    use super::*;
+
+    fn teller(store: &Store, id: &str, perms: &[&str]) {
+        let data = serde_json::json!({"id": id, "name": id, "role": "teller", "permissions": perms}).to_string();
+        store
+            .with_conn(|c| {
+                c.execute(
+                    "INSERT INTO sync_rows (branch_id, type, id, seq, data) VALUES ('B', 'teller', ?1, 1, ?2)",
+                    params![id, data],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    fn flags(store: &Store) -> Vec<(String, String, String)> {
+        store
+            .with_conn(|c| {
+                let mut st = c.prepare("SELECT author, cell, reason FROM lan_authz_flags ORDER BY author")?;
+                let v = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<Result<Vec<_>, _>>()?;
+                Ok(v)
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn a_void_by_someone_without_the_grant_is_kept_and_flagged() {
+        let store = Store::open("").unwrap();
+        teller(&store, "sara", &["orders:create"]);
+        teller(&store, "mona", &["orders:create", "orders:delete"]);
+        let void = |by: &str| {
+            serde_json::json!({"id": format!("o-{by}"), "status": "voided", "voided_by": by, "teller_id": by})
+        };
+        store
+            .with_conn(|c| {
+                flag_unauthorized_author(c, "B", crate::ledger::T_ORDER, "o-sara", &void("sara"))?;
+                flag_unauthorized_author(c, "B", crate::ledger::T_ORDER, "o-mona", &void("mona"))?;
+                flag_unauthorized_author(c, "B", crate::ledger::T_REFUND, "r1", &serde_json::json!({"id": "r1", "issued_by": "ghost"}))?;
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(
+            flags(&store),
+            vec![
+                ("ghost".into(), "refunds:create".into(), "unknown_author".into()),
+                ("sara".into(), "orders:delete".into(), "not_granted".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn no_staff_rows_means_no_basis_to_flag() {
+        let store = Store::open("").unwrap();
+        store
+            .with_conn(|c| flag_unauthorized_author(c, "B", crate::ledger::T_CASH, "c1", &serde_json::json!({"id": "c1", "moved_by": "x"})))
+            .unwrap();
+        assert!(flags(&store).is_empty());
+    }
 }

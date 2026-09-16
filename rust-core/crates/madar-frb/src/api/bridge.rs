@@ -86,6 +86,13 @@ impl MadarBridge {
         self.inner.login(req).await.map_err(MadarError::from)
     }
 
+    /// Seconds before this tablet may try a PIN again (the server's growing
+    /// delay, persisted across restarts); 0 when it may now.
+    #[frb(sync)]
+    pub fn pin_wait_seconds(&self) -> u32 {
+        self.inner.pin_wait_seconds()
+    }
+
     /// One-call sign-in: online first, offline PIN unlock fallback.
     pub async fn sign_in(&self, req: LoginRequest) -> Result<SessionSnapshot, MadarError> {
         self.inner.sign_in(req).await.map_err(MadarError::from)
@@ -107,6 +114,26 @@ impl MadarBridge {
     #[frb(sync)]
     pub fn has_permission(&self, resource: String, action: String) -> bool {
         self.inner.has_permission(resource, action)
+    }
+
+    /// Does the signed-in person hold capability `cap` (a generated `Cap` key)?
+    /// Screens gate on this, never on the role name. Offline it answers from the
+    /// synced teller row; unknown means no.
+    #[frb(sync)]
+    pub fn can(&self, cap: String) -> bool {
+        self.inner.can(cap)
+    }
+
+    /// Not held, but the owner lets this person ask a manager to approve it.
+    #[frb(sync)]
+    pub fn can_ask_manager(&self, cap: String) -> bool {
+        self.inner.can_ask_manager(cap)
+    }
+
+    /// Every capability key the signed-in person holds.
+    #[frb(sync)]
+    pub fn capabilities(&self) -> Vec<String> {
+        self.inner.capabilities()
     }
 
     /// May the signed-in PIN user remove the service charge from a table's

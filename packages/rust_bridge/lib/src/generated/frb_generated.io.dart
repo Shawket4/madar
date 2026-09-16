@@ -3,10 +3,12 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api/approvals.dart';
 import 'api/bookings.dart';
 import 'api/bridge.dart';
 import 'api/cart.dart';
 import 'api/catalog.dart';
+import 'api/customers.dart';
 import 'api/delivery.dart';
 import 'api/device.dart';
 import 'api/drawer.dart';
@@ -80,6 +82,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  ActDecisionView dco_decode_act_decision_view(dynamic raw);
+
+  @protected
   AddonIngredientView dco_decode_addon_ingredient_view(dynamic raw);
 
   @protected
@@ -98,6 +103,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   AppRoute dco_decode_app_route(dynamic raw);
 
   @protected
+  ApprovalView dco_decode_approval_view(dynamic raw);
+
+  @protected
   AssetSyncView dco_decode_asset_sync_view(dynamic raw);
 
   @protected
@@ -107,6 +115,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   bool dco_decode_bool(dynamic raw);
 
   @protected
+  ApprovalView dco_decode_box_autoadd_approval_view(dynamic raw);
+
+  @protected
+  bool dco_decode_box_autoadd_bool(dynamic raw);
+
+  @protected
   CartMeta dco_decode_box_autoadd_cart_meta(dynamic raw);
 
   @protected
@@ -114,6 +128,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CheckoutSplit dco_decode_box_autoadd_checkout_split(dynamic raw);
+
+  @protected
+  CustomerView dco_decode_box_autoadd_customer_view(dynamic raw);
 
   @protected
   double dco_decode_box_autoadd_f_64(dynamic raw);
@@ -262,6 +279,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   ComputedRecipeLineView dco_decode_computed_recipe_line_view(dynamic raw);
+
+  @protected
+  CustomerView dco_decode_customer_view(dynamic raw);
 
   @protected
   DeliveryFinalizeView dco_decode_delivery_finalize_view(dynamic raw);
@@ -424,6 +444,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<ComputedRecipeLineView> dco_decode_list_computed_recipe_line_view(
     dynamic raw,
   );
+
+  @protected
+  List<CustomerView> dco_decode_list_customer_view(dynamic raw);
 
   @protected
   List<DeliveryOrderView> dco_decode_list_delivery_order_view(dynamic raw);
@@ -629,7 +652,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
+  ApprovalView? dco_decode_opt_box_autoadd_approval_view(dynamic raw);
+
+  @protected
+  bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
+
+  @protected
   CheckoutSplit? dco_decode_opt_box_autoadd_checkout_split(dynamic raw);
+
+  @protected
+  CustomerView? dco_decode_opt_box_autoadd_customer_view(dynamic raw);
 
   @protected
   double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
@@ -907,6 +939,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  ActDecisionView sse_decode_act_decision_view(SseDeserializer deserializer);
+
+  @protected
   AddonIngredientView sse_decode_addon_ingredient_view(
     SseDeserializer deserializer,
   );
@@ -927,6 +962,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   AppRoute sse_decode_app_route(SseDeserializer deserializer);
 
   @protected
+  ApprovalView sse_decode_approval_view(SseDeserializer deserializer);
+
+  @protected
   AssetSyncView sse_decode_asset_sync_view(SseDeserializer deserializer);
 
   @protected
@@ -934,6 +972,14 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   bool sse_decode_bool(SseDeserializer deserializer);
+
+  @protected
+  ApprovalView sse_decode_box_autoadd_approval_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
   CartMeta sse_decode_box_autoadd_cart_meta(SseDeserializer deserializer);
@@ -945,6 +991,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CheckoutSplit sse_decode_box_autoadd_checkout_split(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CustomerView sse_decode_box_autoadd_customer_view(
     SseDeserializer deserializer,
   );
 
@@ -1135,6 +1186,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   ComputedRecipeLineView sse_decode_computed_recipe_line_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  CustomerView sse_decode_customer_view(SseDeserializer deserializer);
 
   @protected
   DeliveryFinalizeView sse_decode_delivery_finalize_view(
@@ -1339,6 +1393,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<ComputedRecipeLineView> sse_decode_list_computed_recipe_line_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<CustomerView> sse_decode_list_customer_view(
     SseDeserializer deserializer,
   );
 
@@ -1634,7 +1693,20 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
+  ApprovalView? sse_decode_opt_box_autoadd_approval_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
+
+  @protected
   CheckoutSplit? sse_decode_opt_box_autoadd_checkout_split(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CustomerView? sse_decode_opt_box_autoadd_customer_view(
     SseDeserializer deserializer,
   );
 
@@ -1963,6 +2035,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
+  void sse_encode_act_decision_view(
+    ActDecisionView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_addon_ingredient_view(
     AddonIngredientView self,
     SseSerializer serializer,
@@ -1987,6 +2065,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_app_route(AppRoute self, SseSerializer serializer);
 
   @protected
+  void sse_encode_approval_view(ApprovalView self, SseSerializer serializer);
+
+  @protected
   void sse_encode_asset_sync_view(AssetSyncView self, SseSerializer serializer);
 
   @protected
@@ -1994,6 +2075,15 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_approval_view(
+    ApprovalView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_cart_meta(
@@ -2010,6 +2100,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_box_autoadd_checkout_split(
     CheckoutSplit self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_customer_view(
+    CustomerView self,
     SseSerializer serializer,
   );
 
@@ -2249,6 +2345,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
     ComputedRecipeLineView self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_customer_view(CustomerView self, SseSerializer serializer);
 
   @protected
   void sse_encode_delivery_finalize_view(
@@ -2508,6 +2607,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_computed_recipe_line_view(
     List<ComputedRecipeLineView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_customer_view(
+    List<CustomerView> self,
     SseSerializer serializer,
   );
 
@@ -2881,8 +2986,23 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_approval_view(
+    ApprovalView? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_checkout_split(
     CheckoutSplit? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_customer_view(
+    CustomerView? self,
     SseSerializer serializer,
   );
 

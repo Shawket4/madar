@@ -16,6 +16,8 @@
 #[cfg(feature = "uniffi-ffi")]
 uniffi::setup_scaffolding!();
 
+pub mod approvals;
+mod authz_snapshot;
 mod config;
 pub use config::MadarConfig;
 
@@ -32,6 +34,7 @@ pub mod cart;
 pub mod catstyle;
 /// Checkout — assemble an order from the cart + place it via the outbox.
 pub mod checkout;
+pub mod customers;
 /// Delivery-order management (teller side) — list/advance/cancel/finalize.
 pub mod delivery;
 /// Device binding (branch / till / station / printer / reconfigure) — persisted in
@@ -205,6 +208,58 @@ struct CatalogSnapshot {
 
 /// kv key persisting the dashboard's active org/branch scope override.
 const K_DASHBOARD_SCOPE: &str = "dashboard:active_scope";
+
+/// Put a manager's approval on a replay envelope (phase 5), when there is one.
+fn with_approval(
+    mut envelope: serde_json::Value,
+    approval: Option<serde_json::Value>,
+) -> serde_json::Value {
+    if let (Some(a), Some(obj)) = (approval, envelope.as_object_mut()) {
+        obj.insert("approval".into(), a);
+    }
+    envelope
+}
+
+/// The device's own credential from an activation code (POS_SIGNIN_OVERHAUL §4).
+pub(crate) const K_DEVICE_CREDENTIAL: &str = "device:credential";
+
+/// The one refusal for a code that does not bind (see `activate_device`).
+pub(crate) const ACTIVATION_CODE_INVALID_DETAIL: &str = "activation code not valid";
+
+fn activation_code_invalid() -> CoreError {
+    CoreError::Validation {
+        field: "activation_code".into(),
+        detail: ACTIVATION_CODE_INVALID_DETAIL.into(),
+    }
+}
+
+/// Unix seconds until which the server refuses PINs on this tablet (§3.4).
+const K_PIN_BLOCKED_UNTIL: &str = "auth:pin_blocked_until";
+
+/// Whole seconds left before `until` (a stored unix timestamp), 0 when past,
+/// absent or unreadable. Capped at the server's longest step (300 s) plus a
+/// margin, so a device clock jumped backwards cannot show an hour-long wait.
+fn pin_wait_left(until: Option<&str>, now: i64) -> u32 {
+    let Some(until) = until.and_then(|u| u.trim().parse::<i64>().ok()) else {
+        return 0;
+    };
+    (until - now).clamp(0, 330) as u32
+}
+
+#[cfg(test)]
+mod pin_wait_tests {
+    use super::pin_wait_left;
+
+    #[test]
+    fn the_wait_counts_down_and_never_goes_negative_or_wild() {
+        assert_eq!(pin_wait_left(None, 100), 0);
+        assert_eq!(pin_wait_left(Some("junk"), 100), 0);
+        assert_eq!(pin_wait_left(Some("145"), 100), 45);
+        assert_eq!(pin_wait_left(Some("100"), 100), 0);
+        assert_eq!(pin_wait_left(Some("90"), 100), 0);
+        assert_eq!(pin_wait_left(Some("99999"), 100), 330);
+    }
+}
 
 /// The dashboard's runtime-selected org/branch scope. A `None` field means
 /// "fall back to the session-derived value" (see `MadarCore::effective_scope`).
@@ -531,6 +586,80 @@ impl MadarCore {
             .unwrap_or(false)
     }
 
+    /// Does the signed-in person hold capability `key` (architecture E)? Screens
+    /// gate on this, never on the role name. See `SessionState::can`.
+    pub fn can(&self, key: String) -> bool {
+        self.session
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|s| s.can(&key))
+            .unwrap_or(false)
+    }
+
+    /// Not held, but the owner lets this person ask a manager to approve it.
+    pub fn can_ask_manager(&self, key: String) -> bool {
+        self.session
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|s| s.can_ask(&key))
+            .unwrap_or(false)
+    }
+
+    /// `"kitchen"`, `"waiter"` or `"teller"` for the signed-in person (see
+    /// `SessionState::work_kind`); empty when signed out.
+    pub fn work_kind(&self) -> String {
+        self.session
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|s| s.work_kind().to_string())
+            .unwrap_or_default()
+    }
+
+    /// Every capability key the signed-in person holds (empty when signed out).
+    pub fn capabilities(&self) -> Vec<String> {
+        self.session
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|s| s.capabilities())
+            .unwrap_or_default()
+    }
+
+    /// `GET /authz/me` for the live bearer, best-effort: `None` against an older
+    /// backend (the legacy grid then answers) or on a network blip.
+    pub(crate) async fn fetch_authz(&self, branch_id: Option<String>) -> Option<session::AuthzGrants> {
+        let me = madar_api::apis::authz_api::get_my_authz(
+            &self.api.config(),
+            madar_api::apis::authz_api::GetMyAuthzParams { branch_id },
+        )
+        .await
+        .ok()?;
+        Some(session::AuthzGrants {
+            capabilities: me.capabilities,
+            ask_manager: me.ask_manager,
+            limits: me
+                .limits
+                .into_iter()
+                .map(|(k, l)| {
+                    (
+                        k,
+                        madar_authz::Limits {
+                            max_amount: l.max_amount.flatten(),
+                            max_percent: l.max_percent.flatten(),
+                            max_value: l.max_value.flatten(),
+                            max_age_minutes: l.max_age_minutes.flatten(),
+                            own: l.own.flatten().unwrap_or(false),
+                        },
+                    )
+                })
+                .collect(),
+            owner: me.owner,
+        })
+    }
+
     /// Whether the signed-in user may remove the service charge from a table's
     /// bill: `orders:waive_service` in their EFFECTIVE permissions (role
     /// default or per-user override, as the server resolved them) — never the
@@ -598,7 +727,10 @@ impl MadarCore {
         self.auth_paused.store(paused, Relaxed);
         let snapshot = state.snapshot.clone();
         self.persist_and_set(state);
-        Ok(snapshot)
+        // The person's last-known grants from the branch's synced teller row, so
+        // an offline unlock is governed by real grants instead of a guess (S7).
+        self.adopt_feed_permissions(&branch_id);
+        Ok(self.current_session().unwrap_or(snapshot))
     }
 
     /// Sign out: clear the live session + token (the JWT is stateless — there is
@@ -1294,8 +1426,21 @@ impl MadarCore {
                 }
                 rebase_dopt(&mut cmd.request.voided_at, delta);
                 (
-                    serde_json::json!({ "op": "void_order", "teller_id": teller_id, "order_id": cmd.order_id, "request": cmd.request }),
+                    with_approval(
+                        serde_json::json!({ "op": "void_order", "teller_id": teller_id, "order_id": cmd.order_id, "request": cmd.request }),
+                        cmd.approval,
+                    ),
                     Idem::VoidIdem,
+                )
+            }
+            "create_customer" => {
+                let request: serde_json::Value = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
+                };
+                (
+                    serde_json::json!({ "op": "create_customer", "teller_id": teller_id, "request": request }),
+                    Idem::Yes,
                 )
             }
             "award_loyalty_points" => {
@@ -1319,7 +1464,10 @@ impl MadarCore {
                     Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
-                    serde_json::json!({ "op": "refund_order", "teller_id": teller_id, "request": cmd.request }),
+                    with_approval(
+                        serde_json::json!({ "op": "refund_order", "teller_id": teller_id, "request": cmd.request }),
+                        cmd.approval,
+                    ),
                     Idem::Yes,
                 )
             }
@@ -2183,7 +2331,7 @@ impl MadarCore {
         // A kitchen-role device shows the KDS for its configured station (it needs
         // the session for the bus + kitchen permission, but holds no shift). With
         // no station bound yet, it must finish device setup first.
-        if session.snapshot.role == "kitchen" {
+        if session.work_kind() == "kitchen" {
             return match cfg.station_id {
                 Some(station_id) => AppRoute::KitchenDisplay { station_id },
                 None => AppRoute::DeviceSetup,
@@ -2191,7 +2339,7 @@ impl MadarCore {
         }
         // Waiters take orders and fire tickets but hold NO shift — route them to the
         // waiter screen BEFORE the open-shift gate (which they could never satisfy).
-        if session.snapshot.role == "waiter" {
+        if session.work_kind() == "waiter" {
             return AppRoute::WaiterTickets;
         }
         // An open shift counts only if it belongs to THIS teller (a stale shift
@@ -2388,8 +2536,9 @@ impl MadarCore {
                 field: "branch".into(),
                 detail: "no branch bound".into(),
             })?;
-        let topics = realtime::topics_for_role(&session.role);
-        let alerting = self.install_unified_listener(Arc::from(listener), Arc::from(player), &session.role);
+        let kind = self.work_kind();
+        let topics = realtime::topics_for_role(&kind);
+        let alerting = self.install_unified_listener(Arc::from(listener), Arc::from(player), &kind);
         let client = self.api.realtime_client();
         // Cloud-only events (online orders, bookings) get re-published on the LAN
         // by every device that heard them, under one deterministic id, so a
@@ -2444,7 +2593,7 @@ impl MadarCore {
     /// Simulation hook: install the listener chain without opening a stream.
     #[doc(hidden)]
     pub fn sim_install_listener(&self, host: Arc<dyn realtime::EventListener>, player: Arc<dyn realtime::RealtimePlayer>) {
-        let role = self.current_session().map(|s| s.role).unwrap_or_default();
+        let role = self.work_kind();
         self.install_unified_listener(host, player, &role);
     }
 
@@ -3077,7 +3226,7 @@ impl MadarCore {
         let cfg = lan::LanConfig {
             device_id: self.lan_device_id(),
             branch_id: branch_id.clone(),
-            role: session.role.clone(),
+            role: self.work_kind(),
             station_id: dev.station_id.clone(),
             key: lan::branch_key(&secret, &branch_id),
             tcp_port: lan::DEFAULT_TCP_PORT,
@@ -3126,7 +3275,7 @@ impl MadarCore {
         let cfg = lan::LanConfig {
             device_id: self.lan_device_id(),
             branch_id: branch_id.clone(),
-            role: session.role.clone(),
+            role: self.work_kind(),
             station_id: None,
             key: lan::branch_key(&secret, &branch_id),
             tcp_port: 0,
@@ -5256,10 +5405,12 @@ impl MadarCore {
             }
             Err(_) => Vec::new(),
         };
+        let authz = self.fetch_authz(None).await;
         self.persist_and_set(session::SessionState {
             snapshot: snapshot.clone(),
             permissions,
             token: Some(resp.token),
+            authz,
         });
         Ok(snapshot)
     }
@@ -5403,14 +5554,35 @@ impl MadarCore {
         // open shift, EXCEPT one we acknowledge here — that's a legitimate offline
         // handover whose close lands via /sync/replay moments after this login.
         let ack_closing = self.closing_shift_ids_csv();
+        // The device id lets the server count wrong PINs against THIS tablet
+        // (the growing delay, POS_SIGNIN_OVERHAUL §3.4); old servers ignore it.
+        let device_id = self.lan_device_id();
         let body = self
             .api
             .post_with_header(
                 "/auth/login",
                 &wire,
-                ("X-Madar-Closing-Shifts", &ack_closing),
+                &[
+                    ("X-Madar-Closing-Shifts", &ack_closing),
+                    ("X-Madar-Device-Id", &device_id),
+                ],
             )
-            .await?;
+            .await;
+        let body = match body {
+            Ok(b) => {
+                let _ = self.store.kv_delete(K_PIN_BLOCKED_UNTIL);
+                b
+            }
+            Err(e) => {
+                if let Some(secs) = net::pin_throttle_seconds(&e) {
+                    // Kept locally so the countdown survives an app restart;
+                    // the server stays the authority on the next attempt.
+                    let until = chrono::Utc::now().timestamp() + secs;
+                    let _ = self.store.kv_put(K_PIN_BLOCKED_UNTIL, &until.to_string());
+                }
+                return Err(e);
+            }
+        };
         let resp: madar_api::models::LoginResponse =
             serde_json::from_str(&body).map_err(|e| CoreError::Internal {
                 detail: format!("decode: {e}"),
@@ -5460,10 +5632,21 @@ impl MadarCore {
             }
         }
 
+        // Effective capabilities at this branch (an older backend answers 404 and
+        // the legacy grid stands in).
+        let authz = self.fetch_authz(snapshot.branch_id.clone()).await;
+        // Refresh the signed permission snapshot for offline unlocks (an
+        // activated device only; bounded so a slow server never holds sign-in).
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            self.refresh_authz_snapshot(),
+        )
+        .await;
         let state = session::SessionState {
             snapshot: snapshot.clone(),
             permissions,
             token: Some(resp.token),
+            authz,
         };
         self.persist_and_set(state);
 
@@ -5560,6 +5743,21 @@ impl MadarCore {
     }
 
 
+    /// Seconds before this tablet may try a PIN again, 0 when it may now. Set
+    /// from the server's growing-delay refusal (`PIN_THROTTLED`) and persisted,
+    /// so the PIN pad's countdown survives a restart. The host polls it once a
+    /// second while it is above zero.
+    pub fn pin_wait_seconds(&self) -> u32 {
+        pin_wait_left(
+            self.store
+                .kv_get(K_PIN_BLOCKED_UNTIL)
+                .ok()
+                .flatten()
+                .as_deref(),
+            chrono::Utc::now().timestamp(),
+        )
+    }
+
     /// One-call sign-in. The online→offline decision lives HERE, not in the host
     /// UI (the One Rule): try an online `login` first; if the network is down and
     /// this is a teller PIN login, fall back to an offline unlock against the
@@ -5579,8 +5777,9 @@ impl MadarCore {
         // No device-level ownership gate: each person holds their OWN till on this
         // device (decision 6); another teller signing in gets their own.
         // Whether a connectivity failure may fall back to an offline unlock.
+        // The name is optional (PIN-only sign-in): the offline unlock tries the
+        // PIN against the bundle when there is none.
         let offline_ok = matches!(req.mode, session::LoginMode::Pin)
-            && req.name.is_some()
             && req.pin.is_some()
             && req.branch_id.is_some();
         let offline = |this: &Self| {
@@ -5611,6 +5810,62 @@ impl MadarCore {
                 detail: "sign-in timed out — check your connection".into(),
             }),
         }
+    }
+
+    /// Bind this device with an activation code from the dashboard
+    /// (POS_SIGNIN_OVERHAUL §4) — no manager email login. The server binds the
+    /// org + branch and returns the device's own credential, kept locally.
+    /// Online-only. A wrong, used, expired or withdrawn code is one refusal:
+    /// `Validation { field: "activation_code", detail: "activation code not valid" }`.
+    pub async fn activate_device(
+        &self,
+        code: String,
+    ) -> Result<session::BranchView, CoreError> {
+        let code: String = code.chars().filter(|c| c.is_ascii_digit()).collect();
+        if code.len() != 8 {
+            return Err(activation_code_invalid());
+        }
+        let body = serde_json::json!({
+            "code": code,
+            "device_id": self.lan_device_id(),
+            "device_code": self.device_code(),
+            "platform": std::env::consts::OS,
+            "app_version": option_env!("MADAR_APP_VERSION"),
+        });
+        let text = match self.api.post_json("/auth/activate-device", &body).await {
+            Ok(t) => t,
+            Err(CoreError::Server { status: 404, .. }) => {
+                return Err(activation_code_invalid())
+            }
+            Err(e) => return Err(e),
+        };
+        let v: serde_json::Value =
+            serde_json::from_str(&text).map_err(|e| CoreError::Internal {
+                detail: format!("decode: {e}"),
+            })?;
+        let branch_id = v["branch_id"].as_str().unwrap_or_default().to_string();
+        if branch_id.is_empty() {
+            return Err(CoreError::Internal {
+                detail: "decode: activation answer has no branch".into(),
+            });
+        }
+        let branch_name = v["branch_name"].as_str().map(str::to_string);
+        if let Some(token) = v["device_token"].as_str() {
+            self.store.kv_put(K_DEVICE_CREDENTIAL, token)?;
+        }
+        self.set_device_branch(branch_id.clone(), branch_name.clone())?;
+        // The keys that sign this device's permission snapshot, and the first
+        // snapshot itself. Best-effort: sign-in fetches it again.
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            self.refresh_authz_snapshot().await;
+        })
+        .await;
+        Ok(session::BranchView {
+            id: branch_id,
+            name: branch_name.unwrap_or_default(),
+            is_active: true,
+            org_logo_url: None,
+        })
     }
 
     /// List the org's active branches — for the device-setup picker. Requires a
@@ -6091,7 +6346,16 @@ impl MadarCore {
             idempotency_key: okey.clone(),
             payload: serde_json::to_string(&prepared.command)?,
             event_at: prepared.event_at.clone(),
-            depends_on_seq: self.store.live_seq_of(&shift.id)?,
+            // Behind the till's open; else behind the customer the sale names
+            // when that customer was added on this till and is still queued,
+            // so the server knows the customer before it attaches it.
+            depends_on_seq: match self.store.live_seq_of(&shift.id)? {
+                Some(seq) => Some(seq),
+                None => match input.customer_id.as_deref() {
+                    Some(c) => self.store.live_seq_of(&format!("customer:{c}"))?,
+                    None => None,
+                },
+            },
             user_id: user_id.clone(),
             clock_offset_ms,
             till_id: Some(shift.id.clone()),
@@ -6287,6 +6551,8 @@ impl MadarCore {
             return;
         };
         let perms = session::permissions_from(&p);
+        let branch = self.current_session().and_then(|s| s.branch_id);
+        let authz = self.fetch_authz(branch).await;
         // Update under the write lock, capture the blob, then RELEASE before
         // the store write (keep lock scopes minimal; the store has its own).
         let blob = {
@@ -6294,6 +6560,9 @@ impl MadarCore {
             match g.as_mut() {
                 Some(s) if s.token.is_some() && !s.snapshot.permissions_loaded => {
                     s.permissions = perms;
+                    if authz.is_some() {
+                        s.authz = authz;
+                    }
                     s.snapshot.permissions_loaded = true;
                     Some(s.to_blob())
                 }
@@ -6807,6 +7076,19 @@ impl MadarCore {
         note: Option<String>,
         restore_inventory: bool,
     ) -> Result<(), CoreError> {
+        self.void_order_approved(order_id, reason, note, restore_inventory, None)
+            .await
+    }
+
+    /// [`Self::void_order`] carrying a manager's approval (phase 5).
+    pub async fn void_order_approved(
+        &self,
+        order_id: String,
+        reason: String,
+        note: Option<String>,
+        restore_inventory: bool,
+        approval: Option<approvals::ApprovalView>,
+    ) -> Result<(), CoreError> {
         // Must be signed in (the replay needs a token).
         if !self.is_authenticated() {
             return Err(CoreError::Unauthenticated {
@@ -6831,6 +7113,7 @@ impl MadarCore {
         let cmd = orders::VoidOrderCommand {
             order_id: order_id.clone(),
             request,
+            approval: approval.as_ref().map(approvals::approval_wire),
         };
         let (user_id, clock_offset_ms) = self.outbox_meta();
         // The void is held against the sale's ONE row, whatever id the screen
@@ -6915,6 +7198,20 @@ impl MadarCore {
         reason: String,
         note: Option<String>,
     ) -> Result<(), CoreError> {
+        self.refund_order_approved(order_id, amount_minor, method, reason, note, None)
+            .await
+    }
+
+    /// [`Self::refund_order`] carrying a manager's approval (phase 5).
+    pub async fn refund_order_approved(
+        &self,
+        order_id: String,
+        amount_minor: i64,
+        method: String,
+        reason: String,
+        note: Option<String>,
+        approval: Option<approvals::ApprovalView>,
+    ) -> Result<(), CoreError> {
         if !self.is_authenticated() {
             return Err(CoreError::Unauthenticated {
                 detail: "not signed in".into(),
@@ -6980,7 +7277,10 @@ impl MadarCore {
             "created_at": issued_at.to_rfc3339(),
             "lines": [],
         });
-        let cmd = orders::RefundOrderCommand { request };
+        let cmd = orders::RefundOrderCommand {
+            request,
+            approval: approval.as_ref().map(approvals::approval_wire),
+        };
         let (user_id, clock_offset_ms) = self.outbox_meta();
         let op = store::NewOutboxOp {
             id: format!("{order_id}:refund:{client_ref}"),
@@ -8551,6 +8851,69 @@ mod tests {
         assert_eq!(core.locale(), "ar");
     }
 
+    #[tokio::test]
+    async fn an_activation_code_binds_the_device_and_a_bad_one_is_one_refusal() {
+        use std::io::{Read, Write};
+        // A one-shot HTTP server per answer: enough to pin the wire and the
+        // local effects without a backend.
+        fn serve(status: &str, body: &'static str) -> String {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let addr = listener.local_addr().unwrap();
+            let status = status.to_string();
+            std::thread::spawn(move || {
+                let (mut sock, _) = listener.accept().unwrap();
+                let mut buf = [0u8; 8192];
+                let _ = sock.read(&mut buf);
+                let resp = format!(
+                    "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = sock.write_all(resp.as_bytes());
+            });
+            format!("http://{addr}")
+        }
+        let core_at = |url: String| {
+            MadarCore::new(MadarConfig {
+                base_url: url,
+                environment: "dev".into(),
+                db_path: String::new(),
+                locale: "en".into(),
+                app_version: None,
+            })
+            .unwrap()
+        };
+
+        let ok = core_at(serve(
+            "200 OK",
+            r#"{"org_id":"o","org_name":"Rue","branch_id":"b-1","branch_name":"Maadi","device":{},"device_token":"tok"}"#,
+        ));
+        let branch = ok.activate_device("4072 1958".into()).await.unwrap();
+        assert_eq!(branch.id, "b-1");
+        assert_eq!(ok.device_config().branch_id.as_deref(), Some("b-1"));
+        assert_eq!(ok.device_config().branch_name.as_deref(), Some("Maadi"));
+        assert_eq!(
+            ok.store.kv_get(K_DEVICE_CREDENTIAL).unwrap().as_deref(),
+            Some("tok")
+        );
+
+        let bad = core_at(serve(
+            "404 Not Found",
+            r#"{"error":"That code is not valid.","code":"ACTIVATION_CODE_INVALID"}"#,
+        ));
+        match bad.activate_device("00000000".into()).await {
+            Err(CoreError::Validation { detail, .. }) => {
+                assert_eq!(detail, ACTIVATION_CODE_INVALID_DETAIL)
+            }
+            other => panic!("expected the one refusal, got {other:?}"),
+        }
+        assert!(bad.device_config().branch_id.is_none());
+        // A short code never reaches the server.
+        assert!(matches!(
+            bad.activate_device("123".into()).await,
+            Err(CoreError::Validation { .. })
+        ));
+    }
+
     /// sign_in falls back to an offline unlock when the network is unreachable
     /// and a cached bundle holds the teller's PIN. Points the core at a dead
     /// port so the online `login` fails fast with `Offline`.
@@ -8731,14 +9094,23 @@ mod lifecycle_tests {
                 online: true,
                 permissions_loaded: true,
             },
-            permissions: vec![],
+            permissions: [("orders", "create"), ("payments", "create"), ("tills", "create")]
+                .into_iter()
+                .map(|(r, a)| session::PermissionEntry { resource: r.into(), action: a.into(), granted: true })
+                .collect(),
             token: None,
+            authz: None,
         }
     }
 
     fn kitchen_session(user_id: &str, branch: Option<&str>) -> session::SessionState {
         let mut s = teller_session(user_id, branch);
         s.snapshot.role = "kitchen".into();
+        s.permissions = vec![session::PermissionEntry {
+            resource: "kitchen_orders".into(),
+            action: "read".into(),
+            granted: true,
+        }];
         s
     }
 
@@ -10523,6 +10895,7 @@ mod lifecycle_tests {
             },
             permissions: Vec::new(),
             token: Some(token.clone()),
+            authz: None,
         };
         core.api.set_bearer(Some(token));
         core.persist_and_set(state);
@@ -10549,6 +10922,7 @@ mod lifecycle_tests {
             },
             permissions: Vec::new(),
             token: Some(token.clone()),
+            authz: None,
         };
         core.api.set_bearer(Some(token));
         core.persist_and_set(state);
@@ -10853,6 +11227,88 @@ mod lifecycle_tests {
             core.sync_status().auth_paused,
             "the re-login banner surfaces once connectivity is confirmed"
         );
+    }
+
+    #[test]
+    fn unlock_offline_adopts_the_last_known_grants_from_the_feed() {
+        let core = offline_core_with_bundle();
+        let row = serde_json::json!({"id": TELLER_BB, "user_id": TELLER_BB, "name": "Sara",
+            "role": "teller", "is_active": true, "permissions": ["orders:create", "payments:create"]});
+        core.store
+            .with_conn(|c| {
+                c.execute(
+                    "INSERT INTO sync_rows (branch_id, type, id, seq, data) VALUES (?1, 'teller', ?2, 1, ?3)",
+                    rusqlite::params![BRANCH_1, TELLER_BB, row.to_string()],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        core.unlock_offline("Sara".into(), "1234".into(), BRANCH_1.into())
+            .unwrap();
+        assert!(core.has_permission("orders".into(), "create".into()));
+        assert!(!core.has_permission("orders".into(), "delete".into()), "a void is not assumed");
+        assert!(!core.has_permission("tills".into(), "update".into()));
+    }
+
+    #[test]
+    fn offline_unlock_answers_capabilities_from_the_feed_row() {
+        let core = offline_core_with_bundle();
+        let row = serde_json::json!({"id": TELLER_BB, "user_id": TELLER_BB, "name": "Sara",
+            "role": "teller", "is_active": true, "permissions": ["orders:create", "payments:create"],
+            "capabilities": ["orders.create", "payments.take", "till.cash_spot_check"],
+            "ask_manager": ["refunds.create"], "limits": {"orders.discount.manual_percent": {"max_percent": 10}},
+            "is_owner": false});
+        core.store
+            .with_conn(|c| {
+                c.execute(
+                    "INSERT INTO sync_rows (branch_id, type, id, seq, data) VALUES (?1, 'teller', ?2, 1, ?3)",
+                    rusqlite::params![BRANCH_1, TELLER_BB, row.to_string()],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        core.unlock_offline("Sara".into(), "1234".into(), BRANCH_1.into())
+            .unwrap();
+        assert!(core.can("till.cash_spot_check".into()), "a capability with no legacy cell comes from the row");
+        assert!(!core.can("orders.void".into()));
+        assert!(core.can_ask_manager("refunds.create".into()));
+        assert!(!core.can_ask_manager("orders.create".into()), "held, so nothing to ask");
+        assert!(!core.can("no.such.capability".into()));
+        assert_eq!(core.capabilities().len(), 3);
+    }
+
+    #[test]
+    fn capabilities_fall_back_to_the_legacy_grid_on_an_older_backend() {
+        let core = offline_core_with_bundle();
+        let row = serde_json::json!({"id": TELLER_BB, "user_id": TELLER_BB, "name": "Sara",
+            "role": "teller", "is_active": true, "permissions": ["orders:create", "tills:create"]});
+        core.store
+            .with_conn(|c| {
+                c.execute(
+                    "INSERT INTO sync_rows (branch_id, type, id, seq, data) VALUES (?1, 'teller', ?2, 1, ?3)",
+                    rusqlite::params![BRANCH_1, TELLER_BB, row.to_string()],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        core.unlock_offline("Sara".into(), "1234".into(), BRANCH_1.into())
+            .unwrap();
+        assert!(core.can("till.open".into()), "legacy cell tills:create");
+        assert!(!core.can("orders.void".into()));
+        // No legacy cell: the teller kind's registry default.
+        assert!(core.can("pos.sign_in".into()));
+        assert!(!core.can("till.force_close".into()));
+    }
+
+    #[test]
+    fn nothing_loaded_means_only_plain_selling() {
+        let core = offline_core_with_bundle();
+        core.unlock_offline("Sara".into(), "1234".into(), BRANCH_1.into())
+            .unwrap();
+        assert!(core.can("orders.create".into()));
+        assert!(core.can("payments.take".into()));
+        assert!(!core.can("refunds.create".into()));
+        assert!(!core.can("pos.sign_in".into()), "unknown means no");
     }
 
     #[test]

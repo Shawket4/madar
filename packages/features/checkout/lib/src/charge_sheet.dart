@@ -6,6 +6,7 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/src/charge_strings.dart';
 import 'package:feature_checkout/src/charge_target.dart';
 import 'package:feature_checkout/src/checkout_provider.dart';
+import 'package:feature_checkout/src/customer_sheet.dart';
 import 'package:feature_checkout/src/done_card.dart';
 import 'package:feature_checkout/src/loyalty_scan_sheet.dart';
 import 'package:feature_checkout/src/loyalty_words.dart';
@@ -300,6 +301,15 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
             onRemoveMember: () => unawaited(
               _confirmRemoveMember(context, bridge, notifier.clearLoyalty),
             ),
+            onCustomer: () => unawaited(
+              showMadarSheet<void>(
+                context,
+                size: SheetSize.hug,
+                maxWidth: Responsive.sheetCompactMaxWidth,
+                builder: (_) => const CustomerSheet(),
+              ),
+            ),
+            onRemoveCustomer: notifier.clearCustomer,
             onToggleReward: notifier.toggleReward,
             onOpenTip: notifier.openTip,
             onCloseTip: notifier.closeTip,
@@ -749,6 +759,8 @@ class _QuietRows extends StatelessWidget {
     required this.onDiscount,
     required this.onMember,
     required this.onRemoveMember,
+    required this.onCustomer,
+    required this.onRemoveCustomer,
     required this.onToggleReward,
     required this.onOpenTip,
     required this.onCloseTip,
@@ -764,6 +776,8 @@ class _QuietRows extends StatelessWidget {
   final VoidCallback onDiscount;
   final VoidCallback onMember;
   final VoidCallback onRemoveMember;
+  final VoidCallback onCustomer;
+  final VoidCallback onRemoveCustomer;
   final ValueChanged<int> onToggleReward;
   final VoidCallback onOpenTip;
   final VoidCallback onCloseTip;
@@ -814,6 +828,28 @@ class _QuietRows extends StatelessWidget {
               ? bridge.tr(key: 'checkout.keep_service')
               : bridge.tr(key: 'checkout.remove_service'),
           onTap: () => onWaiveService(!s.waiveService),
+        ),
+      );
+    }
+
+    // Customer — a counter sale only (a bill's settle carries no customer
+    // yet), and only for someone who may attach one. Works offline.
+    if (s.isCart && bridge.can(cap: Cap.customersAttach)) {
+      final customer = s.customer;
+      rows.add(
+        _QuietRow(
+          label: bridge.tr(key: 'customers.attach'),
+          value: customer == null
+              ? bridge.tr(key: 'customers.search_hint')
+              : customer.name,
+          onTap: customer == null ? onCustomer : null,
+          trailing: customer == null
+              ? null
+              : MadarGlyphTile(
+                  glyph: MadarGlyph.close,
+                  semanticLabel: bridge.tr(key: 'customers.remove'),
+                  onTap: onRemoveCustomer,
+                ),
         ),
       );
     }

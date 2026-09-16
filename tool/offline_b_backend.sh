@@ -71,6 +71,7 @@ DB_URL="postgres://${PGUSER:-$(whoami)}@localhost:$(printf '%s' "${PG_ARGS[*]}" 
 
 echo "==> starting the backend on :$PORT"
 ASSET_URL_SECRET="$(openssl rand -hex 32)" JWT_SECRET="$(openssl rand -hex 32)" \
+  MADAR_PIN_FINGERPRINT_KEY="$(openssl rand -hex 32)" MADAR_AUTHZ_SIGNING_KEY="$(openssl rand -hex 32)" \
   DATABASE_URL="$DB_URL" BIND_ADDR="127.0.0.1:$PORT" MADAR_DISABLE_AUTO_TRANSLATION=1 \
   "$BIN" >"$LOG" 2>&1 &
 PID=$!

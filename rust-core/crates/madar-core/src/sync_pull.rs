@@ -755,6 +755,26 @@ pub(crate) fn local_checksums(store: &Store, branch: &str, types: &[String]) -> 
 }
 
 /// Every row of a type for the branch (mirror re-pointing reads these).
+/// Architecture E capabilities from a feed teller row; `None` for an older
+/// backend's row, which carries only the legacy grid.
+pub(crate) fn grants_from_teller_row(row: &serde_json::Value) -> Option<crate::session::AuthzGrants> {
+    let keys = |f: &str| -> Option<Vec<String>> {
+        row.get(f)
+            .and_then(|p| p.as_array())
+            .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+    };
+    keys("capabilities").map(|capabilities| crate::session::AuthzGrants {
+        capabilities,
+        ask_manager: keys("ask_manager").unwrap_or_default(),
+        limits: row
+            .get("limits")
+            .cloned()
+            .and_then(|l| serde_json::from_value(l).ok())
+            .unwrap_or_default(),
+        owner: row.get("is_owner").and_then(|x| x.as_bool()).unwrap_or(false),
+    })
+}
+
 pub(crate) fn rows_of_type(store: &Store, branch: &str, ty: &str) -> Vec<serde_json::Value> {
     store
         .with_conn(|c| {
@@ -999,6 +1019,12 @@ impl MadarCore {
             })?;
             applied += purged;
             self.project_pull_mirrors(&branch);
+            // A grant change re-emits the person's teller row: keep the live
+            // session's capabilities equal to the feed's (no-op when unchanged
+            // or when the person has no row here).
+            if applied > 0 {
+                self.adopt_feed_permissions(&branch);
+            }
             self.sync_state.lock().unwrap_or_else(|e| e.into_inner()).stale_reason = stale;
             // §11.7: after rows land, fetch the files they reference (non-fatal).
             let b = bundle
@@ -1112,13 +1138,39 @@ impl MadarCore {
     /// included). A row without `permissions` (an older server) changes nothing.
     pub(crate) fn adopt_feed_permissions(&self, branch: &str) {
         let Some(user) = self.current_session().map(|s| s.user_id) else { return };
-        let Some(granted) = rows_of_type(&self.store, branch, "teller")
+        let row = rows_of_type(&self.store, branch, "teller")
             .into_iter()
-            .find(|v| v.get("id").and_then(|x| x.as_str()) == Some(user.as_str()))
-            .and_then(|v| v.get("permissions").and_then(|p| p.as_array()).cloned())
-        else {
+            .find(|v| v.get("id").and_then(|x| x.as_str()) == Some(user.as_str()));
+        let row_epoch = row
+            .as_ref()
+            .and_then(|r| r.get("authz_epoch"))
+            .and_then(|x| x.as_i64())
+            .unwrap_or(i64::MIN);
+        if let Some(row) = row {
+            self.adopt_teller_row(&user, &row);
+        }
+        // A verified server-signed snapshot (PERMISSIONS_ARCHITECTURE §4.4)
+        // then replaces the capabilities when it is at least as new: the row
+        // can be edited on the device, the signature cannot. The legacy grid
+        // stays the row's (the snapshot carries capabilities only).
+        if let Some(body) = self.verified_snapshot(branch) {
+            if body.org_epoch >= row_epoch {
+                if let Some(grants) = crate::authz_snapshot::grants_for(&body, &user) {
+                    self.adopt_snapshot_grants(&user, grants);
+                }
+            }
+        }
+    }
+
+    fn adopt_teller_row(&self, user: &str, row: &serde_json::Value) {
+        let user = user.to_string();
+
+        let Some(granted) = row.get("permissions").and_then(|p| p.as_array()).cloned() else {
             return;
         };
+        // Architecture E rows also carry the resolved capabilities; an older
+        // backend's row does not, and the legacy grid then answers `can`.
+        let authz = grants_from_teller_row(row);
         let entries: Vec<crate::session::PermissionEntry> = granted
             .iter()
             .filter_map(|p| p.as_str())
@@ -1130,6 +1182,27 @@ impl MadarCore {
             match g.as_mut() {
                 Some(s) if s.snapshot.user_id == user => {
                     s.permissions = entries;
+                    if authz.is_some() {
+                        s.authz = authz;
+                    }
+                    s.snapshot.permissions_loaded = true;
+                    Some(s.to_blob())
+                }
+                _ => None,
+            }
+        };
+        if let Some(blob) = blob {
+            let _ = self.store.blob_put(crate::session::K_SESSION_BLOB, &blob);
+        }
+    }
+
+    /// Install grants from the signed snapshot on the live session.
+    fn adopt_snapshot_grants(&self, user: &str, grants: crate::session::AuthzGrants) {
+        let blob = {
+            let mut g = self.session.write().unwrap_or_else(|e| e.into_inner());
+            match g.as_mut() {
+                Some(s) if s.snapshot.user_id == user => {
+                    s.authz = Some(grants);
                     s.snapshot.permissions_loaded = true;
                     Some(s.to_blob())
                 }

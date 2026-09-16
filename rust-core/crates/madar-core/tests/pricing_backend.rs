@@ -433,6 +433,7 @@ async fn a_takeaway_carries_no_service_charge_and_the_server_accepts_it() {
                 splits: vec![],
                 loyalty_customer_id: None,
                 dine_in: false,
+                customer_id: None,
                 loyalty_redemptions: vec![],
             },
         )

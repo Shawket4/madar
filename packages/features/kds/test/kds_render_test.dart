@@ -14,6 +14,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:app_core/app_core.dart';
+import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_kds/feature_kds.dart';
 import 'package:flutter/material.dart';
@@ -238,6 +239,8 @@ class _FakeBridge implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
+    final can = fakeCanInvocation(invocation, () => currentSession()?.role);
+    if (can != null) return can;
     final name = invocation.memberName;
     if (name == #tr) {
       final key = invocation.namedArguments[#key] as String? ?? '';

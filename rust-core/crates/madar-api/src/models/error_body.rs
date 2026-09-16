@@ -25,6 +25,14 @@ pub struct ErrorBody {
     /// Human-readable error message.
     #[serde(rename = "error")]
     pub error: String,
+    /// How long to wait before trying again, in seconds. Present on a `PIN_THROTTLED` refusal, absent everywhere else, so the PIN pad can run a countdown rather than inventing one.
+    #[serde(
+        rename = "retry_after_seconds",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub retry_after_seconds: Option<Option<i64>>,
     /// The till a `TILL_OPEN_AT_OTHER_BRANCH` / `TILL_OPEN_ELSEWHERE` refusal is about (`TillBrief`). Omitted everywhere else.
     #[serde(
         rename = "till",
@@ -41,6 +49,7 @@ impl ErrorBody {
         ErrorBody {
             code: None,
             error,
+            retry_after_seconds: None,
             till: None,
         }
     }

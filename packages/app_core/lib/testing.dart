@@ -13,6 +13,8 @@ library;
 
 import 'dart:io';
 
+import 'package:app_core/src/generated/capabilities.dart';
+
 final Map<String, Map<String, String>> _tables = {};
 
 /// The core's table for [lang] (`en` or `ar`), parsed once per test process.
@@ -67,4 +69,46 @@ Map<String, String> _parse(String source, String lang) {
           .replaceAll(r'\n', '\n')
           .replaceAll(r'\\', r'\'),
   };
+}
+
+// ── capabilities in fake bridges ───────────────────────────────────────────
+
+const _ownerRoles = {'super_admin', 'org_admin'};
+const _knownRoles = {'branch_manager', 'teller', 'waiter', 'kitchen'};
+
+/// A stand-in for `MadarBridge.can` in hand-written fake bridges. Fakes
+/// describe a person by role; the real core answers from effective
+/// capabilities. This maps a role to the registry defaults the screens gate
+/// on, so a fake "waiter" behaves like a waiter. A null or unknown role is a
+/// teller, which is what the fakes meant before.
+bool fakeCan(String? role, String cap) {
+  final r = role ?? 'teller';
+  if (_ownerRoles.contains(r)) return true;
+  final manager = r == 'branch_manager';
+  final teller = r == 'teller' || manager || !_knownRoles.contains(r);
+  switch (cap) {
+    case Cap.paymentsTake || Cap.tillOpen || Cap.ordersCreate:
+      return teller;
+    case Cap.ticketsOpen:
+      return teller || r == 'waiter';
+    case Cap.kitchenDisplayRead:
+      return true;
+    case Cap.tillReadBranch || Cap.tillForceClose:
+      return manager;
+    default:
+      return teller || r == 'waiter';
+  }
+}
+
+/// `noSuchMethod` helper: the answer for a `can` / `canAskManager`
+/// invocation, or null when the invocation is something else.
+///
+/// [role] is read only for a `can` call, so a fake whose `currentSession` is
+/// itself answered by `noSuchMethod` does not recurse.
+bool? fakeCanInvocation(Invocation invocation, String? Function() role) {
+  if (invocation.memberName == #can) {
+    return fakeCan(role(), invocation.namedArguments[#cap]! as String);
+  }
+  if (invocation.memberName == #canAskManager) return false;
+  return null;
 }

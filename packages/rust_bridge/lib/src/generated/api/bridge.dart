@@ -4,9 +4,11 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'approvals.dart';
 import 'bookings.dart';
 import 'cart.dart';
 import 'catalog.dart';
+import 'customers.dart';
 import 'delivery.dart';
 import 'device.dart';
 import 'drawer.dart';
@@ -38,6 +40,9 @@ String greet({required String name}) =>
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>>
 abstract class MadarBridge implements RustOpaqueInterface {
+  /// Bind this device with a dashboard activation code (no manager login).
+  Future<BranchView> activateDevice({required String code});
+
   /// Add a ROUND of the current cart to an existing open ticket. Same offline-first
   /// path as `fire_ticket`; gated behind the original fire if it hasn't synced.
   Future<TicketFiredView> addTicketRound({
@@ -47,6 +52,23 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// The screen to show. Re-read at deliberate transitions only.
   AppRoute appRoute();
+
+  /// A manager approves the act with their own PIN on this device.
+  Future<ApprovalView> approveAct({
+    required String approverPin,
+    required String capKey,
+    PlatformInt64? amountMinor,
+    PlatformInt64? ageMinutes,
+    bool? own,
+  });
+
+  /// A manager approves an act on one sale with their PIN.
+  Future<ApprovalView> approveOrderAct({
+    required String approverPin,
+    required String capKey,
+    required String orderId,
+    PlatformInt64? amountMinor,
+  });
 
   /// Assign / move / unassign a parked draft's table. Errors loudly when the
   /// table is taken (interactive path — the teller picks another).
@@ -77,12 +99,23 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// for any host that needs the raw zone (e.g. a platform date picker).
   String branchTimezone();
 
+  /// Does the signed-in person hold capability `cap` (a generated `Cap` key)?
+  /// Screens gate on this, never on the role name. Offline it answers from the
+  /// synced teller row; unknown means no.
+  bool can({required String cap});
+
+  /// Not held, but the owner lets this person ask a manager to approve it.
+  bool canAskManager({required String cap});
+
   /// May the signed-in PIN user remove the service charge from a table's
   /// bill? Their effective `orders:waive_service` grant — never the role.
   bool canWaiveServiceCharge();
 
   /// Withdraw a waiting transfer wish.
   Future<void> cancelTransfer({required String id});
+
+  /// Every capability key the signed-in person holds.
+  List<String> capabilities();
 
   /// Add one unit of a menu item (merges into the matching line). The host
   /// passes the resolved display name + unit price so the cart is self-contained.
@@ -335,6 +368,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<String> optionalFieldIds,
   });
 
+  /// Add a customer; usable at once, synced through the queue.
+  CustomerView createCustomer({required String name, String? phone});
+
   /// Queue a party — a held order (`occupant_kind: "held_order"`) or an open
   /// ticket (`"open_ticket"`) — to move to a section or a specific table.
   Future<void> createTransfer({
@@ -352,8 +388,27 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   Future<TillView?> currentTill();
 
+  /// One customer from the till's list.
+  CustomerView? customerById({required String id});
+
   /// SQLite path the host handed us (empty => in-memory).
   String dbPath();
+
+  /// Allowed, needs a manager, or refused — for the signed-in person, offline.
+  ActDecisionView decideAct({
+    required String capKey,
+    PlatformInt64? amountMinor,
+    PlatformInt64? ageMinutes,
+    bool? own,
+  });
+
+  /// Allowed / needs a manager / refused for an act on one sale (whose sale
+  /// and how old come from the core's ledger).
+  ActDecisionView decideOrderAct({
+    required String capKey,
+    required String orderId,
+    PlatformInt64? amountMinor,
+  });
 
   /// Advance one step in the lifecycle from `current` (received→confirmed→…→
   /// delivered). Errors if there's no further forward step.
@@ -746,6 +801,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   Future<int> pendingOutboxCount();
 
+  /// Seconds before this tablet may try a PIN again (the server's growing
+  /// delay, persisted across restarts); 0 when it may now.
+  int pinWaitSeconds();
+
   /// What a configured line would cost (unit, extras, whole line) — priced
   /// by the resolver the add uses. Adds nothing.
   Future<LinePreviewView> previewConfiguredLine({
@@ -832,6 +891,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String method,
     required String reason,
     String? note,
+  });
+
+  /// Refund with a manager's approval.
+  Future<void> refundOrderApproved({
+    required String orderId,
+    required PlatformInt64 amountMinor,
+    required String method,
+    required String reason,
+    String? note,
+    ApprovalView? approval,
   });
 
   /// Give a restored draft's claim back without changes (the "never mind"
@@ -931,6 +1000,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required PlatformInt64 taxMinor,
     required PlatformInt64 totalMinor,
   });
+
+  /// Customers matching a name or phone digits, best first. Offline.
+  List<CustomerView> searchCustomers({required String query});
 
   /// Search the branch's orders ACROSS shifts (history lookup) with optional
   /// filters (status / teller / payment method / from-to dates) + pagination
@@ -1178,6 +1250,15 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String reason,
     String? note,
     required bool restoreInventory,
+  });
+
+  /// Void a sale with a manager's approval.
+  Future<void> voidOrderApproved({
+    required String orderId,
+    required String reason,
+    String? note,
+    required bool restoreInventory,
+    ApprovalView? approval,
   });
 
   /// VOID an open ticket (and pull its kitchen tickets off the KDS). Offline-first.

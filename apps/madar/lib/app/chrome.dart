@@ -218,8 +218,9 @@ enum ShellKind {
   waiter,
   teller;
 
-  static ShellKind of(String? role) =>
-      role == 'waiter' ? ShellKind.waiter : ShellKind.teller;
+  /// From capabilities: someone who takes money gets the teller shell.
+  static ShellKind of(CanFn can) =>
+      takesMoney(can) ? ShellKind.teller : ShellKind.waiter;
 }
 
 /// The tabs, by key. Bodies are built on first visit and kept alive after,
@@ -291,7 +292,10 @@ class _RoleShellState extends ConsumerState<RoleShell> {
 
   bool _reauthShowing = false;
 
-  ShellKind get _kind => ShellKind.of(ref.read(shellProvider).session?.role);
+  ShellKind get _kind {
+    final bridge = ref.read(bridgeProvider);
+    return ShellKind.of((c) => bridge.can(cap: c));
+  }
 
   @override
   void initState() {
@@ -719,7 +723,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
     final bridge = ref.bridge;
     final session = ref.watch(shellProvider.select((s) => s.session));
     final route = ref.watch(shellProvider.select((s) => s.route));
-    final kind = ShellKind.of(session?.role);
+    final kind = ShellKind.of((c) => bridge.can(cap: c));
     final hasFloor = ref.watch(orderProvider.select((s) => s.hasFloor));
     final tabs = _tabsFor(kind, hasFloor: hasFloor);
     final home = _homeFor(

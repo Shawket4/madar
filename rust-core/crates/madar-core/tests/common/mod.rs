@@ -227,6 +227,11 @@ pub async fn fixture(tellers: usize) -> Fixture {
 }
 
 pub async fn signed_in(base: &str, db_path: &str, teller: &str, branch: &str) -> Arc<MadarCore> {
+    signed_in_pin(base, db_path, teller, branch, "1234").await
+}
+
+/// [`signed_in`] with a PIN other than the fixture's shared "1234".
+pub async fn signed_in_pin(base: &str, db_path: &str, teller: &str, branch: &str, pin: &str) -> Arc<MadarCore> {
     let core = MadarCore::new(MadarConfig {
         base_url: base.to_string(),
         environment: "dev".into(),
@@ -244,7 +249,7 @@ pub async fn signed_in(base: &str, db_path: &str, teller: &str, branch: &str) ->
             .sign_in(LoginRequest {
                 mode: LoginMode::Pin,
                 name: Some(teller.to_string()),
-                pin: Some("1234".into()),
+                pin: Some(pin.into()),
                 branch_id: Some(branch.to_string()),
                 email: None,
                 password: None,
@@ -308,6 +313,7 @@ pub async fn sell(core: &MadarCore, qty: usize, method_id: &str, tendered: i64) 
                 splits: vec![],
                 loyalty_customer_id: None,
                 dine_in: false,
+                customer_id: None,
                 loyalty_redemptions: vec![],
             },
         )

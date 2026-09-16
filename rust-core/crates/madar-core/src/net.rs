@@ -161,6 +161,24 @@ impl ApiClient {
     /// e.g. `GET /menu-items?full=true` returns the rich `MenuItemFull` array but
     /// the generator types it `Vec<MenuItem>` (dropping sizes/slots). The mirror
     /// stores canonical JSON anyway (§8), so a text body is exactly what we want.
+    /// GET `path` with extra headers and no bearer (a device-authenticated read).
+    pub async fn get_with_headers(&self, path: &str, headers: &[(&str, &str)]) -> CoreResult<String> {
+        let url = format!("{}{}", self.base_url, path);
+        let mut rb = self.http().request(reqwest::Method::GET, &url);
+        for (name, value) in headers {
+            rb = rb.header(*name, *value);
+        }
+        let resp = rb.send().await.map_err(|e| classify_reqwest(&e))?;
+        self.observe_clock(&resp);
+        let status = resp.status();
+        let body = resp.text().await.map_err(|e| classify_reqwest(&e))?;
+        if status.is_success() {
+            Ok(body)
+        } else {
+            Err(status_to_error(status.as_u16(), &body))
+        }
+    }
+
     pub async fn get_text(&self, path: &str, query: &[(&str, String)]) -> CoreResult<String> {
         let url = format!("{}{}", self.base_url, path);
         let mut rb = self.http().request(reqwest::Method::GET, &url).query(query);
@@ -257,14 +275,13 @@ impl ApiClient {
         &self,
         path: &str,
         body: &B,
-        header: (&str, &str),
+        headers: &[(&str, &str)],
     ) -> CoreResult<String> {
         let url = format!("{}{}", self.base_url, path);
-        let mut rb = self
-            .http()
-            .request(reqwest::Method::POST, &url)
-            .json(body)
-            .header(header.0, header.1);
+        let mut rb = self.http().request(reqwest::Method::POST, &url).json(body);
+        for (name, value) in headers {
+            rb = rb.header(*name, *value);
+        }
         if let Some(token) = self
             .bearer
             .read()
@@ -512,6 +529,20 @@ pub(crate) fn payment_method_unavailable() -> CoreError {
         detail: PAYMENT_METHOD_UNAVAILABLE_DETAIL.into(),
     }
 }
+/// The backend's code for a PIN attempt refused by the growing delay.
+pub(crate) const PIN_THROTTLED: &str = "PIN_THROTTLED";
+
+/// Seconds to wait, when `e` is the growing-delay refusal.
+pub(crate) fn pin_throttle_seconds(e: &CoreError) -> Option<i64> {
+    match e {
+        CoreError::Server {
+            status: 429,
+            code,
+            detail,
+        } if code == PIN_THROTTLED => detail.parse().ok(),
+        _ => None,
+    }
+}
 pub(crate) const PAYMENT_METHOD_UNAVAILABLE_DETAIL: &str = "payment method not available here";
 
 /// The machine code in our error envelope (`ErrorBody.code`), when present.
@@ -527,6 +558,21 @@ fn extract_error_code(body: &str) -> Option<String> {
 pub(crate) fn status_to_error(status: u16, body: &str) -> CoreError {
     if extract_error_code(body).as_deref() == Some("PAYMENT_METHOD_UNAVAILABLE") {
         return payment_method_unavailable();
+    }
+    if status == 429 && extract_error_code(body).as_deref() == Some(PIN_THROTTLED) {
+        // Too many wrong PINs at this till (POS_SIGNIN_OVERHAUL §3.4). The
+        // server names the wait; `detail` carries it as whole seconds so the
+        // login path can store it and the PIN pad can count down from it.
+        let secs = serde_json::from_str::<serde_json::Value>(body)
+            .ok()
+            .and_then(|v| v.get("retry_after_seconds").and_then(|x| x.as_i64()))
+            .unwrap_or(1)
+            .max(1);
+        return CoreError::Server {
+            status,
+            code: PIN_THROTTLED.into(),
+            detail: secs.to_string(),
+        };
     }
     // Our backend ALWAYS answers an error with the `{ "error": "…" }` envelope
     // (`errors.rs::ErrorBody`); a captive portal / transparent proxy answers with
@@ -794,6 +840,21 @@ mod tests {
             }
             other => panic!("expected Validation, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn a_pin_delay_carries_its_seconds() {
+        let body = r#"{"error":"Too many wrong PINs. Try again in 15 seconds.","code":"PIN_THROTTLED","retry_after_seconds":15}"#;
+        let e = status_to_error(429, body);
+        assert_eq!(pin_throttle_seconds(&e), Some(15));
+        // Not a connectivity failure: a delayed PIN must never fall through to
+        // the offline unlock, which would sidestep the delay.
+        assert!(!is_connectivity_failure(&e));
+        // Any other 429 (the per-address governor) is not a PIN delay.
+        assert_eq!(
+            pin_throttle_seconds(&status_to_error(429, "Too Many Requests")),
+            None
+        );
     }
 
     #[test]

@@ -93,15 +93,21 @@ class _RouteHostState extends ConsumerState<_RouteHost> {
   /// The route → surface mapping. Screens are paramless per the contract —
   /// they reach the core through `bridgeProvider` themselves (the KDS
   /// keeps its station binding, pure data).
+  /// A kitchen-screen-only person (by capability). Re-read when the person
+  /// changes.
+  bool _kitchenOnly(WidgetRef ref) {
+    ref.watch(shellProvider.select((s) => s.session?.userId));
+    final bridge = ref.read(bridgeProvider);
+    return isKitchenOnly((c) => bridge.can(cap: c));
+  }
+
   Widget _screenFor(WidgetRef ref, AppRoute route) {
     return switch (route) {
       // A signed-in kitchen device parked on DeviceSetup needs its station
       // bound; everyone else gets the login screen, which embeds the
       // manager device-setup form when the device is unbound.
       AppRoute_DeviceSetup() =>
-        ref.watch(shellProvider.select((s) => s.session?.role)) == 'kitchen'
-            ? const StationPickerScreen()
-            : const LoginScreen(),
+        _kitchenOnly(ref) ? const StationPickerScreen() : const LoginScreen(),
       AppRoute_Login() => const LoginScreen(),
       // Signed in: the person's shell decides the tabs from the role. A
       // teller with no till is not walled off — the shell opens on Till,

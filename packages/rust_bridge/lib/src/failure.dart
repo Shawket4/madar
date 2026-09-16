@@ -18,6 +18,10 @@ extension MadarErrorMessage on MadarBridge {
             ? detail
             : '${field.replaceAll('_', ' ')} $detail',
       ),
+      // The growing delay after wrong PINs: `detail` is the wait in seconds.
+      MadarError_Server(code: 'PIN_THROTTLED', :final detail) => tr(
+        key: 'login.pin_wait',
+      ).replaceAll('{seconds}', detail),
       MadarError_Server(:final detail) => _or(detail),
       MadarError_Transient() => tr(key: 'err.network'),
       MadarError_Forbidden() => tr(key: 'err.not_allowed'),
@@ -41,6 +45,10 @@ const Map<String, String> coreDetailKeys = {
   'not signed in': 'err.not_signed_in',
   'token expired': 'err.session_expired',
   'wrong pin': 'err.wrong_pin',
+  'activation code not valid': 'err.activation_code_invalid',
+  'this PIN belongs to more than one person': 'err.pin_not_unique',
+  'This PIN belongs to more than one person. Ask a manager for a new PIN.':
+      'err.pin_not_unique',
   'PIN not recognized.': 'err.wrong_pin',
   'no offline bundle cached — sign in online once first':
       'err.no_offline_bundle',
