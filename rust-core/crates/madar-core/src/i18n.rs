@@ -813,7 +813,10 @@ fn en(key: &str) -> Option<&'static str> {
         "nav.me" => "Me",
         "chrome.stuck" => "stuck",
         // sell (order entry)
-        "sell.takeaway" => "Takeaway",
+        // The SELL header only: a counter sale is a pickup, not a takeaway —
+        // "Takeaway" reads as the opposite of dine-in, which the dine-in/
+        // takeaway service mode now owns. History and Charge keep "Takeaway".
+        "sell.takeaway" => "Pickup",
         "sell.parked" => "Parked",
         "sell.park" => "Park",
         "sell.parked_empty" => "Nothing parked",
@@ -1953,7 +1956,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "nav.me" => "أنا",
         "chrome.stuck" => "متعثر",
         // sell (order entry)
-        "sell.takeaway" => "تيك أواي",
+        "sell.takeaway" => "استلام",
         "sell.parked" => "مركونة",
         "sell.park" => "اركن الطلب",
         "sell.parked_empty" => "لا طلبات مركونة",
