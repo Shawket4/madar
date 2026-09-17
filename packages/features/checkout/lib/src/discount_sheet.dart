@@ -1,10 +1,9 @@
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/src/manager_approval_sheet.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
-
-import 'manager_approval_sheet.dart';
 
 /// The cart's discount (phase 6): a preset, an amount typed by hand, or a
 /// percentage typed by hand. Only the kinds this person holds (or may ask a

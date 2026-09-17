@@ -50,8 +50,8 @@ export 'src/kitchen_chit_sheet.dart'
         chitPreviewProvider,
         chitPrintToast;
 export 'src/loyalty_award_sheet.dart' show LoyaltyAwardSheet;
-export 'src/manager_approval_sheet.dart' show askManagerWith;
 export 'src/loyalty_scan_sheet.dart' show LoyaltyScanSheet;
+export 'src/manager_approval_sheet.dart' show askManagerWith;
 export 'src/receipt_paper.dart' show ReceiptPaper;
 export 'src/receipt_printing.dart'
     show

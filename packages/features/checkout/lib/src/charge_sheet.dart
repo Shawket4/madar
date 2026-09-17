@@ -1820,7 +1820,7 @@ Future<bool> showCartDiscountPicker(
     return false;
   }
   if (!context.mounted) return false;
-  return showCartDiscountSheet(
+  return await showCartDiscountSheet(
     context,
     ref,
     presets: discounts,

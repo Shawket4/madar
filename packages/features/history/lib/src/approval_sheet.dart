@@ -1,3 +1,4 @@
+import 'package:app_core/app_core.dart';
 import 'package:feature_checkout/feature_checkout.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
