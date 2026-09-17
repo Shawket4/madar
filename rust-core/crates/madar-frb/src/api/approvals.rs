@@ -22,6 +22,7 @@ pub struct _ApprovalView {
     pub approver_id: String,
     pub approver_name: String,
     pub amount_minor: Option<i64>,
+    pub value_minor: Option<i64>,
 }
 
 impl MadarBridge {

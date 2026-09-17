@@ -35,6 +35,7 @@ pub mod catstyle;
 /// Checkout — assemble an order from the cart + place it via the outbox.
 pub mod checkout;
 pub mod customers;
+pub mod waste;
 /// Delivery-order management (teller side) — list/advance/cancel/finalize.
 pub mod delivery;
 /// Device binding (branch / till / station / printer / reconfigure) — persisted in
@@ -1443,6 +1444,10 @@ impl MadarCore {
                     Idem::Yes,
                 )
             }
+            "record_waste" => match waste::replay_envelope(&item.payload, &teller_id, delta) {
+                Ok(env) => (env, Idem::No),
+                Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
+            },
             "award_loyalty_points" => {
                 let mut cmd: loyalty::AwardCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,

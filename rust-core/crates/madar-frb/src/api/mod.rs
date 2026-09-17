@@ -19,3 +19,4 @@ pub mod tickets;
 pub mod drawer;
 pub mod till;
 pub mod types;
+pub mod waste;
