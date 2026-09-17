@@ -758,13 +758,34 @@ class ReceiptView {
           loyaltyNotice == other.loyaltyNotice;
 }
 
+/// A line picked on the refund sheet.
+class RefundLinePick {
+  final String orderItemId;
+  final int qty;
+
+  const RefundLinePick({required this.orderItemId, required this.qty});
+
+  @override
+  int get hashCode => orderItemId.hashCode ^ qty.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RefundLinePick &&
+          runtimeType == other.runtimeType &&
+          orderItemId == other.orderItemId &&
+          qty == other.qty;
+}
+
 class RefundLineView {
+  final String orderItemId;
   final String itemName;
   final int qty;
   final PlatformInt64 amountMinor;
   final bool restocked;
 
   const RefundLineView({
+    required this.orderItemId,
     required this.itemName,
     required this.qty,
     required this.amountMinor,
@@ -773,6 +794,7 @@ class RefundLineView {
 
   @override
   int get hashCode =>
+      orderItemId.hashCode ^
       itemName.hashCode ^
       qty.hashCode ^
       amountMinor.hashCode ^
@@ -783,6 +805,7 @@ class RefundLineView {
       identical(this, other) ||
       other is RefundLineView &&
           runtimeType == other.runtimeType &&
+          orderItemId == other.orderItemId &&
           itemName == other.itemName &&
           qty == other.qty &&
           amountMinor == other.amountMinor &&
@@ -855,6 +878,50 @@ class RefundView {
           issuedByName == other.issuedByName &&
           lines == other.lines &&
           queued == other.queued;
+}
+
+/// One line of a sale as the refund sheet offers it.
+class RefundableLineView {
+  final String orderItemId;
+  final String name;
+  final String? sizeLabel;
+  final int soldQty;
+
+  /// Units not yet named by an earlier refund.
+  final int refundableQty;
+
+  /// One unit's share of the line total, minor units.
+  final PlatformInt64 unitShareMinor;
+
+  const RefundableLineView({
+    required this.orderItemId,
+    required this.name,
+    this.sizeLabel,
+    required this.soldQty,
+    required this.refundableQty,
+    required this.unitShareMinor,
+  });
+
+  @override
+  int get hashCode =>
+      orderItemId.hashCode ^
+      name.hashCode ^
+      sizeLabel.hashCode ^
+      soldQty.hashCode ^
+      refundableQty.hashCode ^
+      unitShareMinor.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RefundableLineView &&
+          runtimeType == other.runtimeType &&
+          orderItemId == other.orderItemId &&
+          name == other.name &&
+          sizeLabel == other.sizeLabel &&
+          soldQty == other.soldQty &&
+          refundableQty == other.refundableQty &&
+          unitShareMinor == other.unitShareMinor;
 }
 
 /// The tender screen's figures.

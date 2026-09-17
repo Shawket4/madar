@@ -1709,6 +1709,7 @@ async fn without_the_grant_the_till_counts_blind_and_one_pin_unlocks_one_look() 
     let fake = crate::approvals::ApprovalView {
         id: "nope".into(), capability: crate::cash_spot::CAP_CASH_SPOT.into(),
         approver_id: "m".into(), approver_name: "M".into(), amount_minor: None,
+        percent_bps: None, value_minor: None,
     };
     assert!(core.cash_spot_view(Some(fake.clone())).await.is_err(), "a made-up approval unlocks nothing");
     let till_id = core.current_till().unwrap().unwrap().id;

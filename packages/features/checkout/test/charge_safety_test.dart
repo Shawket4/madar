@@ -157,6 +157,11 @@ class _Fake implements MadarBridge {
         ),
       );
     }
+    if (name == #cartDiscount) {
+      return Future<CartDiscountView>.value(
+        const CartDiscountView(kind: '', offMinor: 0),
+      );
+    }
     if (name == #cartDiscountId) return Future<String?>.value();
     if (name == #cartTotals) {
       return Future<CartTotals>.value(

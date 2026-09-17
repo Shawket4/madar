@@ -36,8 +36,10 @@ pub mod catstyle;
 /// Checkout — assemble an order from the cart + place it via the outbox.
 pub mod checkout;
 pub mod customers;
+pub mod waste;
 /// Delivery-order management (teller side) — list/advance/cancel/finalize.
 pub mod delivery;
+pub mod discounts;
 /// Device binding (branch / till / station / printer / reconfigure) — persisted in
 /// the CORE store so the hosts hold no device state (THE ONE RULE).
 pub mod device;
@@ -81,6 +83,8 @@ pub mod recipe;
 pub mod render;
 /// Dashboard analytics reads — projected KPI DTOs for the management app.
 pub mod reports;
+/// The till's Metrics screen (`reports.pos_metrics`): one call online, the ledger offline.
+pub mod metrics;
 /// Reservations & floor-plan view types (host operations exported from `lib.rs`).
 pub mod reservations;
 /// Session & auth — online login, offline unlock, token custody (PLAN §7.2).
@@ -1444,6 +1448,10 @@ impl MadarCore {
                     Idem::Yes,
                 )
             }
+            "record_waste" => match waste::replay_envelope(&item.payload, &teller_id, delta) {
+                Ok(env) => (env, Idem::No),
+                Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
+            },
             "award_loyalty_points" => {
                 let mut cmd: loyalty::AwardCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
@@ -2970,7 +2978,10 @@ fn mirror_replay_op(store: &store::Store, envelope_json: &str) {
                     "till_id": str_of(&request, "till_id"), "amount": request.get("amount").cloned().unwrap_or(serde_json::json!(0)),
                     "method": method, "is_cash": ledger::local::is_cash_of(&methods, &method),
                     "reason": str_of(&request, "reason"), "note": str_of(&request, "note"), "issued_by_name": teller_name,
-                    "issued_at": str_of(&request, "issued_at").unwrap_or(event_at.clone()), "lines": [],
+                    "issued_at": str_of(&request, "issued_at").unwrap_or(event_at.clone()),
+                    // The peer's picked items, so this device's refundable
+                    // counts agree with the peer's before either syncs.
+                    "lines": request.get("lines").and_then(|v| v.as_array()).cloned().unwrap_or_default(),
                 });
                 backup.entity_type = Some(ledger::T_REFUND.into());
                 backup.entity_id = Some(key);
@@ -6336,9 +6347,32 @@ impl MadarCore {
             now,
         )?;
 
+        let mut prepared = prepared;
+        // The discount, re-decided on the sale's REAL figures (the cart may have
+        // grown since it was applied): allowed, covered by the manager approval
+        // kept with the cart, or refused before anything is committed.
+        if let Some(kind) = prepared.command.request.discount_kind.clone().flatten() {
+            let r = &prepared.command.request;
+            let amount = r.discount_amount.flatten().map(i64::from);
+            let bps = r.discount_percent_bps.flatten().map(i64::from);
+            if let Some(req) = discounts::discount_request(&kind, amount, bps) {
+                let kept = cart::discount_approval(&self.store, table_id.as_deref())?;
+                let approval = self.discount_authority(&req, kept)?;
+                let (me, _) = self.outbox_meta();
+                let r = &mut prepared.command.request;
+                r.discount_applied_by = me
+                    .as_deref()
+                    .and_then(|u| uuid::Uuid::parse_str(u).ok())
+                    .map(Some);
+                r.discount_approval_id = approval
+                    .as_ref()
+                    .and_then(|a| uuid::Uuid::parse_str(&a.id).ok())
+                    .map(Some);
+                prepared.command.approval = approval.as_ref().map(approvals::approval_wire);
+            }
+        }
         // Per-device numbering (contract §4.7): the minted RRRR is the order number,
         // sent with the device code and the till's verification.
-        let mut prepared = prepared;
         let dev = self.lan_device_id();
         let code = checkout::device_code_or_default(&self.store);
         if let Some(n) = prepared.receipt.order_number {
@@ -7122,7 +7156,12 @@ impl MadarCore {
         let note = note_for_reason(&reason, mapped == madar_api::models::VoidReason::Other, note)?;
         let mut request = madar_api::models::VoidOrderRequest::new(mapped.to_string());
         request.note = Some(note);
-        request.restore_inventory = Some(Some(restore_inventory));
+        // A VOID ALWAYS RESTORES STOCK: the sale never happened, so nothing
+        // was made or handed over. `restore_inventory` is kept on the
+        // signature for older callers and ignored; the server ignores the
+        // field too. Made-and-served food is a REFUND (its stock is waste).
+        let _ = restore_inventory;
+        request.restore_inventory = Some(Some(true));
         request.voided_at = Some(Some(voided_at));
 
         // The void targets a SYNCED order (server id), so it has no queued
@@ -7231,6 +7270,27 @@ impl MadarCore {
         note: Option<String>,
         approval: Option<approvals::ApprovalView>,
     ) -> Result<(), CoreError> {
+        self.refund_order_lines_approved(order_id, amount_minor, method, reason, note, Vec::new(), approval)
+            .await
+    }
+
+    /// A refund naming the ITEMS it is for (`lines`, from
+    /// [`Self::refundable_lines`]). A refunded item was made and served, so
+    /// its stock is not restored: the server logs its share of the sale's
+    /// deductions as waste (reason `refund`), proportionally per unit. With no
+    /// lines the refund is money only, unless it returns the whole rest of the
+    /// sale (then every unit not already refunded is waste).
+    #[allow(clippy::too_many_arguments)]
+    pub async fn refund_order_lines_approved(
+        &self,
+        order_id: String,
+        amount_minor: i64,
+        method: String,
+        reason: String,
+        note: Option<String>,
+        lines: Vec<orders::RefundLinePick>,
+        approval: Option<approvals::ApprovalView>,
+    ) -> Result<(), CoreError> {
         if !self.is_authenticated() {
             return Err(CoreError::Unauthenticated {
                 detail: "not signed in".into(),
@@ -7268,6 +7328,46 @@ impl MadarCore {
             order_uuid,
             map_refund_reason(&reason),
         );
+        // The picked lines, each with its share of the amount. Only lines the
+        // sale holds and that still have units left; the server re-checks.
+        let picks: Vec<orders::RefundLinePick> = lines.into_iter().filter(|l| l.qty > 0).collect();
+        let mut line_rows: Vec<serde_json::Value> = Vec::new();
+        if !picks.is_empty() {
+            let offered = self.refundable_lines(order_id.clone()).await?;
+            let mut chosen: Vec<(&orders::RefundableLineView, i32)> = Vec::new();
+            for p in &picks {
+                let Some(l) = offered.iter().find(|l| l.order_item_id == p.order_item_id) else {
+                    return Err(CoreError::Validation {
+                        field: "lines".into(),
+                        detail: "that item is not on this sale".into(),
+                    });
+                };
+                if p.qty > l.refundable_qty {
+                    return Err(CoreError::Validation {
+                        field: "lines".into(),
+                        detail: format!("only {} of {} can still be refunded", l.refundable_qty, l.name),
+                    });
+                }
+                chosen.push((l, p.qty));
+            }
+            let amounts = orders::refund_line_amounts(
+                &chosen.iter().map(|(l, q)| (l.unit_share_minor, *q)).collect::<Vec<_>>(),
+                amount_minor,
+            );
+            let mut inputs = Vec::new();
+            for ((l, q), amount) in chosen.iter().zip(amounts) {
+                let item = uuid::Uuid::parse_str(&l.order_item_id).map_err(|_| CoreError::Validation {
+                    field: "lines".into(),
+                    detail: "the sale's line has no server id".into(),
+                })?;
+                inputs.push(madar_api::models::RefundLineInput::new(amount as i32, item, *q));
+                line_rows.push(serde_json::json!({
+                    "order_item_id": l.order_item_id, "item_name": l.name,
+                    "quantity": q, "amount": amount, "restock": false,
+                }));
+            }
+            request.lines = Some(inputs);
+        }
         let note = note_for_reason(&reason, request.reason == madar_api::models::RefundReason::Other, note)?;
         request.note = Some(note);
         request.issued_at = Some(Some(issued_at));
@@ -7294,7 +7394,7 @@ impl MadarCore {
             "issued_by_name": self.current_session().map(|s| s.display_name).unwrap_or_default(),
             "issued_at": issued_at.to_rfc3339(),
             "created_at": issued_at.to_rfc3339(),
-            "lines": [],
+            "lines": line_rows,
         });
         let cmd = orders::RefundOrderCommand {
             request,
@@ -10617,6 +10717,7 @@ mod lifecycle_tests {
                 order_number: 12,
                 verification: "lan".into(),
             }),
+            approval: None,
         };
         let env = checkout::order_envelope(&cmd, "t", &core.device_id());
         assert_eq!(env["device_code"], "36B");

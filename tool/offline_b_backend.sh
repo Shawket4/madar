@@ -5,7 +5,7 @@
 #   tool/offline_b_backend.sh --perf     # also the large-branch performance probe
 #
 # What it does, and undoes:
-#   1. builds the backend (`madar-rust`, release) from $MADAR_RUST;
+#   1. builds the backend (`madar-rust`, the `scenario` profile: release without LTO) from $MADAR_RUST;
 #   2. copies a LOCAL database with `createdb -T` ($MADAR_OB_SOURCE_DB, default
 #      madar_dash_tills) — never madar_dev or madar_prodcopy, which it refuses;
 #   3. starts the backend on a free port against the copy (it migrates the copy);
@@ -24,7 +24,8 @@
 #   MADAR_OB_BACKEND_TARGET_DIR  the backend's cargo target dir (default $MADAR_RUST/target)
 #   MADAR_OB_TESTS        space-separated test targets (default offline_b_backend;
 #                         readpath_parity = the read-path parity scenarios,
-#                         pricing_backend = the PRICING_TAX_AUDIT scenarios)
+#                         pricing_backend = the PRICING_TAX_AUDIT scenarios,
+#                         metrics_backend = the Metrics screen: device vs endpoint)
 #   MADAR_OB_FILTER       a test-name filter within the targets (default: all)
 #   MADAR_OB_TEST         one test target (older name; used when MADAR_OB_TESTS is unset)
 #   CARGO_TARGET_DIR      this repo's cargo target dir, as usual

@@ -306,6 +306,15 @@ impl MadarCore {
         Ok(self.with_pending_refunds(orders::order_refunds_view(&r)))
     }
 
+    /// The sale's lines and how many units of each may still be refunded —
+    /// the refund sheet's item picker. Earlier refunds, queued ones included,
+    /// are taken off.
+    pub async fn refundable_lines(&self, order_id: String) -> Result<Vec<orders::RefundableLineView>, CoreError> {
+        let full = self.order_full_for(&order_id).await?;
+        let refunds = self.list_order_refunds(order_id).await?;
+        Ok(orders::refundable_lines(&full, &refunds, &self.current_locale()))
+    }
+
     /// Every refund issued from a till's drawer.
     pub async fn list_till_refunds(&self, till_id: String) -> Result<orders::TillRefundsView, CoreError> {
         self.fill_till_soon(&till_id);

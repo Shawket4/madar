@@ -26,6 +26,7 @@ import 'package:feature_till/src/open_till_screen.dart';
 import 'package:feature_till/src/till_history_screen.dart';
 import 'package:feature_till/src/till_notices.dart';
 import 'package:feature_till/src/till_providers.dart';
+import 'package:feature_till/src/waste_screen.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -99,11 +100,35 @@ class TillScreen extends ConsumerWidget {
       // No drawer: the tab IS the open-till form. A manager still sees the
       // branch's drawers underneath — the morning check needs no float.
       width = MadarContentWidth.form;
+      // Waste needs no drawer (it is stock, not money): offered here too,
+      // under the same capability check as with a till open.
+      final wasteRow = bridge.canRecordWaste()
+          ? MadarCard.column(
+              flush: true,
+              children: [
+                MadarListRow.nav(
+                  title: t('waste.title'),
+                  glyph: MadarGlyph.trash,
+                  onTap: () => _push(context, ref, WasteScreen.new),
+                ),
+              ],
+            )
+          : null;
       body = OpenTillScreen(
         embedded: true,
-        below: isManager
-            ? DrawersCard(onSeeAll: () => _push(context, ref, _pastTills))
-            : null,
+        below: wasteRow == null && !isManager
+            ? null
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: Space.xl,
+                children: [
+                  ?wasteRow,
+                  if (isManager)
+                    DrawersCard(
+                      onSeeAll: () => _push(context, ref, _pastTills),
+                    ),
+                ],
+              ),
       );
     } else {
       width = MadarContentWidth.full;
@@ -155,10 +180,13 @@ class _DrawerHome extends ConsumerWidget {
 
     void cashInOut() => _push(context, ref, CashMovementsScreen.new);
     void pastTills() => _push(context, ref, _pastTills);
+    // Hidden unless the person holds the capability or may ask a manager.
+    final canWaste = bridge.canRecordWaste();
 
     final links = _Links(
       onOpenOrders: onOpenOrders,
       onCashInOut: cashInOut,
+      onWaste: canWaste ? () => _push(context, ref, WasteScreen.new) : null,
       onPastTills: pastTills,
     );
     final ledger = CashLedger(
@@ -370,11 +398,15 @@ class _Links extends ConsumerWidget {
   const _Links({
     required this.onOpenOrders,
     required this.onCashInOut,
+    required this.onWaste,
     required this.onPastTills,
   });
 
   final VoidCallback? onOpenOrders;
   final VoidCallback onCashInOut;
+
+  /// Record waste; null hides the row (no capability, no ask-a-manager).
+  final VoidCallback? onWaste;
   final VoidCallback onPastTills;
 
   @override
@@ -410,6 +442,14 @@ class _Links extends ConsumerWidget {
               valueText: MadarFormat.ltr('$movementCount'),
               onTap: onCashInOut,
             ),
+            if (onWaste != null) ...[
+              const MadarHairline.row(),
+              MadarListRow.nav(
+                title: t('waste.title'),
+                glyph: MadarGlyph.trash,
+                onTap: onWaste,
+              ),
+            ],
             const MadarHairline.row(),
             MadarListRow.nav(
               title: t('spot.button'),

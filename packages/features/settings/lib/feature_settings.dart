@@ -10,6 +10,8 @@
 library;
 
 export 'src/me_screen.dart' show MeBillsNotifier, MeScreen, meBillsProvider;
+export 'src/metrics_screen.dart'
+    show MetricsNotifier, MetricsScreen, MetricsState, metricsProvider;
 export 'src/settings_provider.dart'
     show SettingsNotifier, SettingsState, settingsProvider;
 export 'src/settings_screen.dart'
