@@ -231,6 +231,9 @@ pub struct RefundView {
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RefundLineView {
+    /// The sale's line (`order_items.id`); empty on a row from an older cache.
+    #[serde(default)]
+    pub order_item_id: String,
     pub item_name: String,
     pub qty: i32,
     pub amount_minor: i64,
@@ -254,6 +257,7 @@ pub(crate) fn refund_view(r: &models::RefundFull) -> RefundView {
             .lines
             .iter()
             .map(|l| RefundLineView {
+                order_item_id: l.order_item_id.to_string(),
                 item_name: l.item_name.clone(),
                 qty: l.quantity,
                 amount_minor: l.amount as i64,
@@ -261,6 +265,78 @@ pub(crate) fn refund_view(r: &models::RefundFull) -> RefundView {
             })
             .collect(),
     }
+}
+
+/// One line of a sale as the refund sheet offers it.
+///
+/// A refunded item was made and served: its stock stays deducted and the
+/// server logs it as waste (reason `refund`). So the sheet asks WHICH items
+/// the money is for; a refund that names none is money only (an overcharge,
+/// goodwill) unless it returns the whole rest of the sale.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RefundableLineView {
+    pub order_item_id: String,
+    pub name: String,
+    pub size_label: Option<String>,
+    pub sold_qty: i32,
+    /// Units not yet named by an earlier refund (queued ones included).
+    pub refundable_qty: i32,
+    /// What one unit of the line charged, minor units (line total ÷ quantity).
+    pub unit_share_minor: i64,
+}
+
+/// A line the teller picked on the refund sheet.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RefundLinePick {
+    pub order_item_id: String,
+    pub qty: i32,
+}
+
+/// The sale's lines with what is still refundable on each.
+pub(crate) fn refundable_lines(
+    o: &models::OrderFull,
+    refunds: &OrderRefundsView,
+    locale: &str,
+) -> Vec<RefundableLineView> {
+    o.items
+        .iter()
+        .filter(|it| it.quantity > 0)
+        .map(|it| {
+            let id = it.id.to_string();
+            let done: i32 = refunds
+                .refunds
+                .iter()
+                .flat_map(|r| r.lines.iter())
+                .filter(|l| l.order_item_id == id)
+                .map(|l| l.qty)
+                .sum();
+            RefundableLineView {
+                order_item_id: id,
+                name: loc(&it.name_translations, &it.item_name, locale),
+                size_label: it.size_label.clone().filter(|s| !s.is_empty()),
+                sold_qty: it.quantity,
+                refundable_qty: (it.quantity - done).max(0),
+                unit_share_minor: i64::from(it.line_total) / i64::from(it.quantity.max(1)),
+            }
+        })
+        .collect()
+}
+
+/// Each picked line's share of a refund of `amount_minor`: unit share × qty,
+/// scaled down together when they add up to more than the refund (the server
+/// refuses lines that exceed it), never negative.
+pub(crate) fn refund_line_amounts(shares: &[(i64, i32)], amount_minor: i64) -> Vec<i64> {
+    let raw: Vec<i64> = shares.iter().map(|(u, q)| (u * i64::from(*q)).max(0)).collect();
+    let total: i64 = raw.iter().sum();
+    if total <= amount_minor || total == 0 {
+        return raw;
+    }
+    let out: Vec<i64> = raw.iter().map(|r| r * amount_minor.max(0) / total).collect();
+    // Integer division only rounds down, so the sum never passes the amount.
+    debug_assert!(out.iter().sum::<i64>() <= amount_minor.max(0));
+    out
 }
 
 pub(crate) fn order_refunds_view(r: &models::OrderRefunds) -> OrderRefundsView {
@@ -630,6 +706,15 @@ pub fn merge_for_view(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn refund_line_amounts_scale_down_to_the_refund() {
+        assert_eq!(refund_line_amounts(&[(500, 2), (300, 1)], 5000), vec![1000, 300]);
+        let scaled = refund_line_amounts(&[(500, 2), (300, 1)], 650);
+        assert!(scaled.iter().sum::<i64>() <= 650);
+        assert_eq!(scaled, vec![500, 150]);
+        assert_eq!(refund_line_amounts(&[], 100), Vec::<i64>::new());
+    }
+
     use super::*;
 
 

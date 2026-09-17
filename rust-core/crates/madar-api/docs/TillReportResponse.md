@@ -24,6 +24,7 @@ Name | Type | Description | Notes
 **safe_drops** | **i64** |  | 
 **service_charge_waived_amount** | Option<**i64**> |  | [optional]
 **service_charge_waived_count** | Option<**i64**> | Table bills whose service charge was removed (`orders:waive_service`), and what those charges came to. Not part of any total. | [optional]
+**spot_views** | Option<[**Vec<models::TillSpotView>**](TillSpotView.md)> | Who viewed (and printed) the cash spot report of this till, oldest first. Additive. | [optional]
 **standard_float** | Option<**i64**> | `branches.standard_float`. | [optional]
 **suggested_safe_drop** | Option<**i64**> |  | [optional]
 **timezone** | Option<**String**> |  | [optional]
@@ -33,6 +34,8 @@ Name | Type | Description | Notes
 **total_tips** | **i64** |  | 
 **voided_amount** | **i64** |  | 
 **as_of_seq** | Option<**i64**> | The branch changefeed horizon read BEFORE the figures (OFFLINE_B_DESIGN §7): every change with `seq <= as_of_seq` is in this report. A device whose cursor has reached it, with nothing of the till still on its way, can take these figures as the authority. `0` when no horizon was available (then it is never newer than any cursor). Additive. | [optional]
+**held_orders_left_open** | Option<**i32**> | \"N held orders left open\" at this close (see [`Till`]). Additive. | [optional]
+**held_orders_left_open_total** | Option<**i32**> |  | [optional]
 **old_bills_at_close** | Option<**i32**> |  | [optional]
 **open_bills_at_close** | Option<**i32**> |  | [optional]
 **order_number_range** | [**models::OrderNumberRange**](OrderNumberRange.md) |  | 

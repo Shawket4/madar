@@ -68,6 +68,8 @@ pub(crate) fn report_keyed(r: &crate::till::TillReportView) -> BTreeMap<String, 
     put("order_number_last", format!("{:?}", r.order_number_last));
     put("old_bills_count", format!("{:?}", r.old_bills_count));
     put("open_bills_count", format!("{:?}", r.open_bills_count));
+    put("held_orders_left_open", format!("{:?}", r.held_orders_left_open));
+    put("held_orders_left_open_total_minor", format!("{:?}", r.held_orders_left_open_total_minor));
     put("opened_while_another_open", r.opened_while_another_open.to_string());
     put("verification", r.verification.clone());
     for p in &r.payment_lines {

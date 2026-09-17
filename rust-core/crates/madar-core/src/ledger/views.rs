@@ -302,8 +302,11 @@ pub(crate) fn till_report_rows(store: &Store, till_id: &str, label: &dyn Fn(&str
         reconciliation,
         old_bills_count: opt_i("old_bills_at_close"),
         open_bills_count: opt_i("open_bills_at_close"),
+        held_orders_left_open: opt_i("held_orders_left_open"),
+        held_orders_left_open_total_minor: opt_i("held_orders_left_open_total"),
         opened_while_another_open: flag("opened_while_another_open"),
         verification: s(t, "verification").unwrap_or("legacy").to_string(),
+        spot_views: f.spot_views.iter().map(crate::cash_spot::line_view).collect(),
     }))
 }
 
@@ -371,6 +374,7 @@ fn refund_view(conn: &Connection, rkey: &str, server_id: Option<String>, v: &Val
             .map(|ls| {
                 ls.iter()
                     .map(|l| RefundLineView {
+                        order_item_id: s(l, "order_item_id").unwrap_or("").to_string(),
                         item_name: s(l, "item_name").unwrap_or("").to_string(),
                         qty: i(l, "quantity") as i32,
                         amount_minor: i(l, "amount"),

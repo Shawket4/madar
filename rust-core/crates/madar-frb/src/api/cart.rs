@@ -200,6 +200,10 @@ pub struct _DraftView {
     /// True when ANOTHER till is editing this order right now — the chip
     /// renders locked and cannot be restored.
     pub locked_by_other: bool,
+    /// Someone other than the signed-in person started it: show whose it is.
+    pub by_other: bool,
+    /// Who started it, when known.
+    pub created_by_name: Option<String>,
 }
 
 /// One effective ingredient line, tagged by origin so the sheet can chip it.
@@ -462,16 +466,19 @@ impl MadarBridge {
     /// Resume a parked order in one call: park `from_table_id`'s cart (if
     /// asked), park anything already in the draft's own context, restore the
     /// draft there with its meta. Activates nothing: the view's `table_id`
-    /// names the context the host should now show.
+    /// names the context the host should now show. Resuming an order someone
+    /// else started carries the manager's `approval` when `decide_draft_act`
+    /// asked for one.
     pub fn switch_to_draft(
         &self,
         from_table_id: Option<String>,
         id: String,
         park_in_hand: Option<HeldParkInput>,
         park_at_target: Option<HeldParkInput>,
+        approval: Option<crate::api::approvals::ApprovalView>,
     ) -> Result<DraftSwitchView, MadarError> {
         self.inner
-            .switch_to_draft(from_table_id, id, park_in_hand, park_at_target)
+            .switch_to_draft_approved(from_table_id, id, park_in_hand, park_at_target, approval)
             .map_err(MadarError::from)
     }
     /// Give a restored draft's claim back without changes (the "never mind"
@@ -486,9 +493,17 @@ impl MadarBridge {
         self.inner.rename_draft(id, name).map_err(MadarError::from)
     }
 
-    /// Discard a parked draft (frees its table + any waitlist wish).
-    pub fn discard_draft(&self, id: String) -> Result<(), MadarError> {
-        self.inner.discard_draft(id).map_err(MadarError::from)
+    /// Discard a parked draft (frees its table + any waitlist wish). One
+    /// someone else started carries the manager's `approval` when
+    /// `decide_draft_act("discard")` asked for one.
+    pub fn discard_draft(
+        &self,
+        id: String,
+        approval: Option<crate::api::approvals::ApprovalView>,
+    ) -> Result<(), MadarError> {
+        self.inner
+            .discard_draft_approved(id, approval)
+            .map_err(MadarError::from)
     }
 
     /// Mark a restored draft COMPLETED after its cart checked out — the host

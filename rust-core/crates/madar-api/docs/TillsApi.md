@@ -7,6 +7,7 @@ Method | HTTP request | Description
 [**add_cash_movement**](TillsApi.md#add_cash_movement) | **POST** /tills/{till_id}/cash-movements | 
 [**close_preview**](TillsApi.md#close_preview) | **GET** /tills/{till_id}/close-preview | 
 [**close_till**](TillsApi.md#close_till) | **POST** /tills/{till_id}/close | 
+[**create_spot_view**](TillsApi.md#create_spot_view) | **POST** /tills/{till_id}/spot-views | 
 [**delete_till**](TillsApi.md#delete_till) | **DELETE** /tills/{till_id} | 
 [**force_close_till**](TillsApi.md#force_close_till) | **POST** /tills/{till_id}/force-close | 
 [**get_current_till**](TillsApi.md#get_current_till) | **GET** /tills/branches/{branch_id}/current | 
@@ -16,6 +17,7 @@ Method | HTTP request | Description
 [**legacy_list_till_entities**](TillsApi.md#legacy_list_till_entities) | **GET** /tills | `GET /tills` — the removed entity list, synthesized (one \"Till 1\" per branch).
 [**list_cash_movements**](TillsApi.md#list_cash_movements) | **GET** /tills/{till_id}/cash-movements | 
 [**list_open_tills**](TillsApi.md#list_open_tills) | **GET** /tills/branches/{branch_id}/open | 
+[**list_spot_views**](TillsApi.md#list_spot_views) | **GET** /tills/{till_id}/spot-views | 
 [**list_tills**](TillsApi.md#list_tills) | **GET** /tills/branches/{branch_id} | 
 [**open_till**](TillsApi.md#open_till) | **POST** /tills/branches/{branch_id}/open | 
 
@@ -94,6 +96,35 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::CloseTillResponse**](CloseTillResponse.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## create_spot_view
+
+> models::TillSpotView create_spot_view(till_id, spot_view_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**till_id** | **uuid::Uuid** | Till ID | [required] |
+**spot_view_request** | [**SpotViewRequest**](SpotViewRequest.md) |  | [required] |
+
+### Return type
+
+[**models::TillSpotView**](TillSpotView.md)
 
 ### Authorization
 
@@ -348,6 +379,34 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::Till>**](Till.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## list_spot_views
+
+> Vec<models::TillSpotView> list_spot_views(till_id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**till_id** | **uuid::Uuid** | Till ID | [required] |
+
+### Return type
+
+[**Vec<models::TillSpotView>**](TillSpotView.md)
 
 ### Authorization
 

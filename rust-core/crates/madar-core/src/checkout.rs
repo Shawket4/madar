@@ -31,6 +31,15 @@ pub struct CheckoutCommand {
     /// orders queued before the tills rework — those keep server numbering.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub device: Option<OrderDeviceStamp>,
+    /// Who started the order when it is not the person ringing it: a held
+    /// order resumed after a teller switch (queue.rs rule 5). Absent on every
+    /// older queued sale and on one's own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_by: Option<String>,
+    /// The manager's approval that let this person resume it, or that let the
+    /// sale's discount (phase 6) through. Absent on older queued sales.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval: Option<serde_json::Value>,
 }
 
 /// What a device-numbered order carries beside the generated request.
@@ -134,8 +143,15 @@ pub(crate) fn order_envelope(
         Some(d) => (d.device_id.clone(), Some(d.device_code.clone())),
         None => (this_device_id.to_string(), None),
     };
-    serde_json::json!({ "op": "create_order", "teller_id": teller_id, "device_id": device_id,
-        "device_code": device_code, "request": request })
+    if let (Some(by), Some(obj)) = (&cmd.started_by, request.as_object_mut()) {
+        obj.insert("started_by".into(), by.clone().into());
+    }
+    let mut envelope = serde_json::json!({ "op": "create_order", "teller_id": teller_id, "device_id": device_id,
+        "device_code": device_code, "request": request });
+    if let (Some(a), Some(obj)) = (&cmd.approval, envelope.as_object_mut()) {
+        obj.insert("approval".into(), a.clone());
+    }
+    envelope
 }
 
 /// A priced modifier on a receipt line (an addon or a chosen optional). The
@@ -742,6 +758,14 @@ pub(crate) fn prepare(
         request.discount_type = Some(Some(dtype.into()));
         request.discount_value = Some(Some(discount_value));
         request.discount_amount = Some(Some(priced.discount_minor as i32));
+        // Which act it was (phase 6) and its percentage in basis points; who
+        // applied it and the approval are stamped by the caller, which holds
+        // the session.
+        request.discount_kind = cart::discount_act(store, ctx)?.map(Some);
+        if discount_kind == DiscountKind::Percentage {
+            request.discount_percent_bps =
+                Some(Some(crate::discounts::bps_of_rate(discount_value) as i32));
+        }
     }
 
     // Mint the per-shift display number (predicted, NOT sent) + the client-
@@ -816,7 +840,7 @@ pub(crate) fn prepare(
 
     Ok(Prepared {
         order_id,
-        command: CheckoutCommand { request, device: None },
+        command: CheckoutCommand { request, device: None, started_by: None, approval: None },
         receipt,
         event_at: now_rfc3339,
     })
@@ -1525,7 +1549,7 @@ mod tests {
                 uuid::Uuid::new_v4(),
             );
             req.total_amount = Some(Some(total));
-            let cmd = CheckoutCommand { request: req, device: None };
+            let cmd = CheckoutCommand { request: req, device: None, started_by: None, approval: None };
             store
                 .enqueue(&crate::store::NewOutboxOp {
                     id: id.into(),
@@ -1549,7 +1573,7 @@ mod tests {
         let store = Store::open("").unwrap();
         seed_methods(&store); // "Cash" is_cash=true, "Card" is_cash=false
         let push = |id: &str, req: models::CreateOrderRequest| {
-            let cmd = CheckoutCommand { request: req, device: None };
+            let cmd = CheckoutCommand { request: req, device: None, started_by: None, approval: None };
             store
                 .enqueue(&crate::store::NewOutboxOp {
                     id: id.into(),
@@ -2119,7 +2143,7 @@ mod tests {
                 id: "o1".into(),
                 op_type: "create_order".into(),
                 idempotency_key: "o1".into(),
-                payload: serde_json::to_string(&CheckoutCommand { request: req, device: None }).unwrap(),
+                payload: serde_json::to_string(&CheckoutCommand { request: req, device: None, started_by: None, approval: None }).unwrap(),
                 event_at: "2026-06-20T12:00:00+00:00".into(),
                 ..Default::default()
             })
@@ -2172,7 +2196,7 @@ mod tests {
                     id: id.into(),
                     op_type: "create_order".into(),
                     idempotency_key: id.into(),
-                    payload: serde_json::to_string(&CheckoutCommand { request: req, device: None }).unwrap(),
+                    payload: serde_json::to_string(&CheckoutCommand { request: req, device: None, started_by: None, approval: None }).unwrap(),
                     event_at: "2026-06-20T12:00:00+00:00".into(),
                     till_id: Some(shift.into()),
                     ..Default::default()
@@ -2235,7 +2259,7 @@ mod tests {
                 id: "o1".into(),
                 op_type: "create_order".into(),
                 idempotency_key: "o1".into(),
-                payload: serde_json::to_string(&CheckoutCommand { request: req, device: None }).unwrap(),
+                payload: serde_json::to_string(&CheckoutCommand { request: req, device: None, started_by: None, approval: None }).unwrap(),
                 event_at: "2026-06-20T12:00:00+00:00".into(),
                 ..Default::default()
             })

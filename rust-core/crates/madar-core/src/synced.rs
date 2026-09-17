@@ -58,6 +58,14 @@ impl MadarCore {
         Ok(Synced { data, meta: self.sync_meta_for(&[changes::ORDERS]) })
     }
 
+    /// [`Self::till_report_synced`] as the signed-in person may see it (blind
+    /// count: refused while the till is open without the grant).
+    pub async fn till_report_synced_checked(&self) -> Result<Synced<crate::till::TillReportView>, CoreError> {
+        let s = self.till_report_synced().await?;
+        self.require_figures_for(&s.data)?;
+        Ok(s)
+    }
+
     pub async fn till_report_synced(&self) -> Result<Synced<crate::till::TillReportView>, CoreError> {
         let data = self.till_report().await?;
         Ok(Synced {

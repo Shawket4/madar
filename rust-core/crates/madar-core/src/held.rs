@@ -58,6 +58,14 @@ pub(crate) struct HeldWire {
     pub created_at: String,
     #[serde(default)]
     pub updated_at: String,
+    /// Who started this order (the person whose cart was parked first). Kept
+    /// across re-parks and teller switches; `None` on an entry parked before
+    /// ownership was recorded, which reads as nobody's in particular (see
+    /// `queue.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_by: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_by_name: Option<String>,
 }
 
 impl HeldWire {
@@ -473,6 +481,8 @@ pub(crate) fn park_local(
                 revision: 1,
                 created_at: now.to_string(),
                 updated_at: now.to_string(),
+                created_by: None,
+                created_by_name: None,
             };
             list.push(e.clone());
             e
@@ -1011,7 +1021,7 @@ pub(crate) fn set_table_state_local(
 /// EXCEPT the one this till itself is editing (that IS the live cart). Orders
 /// resumed on other tills render locked. Newest first (legacy order — the
 /// host strip re-sorts oldest→newest by `created_at`).
-pub(crate) fn drafts(store: &Store, my_device: &str) -> CoreResult<Vec<cart::DraftView>> {
+pub(crate) fn drafts(store: &Store, my_device: &str, me: &str) -> CoreResult<Vec<cart::DraftView>> {
     let mut live: Vec<HeldWire> = load_held(store)?
         .into_iter()
         .filter(|h| h.is_live())
@@ -1031,9 +1041,33 @@ pub(crate) fn drafts(store: &Store, my_device: &str) -> CoreResult<Vec<cart::Dra
                 table_id: h.table_id,
                 table_label: h.table_label,
                 locked_by_other: h.status == "resumed",
+                by_other: crate::queue::started_by_other(h.created_by.as_deref(), me),
+                created_by_name: h.created_by_name,
             }
         })
         .collect())
+}
+
+/// Stamp who started a held order, once: a re-park, by anyone, never changes
+/// the author (queue rule 2).
+pub(crate) fn set_author_if_missing(
+    store: &Store,
+    id: &str,
+    user_id: &str,
+    name: &str,
+) -> CoreResult<()> {
+    if user_id.is_empty() {
+        return Ok(());
+    }
+    let mut list = load_held(store)?;
+    if let Some(e) = get_mut(&mut list, id) {
+        if e.created_by.is_none() {
+            e.created_by = Some(user_id.to_string());
+            e.created_by_name = Some(name.to_string()).filter(|n| !n.trim().is_empty());
+            save_held(store, &list)?;
+        }
+    }
+    Ok(())
 }
 
 /// The offline canvas: sections (by `ordering`) + active tables with held-order
@@ -1283,6 +1317,8 @@ pub(crate) fn migrate_legacy(
             revision: 1,
             created_at: created_at.clone(),
             updated_at: created_at,
+            created_by: None,
+            created_by_name: None,
         };
         list.push(e.clone());
         lifted.push(e);
@@ -1446,14 +1482,14 @@ mod tests {
         assert!(claim_local(&s, "h1", "dev-a", "t2").is_err());
         assert!(terminate_local(&s, "h1", "discarded", Some("dev-a"), "t2").is_err());
         // The strip on dev-a shows it locked; on dev-b it's hidden (live cart).
-        let a = drafts(&s, "dev-a").unwrap();
+        let a = drafts(&s, "dev-a", "").unwrap();
         assert_eq!(a.len(), 1);
         assert!(a[0].locked_by_other);
-        assert!(drafts(&s, "dev-b").unwrap().is_empty());
+        assert!(drafts(&s, "dev-b", "").unwrap().is_empty());
 
         release_local(&s, "h1", "dev-b", "t3").unwrap();
-        assert_eq!(drafts(&s, "dev-a").unwrap().len(), 1);
-        assert!(!drafts(&s, "dev-a").unwrap()[0].locked_by_other);
+        assert_eq!(drafts(&s, "dev-a", "").unwrap().len(), 1);
+        assert!(!drafts(&s, "dev-a", "").unwrap()[0].locked_by_other);
     }
 
     #[test]
@@ -1490,7 +1526,7 @@ mod tests {
         )
         .unwrap();
         terminate_local(&s, "h1", "completed", None, "t1").unwrap();
-        assert!(drafts(&s, "dev-a").unwrap().is_empty());
+        assert!(drafts(&s, "dev-a", "").unwrap().is_empty());
         assert!(held_on_table(&s, "t2", None).unwrap().is_none());
         // Checkout leaves the table needing a bus — NOT available. A human
         // clears it (POS prompt or the tables screen).
@@ -1671,7 +1707,7 @@ mod tests {
         assert_eq!((count, total), (1, 5000));
         // Second run is a no-op.
         assert!(migrate_legacy(&s, "b", "dev-a").unwrap().is_empty());
-        assert_eq!(drafts(&s, "dev-a").unwrap().len(), 1);
+        assert_eq!(drafts(&s, "dev-a", "").unwrap().len(), 1);
     }
     /// A table's clock has to start when the PARTY sits, not when they order.
     /// Seated-with-nothing-ordered is the commonest state on a floor and the

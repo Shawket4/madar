@@ -33,10 +33,9 @@ class BundleComponentDraft {
 /// Whether the size row is a real choice. One `one_size` row is a
 /// placeholder (see the importer), not something to render.
 bool _hasSizeChoice(List<ItemSizeView> sizes) =>
-      sizes.length > 1 ||
-      (sizes.length == 1 &&
-          sizes.first.label.toLowerCase().replaceAll(' ', '_') != 'one_size');
-
+    sizes.length > 1 ||
+    (sizes.length == 1 &&
+        sizes.first.label.toLowerCase().replaceAll(' ', '_') != 'one_size');
 
 /// An addon group shown in the sheet — a slot (labelled, min/max, required)
 /// or a global `type:` bucket.
@@ -62,8 +61,7 @@ class AddonGroup {
   /// The addon type this group is about, for ordering. A slot group and a
   /// `type:` bucket both hold addons of one type, so the first option answers
   /// it; an empty group never reaches the sheet.
-  String get addonType =>
-      addons.isEmpty ? '' : addons.first.addonType;
+  String get addonType => addons.isEmpty ? '' : addons.first.addonType;
 }
 
 /// The owner's order for the item sheet: **required groups first**, and within
@@ -86,16 +84,17 @@ int _groupRank(AddonGroup g) => switch (g.addonType) {
 List<AddonGroup> orderGroupsForSheet(List<AddonGroup> groups) {
   // `List.sort` is NOT stable in Dart, so the original index is carried as the
   // final tiebreak rather than relying on the sort to preserve it.
-  final indexed = <(int, AddonGroup)>[
-    for (var i = 0; i < groups.length; i++) (i, groups[i]),
-  ]..sort((a, b) {
-    // Required first: a person must answer these to add anything, so making
-    // them hunt past optional extras to find what is blocking the button is
-    // the one ordering that is certainly wrong.
-    if (a.$2.isRequired != b.$2.isRequired) return a.$2.isRequired ? -1 : 1;
-    final rank = _groupRank(a.$2).compareTo(_groupRank(b.$2));
-    return rank != 0 ? rank : a.$1.compareTo(b.$1);
-  });
+  final indexed =
+      <(int, AddonGroup)>[
+        for (var i = 0; i < groups.length; i++) (i, groups[i]),
+      ]..sort((a, b) {
+        // Required first: a person must answer these to add anything, so making
+        // them hunt past optional extras to find what is blocking the button is
+        // the one ordering that is certainly wrong.
+        if (a.$2.isRequired != b.$2.isRequired) return a.$2.isRequired ? -1 : 1;
+        final rank = _groupRank(a.$2).compareTo(_groupRank(b.$2));
+        return rank != 0 ? rank : a.$1.compareTo(b.$1);
+      });
   return [for (final e in indexed) e.$2];
 }
 
@@ -330,7 +329,10 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
   /// teller taps only to CHANGE the drink, not to confirm how it is made. The
   /// core decides which option that is (`defaultOptionId`), from the recipe
   /// line of the group's ingredient family.
-  static void _seedSwapDefaults(ItemSheetArgs args, Map<String, String> single) {
+  static void _seedSwapDefaults(
+    ItemSheetArgs args,
+    Map<String, String> single,
+  ) {
     for (final g in args.groups) {
       final id = g.defaultOptionId;
       if (id == null || single.containsKey(g.groupId)) continue;
@@ -1606,56 +1608,56 @@ class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
             behavior: HitTestBehavior.opaque,
             onTap: () => setState(() => _expanded = !_expanded),
             child: Row(
-            children: [
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: colors.accent,
-                  shape: BoxShape.circle,
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.accent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const SizedBox.square(dimension: Space.sm),
                 ),
-                child: const SizedBox.square(dimension: Space.sm),
-              ),
-              const SizedBox(width: Space.sm),
-              // Title flexes + ellipsizes so a long group name can't push
-              // the chips off the end edge.
-              Expanded(
-                child: Text(
-                  g.title.toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MadarType.labelSm.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: colors.textSecondary,
-                    letterSpacing: MadarType.tracking,
+                const SizedBox(width: Space.sm),
+                // Title flexes + ellipsizes so a long group name can't push
+                // the chips off the end edge.
+                Expanded(
+                  child: Text(
+                    g.title.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MadarType.labelSm.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: colors.textSecondary,
+                      letterSpacing: MadarType.tracking,
+                    ),
                   ),
                 ),
-              ),
-              if (g.isRequired) ...[
+                if (g.isRequired) ...[
+                  const SizedBox(width: Space.sm),
+                  StatusChip(
+                    label: bridge.tr(key: 'order.required'),
+                    tone: ChipTone.danger,
+                  ),
+                ],
+                if (g.isMulti && g.maxSel != null) ...[
+                  const SizedBox(width: Space.sm),
+                  StatusChip(label: '≤${g.maxSel}'),
+                ],
+                if (g.isMulti && count > 0) ...[
+                  const SizedBox(width: Space.sm),
+                  StatusChip(label: '$count', tone: ChipTone.accent),
+                ],
                 const SizedBox(width: Space.sm),
-                StatusChip(
-                  label: bridge.tr(key: 'order.required'),
-                  tone: ChipTone.danger,
+                AnimatedRotation(
+                  turns: _expanded ? 0.5 : 0,
+                  duration: MotionSpec.gentleDuration,
+                  curve: MotionSpec.gentleCurve,
+                  child: Icon(
+                    Icons.keyboard_arrow_down,
+                    size: 18,
+                    color: colors.textSecondary,
+                  ),
                 ),
               ],
-              if (g.isMulti && g.maxSel != null) ...[
-                const SizedBox(width: Space.sm),
-                StatusChip(label: '≤${g.maxSel}'),
-              ],
-              if (g.isMulti && count > 0) ...[
-                const SizedBox(width: Space.sm),
-                StatusChip(label: '$count', tone: ChipTone.accent),
-              ],
-              const SizedBox(width: Space.sm),
-              AnimatedRotation(
-                turns: _expanded ? 0.5 : 0,
-                duration: MotionSpec.gentleDuration,
-                curve: MotionSpec.gentleCurve,
-                child: Icon(
-                  Icons.keyboard_arrow_down,
-                  size: 18,
-                  color: colors.textSecondary,
-                ),
-              ),
-            ],
             ),
           ),
           // Folded: the selection, so nothing is hidden — only folded.
@@ -1669,66 +1671,66 @@ class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
             ),
           ],
           if (_expanded) ...[
-          const SizedBox(height: Space.md),
-          if (g.addons.length > 5) ...[
-            MadarField(
-              controller: _search,
-              placeholder: bridge.tr(key: 'order.search_addons'),
-              icon: 'magnifyingglass',
-            ),
             const SizedBox(height: Space.md),
-          ],
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: _search,
-            builder: (context, search, _) {
-              // Filter by the live query; selected chips always stay
-              // visible so a filter never hides an active selection.
-              final q = search.text.trim().toLowerCase();
-              final shown = q.isEmpty
-                  ? g.addons
-                  : g.addons
-                        .where(
-                          (a) =>
-                              a.name.toLowerCase().contains(q) ||
-                              (g.isMulti
-                                  ? widget.selectedMulti.containsKey(
-                                      a.addonItemId,
-                                    )
-                                  : widget.selectedSingle == a.addonItemId),
+            if (g.addons.length > 5) ...[
+              MadarField(
+                controller: _search,
+                placeholder: bridge.tr(key: 'order.search_addons'),
+                icon: 'magnifyingglass',
+              ),
+              const SizedBox(height: Space.md),
+            ],
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _search,
+              builder: (context, search, _) {
+                // Filter by the live query; selected chips always stay
+                // visible so a filter never hides an active selection.
+                final q = search.text.trim().toLowerCase();
+                final shown = q.isEmpty
+                    ? g.addons
+                    : g.addons
+                          .where(
+                            (a) =>
+                                a.name.toLowerCase().contains(q) ||
+                                (g.isMulti
+                                    ? widget.selectedMulti.containsKey(
+                                        a.addonItemId,
+                                      )
+                                    : widget.selectedSingle == a.addonItemId),
+                          )
+                          .toList(growable: false);
+                return Wrap(
+                  spacing: Space.sm,
+                  runSpacing: Space.sm,
+                  children: [
+                    for (final addon in shown)
+                      if (g.isMulti &&
+                          widget.selectedMulti.containsKey(addon.addonItemId))
+                        _AddonQtyChip(
+                          name: addon.name,
+                          priceMinor: widget.charged(addon.addonItemId),
+                          qty: widget.selectedMulti[addon.addonItemId] ?? 1,
+                          currency: widget.currency,
+                          onDec: () => widget.onDec(addon.addonItemId),
+                          onInc: () => widget.onInc(addon.addonItemId),
                         )
-                        .toList(growable: false);
-              return Wrap(
-                spacing: Space.sm,
-                runSpacing: Space.sm,
-                children: [
-                  for (final addon in shown)
-                    if (g.isMulti &&
-                        widget.selectedMulti.containsKey(addon.addonItemId))
-                      _AddonQtyChip(
-                        name: addon.name,
-                        priceMinor: widget.charged(addon.addonItemId),
-                        qty: widget.selectedMulti[addon.addonItemId] ?? 1,
-                        currency: widget.currency,
-                        onDec: () => widget.onDec(addon.addonItemId),
-                        onInc: () => widget.onInc(addon.addonItemId),
-                      )
-                    else
-                      _AddonOptionChip(
-                        name: addon.name,
-                        priceMinor: widget.charged(addon.addonItemId),
-                        selected:
-                            !g.isMulti &&
-                            widget.selectedSingle == addon.addonItemId,
-                        multi: g.isMulti,
-                        currency: widget.currency,
-                        onTap: () => g.isMulti
-                            ? widget.onToggleMulti(addon.addonItemId)
-                            : widget.onToggleSingle(addon.addonItemId),
-                      ),
-                ],
-              );
-            },
-          ),
+                      else
+                        _AddonOptionChip(
+                          name: addon.name,
+                          priceMinor: widget.charged(addon.addonItemId),
+                          selected:
+                              !g.isMulti &&
+                              widget.selectedSingle == addon.addonItemId,
+                          multi: g.isMulti,
+                          currency: widget.currency,
+                          onTap: () => g.isMulti
+                              ? widget.onToggleMulti(addon.addonItemId)
+                              : widget.onToggleSingle(addon.addonItemId),
+                        ),
+                  ],
+                );
+              },
+            ),
           ],
         ],
       ),

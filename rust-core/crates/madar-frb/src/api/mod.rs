@@ -1,4 +1,5 @@
 pub mod approvals;
+pub mod cash_spot;
 pub mod bookings;
 pub mod bridge;
 pub mod cart;
@@ -20,3 +21,4 @@ pub mod tickets;
 pub mod drawer;
 pub mod till;
 pub mod types;
+pub mod waste;

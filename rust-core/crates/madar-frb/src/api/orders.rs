@@ -12,8 +12,28 @@ pub use madar_core::checkout::{
 };
 pub use madar_core::orders::{
     OrderDetailLineView, OrderDetailView, OrderRefundsView, OrderSearchPage, OrderSummaryView,
-    RefundLineView, RefundView, TillRefundsView,
+    RefundLinePick, RefundLineView, RefundView, RefundableLineView, TillRefundsView,
 };
+
+/// One line of a sale as the refund sheet offers it.
+#[frb(mirror(RefundableLineView))]
+pub struct _RefundableLineView {
+    pub order_item_id: String,
+    pub name: String,
+    pub size_label: Option<String>,
+    pub sold_qty: i32,
+    /// Units not yet named by an earlier refund.
+    pub refundable_qty: i32,
+    /// One unit's share of the line total, minor units.
+    pub unit_share_minor: i64,
+}
+
+/// A line picked on the refund sheet.
+#[frb(mirror(RefundLinePick))]
+pub struct _RefundLinePick {
+    pub order_item_id: String,
+    pub qty: i32,
+}
 
 /// What has already been given back against one sale.
 #[frb(mirror(OrderRefundsView))]
@@ -63,6 +83,7 @@ pub struct _RefundView {
 
 #[frb(mirror(RefundLineView))]
 pub struct _RefundLineView {
+    pub order_item_id: String,
     pub item_name: String,
     pub qty: i32,
     pub amount_minor: i64,
@@ -461,6 +482,18 @@ impl MadarBridge {
     ) -> Result<OrderRefundsView, MadarError> {
         self.inner
             .list_order_refunds(order_id)
+            .await
+            .map_err(MadarError::from)
+    }
+
+    /// The sale's lines and how many units of each may still be refunded.
+    /// Refunded items were served: their stock stays deducted as waste.
+    pub async fn refundable_lines(
+        &self,
+        order_id: String,
+    ) -> Result<Vec<RefundableLineView>, MadarError> {
+        self.inner
+            .refundable_lines(order_id)
             .await
             .map_err(MadarError::from)
     }

@@ -882,8 +882,11 @@ mod tests {
             reconciliation: vec![],
             old_bills_count: None,
             open_bills_count: None,
+            held_orders_left_open: None,
+            held_orders_left_open_total_minor: None,
             opened_while_another_open: false,
             verification: "server".into(),
+            spot_views: Vec::new(),
         };
         let labels = z_labels();
         let lines = layout_till_report(&report, "Cafe Madar", "EGP", 32, &labels);
@@ -980,8 +983,11 @@ mod tests {
             reconciliation: vec![],
             old_bills_count: None,
             open_bills_count: None,
+            held_orders_left_open: None,
+            held_orders_left_open_total_minor: None,
             opened_while_another_open: false,
             verification: "server".into(),
+            spot_views: Vec::new(),
         }
     }
 
@@ -1939,8 +1945,11 @@ mod tests {
             reconciliation: vec![],
             old_bills_count: None,
             open_bills_count: None,
+            held_orders_left_open: None,
+            held_orders_left_open_total_minor: None,
             opened_while_another_open: false,
             verification: "server".into(),
+            spot_views: Vec::new(),
         }
     }
 

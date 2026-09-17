@@ -388,9 +388,14 @@ pub struct TillReportView {
     /// Old / all open bills at the branch when the till closed.
     pub old_bills_count: Option<i64>,
     pub open_bills_count: Option<i64>,
+    /// Held orders left open at this close for the next till, and their total.
+    pub held_orders_left_open: Option<i64>,
+    pub held_orders_left_open_total_minor: Option<i64>,
     pub opened_while_another_open: bool,
     /// `server` | `lan` | `unverified` | `legacy`.
     pub verification: String,
+    /// Who viewed / printed the cash spot report, oldest first (Z report).
+    pub spot_views: Vec<crate::cash_spot::SpotViewLineView>,
 }
 
 /// One itemised cash-drawer movement on the report. `amount_minor` is signed
@@ -474,8 +479,23 @@ pub(crate) fn report_view(
         reconciliation: reconciliation_lines_from_api(&report.reconciliation, label),
         old_bills_count: report.old_bills_at_close.flatten().map(i64::from),
         open_bills_count: report.open_bills_at_close.flatten().map(i64::from),
+        held_orders_left_open: report.held_orders_left_open.flatten().map(i64::from),
+        held_orders_left_open_total_minor: report.held_orders_left_open_total.flatten().map(i64::from),
         opened_while_another_open: shift.opened_while_another_open,
         verification: shift.verification.to_string(),
+        spot_views: report
+            .spot_views
+            .iter()
+            .flatten()
+            .map(|v| crate::cash_spot::SpotViewLineView {
+                id: v.id.to_string(),
+                viewed_by_name: v.viewed_by_name.clone(),
+                approved_by_name: v.approved_by_name.clone().flatten(),
+                viewed_at: v.viewed_at.to_rfc3339(),
+                printed: v.printed,
+                queued: false,
+            })
+            .collect(),
     }
 }
 
@@ -1051,7 +1071,8 @@ pub(crate) fn local_open_bills_notice(
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReconciliationInput {
     pub method: String,
-    /// `checked` | `disagreed`.
+    /// `checked` | `disagreed` | `counted` (a blind count: the core compares
+    /// the declared amount with the system total itself).
     pub status: String,
     pub declared_amount_minor: Option<i64>,
     pub note: Option<String>,
@@ -1083,6 +1104,8 @@ pub struct CloseTillPreviewView {
     pub methods: Vec<CloseTillMethodView>,
     pub last_till_warning: Option<LastTillWarningView>,
     pub from_server: bool,
+    /// The person counts blind: expected figures are zeroed (cash spot design).
+    pub figures_hidden: bool,
 }
 
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
@@ -1990,4 +2013,66 @@ mod tests {
 
     // ── reconcile: remaining matrix corners ──────────────────────────────────
 
+}
+
+/// Turn `counted` inputs (a blind count) into `checked` when the amount equals
+/// the system total, else `disagreed` with that amount and `note` when none
+/// was given. Other inputs pass through.
+pub(crate) fn resolve_blind_counts(
+    inputs: Vec<ReconciliationInput>,
+    methods: &[CloseTillMethodView],
+    note: &str,
+) -> Vec<ReconciliationInput> {
+    inputs
+        .into_iter()
+        .map(|mut i| {
+            if i.status != "counted" {
+                return i;
+            }
+            let system = methods.iter().find(|m| m.method == i.method).map(|m| m.system_total_minor);
+            match (i.declared_amount_minor, system) {
+                (Some(d), Some(s)) if d == s => {
+                    i.status = "checked".into();
+                    i.declared_amount_minor = None;
+                }
+                (None, _) => {
+                    i.status = "checked".into();
+                }
+                _ => {
+                    i.status = "disagreed".into();
+                    if i.note.as_deref().map(str::trim).unwrap_or("").is_empty() {
+                        i.note = Some(note.to_string());
+                    }
+                }
+            }
+            i
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod blind_count_tests {
+    use super::*;
+
+    #[test]
+    fn a_blind_count_is_checked_when_it_agrees_and_disagreed_with_a_note_when_not() {
+        let methods = vec![CloseTillMethodView {
+            method: "card".into(),
+            label: "Card".into(),
+            is_cash: false,
+            system_total_minor: 5000,
+            order_count: 2,
+        }];
+        let input = |amount| ReconciliationInput {
+            method: "card".into(),
+            status: "counted".into(),
+            declared_amount_minor: Some(amount),
+            note: None,
+        };
+        let out = resolve_blind_counts(vec![input(5000), input(4000)], &methods, "blind count");
+        assert_eq!(out[0].status, "checked");
+        assert_eq!(out[1].status, "disagreed");
+        assert_eq!(out[1].declared_amount_minor, Some(4000));
+        assert_eq!(out[1].note.as_deref(), Some("blind count"));
+    }
 }

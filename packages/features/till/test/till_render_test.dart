@@ -214,6 +214,7 @@ TillReportView _report({required bool fromServer}) => TillReportView(
   fromServer: fromServer,
   reconciliation: const [],
   verification: 'server',
+  spotViews: const [],
   openedWhileAnotherOpen: false,
   serviceChargeWaivedCount: 0,
   serviceChargeWaivedMinor: 0,
@@ -309,7 +310,14 @@ class _FakeBridge implements MadarBridge {
     this.lastTill,
     this.sync,
     this.methods = _methods,
+    this.preflight,
   });
+
+  /// Held orders still parked on the device at close.
+  final ClosePreflightView? preflight;
+
+  /// What each close said about them.
+  final List<bool> leftHeldOpen = [];
 
   /// The person's till is open on another device.
   final TillElsewhereView? elsewhere;
@@ -545,10 +553,22 @@ class _FakeBridge implements MadarBridge {
           methods: methods,
           lastTillWarning: lastTill,
           fromServer: online,
+          figuresHidden: false,
         ),
       );
     }
+    if (name == #closePreflight) {
+      return preflight ??
+          const ClosePreflightView(
+            heldCount: 0,
+            heldTotalMinor: 0,
+            held: [],
+            title: '',
+            body: '',
+          );
+    }
     if (name == #closeTill) {
+      leftHeldOpen.add(invocation.namedArguments[#leaveHeldOpen] as bool);
       closes.add(
         invocation.namedArguments[#reconciliation] as List<ReconciliationInput>,
       );
@@ -655,7 +675,8 @@ void main() {
     // The pay-out form is its own page now; the Till shows the ledger.
     expect(find.byType(CashInOutPanel), findsNothing);
     expect(find.byType(CashLedger), findsOneWidget);
-    expect(find.text('Preview X report'), findsOneWidget);
+    // Cash spot replaces the X preview (owner design 2026-09-16 item 5).
+    expect(find.text('Preview X report'), findsNothing);
   });
 
   testWidgets('the Till offline, in the dark', (tester) async {
@@ -1126,6 +1147,52 @@ void main() {
     await _capture(tester, 'flow-close-last-dialog');
     await tapButton(tester, _en['till.close_anyway']!);
     expect(bridge.closes, hasLength(1));
+  });
+
+  testWidgets('close_till_warns_about_held_orders_first', (tester) async {
+    final bridge = _FakeBridge(
+      methods: [_methods.first],
+      preflight: ClosePreflightView(
+        heldCount: 1,
+        heldTotalMinor: 8000,
+        held: const [
+          HeldLeftOpenView(
+            id: 'h-1',
+            label: 'Omar',
+            startedByName: 'Ali',
+            itemCount: 2,
+            totalMinor: 8000,
+            inHand: false,
+          ),
+        ],
+        title: _en['till.held_open_title']!.replaceAll('{count}', '1'),
+        body: _en['till.held_open_body']!,
+      ),
+    );
+    await _shoot(
+      tester,
+      screen: const CloseTillScreen(),
+      bridge: bridge,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'flow-close-held',
+    );
+    await tester.enterText(find.byType(TextField).first, '2380');
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Go back: nothing closes.
+    await tapButton(tester, _en['till.close_title']!);
+    expect(find.text('Omar'), findsOneWidget);
+    expect(find.text('Started by Ali'), findsOneWidget);
+    await _capture(tester, 'flow-close-held-sheet');
+    await tapButton(tester, _en['till.held_open_back']!);
+    expect(bridge.closes, isEmpty);
+
+    // Close anyway: the close says so.
+    await tapButton(tester, _en['till.close_title']!);
+    await tapButton(tester, _en['till.held_open_continue']!);
+    expect(bridge.closes, hasLength(1));
+    expect(bridge.leftHeldOpen, [true]);
   });
 }
 

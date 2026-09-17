@@ -658,19 +658,14 @@ class SaleScreen extends ConsumerWidget {
 
 // ── The void sheet ──────────────────────────────────────────────────────────
 
-/// The void form's state (reason / restock / busy / error).
+/// The void form's state (reason / busy / error). No restock choice: a void
+/// always puts the stock back (the core and the server both hold that rule).
 class _VoidFormState {
-  const _VoidFormState({
-    this.reason,
-    this.restock = true,
-    this.busy = false,
-    this.error,
-  });
+  const _VoidFormState({this.reason, this.busy = false, this.error});
 
   /// Null until chosen — a void's reason is the teller's, never a default
   /// the report then attributes to them.
   final String? reason;
-  final bool restock;
   final bool busy;
   final UiText? error;
 
@@ -678,13 +673,11 @@ class _VoidFormState {
 
   _VoidFormState copyWith({
     String? reason,
-    bool? restock,
     bool? busy,
     Object? error = _unset,
   }) {
     return _VoidFormState(
       reason: reason ?? this.reason,
-      restock: restock ?? this.restock,
       busy: busy ?? this.busy,
       error: error == _unset ? this.error : error as UiText?,
     );
@@ -703,8 +696,6 @@ class _VoidFormNotifier extends Notifier<_VoidFormState> {
 
   void selectReason(String reason) =>
       state = state.copyWith(reason: reason, error: null);
-
-  void toggleRestock({required bool on}) => state = state.copyWith(restock: on);
 
   /// Void the sale — true on success (the sheet pops). A void moves the
   /// till stats, so the shell refreshes here; a refusal (the till is
@@ -743,7 +734,7 @@ class _VoidFormNotifier extends Notifier<_VoidFormState> {
         orderId: orderId,
         reason: reason,
         note: note.isEmpty ? null : note,
-        restoreInventory: state.restock,
+        restoreInventory: true,
         approval: approval,
       );
       ref.read(shellProvider.notifier).refresh();
@@ -778,7 +769,9 @@ final NotifierProvider<_VoidFormNotifier, _VoidFormState> _voidFormProvider =
 /// queueing a failure the customer has already been promised.
 ///
 /// No restock toggle, unlike a void. Returning money is not getting the food
-/// back — the kitchen made it and it left the building.
+/// back — the kitchen made it and it left the building. The items the money
+/// is for are picked here; the server keeps their stock deducted and logs it
+/// as waste (reason `refund`). Picking none is a money-only refund.
 class _RefundSheet extends ConsumerStatefulWidget {
   const _RefundSheet({required this.order});
 
@@ -818,6 +811,41 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
 
   int get _cap => _remainingMinor ?? widget.order.totalMinor;
 
+  /// The sale's lines (null while loading or when they cannot be read — the
+  /// refund then goes without lines) and how many units of each are picked.
+  List<RefundableLineView>? _lines;
+  final Map<String, int> _picked = {};
+
+  Future<void> _loadLines() async {
+    try {
+      final lines = await ref
+          .read(bridgeProvider)
+          .refundableLines(orderId: widget.order.id);
+      if (mounted) setState(() => _lines = lines);
+    } on MadarError catch (_) {
+      // Offline and never opened: a money-only refund still works.
+    }
+  }
+
+  void _pick(RefundableLineView line, int qty) {
+    setState(() {
+      if (qty <= 0) {
+        _picked.remove(line.orderItemId);
+      } else {
+        _picked[line.orderItemId] = qty;
+      }
+      // The amount follows the picked items, within what is left.
+      if (_picked.isNotEmpty) {
+        var sum = 0;
+        for (final l in _lines ?? const <RefundableLineView>[]) {
+          sum += l.unitShareMinor * (_picked[l.orderItemId] ?? 0);
+        }
+        _amountMinor = sum > _cap ? _cap : sum;
+      }
+      _error = null;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -839,6 +867,7 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
       _remainingMinor = prior.refundableRemainingMinor;
       _amountMinor = prior.refundableRemainingMinor;
     }
+    unawaited(_loadLines());
   }
 
   @override
@@ -880,6 +909,7 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
     if (decision.outcome == 'needs_approval') {
       approval = await askManager(
         context,
+        ref,
         reason: decision.reason,
         capKey: 'refunds.create',
         orderId: widget.order.id,
@@ -892,8 +922,12 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
       _error = null;
     });
     try {
-      await bridge.refundOrderApproved(
+      await bridge.refundOrderLinesApproved(
         approval: approval,
+        lines: [
+          for (final e in _picked.entries)
+            RefundLinePick(orderItemId: e.key, qty: e.value),
+        ],
         orderId: widget.order.id,
         amountMinor: minor,
         // A method the server accepts: back the way it came when it can,
@@ -969,6 +1003,40 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
                   t('history.refund_teach'),
                   style: MadarType.bodySm.copyWith(color: colors.textSecondary),
                 ),
+                if (_lines case final lines? when lines.isNotEmpty) ...[
+                  MadarSectionHeader(text: t('history.refund_items')),
+                  Text(
+                    t('history.refund_items_hint'),
+                    style: MadarType.bodySm.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  for (final line in lines)
+                    Row(
+                      spacing: Space.sm,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            [
+                              line.name,
+                              ?line.sizeLabel,
+                              MadarFormat.ltr('×${line.soldQty}'),
+                            ].join(' · '),
+                            style: MadarType.body.copyWith(
+                              color: line.refundableQty > 0
+                                  ? colors.textPrimary
+                                  : colors.textMuted,
+                            ),
+                          ),
+                        ),
+                        MadarStepper(
+                          value: _picked[line.orderItemId] ?? 0,
+                          max: line.refundableQty,
+                          onChanged: _busy ? (_) {} : (v) => _pick(line, v),
+                        ),
+                      ],
+                    ),
+                ],
                 MadarSectionHeader(text: t('history.refund_amount')),
                 MadarAmountField(
                   amountMinor: _amountMinor,
@@ -1062,7 +1130,7 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
   }
 }
 
-/// Reason chips, an optional note, the restock toggle, one danger CTA.
+/// Reason chips, an optional note, one danger CTA. The stock goes back.
 /// Pops `true` after a successful void.
 class _VoidSheet extends ConsumerStatefulWidget {
   const _VoidSheet({required this.order});
@@ -1097,6 +1165,7 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
           note: _note.text.trim(),
           askManager: (why) => askManager(
             context,
+            ref,
             reason: why,
             capKey: 'orders.void',
             orderId: widget.order.id,
@@ -1164,30 +1233,9 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
                   glyph: MadarGlyph.note,
                   enabled: !form.busy,
                 ),
-                Row(
-                  spacing: Space.sm,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        t('void.restock'),
-                        style: MadarType.title.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: MadarSegmented<bool>(
-                        items: [
-                          MadarSegmentItem(false, t('toggle.off')),
-                          MadarSegmentItem(true, t('toggle.on')),
-                        ],
-                        value: form.restock,
-                        onChanged: (v) => ref
-                            .read(_voidFormProvider.notifier)
-                            .toggleRestock(on: v),
-                      ),
-                    ),
-                  ],
+                Text(
+                  t('history.void_stock'),
+                  style: MadarType.bodySm.copyWith(color: colors.textSecondary),
                 ),
                 if (form.error case final error?)
                   NoticeBanner(

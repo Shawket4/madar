@@ -413,6 +413,12 @@ class DraftView {
   /// renders locked and cannot be restored.
   final bool lockedByOther;
 
+  /// Someone other than the signed-in person started it: show whose it is.
+  final bool byOther;
+
+  /// Who started it, when known.
+  final String? createdByName;
+
   const DraftView({
     required this.id,
     required this.name,
@@ -422,6 +428,8 @@ class DraftView {
     this.tableId,
     this.tableLabel,
     required this.lockedByOther,
+    required this.byOther,
+    this.createdByName,
   });
 
   @override
@@ -433,7 +441,9 @@ class DraftView {
       createdAt.hashCode ^
       tableId.hashCode ^
       tableLabel.hashCode ^
-      lockedByOther.hashCode;
+      lockedByOther.hashCode ^
+      byOther.hashCode ^
+      createdByName.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -447,7 +457,9 @@ class DraftView {
           createdAt == other.createdAt &&
           tableId == other.tableId &&
           tableLabel == other.tableLabel &&
-          lockedByOther == other.lockedByOther;
+          lockedByOther == other.lockedByOther &&
+          byOther == other.byOther &&
+          createdByName == other.createdByName;
 }
 
 /// A group whose constraints the current selection breaks (too few / too many).

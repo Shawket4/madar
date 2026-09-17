@@ -109,6 +109,21 @@ pub struct Till {
         skip_serializing_if = "Option::is_none"
     )]
     pub force_closed_by: Option<Option<uuid::Uuid>>,
+    /// Held (parked) orders the closing teller was warned about and left open for the next till, and their total in minor units. `null` when the close did not say (older clients, forced closes). Additive.
+    #[serde(
+        rename = "held_orders_left_open",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub held_orders_left_open: Option<Option<i32>>,
+    #[serde(
+        rename = "held_orders_left_open_total",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub held_orders_left_open_total: Option<Option<i32>>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(
@@ -218,6 +233,8 @@ impl Till {
             force_close_reason: None,
             force_closed_at: None,
             force_closed_by: None,
+            held_orders_left_open: None,
+            held_orders_left_open_total: None,
             id,
             notes: None,
             old_bills_at_close: None,

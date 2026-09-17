@@ -782,6 +782,9 @@ class MethodCheck {
   /// The teller said it does not match.
   bool get disagrees => status == 'disagreed';
 
+  /// A blind count: the amount the teller sees, compared by the core.
+  bool get counted => status == 'counted';
+
   /// A disagreement still missing its amount.
   bool get missingAmount => disagrees && amountMinor == null;
 
@@ -790,7 +793,9 @@ class MethodCheck {
 
   /// Answered completely: Checked, or a disagreement with amount and note.
   bool get complete =>
-      status == 'checked' || (disagrees && !missingAmount && !missingNote);
+      status == 'checked' ||
+      counted ||
+      (disagrees && !missingAmount && !missingNote);
 
   /// Copies with the given overrides ([amountMinor] clears via the sentinel).
   MethodCheck copyWith({
@@ -823,7 +828,16 @@ class CloseTillState {
     this.orderCount,
     this.loadError,
     this.closedTillId,
+    this.blind = false,
+    this.figures,
   });
+
+  /// The person counts blind (no `till.cash_spot_check`): no expected
+  /// figures before the close; the report comes after it.
+  final bool blind;
+
+  /// The expected figures a one-time PIN unlocked on a blind close.
+  final CloseTillPreviewView? figures;
 
   /// The teller's counted drawer, minor units — null until they enter one.
   /// It used to start at 0, so the screen said "Short by" the whole float
@@ -875,12 +889,14 @@ class CloseTillState {
   /// The count deviates from the system's expected drawer → a closing reason
   /// is required (the open screen's discrepancy pattern).
   bool get needsReason =>
+      !blind &&
       report != null &&
       countedMinor != null &&
       countedMinor != report!.expectedCashMinor;
 
   /// A count has been entered and the expected drawer is known.
-  bool get canClose => report != null && countedMinor != null && !busy;
+  bool get canClose =>
+      (blind || report != null) && countedMinor != null && !busy;
 
   /// Copies with the given overrides (nullables clear through the sentinel).
   CloseTillState copyWith({
@@ -895,8 +911,14 @@ class CloseTillState {
     Object? orderCount = _unset,
     Object? loadError = _unset,
     Object? closedTillId = _unset,
+    bool? blind,
+    Object? figures = _unset,
   }) {
     return CloseTillState(
+      blind: blind ?? this.blind,
+      figures: figures == _unset
+          ? this.figures
+          : figures as CloseTillPreviewView?,
       countedMinor: countedMinor == _unset
           ? this.countedMinor
           : countedMinor as int?,
@@ -956,6 +978,16 @@ class CloseTillNotifier extends Notifier<CloseTillState> {
     state.checkFor(method).copyWith(status: 'disagreed', amountMinor: minor),
   );
 
+  /// A blind count of [method]: the amount the teller sees.
+  void countMethod(String method, int? minor) => _setCheck(
+    method,
+    state.checkFor(method).copyWith(status: 'counted', amountMinor: minor),
+  );
+
+  /// The expected figures a one-time PIN unlocked.
+  void showFigures(CloseTillPreviewView figures) =>
+      state = state.copyWith(figures: figures);
+
   /// What happened with [method].
   void setMethodNote(String method, String note) =>
       _setCheck(method, state.checkFor(method).copyWith(note: note));
@@ -972,12 +1004,17 @@ class CloseTillNotifier extends Notifier<CloseTillState> {
   Future<void> _load() async {
     final till = await _deviceTill(_bridge);
     if (_disposed) return;
-    state = state.copyWith(till: till);
-    try {
-      final report = await _bridge.tillReport();
-      if (!_disposed) state = state.copyWith(report: report, loadError: null);
-    } on Exception catch (e) {
-      if (!_disposed) state = state.copyWith(loadError: _failure(e));
+    final blind = !_bridge.tillFiguresVisible();
+    state = state.copyWith(till: till, blind: blind);
+    if (!blind) {
+      try {
+        final report = await _bridge.tillReport();
+        if (!_disposed) {
+          state = state.copyWith(report: report, loadError: null);
+        }
+      } on Exception catch (e) {
+        if (!_disposed) state = state.copyWith(loadError: _failure(e));
+      }
     }
     try {
       final preview = await _bridge.closeTillPreview();
@@ -1015,7 +1052,10 @@ class CloseTillNotifier extends Notifier<CloseTillState> {
   /// Close the till with the counted drawer (+ [note], REQUIRED when the
   /// count deviates) and each method's check. Returns true on success — the
   /// SCREEN then offers the Z report and hands off to the shell.
-  Future<bool> close({required String note}) async {
+  ///
+  /// [leaveHeldOpen]: the held-orders warning was answered "close anyway" (or
+  /// there was nothing held); the core refuses otherwise while any are open.
+  Future<bool> close({required String note, bool leaveHeldOpen = false}) async {
     if (state.busy) return false;
     final missing = _missing(note);
     if (missing != null) {
@@ -1037,10 +1077,13 @@ class CloseTillNotifier extends Notifier<CloseTillState> {
               ReconciliationInput(
                 method: m.method,
                 status: check.status!,
-                declaredAmountMinor: check.disagrees ? check.amountMinor : null,
+                declaredAmountMinor: check.disagrees || check.counted
+                    ? check.amountMinor
+                    : null,
                 note: check.disagrees ? check.note.trim() : null,
               ),
         ],
+        leaveHeldOpen: leaveHeldOpen,
       );
       // The core emptied this person's carts with the till; screens re-read.
       ref.read(cartsClearedTickProvider.notifier).bump();

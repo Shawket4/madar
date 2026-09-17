@@ -618,8 +618,8 @@ async fn the_parity_guard_compares_every_field_and_closed_unreviewed_tills() {
         voided_amount_minor: 0, refunds_issued_minor: 0, refunds_issued_cash_minor: 0, refunds_issued_count: 0,
         cash_in_refunded_sales_minor: 0, total_tax_minor: 0, total_service_charge_minor: 0, service_charge_waived_count: 0, service_charge_waived_minor: 0, cash_movements_net_minor: 0, cash_in_minor: 0, cash_out_minor: 0,
         payment_lines: vec![], cash_movements: vec![], from_server: false, device_code: None, order_number_first: None,
-        order_number_last: None, reconciliation: vec![], old_bills_count: None, open_bills_count: None,
-        opened_while_another_open: false, verification: "server".into(),
+        order_number_last: None, reconciliation: vec![], old_bills_count: None, open_bills_count: None, held_orders_left_open: None, held_orders_left_open_total_minor: None,
+        opened_while_another_open: false, verification: "server".into(), spot_views: vec![],
     };
     mk(&mut a);
     let mut b = a.clone();
@@ -633,6 +633,7 @@ async fn the_parity_guard_compares_every_field_and_closed_unreviewed_tills() {
         |v: &mut crate::till::TillReportView| v.device_code = Some("36B".into()),
         |v: &mut crate::till::TillReportView| v.opening_cash_edit_reason = Some("r".into()),
         |v: &mut crate::till::TillReportView| v.open_bills_count = Some(2),
+        |v: &mut crate::till::TillReportView| v.held_orders_left_open = Some(1),
         |v: &mut crate::till::TillReportView| v.verification = "lan".into(),
         |v: &mut crate::till::TillReportView| v.cash_movements.push(crate::till::TillReportCashLine { amount_minor: 5, note: "n".into(), moved_by_name: "m".into(), created_at: "2026-09-14T09:00:00Z".into() }),
         |v: &mut crate::till::TillReportView| v.reconciliation.push(crate::till::ReconciliationLineView { method: "card".into(), label: "Card".into(), is_cash: false, system_total_minor: 1, status: "disagreed".into(), declared_amount_minor: Some(0), note: None, changed_after_close: false }),
@@ -1673,4 +1674,171 @@ async fn a_customer_added_offline_rides_ahead_of_the_sale_that_names_it() {
     if !till_open_pending {
         assert_eq!(sale.depends_on_seq, Some(create.seq), "the sale waits for its customer");
     }
+}
+
+/// Queue rule 8: a close with nothing parked warns about nothing.
+#[tokio::test]
+async fn a_close_with_nothing_held_has_no_warning() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    core.open_till(0, None).await.unwrap();
+    let p = core.close_preflight();
+    assert_eq!((p.held_count, p.held_total_minor), (0, 0));
+    assert!(p.held.is_empty());
+    core.close_till_confirmed(0, None, vec![], false).await.expect("nothing to warn about");
+}
+
+/// Queue rule 8: another person's parked order is listed by name, author and
+/// total; the close refuses until the teller chooses to close anyway, and then
+/// records it and leaves it parked (with the cart in hand parked beside it).
+#[tokio::test]
+async fn a_close_lists_someone_elses_held_order_and_closing_anyway_records_and_keeps_it() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    core.open_till(0, None).await.unwrap();
+    let line = serde_json::json!({ "lines": [{ "item_id": "i", "name": "Latte", "unit_price_minor": 4000,
+        "qty": 2, "addons": [], "optionals": [] }] });
+    crate::cart::set_cart_payload(&core.store, None, &line).unwrap();
+    core.hold_cart(None, "Omar".into(), None, None).unwrap();
+    let mut list = crate::held::load_held(&core.store).unwrap();
+    list[0].created_by = Some("someone-else".into());
+    list[0].created_by_name = Some("Ali".into());
+    core.store.kv_put(crate::held::K_HELD_MIRROR, &serde_json::to_string(&list).unwrap()).unwrap();
+    crate::cart::set_cart_payload(&core.store, None, &line).unwrap();
+
+    let p = core.close_preflight();
+    assert_eq!(p.held_count, 2, "{p:?}");
+    let omar = p.held.iter().find(|h| !h.in_hand).unwrap();
+    assert_eq!(omar.label, "Omar");
+    assert_eq!(omar.started_by_name.as_deref(), Some("Ali"));
+    assert_eq!(omar.total_minor, 8000);
+    assert!(p.held.iter().any(|h| h.in_hand && h.started_by_name.is_none()));
+    assert_eq!(p.held_total_minor, 16000);
+    assert!(p.title.contains('2'));
+
+    let refused = core.close_till_confirmed(0, None, vec![], false).await;
+    assert!(matches!(refused, Err(crate::error::CoreError::Validation { .. })), "{refused:?}");
+    assert!(core.current_till().unwrap().is_some_and(|t| t.is_open), "nothing closed");
+
+    core.close_till_confirmed(0, None, vec![], true).await.expect("close anyway");
+    let drafts = core.list_drafts().unwrap();
+    assert_eq!(drafts.len(), 2, "both stay parked for the next till: {drafts:?}");
+    assert!(core.cart_lines(None).unwrap().is_empty());
+    let op = core.store.pending().unwrap().into_iter().find(|i| i.op_type == "close_till").unwrap();
+    let payload: serde_json::Value = serde_json::from_str(&op.payload).unwrap();
+    assert_eq!(payload["request"]["held_orders_left_open"], 2);
+    assert_eq!(payload["request"]["held_orders_left_open_total"], 16000);
+    let report = core.till_report_for(op.till_id.clone().unwrap()).await.unwrap();
+    assert_eq!(report.held_orders_left_open, Some(2), "the Z report says so");
+    assert_eq!(report.held_orders_left_open_total_minor, Some(16000));
+}
+
+// ── cash spot (owner design 2026-09-16 item 5, corrected 2026-09-17) ───────
+
+fn grant_spot(core: &crate::MadarCore, held: bool) {
+    let mut g = core.session.write().unwrap();
+    let s = g.as_mut().unwrap();
+    s.authz = Some(crate::session::AuthzGrants {
+        capabilities: if held { vec!["pos.sign_in".into(), crate::cash_spot::CAP_CASH_SPOT.into()] } else { vec!["pos.sign_in".into()] },
+        ask_manager: vec![],
+        limits: Default::default(),
+        owner: false,
+    });
+}
+
+#[tokio::test]
+async fn without_the_grant_the_till_counts_blind_and_one_pin_unlocks_one_look() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    seed_rows(&core, &[]);
+    core.open_till(1_000, None).await.unwrap();
+    ring(&core, 400, CASH, 400).await;
+    grant_spot(&core, false);
+
+    assert!(!core.till_figures_visible());
+    assert_eq!(core.cash_spot_access().outcome, "needs_approval", "the button stays, behind a PIN");
+    assert!(matches!(core.till_report_checked().await, Err(crate::error::CoreError::Forbidden { .. })));
+    let p = core.close_till_preview_checked().await.unwrap();
+    assert!(p.figures_hidden);
+    assert_eq!(p.expected_cash_minor, 0);
+    assert!(p.methods.iter().all(|m| m.system_total_minor == 0));
+    assert!(matches!(core.cash_spot_view(None).await, Err(crate::error::CoreError::Forbidden { .. })));
+    assert!(matches!(core.close_figures(None).await, Err(crate::error::CoreError::Forbidden { .. })));
+    let fake = crate::approvals::ApprovalView {
+        id: "nope".into(), capability: crate::cash_spot::CAP_CASH_SPOT.into(),
+        approver_id: "m".into(), approver_name: "M".into(), amount_minor: None,
+        percent_bps: None, value_minor: None,
+    };
+    assert!(core.cash_spot_view(Some(fake.clone())).await.is_err(), "a made-up approval unlocks nothing");
+    let till_id = core.current_till().unwrap().unwrap().id;
+    assert!(core.store.with_conn(|c| crate::ledger::spot::for_till(c, &till_id)).unwrap().is_empty());
+
+    // A minted approval unlocks ONE look (and its print), then is spent.
+    let a = crate::approvals::ApprovalView { id: "ok".into(), ..fake };
+    core.store.kv_put("cash_spot:approval:ok", &serde_json::to_string(&a).unwrap()).unwrap();
+    let view = core.cash_spot_view(Some(a.clone())).await.unwrap();
+    assert_eq!(view.expected_cash_minor, 1_456);
+    assert_eq!(view.report.expected_cash_minor, 1_456, "the full live report");
+    assert_eq!(view.views.len(), 1);
+    assert_eq!(view.views[0].approved_by_name.as_deref(), Some("M"));
+    assert!(!view.views[0].printed);
+    let printed = core.record_cash_spot_print(view.view_id.clone()).await.unwrap();
+    assert!(printed.printed);
+    assert!(core.cash_spot_view(Some(a)).await.is_err(), "one look only");
+
+    // Both queued ops name the view and carry the unlock; no amounts anywhere.
+    let ops = core.store.pending().unwrap();
+    let spot: Vec<_> = ops.iter().filter(|o| o.op_type == "spot_report_view").collect();
+    assert_eq!(spot.len(), 2);
+    for op in spot {
+        let Ok((env, _)) = core.replay_envelope(op) else { panic!("envelope") };
+        assert_eq!(env["op"], "spot_report_view");
+        assert_eq!(env["request"]["id"], view.view_id.as_str());
+        assert_eq!(env["approval"]["approver_id"], "m");
+        assert!(env["request"].get("counted_cash").is_none());
+    }
+
+    // The blind close: a card count that disagrees is sent disagreed with a note.
+    let lines = crate::till::resolve_blind_counts(
+        vec![crate::till::ReconciliationInput { method: "Card".into(), status: "counted".into(), declared_amount_minor: Some(5), note: None }],
+        &core.close_till_preview().await.unwrap().methods,
+        "blind",
+    );
+    assert_eq!(lines[0].status, "disagreed");
+}
+
+#[tokio::test]
+async fn with_the_grant_a_look_is_recorded_offline_and_shows_on_the_z_report() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    seed_rows(&core, &[]);
+    let till = core.open_till(1_000, None).await.unwrap();
+    ring(&core, 400, CASH, 400).await;
+    grant_spot(&core, true);
+
+    assert_eq!(core.cash_spot_access().outcome, "allow");
+    let view = core.cash_spot_view(None).await.unwrap();
+    assert_eq!(view.expected_cash_minor, 1_456);
+    assert!(view.methods[0].is_cash);
+    assert!(view.views[0].approved_by_name.is_none());
+    core.record_cash_spot_print(view.view_id.clone()).await.unwrap();
+    let report = core.till_report_checked().await.unwrap();
+    assert_eq!(report.spot_views.len(), 1);
+    assert!(report.spot_views[0].printed);
+    assert!(report.spot_views[0].queued);
+    assert_eq!(report.expected_cash_minor, 1_456, "a look never moves the drawer");
+    assert!(!core.close_till_preview_checked().await.unwrap().figures_hidden);
+    assert!(core.close_figures(None).await.is_ok());
+
+    // The feed brings the same look inside the till row: still one row.
+    let id = view.view_id.clone();
+    let till_id = till.till.map(|t| t.id).unwrap_or_default();
+    core.store
+        .with_tx(|tx| {
+            crate::ledger::spot::from_till_row(tx, &serde_json::json!({"id": till_id, "spot_views": [
+                {"id": id, "till_id": till_id, "viewed_by_name": "Sara", "printed": true, "viewed_at": "2026-09-17T09:00:00Z"}
+            ]}))
+        })
+        .unwrap();
+    assert_eq!(core.till_report_checked().await.unwrap().spot_views.len(), 1);
 }

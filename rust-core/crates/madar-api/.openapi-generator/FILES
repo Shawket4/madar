@@ -218,6 +218,7 @@ docs/Dir.md
 docs/DisciplineReport.md
 docs/DisciplineRow.md
 docs/Discount.md
+docs/DiscountAuditEntry.md
 docs/DiscountsApi.md
 docs/DrinkRecipe.md
 docs/Employee.md
@@ -490,6 +491,7 @@ docs/RecipeStepInput.md
 docs/RecipeStepPreset.md
 docs/RecipesApi.md
 docs/ReconciliationInput.md
+docs/RecordWasteRequest.md
 docs/Refund.md
 docs/RefundFull.md
 docs/RefundIssued.md
@@ -554,6 +556,8 @@ docs/SkuCost.md
 docs/SlotAvailability.md
 docs/SnapshotCursor.md
 docs/Sort.md
+docs/SpotViewApproval.md
+docs/SpotViewRequest.md
 docs/StaffApi.md
 docs/StaffDocument.md
 docs/StaffRequest.md
@@ -596,6 +600,7 @@ docs/TillReconciliationLine.md
 docs/TillRefunds.md
 docs/TillReportFigures.md
 docs/TillReportResponse.md
+docs/TillSpotView.md
 docs/TillStatus.md
 docs/TillVerification.md
 docs/TillsApi.md
@@ -664,6 +669,8 @@ docs/WaiveDeductionRequest.md
 docs/WalletProvider.md
 docs/WalletStatus.md
 docs/WalletStep.md
+docs/WasteLine.md
+docs/WasteRecorded.md
 docs/WasteReportRow.md
 docs/WhatsappApi.md
 docs/WhatsappStatus.md
@@ -923,6 +930,7 @@ src/models/dir.rs
 src/models/discipline_report.rs
 src/models/discipline_row.rs
 src/models/discount.rs
+src/models/discount_audit_entry.rs
 src/models/drink_recipe.rs
 src/models/employee.rs
 src/models/error_body.rs
@@ -1176,6 +1184,7 @@ src/models/recipe_step.rs
 src/models/recipe_step_input.rs
 src/models/recipe_step_preset.rs
 src/models/reconciliation_input.rs
+src/models/record_waste_request.rs
 src/models/refund.rs
 src/models/refund_full.rs
 src/models/refund_issued.rs
@@ -1236,6 +1245,8 @@ src/models/sku_cost.rs
 src/models/slot_availability.rs
 src/models/snapshot_cursor.rs
 src/models/sort.rs
+src/models/spot_view_approval.rs
+src/models/spot_view_request.rs
 src/models/staff_document.rs
 src/models/staff_request.rs
 src/models/station_routes.rs
@@ -1275,6 +1286,7 @@ src/models/till_reconciliation_line.rs
 src/models/till_refunds.rs
 src/models/till_report_figures.rs
 src/models/till_report_response.rs
+src/models/till_spot_view.rs
 src/models/till_status.rs
 src/models/till_verification.rs
 src/models/timeseries_point.rs
@@ -1340,6 +1352,8 @@ src/models/waive_deduction_request.rs
 src/models/wallet_provider.rs
 src/models/wallet_status.rs
 src/models/wallet_step.rs
+src/models/waste_line.rs
+src/models/waste_recorded.rs
 src/models/waste_report_row.rs
 src/models/whatsapp_status.rs
 src/models/widget_outcome.rs

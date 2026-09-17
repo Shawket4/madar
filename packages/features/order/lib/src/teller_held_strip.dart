@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_history/feature_history.dart' show askManager;
 import 'package:feature_order/src/held_orders_strip.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/sell_screen.dart' show TableOrderScreen;
@@ -44,6 +45,12 @@ class TellerHeldStrip extends ConsumerWidget {
             sortKey: draft.createdAt,
             title: _chipTitle(_customName(draft.name), draft.tableLabel),
             glyph: draft.lockedByOther ? 'lock' : null,
+            author: draft.byOther ? draft.createdByName : null,
+            authorLabel: draft.byOther
+                ? bridge
+                      .tr(key: 'drafts.started_by')
+                      .replaceAll('{name}', draft.createdByName ?? '')
+                : null,
             count: draft.itemCount,
             selected: false,
             onTap: () => unawaited(_openDraft(context, ref, draft)),
@@ -93,6 +100,7 @@ class TellerHeldStrip extends ConsumerWidget {
         draft.id,
         fromTableId: tableId,
         parkInHand: true,
+        askManager: _askManager(context, ref, 'resume', draft.id),
       );
       return;
     }
@@ -103,13 +111,32 @@ class TellerHeldStrip extends ConsumerWidget {
     if (ModalRoute.of(context) is MadarSheetRoute) {
       MadarSheet.close<void>(context);
     }
-    final landed = await notifier.resumeDraft(draft.id);
+    final landed = await notifier.resumeDraft(
+      draft.id,
+      askManager: _askManager(context, ref, 'resume', draft.id),
+    );
     final table = landed?.tableId;
     if (table == null) return;
     await navigator.push(
       MaterialPageRoute<void>(builder: (_) => TableOrderScreen(tableId: table)),
     );
   }
+
+  /// The manager-PIN sheet for a queue act on someone else's held order.
+  Future<ApprovalView?> Function(String reason) _askManager(
+    BuildContext context,
+    WidgetRef ref,
+    String act,
+    String id,
+  ) =>
+      (reason) => askManager(
+        context,
+        ref,
+        reason: reason,
+        capKey: '',
+        approve: (bridge, pin) =>
+            bridge.approveDraftAct(approverPin: pin, act: act, id: id),
+      );
 
   /// Discarding a parked order loses its lines for good — it confirms,
   /// naming the order and what goes with it.
@@ -132,7 +159,13 @@ class TellerHeldStrip extends ConsumerWidget {
       cancelLabel: bridge.tr(key: 'common.cancel'),
     );
     if (!ok) return;
-    await ref.read(orderProvider.notifier).discardDraft(draft.id);
+    if (!context.mounted) return;
+    await ref
+        .read(orderProvider.notifier)
+        .discardDraft(
+          draft.id,
+          askManager: _askManager(context, ref, 'discard', draft.id),
+        );
   }
 
   /// Rename one PARKED order, or move it to a table. Neither touches the

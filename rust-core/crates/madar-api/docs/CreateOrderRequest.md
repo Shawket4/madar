@@ -13,7 +13,11 @@ Name | Type | Description | Notes
 **device_code** | Option<**String**> | The device's code; with `device_id` + `order_number` the number is stored verbatim. | [optional]
 **device_id** | Option<**uuid::Uuid**> | The device ringing the order (else `X-Madar-Device`). | [optional]
 **discount_amount** | Option<**i32**> |  | [optional]
+**discount_applied_by** | Option<**uuid::Uuid**> | Who put the discount on the sale (the signed-in till person). Read on replay only; live, it is the caller. Additive. | [optional]
+**discount_approval_id** | Option<**uuid::Uuid**> | The manager approval (`approval.id` on the replay envelope) that let the discount past the person's cap. Additive. | [optional]
 **discount_id** | Option<**uuid::Uuid**> |  | [optional]
+**discount_kind** | Option<**String**> | Which discount act this is: `preset` | `manual_amount` | `manual_percent`. Absent (older clients): a `discount_id` means preset, an ad-hoc discount is manual of its type. Additive. | [optional]
+**discount_percent_bps** | Option<**i32**> | The percentage asked for, in basis points (1250 = 12.5%). Additive. | [optional]
 **discount_type** | Option<**String**> |  | [optional]
 **discount_value** | Option<**f64**> |  | [optional]
 **idempotency_key** | Option<**uuid::Uuid**> |  | [optional]
@@ -26,6 +30,7 @@ Name | Type | Description | Notes
 **payment_method** | **String** |  | 
 **payment_splits** | Option<[**Vec<models::PaymentSplitInput>**](PaymentSplitInput.md)> |  | [optional]
 **service_mode** | Option<**String**> | Where the drink is going: `\"takeaway\"` (default) or `\"dine_in\"`. NOT `order_type`: that is derived from whether a waiter's ticket was settled and decides the service charge. This says only whether the customer is drinking in — so a counter shop with no floor can say it — and its only effect is that packaging (cups, lids, straws) is not deducted from stock. Absent ⇒ takeaway, which is what every client before this did. | [optional]
+**started_by** | Option<**uuid::Uuid**> | The person who started this sale's cart, when the till says it was not the person ringing it (a held order resumed after a teller switch). Recorded when it names someone of the same org; anything else is dropped with a warning, never refused. Additive; older tills omit it. | [optional]
 **subtotal** | Option<**i32**> |  | [optional]
 **tax_amount** | Option<**i32**> |  | [optional]
 **till_id** | **uuid::Uuid** |  | 

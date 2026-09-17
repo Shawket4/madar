@@ -26,6 +26,11 @@ use crate::store::Store;
 pub(crate) const K_CART: &str = "cart:lines";
 /// kv key — the selected discount id (empty = none).
 pub(crate) const K_DISCOUNT: &str = "cart:discount";
+/// kv key — a discount typed by hand (JSON [`ManualDiscount`]; empty = none).
+pub(crate) const K_DISCOUNT_MANUAL: &str = "cart:discount_manual";
+/// kv key — the manager approval that let the cart's discount past the
+/// person's cap (JSON `approvals::ApprovalView`; empty = none).
+pub(crate) const K_DISCOUNT_APPROVAL: &str = "cart:discount_approval";
 /// kv key — the ORDER's note (for the whole sale, not a line); empty = none.
 pub(crate) const K_NOTE: &str = "cart:note";
 /// kv key — parked/held carts (drafts) as a JSON array.
@@ -210,6 +215,38 @@ pub(crate) const K_LEGACY_CONTEXT: &str = "cart:context";
 const K_CONTEXT_TABLES: &str = "cart:context_tables";
 /// kv key — the context's cart meta (JSON `CartMeta`).
 const K_META: &str = "cart:meta";
+/// kv key — who started the context's cart, when it is not the signed-in
+/// person's own (JSON `CartOwner`; see `queue.rs`). Kept apart from
+/// [`CartMeta`] because the host replaces the meta wholesale.
+const K_OWNER: &str = "cart:owner";
+
+/// Who a cart in hand belongs to, and the manager's approval that let someone
+/// else resume it. Core-only: never crosses the bridge.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub(crate) struct CartOwner {
+    pub user_id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub approval: Option<crate::approvals::ApprovalView>,
+}
+
+/// The context's recorded owner, if one was recorded.
+pub(crate) fn owner(store: &Store, ctx: Ctx<'_>) -> CoreResult<Option<CartOwner>> {
+    Ok(store
+        .kv_get(&key_for(ctx, K_OWNER))?
+        .and_then(|j| serde_json::from_str::<CartOwner>(&j).ok())
+        .filter(|o| !o.user_id.is_empty()))
+}
+
+/// Record (or, with `None`, forget) the context's owner.
+pub(crate) fn set_owner(store: &Store, ctx: Ctx<'_>, owner: Option<&CartOwner>) -> CoreResult<()> {
+    track(store, ctx)?;
+    match owner {
+        Some(o) => store.kv_put(&key_for(ctx, K_OWNER), &serde_json::to_string(o)?),
+        None => store.kv_put(&key_for(ctx, K_OWNER), ""),
+    }
+}
 
 /// The identity a context's cart carries while it is being built: what it is
 /// called, which parked order it came from, and the table/booking it belongs
@@ -306,13 +343,30 @@ pub(crate) fn clear_all(store: &Store) -> CoreResult<()> {
     for t in std::iter::once(None).chain(tables.iter().map(|t| Some(t.as_str()))) {
         store.kv_put(&key_for(t, K_CART), "[]")?;
         store.kv_put(&key_for(t, K_DISCOUNT), "")?;
+        store.kv_put(&key_for(t, K_DISCOUNT_MANUAL), "")?;
+        store.kv_put(&key_for(t, K_DISCOUNT_APPROVAL), "")?;
         store.kv_put(&key_for(t, K_NOTE), "")?;
         store.kv_put(&key_for(t, K_LAST_REMOVED), "[]")?;
         store.kv_put(&key_for(t, K_META), "{}")?;
         store.kv_put(&key_for(t, K_KITCHEN_NOTES), "{}")?;
         store.kv_put(&key_for(t, K_KITCHEN_NOTE), "")?;
+        store.kv_put(&key_for(t, K_OWNER), "")?;
     }
     store.kv_put(K_CONTEXT_TABLES, "[]")?;
+    forget_legacy_context(store)
+}
+
+/// Forget the meta and owner of every context holding no lines (after a
+/// teller switch parked the rest); a context still holding lines is kept.
+pub(crate) fn clear_empty(store: &Store) -> CoreResult<()> {
+    let tables = context_tables(store)?;
+    for t in std::iter::once(None).chain(tables.iter().map(|t| Some(t.as_str()))) {
+        if load(store, t)?.is_empty() {
+            clear(store, t)?;
+            store.kv_put(&key_for(t, K_KITCHEN_NOTES), "{}")?;
+            store.kv_put(&key_for(t, K_KITCHEN_NOTE), "")?;
+        }
+    }
     forget_legacy_context(store)
 }
 
@@ -1453,6 +1507,7 @@ pub(crate) fn clear(store: &Store, ctx: Ctx<'_>) -> CoreResult<()> {
     set_note(store, ctx, None)?;
     store.kv_put(&ctx_key(ctx, K_LAST_REMOVED)?, "[]")?; // a stale undo must not resurrect a sold line
     store.kv_put(&key_for(ctx, K_META), "{}")?; // the spent cart forgets its name/draft/booking
+    store.kv_put(&key_for(ctx, K_OWNER), "")?; // and whose it was
     save(store, ctx, &[])
 }
 
@@ -1469,6 +1524,9 @@ pub(crate) fn cart_payload(store: &Store, ctx: Ctx<'_>) -> CoreResult<serde_json
     Ok(serde_json::json!({
         "lines": serde_json::to_value(&lines)?,
         "discount_id": discount_id(store, ctx)?,
+        // Additive: a hand-typed discount and its approval park with the cart.
+        "discount_manual": manual_discount(store, ctx)?,
+        "discount_approval": discount_approval(store, ctx)?,
         "note": note(store, ctx)?,
     }))
 }
@@ -1489,6 +1547,18 @@ pub(crate) fn set_cart_payload(
     match payload.get("discount_id").and_then(|v| v.as_str()) {
         Some(d) if !d.is_empty() => set_discount(store, ctx, d)?,
         _ => clear_discount(store, ctx)?,
+    }
+    if let Some(m) = payload
+        .get("discount_manual")
+        .and_then(|v| serde_json::from_value::<ManualDiscount>(v.clone()).ok())
+    {
+        set_manual_discount(store, ctx, &m)?;
+    }
+    if let Some(a) = payload
+        .get("discount_approval")
+        .and_then(|v| serde_json::from_value::<crate::approvals::ApprovalView>(v.clone()).ok())
+    {
+        set_discount_approval(store, ctx, Some(&a))?;
     }
     set_note(store, ctx, payload.get("note").and_then(|v| v.as_str()))?;
     store.kv_put(&ctx_key(ctx, K_LAST_REMOVED)?, "[]")?; // a stale undo must not leak across orders
@@ -1541,6 +1611,12 @@ pub struct DraftView {
     /// True when ANOTHER till is editing this order right now (resume claim
     /// held elsewhere) — the chip renders locked and cannot be restored.
     pub locked_by_other: bool,
+    /// Someone other than the signed-in person started this order (queue
+    /// rule 2): the strip shows [`Self::created_by_name`] on it, and resuming
+    /// it goes through `decide_draft_act`.
+    pub by_other: bool,
+    /// Who started it, when known.
+    pub created_by_name: Option<String>,
 }
 
 /// The identity a cart is parked under: its free-text name (may be empty), the
@@ -1622,6 +1698,8 @@ pub(crate) fn drafts(store: &Store) -> CoreResult<Vec<DraftView>> {
             table_id: None,
             table_label: None,
             locked_by_other: false,
+            by_other: false,
+            created_by_name: None,
         })
         .collect();
     out.reverse();
@@ -1686,10 +1764,83 @@ pub(crate) fn discard_draft(store: &Store, id: &str) -> CoreResult<()> {
 // ── discount ─────────────────────────────────────────────────────────────────
 
 pub(crate) fn set_discount(store: &Store, ctx: Ctx<'_>, discount_id: &str) -> CoreResult<()> {
+    store.kv_put(&ctx_key(ctx, K_DISCOUNT_MANUAL)?, "")?;
+    store.kv_put(&ctx_key(ctx, K_DISCOUNT_APPROVAL)?, "")?;
     store.kv_put(&ctx_key(ctx, K_DISCOUNT)?, discount_id)
 }
 pub(crate) fn clear_discount(store: &Store, ctx: Ctx<'_>) -> CoreResult<()> {
+    store.kv_put(&ctx_key(ctx, K_DISCOUNT_MANUAL)?, "")?;
+    store.kv_put(&ctx_key(ctx, K_DISCOUNT_APPROVAL)?, "")?;
     store.kv_put(&ctx_key(ctx, K_DISCOUNT)?, "")
+}
+
+/// A discount typed by hand: an amount in minor units, or a percentage in
+/// basis points (1250 = 12.5%). Order-level, like a preset.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct ManualDiscount {
+    /// `manual_amount` | `manual_percent`
+    pub kind: String,
+    #[serde(default)]
+    pub amount_minor: Option<i64>,
+    #[serde(default)]
+    pub percent_bps: Option<i64>,
+}
+
+/// Put a hand-typed discount on the cart (replacing any preset). Figures are
+/// clamped: an amount is never negative, a percentage never over 100%.
+pub(crate) fn set_manual_discount(store: &Store, ctx: Ctx<'_>, m: &ManualDiscount) -> CoreResult<()> {
+    let m = ManualDiscount {
+        kind: m.kind.clone(),
+        amount_minor: m.amount_minor.map(|a| a.max(0)),
+        percent_bps: m.percent_bps.map(|p| p.clamp(0, 10_000)),
+    };
+    store.kv_put(&ctx_key(ctx, K_DISCOUNT)?, "")?;
+    store.kv_put(&ctx_key(ctx, K_DISCOUNT_APPROVAL)?, "")?;
+    store.kv_put(&ctx_key(ctx, K_DISCOUNT_MANUAL)?, &serde_json::to_string(&m)?)
+}
+
+/// The cart's hand-typed discount, if any.
+pub(crate) fn manual_discount(store: &Store, ctx: Ctx<'_>) -> CoreResult<Option<ManualDiscount>> {
+    Ok(store
+        .kv_get(&ctx_key(ctx, K_DISCOUNT_MANUAL)?)?
+        .filter(|s| !s.is_empty())
+        .and_then(|s| serde_json::from_str(&s).ok()))
+}
+
+/// Keep (or with `None`, drop) the approval for the cart's discount.
+pub(crate) fn set_discount_approval(
+    store: &Store,
+    ctx: Ctx<'_>,
+    approval: Option<&crate::approvals::ApprovalView>,
+) -> CoreResult<()> {
+    let v = match approval {
+        Some(a) => serde_json::to_string(a)?,
+        None => String::new(),
+    };
+    store.kv_put(&ctx_key(ctx, K_DISCOUNT_APPROVAL)?, &v)
+}
+
+/// The approval kept for the cart's discount, if any.
+pub(crate) fn discount_approval(
+    store: &Store,
+    ctx: Ctx<'_>,
+) -> CoreResult<Option<crate::approvals::ApprovalView>> {
+    Ok(store
+        .kv_get(&ctx_key(ctx, K_DISCOUNT_APPROVAL)?)?
+        .filter(|s| !s.is_empty())
+        .and_then(|s| serde_json::from_str(&s).ok()))
+}
+
+/// Which discount act the cart carries — `preset`, `manual_amount` or
+/// `manual_percent` — or `None`.
+pub(crate) fn discount_act(store: &Store, ctx: Ctx<'_>) -> CoreResult<Option<String>> {
+    if let Some(m) = manual_discount(store, ctx)? {
+        return Ok(Some(m.kind));
+    }
+    Ok(match discount(store, ctx)? {
+        (DiscountKind::None, _) => None,
+        _ => Some("preset".into()),
+    })
 }
 /// Set (or, with `None` / blank, clear) the order note of the cart in hand.
 pub(crate) fn set_note(store: &Store, ctx: Ctx<'_>, note: Option<&str>) -> CoreResult<()> {
@@ -1736,6 +1887,13 @@ pub(crate) fn discount_rate(d: &models::Discount) -> f64 {
 }
 
 pub(crate) fn discount(store: &Store, ctx: Ctx<'_>) -> CoreResult<(DiscountKind, f64)> {
+    if let Some(m) = manual_discount(store, ctx)? {
+        return Ok(match (m.kind.as_str(), m.amount_minor, m.percent_bps) {
+            ("manual_amount", Some(a), _) if a > 0 => (DiscountKind::Fixed, a as f64),
+            ("manual_percent", _, Some(p)) if p > 0 => (DiscountKind::Percentage, p as f64 / 10_000.0),
+            _ => (DiscountKind::None, 0.0),
+        });
+    }
     let id = match discount_id(store, ctx)? {
         Some(id) => id,
         None => return Ok((DiscountKind::None, 0.0)),
@@ -2918,6 +3076,36 @@ mod tests {
           {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z","dtype":"percentage","id":"00000000-0000-0000-0000-0000000000d1","is_active":true,"name":"10% off","name_translations":{},"org_id":"00000000-0000-0000-0000-0000000000ff","value":10,"value_rate":0.10},
           {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z","dtype":"fixed","id":"00000000-0000-0000-0000-0000000000d2","is_active":true,"name":"250 off","name_translations":{},"org_id":"00000000-0000-0000-0000-0000000000ff","value":250,"value_rate":250}
         ]"#).unwrap();
+    }
+
+    #[test]
+    fn a_hand_typed_discount_prices_like_a_preset_and_replaces_it() {
+        let s = store();
+        seed_discounts(&s);
+        add(&s, None, "a", "Latte", 1000).unwrap();
+        set_discount(&s, None, "00000000-0000-0000-0000-0000000000d1").unwrap();
+        let amount = ManualDiscount { kind: "manual_amount".into(), amount_minor: Some(250), percent_bps: None };
+        set_manual_discount(&s, None, &amount).unwrap();
+        assert_eq!(discount_id(&s, None).unwrap(), None, "a typed discount replaces the preset");
+        assert_eq!(discount_act(&s, None).unwrap().as_deref(), Some("manual_amount"));
+        let t = totals(&s, None, &tax_policy_at(0.14)).unwrap();
+        assert_eq!((t.discount_minor, t.total_minor), (250, 855));
+
+        let pct = ManualDiscount { kind: "manual_percent".into(), amount_minor: None, percent_bps: Some(1250) };
+        set_manual_discount(&s, None, &pct).unwrap();
+        let t = totals(&s, None, &tax_policy_at(0.0)).unwrap();
+        assert_eq!(t.discount_minor, 125, "12.5% of 10.00");
+
+        // It parks with the cart and comes back.
+        let payload = cart_payload(&s, None).unwrap();
+        clear_discount(&s, None).unwrap();
+        assert_eq!(discount_act(&s, None).unwrap(), None);
+        set_cart_payload(&s, None, &payload).unwrap();
+        assert_eq!(manual_discount(&s, None).unwrap(), Some(pct));
+
+        // A preset replaces it again.
+        set_discount(&s, None, "00000000-0000-0000-0000-0000000000d1").unwrap();
+        assert_eq!(discount_act(&s, None).unwrap().as_deref(), Some("preset"));
     }
 
     #[test]

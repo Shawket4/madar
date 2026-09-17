@@ -446,16 +446,44 @@ impl MadarCore {
     }
 
     /// Close the person's till (never blocked). Queues `close_till` with the
-    /// per-method reconciliation.
+    /// per-method reconciliation. Held orders are left open and recorded.
     pub async fn close_till(
         &self,
         closing_cash_minor: i64,
         cash_note: Option<String>,
         reconciliation: Vec<till::ReconciliationInput>,
     ) -> Result<till::CloseTillOutcomeView, CoreError> {
+        self.close_till_confirmed(closing_cash_minor, cash_note, reconciliation, true).await
+    }
+
+    /// [`Self::close_till`] after the held-orders warning (`close_preflight`,
+    /// queue.rs rule 8): `leave_held_open` false refuses while any are open.
+    pub async fn close_till_confirmed(
+        &self,
+        closing_cash_minor: i64,
+        cash_note: Option<String>,
+        reconciliation: Vec<till::ReconciliationInput>,
+        leave_held_open: bool,
+    ) -> Result<till::CloseTillOutcomeView, CoreError> {
+        // Queue step (self-contained): the held-orders check, before anything else.
+        if !leave_held_open && self.close_preflight().held_count > 0 {
+            return Err(CoreError::Validation {
+                field: "held_orders".into(),
+                detail: "held orders are still open".into(),
+            });
+        }
         let t = self.open_till_or_err()?;
-        let inputs = till::reconciliation_wire(&reconciliation)?;
         let preview = self.close_till_preview().await.ok();
+        // A blind count: the person gave what they see; the core decides
+        // whether it agrees with the system (a disagreement lands in the
+        // owner's review queue after the close).
+        let blind_note = crate::i18n::tr(&self.current_locale(), "spot.blind_count_note");
+        let reconciliation = till::resolve_blind_counts(
+            reconciliation,
+            preview.as_ref().map(|p| p.methods.as_slice()).unwrap_or(&[]),
+            &blind_note,
+        );
+        let inputs = till::reconciliation_wire(&reconciliation)?;
         // A close never predates its open. The corrected clock moves in whole
         // seconds as the server offset is re-estimated, so a till closed moments
         // after it opened could read earlier than its own open — which the server
@@ -467,14 +495,17 @@ impl MadarCore {
             .fixed_offset();
         let dev = self.lan_device_id();
         let cash_note = cash_note.filter(|n| !n.trim().is_empty());
+        let (held_left, held_left_total) = self.leave_queue_for_next_till();
         let request = models::CloseTillRequest {
+            held_orders_left_open: Some(i32::try_from(held_left).ok()),
+            held_orders_left_open_total: Some(i32::try_from(held_left_total).ok()),
             closing_cash_declared: cash_i32(closing_cash_minor, "closing_cash")?,
             cash_note: cash_note.clone().map(Some),
             closed_at: Some(Some(closed_at)),
             device_id: uuid::Uuid::parse_str(&dev).ok().map(Some),
             reconciliation: Some(Some(inputs.clone())),
         };
-        crate::cart::clear_all(&self.store)?;
+        // The carts were parked or emptied above (`leave_queue_for_next_till`).
         // What this drawer was just closed at IS the next opening's carryover,
         // whoever opens it next.
         till::cache_suggested_opening_cash(&self.store, closing_cash_minor)?;

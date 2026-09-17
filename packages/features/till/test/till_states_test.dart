@@ -44,6 +44,7 @@ TillReportView _report(int expected) => TillReportView(
   fromServer: true,
   reconciliation: const [],
   verification: 'server',
+  spotViews: const [],
   openedWhileAnotherOpen: false,
   serviceChargeWaivedCount: 0,
   serviceChargeWaivedMinor: 0,
@@ -55,6 +56,8 @@ const _offline = MadarError.offline(detail: 'offline');
 
 class _Bridge implements MadarBridge {
   bool failReport = false;
+  bool blind = false;
+  int reportReads = 0;
   bool failTills = false;
   bool failOrders = false;
   bool failMovements = false;
@@ -63,9 +66,11 @@ class _Bridge implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #tillFiguresVisible) return !blind;
     final can = fakeCanInvocation(invocation, () => currentSession()?.role);
     if (can != null) return can;
     final name = invocation.memberName;
+    if (name == #tillReport) reportReads += 1;
     // The core's drawer and Orders decisions (till_views), in miniature.
     if (name == #paymentMethodLabel) {
       final code = invocation.namedArguments[#code] as String;
@@ -211,6 +216,25 @@ void main() {
           container.read(closeTillProvider).error,
           const UiText.key('till.count_required'),
         );
+      },
+    );
+
+    test(
+      'without the grant the count is blind: no figures read, closes on the count',
+      () async {
+        bridge.blind = true;
+        container.listen(closeTillProvider, (_, _) {});
+        await _settle();
+        final s = container.read(closeTillProvider);
+        expect(s.blind, isTrue);
+        expect(s.report, isNull, reason: 'the expected drawer is never read');
+        expect(bridge.reportReads, 0);
+        final notifier = container.read(closeTillProvider.notifier)
+          ..setCounted(90000);
+        expect(container.read(closeTillProvider).needsReason, isFalse);
+        expect(container.read(closeTillProvider).canClose, isTrue);
+        expect(await notifier.close(note: ''), isTrue);
+        expect(bridge.closes, [90000]);
       },
     );
 

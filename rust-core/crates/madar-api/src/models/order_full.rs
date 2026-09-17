@@ -45,8 +45,40 @@ pub struct OrderFull {
     pub device_id: Option<uuid::Uuid>,
     #[serde(rename = "discount_amount")]
     pub discount_amount: i32,
+    /// Who applied the discount. Additive.
+    #[serde(
+        rename = "discount_applied_by",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_applied_by: Option<uuid::Uuid>,
+    #[serde(
+        rename = "discount_applied_by_name",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_applied_by_name: Option<String>,
+    /// The manager approval that let the discount past the person's cap. Additive.
+    #[serde(
+        rename = "discount_approval_id",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_approval_id: Option<uuid::Uuid>,
+    /// The approving manager's name, when the approval was recorded. Additive.
+    #[serde(
+        rename = "discount_approved_by_name",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_approved_by_name: Option<String>,
     #[serde(rename = "discount_id", skip_serializing_if = "Option::is_none")]
     pub discount_id: Option<uuid::Uuid>,
+    /// `preset` | `manual_amount` | `manual_percent`; `null` without a discount or on sales from before discounts were attributed. Additive.
+    #[serde(rename = "discount_kind", skip_serializing_if = "Option::is_none")]
+    pub discount_kind: Option<String>,
+    /// The percentage asked for, in basis points. Additive.
+    #[serde(
+        rename = "discount_percent_bps",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_percent_bps: Option<i32>,
     /// The stored value — a fraction for a percentage. Same column as [`Order::discount_value`].
     #[serde(rename = "discount_rate", skip_serializing_if = "Option::is_none")]
     pub discount_rate: Option<f64>,
@@ -147,6 +179,11 @@ pub struct OrderFull {
     /// DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0).
     #[serde(rename = "shift_id")]
     pub shift_id: uuid::Uuid,
+    /// Who started this sale's cart when it is not the person who rang it: a held order resumed after a teller switch on the till. `null` otherwise. Additive.
+    #[serde(rename = "started_by", skip_serializing_if = "Option::is_none")]
+    pub started_by: Option<uuid::Uuid>,
+    #[serde(rename = "started_by_name", skip_serializing_if = "Option::is_none")]
+    pub started_by_name: Option<String>,
     #[serde(rename = "status")]
     pub status: String,
     #[serde(rename = "subtotal")]
@@ -249,7 +286,13 @@ impl OrderFull {
             device_code: None,
             device_id: None,
             discount_amount,
+            discount_applied_by: None,
+            discount_applied_by_name: None,
+            discount_approval_id: None,
+            discount_approved_by_name: None,
             discount_id: None,
+            discount_kind: None,
+            discount_percent_bps: None,
             discount_rate: None,
             discount_type: None,
             discount_value,
@@ -275,6 +318,8 @@ impl OrderFull {
             service_charge_waived_by: None,
             service_charge_waived_by_name: None,
             shift_id,
+            started_by: None,
+            started_by_name: None,
             status,
             subtotal,
             tax_amount,

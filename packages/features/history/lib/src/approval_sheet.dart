@@ -1,139 +1,54 @@
 import 'package:app_core/app_core.dart';
-import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/feature_checkout.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// Ask a manager (PERMISSIONS_ARCHITECTURE §4.2, phase 5): a manager types
-/// THEIR PIN on this device, over the teller's session. The core finds them,
-/// checks they may approve this act for this person, and returns the approval
-/// the act then carries. Pops the approval, or null when dismissed.
+/// Ask a manager (PERMISSIONS_ARCHITECTURE §4.2): the shared manager-PIN
+/// sheet ([askManagerWith]). Pops the approval, or null when dismissed.
+///
+/// An act on a sale (void, refund) names [orderId] and is approved over
+/// `approveOrderAct`; any other act passes [approve], which asks the core to
+/// mint the approval for the typed PIN (e.g. a waste).
 Future<ApprovalView?> askManager(
-  BuildContext context, {
+  BuildContext context,
+  WidgetRef ref, {
   required String reason,
   required String capKey,
-  required String orderId,
+  String? orderId,
   int? amountMinor,
+  Future<ApprovalView> Function(MadarBridge bridge, String pin)? approve,
 }) {
-  return showMadarSheet<ApprovalView>(
+  assert(orderId != null || approve != null, 'an order or an approver');
+  final bridge = ref.read(bridgeProvider);
+  return askManagerWith(
     context,
-    size: SheetSize.hug,
-    maxWidth: 420,
-    builder: (_) => _ApprovalSheet(
-      reason: reason,
-      capKey: capKey,
-      orderId: orderId,
-      amountMinor: amountMinor,
-    ),
+    reason: reason,
+    approve: (pin) => approve != null
+        ? approve(bridge, pin)
+        : bridge.approveOrderAct(
+            approverPin: pin,
+            capKey: capKey,
+            orderId: orderId!,
+            amountMinor: amountMinor,
+          ),
   );
 }
 
-class _ApprovalSheet extends ConsumerStatefulWidget {
-  const _ApprovalSheet({
-    required this.reason,
-    required this.capKey,
-    required this.orderId,
-    required this.amountMinor,
-  });
-
-  final String reason;
-  final String capKey;
-  final String orderId;
-  final int? amountMinor;
-
-  @override
-  ConsumerState<_ApprovalSheet> createState() => _ApprovalSheetState();
-}
-
-class _ApprovalSheetState extends ConsumerState<_ApprovalSheet> {
-  final TextEditingController _pin = TextEditingController();
-  bool _busy = false;
-  UiText? _error;
-
-  @override
-  void dispose() {
-    _pin.dispose();
-    super.dispose();
-  }
-
-  Future<void> _approve() async {
-    if (_busy || _pin.text.trim().length < 4) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final approval = await ref
-          .read(bridgeProvider)
-          .approveOrderAct(
-            approverPin: _pin.text.trim(),
-            capKey: widget.capKey,
-            orderId: widget.orderId,
-            amountMinor: widget.amountMinor,
-          );
-      if (mounted) await Navigator.of(context).maybePop(approval);
-    } on MadarError catch (e) {
-      MadarHaptics.warning();
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _error = e is MadarError_Forbidden
-              ? UiText.raw(e.action)
-              : UiText.error(e);
-          _pin.clear();
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final bridge = ref.bridge;
-    String t(String key) => bridge.tr(key: key);
-    return Padding(
-      padding: const EdgeInsetsDirectional.all(Space.xl),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.md,
-        children: [
-          Text(
-            t('approval.title'),
-            style: MadarType.h3.copyWith(color: colors.textPrimary),
-          ),
-          Text(
-            widget.reason,
-            style: MadarType.body.copyWith(color: colors.textSecondary),
-          ),
-          Text(
-            t('approval.desc'),
-            style: MadarType.bodySm.copyWith(color: colors.textMuted),
-          ),
-          MadarField(
-            controller: _pin,
-            placeholder: t('approval.pin'),
-            icon: 'lock',
-            obscure: true,
-            autofocus: true,
-            enabled: !_busy,
-            keyboardType: TextInputType.number,
-            onSubmitted: (_) => _approve(),
-          ),
-          if (_error != null)
-            NoticeBanner(
-              text: _error!.of(bridge),
-              tone: ChipTone.danger,
-              icon: 'exclamationmark.circle',
-            ),
-          MadarButton(
-            label: t('approval.approve'),
-            onTap: _approve,
-            loading: _busy,
-            icon: 'checkmark.circle',
-          ),
-        ],
-      ),
-    );
-  }
+/// The cash spot check's one-time PIN (owner design 2026-09-16 item 5): a
+/// person holding the grant types THEIR PIN; the approval unlocks exactly one
+/// spot report view or one look at the pre-close figures. The signed-in
+/// person does not change. Built on the shared sheet. Pops the approval, or
+/// null when dismissed.
+Future<ApprovalView?> askCashSpotPin(
+  BuildContext context, {
+  required String reason,
+}) {
+  final container = ProviderScope.containerOf(context);
+  final bridge = container.read(bridgeProvider);
+  return askManagerWith(
+    context,
+    reason: reason,
+    approve: (pin) => bridge.approveCashSpot(approverPin: pin),
+  );
 }

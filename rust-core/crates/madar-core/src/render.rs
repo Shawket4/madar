@@ -663,6 +663,24 @@ impl Renderer {
         }
         self.rule();
 
+        // ── cash spot reports viewed (who, when, printed, whose PIN) ──
+        if !r.spot_views.is_empty() {
+            let tr = |k: &str| crate::i18n::tr(&lab.locale, k);
+            self.center(&tr("spot.views").to_uppercase(), RS_SMALL, Weight::SEMIBOLD);
+            for v in &r.spot_views {
+                let when = crate::timefmt::format_in(lab.tz, &v.viewed_at, crate::timefmt::TimeStyle::Time, &lab.locale);
+                let mut who = v.viewed_by_name.clone();
+                if let Some(a) = &v.approved_by_name {
+                    who = format!("{who} · {} {a}", tr("spot.approved_by"));
+                }
+                if v.printed {
+                    who = format!("{who} · {}", tr("spot.printed"));
+                }
+                self.indented(&format!("{when}  {who}"), RS_SMALL, 0);
+            }
+            self.rule();
+        }
+
         // ── cash reconciliation ──
         self.center(&lab.cash_recon.to_uppercase(), RS_SMALL, Weight::SEMIBOLD);
         self.row(
@@ -737,6 +755,11 @@ impl Renderer {
         if let Some(old) = r.old_bills_count {
             self.rule();
             self.row(&t("till.z_old_bills"), &old.to_string(), RS_BODY, Weight::NORMAL);
+        }
+        if let Some(n) = r.held_orders_left_open.filter(|n| *n > 0) {
+            self.rule();
+            let total = r.held_orders_left_open_total_minor.map(|v| format!(" · {}", m(v))).unwrap_or_default();
+            self.row(&t("till.z_held_left_open"), &format!("{n}{total}"), RS_BODY, Weight::NORMAL);
         }
         if r.voided_amount_minor > 0 {
             self.rule();
@@ -1327,8 +1350,11 @@ mod tests {
             reconciliation: vec![],
             old_bills_count: None,
             open_bills_count: None,
+            held_orders_left_open: None,
+            held_orders_left_open_total_minor: None,
             opened_while_another_open: false,
             verification: "server".into(),
+            spot_views: Vec::new(),
         }
     }
 
@@ -1339,6 +1365,8 @@ mod tests {
         report.order_number_first = Some(1);
         report.order_number_last = Some(42);
         report.old_bills_count = Some(3);
+        report.held_orders_left_open = Some(2);
+        report.held_orders_left_open_total_minor = Some(12_500);
         report.opened_while_another_open = true;
         report.reconciliation = vec![
             crate::till::ReconciliationLineView {

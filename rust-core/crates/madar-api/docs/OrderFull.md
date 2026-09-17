@@ -17,7 +17,13 @@ Name | Type | Description | Notes
 **device_code** | Option<**String**> | That device's code (`36B`), stored with the order. `null` when server-numbered. | [optional]
 **device_id** | Option<**uuid::Uuid**> | The device that numbered this sale (contract R4). `null` for server-numbered orders (old clients, dashboard, delivery). | [optional]
 **discount_amount** | **i32** |  | 
+**discount_applied_by** | Option<**uuid::Uuid**> | Who applied the discount. Additive. | [optional]
+**discount_applied_by_name** | Option<**String**> |  | [optional]
+**discount_approval_id** | Option<**uuid::Uuid**> | The manager approval that let the discount past the person's cap. Additive. | [optional]
+**discount_approved_by_name** | Option<**String**> | The approving manager's name, when the approval was recorded. Additive. | [optional]
 **discount_id** | Option<**uuid::Uuid**> |  | [optional]
+**discount_kind** | Option<**String**> | `preset` | `manual_amount` | `manual_percent`; `null` without a discount or on sales from before discounts were attributed. Additive. | [optional]
+**discount_percent_bps** | Option<**i32**> | The percentage asked for, in basis points. Additive. | [optional]
 **discount_rate** | Option<**f64**> | The stored value — a fraction for a percentage. Same column as [`Order::discount_value`]. | [optional]
 **discount_type** | Option<**String**> |  | [optional]
 **discount_value** | **i64** | LEGACY SPELLING — an integer, 0-100 for a percentage. See `discounts::wire`: every shipped till was generated against `integer`, and a double here fails to deserialise the whole ORDER, not just this field. Read [`Order::discount_rate`] for the stored number. | 
@@ -43,6 +49,8 @@ Name | Type | Description | Notes
 **service_charge_waived_by** | Option<**uuid::Uuid**> | Who removed the service charge from this table's bill (a holder of `orders:waive_service`), or `null`. Additive. | [optional]
 **service_charge_waived_by_name** | Option<**String**> |  | [optional]
 **shift_id** | **uuid::Uuid** | DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0). | 
+**started_by** | Option<**uuid::Uuid**> | Who started this sale's cart when it is not the person who rang it: a held order resumed after a teller switch on the till. `null` otherwise. Additive. | [optional]
+**started_by_name** | Option<**String**> |  | [optional]
 **status** | **String** |  | 
 **subtotal** | **i32** |  | 
 **tax_amount** | **i32** |  | 

@@ -9,26 +9,23 @@ import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-AddonGroup _group(
-  String id,
-  String type, {
-  bool required = false,
-}) => AddonGroup(
-  id: id,
-  title: id,
-  addons: [
-    ItemAddonView(
-      addonItemId: '$id-a',
-      name: '$id option',
-      addonType: type,
-      chargedPriceMinor: 0,
-    ),
-  ],
-  isMulti: type == 'extra',
-  maxSel: null,
-  isRequired: required,
-  minSel: required ? 1 : 0,
-);
+AddonGroup _group(String id, String type, {bool required = false}) =>
+    AddonGroup(
+      id: id,
+      title: id,
+      addons: [
+        ItemAddonView(
+          addonItemId: '$id-a',
+          name: '$id option',
+          addonType: type,
+          chargedPriceMinor: 0,
+        ),
+      ],
+      isMulti: type == 'extra',
+      maxSel: null,
+      isRequired: required,
+      minSel: required ? 1 : 0,
+    );
 
 List<String> _ids(List<AddonGroup> gs) => [for (final g in gs) g.id];
 
