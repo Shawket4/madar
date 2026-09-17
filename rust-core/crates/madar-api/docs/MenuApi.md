@@ -4,17 +4,22 @@ All URIs are relative to *http://localhost:8080*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
+[**apply_rules**](MenuApi.md#apply_rules) | **POST** /packaging-rules/apply | 
 [**catalog_sync**](MenuApi.md#catalog_sync) | **GET** /catalog/sync | 
 [**create_addon_item**](MenuApi.md#create_addon_item) | **POST** /addon-items | 
 [**create_addon_slot**](MenuApi.md#create_addon_slot) | **POST** /menu-items/{id}/addon-slots | 
+[**create_base**](MenuApi.md#create_base) | **POST** /recipe-bases | 
 [**create_category**](MenuApi.md#create_category) | **POST** /categories | 
 [**create_group**](MenuApi.md#create_group) | **POST** /modifier-groups | 
+[**create_linked_copy**](MenuApi.md#create_linked_copy) | **POST** /menu-items/{id}/linked-copy | 
 [**create_menu_item**](MenuApi.md#create_menu_item) | **POST** /menu-items | 
 [**create_option**](MenuApi.md#create_option) | **POST** /modifier-groups/{gid}/options | 
 [**create_optional_field**](MenuApi.md#create_optional_field) | **POST** /menu-items/{id}/optionals | 
+[**create_rule**](MenuApi.md#create_rule) | **POST** /packaging-rules | 
 [**delete_addon_item**](MenuApi.md#delete_addon_item) | **DELETE** /addon-items/{id} | 
 [**delete_addon_override**](MenuApi.md#delete_addon_override) | **DELETE** /menu-items/{id}/overrides/{override_id} | 
 [**delete_addon_slot**](MenuApi.md#delete_addon_slot) | **DELETE** /menu-items/{id}/addon-slots/{slot_id} | 
+[**delete_base**](MenuApi.md#delete_base) | **DELETE** /recipe-bases/{id} | 
 [**delete_branch_addon_override**](MenuApi.md#delete_branch_addon_override) | **DELETE** /branch-addon-overrides | 
 [**delete_branch_menu_override**](MenuApi.md#delete_branch_menu_override) | **DELETE** /branch-menu-overrides | 
 [**delete_category**](MenuApi.md#delete_category) | **DELETE** /categories/{id} | 
@@ -23,15 +28,23 @@ Method | HTTP request | Description
 [**delete_option**](MenuApi.md#delete_option) | **DELETE** /modifier-options/{oid} | 
 [**delete_optional_field**](MenuApi.md#delete_optional_field) | **DELETE** /menu-items/{id}/optionals/{field_id} | 
 [**delete_price_override**](MenuApi.md#delete_price_override) | **DELETE** /menu-price-overrides | 
+[**delete_recipe_link**](MenuApi.md#delete_recipe_link) | **DELETE** /menu-items/{id}/recipe-link | 
+[**delete_rule**](MenuApi.md#delete_rule) | **DELETE** /packaging-rules/{id} | 
 [**delete_size**](MenuApi.md#delete_size) | **DELETE** /menu-items/{id}/sizes/{sid} | 
 [**duplicate_item**](MenuApi.md#duplicate_item) | **POST** /menu-items/{id}/duplicate | 
+[**get_base**](MenuApi.md#get_base) | **GET** /recipe-bases/{id} | 
+[**get_base_usage**](MenuApi.md#get_base_usage) | **GET** /recipe-bases/{id}/usage | 
+[**get_group_usage**](MenuApi.md#get_group_usage) | **GET** /modifier-groups/{gid}/usage | 
 [**get_item_cost**](MenuApi.md#get_item_cost) | **GET** /menu-items/{id}/cost | 
 [**get_menu_item**](MenuApi.md#get_menu_item) | **GET** /menu-items/{id} | 
+[**get_menu_lint**](MenuApi.md#get_menu_lint) | **GET** /menu/lint | 
+[**get_recipe_link**](MenuApi.md#get_recipe_link) | **GET** /menu-items/{id}/recipe-link | 
 [**get_studio**](MenuApi.md#get_studio) | **GET** /menu-items/{id}/studio | 
 [**list_addon_catalog**](MenuApi.md#list_addon_catalog) | **GET** /addon-items/catalog | 
 [**list_addon_items**](MenuApi.md#list_addon_items) | **GET** /addon-items | 
 [**list_addon_overrides**](MenuApi.md#list_addon_overrides) | **GET** /menu-items/{id}/overrides | 
 [**list_addon_slots**](MenuApi.md#list_addon_slots) | **GET** /menu-items/{id}/addon-slots | 
+[**list_bases**](MenuApi.md#list_bases) | **GET** /recipe-bases | 
 [**list_branch_addon_overrides**](MenuApi.md#list_branch_addon_overrides) | **GET** /branch-addon-overrides | 
 [**list_branch_menu_overrides**](MenuApi.md#list_branch_menu_overrides) | **GET** /branch-menu-overrides | 
 [**list_categories**](MenuApi.md#list_categories) | **GET** /categories | 
@@ -39,13 +52,19 @@ Method | HTTP request | Description
 [**list_menu_catalog**](MenuApi.md#list_menu_catalog) | **GET** /costing/catalog | 
 [**list_menu_items**](MenuApi.md#list_menu_items) | **GET** /menu-items | 
 [**list_optional_fields**](MenuApi.md#list_optional_fields) | **GET** /menu-items/{id}/optionals | 
+[**list_rules**](MenuApi.md#list_rules) | **GET** /packaging-rules | 
+[**patch_base**](MenuApi.md#patch_base) | **PATCH** /recipe-bases/{id} | 
 [**patch_group**](MenuApi.md#patch_group) | **PATCH** /modifier-groups/{gid} | 
 [**patch_option**](MenuApi.md#patch_option) | **PATCH** /modifier-options/{oid} | 
+[**patch_rule**](MenuApi.md#patch_rule) | **PATCH** /packaging-rules/{id} | 
+[**preview_menu_item**](MenuApi.md#preview_menu_item) | **POST** /menu-items/{id}/preview | 
 [**put_allowed_addons**](MenuApi.md#put_allowed_addons) | **PUT** /menu-items/{id}/allowed-addons | 
+[**put_base_lines**](MenuApi.md#put_base_lines) | **PUT** /recipe-bases/{id}/lines | 
 [**put_item_options**](MenuApi.md#put_item_options) | **PUT** /menu-items/{id}/options | 
 [**put_modifier_groups**](MenuApi.md#put_modifier_groups) | **PUT** /menu-items/{id}/modifier-groups | 
 [**put_option_recipe**](MenuApi.md#put_option_recipe) | **PUT** /modifier-options/{oid}/recipe | 
 [**put_price_override**](MenuApi.md#put_price_override) | **PUT** /menu-price-overrides | 
+[**put_size_base**](MenuApi.md#put_size_base) | **PUT** /menu-item-sizes/{size_id}/base | 
 [**put_size_recipe**](MenuApi.md#put_size_recipe) | **PUT** /menu-item-sizes/{size_id}/recipe | 
 [**put_sizes**](MenuApi.md#put_sizes) | **PUT** /menu-items/{id}/sizes | 
 [**reorder_categories**](MenuApi.md#reorder_categories) | **PUT** /categories/order | 
@@ -59,6 +78,31 @@ Method | HTTP request | Description
 [**upsert_branch_menu_override**](MenuApi.md#upsert_branch_menu_override) | **PUT** /branch-menu-overrides | 
 [**upsert_size**](MenuApi.md#upsert_size) | **POST** /menu-items/{id}/sizes | 
 
+
+
+## apply_rules
+
+> models::ApplyPackagingRulesResult apply_rules()
+
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**models::ApplyPackagingRulesResult**](ApplyPackagingRulesResult.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
 ## catalog_sync
@@ -148,6 +192,34 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## create_base
+
+> models::RecipeBaseOut create_base(create_recipe_base_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**create_recipe_base_request** | [**CreateRecipeBaseRequest**](CreateRecipeBaseRequest.md) |  | [required] |
+
+### Return type
+
+[**models::RecipeBaseOut**](RecipeBaseOut.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## create_category
 
 > models::Category create_category(create_category_request)
@@ -191,6 +263,35 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::GroupOut**](GroupOut.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## create_linked_copy
+
+> models::LinkedCopyResult create_linked_copy(id, create_linked_copy_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Source menu item ID | [required] |
+**create_linked_copy_request** | [**CreateLinkedCopyRequest**](CreateLinkedCopyRequest.md) |  | [required] |
+
+### Return type
+
+[**models::LinkedCopyResult**](LinkedCopyResult.md)
 
 ### Authorization
 
@@ -290,6 +391,34 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## create_rule
+
+> models::PackagingRuleOut create_rule(create_packaging_rule_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**create_packaging_rule_request** | [**CreatePackagingRuleRequest**](CreatePackagingRuleRequest.md) |  | [required] |
+
+### Return type
+
+[**models::PackagingRuleOut**](PackagingRuleOut.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## delete_addon_item
 
 > delete_addon_item(id)
@@ -359,6 +488,34 @@ Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **id** | **uuid::Uuid** | Menu item ID | [required] |
 **slot_id** | **uuid::Uuid** | Addon slot ID | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## delete_base
+
+> delete_base(id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Recipe base ID | [required] |
 
 ### Return type
 
@@ -603,6 +760,62 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## delete_recipe_link
+
+> models::RecipeLinkInfo delete_recipe_link(id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Linked copy menu item ID | [required] |
+
+### Return type
+
+[**models::RecipeLinkInfo**](RecipeLinkInfo.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## delete_rule
+
+> delete_rule(id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Packaging rule ID | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## delete_size
 
 > delete_size(id, sid)
@@ -660,6 +873,90 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## get_base
+
+> models::RecipeBaseOut get_base(id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Recipe base ID | [required] |
+
+### Return type
+
+[**models::RecipeBaseOut**](RecipeBaseOut.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## get_base_usage
+
+> models::RecipeBaseUsage get_base_usage(id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Recipe base ID | [required] |
+
+### Return type
+
+[**models::RecipeBaseUsage**](RecipeBaseUsage.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## get_group_usage
+
+> Vec<models::GroupUsageItem> get_group_usage(gid)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**gid** | **uuid::Uuid** | Modifier group ID | [required] |
+
+### Return type
+
+[**Vec<models::GroupUsageItem>**](GroupUsageItem.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## get_item_cost
 
 > Vec<models::SizeCostOut> get_item_cost(id)
@@ -703,6 +1000,63 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::MenuItemFull**](MenuItemFull.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## get_menu_lint
+
+> Vec<models::LintIssue> get_menu_lint(org_id, group_id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** | Organization to lint. | [required] |
+**group_id** | Option<**uuid::Uuid**> | Only findings about this modifier group (for the group editor). |  |
+
+### Return type
+
+[**Vec<models::LintIssue>**](LintIssue.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## get_recipe_link
+
+> models::RecipeLinkInfo get_recipe_link(id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Menu item ID | [required] |
+
+### Return type
+
+[**models::RecipeLinkInfo**](RecipeLinkInfo.md)
 
 ### Authorization
 
@@ -868,6 +1222,31 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## list_bases
+
+> Vec<models::RecipeBaseOut> list_bases()
+
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**Vec<models::RecipeBaseOut>**](RecipeBaseOut.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## list_branch_addon_overrides
 
 > Vec<models::BranchAddonOverride> list_branch_addon_overrides(branch_id)
@@ -954,7 +1333,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_groups
 
-> Vec<models::GroupOut> list_groups(org_id)
+> Vec<models::GroupOut> list_groups(org_id, include_inactive)
 
 
 ### Parameters
@@ -963,6 +1342,7 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **org_id** | **uuid::Uuid** | Organization whose reusable modifier groups to list | [required] |
+**include_inactive** | Option<**bool**> | Also list deactivated groups (default false) |  |
 
 ### Return type
 
@@ -1075,6 +1455,60 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## list_rules
+
+> Vec<models::PackagingRuleOut> list_rules()
+
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**Vec<models::PackagingRuleOut>**](PackagingRuleOut.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## patch_base
+
+> models::RecipeBaseSaveResult patch_base(id, patch_recipe_base_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Recipe base ID | [required] |
+**patch_recipe_base_request** | [**PatchRecipeBaseRequest**](PatchRecipeBaseRequest.md) |  | [required] |
+
+### Return type
+
+[**models::RecipeBaseSaveResult**](RecipeBaseSaveResult.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## patch_group
 
 > models::GroupOut patch_group(gid, patch_group_request)
@@ -1133,6 +1567,64 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## patch_rule
+
+> models::PackagingRuleOut patch_rule(id, patch_packaging_rule_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Packaging rule ID | [required] |
+**patch_packaging_rule_request** | [**PatchPackagingRuleRequest**](PatchPackagingRuleRequest.md) |  | [required] |
+
+### Return type
+
+[**models::PackagingRuleOut**](PackagingRuleOut.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## preview_menu_item
+
+> models::PreviewResponse preview_menu_item(id, preview_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Menu item id | [required] |
+**preview_request** | [**PreviewRequest**](PreviewRequest.md) |  | [required] |
+
+### Return type
+
+[**models::PreviewResponse**](PreviewResponse.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## put_allowed_addons
 
 > Vec<String> put_allowed_addons(id, put_allowed_addons_request)
@@ -1149,6 +1641,35 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 **Vec<String>**
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## put_base_lines
+
+> models::RecipeBaseSaveResult put_base_lines(id, put_recipe_base_lines_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Recipe base ID | [required] |
+**put_recipe_base_lines_request** | [**PutRecipeBaseLinesRequest**](PutRecipeBaseLinesRequest.md) |  | [required] |
+
+### Return type
+
+[**models::RecipeBaseSaveResult**](RecipeBaseSaveResult.md)
 
 ### Authorization
 
@@ -1264,6 +1785,35 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::PriceOverrideOut**](PriceOverrideOut.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## put_size_base
+
+> models::SizeBaseResult put_size_base(size_id, put_size_base_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**size_id** | **uuid::Uuid** | menu_item_sizes ID | [required] |
+**put_size_base_request** | [**PutSizeBaseRequest**](PutSizeBaseRequest.md) |  | [required] |
+
+### Return type
+
+[**models::SizeBaseResult**](SizeBaseResult.md)
 
 ### Authorization
 

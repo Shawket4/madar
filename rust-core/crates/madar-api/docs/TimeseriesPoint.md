@@ -4,7 +4,9 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**addons** | **i64** | SUM(order_item_addons.quantity) across non-voided orders in this period. | 
 **discount** | **i64** |  | 
+**line_items** | **i64** | SUM(order_items.quantity) across non-voided orders in this period. | 
 **orders** | **i64** |  | 
 **period** | **String** |  | 
 **refunded** | Option<**i64**> |  | [optional]

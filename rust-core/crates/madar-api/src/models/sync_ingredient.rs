@@ -14,6 +14,22 @@ use serde::{Deserialize, Serialize};
 /// SyncIngredient : An org ingredient referenced by a returned option recipe.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SyncIngredient {
+    /// The ingredient's category (additive, B12), so the POS can mirror the resolver's \"extras follow the drink's choice\" pass by slug.
+    #[serde(
+        rename = "category_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub category_id: Option<Option<uuid::Uuid>>,
+    /// Slug of [`Self::category_id`] (`milk`, `coffee_bean`, `packaging`, …).
+    #[serde(
+        rename = "category_slug",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub category_slug: Option<Option<String>>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(rename = "name")]
@@ -25,6 +41,12 @@ pub struct SyncIngredient {
 impl SyncIngredient {
     /// An org ingredient referenced by a returned option recipe.
     pub fn new(id: uuid::Uuid, name: String, unit: String) -> SyncIngredient {
-        SyncIngredient { id, name, unit }
+        SyncIngredient {
+            category_id: None,
+            category_slug: None,
+            id,
+            name,
+            unit,
+        }
     }
 }

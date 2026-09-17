@@ -18,6 +18,14 @@ pub struct OptionRecipeLineInput {
     pub ingredient_id: uuid::Uuid,
     #[serde(rename = "quantity")]
     pub quantity: f64,
+    /// Size this amount is for (`Cup`, `Can`); `null`/absent = every size. At order time a line for the ordered size's exact label replaces the `null` line for the same ingredient. Legacy tills only ever see the `null` lines.
+    #[serde(
+        rename = "size_label",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub size_label: Option<Option<String>>,
     #[serde(rename = "unit")]
     pub unit: String,
 }
@@ -28,6 +36,7 @@ impl OptionRecipeLineInput {
         OptionRecipeLineInput {
             ingredient_id,
             quantity,
+            size_label: None,
             unit,
         }
     }

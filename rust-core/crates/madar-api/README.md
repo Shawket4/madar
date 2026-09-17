@@ -198,7 +198,9 @@ Class | Method | HTTP request | Description
 *LoyaltyApi* | [**delete_loyalty_settings**](docs/LoyaltyApi.md#delete_loyalty_settings) | **DELETE** /loyalty/settings | 
 *LoyaltyApi* | [**get_loyalty_analytics**](docs/LoyaltyApi.md#get_loyalty_analytics) | **GET** /loyalty/analytics | 
 *LoyaltyApi* | [**get_loyalty_behavior**](docs/LoyaltyApi.md#get_loyalty_behavior) | **GET** /loyalty/behavior | 
+*LoyaltyApi* | [**get_loyalty_campaign_effectiveness**](docs/LoyaltyApi.md#get_loyalty_campaign_effectiveness) | **GET** /loyalty/campaign-effectiveness | 
 *LoyaltyApi* | [**get_loyalty_google_object**](docs/LoyaltyApi.md#get_loyalty_google_object) | **GET** /loyalty/members/{id}/google-object | What Google is actually holding for one member's card. **Super admin only.**
+*LoyaltyApi* | [**get_loyalty_liability_trend**](docs/LoyaltyApi.md#get_loyalty_liability_trend) | **GET** /loyalty/liability-trend | 
 *LoyaltyApi* | [**get_loyalty_member**](docs/LoyaltyApi.md#get_loyalty_member) | **GET** /loyalty/members/{id} | 
 *LoyaltyApi* | [**get_loyalty_reward_items**](docs/LoyaltyApi.md#get_loyalty_reward_items) | **GET** /loyalty/reward-items | 
 *LoyaltyApi* | [**get_loyalty_settings**](docs/LoyaltyApi.md#get_loyalty_settings) | **GET** /loyalty/settings | 
@@ -218,17 +220,22 @@ Class | Method | HTTP request | Description
 *LoyaltyPublicApi* | [**loyalty_join**](docs/LoyaltyPublicApi.md#loyalty_join) | **POST** /public/loyalty/join | 
 *LoyaltyPublicApi* | [**loyalty_join_info**](docs/LoyaltyPublicApi.md#loyalty_join_info) | **GET** /public/loyalty/join-info | 
 *LoyaltyPublicApi* | [**set_loyalty_card_preferences**](docs/LoyaltyPublicApi.md#set_loyalty_card_preferences) | **POST** /public/loyalty/card/{token}/preferences | 
+*MenuApi* | [**apply_rules**](docs/MenuApi.md#apply_rules) | **POST** /packaging-rules/apply | 
 *MenuApi* | [**catalog_sync**](docs/MenuApi.md#catalog_sync) | **GET** /catalog/sync | 
 *MenuApi* | [**create_addon_item**](docs/MenuApi.md#create_addon_item) | **POST** /addon-items | 
 *MenuApi* | [**create_addon_slot**](docs/MenuApi.md#create_addon_slot) | **POST** /menu-items/{id}/addon-slots | 
+*MenuApi* | [**create_base**](docs/MenuApi.md#create_base) | **POST** /recipe-bases | 
 *MenuApi* | [**create_category**](docs/MenuApi.md#create_category) | **POST** /categories | 
 *MenuApi* | [**create_group**](docs/MenuApi.md#create_group) | **POST** /modifier-groups | 
+*MenuApi* | [**create_linked_copy**](docs/MenuApi.md#create_linked_copy) | **POST** /menu-items/{id}/linked-copy | 
 *MenuApi* | [**create_menu_item**](docs/MenuApi.md#create_menu_item) | **POST** /menu-items | 
 *MenuApi* | [**create_option**](docs/MenuApi.md#create_option) | **POST** /modifier-groups/{gid}/options | 
 *MenuApi* | [**create_optional_field**](docs/MenuApi.md#create_optional_field) | **POST** /menu-items/{id}/optionals | 
+*MenuApi* | [**create_rule**](docs/MenuApi.md#create_rule) | **POST** /packaging-rules | 
 *MenuApi* | [**delete_addon_item**](docs/MenuApi.md#delete_addon_item) | **DELETE** /addon-items/{id} | 
 *MenuApi* | [**delete_addon_override**](docs/MenuApi.md#delete_addon_override) | **DELETE** /menu-items/{id}/overrides/{override_id} | 
 *MenuApi* | [**delete_addon_slot**](docs/MenuApi.md#delete_addon_slot) | **DELETE** /menu-items/{id}/addon-slots/{slot_id} | 
+*MenuApi* | [**delete_base**](docs/MenuApi.md#delete_base) | **DELETE** /recipe-bases/{id} | 
 *MenuApi* | [**delete_branch_addon_override**](docs/MenuApi.md#delete_branch_addon_override) | **DELETE** /branch-addon-overrides | 
 *MenuApi* | [**delete_branch_menu_override**](docs/MenuApi.md#delete_branch_menu_override) | **DELETE** /branch-menu-overrides | 
 *MenuApi* | [**delete_category**](docs/MenuApi.md#delete_category) | **DELETE** /categories/{id} | 
@@ -237,15 +244,23 @@ Class | Method | HTTP request | Description
 *MenuApi* | [**delete_option**](docs/MenuApi.md#delete_option) | **DELETE** /modifier-options/{oid} | 
 *MenuApi* | [**delete_optional_field**](docs/MenuApi.md#delete_optional_field) | **DELETE** /menu-items/{id}/optionals/{field_id} | 
 *MenuApi* | [**delete_price_override**](docs/MenuApi.md#delete_price_override) | **DELETE** /menu-price-overrides | 
+*MenuApi* | [**delete_recipe_link**](docs/MenuApi.md#delete_recipe_link) | **DELETE** /menu-items/{id}/recipe-link | 
+*MenuApi* | [**delete_rule**](docs/MenuApi.md#delete_rule) | **DELETE** /packaging-rules/{id} | 
 *MenuApi* | [**delete_size**](docs/MenuApi.md#delete_size) | **DELETE** /menu-items/{id}/sizes/{sid} | 
 *MenuApi* | [**duplicate_item**](docs/MenuApi.md#duplicate_item) | **POST** /menu-items/{id}/duplicate | 
+*MenuApi* | [**get_base**](docs/MenuApi.md#get_base) | **GET** /recipe-bases/{id} | 
+*MenuApi* | [**get_base_usage**](docs/MenuApi.md#get_base_usage) | **GET** /recipe-bases/{id}/usage | 
+*MenuApi* | [**get_group_usage**](docs/MenuApi.md#get_group_usage) | **GET** /modifier-groups/{gid}/usage | 
 *MenuApi* | [**get_item_cost**](docs/MenuApi.md#get_item_cost) | **GET** /menu-items/{id}/cost | 
 *MenuApi* | [**get_menu_item**](docs/MenuApi.md#get_menu_item) | **GET** /menu-items/{id} | 
+*MenuApi* | [**get_menu_lint**](docs/MenuApi.md#get_menu_lint) | **GET** /menu/lint | 
+*MenuApi* | [**get_recipe_link**](docs/MenuApi.md#get_recipe_link) | **GET** /menu-items/{id}/recipe-link | 
 *MenuApi* | [**get_studio**](docs/MenuApi.md#get_studio) | **GET** /menu-items/{id}/studio | 
 *MenuApi* | [**list_addon_catalog**](docs/MenuApi.md#list_addon_catalog) | **GET** /addon-items/catalog | 
 *MenuApi* | [**list_addon_items**](docs/MenuApi.md#list_addon_items) | **GET** /addon-items | 
 *MenuApi* | [**list_addon_overrides**](docs/MenuApi.md#list_addon_overrides) | **GET** /menu-items/{id}/overrides | 
 *MenuApi* | [**list_addon_slots**](docs/MenuApi.md#list_addon_slots) | **GET** /menu-items/{id}/addon-slots | 
+*MenuApi* | [**list_bases**](docs/MenuApi.md#list_bases) | **GET** /recipe-bases | 
 *MenuApi* | [**list_branch_addon_overrides**](docs/MenuApi.md#list_branch_addon_overrides) | **GET** /branch-addon-overrides | 
 *MenuApi* | [**list_branch_menu_overrides**](docs/MenuApi.md#list_branch_menu_overrides) | **GET** /branch-menu-overrides | 
 *MenuApi* | [**list_categories**](docs/MenuApi.md#list_categories) | **GET** /categories | 
@@ -253,13 +268,19 @@ Class | Method | HTTP request | Description
 *MenuApi* | [**list_menu_catalog**](docs/MenuApi.md#list_menu_catalog) | **GET** /costing/catalog | 
 *MenuApi* | [**list_menu_items**](docs/MenuApi.md#list_menu_items) | **GET** /menu-items | 
 *MenuApi* | [**list_optional_fields**](docs/MenuApi.md#list_optional_fields) | **GET** /menu-items/{id}/optionals | 
+*MenuApi* | [**list_rules**](docs/MenuApi.md#list_rules) | **GET** /packaging-rules | 
+*MenuApi* | [**patch_base**](docs/MenuApi.md#patch_base) | **PATCH** /recipe-bases/{id} | 
 *MenuApi* | [**patch_group**](docs/MenuApi.md#patch_group) | **PATCH** /modifier-groups/{gid} | 
 *MenuApi* | [**patch_option**](docs/MenuApi.md#patch_option) | **PATCH** /modifier-options/{oid} | 
+*MenuApi* | [**patch_rule**](docs/MenuApi.md#patch_rule) | **PATCH** /packaging-rules/{id} | 
+*MenuApi* | [**preview_menu_item**](docs/MenuApi.md#preview_menu_item) | **POST** /menu-items/{id}/preview | 
 *MenuApi* | [**put_allowed_addons**](docs/MenuApi.md#put_allowed_addons) | **PUT** /menu-items/{id}/allowed-addons | 
+*MenuApi* | [**put_base_lines**](docs/MenuApi.md#put_base_lines) | **PUT** /recipe-bases/{id}/lines | 
 *MenuApi* | [**put_item_options**](docs/MenuApi.md#put_item_options) | **PUT** /menu-items/{id}/options | 
 *MenuApi* | [**put_modifier_groups**](docs/MenuApi.md#put_modifier_groups) | **PUT** /menu-items/{id}/modifier-groups | 
 *MenuApi* | [**put_option_recipe**](docs/MenuApi.md#put_option_recipe) | **PUT** /modifier-options/{oid}/recipe | 
 *MenuApi* | [**put_price_override**](docs/MenuApi.md#put_price_override) | **PUT** /menu-price-overrides | 
+*MenuApi* | [**put_size_base**](docs/MenuApi.md#put_size_base) | **PUT** /menu-item-sizes/{size_id}/base | 
 *MenuApi* | [**put_size_recipe**](docs/MenuApi.md#put_size_recipe) | **PUT** /menu-item-sizes/{size_id}/recipe | 
 *MenuApi* | [**put_sizes**](docs/MenuApi.md#put_sizes) | **PUT** /menu-items/{id}/sizes | 
 *MenuApi* | [**reorder_categories**](docs/MenuApi.md#reorder_categories) | **PUT** /categories/order | 
@@ -362,27 +383,39 @@ Class | Method | HTTP request | Description
 *RefundsApi* | [**get_refund**](docs/RefundsApi.md#get_refund) | **GET** /refunds/{id} | 
 *RefundsApi* | [**list_order_refunds**](docs/RefundsApi.md#list_order_refunds) | **GET** /refunds/order/{order_id} | 
 *RefundsApi* | [**list_till_refunds**](docs/RefundsApi.md#list_till_refunds) | **GET** /tills/{till_id}/refunds | 
+*ReportsApi* | [**attendance_corrections_audit**](docs/ReportsApi.md#attendance_corrections_audit) | **GET** /reports/orgs/{org_id}/attendance-corrections-audit | 
 *ReportsApi* | [**branch_addon_sales**](docs/ReportsApi.md#branch_addon_sales) | **GET** /reports/branches/{branch_id}/addons | 
 *ReportsApi* | [**branch_bundle_sales**](docs/ReportsApi.md#branch_bundle_sales) | **GET** /reports/branches/{branch_id}/bundles | 
+*ReportsApi* | [**branch_channel_breakdown**](docs/ReportsApi.md#branch_channel_breakdown) | **GET** /reports/branches/{branch_id}/channel-breakdown | 
 *ReportsApi* | [**branch_combined_item_sales**](docs/ReportsApi.md#branch_combined_item_sales) | **GET** /reports/branches/{branch_id}/items-combined | 
 *ReportsApi* | [**branch_consumption**](docs/ReportsApi.md#branch_consumption) | **GET** /reports/branches/{branch_id}/consumption | 
 *ReportsApi* | [**branch_delivery_sales**](docs/ReportsApi.md#branch_delivery_sales) | **GET** /reports/branches/{branch_id}/delivery-sales | 
 *ReportsApi* | [**branch_inventory_valuation**](docs/ReportsApi.md#branch_inventory_valuation) | **GET** /reports/branches/{branch_id}/inventory-valuation | 
 *ReportsApi* | [**branch_low_stock**](docs/ReportsApi.md#branch_low_stock) | **GET** /reports/branches/{branch_id}/low-stock | 
+*ReportsApi* | [**branch_material_cost_trend**](docs/ReportsApi.md#branch_material_cost_trend) | **GET** /reports/branches/{branch_id}/material-cost-trend | 
+*ReportsApi* | [**branch_po_lead_time**](docs/ReportsApi.md#branch_po_lead_time) | **GET** /reports/branches/{branch_id}/po-lead-time | 
 *ReportsApi* | [**branch_sales**](docs/ReportsApi.md#branch_sales) | **GET** /reports/branches/{branch_id}/sales | 
+*ReportsApi* | [**branch_sales_peak_days**](docs/ReportsApi.md#branch_sales_peak_days) | **GET** /reports/branches/{branch_id}/sales/peak-days | 
 *ReportsApi* | [**branch_sales_peak_hours**](docs/ReportsApi.md#branch_sales_peak_hours) | **GET** /reports/branches/{branch_id}/sales/peak-hours | 
 *ReportsApi* | [**branch_sales_timeseries**](docs/ReportsApi.md#branch_sales_timeseries) | **GET** /reports/branches/{branch_id}/sales/timeseries | 
 *ReportsApi* | [**branch_shrinkage**](docs/ReportsApi.md#branch_shrinkage) | **GET** /reports/branches/{branch_id}/shrinkage | 
 *ReportsApi* | [**branch_stock**](docs/ReportsApi.md#branch_stock) | **GET** /reports/branches/{branch_id}/stock | 
+*ReportsApi* | [**branch_supplier_spend**](docs/ReportsApi.md#branch_supplier_spend) | **GET** /reports/branches/{branch_id}/supplier-spend | 
 *ReportsApi* | [**branch_teller_stats**](docs/ReportsApi.md#branch_teller_stats) | **GET** /reports/branches/{branch_id}/tellers | 
 *ReportsApi* | [**branch_waiter_stats**](docs/ReportsApi.md#branch_waiter_stats) | **GET** /reports/branches/{branch_id}/waiters | 
 *ReportsApi* | [**branch_waste_report**](docs/ReportsApi.md#branch_waste_report) | **GET** /reports/branches/{branch_id}/waste-report | 
+*ReportsApi* | [**deduction_overrides_audit**](docs/ReportsApi.md#deduction_overrides_audit) | **GET** /reports/orgs/{org_id}/deduction-overrides-audit | 
 *ReportsApi* | [**discounts_audit**](docs/ReportsApi.md#discounts_audit) | **GET** /reports/orgs/{org_id}/discounts-audit | 
+*ReportsApi* | [**loyalty_adjustments_audit**](docs/ReportsApi.md#loyalty_adjustments_audit) | **GET** /reports/orgs/{org_id}/loyalty-adjustments-audit | 
+*ReportsApi* | [**manual_deductions_audit**](docs/ReportsApi.md#manual_deductions_audit) | **GET** /reports/orgs/{org_id}/manual-deductions-audit | 
 *ReportsApi* | [**org_branch_comparison**](docs/ReportsApi.md#org_branch_comparison) | **GET** /reports/orgs/{org_id}/comparison | 
 *ReportsApi* | [**org_consumption**](docs/ReportsApi.md#org_consumption) | **GET** /reports/orgs/{org_id}/consumption | 
 *ReportsApi* | [**org_inventory_valuation**](docs/ReportsApi.md#org_inventory_valuation) | **GET** /reports/orgs/{org_id}/inventory-valuation | 
 *ReportsApi* | [**org_low_stock**](docs/ReportsApi.md#org_low_stock) | **GET** /reports/orgs/{org_id}/low-stock | 
+*ReportsApi* | [**org_material_cost_trend**](docs/ReportsApi.md#org_material_cost_trend) | **GET** /reports/orgs/{org_id}/material-cost-trend | 
+*ReportsApi* | [**org_po_lead_time**](docs/ReportsApi.md#org_po_lead_time) | **GET** /reports/orgs/{org_id}/po-lead-time | 
 *ReportsApi* | [**org_shrinkage**](docs/ReportsApi.md#org_shrinkage) | **GET** /reports/orgs/{org_id}/shrinkage | 
+*ReportsApi* | [**org_supplier_spend**](docs/ReportsApi.md#org_supplier_spend) | **GET** /reports/orgs/{org_id}/supplier-spend | 
 *ReportsApi* | [**org_tax_report**](docs/ReportsApi.md#org_tax_report) | **GET** /reports/orgs/{org_id}/tax | 
 *ReportsApi* | [**org_waste_report**](docs/ReportsApi.md#org_waste_report) | **GET** /reports/orgs/{org_id}/waste-report | 
 *ReportsApi* | [**price_overrides**](docs/ReportsApi.md#price_overrides) | **GET** /reports/orgs/{org_id}/price-overrides | 
@@ -546,6 +579,7 @@ Class | Method | HTTP request | Description
  - [AllowList](docs/AllowList.md)
  - [AnalyticsOrder](docs/AnalyticsOrder.md)
  - [AnalyticsResponse](docs/AnalyticsResponse.md)
+ - [ApplyPackagingRulesResult](docs/ApplyPackagingRulesResult.md)
  - [AssetBundleRef](docs/AssetBundleRef.md)
  - [AssetGroupRef](docs/AssetGroupRef.md)
  - [AssetJobResult](docs/AssetJobResult.md)
@@ -594,6 +628,8 @@ Class | Method | HTTP request | Description
  - [BundleSalesRow](docs/BundleSalesRow.md)
  - [BundleStatus](docs/BundleStatus.md)
  - [BundleWithComponents](docs/BundleWithComponents.md)
+ - [CampaignEffectiveness](docs/CampaignEffectiveness.md)
+ - [CampaignEffectivenessRow](docs/CampaignEffectivenessRow.md)
  - [CancelBookingRequest](docs/CancelBookingRequest.md)
  - [CancelInput](docs/CancelInput.md)
  - [CapabilityAccess](docs/CapabilityAccess.md)
@@ -612,6 +648,7 @@ Class | Method | HTTP request | Description
  - [CategorySales](docs/CategorySales.md)
  - [ChannelAddonOverride](docs/ChannelAddonOverride.md)
  - [ChannelAddonOverrideInput](docs/ChannelAddonOverrideInput.md)
+ - [ChannelBreakdownRow](docs/ChannelBreakdownRow.md)
  - [ChannelMenuOverride](docs/ChannelMenuOverride.md)
  - [ChannelOverrideInput](docs/ChannelOverrideInput.md)
  - [ChannelOverrideOut](docs/ChannelOverrideOut.md)
@@ -663,15 +700,18 @@ Class | Method | HTTP request | Description
  - [CreateFloorTransferRequest](docs/CreateFloorTransferRequest.md)
  - [CreateGroupRequest](docs/CreateGroupRequest.md)
  - [CreateIngredientCategoryRequest](docs/CreateIngredientCategoryRequest.md)
+ - [CreateLinkedCopyRequest](docs/CreateLinkedCopyRequest.md)
  - [CreateMarketingLinkRequest](docs/CreateMarketingLinkRequest.md)
  - [CreateMenuItemRequest](docs/CreateMenuItemRequest.md)
  - [CreateOpenTicketRequest](docs/CreateOpenTicketRequest.md)
  - [CreateOptionRequest](docs/CreateOptionRequest.md)
  - [CreateOptionalFieldRequest](docs/CreateOptionalFieldRequest.md)
  - [CreateOrderRequest](docs/CreateOrderRequest.md)
+ - [CreatePackagingRuleRequest](docs/CreatePackagingRuleRequest.md)
  - [CreatePaymentMethodRequest](docs/CreatePaymentMethodRequest.md)
  - [CreatePeriodRequest](docs/CreatePeriodRequest.md)
  - [CreatePurchaseOrderRequest](docs/CreatePurchaseOrderRequest.md)
+ - [CreateRecipeBaseRequest](docs/CreateRecipeBaseRequest.md)
  - [CreateRefundRequest](docs/CreateRefundRequest.md)
  - [CreateReturnRequest](docs/CreateReturnRequest.md)
  - [CreateRoleRequest](docs/CreateRoleRequest.md)
@@ -738,7 +778,9 @@ Class | Method | HTTP request | Description
  - [GrantView](docs/GrantView.md)
  - [GroupAttachInput](docs/GroupAttachInput.md)
  - [GroupOptionOut](docs/GroupOptionOut.md)
+ - [GroupOptionRecipeLine](docs/GroupOptionRecipeLine.md)
  - [GroupOut](docs/GroupOut.md)
+ - [GroupUsageItem](docs/GroupUsageItem.md)
  - [GuestSavedLocation](docs/GuestSavedLocation.md)
  - [HistoryTurn](docs/HistoryTurn.md)
  - [HoldTableRequest](docs/HoldTableRequest.md)
@@ -768,7 +810,12 @@ Class | Method | HTTP request | Description
  - [LedgerTotals](docs/LedgerTotals.md)
  - [LedgerWindow](docs/LedgerWindow.md)
  - [LegacyTill](docs/LegacyTill.md)
+ - [LiabilityTrend](docs/LiabilityTrend.md)
+ - [LiabilityTrendPoint](docs/LiabilityTrendPoint.md)
  - [LimitsView](docs/LimitsView.md)
+ - [LinkedCopyResult](docs/LinkedCopyResult.md)
+ - [LintIssue](docs/LintIssue.md)
+ - [LintSeverity](docs/LintSeverity.md)
  - [LoginRequest](docs/LoginRequest.md)
  - [LoginResponse](docs/LoginResponse.md)
  - [LookupRequest](docs/LookupRequest.md)
@@ -783,6 +830,7 @@ Class | Method | HTTP request | Description
  - [MarginTargets](docs/MarginTargets.md)
  - [MarginWatch](docs/MarginWatch.md)
  - [MarketingLink](docs/MarketingLink.md)
+ - [MaterialCostTrendRow](docs/MaterialCostTrendRow.md)
  - [MeResponse](docs/MeResponse.md)
  - [MemberDetail](docs/MemberDetail.md)
  - [MemberView](docs/MemberView.md)
@@ -842,6 +890,9 @@ Class | Method | HTTP request | Description
  - [OtpVerifyResponse](docs/OtpVerifyResponse.md)
  - [OverrideDeductionRequest](docs/OverrideDeductionRequest.md)
  - [OverrideView](docs/OverrideView.md)
+ - [PackagingRuleLineInput](docs/PackagingRuleLineInput.md)
+ - [PackagingRuleLineOut](docs/PackagingRuleLineOut.md)
+ - [PackagingRuleOut](docs/PackagingRuleOut.md)
  - [PaginatedAddonItems](docs/PaginatedAddonItems.md)
  - [PaginatedBundles](docs/PaginatedBundles.md)
  - [PaginatedMenuItems](docs/PaginatedMenuItems.md)
@@ -854,6 +905,8 @@ Class | Method | HTTP request | Description
  - [PastOrders](docs/PastOrders.md)
  - [PatchGroupRequest](docs/PatchGroupRequest.md)
  - [PatchOptionRequest](docs/PatchOptionRequest.md)
+ - [PatchPackagingRuleRequest](docs/PatchPackagingRuleRequest.md)
+ - [PatchRecipeBaseRequest](docs/PatchRecipeBaseRequest.md)
  - [PauseInput](docs/PauseInput.md)
  - [PaymentLeg](docs/PaymentLeg.md)
  - [PaymentMethodAvailability](docs/PaymentMethodAvailability.md)
@@ -862,6 +915,7 @@ Class | Method | HTTP request | Description
  - [PayrollAdjustment](docs/PayrollAdjustment.md)
  - [PayrollPeriod](docs/PayrollPeriod.md)
  - [Payslip](docs/Payslip.md)
+ - [PeakDayPoint](docs/PeakDayPoint.md)
  - [PeakHourPoint](docs/PeakHourPoint.md)
  - [Period](docs/Period.md)
  - [PeriodInfo](docs/PeriodInfo.md)
@@ -870,6 +924,8 @@ Class | Method | HTTP request | Description
  - [Permission](docs/Permission.md)
  - [PermissionMatrix](docs/PermissionMatrix.md)
  - [PinSuggestion](docs/PinSuggestion.md)
+ - [PoLeadTimeReport](docs/PoLeadTimeReport.md)
+ - [PoLeadTimeRow](docs/PoLeadTimeRow.md)
  - [PoLineInput](docs/PoLineInput.md)
  - [PointsLiability](docs/PointsLiability.md)
  - [PolicyEntry](docs/PolicyEntry.md)
@@ -877,8 +933,14 @@ Class | Method | HTTP request | Description
  - [PresenceRow](docs/PresenceRow.md)
  - [PresetInfo](docs/PresetInfo.md)
  - [PreviewAddonInput](docs/PreviewAddonInput.md)
+ - [PreviewCost](docs/PreviewCost.md)
+ - [PreviewDeduction](docs/PreviewDeduction.md)
  - [PreviewIngredient](docs/PreviewIngredient.md)
+ - [PreviewOptionPrice](docs/PreviewOptionPrice.md)
+ - [PreviewPrice](docs/PreviewPrice.md)
  - [PreviewRecipeRequest](docs/PreviewRecipeRequest.md)
+ - [PreviewRequest](docs/PreviewRequest.md)
+ - [PreviewResponse](docs/PreviewResponse.md)
  - [PriceOverrideOut](docs/PriceOverrideOut.md)
  - [PriceOverrideRequest](docs/PriceOverrideRequest.md)
  - [PrinterBrand](docs/PrinterBrand.md)
@@ -915,9 +977,11 @@ Class | Method | HTTP request | Description
  - [PutItemOptionsRequest](docs/PutItemOptionsRequest.md)
  - [PutModifierGroupsRequest](docs/PutModifierGroupsRequest.md)
  - [PutOverrideRequest](docs/PutOverrideRequest.md)
+ - [PutRecipeBaseLinesRequest](docs/PutRecipeBaseLinesRequest.md)
  - [PutRecipeRequest](docs/PutRecipeRequest.md)
  - [PutRecipeStepsRequest](docs/PutRecipeStepsRequest.md)
  - [PutRewardItems](docs/PutRewardItems.md)
+ - [PutSizeBaseRequest](docs/PutSizeBaseRequest.md)
  - [PutSizesRequest](docs/PutSizesRequest.md)
  - [PutTargetRequest](docs/PutTargetRequest.md)
  - [QrResponse](docs/QrResponse.md)
@@ -926,9 +990,16 @@ Class | Method | HTTP request | Description
  - [ReadyGroupRef](docs/ReadyGroupRef.md)
  - [ReceiveLineInput](docs/ReceiveLineInput.md)
  - [ReceivePurchaseOrderRequest](docs/ReceivePurchaseOrderRequest.md)
+ - [RecipeBaseLineInput](docs/RecipeBaseLineInput.md)
+ - [RecipeBaseLineOut](docs/RecipeBaseLineOut.md)
+ - [RecipeBaseOut](docs/RecipeBaseOut.md)
+ - [RecipeBaseSaveResult](docs/RecipeBaseSaveResult.md)
+ - [RecipeBaseUsage](docs/RecipeBaseUsage.md)
+ - [RecipeBaseUsageSize](docs/RecipeBaseUsageSize.md)
  - [RecipeCostResult](docs/RecipeCostResult.md)
  - [RecipeLineInput](docs/RecipeLineInput.md)
  - [RecipeLineOut](docs/RecipeLineOut.md)
+ - [RecipeLinkInfo](docs/RecipeLinkInfo.md)
  - [RecipeStep](docs/RecipeStep.md)
  - [RecipeStepInput](docs/RecipeStepInput.md)
  - [RecipeStepPreset](docs/RecipeStepPreset.md)
@@ -954,6 +1025,7 @@ Class | Method | HTTP request | Description
  - [RequestDecision](docs/RequestDecision.md)
  - [ResolveBranchRequest](docs/ResolveBranchRequest.md)
  - [ResolveBranchResponse](docs/ResolveBranchResponse.md)
+ - [ResolveWarning](docs/ResolveWarning.md)
  - [ResolvedShift](docs/ResolvedShift.md)
  - [ResultBlock](docs/ResultBlock.md)
  - [ReturnLineInput](docs/ReturnLineInput.md)
@@ -983,6 +1055,7 @@ Class | Method | HTTP request | Description
  - [ShiftSummary](docs/ShiftSummary.md)
  - [ShrinkageRow](docs/ShrinkageRow.md)
  - [Signal](docs/Signal.md)
+ - [SizeBaseResult](docs/SizeBaseResult.md)
  - [SizeCostOut](docs/SizeCostOut.md)
  - [SizeInput](docs/SizeInput.md)
  - [SizeOut](docs/SizeOut.md)
@@ -1005,6 +1078,7 @@ Class | Method | HTTP request | Description
  - [StudioAggregate](docs/StudioAggregate.md)
  - [SuggestedComponent](docs/SuggestedComponent.md)
  - [Supplier](docs/Supplier.md)
+ - [SupplierSpendRow](docs/SupplierSpendRow.md)
  - [SwapTablesRequest](docs/SwapTablesRequest.md)
  - [SyncIngredient](docs/SyncIngredient.md)
  - [SyncItem](docs/SyncItem.md)

@@ -9,7 +9,8 @@ Name | Type | Description | Notes
 **name** | Option<**String**> |  | [optional]
 **name_translations** | Option<**serde_json::Value**> |  | [optional]
 **price** | Option<**i32**> |  | [optional]
-**replaces_ingredient_id** | Option<**uuid::Uuid**> |  | [optional]
+**replaces_ingredient_id** | Option<**uuid::Uuid**> | Absent = keep; `null` = clear the swap link; an ingredient id = set. | [optional]
+**sort** | Option<**i32**> | Display order inside the group. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

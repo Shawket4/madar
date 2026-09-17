@@ -19,6 +19,9 @@ pub struct SyncOption {
     /// Effective availability (branch_channel → branch → channel → TRUE).
     #[serde(rename = "is_available")]
     pub is_available: bool,
+    /// Explicit preselect for non-swap groups (e.g. \"White bread\"). Swap groups derive their default from the drink's recipe; this is always `false` there.
+    #[serde(rename = "is_default", skip_serializing_if = "Option::is_none")]
+    pub is_default: Option<bool>,
     #[serde(rename = "name")]
     pub name: String,
     /// Effective price in piastres (branch_channel → branch → channel → catalog default).
@@ -48,6 +51,7 @@ impl SyncOption {
         SyncOption {
             id,
             is_available,
+            is_default: None,
             name,
             price,
             recipe,

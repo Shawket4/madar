@@ -11,9 +11,25 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// PatchGroupRequest : Every field optional — only present keys are updated. `Option<Option<T>>` (with `deserialize_with`) is avoided; nullable columns that must be clearable (`max_selections`) are handled by a dedicated presence flag pattern below.
+/// PatchGroupRequest : Every field optional — only present keys are updated. Nullable columns that must be clearable (`max_selections`, `swap_category_id`, `legacy_addon_type`) use presence: key absent = keep, `null` = clear, value = set.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PatchGroupRequest {
+    /// `none` | `adds` | `swaps`. Changing it re-derives `legacy_addon_type` for old tills: swaps milk → `milk_type`, swaps coffee_bean → `coffee_type`; otherwise the provided/existing type (a magic type on a non-swap group becomes `extra`).
+    #[serde(
+        rename = "effect",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub effect: Option<Option<String>>,
+    /// Reactivate (`true`) or deactivate (`false`) the group.
+    #[serde(
+        rename = "is_active",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub is_active: Option<Option<bool>>,
     #[serde(
         rename = "is_required",
         default,
@@ -21,6 +37,15 @@ pub struct PatchGroupRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub is_required: Option<Option<bool>>,
+    /// Absent = keep; `null` = clear (group invisible to old tills); a string = set.
+    #[serde(
+        rename = "legacy_addon_type",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub legacy_addon_type: Option<Option<String>>,
+    /// Absent = keep; `null` = no upper bound; a number = set.
     #[serde(
         rename = "max_selections",
         default,
@@ -63,19 +88,31 @@ pub struct PatchGroupRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub sort: Option<Option<i32>>,
+    /// Absent = keep; `null` = clear; a category id of this org = set.
+    #[serde(
+        rename = "swap_category_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub swap_category_id: Option<Option<uuid::Uuid>>,
 }
 
 impl PatchGroupRequest {
-    /// Every field optional — only present keys are updated. `Option<Option<T>>` (with `deserialize_with`) is avoided; nullable columns that must be clearable (`max_selections`) are handled by a dedicated presence flag pattern below.
+    /// Every field optional — only present keys are updated. Nullable columns that must be clearable (`max_selections`, `swap_category_id`, `legacy_addon_type`) use presence: key absent = keep, `null` = clear, value = set.
     pub fn new() -> PatchGroupRequest {
         PatchGroupRequest {
+            effect: None,
+            is_active: None,
             is_required: None,
+            legacy_addon_type: None,
             max_selections: None,
             min_selections: None,
             name: None,
             name_translations: None,
             selection_type: None,
             sort: None,
+            swap_category_id: None,
         }
     }
 }

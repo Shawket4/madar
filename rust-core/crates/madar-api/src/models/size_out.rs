@@ -14,6 +14,14 @@ use serde::{Deserialize, Serialize};
 /// SizeOut : A size (menu_item_sizes row) with its recipe and live cost.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SizeOut {
+    /// Recipe base this size expands (`PUT /menu-item-sizes/{id}/base`), or `null`.
+    #[serde(
+        rename = "base_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub base_id: Option<Option<uuid::Uuid>>,
     /// `true` when at least one recipe line is unlinked/uncosted (so `cost_piastres`, if present, is a partial figure rather than the full COGS).
     #[serde(rename = "cost_incomplete")]
     pub cost_incomplete: bool,
@@ -51,6 +59,7 @@ impl SizeOut {
         sort: i32,
     ) -> SizeOut {
         SizeOut {
+            base_id: None,
             cost_incomplete,
             cost_piastres: None,
             id,

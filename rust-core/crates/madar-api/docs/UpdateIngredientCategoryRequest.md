@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**is_packaging** | Option<**bool**> |  | [optional]
 **name** | Option<**String**> |  | [optional]
 **sort_order** | Option<**i32**> |  | [optional]
 

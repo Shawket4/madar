@@ -43,6 +43,7 @@ pub struct PatchOptionRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub price: Option<Option<i32>>,
+    /// Absent = keep; `null` = clear the swap link; an ingredient id = set.
     #[serde(
         rename = "replaces_ingredient_id",
         default,
@@ -50,6 +51,14 @@ pub struct PatchOptionRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub replaces_ingredient_id: Option<Option<uuid::Uuid>>,
+    /// Display order inside the group.
+    #[serde(
+        rename = "sort",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub sort: Option<Option<i32>>,
 }
 
 impl PatchOptionRequest {
@@ -61,6 +70,7 @@ impl PatchOptionRequest {
             name_translations: None,
             price: None,
             replaces_ingredient_id: None,
+            sort: None,
         }
     }
 }

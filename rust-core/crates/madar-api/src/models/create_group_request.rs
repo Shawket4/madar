@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateGroupRequest {
+    /// `none` | `adds` | `swaps` (default: derived — `swaps` for `milk_type` / `coffee_type`, else `adds`).
+    #[serde(
+        rename = "effect",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub effect: Option<Option<String>>,
     #[serde(rename = "is_required", skip_serializing_if = "Option::is_none")]
     pub is_required: Option<bool>,
     /// The legacy addon type this group is presented as to OLD clients through the compat shim (the managed addon-type dropdown, e.g. `milk_type` / `coffee_type` / `extra`). Swap-family behavior keys on it. `null` = a custom group with no legacy lineage — INVISIBLE to old clients (the shim projects `type` from this value, and the old wire requires it), so set it whenever the pre-teardown fleet must see the group's options.
@@ -46,11 +54,20 @@ pub struct CreateGroupRequest {
     pub selection_type: String,
     #[serde(rename = "sort", skip_serializing_if = "Option::is_none")]
     pub sort: Option<i32>,
+    /// Required meaning for `effect = swaps`: the ingredient category swapped.
+    #[serde(
+        rename = "swap_category_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub swap_category_id: Option<Option<uuid::Uuid>>,
 }
 
 impl CreateGroupRequest {
     pub fn new(name: String, selection_type: String) -> CreateGroupRequest {
         CreateGroupRequest {
+            effect: None,
             is_required: None,
             legacy_addon_type: None,
             max_selections: None,
@@ -59,6 +76,7 @@ impl CreateGroupRequest {
             name_translations: None,
             selection_type,
             sort: None,
+            swap_category_id: None,
         }
     }
 }

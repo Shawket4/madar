@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 /// SyncModifierGroup : A modifier group attached to an item, with min/max/required resolved from the attachment overrides (falling back to the group defaults).
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SyncModifierGroup {
+    /// What choosing does: `none` | `adds` | `swaps`.
+    #[serde(rename = "effect", skip_serializing_if = "Option::is_none")]
+    pub effect: Option<String>,
     #[serde(rename = "group_id")]
     pub group_id: uuid::Uuid,
     #[serde(rename = "is_required")]
@@ -43,6 +46,21 @@ pub struct SyncModifierGroup {
     pub options: Vec<models::SyncOption>,
     #[serde(rename = "selection_type")]
     pub selection_type: String,
+    /// For `swaps`: the ingredient category whose recipe line each option replaces.
+    #[serde(
+        rename = "swap_category_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub swap_category_id: Option<Option<uuid::Uuid>>,
+    #[serde(
+        rename = "swap_category_slug",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub swap_category_slug: Option<Option<String>>,
 }
 
 impl SyncModifierGroup {
@@ -57,6 +75,7 @@ impl SyncModifierGroup {
         selection_type: String,
     ) -> SyncModifierGroup {
         SyncModifierGroup {
+            effect: None,
             group_id,
             is_required,
             legacy_addon_type: None,
@@ -66,6 +85,8 @@ impl SyncModifierGroup {
             name_translations,
             options,
             selection_type,
+            swap_category_id: None,
+            swap_category_slug: None,
         }
     }
 }

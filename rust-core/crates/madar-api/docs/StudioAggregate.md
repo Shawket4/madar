@@ -12,11 +12,13 @@ Name | Type | Description | Notes
 **image** | Option<[**models::AssetGroupRef**](AssetGroupRef.md)> | Asset refs (WebP variants, signed), same as `GET /menu-items/{id}`. | [optional]
 **image_url** | Option<**String**> |  | [optional]
 **is_active** | **bool** |  | 
+**linked_copy_ids** | Option<**Vec<uuid::Uuid>**> | Live items whose recipe follows this one. | [optional]
 **modifier_groups** | [**Vec<models::ModifierGroupOut>**](ModifierGroupOut.md) |  | 
 **name** | **String** |  | 
 **name_translations** | Option<**serde_json::Value**> |  | 
 **options** | [**Vec<models::ItemOptionOut>**](ItemOptionOut.md) |  | 
 **org_id** | **uuid::Uuid** |  | 
+**recipe_source_item_id** | Option<**uuid::Uuid**> | The item this one's recipe follows (linked copy), or `null`. | [optional]
 **recipe_steps** | [**Vec<models::RecipeStep>**](RecipeStep.md) | How the item is made, in order. Edited through `PUT /recipes/steps/{id}` and saved by the studio alongside the recipe lines. | 
 **sizes** | [**Vec<models::SizeOut>**](SizeOut.md) |  | 
 **used_in_bundles** | [**Vec<models::UsedInBundleOut>**](UsedInBundleOut.md) |  | 

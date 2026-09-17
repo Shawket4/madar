@@ -26,6 +26,9 @@ pub struct GroupOptionOut {
     pub name_translations: Option<serde_json::Value>,
     #[serde(rename = "price")]
     pub price: i32,
+    /// The option's recipe lines (base unit), ordered by ingredient name.
+    #[serde(rename = "recipe", skip_serializing_if = "Option::is_none")]
+    pub recipe: Option<Vec<models::GroupOptionRecipeLine>>,
     #[serde(
         rename = "replaces_ingredient_id",
         default,
@@ -55,6 +58,7 @@ impl GroupOptionOut {
             name,
             name_translations,
             price,
+            recipe: None,
             replaces_ingredient_id: None,
             sort,
         }

@@ -13,6 +13,22 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AddonItemIngredient {
+    /// The ingredient's category (additive, B12): lets the POS know an extra shot is a `coffee_bean` and follows the drink's chosen bean.
+    #[serde(
+        rename = "category_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub category_id: Option<Option<uuid::Uuid>>,
+    /// Slug of [`Self::category_id`] (`milk`, `coffee_bean`, `packaging`, …).
+    #[serde(
+        rename = "category_slug",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub category_slug: Option<Option<String>>,
     #[serde(rename = "ingredient_name")]
     pub ingredient_name: String,
     #[serde(rename = "ingredient_unit")]
@@ -35,6 +51,8 @@ impl AddonItemIngredient {
         quantity_used: f64,
     ) -> AddonItemIngredient {
         AddonItemIngredient {
+            category_id: None,
+            category_slug: None,
             ingredient_name,
             ingredient_unit,
             org_ingredient_id: None,

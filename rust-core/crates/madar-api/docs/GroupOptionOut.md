@@ -10,6 +10,7 @@ Name | Type | Description | Notes
 **name** | **String** |  | 
 **name_translations** | Option<**serde_json::Value**> |  | 
 **price** | **i32** |  | 
+**recipe** | Option<[**Vec<models::GroupOptionRecipeLine>**](GroupOptionRecipeLine.md)> | The option's recipe lines (base unit), ordered by ingredient name. | [optional]
 **replaces_ingredient_id** | Option<**uuid::Uuid**> |  | [optional]
 **sort** | **i32** |  | 
 

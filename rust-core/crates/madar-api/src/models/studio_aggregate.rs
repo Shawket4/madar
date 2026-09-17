@@ -51,6 +51,9 @@ pub struct StudioAggregate {
     pub image_url: Option<Option<String>>,
     #[serde(rename = "is_active")]
     pub is_active: bool,
+    /// Live items whose recipe follows this one.
+    #[serde(rename = "linked_copy_ids", skip_serializing_if = "Option::is_none")]
+    pub linked_copy_ids: Option<Vec<uuid::Uuid>>,
     #[serde(rename = "modifier_groups")]
     pub modifier_groups: Vec<models::ModifierGroupOut>,
     #[serde(rename = "name")]
@@ -61,6 +64,14 @@ pub struct StudioAggregate {
     pub options: Vec<models::ItemOptionOut>,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
+    /// The item this one's recipe follows (linked copy), or `null`.
+    #[serde(
+        rename = "recipe_source_item_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub recipe_source_item_id: Option<Option<uuid::Uuid>>,
     /// How the item is made, in order. Edited through `PUT /recipes/steps/{id}` and saved by the studio alongside the recipe lines.
     #[serde(rename = "recipe_steps")]
     pub recipe_steps: Vec<models::RecipeStep>,
@@ -95,11 +106,13 @@ impl StudioAggregate {
             image: None,
             image_url: None,
             is_active,
+            linked_copy_ids: None,
             modifier_groups,
             name,
             name_translations,
             options,
             org_id,
+            recipe_source_item_id: None,
             recipe_steps,
             sizes,
             used_in_bundles,

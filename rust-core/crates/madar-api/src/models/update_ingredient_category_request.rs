@@ -14,6 +14,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UpdateIngredientCategoryRequest {
     #[serde(
+        rename = "is_packaging",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub is_packaging: Option<Option<bool>>,
+    #[serde(
         rename = "name",
         default,
         with = "::serde_with::rust::double_option",
@@ -32,6 +39,7 @@ pub struct UpdateIngredientCategoryRequest {
 impl UpdateIngredientCategoryRequest {
     pub fn new() -> UpdateIngredientCategoryRequest {
         UpdateIngredientCategoryRequest {
+            is_packaging: None,
             name: None,
             sort_order: None,
         }

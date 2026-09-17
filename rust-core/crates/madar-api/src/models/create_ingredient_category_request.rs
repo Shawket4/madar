@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateIngredientCategoryRequest {
+    /// Defaults to `true` for slug `packaging`, else `false`.
+    #[serde(
+        rename = "is_packaging",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub is_packaging: Option<Option<bool>>,
     #[serde(rename = "name")]
     pub name: String,
     /// Optional explicit slug (`[a-z0-9_]`); derived from the name when omitted.
@@ -35,6 +43,7 @@ pub struct CreateIngredientCategoryRequest {
 impl CreateIngredientCategoryRequest {
     pub fn new(name: String) -> CreateIngredientCategoryRequest {
         CreateIngredientCategoryRequest {
+            is_packaging: None,
             name,
             slug: None,
             sort_order: None,

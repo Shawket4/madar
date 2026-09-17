@@ -38,6 +38,12 @@ pub struct CreateAddonSlotParams {
     pub create_addon_slot_request: models::CreateAddonSlotRequest,
 }
 
+/// struct for passing parameters to the method [`create_base`]
+#[derive(Clone, Debug)]
+pub struct CreateBaseParams {
+    pub create_recipe_base_request: models::CreateRecipeBaseRequest,
+}
+
 /// struct for passing parameters to the method [`create_category`]
 #[derive(Clone, Debug)]
 pub struct CreateCategoryParams {
@@ -48,6 +54,14 @@ pub struct CreateCategoryParams {
 #[derive(Clone, Debug)]
 pub struct CreateGroupParams {
     pub create_group_request: models::CreateGroupRequest,
+}
+
+/// struct for passing parameters to the method [`create_linked_copy`]
+#[derive(Clone, Debug)]
+pub struct CreateLinkedCopyParams {
+    /// Source menu item ID
+    pub id: String,
+    pub create_linked_copy_request: models::CreateLinkedCopyRequest,
 }
 
 /// struct for passing parameters to the method [`create_menu_item`]
@@ -70,6 +84,12 @@ pub struct CreateOptionalFieldParams {
     /// Menu item ID
     pub id: String,
     pub create_optional_field_request: models::CreateOptionalFieldRequest,
+}
+
+/// struct for passing parameters to the method [`create_rule`]
+#[derive(Clone, Debug)]
+pub struct CreateRuleParams {
+    pub create_packaging_rule_request: models::CreatePackagingRuleRequest,
 }
 
 /// struct for passing parameters to the method [`delete_addon_item`]
@@ -95,6 +115,13 @@ pub struct DeleteAddonSlotParams {
     pub id: String,
     /// Addon slot ID
     pub slot_id: String,
+}
+
+/// struct for passing parameters to the method [`delete_base`]
+#[derive(Clone, Debug)]
+pub struct DeleteBaseParams {
+    /// Recipe base ID
+    pub id: String,
 }
 
 /// struct for passing parameters to the method [`delete_branch_addon_override`]
@@ -154,6 +181,20 @@ pub struct DeletePriceOverrideParams {
     pub price_override_request: models::PriceOverrideRequest,
 }
 
+/// struct for passing parameters to the method [`delete_recipe_link`]
+#[derive(Clone, Debug)]
+pub struct DeleteRecipeLinkParams {
+    /// Linked copy menu item ID
+    pub id: String,
+}
+
+/// struct for passing parameters to the method [`delete_rule`]
+#[derive(Clone, Debug)]
+pub struct DeleteRuleParams {
+    /// Packaging rule ID
+    pub id: String,
+}
+
 /// struct for passing parameters to the method [`delete_size`]
 #[derive(Clone, Debug)]
 pub struct DeleteSizeParams {
@@ -170,6 +211,27 @@ pub struct DuplicateItemParams {
     pub id: String,
 }
 
+/// struct for passing parameters to the method [`get_base`]
+#[derive(Clone, Debug)]
+pub struct GetBaseParams {
+    /// Recipe base ID
+    pub id: String,
+}
+
+/// struct for passing parameters to the method [`get_base_usage`]
+#[derive(Clone, Debug)]
+pub struct GetBaseUsageParams {
+    /// Recipe base ID
+    pub id: String,
+}
+
+/// struct for passing parameters to the method [`get_group_usage`]
+#[derive(Clone, Debug)]
+pub struct GetGroupUsageParams {
+    /// Modifier group ID
+    pub gid: String,
+}
+
 /// struct for passing parameters to the method [`get_item_cost`]
 #[derive(Clone, Debug)]
 pub struct GetItemCostParams {
@@ -180,6 +242,22 @@ pub struct GetItemCostParams {
 /// struct for passing parameters to the method [`get_menu_item`]
 #[derive(Clone, Debug)]
 pub struct GetMenuItemParams {
+    /// Menu item ID
+    pub id: String,
+}
+
+/// struct for passing parameters to the method [`get_menu_lint`]
+#[derive(Clone, Debug)]
+pub struct GetMenuLintParams {
+    /// Organization to lint.
+    pub org_id: String,
+    /// Only findings about this modifier group (for the group editor).
+    pub group_id: Option<String>,
+}
+
+/// struct for passing parameters to the method [`get_recipe_link`]
+#[derive(Clone, Debug)]
+pub struct GetRecipeLinkParams {
     /// Menu item ID
     pub id: String,
 }
@@ -259,6 +337,8 @@ pub struct ListCategoriesParams {
 pub struct ListGroupsParams {
     /// Organization whose reusable modifier groups to list
     pub org_id: String,
+    /// Also list deactivated groups (default false)
+    pub include_inactive: Option<bool>,
 }
 
 /// struct for passing parameters to the method [`list_menu_catalog`]
@@ -300,6 +380,14 @@ pub struct ListOptionalFieldsParams {
     pub id: String,
 }
 
+/// struct for passing parameters to the method [`patch_base`]
+#[derive(Clone, Debug)]
+pub struct PatchBaseParams {
+    /// Recipe base ID
+    pub id: String,
+    pub patch_recipe_base_request: models::PatchRecipeBaseRequest,
+}
+
 /// struct for passing parameters to the method [`patch_group`]
 #[derive(Clone, Debug)]
 pub struct PatchGroupParams {
@@ -316,12 +404,36 @@ pub struct PatchOptionParams {
     pub patch_option_request: models::PatchOptionRequest,
 }
 
+/// struct for passing parameters to the method [`patch_rule`]
+#[derive(Clone, Debug)]
+pub struct PatchRuleParams {
+    /// Packaging rule ID
+    pub id: String,
+    pub patch_packaging_rule_request: models::PatchPackagingRuleRequest,
+}
+
+/// struct for passing parameters to the method [`preview_menu_item`]
+#[derive(Clone, Debug)]
+pub struct PreviewMenuItemParams {
+    /// Menu item id
+    pub id: String,
+    pub preview_request: models::PreviewRequest,
+}
+
 /// struct for passing parameters to the method [`put_allowed_addons`]
 #[derive(Clone, Debug)]
 pub struct PutAllowedAddonsParams {
     /// Menu item ID
     pub id: String,
     pub put_allowed_addons_request: models::PutAllowedAddonsRequest,
+}
+
+/// struct for passing parameters to the method [`put_base_lines`]
+#[derive(Clone, Debug)]
+pub struct PutBaseLinesParams {
+    /// Recipe base ID
+    pub id: String,
+    pub put_recipe_base_lines_request: models::PutRecipeBaseLinesRequest,
 }
 
 /// struct for passing parameters to the method [`put_item_options`]
@@ -352,6 +464,14 @@ pub struct PutOptionRecipeParams {
 #[derive(Clone, Debug)]
 pub struct PutPriceOverrideParams {
     pub price_override_request: models::PriceOverrideRequest,
+}
+
+/// struct for passing parameters to the method [`put_size_base`]
+#[derive(Clone, Debug)]
+pub struct PutSizeBaseParams {
+    /// menu_item_sizes ID
+    pub size_id: String,
+    pub put_size_base_request: models::PutSizeBaseRequest,
 }
 
 /// struct for passing parameters to the method [`put_size_recipe`]
@@ -448,6 +568,19 @@ pub struct UpsertSizeParams {
     pub upsert_size_request: models::UpsertSizeRequest,
 }
 
+/// struct for typed errors of method [`apply_rules`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ApplyRulesError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`catalog_sync`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -487,6 +620,19 @@ pub enum CreateAddonSlotError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`create_base`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CreateBaseError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`create_category`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -504,6 +650,19 @@ pub enum CreateCategoryError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CreateGroupError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`create_linked_copy`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CreateLinkedCopyError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -552,6 +711,19 @@ pub enum CreateOptionalFieldError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`create_rule`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CreateRuleError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`delete_addon_item`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -582,6 +754,19 @@ pub enum DeleteAddonOverrideError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteAddonSlotError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`delete_base`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteBaseError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -695,6 +880,32 @@ pub enum DeletePriceOverrideError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`delete_recipe_link`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteRecipeLinkError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`delete_rule`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteRuleError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`delete_size`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -721,6 +932,45 @@ pub enum DuplicateItemError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`get_base`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetBaseError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_base_usage`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetBaseUsageError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_group_usage`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetGroupUsageError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`get_item_cost`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -738,6 +988,32 @@ pub enum GetItemCostError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetMenuItemError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_menu_lint`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetMenuLintError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_recipe_link`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetRecipeLinkError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -803,6 +1079,19 @@ pub enum ListAddonOverridesError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListAddonSlotsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`list_bases`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListBasesError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -903,6 +1192,32 @@ pub enum ListOptionalFieldsError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`list_rules`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListRulesError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`patch_base`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PatchBaseError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`patch_group`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -929,10 +1244,49 @@ pub enum PatchOptionError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`patch_rule`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PatchRuleError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`preview_menu_item`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PreviewMenuItemError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`put_allowed_addons`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PutAllowedAddonsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`put_base_lines`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PutBaseLinesError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -985,6 +1339,19 @@ pub enum PutOptionRecipeError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PutPriceOverrideError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`put_size_base`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PutSizeBaseError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1150,6 +1517,50 @@ pub enum UpsertSizeError {
     UnknownValue(serde_json::Value),
 }
 
+pub async fn apply_rules(
+    configuration: &configuration::Configuration,
+) -> Result<models::ApplyPackagingRulesResult, Error<ApplyRulesError>> {
+    let uri_str = format!("{}/packaging-rules/apply", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ApplyPackagingRulesResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ApplyPackagingRulesResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ApplyRulesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn catalog_sync(
     configuration: &configuration::Configuration,
     params: CatalogSyncParams,
@@ -1296,6 +1707,52 @@ pub async fn create_addon_slot(
     }
 }
 
+pub async fn create_base(
+    configuration: &configuration::Configuration,
+    params: CreateBaseParams,
+) -> Result<models::RecipeBaseOut, Error<CreateBaseError>> {
+    let uri_str = format!("{}/recipe-bases", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.create_recipe_base_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::RecipeBaseOut`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::RecipeBaseOut`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<CreateBaseError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn create_category(
     configuration: &configuration::Configuration,
     params: CreateCategoryParams,
@@ -1380,6 +1837,56 @@ pub async fn create_group(
     } else {
         let content = resp.text().await?;
         let entity: Option<CreateGroupError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn create_linked_copy(
+    configuration: &configuration::Configuration,
+    params: CreateLinkedCopyParams,
+) -> Result<models::LinkedCopyResult, Error<CreateLinkedCopyError>> {
+    let uri_str = format!(
+        "{}/menu-items/{id}/linked-copy",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.create_linked_copy_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::LinkedCopyResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::LinkedCopyResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<CreateLinkedCopyError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1534,6 +2041,52 @@ pub async fn create_optional_field(
     }
 }
 
+pub async fn create_rule(
+    configuration: &configuration::Configuration,
+    params: CreateRuleParams,
+) -> Result<models::PackagingRuleOut, Error<CreateRuleError>> {
+    let uri_str = format!("{}/packaging-rules", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.create_packaging_rule_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PackagingRuleOut`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PackagingRuleOut`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<CreateRuleError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn delete_addon_item(
     configuration: &configuration::Configuration,
     params: DeleteAddonItemParams,
@@ -1642,6 +2195,44 @@ pub async fn delete_addon_slot(
     } else {
         let content = resp.text().await?;
         let entity: Option<DeleteAddonSlotError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn delete_base(
+    configuration: &configuration::Configuration,
+    params: DeleteBaseParams,
+) -> Result<(), Error<DeleteBaseError>> {
+    let uri_str = format!(
+        "{}/recipe-bases/{id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::DELETE, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DeleteBaseError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1948,6 +2539,93 @@ pub async fn delete_price_override(
     }
 }
 
+pub async fn delete_recipe_link(
+    configuration: &configuration::Configuration,
+    params: DeleteRecipeLinkParams,
+) -> Result<models::RecipeLinkInfo, Error<DeleteRecipeLinkError>> {
+    let uri_str = format!(
+        "{}/menu-items/{id}/recipe-link",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::DELETE, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::RecipeLinkInfo`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::RecipeLinkInfo`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DeleteRecipeLinkError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn delete_rule(
+    configuration: &configuration::Configuration,
+    params: DeleteRuleParams,
+) -> Result<(), Error<DeleteRuleError>> {
+    let uri_str = format!(
+        "{}/packaging-rules/{id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::DELETE, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DeleteRuleError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn delete_size(
     configuration: &configuration::Configuration,
     params: DeleteSizeParams,
@@ -2028,6 +2706,147 @@ pub async fn duplicate_item(
     } else {
         let content = resp.text().await?;
         let entity: Option<DuplicateItemError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_base(
+    configuration: &configuration::Configuration,
+    params: GetBaseParams,
+) -> Result<models::RecipeBaseOut, Error<GetBaseError>> {
+    let uri_str = format!(
+        "{}/recipe-bases/{id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::RecipeBaseOut`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::RecipeBaseOut`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetBaseError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_base_usage(
+    configuration: &configuration::Configuration,
+    params: GetBaseUsageParams,
+) -> Result<models::RecipeBaseUsage, Error<GetBaseUsageError>> {
+    let uri_str = format!(
+        "{}/recipe-bases/{id}/usage",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::RecipeBaseUsage`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::RecipeBaseUsage`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetBaseUsageError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_group_usage(
+    configuration: &configuration::Configuration,
+    params: GetGroupUsageParams,
+) -> Result<Vec<models::GroupUsageItem>, Error<GetGroupUsageError>> {
+    let uri_str = format!(
+        "{}/modifier-groups/{gid}/usage",
+        configuration.base_path,
+        gid = crate::apis::urlencode(params.gid)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::GroupUsageItem&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::GroupUsageItem&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetGroupUsageError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -2122,6 +2941,100 @@ pub async fn get_menu_item(
     } else {
         let content = resp.text().await?;
         let entity: Option<GetMenuItemError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_menu_lint(
+    configuration: &configuration::Configuration,
+    params: GetMenuLintParams,
+) -> Result<Vec<models::LintIssue>, Error<GetMenuLintError>> {
+    let uri_str = format!("{}/menu/lint", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    req_builder = req_builder.query(&[("org_id", &params.org_id.to_string())]);
+    if let Some(ref param_value) = params.group_id {
+        req_builder = req_builder.query(&[("group_id", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::LintIssue&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::LintIssue&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetMenuLintError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_recipe_link(
+    configuration: &configuration::Configuration,
+    params: GetRecipeLinkParams,
+) -> Result<models::RecipeLinkInfo, Error<GetRecipeLinkError>> {
+    let uri_str = format!(
+        "{}/menu-items/{id}/recipe-link",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::RecipeLinkInfo`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::RecipeLinkInfo`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetRecipeLinkError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -2395,6 +3308,48 @@ pub async fn list_addon_slots(
     }
 }
 
+pub async fn list_bases(
+    configuration: &configuration::Configuration,
+) -> Result<Vec<models::RecipeBaseOut>, Error<ListBasesError>> {
+    let uri_str = format!("{}/recipe-bases", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::RecipeBaseOut&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::RecipeBaseOut&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ListBasesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn list_branch_addon_overrides(
     configuration: &configuration::Configuration,
     params: ListBranchAddonOverridesParams,
@@ -2535,6 +3490,9 @@ pub async fn list_groups(
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     req_builder = req_builder.query(&[("org_id", &params.org_id.to_string())]);
+    if let Some(ref param_value) = params.include_inactive {
+        req_builder = req_builder.query(&[("include_inactive", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -2739,6 +3697,98 @@ pub async fn list_optional_fields(
     }
 }
 
+pub async fn list_rules(
+    configuration: &configuration::Configuration,
+) -> Result<Vec<models::PackagingRuleOut>, Error<ListRulesError>> {
+    let uri_str = format!("{}/packaging-rules", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::PackagingRuleOut&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::PackagingRuleOut&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ListRulesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn patch_base(
+    configuration: &configuration::Configuration,
+    params: PatchBaseParams,
+) -> Result<models::RecipeBaseSaveResult, Error<PatchBaseError>> {
+    let uri_str = format!(
+        "{}/recipe-bases/{id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::PATCH, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.patch_recipe_base_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::RecipeBaseSaveResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::RecipeBaseSaveResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PatchBaseError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn patch_group(
     configuration: &configuration::Configuration,
     params: PatchGroupParams,
@@ -2839,6 +3889,106 @@ pub async fn patch_option(
     }
 }
 
+pub async fn patch_rule(
+    configuration: &configuration::Configuration,
+    params: PatchRuleParams,
+) -> Result<models::PackagingRuleOut, Error<PatchRuleError>> {
+    let uri_str = format!(
+        "{}/packaging-rules/{id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::PATCH, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.patch_packaging_rule_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PackagingRuleOut`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PackagingRuleOut`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PatchRuleError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn preview_menu_item(
+    configuration: &configuration::Configuration,
+    params: PreviewMenuItemParams,
+) -> Result<models::PreviewResponse, Error<PreviewMenuItemError>> {
+    let uri_str = format!(
+        "{}/menu-items/{id}/preview",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.preview_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PreviewResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PreviewResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PreviewMenuItemError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn put_allowed_addons(
     configuration: &configuration::Configuration,
     params: PutAllowedAddonsParams,
@@ -2879,6 +4029,54 @@ pub async fn put_allowed_addons(
     } else {
         let content = resp.text().await?;
         let entity: Option<PutAllowedAddonsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn put_base_lines(
+    configuration: &configuration::Configuration,
+    params: PutBaseLinesParams,
+) -> Result<models::RecipeBaseSaveResult, Error<PutBaseLinesError>> {
+    let uri_str = format!(
+        "{}/recipe-bases/{id}/lines",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.put_recipe_base_lines_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::RecipeBaseSaveResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::RecipeBaseSaveResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PutBaseLinesError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -3067,6 +4265,54 @@ pub async fn put_price_override(
     } else {
         let content = resp.text().await?;
         let entity: Option<PutPriceOverrideError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn put_size_base(
+    configuration: &configuration::Configuration,
+    params: PutSizeBaseParams,
+) -> Result<models::SizeBaseResult, Error<PutSizeBaseError>> {
+    let uri_str = format!(
+        "{}/menu-item-sizes/{size_id}/base",
+        configuration.base_path,
+        size_id = crate::apis::urlencode(params.size_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.put_size_base_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::SizeBaseResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::SizeBaseResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PutSizeBaseError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

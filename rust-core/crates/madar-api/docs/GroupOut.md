@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**effect** | **String** | What choosing does: `none` | `adds` | `swaps`. | 
 **id** | **uuid::Uuid** |  | 
 **is_active** | **bool** |  | 
 **is_required** | **bool** |  | 
@@ -16,6 +17,8 @@ Name | Type | Description | Notes
 **org_id** | **uuid::Uuid** |  | 
 **selection_type** | **String** |  | 
 **sort** | **i32** |  | 
+**swap_category_id** | Option<**uuid::Uuid**> | For `swaps`: the ingredient category whose recipe line each option replaces. | [optional]
+**swap_category_slug** | Option<**String**> |  | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

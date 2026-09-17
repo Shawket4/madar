@@ -6,6 +6,7 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **id** | **uuid::Uuid** |  | 
 **is_available** | **bool** | Effective availability (branch_channel → branch → channel → TRUE). | 
+**is_default** | Option<**bool**> | Explicit preselect for non-swap groups (e.g. \"White bread\"). Swap groups derive their default from the drink's recipe; this is always `false` there. | [optional]
 **name** | **String** |  | 
 **price** | **i32** | Effective price in piastres (branch_channel → branch → channel → catalog default). | 
 **recipe** | [**Vec<models::SyncRecipeLine>**](SyncRecipeLine.md) |  | 

@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 /// GroupOut : A reusable modifier group with its options (org-scoped catalog view).
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct GroupOut {
+    /// What choosing does: `none` | `adds` | `swaps`.
+    #[serde(rename = "effect")]
+    pub effect: String,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(rename = "is_active")]
@@ -48,11 +51,27 @@ pub struct GroupOut {
     pub selection_type: String,
     #[serde(rename = "sort")]
     pub sort: i32,
+    /// For `swaps`: the ingredient category whose recipe line each option replaces.
+    #[serde(
+        rename = "swap_category_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub swap_category_id: Option<Option<uuid::Uuid>>,
+    #[serde(
+        rename = "swap_category_slug",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub swap_category_slug: Option<Option<String>>,
 }
 
 impl GroupOut {
     /// A reusable modifier group with its options (org-scoped catalog view).
     pub fn new(
+        effect: String,
         id: uuid::Uuid,
         is_active: bool,
         is_required: bool,
@@ -65,6 +84,7 @@ impl GroupOut {
         sort: i32,
     ) -> GroupOut {
         GroupOut {
+            effect,
             id,
             is_active,
             is_required,
@@ -77,6 +97,8 @@ impl GroupOut {
             org_id,
             selection_type,
             sort,
+            swap_category_id: None,
+            swap_category_slug: None,
         }
     }
 }

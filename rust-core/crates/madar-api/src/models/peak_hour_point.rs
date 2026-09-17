@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PeakHourPoint {
+    /// SUM(order_item_addons.quantity) across non-voided orders in this hour bucket.
+    #[serde(rename = "addons")]
+    pub addons: i64,
     /// Orders averaged over the number of calendar days (may be fractional).
     #[serde(rename = "avg_orders_per_day")]
     pub avg_orders_per_day: f64,
@@ -23,6 +26,9 @@ pub struct PeakHourPoint {
     pub discount: i64,
     #[serde(rename = "hour")]
     pub hour: i32,
+    /// SUM(order_items.quantity) across non-voided orders in this hour bucket.
+    #[serde(rename = "line_items")]
+    pub line_items: i64,
     #[serde(rename = "orders")]
     pub orders: i64,
     /// This hour's orders as a percentage of the period total (0–100, 1 dp).
@@ -41,10 +47,12 @@ pub struct PeakHourPoint {
 
 impl PeakHourPoint {
     pub fn new(
+        addons: i64,
         avg_orders_per_day: f64,
         avg_revenue_per_day: i64,
         discount: i64,
         hour: i32,
+        line_items: i64,
         orders: i64,
         orders_pct: f64,
         revenue: i64,
@@ -53,10 +61,12 @@ impl PeakHourPoint {
         voided: i64,
     ) -> PeakHourPoint {
         PeakHourPoint {
+            addons,
             avg_orders_per_day,
             avg_revenue_per_day,
             discount,
             hour,
+            line_items,
             orders,
             orders_pct,
             revenue,

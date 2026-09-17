@@ -13,8 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TimeseriesPoint {
+    /// SUM(order_item_addons.quantity) across non-voided orders in this period.
+    #[serde(rename = "addons")]
+    pub addons: i64,
     #[serde(rename = "discount")]
     pub discount: i64,
+    /// SUM(order_items.quantity) across non-voided orders in this period.
+    #[serde(rename = "line_items")]
+    pub line_items: i64,
     #[serde(rename = "orders")]
     pub orders: i64,
     #[serde(rename = "period")]
@@ -34,7 +40,9 @@ pub struct TimeseriesPoint {
 
 impl TimeseriesPoint {
     pub fn new(
+        addons: i64,
         discount: i64,
+        line_items: i64,
         orders: i64,
         period: String,
         revenue: i64,
@@ -43,7 +51,9 @@ impl TimeseriesPoint {
         voided: i64,
     ) -> TimeseriesPoint {
         TimeseriesPoint {
+            addons,
             discount,
+            line_items,
             orders,
             period,
             refunded: None,

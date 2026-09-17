@@ -49,11 +49,33 @@ pub struct GetLoyaltyBehaviorParams {
     pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
 }
 
+/// struct for passing parameters to the method [`get_loyalty_campaign_effectiveness`]
+#[derive(Clone, Debug)]
+pub struct GetLoyaltyCampaignEffectivenessParams {
+    /// Omit for the whole organisation; supply a branch to narrow the redemption figures to it (the liability is org-wide either way — a balance can be spent at any branch).
+    pub branch_id: Option<String>,
+    /// Inclusive start of the range. Defaults to 30 days before `to`.
+    pub from: Option<chrono::DateTime<chrono::FixedOffset>>,
+    /// Exclusive end of the range. Defaults to now.
+    pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
+}
+
 /// struct for passing parameters to the method [`get_loyalty_google_object`]
 #[derive(Clone, Debug)]
 pub struct GetLoyaltyGoogleObjectParams {
     /// Loyalty member id
     pub id: String,
+}
+
+/// struct for passing parameters to the method [`get_loyalty_liability_trend`]
+#[derive(Clone, Debug)]
+pub struct GetLoyaltyLiabilityTrendParams {
+    /// Omit for the whole organisation; supply a branch to narrow the redemption figures to it (the liability is org-wide either way — a balance can be spent at any branch).
+    pub branch_id: Option<String>,
+    /// Inclusive start of the range. Defaults to 30 days before `to`.
+    pub from: Option<chrono::DateTime<chrono::FixedOffset>>,
+    /// Exclusive end of the range. Defaults to now.
+    pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
 }
 
 /// struct for passing parameters to the method [`get_loyalty_member`]
@@ -196,10 +218,36 @@ pub enum GetLoyaltyBehaviorError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`get_loyalty_campaign_effectiveness`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetLoyaltyCampaignEffectivenessError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`get_loyalty_google_object`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetLoyaltyGoogleObjectError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_loyalty_liability_trend`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetLoyaltyLiabilityTrendError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -545,6 +593,59 @@ pub async fn get_loyalty_behavior(
     }
 }
 
+pub async fn get_loyalty_campaign_effectiveness(
+    configuration: &configuration::Configuration,
+    params: GetLoyaltyCampaignEffectivenessParams,
+) -> Result<models::CampaignEffectiveness, Error<GetLoyaltyCampaignEffectivenessError>> {
+    let uri_str = format!("{}/loyalty/campaign-effectiveness", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.branch_id {
+        req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.from {
+        req_builder = req_builder.query(&[("from", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.to {
+        req_builder = req_builder.query(&[("to", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::CampaignEffectiveness`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::CampaignEffectiveness`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetLoyaltyCampaignEffectivenessError> =
+            serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// The nearby-notification question has been answered three times by reasoning and never by looking: either the `locations` are on the object Google holds and the gap is in what Google does with them, or they never arrived and the gap is ours. Both stories fit every symptom from the outside; only the object separates them. This returns it verbatim, unsummarised, because a summary would be one more layer of my guessing between the evidence and the reader.  Super admin for the same reason as `wallet_status`: it is Madar's plumbing, named in Google's vocabulary, and there is nothing an org manager could do with it.
 pub async fn get_loyalty_google_object(
     configuration: &configuration::Configuration,
@@ -585,6 +686,58 @@ pub async fn get_loyalty_google_object(
     } else {
         let content = resp.text().await?;
         let entity: Option<GetLoyaltyGoogleObjectError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_loyalty_liability_trend(
+    configuration: &configuration::Configuration,
+    params: GetLoyaltyLiabilityTrendParams,
+) -> Result<models::LiabilityTrend, Error<GetLoyaltyLiabilityTrendError>> {
+    let uri_str = format!("{}/loyalty/liability-trend", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.branch_id {
+        req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.from {
+        req_builder = req_builder.query(&[("from", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.to {
+        req_builder = req_builder.query(&[("to", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::LiabilityTrend`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::LiabilityTrend`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetLoyaltyLiabilityTrendError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

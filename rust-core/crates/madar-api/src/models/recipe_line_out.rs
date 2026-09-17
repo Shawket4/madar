@@ -31,6 +31,22 @@ pub struct RecipeLineOut {
     /// Base-unit, yield-normalized quantity, serialized as a string (numeric fidelity).
     #[serde(rename = "quantity")]
     pub quantity: String,
+    /// Option lines only: the size this amount is for (`null` = every size).
+    #[serde(
+        rename = "size_label",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub size_label: Option<Option<String>>,
+    /// Where the line came from: `own` (typed on this size; also legacy NULL rows), `base` (recipe base), `rule` (packaging rule) or `linked` (copied from the item this one follows). Only `own` lines are edited by `PUT /menu-item-sizes/{id}/recipe`.
+    #[serde(
+        rename = "source",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub source: Option<Option<String>>,
     #[serde(rename = "unit")]
     pub unit: String,
 }
@@ -50,6 +66,8 @@ impl RecipeLineOut {
             ingredient_name,
             line_cost_piastres: None,
             quantity,
+            size_label: None,
+            source: None,
             unit,
         }
     }

@@ -20,6 +20,9 @@ pub struct IngredientCategory {
     /// Live (non-deleted) ingredients in this category.
     #[serde(rename = "ingredient_count")]
     pub ingredient_count: i64,
+    /// Cups, lids, straws: a dine-in sale skips every ingredient in a packaging category. The slug `packaging` is treated as packaging too.
+    #[serde(rename = "is_packaging")]
+    pub is_packaging: bool,
     #[serde(rename = "name")]
     pub name: String,
     #[serde(rename = "org_id")]
@@ -38,6 +41,7 @@ impl IngredientCategory {
         created_at: chrono::DateTime<chrono::FixedOffset>,
         id: uuid::Uuid,
         ingredient_count: i64,
+        is_packaging: bool,
         name: String,
         org_id: uuid::Uuid,
         slug: String,
@@ -48,6 +52,7 @@ impl IngredientCategory {
             created_at,
             id,
             ingredient_count,
+            is_packaging,
             name,
             org_id,
             slug,
