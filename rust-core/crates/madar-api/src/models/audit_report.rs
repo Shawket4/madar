@@ -15,8 +15,24 @@ use serde::{Deserialize, Serialize};
 pub struct AuditReport {
     #[serde(rename = "by_issuer")]
     pub by_issuer: Vec<models::AuditBreakdownEntry>,
+    /// Discounts audit only: by act (`preset` / `manual_amount` / `manual_percent`; `unattributed` for sales from before). Additive.
+    #[serde(
+        rename = "by_kind",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub by_kind: Option<Option<Vec<models::AuditBreakdownEntry>>>,
     #[serde(rename = "by_reason")]
     pub by_reason: Vec<models::AuditBreakdownEntry>,
+    /// Discounts audit only: the most recent discounted sales, newest first (at most 200). Additive.
+    #[serde(
+        rename = "entries",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub entries: Option<Option<Vec<models::DiscountAuditEntry>>>,
     #[serde(
         rename = "from",
         default,
@@ -46,7 +62,9 @@ impl AuditReport {
     ) -> AuditReport {
         AuditReport {
             by_issuer,
+            by_kind: None,
             by_reason,
+            entries: None,
             from: None,
             to: None,
             total_amount_minor,

@@ -32,6 +32,8 @@ class ApprovalView {
   final String approverId;
   final String approverName;
   final PlatformInt64? amountMinor;
+  final PlatformInt64? valueMinor;
+  final PlatformInt64? percentBps;
 
   const ApprovalView({
     required this.id,
@@ -39,6 +41,8 @@ class ApprovalView {
     required this.approverId,
     required this.approverName,
     this.amountMinor,
+    this.valueMinor,
+    this.percentBps,
   });
 
   @override
@@ -47,7 +51,9 @@ class ApprovalView {
       capability.hashCode ^
       approverId.hashCode ^
       approverName.hashCode ^
-      amountMinor.hashCode;
+      amountMinor.hashCode ^
+      valueMinor.hashCode ^
+      percentBps.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -58,5 +64,47 @@ class ApprovalView {
           capability == other.capability &&
           approverId == other.approverId &&
           approverName == other.approverName &&
-          amountMinor == other.amountMinor;
+          amountMinor == other.amountMinor &&
+          valueMinor == other.valueMinor &&
+          percentBps == other.percentBps;
+}
+
+/// The cart's discount as the tender screen shows it.
+class CartDiscountView {
+  final String kind;
+  final String? presetId;
+  final PlatformInt64? amountMinor;
+  final PlatformInt64? percentBps;
+  final PlatformInt64 offMinor;
+  final String? approvedByName;
+
+  const CartDiscountView({
+    required this.kind,
+    this.presetId,
+    this.amountMinor,
+    this.percentBps,
+    required this.offMinor,
+    this.approvedByName,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^
+      presetId.hashCode ^
+      amountMinor.hashCode ^
+      percentBps.hashCode ^
+      offMinor.hashCode ^
+      approvedByName.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CartDiscountView &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          presetId == other.presetId &&
+          amountMinor == other.amountMinor &&
+          percentBps == other.percentBps &&
+          offMinor == other.offMinor &&
+          approvedByName == other.approvedByName;
 }

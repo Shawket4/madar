@@ -663,6 +663,24 @@ impl Renderer {
         }
         self.rule();
 
+        // ── cash spot reports viewed (who, when, printed, whose PIN) ──
+        if !r.spot_views.is_empty() {
+            let tr = |k: &str| crate::i18n::tr(&lab.locale, k);
+            self.center(&tr("spot.views").to_uppercase(), RS_SMALL, Weight::SEMIBOLD);
+            for v in &r.spot_views {
+                let when = crate::timefmt::format_in(lab.tz, &v.viewed_at, crate::timefmt::TimeStyle::Time, &lab.locale);
+                let mut who = v.viewed_by_name.clone();
+                if let Some(a) = &v.approved_by_name {
+                    who = format!("{who} · {} {a}", tr("spot.approved_by"));
+                }
+                if v.printed {
+                    who = format!("{who} · {}", tr("spot.printed"));
+                }
+                self.indented(&format!("{when}  {who}"), RS_SMALL, 0);
+            }
+            self.rule();
+        }
+
         // ── cash reconciliation ──
         self.center(&lab.cash_recon.to_uppercase(), RS_SMALL, Weight::SEMIBOLD);
         self.row(
@@ -1336,6 +1354,7 @@ mod tests {
             held_orders_left_open_total_minor: None,
             opened_while_another_open: false,
             verification: "server".into(),
+            spot_views: Vec::new(),
         }
     }
 

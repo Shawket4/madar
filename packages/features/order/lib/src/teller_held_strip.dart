@@ -131,10 +131,11 @@ class TellerHeldStrip extends ConsumerWidget {
   ) =>
       (reason) => askManager(
         context,
+        ref,
         reason: reason,
-        approve: (pin) => ref
-            .read(bridgeProvider)
-            .approveDraftAct(approverPin: pin, act: act, id: id),
+        capKey: '',
+        approve: (bridge, pin) =>
+            bridge.approveDraftAct(approverPin: pin, act: act, id: id),
       );
 
   /// Discarding a parked order loses its lines for good — it confirms,

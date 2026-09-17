@@ -7,6 +7,7 @@ library;
 
 export 'src/cash_in_out_panel.dart';
 export 'src/cash_movements_screen.dart';
+export 'src/cash_spot_screen.dart';
 export 'src/close_till_screen.dart';
 export 'src/drawers_card.dart';
 export 'src/held_orders_close_step.dart';
@@ -17,3 +18,4 @@ export 'src/till_providers.dart';
 export 'src/till_report_sheet.dart';
 export 'src/till_screen.dart';
 export 'src/till_sync_strip.dart';
+export 'src/waste_screen.dart';

@@ -36,7 +36,8 @@ pub struct CheckoutCommand {
     /// older queued sale and on one's own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub started_by: Option<String>,
-    /// The manager's approval that let this person resume it, when one was needed.
+    /// The manager's approval that let this person resume it, or that let the
+    /// sale's discount (phase 6) through. Absent on older queued sales.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approval: Option<serde_json::Value>,
 }
@@ -757,6 +758,14 @@ pub(crate) fn prepare(
         request.discount_type = Some(Some(dtype.into()));
         request.discount_value = Some(Some(discount_value));
         request.discount_amount = Some(Some(priced.discount_minor as i32));
+        // Which act it was (phase 6) and its percentage in basis points; who
+        // applied it and the approval are stamped by the caller, which holds
+        // the session.
+        request.discount_kind = cart::discount_act(store, ctx)?.map(Some);
+        if discount_kind == DiscountKind::Percentage {
+            request.discount_percent_bps =
+                Some(Some(crate::discounts::bps_of_rate(discount_value) as i32));
+        }
     }
 
     // Mint the per-shift display number (predicted, NOT sent) + the client-

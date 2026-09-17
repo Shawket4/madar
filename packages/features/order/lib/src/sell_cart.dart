@@ -25,6 +25,7 @@ import 'package:feature_checkout/feature_checkout.dart'
         PrintState,
         buildCartKitchenChit,
         buildCartLineChit,
+        cartDiscountLabel,
         chitPrintToast,
         discountLabel,
         printCartKitchenChit,
@@ -1581,9 +1582,8 @@ final FutureProviderFamily<String?, (String?, int)> _cartDiscountLabelProvider =
     ) async {
       if (key.$2 <= 0) return null;
       final bridge = ref.read(bridgeProvider);
-      final id = await bridge.cartDiscountId(tableId: key.$1);
-      if (id == null) return null;
+      final v = await bridge.cartDiscount(tableId: key.$1);
+      if (v.kind.isEmpty) return null;
       final all = await bridge.listDiscounts();
-      final d = all.where((d) => d.id == id).firstOrNull;
-      return d == null ? null : discountLabel(d);
+      return cartDiscountLabel(bridge, v, all, discountLabel);
     });

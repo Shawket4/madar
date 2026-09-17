@@ -17,7 +17,7 @@
 /// needed are in `historyFallbackStrings`, ready to paste into the core.
 library;
 
-export 'src/approval_sheet.dart' show askManager;
+export 'src/approval_sheet.dart' show askCashSpotPin, askManager;
 export 'src/history_provider.dart'
     show
         HistoryNotifier,

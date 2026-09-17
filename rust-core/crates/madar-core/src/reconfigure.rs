@@ -151,7 +151,7 @@ fn noun_of(op_type: &str) -> &'static str {
         "create_order" | "settle_open_ticket" => "sale",
         "refund_order" => "refund",
         "void_order" | "void_ticket" | "void_ticket_line" => "void",
-        "cash_movement" => "cash",
+        "cash_movement" | "spot_report_view" => "cash",
         "open_till" | "close_till" | "open_shift" | "close_shift" => "till",
         _ => "change",
     }

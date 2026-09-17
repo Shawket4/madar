@@ -270,6 +270,7 @@ impl MadarCore {
             // The figures are this device's; they are the server's only when the
             // stored server report is the authority for the till.
             from_server: confirmed && authority,
+            figures_hidden: false,
         })
     }
 
@@ -303,6 +304,15 @@ impl MadarCore {
         let config = self.api.config();
         let r = within(refunds_api::list_order_refunds(&config, refunds_api::ListOrderRefundsParams { order_id })).await?;
         Ok(self.with_pending_refunds(orders::order_refunds_view(&r)))
+    }
+
+    /// The sale's lines and how many units of each may still be refunded —
+    /// the refund sheet's item picker. Earlier refunds, queued ones included,
+    /// are taken off.
+    pub async fn refundable_lines(&self, order_id: String) -> Result<Vec<orders::RefundableLineView>, CoreError> {
+        let full = self.order_full_for(&order_id).await?;
+        let refunds = self.list_order_refunds(order_id).await?;
+        Ok(orders::refundable_lines(&full, &refunds, &self.current_locale()))
     }
 
     /// Every refund issued from a till's drawer.

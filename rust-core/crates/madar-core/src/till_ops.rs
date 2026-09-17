@@ -473,8 +473,17 @@ impl MadarCore {
             });
         }
         let t = self.open_till_or_err()?;
-        let inputs = till::reconciliation_wire(&reconciliation)?;
         let preview = self.close_till_preview().await.ok();
+        // A blind count: the person gave what they see; the core decides
+        // whether it agrees with the system (a disagreement lands in the
+        // owner's review queue after the close).
+        let blind_note = crate::i18n::tr(&self.current_locale(), "spot.blind_count_note");
+        let reconciliation = till::resolve_blind_counts(
+            reconciliation,
+            preview.as_ref().map(|p| p.methods.as_slice()).unwrap_or(&[]),
+            &blind_note,
+        );
+        let inputs = till::reconciliation_wire(&reconciliation)?;
         // A close never predates its open. The corrected clock moves in whole
         // seconds as the server offset is re-estimated, so a till closed moments
         // after it opened could read earlier than its own open — which the server

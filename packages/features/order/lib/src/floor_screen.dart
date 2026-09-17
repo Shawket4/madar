@@ -145,10 +145,11 @@ class _FloorScreenState extends ConsumerState<FloorScreen> {
         held,
         askManager: (reason) => askManager(
           context,
+          ref,
           reason: reason,
-          approve: (pin) => ref
-              .read(bridgeProvider)
-              .approveDraftAct(approverPin: pin, act: 'resume', id: held),
+          capKey: '',
+          approve: (bridge, pin) =>
+              bridge.approveDraftAct(approverPin: pin, act: 'resume', id: held),
         ),
       );
       if (landed?.tableId case final id?) await _toTable(id);

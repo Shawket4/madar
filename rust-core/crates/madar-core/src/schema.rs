@@ -19,7 +19,7 @@ type Step = fn(&Transaction<'_>) -> CoreResult<()>;
 
 /// The steps, in order. Step N brings the store from `user_version = N-1` to N.
 /// Append only: a shipped step is never edited.
-const STEPS: &[Step] = &[step1_sync_streams, step2_ledger, step3_order_details, step4_backfill_ledger, step5_drop_legacy_read_caches, step6_lan_authz_flags];
+const STEPS: &[Step] = &[step1_sync_streams, step2_ledger, step3_order_details, step4_backfill_ledger, step5_drop_legacy_read_caches, step6_lan_authz_flags, step7_spot_views];
 
 /// The schema version this build writes.
 pub(crate) fn latest() -> i64 {
@@ -291,6 +291,25 @@ fn step6_lan_authz_flags(tx: &Transaction<'_>) -> CoreResult<()> {
            recorded_at INTEGER NOT NULL,
            PRIMARY KEY (branch_id, type, id, cell)
          );",
+    )?;
+    Ok(())
+}
+
+/// Cash spot report views (owner design 2026-09-16 item 5, corrected
+/// 2026-09-17): who viewed / printed the live till report and whose PIN
+/// unlocked it, one row per view keyed by its client-minted id. Written locally
+/// with its outbox op, and from the `till` projection's `spot_views`.
+fn step7_spot_views(tx: &Transaction<'_>) -> CoreResult<()> {
+    tx.execute_batch(
+        "CREATE TABLE IF NOT EXISTS ledger_spot_views (
+           id            TEXT PRIMARY KEY,
+           till_id       TEXT NOT NULL,
+           viewed_at     TEXT NOT NULL,
+           raw           TEXT NOT NULL,
+           origin        TEXT NOT NULL,
+           local_updated_at INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS ledger_spot_views_till ON ledger_spot_views(till_id, viewed_at);",
     )?;
     Ok(())
 }

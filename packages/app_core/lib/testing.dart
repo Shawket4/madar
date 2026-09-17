@@ -93,7 +93,10 @@ bool fakeCan(String? role, String cap) {
       return teller || r == 'waiter';
     case Cap.kitchenDisplayRead:
       return true;
-    case Cap.tillReadBranch || Cap.tillForceClose:
+    case Cap.tillReadBranch ||
+        Cap.tillForceClose ||
+        Cap.reportsPosMetrics ||
+        Cap.inventoryWasteRecord:
       return manager;
     default:
       return teller || r == 'waiter';
@@ -110,5 +113,11 @@ bool? fakeCanInvocation(Invocation invocation, String? Function() role) {
     return fakeCan(role(), invocation.namedArguments[#cap]! as String);
   }
   if (invocation.memberName == #canAskManager) return false;
+  // The drawer figures (cash spot design): shown unless a test says blind.
+  if (invocation.memberName == #tillFiguresVisible) return true;
+  // The waste screen is offered to whoever holds the capability.
+  if (invocation.memberName == #canRecordWaste) {
+    return fakeCan(role(), 'inventory.waste.record');
+  }
   return null;
 }

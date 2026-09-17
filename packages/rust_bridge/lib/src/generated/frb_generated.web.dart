@@ -10,6 +10,7 @@ import 'api/approvals.dart';
 import 'api/bookings.dart';
 import 'api/bridge.dart';
 import 'api/cart.dart';
+import 'api/cash_spot.dart';
 import 'api/catalog.dart';
 import 'api/customers.dart';
 import 'api/delivery.dart';
@@ -19,6 +20,7 @@ import 'api/error.dart';
 import 'api/floor.dart';
 import 'api/kds.dart';
 import 'api/loyalty.dart';
+import 'api/metrics.dart';
 import 'api/orders.dart';
 import 'api/printing.dart';
 import 'api/realtime.dart';
@@ -27,6 +29,7 @@ import 'api/sync.dart';
 import 'api/tickets.dart';
 import 'api/till.dart';
 import 'api/types.dart';
+import 'api/waste.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -202,6 +205,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   BigInt dco_decode_box_autoadd_u_64(dynamic raw);
 
   @protected
+  WasteInput dco_decode_box_autoadd_waste_input(dynamic raw);
+
+  @protected
   BranchOpenTillView dco_decode_branch_open_till_view(dynamic raw);
 
   @protected
@@ -221,6 +227,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CartBundleComponentView dco_decode_cart_bundle_component_view(dynamic raw);
+
+  @protected
+  CartDiscountView dco_decode_cart_discount_view(dynamic raw);
 
   @protected
   CartKitchenChit dco_decode_cart_kitchen_chit(dynamic raw);
@@ -245,6 +254,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CashQuickTenderView dco_decode_cash_quick_tender_view(dynamic raw);
+
+  @protected
+  CashSpotView dco_decode_cash_spot_view(dynamic raw);
 
   @protected
   CatStyleView dco_decode_cat_style_view(dynamic raw);
@@ -508,6 +520,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<MenuItemView> dco_decode_list_menu_item_view(dynamic raw);
 
   @protected
+  List<MetricsHourView> dco_decode_list_metrics_hour_view(dynamic raw);
+
+  @protected
+  List<MetricsItemView> dco_decode_list_metrics_item_view(dynamic raw);
+
+  @protected
+  List<MetricsPresetView> dco_decode_list_metrics_preset_view(dynamic raw);
+
+  @protected
+  List<MetricsTenderView> dco_decode_list_metrics_tender_view(dynamic raw);
+
+  @protected
   List<ModifierGroupView> dco_decode_list_modifier_group_view(dynamic raw);
 
   @protected
@@ -571,10 +595,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<RefundLinePick> dco_decode_list_refund_line_pick(dynamic raw);
+
+  @protected
   List<RefundLineView> dco_decode_list_refund_line_view(dynamic raw);
 
   @protected
   List<RefundView> dco_decode_list_refund_view(dynamic raw);
+
+  @protected
+  List<RefundableLineView> dco_decode_list_refundable_line_view(dynamic raw);
 
   @protected
   List<RewardLineInput> dco_decode_list_reward_line_input(dynamic raw);
@@ -584,6 +614,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<RewardPick> dco_decode_list_reward_pick(dynamic raw);
+
+  @protected
+  List<SpotViewLineView> dco_decode_list_spot_view_line_view(dynamic raw);
 
   @protected
   List<TableSittingView> dco_decode_list_table_sitting_view(dynamic raw);
@@ -607,6 +640,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<TransferQueueView> dco_decode_list_transfer_queue_view(dynamic raw);
+
+  @protected
+  List<WasteIngredientView> dco_decode_list_waste_ingredient_view(dynamic raw);
+
+  @protected
+  List<WasteItemView> dco_decode_list_waste_item_view(dynamic raw);
+
+  @protected
+  List<WasteLineView> dco_decode_list_waste_line_view(dynamic raw);
+
+  @protected
+  List<WasteReasonView> dco_decode_list_waste_reason_view(dynamic raw);
 
   @protected
   LoginMode dco_decode_login_mode(dynamic raw);
@@ -643,6 +688,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   MenuItemView dco_decode_menu_item_view(dynamic raw);
+
+  @protected
+  MetricsHourView dco_decode_metrics_hour_view(dynamic raw);
+
+  @protected
+  MetricsItemView dco_decode_metrics_item_view(dynamic raw);
+
+  @protected
+  MetricsPresetView dco_decode_metrics_preset_view(dynamic raw);
+
+  @protected
+  MetricsTenderView dco_decode_metrics_tender_view(dynamic raw);
 
   @protected
   ModifierGroupKind dco_decode_modifier_group_kind(dynamic raw);
@@ -755,6 +812,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   PaymentMethodView dco_decode_payment_method_view(dynamic raw);
 
   @protected
+  PosMetricsView dco_decode_pos_metrics_view(dynamic raw);
+
+  @protected
   PrinterBrand dco_decode_printer_brand(dynamic raw);
 
   @protected
@@ -794,6 +854,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   ReconfigureReadinessView dco_decode_reconfigure_readiness_view(dynamic raw);
 
   @protected
+  RefundLinePick dco_decode_refund_line_pick(dynamic raw);
+
+  @protected
   RefundLineView dco_decode_refund_line_view(dynamic raw);
 
   @protected
@@ -801,6 +864,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   RefundView dco_decode_refund_view(dynamic raw);
+
+  @protected
+  RefundableLineView dco_decode_refundable_line_view(dynamic raw);
 
   @protected
   RewardBoardView dco_decode_reward_board_view(dynamic raw);
@@ -816,6 +882,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   SessionSnapshot dco_decode_session_snapshot(dynamic raw);
+
+  @protected
+  SpotViewLineView dco_decode_spot_view_line_view(dynamic raw);
 
   @protected
   SyncMeta dco_decode_sync_meta(dynamic raw);
@@ -909,6 +978,27 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   BigInt dco_decode_usize(dynamic raw);
+
+  @protected
+  WasteIngredientView dco_decode_waste_ingredient_view(dynamic raw);
+
+  @protected
+  WasteInput dco_decode_waste_input(dynamic raw);
+
+  @protected
+  WasteItemView dco_decode_waste_item_view(dynamic raw);
+
+  @protected
+  WasteLineView dco_decode_waste_line_view(dynamic raw);
+
+  @protected
+  WastePreviewView dco_decode_waste_preview_view(dynamic raw);
+
+  @protected
+  WasteReasonView dco_decode_waste_reason_view(dynamic raw);
+
+  @protected
+  WasteRecordedView dco_decode_waste_recorded_view(dynamic raw);
 
   @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
@@ -1096,6 +1186,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
 
   @protected
+  WasteInput sse_decode_box_autoadd_waste_input(SseDeserializer deserializer);
+
+  @protected
   BranchOpenTillView sse_decode_branch_open_till_view(
     SseDeserializer deserializer,
   );
@@ -1125,6 +1218,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  CartDiscountView sse_decode_cart_discount_view(SseDeserializer deserializer);
+
+  @protected
   CartKitchenChit sse_decode_cart_kitchen_chit(SseDeserializer deserializer);
 
   @protected
@@ -1149,6 +1245,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CashQuickTenderView sse_decode_cash_quick_tender_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  CashSpotView sse_decode_cash_spot_view(SseDeserializer deserializer);
 
   @protected
   CatStyleView sse_decode_cat_style_view(SseDeserializer deserializer);
@@ -1500,6 +1599,26 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<MetricsHourView> sse_decode_list_metrics_hour_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<MetricsItemView> sse_decode_list_metrics_item_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<MetricsPresetView> sse_decode_list_metrics_preset_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<MetricsTenderView> sse_decode_list_metrics_tender_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<ModifierGroupView> sse_decode_list_modifier_group_view(
     SseDeserializer deserializer,
   );
@@ -1591,12 +1710,22 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<RefundLinePick> sse_decode_list_refund_line_pick(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<RefundLineView> sse_decode_list_refund_line_view(
     SseDeserializer deserializer,
   );
 
   @protected
   List<RefundView> sse_decode_list_refund_view(SseDeserializer deserializer);
+
+  @protected
+  List<RefundableLineView> sse_decode_list_refundable_line_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<RewardLineInput> sse_decode_list_reward_line_input(
@@ -1610,6 +1739,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<RewardPick> sse_decode_list_reward_pick(SseDeserializer deserializer);
+
+  @protected
+  List<SpotViewLineView> sse_decode_list_spot_view_line_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<TableSittingView> sse_decode_list_table_sitting_view(
@@ -1641,6 +1775,26 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<TransferQueueView> sse_decode_list_transfer_queue_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<WasteIngredientView> sse_decode_list_waste_ingredient_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<WasteItemView> sse_decode_list_waste_item_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<WasteLineView> sse_decode_list_waste_line_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<WasteReasonView> sse_decode_list_waste_reason_view(
     SseDeserializer deserializer,
   );
 
@@ -1689,6 +1843,22 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   MenuItemView sse_decode_menu_item_view(SseDeserializer deserializer);
+
+  @protected
+  MetricsHourView sse_decode_metrics_hour_view(SseDeserializer deserializer);
+
+  @protected
+  MetricsItemView sse_decode_metrics_item_view(SseDeserializer deserializer);
+
+  @protected
+  MetricsPresetView sse_decode_metrics_preset_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MetricsTenderView sse_decode_metrics_tender_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ModifierGroupKind sse_decode_modifier_group_kind(
@@ -1831,6 +2001,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  PosMetricsView sse_decode_pos_metrics_view(SseDeserializer deserializer);
+
+  @protected
   PrinterBrand sse_decode_printer_brand(SseDeserializer deserializer);
 
   @protected
@@ -1884,6 +2057,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  RefundLinePick sse_decode_refund_line_pick(SseDeserializer deserializer);
+
+  @protected
   RefundLineView sse_decode_refund_line_view(SseDeserializer deserializer);
 
   @protected
@@ -1891,6 +2067,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   RefundView sse_decode_refund_view(SseDeserializer deserializer);
+
+  @protected
+  RefundableLineView sse_decode_refundable_line_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   RewardBoardView sse_decode_reward_board_view(SseDeserializer deserializer);
@@ -1906,6 +2087,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   SessionSnapshot sse_decode_session_snapshot(SseDeserializer deserializer);
+
+  @protected
+  SpotViewLineView sse_decode_spot_view_line_view(SseDeserializer deserializer);
 
   @protected
   SyncMeta sse_decode_sync_meta(SseDeserializer deserializer);
@@ -2009,6 +2193,31 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   BigInt sse_decode_usize(SseDeserializer deserializer);
+
+  @protected
+  WasteIngredientView sse_decode_waste_ingredient_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  WasteInput sse_decode_waste_input(SseDeserializer deserializer);
+
+  @protected
+  WasteItemView sse_decode_waste_item_view(SseDeserializer deserializer);
+
+  @protected
+  WasteLineView sse_decode_waste_line_view(SseDeserializer deserializer);
+
+  @protected
+  WastePreviewView sse_decode_waste_preview_view(SseDeserializer deserializer);
+
+  @protected
+  WasteReasonView sse_decode_waste_reason_view(SseDeserializer deserializer);
+
+  @protected
+  WasteRecordedView sse_decode_waste_recorded_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   void sse_encode_AnyhowException(
@@ -2245,6 +2454,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_waste_input(
+    WasteInput self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_branch_open_till_view(
     BranchOpenTillView self,
     SseSerializer serializer,
@@ -2274,6 +2489,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_cart_bundle_component_view(
     CartBundleComponentView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cart_discount_view(
+    CartDiscountView self,
     SseSerializer serializer,
   );
 
@@ -2312,6 +2533,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
     CashQuickTenderView self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_cash_spot_view(CashSpotView self, SseSerializer serializer);
 
   @protected
   void sse_encode_cat_style_view(CatStyleView self, SseSerializer serializer);
@@ -2755,6 +2979,30 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_metrics_hour_view(
+    List<MetricsHourView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_metrics_item_view(
+    List<MetricsItemView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_metrics_preset_view(
+    List<MetricsPresetView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_metrics_tender_view(
+    List<MetricsTenderView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_modifier_group_view(
     List<ModifierGroupView> self,
     SseSerializer serializer,
@@ -2866,6 +3114,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_refund_line_pick(
+    List<RefundLinePick> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_refund_line_view(
     List<RefundLineView> self,
     SseSerializer serializer,
@@ -2874,6 +3128,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_refund_view(
     List<RefundView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_refundable_line_view(
+    List<RefundableLineView> self,
     SseSerializer serializer,
   );
 
@@ -2892,6 +3152,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_reward_pick(
     List<RewardPick> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_spot_view_line_view(
+    List<SpotViewLineView> self,
     SseSerializer serializer,
   );
 
@@ -2934,6 +3200,30 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_transfer_queue_view(
     List<TransferQueueView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_waste_ingredient_view(
+    List<WasteIngredientView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_waste_item_view(
+    List<WasteItemView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_waste_line_view(
+    List<WasteLineView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_waste_reason_view(
+    List<WasteReasonView> self,
     SseSerializer serializer,
   );
 
@@ -2993,6 +3283,30 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_menu_item_view(MenuItemView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_metrics_hour_view(
+    MetricsHourView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_metrics_item_view(
+    MetricsItemView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_metrics_preset_view(
+    MetricsPresetView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_metrics_tender_view(
+    MetricsTenderView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_modifier_group_kind(
@@ -3178,6 +3492,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_pos_metrics_view(
+    PosMetricsView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_printer_brand(PrinterBrand self, SseSerializer serializer);
 
   @protected
@@ -3250,6 +3570,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_refund_line_pick(
+    RefundLinePick self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_refund_line_view(
     RefundLineView self,
     SseSerializer serializer,
@@ -3263,6 +3589,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_refund_view(RefundView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_refundable_line_view(
+    RefundableLineView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_reward_board_view(
@@ -3288,6 +3620,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_session_snapshot(
     SessionSnapshot self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_spot_view_line_view(
+    SpotViewLineView self,
     SseSerializer serializer,
   );
 
@@ -3434,6 +3772,39 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_waste_ingredient_view(
+    WasteIngredientView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_waste_input(WasteInput self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_waste_item_view(WasteItemView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_waste_line_view(WasteLineView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_waste_preview_view(
+    WastePreviewView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_waste_reason_view(
+    WasteReasonView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_waste_recorded_view(
+    WasteRecordedView self,
+    SseSerializer serializer,
+  );
 }
 
 // Section: wire_class

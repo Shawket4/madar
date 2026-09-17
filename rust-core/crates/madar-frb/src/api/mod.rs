@@ -1,4 +1,5 @@
 pub mod approvals;
+pub mod cash_spot;
 pub mod bookings;
 pub mod bridge;
 pub mod cart;
@@ -10,6 +11,7 @@ pub mod error;
 pub mod floor;
 pub mod kds;
 pub mod loyalty;
+pub mod metrics;
 pub mod orders;
 pub mod printing;
 pub mod realtime;
@@ -19,3 +21,4 @@ pub mod tickets;
 pub mod drawer;
 pub mod till;
 pub mod types;
+pub mod waste;

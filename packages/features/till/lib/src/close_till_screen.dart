@@ -18,6 +18,7 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_till/src/cash_spot_screen.dart';
 import 'package:feature_till/src/held_orders_close_step.dart';
 import 'package:feature_till/src/till_providers.dart';
 import 'package:feature_till/src/till_report_sheet.dart';
@@ -103,20 +104,11 @@ class _CloseTillScreenState extends ConsumerState<CloseTillScreen> {
     shell.refresh();
   }
 
-  Future<void> _preview(TillReportView report) async {
-    await showMadarSheet<void>(
-      context,
-      size: SheetSize.large,
-      builder: (_) => TillReportSheet(report: report),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final till = ref.watch(closeTillProvider.select((s) => s.till));
-    final report = ref.watch(closeTillProvider.select((s) => s.report));
     final orderCount = ref.watch(closeTillProvider.select((s) => s.orderCount));
 
     final subtitle = [
@@ -129,7 +121,12 @@ class _CloseTillScreenState extends ConsumerState<CloseTillScreen> {
     ].join(' · ');
 
     final expected = _Expected(
-      onPreview: report == null ? null : () => unawaited(_preview(report)),
+      onCashSpot: () => unawaited(openCashSpot(context, ref)),
+      onShowFigures: () async {
+        final notifier = ref.read(closeTillProvider.notifier);
+        final figures = await unlockCloseFigures(context, ref);
+        if (figures != null) notifier.showFigures(figures);
+      },
     );
     final count = _Count(note: _note, onClose: () => unawaited(_close()));
 
@@ -181,9 +178,13 @@ class _CloseTillScreenState extends ConsumerState<CloseTillScreen> {
 /// (+), what went out (−), adding up to the expected figure. Cash sales is
 /// the core's remainder, so the lines always sum — offline too.
 class _Expected extends ConsumerWidget {
-  const _Expected({required this.onPreview});
+  const _Expected({required this.onCashSpot, required this.onShowFigures});
 
-  final VoidCallback? onPreview;
+  /// Opens Cash spot (a PIN first when needed).
+  final VoidCallback onCashSpot;
+
+  /// Blind close: a one-time PIN shows the expected figures before closing.
+  final VoidCallback onShowFigures;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -194,8 +195,53 @@ class _Expected extends ConsumerWidget {
     final loadError = ref.watch(closeTillProvider.select((s) => s.loadError));
     final notifier = ref.read(closeTillProvider.notifier);
 
+    final blind = ref.watch(closeTillProvider.select((s) => s.blind));
+    final figures = ref.watch(closeTillProvider.select((s) => s.figures));
+    final cashSpot = MadarButton(
+      label: t('spot.button'),
+      glyph: MadarGlyph.wallet,
+      variant: MadarButtonVariant.secondary,
+      onTap: onCashSpot,
+    );
+
     final Widget card;
-    if (r == null && loadError != null) {
+    if (blind) {
+      // Blind count: no expected figure until a PIN unlocks one look.
+      card = MadarCard.column(
+        children: [
+          if (figures == null)
+            Text(
+              t('spot.blind_hint'),
+              style: MadarType.body.copyWith(
+                color: context.madarColors.textSecondary,
+              ),
+            )
+          else
+            for (final m in figures.methods)
+              MadarSummaryLine(
+                label: m.isCash ? t('till.expected_cash') : m.label,
+                minor: m.systemTotalMinor,
+                currency: currency,
+                emphasis: m.isCash,
+              ),
+          Row(
+            spacing: Space.md,
+            children: [
+              if (figures == null)
+                Expanded(
+                  child: MadarButton(
+                    label: t('spot.show_figures'),
+                    glyph: MadarGlyph.receipt,
+                    variant: MadarButtonVariant.secondary,
+                    onTap: onShowFigures,
+                  ),
+                ),
+              Expanded(child: cashSpot),
+            ],
+          ),
+        ],
+      );
+    } else if (r == null && loadError != null) {
       card = MadarCard(
         child: SizedBox(
           height: MadarTableMetrics.stateHeight,
@@ -268,10 +314,9 @@ class _Expected extends ConsumerWidget {
             ),
           ),
           const MadarHairline.row(),
-          MadarListRow.nav(
-            title: t('till.z_preview'),
-            glyph: MadarGlyph.receipt,
-            onTap: onPreview,
+          Padding(
+            padding: const EdgeInsetsDirectional.all(Space.card),
+            child: cashSpot,
           ),
         ],
       );
@@ -484,6 +529,7 @@ class _MethodCheckFormState extends ConsumerState<_MethodCheckForm> {
       closeTillProvider.select((s) => s.checkFor(m.method)),
     );
     final attempted = ref.watch(closeTillProvider.select((s) => s.attempted));
+    final blind = ref.watch(closeTillProvider.select((s) => s.blind));
     final notifier = ref.read(closeTillProvider.notifier);
     final needsNote = attempted && (check.missingNote || check.missingAmount);
 
@@ -524,23 +570,32 @@ class _MethodCheckFormState extends ConsumerState<_MethodCheckForm> {
                     ],
                   ),
                 ),
-                MoneyText(
-                  m.systemTotalMinor,
-                  currency: currency,
-                  style: MadarType.numMd,
-                ),
+                if (!blind)
+                  MoneyText(
+                    m.systemTotalMinor,
+                    currency: currency,
+                    style: MadarType.numMd,
+                  ),
               ],
             ),
-            MadarSegmented<String>(
-              value: check.status ?? '',
-              items: [
-                MadarSegmentItem('checked', t('till.reconcile_checked')),
-                MadarSegmentItem('disagreed', t('till.reconcile_disagree')),
-              ],
-              onChanged: (v) => v == 'checked'
-                  ? notifier.markChecked(m.method)
-                  : notifier.markDisagreed(m.method),
-            ),
+            if (blind)
+              MadarAmountField(
+                key: ValueKey('counted-${m.method}'),
+                amountMinor: check.amountMinor,
+                onAmount: (v) => notifier.countMethod(m.method, v),
+                currencyCode: currency,
+              )
+            else
+              MadarSegmented<String>(
+                value: check.status ?? '',
+                items: [
+                  MadarSegmentItem('checked', t('till.reconcile_checked')),
+                  MadarSegmentItem('disagreed', t('till.reconcile_disagree')),
+                ],
+                onChanged: (v) => v == 'checked'
+                    ? notifier.markChecked(m.method)
+                    : notifier.markDisagreed(m.method),
+              ),
             if (check.disagrees) ...[
               MadarAmountField(
                 key: ValueKey('declared-${m.method}'),

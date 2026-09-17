@@ -7,6 +7,7 @@ import '../frb_generated.dart';
 import 'approvals.dart';
 import 'bookings.dart';
 import 'cart.dart';
+import 'cash_spot.dart';
 import 'catalog.dart';
 import 'customers.dart';
 import 'delivery.dart';
@@ -16,6 +17,7 @@ import 'error.dart';
 import 'floor.dart';
 import 'kds.dart';
 import 'loyalty.dart';
+import 'metrics.dart';
 import 'orders.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'printing.dart';
@@ -25,6 +27,7 @@ import 'sync.dart';
 import 'tickets.dart';
 import 'till.dart';
 import 'types.dart';
+import 'waste.dart';
 
 /// FFI contract version this wrapper was written against (madar-core's
 /// `ffi_surface_version`). Dart asserts equality at startup.
@@ -53,6 +56,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The screen to show. Re-read at deliberate transitions only.
   AppRoute appRoute();
 
+  /// Put a discount on the cart; refused unless allowed or approved.
+  Future<void> applyDiscount({
+    String? tableId,
+    required String kind,
+    String? presetId,
+    PlatformInt64? amountMinor,
+    PlatformInt64? percentBps,
+    ApprovalView? approval,
+  });
+
   /// A manager approves the act with their own PIN on this device.
   Future<ApprovalView> approveAct({
     required String approverPin,
@@ -60,6 +73,19 @@ abstract class MadarBridge implements RustOpaqueInterface {
     PlatformInt64? amountMinor,
     PlatformInt64? ageMinutes,
     bool? own,
+  });
+
+  /// Someone holding the grant unlocks one action with their PIN.
+  Future<ApprovalView> approveCashSpot({required String approverPin});
+
+  /// A manager approves a discount on the cart with their PIN.
+  Future<ApprovalView> approveDiscount({
+    required String approverPin,
+    String? tableId,
+    required String kind,
+    String? presetId,
+    PlatformInt64? amountMinor,
+    PlatformInt64? percentBps,
   });
 
   /// A manager approves a queue act on a held order with their PIN.
@@ -75,6 +101,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String capKey,
     required String orderId,
     PlatformInt64? amountMinor,
+  });
+
+  /// A manager approves this waste with their PIN.
+  Future<ApprovalView> approveWaste({
+    required String approverPin,
+    required WasteInput input,
   });
 
   /// Assign / move / unassign a parked draft's table. Errors loudly when the
@@ -113,6 +145,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// Not held, but the owner lets this person ask a manager to approve it.
   bool canAskManager({required String cap});
+
+  /// Whether the waste screen is offered (held, or ask-a-manager).
+  bool canRecordWaste();
 
   /// May the signed-in PIN user remove the service charge from a table's
   /// bill? Their effective `orders:waive_service` grant — never the role.
@@ -185,6 +220,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? tableId,
     required String lineKey,
   });
+
+  /// The cart's discount: kind, figures, what it takes off, who approved.
+  Future<CartDiscountView> cartDiscount({String? tableId});
 
   /// The selected discount id (for the tender UI), or `None`.
   Future<String?> cartDiscountId({String? tableId});
@@ -312,6 +350,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String currency,
   });
 
+  /// Cash spot / close figures: `allow` or `needs_approval` (a PIN).
+  ActDecisionView cashSpotAccess();
+
+  /// Open the cash spot: the full live till report (records the look).
+  Future<CashSpotView> cashSpotView({ApprovalView? approval});
+
   /// Themed style (icon key + gradient palette) for a category/item name —
   /// the host maps `icon` to a glyph and paints the gradient. Pure; mirrors
   /// Flutter's `CatStyle.of`. `dark` picks the dark-mode palette.
@@ -352,6 +396,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required PlatformInt64 expectedMinor,
     PlatformInt64? countedMinor,
   });
+
+  /// The expected figures on the close screen, before closing.
+  Future<CloseTillPreviewView> closeFigures({ApprovalView? approval});
 
   /// The held-orders warning a close shows first: every order still parked
   /// on this device (and the counter cart), with names and totals. Local.
@@ -412,6 +459,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
     PlatformInt64? amountMinor,
     PlatformInt64? ageMinutes,
     bool? own,
+  });
+
+  /// Allowed / needs a manager / refused for a discount on the cart
+  /// (`kind`: preset | manual_amount | manual_percent). Offline.
+  ActDecisionView decideDiscount({
+    String? tableId,
+    required String kind,
+    String? presetId,
+    PlatformInt64? amountMinor,
+    PlatformInt64? percentBps,
   });
 
   /// Allowed / needs a manager / refused for a queue act (`"resume"` |
@@ -823,6 +880,18 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// delay, persisted across restarts); 0 when it may now.
   int pinWaitSeconds();
 
+  /// The Metrics screen for a preset (`custom` takes two `YYYY-MM-DD` days).
+  /// NETWORK-CAPABLE: one server call when online, the device's rows otherwise.
+  /// Call it when a person opens the screen or picks a window, never on a tick.
+  Future<PosMetricsView> posMetrics({
+    required String preset,
+    String? customFrom,
+    String? customTo,
+  });
+
+  /// The date presets, in order, labelled.
+  List<MetricsPresetView> posMetricsPresets();
+
   /// What a configured line would cost (unit, extras, whole line) — priced
   /// by the resolver the add uses. Adds nothing.
   Future<LinePreviewView> previewConfiguredLine({
@@ -832,6 +901,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<String> optionalFieldIds,
     required PlatformInt64 qty,
   });
+
+  /// Lines, value and decision for what is picked. Offline.
+  WastePreviewView previewWaste({required WasteInput input});
 
   /// Print pre-rendered ESC/POS bytes to the DEVICE's configured printer
   /// (from the core device config). Errors if no printer is bound.
@@ -862,6 +934,15 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String note,
     String? kind,
     String? corrects,
+  });
+
+  /// The spot report of this look was printed.
+  Future<SpotViewLineView> recordCashSpotPrint({required String viewId});
+
+  /// Record the waste (queued; works offline).
+  Future<WasteRecordedView> recordWaste({
+    required WasteInput input,
+    ApprovalView? approval,
   });
 
   /// Pull today's active bookings into the offline cache (best-effort; a
@@ -920,6 +1001,22 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? note,
     ApprovalView? approval,
   });
+
+  /// Refund naming the items it is for (their stock is logged as waste),
+  /// with a manager's approval when one was needed.
+  Future<void> refundOrderLinesApproved({
+    required String orderId,
+    required PlatformInt64 amountMinor,
+    required String method,
+    required String reason,
+    String? note,
+    required List<RefundLinePick> lines,
+    ApprovalView? approval,
+  });
+
+  /// The sale's lines and how many units of each may still be refunded.
+  /// Refunded items were served: their stock stays deducted as waste.
+  Future<List<RefundableLineView>> refundableLines({required String orderId});
 
   /// Give a restored draft's claim back without changes (the "never mind"
   /// path out of a resume).
@@ -1215,6 +1312,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The drawer arithmetic's cash-sales line, closed on the report's figure.
   PlatformInt64 tillCashSalesMinor({required TillReportView report});
 
+  /// The signed-in person may see the open till's figures.
+  bool tillFiguresVisible();
+
   Future<TillReportView> tillReport();
 
   Future<TillReportView> tillReportFor({required String tillId});
@@ -1296,6 +1396,14 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String itemId,
     String? reason,
   });
+
+  /// Catalog ingredients matching a name. Offline.
+  List<WasteIngredientView> wasteIngredients({required String query});
+
+  /// Menu items with a recipe matching a name. Offline.
+  List<WasteItemView> wasteItems({required String query});
+
+  List<WasteReasonView> wasteReasons();
 
   /// Local table changes, as batches of logical table names (`orders`, `tills`,
   /// `open_tickets`, …, or `*` = re-read everything), coalesced over 50 ms.
