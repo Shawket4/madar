@@ -12,6 +12,7 @@ export 'src/generated/api/approvals.dart';
 export 'src/generated/api/bookings.dart';
 export 'src/generated/api/bridge.dart';
 export 'src/generated/api/cart.dart';
+export 'src/generated/api/cash_spot.dart';
 export 'src/generated/api/catalog.dart';
 export 'src/generated/api/customers.dart';
 export 'src/generated/api/delivery.dart';

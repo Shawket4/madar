@@ -4,6 +4,7 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'cash_spot.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
@@ -163,6 +164,7 @@ class CloseTillPreviewView {
   final List<CloseTillMethodView> methods;
   final LastTillWarningView? lastTillWarning;
   final bool fromServer;
+  final bool figuresHidden;
 
   const CloseTillPreviewView({
     required this.till,
@@ -170,6 +172,7 @@ class CloseTillPreviewView {
     required this.methods,
     this.lastTillWarning,
     required this.fromServer,
+    required this.figuresHidden,
   });
 
   @override
@@ -178,7 +181,8 @@ class CloseTillPreviewView {
       expectedCashMinor.hashCode ^
       methods.hashCode ^
       lastTillWarning.hashCode ^
-      fromServer.hashCode;
+      fromServer.hashCode ^
+      figuresHidden.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -189,7 +193,8 @@ class CloseTillPreviewView {
           expectedCashMinor == other.expectedCashMinor &&
           methods == other.methods &&
           lastTillWarning == other.lastTillWarning &&
-          fromServer == other.fromServer;
+          fromServer == other.fromServer &&
+          figuresHidden == other.figuresHidden;
 }
 
 class LastTillWarningView {
@@ -508,6 +513,7 @@ class TillReportView {
   final PlatformInt64? openBillsCount;
   final bool openedWhileAnotherOpen;
   final String verification;
+  final List<SpotViewLineView> spotViews;
 
   const TillReportView({
     required this.tellerName,
@@ -546,6 +552,7 @@ class TillReportView {
     this.openBillsCount,
     required this.openedWhileAnotherOpen,
     required this.verification,
+    required this.spotViews,
   });
 
   @override
@@ -585,7 +592,8 @@ class TillReportView {
       oldBillsCount.hashCode ^
       openBillsCount.hashCode ^
       openedWhileAnotherOpen.hashCode ^
-      verification.hashCode;
+      verification.hashCode ^
+      spotViews.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -627,7 +635,8 @@ class TillReportView {
           oldBillsCount == other.oldBillsCount &&
           openBillsCount == other.openBillsCount &&
           openedWhileAnotherOpen == other.openedWhileAnotherOpen &&
-          verification == other.verification;
+          verification == other.verification &&
+          spotViews == other.spotViews;
 }
 
 class TillStatsView {

@@ -94,6 +94,16 @@ fn till_report_matches_the_backend_vectors() {
                                 "order_count": m.order_count, "payment_method_id": m.payment_method_id}))
                 .collect();
             assert_eq!(Value::Array(close), want["close_methods"], "{ctxs}: close methods");
+            let views: Vec<Value> = got
+                .spot_views
+                .iter()
+                .map(|v| {
+                    let at = chrono::DateTime::parse_from_rfc3339(&v.viewed_at).unwrap().with_timezone(&chrono::Utc);
+                    json!({"id": v.id, "printed": v.printed, "viewed_by_name": v.viewed_by_name,
+                           "approved_by_name": v.approved_by_name, "viewed_at": at})
+                })
+                .collect();
+            assert_eq!(Value::Array(views), want["spot_views"], "{ctxs}: spot views");
             assert_eq!(got.unsynced, 0);
             assert!(got.complete, "{ctxs}: an open (or in-window) till is complete");
         }

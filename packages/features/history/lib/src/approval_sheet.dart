@@ -34,3 +34,21 @@ Future<ApprovalView?> askManager(
           ),
   );
 }
+
+/// The cash spot check's one-time PIN (owner design 2026-09-16 item 5): a
+/// person holding the grant types THEIR PIN; the approval unlocks exactly one
+/// spot report view or one look at the pre-close figures. The signed-in
+/// person does not change. Built on the shared sheet. Pops the approval, or
+/// null when dismissed.
+Future<ApprovalView?> askCashSpotPin(
+  BuildContext context, {
+  required String reason,
+}) {
+  final container = ProviderScope.containerOf(context);
+  final bridge = container.read(bridgeProvider);
+  return askManagerWith(
+    context,
+    reason: reason,
+    approve: (pin) => bridge.approveCashSpot(approverPin: pin),
+  );
+}

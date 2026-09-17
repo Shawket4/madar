@@ -112,6 +112,8 @@ pub(crate) struct TillFigures {
     pub service_charge_waived_count: i64,
     pub service_charge_waived_amount: i64,
     pub close_methods: Vec<MethodTotal>,
+    /// Who viewed / printed the spot report, oldest first (`report_figures`' `spot_views`).
+    pub spot_views: Vec<super::spot::SpotRow>,
     /// Rows of this till a live outbox op still holds (queued / sending / failed).
     pub unsynced: u32,
     /// Rows the server acknowledged that the feed has not confirmed yet.
@@ -398,7 +400,7 @@ pub(crate) fn compute(conn: &Connection, till_id: &str, methods: &[Method]) -> C
     let close_methods = close_methods(&sales, &refunds, expected_cash, methods);
     let unsynced: i64 = conn.query_row(
         "SELECT (SELECT COUNT(*) FROM outbox WHERE till_id=?1 AND status IN ('pending','inflight','dead')
-                   AND op_type IN ('create_order','void_order','refund_order','cash_movement','settle_open_ticket','close_till','close_shift'))",
+                   AND op_type IN ('create_order','void_order','refund_order','cash_movement','spot_report_view','settle_open_ticket','close_till','close_shift'))",
         params![till_id],
         |r| r.get(0),
     )?;
@@ -441,6 +443,7 @@ pub(crate) fn compute(conn: &Connection, till_id: &str, methods: &[Method]) -> C
         service_charge_waived_amount: sales.iter().filter(|o| o.sold()).map(|o| o.waived_amount).sum(),
         payment_summary,
         close_methods,
+        spot_views: super::spot::for_till(conn, till_id)?,
         unsynced: unsynced as u32,
         unconfirmed: unconfirmed as u32,
         complete: complete != 0,

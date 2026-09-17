@@ -214,6 +214,7 @@ TillReportView _report({required bool fromServer}) => TillReportView(
   fromServer: fromServer,
   reconciliation: const [],
   verification: 'server',
+  spotViews: const [],
   openedWhileAnotherOpen: false,
   serviceChargeWaivedCount: 0,
   serviceChargeWaivedMinor: 0,
@@ -545,6 +546,7 @@ class _FakeBridge implements MadarBridge {
           methods: methods,
           lastTillWarning: lastTill,
           fromServer: online,
+          figuresHidden: false,
         ),
       );
     }
@@ -655,7 +657,8 @@ void main() {
     // The pay-out form is its own page now; the Till shows the ledger.
     expect(find.byType(CashInOutPanel), findsNothing);
     expect(find.byType(CashLedger), findsOneWidget);
-    expect(find.text('Preview X report'), findsOneWidget);
+    // Cash spot replaces the X preview (owner design 2026-09-16 item 5).
+    expect(find.text('Preview X report'), findsNothing);
   });
 
   testWidgets('the Till offline, in the dark', (tester) async {

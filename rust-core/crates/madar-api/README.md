@@ -525,6 +525,7 @@ Class | Method | HTTP request | Description
 *TillsApi* | [**add_cash_movement**](docs/TillsApi.md#add_cash_movement) | **POST** /tills/{till_id}/cash-movements | 
 *TillsApi* | [**close_preview**](docs/TillsApi.md#close_preview) | **GET** /tills/{till_id}/close-preview | 
 *TillsApi* | [**close_till**](docs/TillsApi.md#close_till) | **POST** /tills/{till_id}/close | 
+*TillsApi* | [**create_spot_view**](docs/TillsApi.md#create_spot_view) | **POST** /tills/{till_id}/spot-views | 
 *TillsApi* | [**delete_till**](docs/TillsApi.md#delete_till) | **DELETE** /tills/{till_id} | 
 *TillsApi* | [**force_close_till**](docs/TillsApi.md#force_close_till) | **POST** /tills/{till_id}/force-close | 
 *TillsApi* | [**get_current_till**](docs/TillsApi.md#get_current_till) | **GET** /tills/branches/{branch_id}/current | 
@@ -534,6 +535,7 @@ Class | Method | HTTP request | Description
 *TillsApi* | [**legacy_list_till_entities**](docs/TillsApi.md#legacy_list_till_entities) | **GET** /tills | `GET /tills` — the removed entity list, synthesized (one \"Till 1\" per branch).
 *TillsApi* | [**list_cash_movements**](docs/TillsApi.md#list_cash_movements) | **GET** /tills/{till_id}/cash-movements | 
 *TillsApi* | [**list_open_tills**](docs/TillsApi.md#list_open_tills) | **GET** /tills/branches/{branch_id}/open | 
+*TillsApi* | [**list_spot_views**](docs/TillsApi.md#list_spot_views) | **GET** /tills/{till_id}/spot-views | 
 *TillsApi* | [**list_tills**](docs/TillsApi.md#list_tills) | **GET** /tills/branches/{branch_id} | 
 *TillsApi* | [**open_till**](docs/TillsApi.md#open_till) | **POST** /tills/branches/{branch_id}/open | 
 *UploadsApi* | [**upload_bundle_image**](docs/UploadsApi.md#upload_bundle_image) | **POST** /uploads/bundles/{bundle_id} | 
@@ -1072,6 +1074,8 @@ Class | Method | HTTP request | Description
  - [SlotAvailability](docs/SlotAvailability.md)
  - [SnapshotCursor](docs/SnapshotCursor.md)
  - [Sort](docs/Sort.md)
+ - [SpotViewApproval](docs/SpotViewApproval.md)
+ - [SpotViewRequest](docs/SpotViewRequest.md)
  - [StaffDocument](docs/StaffDocument.md)
  - [StaffRequest](docs/StaffRequest.md)
  - [StationRoutes](docs/StationRoutes.md)
@@ -1111,6 +1115,7 @@ Class | Method | HTTP request | Description
  - [TillRefunds](docs/TillRefunds.md)
  - [TillReportFigures](docs/TillReportFigures.md)
  - [TillReportResponse](docs/TillReportResponse.md)
+ - [TillSpotView](docs/TillSpotView.md)
  - [TillStatus](docs/TillStatus.md)
  - [TillVerification](docs/TillVerification.md)
  - [TimeseriesPoint](docs/TimeseriesPoint.md)

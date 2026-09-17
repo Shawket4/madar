@@ -316,7 +316,7 @@ impl MadarBridge {
 
     /// The current till's Z report with its freshness and queue.
     pub async fn till_report_synced(&self) -> Result<SyncedTillReport, MadarError> {
-        let s = self.inner.till_report_synced().await.map_err(MadarError::from)?;
+        let s = self.inner.till_report_synced_checked().await.map_err(MadarError::from)?;
         Ok(SyncedTillReport { data: s.data, meta: s.meta })
     }
 

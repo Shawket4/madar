@@ -7,6 +7,7 @@ library;
 
 export 'src/cash_in_out_panel.dart';
 export 'src/cash_movements_screen.dart';
+export 'src/cash_spot_screen.dart';
 export 'src/close_till_screen.dart';
 export 'src/drawers_card.dart';
 export 'src/open_till_screen.dart';

@@ -24,6 +24,7 @@ Name | Type | Description | Notes
 **safe_drops** | **i64** |  | 
 **service_charge_waived_amount** | Option<**i64**> |  | [optional]
 **service_charge_waived_count** | Option<**i64**> | Table bills whose service charge was removed (`orders:waive_service`), and what those charges came to. Not part of any total. | [optional]
+**spot_views** | Option<[**Vec<models::TillSpotView>**](TillSpotView.md)> | Who viewed (and printed) the cash spot report of this till, oldest first. Additive. | [optional]
 **standard_float** | Option<**i64**> | `branches.standard_float`. | [optional]
 **suggested_safe_drop** | Option<**i64**> |  | [optional]
 **timezone** | Option<**String**> |  | [optional]
