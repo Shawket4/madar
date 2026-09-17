@@ -49,6 +49,7 @@ mod filestore;
 /// Server-backed held orders (parked carts that own floor tables), the
 /// floor-layout mirror, and the transfer waitlist — all offline-first.
 pub mod held;
+pub mod queue;
 pub mod i18n;
 /// Kitchen Display System — station feed + per-line bump (kitchen topic consumer).
 pub mod kds;
@@ -738,9 +739,11 @@ impl MadarCore {
     /// the host vault. Does NOT force-close the open shift, and KEEPS the cached
     /// shift: the open drawer is DEVICE state, not session state — it stays so the
     /// next sign-in can enforce that only its owner resumes it (and route them
-    /// straight into it). The in-progress CART is session state, so it's dropped.
+    /// straight into it). The in-progress carts are KEPT as the device's queue:
+    /// parked under their author for whoever signs in next (`queue.rs`).
     /// Preserves the outbox unless `wipe_outbox`.
     pub fn logout(&self, wipe_outbox: bool) -> Result<(), CoreError> {
+        self.park_queue_for_switch();
         self.api.set_bearer(None);
         self.borrowed_token
             .store(false, std::sync::atomic::Ordering::Relaxed);
@@ -758,7 +761,10 @@ impl MadarCore {
             .unwrap_or_else(|e| e.into_inner()) = None;
         // NB: the cached shift is intentionally KEPT (device drawer state) — see
         // the ownership gate in `sign_in`.
-        let _ = cart::clear_all(&self.store);
+        // A teller switch keeps the queue (queue.rs rule 1): every cart in hand
+        // is parked under its author first — still under the outgoing session,
+        // so the park is attributed to them — and only the empty ones are reset.
+        let _ = cart::clear_empty(&self.store);
         let _ = till::set_active_user(&self.store, None);
         if wipe_outbox {
             self.store.wipe_outbox()?;
@@ -4306,6 +4312,20 @@ impl MadarCore {
         park_in_hand: Option<cart::HeldParkInput>,
         park_at_target: Option<cart::HeldParkInput>,
     ) -> Result<cart::DraftSwitchView, CoreError> {
+        self.switch_to_draft_approved(from_table_id, id, park_in_hand, park_at_target, None)
+    }
+
+    /// [`Self::switch_to_draft`] carrying a manager's approval for resuming a
+    /// held order someone else started (`decide_draft_act("resume")`). Without
+    /// one, such a resume is refused when the person's grant asks for it.
+    pub fn switch_to_draft_approved(
+        &self,
+        from_table_id: Option<String>,
+        id: String,
+        park_in_hand: Option<cart::HeldParkInput>,
+        park_at_target: Option<cart::HeldParkInput>,
+        approval: Option<approvals::ApprovalView>,
+    ) -> Result<cart::DraftSwitchView, CoreError> {
         let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
         let device = self.lan_device_id();
         let draft = held::get(&self.store, &id)?.ok_or_else(|| CoreError::Validation {
@@ -4325,6 +4345,8 @@ impl MadarCore {
                 detail: "held order is being edited on another till".into(),
             });
         }
+        let approved = self.gate_draft_act(queue::DraftAct::Resume, &id, approval.as_ref())?;
+        let approval = approval.filter(|_| approved);
         let mut table_taken = false;
         let from = from_table_id.filter(|s| !s.is_empty());
         if let Some(park) = park_in_hand {
@@ -4363,6 +4385,7 @@ impl MadarCore {
         meta.table_label = draft.table_label.clone();
         meta.started_at = Some(draft.created_at.clone());
         cart::set_meta(&self.store, target, &meta)?;
+        self.adopt_draft_owner(target, &draft, approval)?;
         Ok(cart::DraftSwitchView {
             lines,
             table_id: target_table,
@@ -4418,6 +4441,9 @@ impl MadarCore {
         // is exactly what it did: every park wrote a permanent stuck row into
         // the sync screen's list. Its TABLE is a different matter; see
         // `sync_hold_occupancy`.
+        // Whoever started this cart stays its author (queue.rs rule 2).
+        let (author, author_name) = self.cart_author(ctx);
+        held::set_author_if_missing(&self.store, &entry.id, &author, &author_name)?;
         self.sync_hold_occupancy(was_on, entry.table_id.clone(), false)?;
         cart::clear(&self.store, ctx)?;
         Ok(conflict)
@@ -4428,7 +4454,8 @@ impl MadarCore {
     /// pre-upgrade device-local drafts into the shared model (once).
     pub fn list_drafts(&self) -> Result<Vec<cart::DraftView>, CoreError> {
         self.migrate_legacy_drafts();
-        held::drafts(&self.store, &self.lan_device_id())
+        let me = self.current_session().map(|s| s.user_id).unwrap_or_default();
+        held::drafts(&self.store, &self.lan_device_id(), &me)
     }
 
     /// Restore a held order into the cart (claims it for this till so no other
@@ -4438,10 +4465,15 @@ impl MadarCore {
         table_id: Option<String>,
         id: String,
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
+        self.gate_draft_act(queue::DraftAct::Resume, &id, None)?;
         let device = self.lan_device_id();
         let now = self.corrected_now().to_rfc3339();
+        let draft = held::get(&self.store, &id)?;
         let payload = held::claim_local(&self.store, &id, &device, &now)?;
         let lines = cart::set_cart_payload(&self.store, table_id.as_deref(), &payload)?;
+        if let Some(d) = draft {
+            self.adopt_draft_owner(table_id.as_deref(), &d, None)?;
+        }
         // Device-local: nothing to queue (see `hold_cart_on_table`).
         Ok(lines)
     }
@@ -4471,6 +4503,19 @@ impl MadarCore {
 
     /// Discard a parked draft (tombstone; frees its table + waitlist wish).
     pub fn discard_draft(&self, id: String) -> Result<(), CoreError> {
+        self.discard_draft_approved(id, None)
+    }
+
+    /// [`Self::discard_draft`] carrying a manager's approval for discarding a
+    /// held order someone else started (`orders.void` own / max age).
+    pub fn discard_draft_approved(
+        &self,
+        id: String,
+        approval: Option<approvals::ApprovalView>,
+    ) -> Result<(), CoreError> {
+        if held::get(&self.store, &id)?.is_some() {
+            self.gate_draft_act(queue::DraftAct::Discard, &id, approval.as_ref())?;
+        }
         let device = self.lan_device_id();
         let now = self.corrected_now().to_rfc3339();
         let was_on = self.draft_table(&id);
@@ -6320,6 +6365,11 @@ impl MadarCore {
         // Per-device numbering (contract §4.7): the minted RRRR is the order number,
         // sent with the device code and the till's verification.
         let mut prepared = prepared;
+        // Started by someone else and resumed here: both people ride the sale
+        // (queue.rs rule 5).
+        let (started_by, resume_approval) = self.sale_started_by(table_id.as_deref());
+        prepared.command.started_by = started_by;
+        prepared.command.approval = resume_approval;
         let dev = self.lan_device_id();
         let code = checkout::device_code_or_default(&self.store);
         if let Some(n) = prepared.receipt.order_number {
@@ -10598,6 +10648,8 @@ mod lifecycle_tests {
                 order_number: 12,
                 verification: "lan".into(),
             }),
+            started_by: None,
+            approval: None,
         };
         let env = checkout::order_envelope(&cmd, "t", &core.device_id());
         assert_eq!(env["device_code"], "36B");
