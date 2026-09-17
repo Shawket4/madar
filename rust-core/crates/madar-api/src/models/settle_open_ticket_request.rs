@@ -28,6 +28,30 @@ pub struct SettleOpenTicketRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub change_given: Option<Option<i32>>,
+    /// What the till actually took off this bill, in minor units — the figure the drawer charged. Additive; absent, the server computes it as before. This is also what a replayed bill keeps when its preset has since been switched off: the money as rung, never recomputed from a dead rule.
+    #[serde(
+        rename = "discount_amount",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_amount: Option<Option<i32>>,
+    /// Who put the discount on the bill. Read on replay (live, it is the cashier holding the token). Additive.
+    #[serde(
+        rename = "discount_applied_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_applied_by: Option<Option<uuid::Uuid>>,
+    /// The manager approval that let the bill's discount past the cashier's cap, verified at replay like a counter sale's. Additive.
+    #[serde(
+        rename = "discount_approval_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_approval_id: Option<Option<uuid::Uuid>>,
     /// Settle-time discount. ABSENT (all three fields) means the waiter's ticket discount is inherited, as it always was — but the till can now see that discount on the ticket view. The literal `discount_type: \"none\"` settles with no discount at all; any other value (or a `discount_id`) replaces the waiter's.
     #[serde(
         rename = "discount_id",
@@ -36,6 +60,22 @@ pub struct SettleOpenTicketRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub discount_id: Option<Option<uuid::Uuid>>,
+    /// Which discount act this bill performs: `preset` | `manual_amount` | `manual_percent`. A table bill is gated exactly like a counter sale, so it names its act in the same vocabulary. ADDITIVE — an older tablet sends nothing and the kind is derived as it always was (a `discount_id` means preset, an ad-hoc discount is manual of its type).
+    #[serde(
+        rename = "discount_kind",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_kind: Option<Option<String>>,
+    /// Basis points for a percentage bill discount (1250 = 12.5%). Additive.
+    #[serde(
+        rename = "discount_percent_bps",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_percent_bps: Option<Option<i32>>,
     #[serde(
         rename = "discount_type",
         default,
@@ -119,7 +159,12 @@ impl SettleOpenTicketRequest {
         SettleOpenTicketRequest {
             amount_tendered: None,
             change_given: None,
+            discount_amount: None,
+            discount_applied_by: None,
+            discount_approval_id: None,
             discount_id: None,
+            discount_kind: None,
+            discount_percent_bps: None,
             discount_type: None,
             discount_value: None,
             loyalty_customer_id: None,

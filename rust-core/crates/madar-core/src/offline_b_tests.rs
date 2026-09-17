@@ -1476,7 +1476,7 @@ async fn a_bill_fired_and_settled_offline_replays_under_the_servers_id() {
     core.cart_add(None, uuid::Uuid::new_v4().to_string(), "Latte".into(), 500).unwrap();
     let fired = core.fire_ticket(None, Some("walk-in".into()), None, None, None).await.unwrap();
     let settle = core
-        .settle_ticket(fired.ticket_id.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false)
+        .settle_ticket(fired.ticket_id.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None)
         .await;
     assert!(settle.is_ok(), "{settle:?}");
 

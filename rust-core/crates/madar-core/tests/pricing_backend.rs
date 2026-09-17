@@ -311,6 +311,7 @@ async fn settle_bill(
         vec![],
         splits,
         waive,
+        None,
     )
     .await
 }

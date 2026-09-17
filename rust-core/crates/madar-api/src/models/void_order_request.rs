@@ -23,6 +23,7 @@ pub struct VoidOrderRequest {
     pub note: Option<Option<String>>,
     #[serde(rename = "reason")]
     pub reason: String,
+    /// Ignored: a void always puts the sale's stock back. Kept so older tills that still send it are read, not refused.
     #[serde(
         rename = "restore_inventory",
         default,

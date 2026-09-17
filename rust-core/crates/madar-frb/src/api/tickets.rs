@@ -186,6 +186,11 @@ impl MadarBridge {
         // Remove the service charge from this table's bill. Offer it only when
         // `has_permission("orders", "waive_service")` — never by role name.
         waive_service: bool,
+        // The manager's approval for this bill's discount, when it is over the
+        // cashier's cap. `decide_bill_discount` says whether one is needed and
+        // `approve_bill_discount` mints it; the core refuses the settle without
+        // it, and the server verifies it again at replay.
+        discount_approval: Option<crate::api::approvals::ApprovalView>,
     ) -> Result<Option<String>, MadarError> {
         self.inner
             .settle_ticket(
@@ -202,6 +207,7 @@ impl MadarBridge {
                 loyalty_redemptions,
                 splits,
                 waive_service,
+                discount_approval,
             )
             .await
             .map_err(MadarError::from)

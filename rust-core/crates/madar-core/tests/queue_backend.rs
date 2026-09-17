@@ -278,7 +278,7 @@ async fn a_table_bill_is_shared_between_devices_and_people() {
     b.add_ticket_round(None, bill.id.clone()).await.expect("a round on someone else's table");
     settle(&b, 120).await;
     let cash = method(&b, true).expect("cash");
-    b.settle_ticket(bill.id.clone(), till, cash, Some(1_000_000), None, None, None, None, None, None, vec![], vec![], false)
+    b.settle_ticket(bill.id.clone(), till, cash, Some(1_000_000), None, None, None, None, None, None, vec![], vec![], false, None)
         .await
         .expect("settle someone else's table");
     settle(&b, 180).await;

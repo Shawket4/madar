@@ -1552,8 +1552,12 @@ impl MadarCore {
                     Ok(c) => c,
                     Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
+                let mut envelope = serde_json::json!({ "op": "settle_open_ticket", "teller_id": teller_id, "ticket_id": self.server_ticket_id(&cmd.ticket_id), "request": cmd.request });
+                if let (Some(a), Some(obj)) = (&cmd.approval, envelope.as_object_mut()) {
+                    obj.insert("approval".into(), a.clone());
+                }
                 (
-                    serde_json::json!({ "op": "settle_open_ticket", "teller_id": teller_id, "ticket_id": self.server_ticket_id(&cmd.ticket_id), "request": cmd.request }),
+                    envelope,
                     // A genuine settle-retry of an already-settled ticket dedups to
                     // 200 (the existing order, keyed on the ticket id). So the only
                     // 409 ("settle a voided ticket") or 404 (the fire never landed)
@@ -8017,6 +8021,11 @@ impl MadarCore {
         // whose effective permissions include `orders:waive_service`, and
         // refused here for anyone else — the server refuses it again.
         waive_service: bool,
+        // A manager's PIN approval for this bill's discount, when it is over
+        // the cashier's cap. The settle sheet asks for it with `askManagerWith`
+        // BEFORE settling, exactly as the cart does, and it rides to the server
+        // on the queued settle where it is verified again.
+        discount_approval: Option<crate::approvals::ApprovalView>,
     ) -> Result<Option<String>, CoreError> {
         if waive_service && !self.can_waive_service_charge() {
             return Err(CoreError::Validation {
@@ -8066,8 +8075,43 @@ impl MadarCore {
             .and_then(|s| uuid::Uuid::parse_str(s).ok())
             .map(Some);
         let discount_type_for_row = discount_type.clone();
-        request.discount_type = discount_type.filter(|s| !s.trim().is_empty()).map(Some);
+        let mut bill_discount_approval: Option<crate::approvals::ApprovalView> = None;
+        request.discount_type = discount_type.clone().filter(|s| !s.trim().is_empty()).map(Some);
         request.discount_value = discount_value.map(Some);
+
+        // A DISCOUNT ON A BILL IS A DISCOUNT. Same three capabilities, same
+        // per-person caps, same manager PIN as at the counter — and it is asked
+        // BEFORE the settle is queued, so an over-cap bill never leaves the
+        // device unapproved. It is judged on what is CHARGED: a waiter's
+        // discount inherited in silence counts, because the drawer takes less
+        // money either way.
+        //
+        // Per SETTLE, not per party: a split bill and a partial settle each
+        // carry their own ask and their own approval.
+        if let Some((view, req)) = self.bill_discount_act(
+            &ticket_id,
+            discount_id.as_deref(),
+            discount_type.as_deref(),
+            discount_value,
+        ) {
+            let approval = self.discount_authority(&req, discount_approval)?;
+            bill_discount_approval = approval.clone();
+            request.discount_kind = Some(Some(view.kind.clone()));
+            request.discount_percent_bps = view.percent_bps.map(|b| Some(b as i32));
+            // The figure the drawer really takes off. This is also what a
+            // replayed bill keeps if its preset is switched off meanwhile.
+            request.discount_amount = Some(Some(view.amount_minor as i32));
+            request.discount_applied_by = self
+                .outbox_meta()
+                .0
+                .as_deref()
+                .and_then(|s| uuid::Uuid::parse_str(s).ok())
+                .map(Some);
+            request.discount_approval_id = approval
+                .as_ref()
+                .and_then(|a| uuid::Uuid::parse_str(&a.id).ok())
+                .map(Some);
+        }
         request.loyalty_customer_id = loyalty_customer_id
             .as_deref()
             .and_then(|s| uuid::Uuid::parse_str(s).ok())
@@ -8205,6 +8249,9 @@ impl MadarCore {
         let cmd = tickets::SettleTicketCommand {
             ticket_id: ticket_id.clone(),
             request,
+            approval: bill_discount_approval
+                .as_ref()
+                .map(crate::approvals::approval_wire),
         };
 
         let (user_id, clock_offset_ms) = self.outbox_meta();
@@ -9928,6 +9975,7 @@ mod lifecycle_tests {
                 }],
                 vec![],
                 false,
+                None,
             )
             .await;
         assert!(settle.is_err());

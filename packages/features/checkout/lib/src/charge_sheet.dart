@@ -11,6 +11,7 @@ import 'package:feature_checkout/src/discount_sheet.dart';
 import 'package:feature_checkout/src/done_card.dart';
 import 'package:feature_checkout/src/loyalty_scan_sheet.dart';
 import 'package:feature_checkout/src/loyalty_words.dart';
+import 'package:feature_checkout/src/manager_approval_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -394,7 +395,7 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
       enabled: block == ChargeBlock.none,
       loading: paying || block == ChargeBlock.loading,
       reason: reason,
-      onTap: () => unawaited(notifier.charge()),
+      onTap: () => unawaited(_chargeGated(context, notifier)),
     );
     final oneMethod = s.paymentMethods.length == 1 && s.effectiveMethod != null
         // One method: no grid — the bar names it.
@@ -501,6 +502,31 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
     }
 
     return PopScope<Object?>(canPop: !paying || _popped, child: body);
+  }
+
+  /// Charge — but a DISCOUNT ON THIS BILL is a discount, and it answers to the
+  /// same three capabilities and the same per-person caps a counter sale does.
+  /// Over the cap, a manager types their PIN here, before anything is queued;
+  /// refused outright, the drawer stays open and the bar says why.
+  ///
+  /// The core asks again when it builds the settle, and the server asks a third
+  /// time at replay — this is the prompt, not the lock.
+  Future<void> _chargeGated(BuildContext context, CheckoutNotifier notifier) async {
+    final decision = notifier.billDiscountDecision();
+    if (decision != null && decision.outcome == 'deny') {
+      notifier.showDiscountRefusal(decision.reason);
+      return;
+    }
+    if (decision != null && decision.outcome == 'needs_approval') {
+      final approval = await askManagerWith(
+        context,
+        reason: decision.reason,
+        approve: notifier.approveBillDiscount,
+      );
+      if (approval == null || !mounted) return;
+      notifier.setBillDiscountApproval(approval);
+    }
+    await notifier.charge();
   }
 
   /// The discount picker: No discount + every active discount as chips.

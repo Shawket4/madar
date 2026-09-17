@@ -26,7 +26,16 @@ pub struct _ApprovalView {
     pub percent_bps: Option<i64>,
 }
 
-pub use madar_core::discounts::CartDiscountView;
+pub use madar_core::discounts::{BillDiscountView, CartDiscountView};
+
+/// A table bill's discount as the settle sheet and the manager prompt see it.
+#[frb(mirror(BillDiscountView))]
+pub struct _BillDiscountView {
+    pub kind: String,
+    pub preset_id: Option<String>,
+    pub amount_minor: i64,
+    pub percent_bps: Option<i64>,
+}
 
 /// The cart's discount as the tender screen shows it.
 #[frb(mirror(CartDiscountView))]
@@ -83,6 +92,56 @@ impl MadarBridge {
         self.inner
             .apply_discount(table_id, kind, preset_id, amount_minor, percent_bps, approval)
             .map_err(MadarError::from)
+    }
+
+    // ── a TABLE'S BILL ────────────────────────────────────────────────────
+    //
+    // A bill is a sale, gated by the same three capabilities and the same
+    // per-person caps. The settle sheet asks `decide_bill_discount` before it
+    // charges and runs the manager prompt when the answer says so; the
+    // approval then rides on the queued settle, where the server re-checks it.
+
+    /// Allowed / needs a manager / refused for the discount this settle would
+    /// charge — the cashier's, or the waiter's inherited from the ticket when
+    /// the cashier picks nothing. `allow` for a bill with no discount at all.
+    #[frb(sync)]
+    pub fn decide_bill_discount(
+        &self,
+        ticket_id: String,
+        discount_id: Option<String>,
+        discount_type: Option<String>,
+        discount_value: Option<f64>,
+    ) -> ActDecisionView {
+        self.inner
+            .decide_bill_discount(ticket_id, discount_id, discount_type, discount_value)
+    }
+
+    /// A manager approves this bill's discount with their PIN on this device.
+    pub fn approve_bill_discount(
+        &self,
+        approver_pin: String,
+        ticket_id: String,
+        discount_id: Option<String>,
+        discount_type: Option<String>,
+        discount_value: Option<f64>,
+    ) -> Result<ApprovalView, MadarError> {
+        self.inner
+            .approve_bill_discount(approver_pin, ticket_id, discount_id, discount_type, discount_value)
+            .map_err(MadarError::from)
+    }
+
+    /// What the bill's discount really takes off, so the manager prompt shows
+    /// the figure they are approving rather than a rule.
+    #[frb(sync)]
+    pub fn bill_discount(
+        &self,
+        ticket_id: String,
+        discount_id: Option<String>,
+        discount_type: Option<String>,
+        discount_value: Option<f64>,
+    ) -> BillDiscountView {
+        self.inner
+            .bill_discount(ticket_id, discount_id, discount_type, discount_value)
     }
 
     /// The cart's discount: kind, figures, what it takes off, who approved.

@@ -69,6 +69,38 @@ class ApprovalView {
           percentBps == other.percentBps;
 }
 
+/// A table bill's discount as the settle sheet and the manager prompt see it.
+class BillDiscountView {
+  final String kind;
+  final String? presetId;
+  final PlatformInt64 amountMinor;
+  final PlatformInt64? percentBps;
+
+  const BillDiscountView({
+    required this.kind,
+    this.presetId,
+    required this.amountMinor,
+    this.percentBps,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^
+      presetId.hashCode ^
+      amountMinor.hashCode ^
+      percentBps.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BillDiscountView &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          presetId == other.presetId &&
+          amountMinor == other.amountMinor &&
+          percentBps == other.percentBps;
+}
+
 /// The cart's discount as the tender screen shows it.
 class CartDiscountView {
   final String kind;

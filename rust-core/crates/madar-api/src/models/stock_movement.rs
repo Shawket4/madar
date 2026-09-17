@@ -86,7 +86,7 @@ pub struct StockMovement {
         skip_serializing_if = "Option::is_none"
     )]
     pub note: Option<Option<String>>,
-    /// When it happened on the device (a queued waste lands later).
+    /// When the waste HAPPENED: the device's time for a till waste, the refund's `issued_at`, the void's `voided_at`, else the post time. The log is ordered by it.
     #[serde(
         rename = "occurred_at",
         default,
@@ -94,6 +94,21 @@ pub struct StockMovement {
         skip_serializing_if = "Option::is_none"
     )]
     pub occurred_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    #[serde(
+        rename = "order_display_number",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub order_display_number: Option<Option<String>>,
+    /// A refund's or void's waste: the sale.
+    #[serde(
+        rename = "order_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub order_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "org_ingredient_id")]
     pub org_ingredient_id: uuid::Uuid,
     /// Signed delta applied to stock (consumption negative, replenishment positive).
@@ -106,6 +121,22 @@ pub struct StockMovement {
         skip_serializing_if = "Option::is_none"
     )]
     pub reason: Option<Option<String>>,
+    /// When the server received it (= `created_at`). Differs from `occurred_at` when a till queued the waste offline.
+    #[serde(
+        rename = "received_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub received_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// A refund's waste: the refund it came from.
+    #[serde(
+        rename = "refund_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub refund_id: Option<Option<uuid::Uuid>>,
     #[serde(
         rename = "source_id",
         default,
@@ -152,7 +183,7 @@ pub struct StockMovement {
         skip_serializing_if = "Option::is_none"
     )]
     pub waste_size_label: Option<Option<String>>,
-    /// `pos` | `dashboard` | `order` (a voided made order).
+    /// `pos` | `dashboard` | `refund` (a refunded sale's stock) | `order` (a made order voided before voids always restocked).
     #[serde(
         rename = "waste_source",
         default,
@@ -223,9 +254,13 @@ impl StockMovement {
             movement_type,
             note: None,
             occurred_at: None,
+            order_display_number: None,
+            order_id: None,
             org_ingredient_id,
             quantity,
             reason: None,
+            received_at: None,
+            refund_id: None,
             source_id: None,
             source_type: None,
             till_id: None,

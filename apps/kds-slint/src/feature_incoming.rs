@@ -537,6 +537,7 @@ fn settle_ticket(
                 Vec::new(), // loyalty redemptions
                 Vec::new(), // one method, no split legs
                 false,      // service charge stands — the waiver is the Flutter till's
+                None,       // no manager approval: this stand-in applies no discount
             )
             .await;
         match result {
