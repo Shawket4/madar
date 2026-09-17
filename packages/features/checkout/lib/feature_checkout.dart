@@ -35,6 +35,7 @@ export 'src/checkout_provider.dart'
         CheckoutSummary,
         checkoutProvider;
 export 'src/customer_sheet.dart' show CustomerSheet;
+export 'src/discount_sheet.dart' show cartDiscountLabel, showCartDiscountSheet;
 export 'src/done_card.dart' show DoneCard, DoneCardResult, showDoneCard;
 export 'src/kitchen_chit_sheet.dart'
     show
@@ -49,6 +50,7 @@ export 'src/kitchen_chit_sheet.dart'
         chitPreviewProvider,
         chitPrintToast;
 export 'src/loyalty_award_sheet.dart' show LoyaltyAwardSheet;
+export 'src/manager_approval_sheet.dart' show askManagerWith;
 export 'src/loyalty_scan_sheet.dart' show LoyaltyScanSheet;
 export 'src/receipt_paper.dart' show ReceiptPaper;
 export 'src/receipt_printing.dart'

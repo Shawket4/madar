@@ -880,6 +880,7 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
     if (decision.outcome == 'needs_approval') {
       approval = await askManager(
         context,
+        ref,
         reason: decision.reason,
         capKey: 'refunds.create',
         orderId: widget.order.id,
@@ -1097,6 +1098,7 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
           note: _note.text.trim(),
           askManager: (why) => askManager(
             context,
+            ref,
             reason: why,
             capKey: 'orders.void',
             orderId: widget.order.id,

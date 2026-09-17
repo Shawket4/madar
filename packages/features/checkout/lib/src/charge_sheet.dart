@@ -7,6 +7,7 @@ import 'package:feature_checkout/src/charge_strings.dart';
 import 'package:feature_checkout/src/charge_target.dart';
 import 'package:feature_checkout/src/checkout_provider.dart';
 import 'package:feature_checkout/src/customer_sheet.dart';
+import 'package:feature_checkout/src/discount_sheet.dart';
 import 'package:feature_checkout/src/done_card.dart';
 import 'package:feature_checkout/src/loyalty_scan_sheet.dart';
 import 'package:feature_checkout/src/loyalty_words.dart';
@@ -507,6 +508,18 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
   /// applies at settle.
   Future<void> _pickDiscount(BuildContext context, CheckoutState s) async {
     final notifier = ref.read(checkoutProvider.notifier);
+    if (!s.isBill) {
+      // The cart's: preset, amount or percent, each capped per person.
+      final changed = await showCartDiscountSheet(
+        context,
+        ref,
+        presets: s.discounts,
+        currency: s.currency,
+        tableId: s.cartTableId,
+      );
+      if (changed) await notifier.reloadCartDiscount();
+      return;
+    }
     final picked = await showMadarSheet<_DiscountPick>(
       context,
       size: SheetSize.hug,
@@ -789,7 +802,14 @@ class _QuietRows extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     final s = state;
-    final hasDiscounts = s.discounts.any((d) => d.isActive);
+    // Presets, or a discount this person may type by hand.
+    final hasDiscounts =
+        s.discounts.any((d) => d.isActive) ||
+        (!s.isBill &&
+            [
+              Cap.ordersDiscountManualAmount,
+              Cap.ordersDiscountManualPercent,
+            ].any((c) => bridge.can(cap: c) || bridge.canAskManager(cap: c)));
     final member = s.loyaltyMember;
     final rows = <Widget>[];
 
@@ -799,7 +819,19 @@ class _QuietRows extends StatelessWidget {
     if (hasDiscounts) {
       final d = pickedDiscount;
       final off = s.summary.discountMinor;
-      final value = d == null
+      final cart = s.isBill || s.cartDiscount == null
+          ? null
+          : cartDiscountLabel(
+              bridge,
+              s.cartDiscount!,
+              s.discounts,
+              discountLabel,
+            );
+      final value = cart != null
+          ? off > 0
+                ? '$cart · −${MadarFormat.ltr(Money.format(off))}'
+                : cart
+          : d == null
           ? bridge.tr(key: 'order.no_discount')
           : s.isBill && off > 0
           ? '${discountLabel(d)} · −${MadarFormat.ltr(Money.format(off))}'
@@ -1782,35 +1814,19 @@ Future<bool> showCartDiscountPicker(
 }) async {
   final bridge = ref.read(bridgeProvider);
   final List<DiscountView> discounts;
-  final String? current;
   try {
     discounts = await bridge.listDiscounts();
-    current = await bridge.cartDiscountId(tableId: tableId);
   } on Object {
     return false;
   }
   if (!context.mounted) return false;
-  final picked = await showMadarSheet<_DiscountPick>(
+  return showCartDiscountSheet(
     context,
-    size: SheetSize.hug,
-    maxWidth: Responsive.sheetCompactMaxWidth,
-    builder: (_) => _DiscountSheet(
-      discounts: discounts.where((d) => d.isActive).toList(),
-      current: current,
-    ),
+    ref,
+    presets: discounts,
+    currency: bridge.currentSession()?.currencyCode ?? '',
+    tableId: tableId,
   );
-  if (picked == null) return false;
-  try {
-    final id = picked.discount?.id;
-    if (id != null) {
-      await bridge.cartSetDiscount(tableId: tableId, discountId: id);
-    } else {
-      await bridge.cartClearDiscount(tableId: tableId);
-    }
-  } on Object {
-    return false;
-  }
-  return true;
 }
 
 /// What the discount sheet pops with. A null [discount] is "No discount";

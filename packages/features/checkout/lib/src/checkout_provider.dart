@@ -73,6 +73,7 @@ class CheckoutState {
     this.paymentMethods = const [],
     this.discounts = const [],
     this.cartDiscountId,
+    this.cartDiscount,
     this.billDiscount,
     this.billDiscountCleared = false,
     this.waiveService = false,
@@ -134,6 +135,10 @@ class CheckoutState {
 
   /// The discount the CART carries (the core prices it live).
   final String? cartDiscountId;
+
+  /// The cart's discount as the core holds it: a preset, or an amount /
+  /// percentage typed by hand, and who approved it.
+  final CartDiscountView? cartDiscount;
 
   /// The discount picked for a BILL. The core re-prices the bill under it
   /// (`billWithRewards`), so the hero, the change and the split legs collect
@@ -416,6 +421,7 @@ class CheckoutState {
     List<PaymentMethodView>? paymentMethods,
     List<DiscountView>? discounts,
     Object? cartDiscountId = _unset,
+    Object? cartDiscount = _unset,
     Object? billDiscount = _unset,
     bool? billDiscountCleared,
     bool? waiveService,
@@ -463,6 +469,9 @@ class CheckoutState {
       cartDiscountId: cartDiscountId == _unset
           ? this.cartDiscountId
           : cartDiscountId as String?,
+      cartDiscount: cartDiscount == _unset
+          ? this.cartDiscount
+          : cartDiscount as CartDiscountView?,
       billDiscount: billDiscount == _unset
           ? this.billDiscount
           : billDiscount as DiscountView?,
@@ -743,6 +752,9 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     final discountId = await _quiet<String?>(
       () => bridge.cartDiscountId(tableId: tableId),
     );
+    final cartDiscount = await _quiet(
+      () => bridge.cartDiscount(tableId: tableId),
+    );
     final programme = await _quiet(bridge.loyaltySettings);
     final logo = bridge.orgLogoLocalPath();
     final totals = await _quiet(() => bridge.cartTotals(tableId: tableId));
@@ -756,6 +768,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         discounts: discounts,
         loyaltyProgramme: programme,
         cartDiscountId: discountId,
+        cartDiscount: cartDiscount,
         orgLogoPath: logo,
         rewardLines: redeemable,
         summary: totals == null ? null : _summaryOf(totals),
@@ -1056,8 +1069,20 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       }
       return true;
     });
+    await _reloadCartDiscount(session);
+  }
+
+  /// Re-read the cart's discount and totals after the discount sheet changed
+  /// them (a preset, a typed amount or percent, an approval).
+  Future<void> reloadCartDiscount() => _reloadCartDiscount(_session);
+
+  Future<void> _reloadCartDiscount(int session) async {
+    final bridge = _bridge;
     final discountId = await _quiet<String?>(
       () => bridge.cartDiscountId(tableId: _cartTable),
+    );
+    final discount = await _quiet(
+      () => bridge.cartDiscount(tableId: _cartTable),
     );
     final totals = await _quiet(() => bridge.cartTotals(tableId: _cartTable));
     if (!_live) return;
@@ -1065,6 +1090,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       session,
       (s) => s.copyWith(
         cartDiscountId: discountId,
+        cartDiscount: discount,
         summary: totals == null ? null : _summaryOf(totals),
         baseSummary: totals == null ? null : _summaryOf(totals),
       ),
