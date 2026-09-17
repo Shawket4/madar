@@ -16,3 +16,4 @@ export 'src/till_providers.dart';
 export 'src/till_report_sheet.dart';
 export 'src/till_screen.dart';
 export 'src/till_sync_strip.dart';
+export 'src/waste_screen.dart';
