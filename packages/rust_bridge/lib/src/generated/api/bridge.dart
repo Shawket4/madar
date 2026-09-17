@@ -7,6 +7,7 @@ import '../frb_generated.dart';
 import 'approvals.dart';
 import 'bookings.dart';
 import 'cart.dart';
+import 'cash_spot.dart';
 import 'catalog.dart';
 import 'customers.dart';
 import 'delivery.dart';
@@ -61,6 +62,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     PlatformInt64? ageMinutes,
     bool? own,
   });
+
+  /// Someone holding the grant unlocks one action with their PIN.
+  Future<ApprovalView> approveCashSpot({required String approverPin});
 
   /// A manager approves an act on one sale with their PIN.
   Future<ApprovalView> approveOrderAct({
@@ -305,6 +309,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String currency,
   });
 
+  /// Cash spot / close figures: `allow` or `needs_approval` (a PIN).
+  ActDecisionView cashSpotAccess();
+
+  /// The full live drawer view.
+  Future<CashSpotView> cashSpotView({ApprovalView? approval});
+
   /// Themed style (icon key + gradient palette) for a category/item name —
   /// the host maps `icon` to a glyph and paints the gradient. Pure; mirrors
   /// Flutter's `CatStyle.of`. `dark` picks the dark-mode palette.
@@ -345,6 +355,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required PlatformInt64 expectedMinor,
     PlatformInt64? countedMinor,
   });
+
+  /// The expected figures on the close screen, before closing.
+  Future<CloseTillPreviewView> closeFigures({ApprovalView? approval});
 
   Future<CloseTillOutcomeView> closeTill({
     required PlatformInt64 closingCashMinor,
@@ -846,6 +859,14 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? corrects,
   });
 
+  /// Record a spot check (queued; offline-capable).
+  Future<SpotCheckResultView> recordCashSpotCheck({
+    required PlatformInt64 countedCashMinor,
+    required List<SpotCountInput> counts,
+    String? note,
+    ApprovalView? approval,
+  });
+
   /// Pull today's active bookings into the offline cache (best-effort; a
   /// `refresh_floor` does this too).
   Future<void> refreshArrivals();
@@ -1193,6 +1214,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// The drawer arithmetic's cash-sales line, closed on the report's figure.
   PlatformInt64 tillCashSalesMinor({required TillReportView report});
+
+  /// The signed-in person may see the open till's figures.
+  bool tillFiguresVisible();
 
   Future<TillReportView> tillReport();
 

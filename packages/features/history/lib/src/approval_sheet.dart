@@ -28,18 +28,44 @@ Future<ApprovalView?> askManager(
   );
 }
 
+/// The cash spot check's one-time PIN (owner design 2026-09-16 item 5): a
+/// person holding the grant types THEIR PIN; the approval unlocks exactly one
+/// spot check or one look at the close figures. The signed-in person does not
+/// change. Pops the approval, or null when dismissed.
+Future<ApprovalView?> askCashSpotPin(
+  BuildContext context, {
+  required String reason,
+}) {
+  return showMadarSheet<ApprovalView>(
+    context,
+    size: SheetSize.hug,
+    maxWidth: 420,
+    builder: (_) => _ApprovalSheet(
+      reason: reason,
+      capKey: '',
+      orderId: null,
+      amountMinor: null,
+      cashSpot: true,
+    ),
+  );
+}
+
 class _ApprovalSheet extends ConsumerStatefulWidget {
   const _ApprovalSheet({
     required this.reason,
     required this.capKey,
     required this.orderId,
     required this.amountMinor,
+    this.cashSpot = false,
   });
 
   final String reason;
   final String capKey;
-  final String orderId;
+  final String? orderId;
   final int? amountMinor;
+
+  /// Mint the cash spot check's one-time approval instead of a sale's.
+  final bool cashSpot;
 
   @override
   ConsumerState<_ApprovalSheet> createState() => _ApprovalSheetState();
@@ -63,14 +89,15 @@ class _ApprovalSheetState extends ConsumerState<_ApprovalSheet> {
       _error = null;
     });
     try {
-      final approval = await ref
-          .read(bridgeProvider)
-          .approveOrderAct(
-            approverPin: _pin.text.trim(),
-            capKey: widget.capKey,
-            orderId: widget.orderId,
-            amountMinor: widget.amountMinor,
-          );
+      final bridge = ref.read(bridgeProvider);
+      final approval = widget.cashSpot
+          ? await bridge.approveCashSpot(approverPin: _pin.text.trim())
+          : await bridge.approveOrderAct(
+              approverPin: _pin.text.trim(),
+              capKey: widget.capKey,
+              orderId: widget.orderId!,
+              amountMinor: widget.amountMinor,
+            );
       if (mounted) await Navigator.of(context).maybePop(approval);
     } on MadarError catch (e) {
       MadarHaptics.warning();

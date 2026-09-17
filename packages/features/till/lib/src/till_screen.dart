@@ -19,13 +19,13 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_till/src/cash_in_out_panel.dart';
 import 'package:feature_till/src/cash_movements_screen.dart';
+import 'package:feature_till/src/cash_spot_screen.dart';
 import 'package:feature_till/src/close_till_screen.dart';
 import 'package:feature_till/src/drawers_card.dart';
 import 'package:feature_till/src/open_till_screen.dart';
 import 'package:feature_till/src/till_history_screen.dart';
 import 'package:feature_till/src/till_notices.dart';
 import 'package:feature_till/src/till_providers.dart';
-import 'package:feature_till/src/till_report_sheet.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -53,7 +53,6 @@ class TillScreen extends ConsumerWidget {
     String t(String key) => bridge.tr(key: key);
     final layout = context.madarLayout;
     final till = ref.watch(tillProvider.select((s) => s.till));
-    final printingX = ref.watch(tillProvider.select((s) => s.printingX));
 
     String? subtitle;
     var actions = const <Widget>[];
@@ -63,13 +62,19 @@ class TillScreen extends ConsumerWidget {
           '${till.tellerName} · ${t('till.open_since')} ${MadarFormat.isolate(since)}';
       if (layout.isTablet) {
         actions = [
+          // Cash spot replaces the X preview and print (owner design
+          // 2026-09-16 item 5): visible to everyone, a PIN when needed.
           MadarButton(
-            label: t('till.print_x'),
-            glyph: MadarGlyph.printer,
+            label: t('spot.button'),
+            glyph: MadarGlyph.wallet,
             variant: MadarButtonVariant.secondary,
             size: MadarButtonSize.compact,
-            loading: printingX,
-            onTap: () => unawaited(ref.read(tillProvider.notifier).printX()),
+            onTap: () => unawaited(
+              openCashSpot(
+                context,
+                ref,
+              ).then((_) => ref.read(tillProvider.notifier).refresh()),
+            ),
           ),
           MadarButton(
             label: t('till.close_title'),
@@ -123,15 +128,6 @@ class TillScreen extends ConsumerWidget {
 
 Widget _pastTills() => const TillHistoryScreen();
 
-/// The X report on screen, with its own Print.
-Future<void> _previewX(BuildContext context) async {
-  await showMadarSheet<void>(
-    context,
-    size: SheetSize.large,
-    builder: (_) => const TillReportSheet(),
-  );
-}
-
 /// Push a page and reload the drawer when it pops — every one of these
 /// pages can move the drawer's figures.
 void _push(BuildContext context, WidgetRef ref, Widget Function() build) {
@@ -164,7 +160,6 @@ class _DrawerHome extends ConsumerWidget {
       onOpenOrders: onOpenOrders,
       onCashInOut: cashInOut,
       onPastTills: pastTills,
-      withPrint: layout.isPhone,
     );
     final ledger = CashLedger(
       title: t('cash.title'),
@@ -304,7 +299,20 @@ class _StatCards extends ConsumerWidget {
                   )
                 : null,
           );
-    final Widget cash = report == null
+    // Without the grant the drawer is counted blind: no expected figure here.
+    final Widget cash = !bridge.tillFiguresVisible()
+        ? MadarCard.column(
+            children: [
+              Text(t('till.cash_in_till'), style: MadarType.title),
+              Text(
+                t('spot.blind'),
+                style: MadarType.bodySm.copyWith(
+                  color: context.madarColors.textSecondary,
+                ),
+              ),
+            ],
+          )
+        : report == null
         ? const _StatSkeleton()
         : MadarStatCard(
             label: t('till.cash_in_till'),
@@ -363,15 +371,11 @@ class _Links extends ConsumerWidget {
     required this.onOpenOrders,
     required this.onCashInOut,
     required this.onPastTills,
-    required this.withPrint,
   });
 
   final VoidCallback? onOpenOrders;
   final VoidCallback onCashInOut;
   final VoidCallback onPastTills;
-
-  /// The phone has no header actions: Print X is a row.
-  final bool withPrint;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -408,19 +412,15 @@ class _Links extends ConsumerWidget {
             ),
             const MadarHairline.row(),
             MadarListRow.nav(
-              title: t('till.preview_x'),
-              glyph: MadarGlyph.receipt,
-              onTap: () => unawaited(_previewX(context)),
-            ),
-            if (withPrint) ...[
-              const MadarHairline.row(),
-              MadarListRow.nav(
-                title: t('till.print_x'),
-                glyph: MadarGlyph.printer,
-                onTap: () =>
-                    unawaited(ref.read(tillProvider.notifier).printX()),
+              title: t('spot.button'),
+              glyph: MadarGlyph.wallet,
+              onTap: () => unawaited(
+                openCashSpot(
+                  context,
+                  ref,
+                ).then((_) => ref.read(tillProvider.notifier).refresh()),
               ),
-            ],
+            ),
             const MadarHairline.row(),
             MadarListRow.nav(
               title: t('tills.title'),

@@ -110,5 +110,7 @@ bool? fakeCanInvocation(Invocation invocation, String? Function() role) {
     return fakeCan(role(), invocation.namedArguments[#cap]! as String);
   }
   if (invocation.memberName == #canAskManager) return false;
+  // The drawer figures (cash spot design): shown unless a test says blind.
+  if (invocation.memberName == #tillFiguresVisible) return true;
   return null;
 }

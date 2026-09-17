@@ -5,9 +5,9 @@ use flutter_rust_bridge::frb;
 use crate::api::approvals::{ActDecisionView, ApprovalView};
 use crate::api::bridge::MadarBridge;
 use crate::api::error::MadarError;
-use crate::api::till::{CloseTillMethodView, CloseTillPreviewView, SpotCheckLineView, TillReportView};
+use crate::api::till::{CloseTillMethodView, CloseTillPreviewView, TillReportView};
 
-pub use madar_core::cash_spot::{CashSpotView, SpotCheckResultView, SpotCountInput, SpotMethodResultView};
+pub use madar_core::cash_spot::{SpotCheckLineView, CashSpotView, SpotCheckResultView, SpotCountInput, SpotMethodResultView};
 
 #[frb(mirror(SpotCheckLineView))]
 pub struct _SpotCheckLineView {

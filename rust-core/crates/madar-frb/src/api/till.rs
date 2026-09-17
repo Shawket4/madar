@@ -10,7 +10,7 @@ use crate::api::orders::OrderSummaryView;
 use crate::api::types::TillView;
 
 use crate::api::catalog::PaymentMethodView;
-pub use madar_core::cash_spot::SpotCheckLineView;
+use crate::api::cash_spot::SpotCheckLineView;
 pub use madar_core::orders::TillStatsView;
 pub use madar_core::till::{
     BranchOpenTillView, CashMovementView, CloseTillMethodView, CloseTillOutcomeView,
