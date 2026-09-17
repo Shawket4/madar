@@ -579,15 +579,7 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<RewardPick> dco_decode_list_reward_pick(dynamic raw);
 
   @protected
-  List<SpotCheckLineView> dco_decode_list_spot_check_line_view(dynamic raw);
-
-  @protected
-  List<SpotCountInput> dco_decode_list_spot_count_input(dynamic raw);
-
-  @protected
-  List<SpotMethodResultView> dco_decode_list_spot_method_result_view(
-    dynamic raw,
-  );
+  List<SpotViewLineView> dco_decode_list_spot_view_line_view(dynamic raw);
 
   @protected
   List<TableSittingView> dco_decode_list_table_sitting_view(dynamic raw);
@@ -822,16 +814,7 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   SessionSnapshot dco_decode_session_snapshot(dynamic raw);
 
   @protected
-  SpotCheckLineView dco_decode_spot_check_line_view(dynamic raw);
-
-  @protected
-  SpotCheckResultView dco_decode_spot_check_result_view(dynamic raw);
-
-  @protected
-  SpotCountInput dco_decode_spot_count_input(dynamic raw);
-
-  @protected
-  SpotMethodResultView dco_decode_spot_method_result_view(dynamic raw);
+  SpotViewLineView dco_decode_spot_view_line_view(dynamic raw);
 
   @protected
   SyncMeta dco_decode_sync_meta(dynamic raw);
@@ -1618,17 +1601,7 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<RewardPick> sse_decode_list_reward_pick(SseDeserializer deserializer);
 
   @protected
-  List<SpotCheckLineView> sse_decode_list_spot_check_line_view(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<SpotCountInput> sse_decode_list_spot_count_input(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<SpotMethodResultView> sse_decode_list_spot_method_result_view(
+  List<SpotViewLineView> sse_decode_list_spot_view_line_view(
     SseDeserializer deserializer,
   );
 
@@ -1929,22 +1902,7 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   SessionSnapshot sse_decode_session_snapshot(SseDeserializer deserializer);
 
   @protected
-  SpotCheckLineView sse_decode_spot_check_line_view(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  SpotCheckResultView sse_decode_spot_check_result_view(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  SpotCountInput sse_decode_spot_count_input(SseDeserializer deserializer);
-
-  @protected
-  SpotMethodResultView sse_decode_spot_method_result_view(
-    SseDeserializer deserializer,
-  );
+  SpotViewLineView sse_decode_spot_view_line_view(SseDeserializer deserializer);
 
   @protected
   SyncMeta sse_decode_sync_meta(SseDeserializer deserializer);
@@ -2920,20 +2878,8 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
-  void sse_encode_list_spot_check_line_view(
-    List<SpotCheckLineView> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_spot_count_input(
-    List<SpotCountInput> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_spot_method_result_view(
-    List<SpotMethodResultView> self,
+  void sse_encode_list_spot_view_line_view(
+    List<SpotViewLineView> self,
     SseSerializer serializer,
   );
 
@@ -3334,26 +3280,8 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
-  void sse_encode_spot_check_line_view(
-    SpotCheckLineView self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_spot_check_result_view(
-    SpotCheckResultView self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_spot_count_input(
-    SpotCountInput self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_spot_method_result_view(
-    SpotMethodResultView self,
+  void sse_encode_spot_view_line_view(
+    SpotViewLineView self,
     SseSerializer serializer,
   );
 

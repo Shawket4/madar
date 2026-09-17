@@ -86,7 +86,7 @@ class RustBridge
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 436284083;
+  int get rustContentHash => 441936306;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -969,12 +969,9 @@ abstract class RustBridgeApi extends BaseApi {
     String? corrects,
   });
 
-  Future<SpotCheckResultView> crateApiBridgeMadarBridgeRecordCashSpotCheck({
+  Future<SpotViewLineView> crateApiBridgeMadarBridgeRecordCashSpotPrint({
     required MadarBridge that,
-    required PlatformInt64 countedCashMinor,
-    required List<SpotCountInput> counts,
-    String? note,
-    ApprovalView? approval,
+    required String viewId,
   });
 
   Future<void> crateApiBridgeMadarBridgeRefreshArrivals({
@@ -7967,12 +7964,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<SpotCheckResultView> crateApiBridgeMadarBridgeRecordCashSpotCheck({
+  Future<SpotViewLineView> crateApiBridgeMadarBridgeRecordCashSpotPrint({
     required MadarBridge that,
-    required PlatformInt64 countedCashMinor,
-    required List<SpotCountInput> counts,
-    String? note,
-    ApprovalView? approval,
+    required String viewId,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -7982,10 +7976,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             that,
             serializer,
           );
-          sse_encode_i_64(countedCashMinor, serializer);
-          sse_encode_list_spot_count_input(counts, serializer);
-          sse_encode_opt_String(note, serializer);
-          sse_encode_opt_box_autoadd_approval_view(approval, serializer);
+          sse_encode_String(viewId, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -7994,20 +7985,20 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_spot_check_result_view,
+          decodeSuccessData: sse_decode_spot_view_line_view,
           decodeErrorData: sse_decode_madar_error,
         ),
-        constMeta: kCrateApiBridgeMadarBridgeRecordCashSpotCheckConstMeta,
-        argValues: [that, countedCashMinor, counts, note, approval],
+        constMeta: kCrateApiBridgeMadarBridgeRecordCashSpotPrintConstMeta,
+        argValues: [that, viewId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBridgeMadarBridgeRecordCashSpotCheckConstMeta =>
+  TaskConstMeta get kCrateApiBridgeMadarBridgeRecordCashSpotPrintConstMeta =>
       const TaskConstMeta(
-        debugName: "MadarBridge_record_cash_spot_check",
-        argNames: ["that", "countedCashMinor", "counts", "note", "approval"],
+        debugName: "MadarBridge_record_cash_spot_print",
+        argNames: ["that", "viewId"],
       );
 
   @override
@@ -11721,11 +11712,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     if (arr.length != 5)
       throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return CashSpotView(
-      report: dco_decode_till_report_view(arr[0]),
-      expectedCashMinor: dco_decode_i_64(arr[1]),
-      methods: dco_decode_list_close_till_method_view(arr[2]),
-      checks: dco_decode_list_spot_check_line_view(arr[3]),
-      approvalId: dco_decode_opt_String(arr[4]),
+      viewId: dco_decode_String(arr[0]),
+      report: dco_decode_till_report_view(arr[1]),
+      expectedCashMinor: dco_decode_i_64(arr[2]),
+      methods: dco_decode_list_close_till_method_view(arr[3]),
+      views: dco_decode_list_spot_view_line_view(arr[4]),
     );
   }
 
@@ -12820,25 +12811,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  List<SpotCheckLineView> dco_decode_list_spot_check_line_view(dynamic raw) {
+  List<SpotViewLineView> dco_decode_list_spot_view_line_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>).map(dco_decode_spot_check_line_view).toList();
-  }
-
-  @protected
-  List<SpotCountInput> dco_decode_list_spot_count_input(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>).map(dco_decode_spot_count_input).toList();
-  }
-
-  @protected
-  List<SpotMethodResultView> dco_decode_list_spot_method_result_view(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>)
-        .map(dco_decode_spot_method_result_view)
-        .toList();
+    return (raw as List<dynamic>).map(dco_decode_spot_view_line_view).toList();
   }
 
   @protected
@@ -13804,62 +13779,18 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  SpotCheckLineView dco_decode_spot_check_line_view(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
-    return SpotCheckLineView(
-      id: dco_decode_String(arr[0]),
-      countedCashMinor: dco_decode_i_64(arr[1]),
-      expectedCashMinor: dco_decode_i_64(arr[2]),
-      discrepancyMinor: dco_decode_i_64(arr[3]),
-      checkedByName: dco_decode_String(arr[4]),
-      approvedByName: dco_decode_opt_String(arr[5]),
-      checkedAt: dco_decode_String(arr[6]),
-      note: dco_decode_opt_String(arr[7]),
-      queued: dco_decode_bool(arr[8]),
-    );
-  }
-
-  @protected
-  SpotCheckResultView dco_decode_spot_check_result_view(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
-    return SpotCheckResultView(
-      check: dco_decode_spot_check_line_view(arr[0]),
-      methods: dco_decode_list_spot_method_result_view(arr[1]),
-      verdict: dco_decode_String(arr[2]),
-    );
-  }
-
-  @protected
-  SpotCountInput dco_decode_spot_count_input(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
-    return SpotCountInput(
-      method: dco_decode_String(arr[0]),
-      countedMinor: dco_decode_opt_box_autoadd_i_64(arr[1]),
-    );
-  }
-
-  @protected
-  SpotMethodResultView dco_decode_spot_method_result_view(dynamic raw) {
+  SpotViewLineView dco_decode_spot_view_line_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 6)
       throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
-    return SpotMethodResultView(
-      method: dco_decode_String(arr[0]),
-      label: dco_decode_String(arr[1]),
-      isCash: dco_decode_bool(arr[2]),
-      expectedMinor: dco_decode_i_64(arr[3]),
-      countedMinor: dco_decode_opt_box_autoadd_i_64(arr[4]),
-      discrepancyMinor: dco_decode_opt_box_autoadd_i_64(arr[5]),
+    return SpotViewLineView(
+      id: dco_decode_String(arr[0]),
+      viewedByName: dco_decode_String(arr[1]),
+      approvedByName: dco_decode_opt_String(arr[2]),
+      viewedAt: dco_decode_String(arr[3]),
+      printed: dco_decode_bool(arr[4]),
+      queued: dco_decode_bool(arr[5]),
     );
   }
 
@@ -14214,7 +14145,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       openBillsCount: dco_decode_opt_box_autoadd_i_64(arr[33]),
       openedWhileAnotherOpen: dco_decode_bool(arr[34]),
       verification: dco_decode_String(arr[35]),
-      spotChecks: dco_decode_list_spot_check_line_view(arr[36]),
+      spotViews: dco_decode_list_spot_view_line_view(arr[36]),
     );
   }
 
@@ -15099,17 +15030,17 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   @protected
   CashSpotView sse_decode_cash_spot_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_viewId = sse_decode_String(deserializer);
     var var_report = sse_decode_till_report_view(deserializer);
     var var_expectedCashMinor = sse_decode_i_64(deserializer);
     var var_methods = sse_decode_list_close_till_method_view(deserializer);
-    var var_checks = sse_decode_list_spot_check_line_view(deserializer);
-    var var_approvalId = sse_decode_opt_String(deserializer);
+    var var_views = sse_decode_list_spot_view_line_view(deserializer);
     return CashSpotView(
+      viewId: var_viewId,
       report: var_report,
       expectedCashMinor: var_expectedCashMinor,
       methods: var_methods,
-      checks: var_checks,
-      approvalId: var_approvalId,
+      views: var_views,
     );
   }
 
@@ -16786,43 +16717,15 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  List<SpotCheckLineView> sse_decode_list_spot_check_line_view(
+  List<SpotViewLineView> sse_decode_list_spot_view_line_view(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <SpotCheckLineView>[];
+    var ans_ = <SpotViewLineView>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_spot_check_line_view(deserializer));
-    }
-    return ans_;
-  }
-
-  @protected
-  List<SpotCountInput> sse_decode_list_spot_count_input(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <SpotCountInput>[];
-    for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_spot_count_input(deserializer));
-    }
-    return ans_;
-  }
-
-  @protected
-  List<SpotMethodResultView> sse_decode_list_spot_method_result_view(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <SpotMethodResultView>[];
-    for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_spot_method_result_view(deserializer));
+      ans_.add(sse_decode_spot_view_line_view(deserializer));
     }
     return ans_;
   }
@@ -18157,73 +18060,23 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  SpotCheckLineView sse_decode_spot_check_line_view(
+  SpotViewLineView sse_decode_spot_view_line_view(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_id = sse_decode_String(deserializer);
-    var var_countedCashMinor = sse_decode_i_64(deserializer);
-    var var_expectedCashMinor = sse_decode_i_64(deserializer);
-    var var_discrepancyMinor = sse_decode_i_64(deserializer);
-    var var_checkedByName = sse_decode_String(deserializer);
+    var var_viewedByName = sse_decode_String(deserializer);
     var var_approvedByName = sse_decode_opt_String(deserializer);
-    var var_checkedAt = sse_decode_String(deserializer);
-    var var_note = sse_decode_opt_String(deserializer);
+    var var_viewedAt = sse_decode_String(deserializer);
+    var var_printed = sse_decode_bool(deserializer);
     var var_queued = sse_decode_bool(deserializer);
-    return SpotCheckLineView(
+    return SpotViewLineView(
       id: var_id,
-      countedCashMinor: var_countedCashMinor,
-      expectedCashMinor: var_expectedCashMinor,
-      discrepancyMinor: var_discrepancyMinor,
-      checkedByName: var_checkedByName,
+      viewedByName: var_viewedByName,
       approvedByName: var_approvedByName,
-      checkedAt: var_checkedAt,
-      note: var_note,
+      viewedAt: var_viewedAt,
+      printed: var_printed,
       queued: var_queued,
-    );
-  }
-
-  @protected
-  SpotCheckResultView sse_decode_spot_check_result_view(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_check = sse_decode_spot_check_line_view(deserializer);
-    var var_methods = sse_decode_list_spot_method_result_view(deserializer);
-    var var_verdict = sse_decode_String(deserializer);
-    return SpotCheckResultView(
-      check: var_check,
-      methods: var_methods,
-      verdict: var_verdict,
-    );
-  }
-
-  @protected
-  SpotCountInput sse_decode_spot_count_input(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_method = sse_decode_String(deserializer);
-    var var_countedMinor = sse_decode_opt_box_autoadd_i_64(deserializer);
-    return SpotCountInput(method: var_method, countedMinor: var_countedMinor);
-  }
-
-  @protected
-  SpotMethodResultView sse_decode_spot_method_result_view(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_method = sse_decode_String(deserializer);
-    var var_label = sse_decode_String(deserializer);
-    var var_isCash = sse_decode_bool(deserializer);
-    var var_expectedMinor = sse_decode_i_64(deserializer);
-    var var_countedMinor = sse_decode_opt_box_autoadd_i_64(deserializer);
-    var var_discrepancyMinor = sse_decode_opt_box_autoadd_i_64(deserializer);
-    return SpotMethodResultView(
-      method: var_method,
-      label: var_label,
-      isCash: var_isCash,
-      expectedMinor: var_expectedMinor,
-      countedMinor: var_countedMinor,
-      discrepancyMinor: var_discrepancyMinor,
     );
   }
 
@@ -18638,7 +18491,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_openBillsCount = sse_decode_opt_box_autoadd_i_64(deserializer);
     var var_openedWhileAnotherOpen = sse_decode_bool(deserializer);
     var var_verification = sse_decode_String(deserializer);
-    var var_spotChecks = sse_decode_list_spot_check_line_view(deserializer);
+    var var_spotViews = sse_decode_list_spot_view_line_view(deserializer);
     return TillReportView(
       tellerName: var_tellerName,
       openedAt: var_openedAt,
@@ -18676,7 +18529,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       openBillsCount: var_openBillsCount,
       openedWhileAnotherOpen: var_openedWhileAnotherOpen,
       verification: var_verification,
-      spotChecks: var_spotChecks,
+      spotViews: var_spotViews,
     );
   }
 
@@ -19511,11 +19364,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   @protected
   void sse_encode_cash_spot_view(CashSpotView self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.viewId, serializer);
     sse_encode_till_report_view(self.report, serializer);
     sse_encode_i_64(self.expectedCashMinor, serializer);
     sse_encode_list_close_till_method_view(self.methods, serializer);
-    sse_encode_list_spot_check_line_view(self.checks, serializer);
-    sse_encode_opt_String(self.approvalId, serializer);
+    sse_encode_list_spot_view_line_view(self.views, serializer);
   }
 
   @protected
@@ -20820,38 +20673,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  void sse_encode_list_spot_check_line_view(
-    List<SpotCheckLineView> self,
+  void sse_encode_list_spot_view_line_view(
+    List<SpotViewLineView> self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
-      sse_encode_spot_check_line_view(item, serializer);
-    }
-  }
-
-  @protected
-  void sse_encode_list_spot_count_input(
-    List<SpotCountInput> self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.length, serializer);
-    for (final item in self) {
-      sse_encode_spot_count_input(item, serializer);
-    }
-  }
-
-  @protected
-  void sse_encode_list_spot_method_result_view(
-    List<SpotMethodResultView> self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.length, serializer);
-    for (final item in self) {
-      sse_encode_spot_method_result_view(item, serializer);
+      sse_encode_spot_view_line_view(item, serializer);
     }
   }
 
@@ -21867,55 +21696,17 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  void sse_encode_spot_check_line_view(
-    SpotCheckLineView self,
+  void sse_encode_spot_view_line_view(
+    SpotViewLineView self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.id, serializer);
-    sse_encode_i_64(self.countedCashMinor, serializer);
-    sse_encode_i_64(self.expectedCashMinor, serializer);
-    sse_encode_i_64(self.discrepancyMinor, serializer);
-    sse_encode_String(self.checkedByName, serializer);
+    sse_encode_String(self.viewedByName, serializer);
     sse_encode_opt_String(self.approvedByName, serializer);
-    sse_encode_String(self.checkedAt, serializer);
-    sse_encode_opt_String(self.note, serializer);
+    sse_encode_String(self.viewedAt, serializer);
+    sse_encode_bool(self.printed, serializer);
     sse_encode_bool(self.queued, serializer);
-  }
-
-  @protected
-  void sse_encode_spot_check_result_view(
-    SpotCheckResultView self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_spot_check_line_view(self.check, serializer);
-    sse_encode_list_spot_method_result_view(self.methods, serializer);
-    sse_encode_String(self.verdict, serializer);
-  }
-
-  @protected
-  void sse_encode_spot_count_input(
-    SpotCountInput self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.method, serializer);
-    sse_encode_opt_box_autoadd_i_64(self.countedMinor, serializer);
-  }
-
-  @protected
-  void sse_encode_spot_method_result_view(
-    SpotMethodResultView self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.method, serializer);
-    sse_encode_String(self.label, serializer);
-    sse_encode_bool(self.isCash, serializer);
-    sse_encode_i_64(self.expectedMinor, serializer);
-    sse_encode_opt_box_autoadd_i_64(self.countedMinor, serializer);
-    sse_encode_opt_box_autoadd_i_64(self.discrepancyMinor, serializer);
   }
 
   @protected
@@ -22215,7 +22006,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_opt_box_autoadd_i_64(self.openBillsCount, serializer);
     sse_encode_bool(self.openedWhileAnotherOpen, serializer);
     sse_encode_String(self.verification, serializer);
-    sse_encode_list_spot_check_line_view(self.spotChecks, serializer);
+    sse_encode_list_spot_view_line_view(self.spotViews, serializer);
   }
 
   @protected
@@ -22801,7 +22592,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   ActDecisionView cashSpotAccess() => RustBridge.instance.api
       .crateApiBridgeMadarBridgeCashSpotAccess(that: this);
 
-  /// The full live drawer view.
+  /// Open the cash spot: the full live till report (records the look).
   Future<CashSpotView> cashSpotView({ApprovalView? approval}) => RustBridge
       .instance
       .api
@@ -23661,19 +23452,12 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     corrects: corrects,
   );
 
-  /// Record a spot check (queued; offline-capable).
-  Future<SpotCheckResultView> recordCashSpotCheck({
-    required PlatformInt64 countedCashMinor,
-    required List<SpotCountInput> counts,
-    String? note,
-    ApprovalView? approval,
-  }) => RustBridge.instance.api.crateApiBridgeMadarBridgeRecordCashSpotCheck(
-    that: this,
-    countedCashMinor: countedCashMinor,
-    counts: counts,
-    note: note,
-    approval: approval,
-  );
+  /// The spot report of this look was printed.
+  Future<SpotViewLineView> recordCashSpotPrint({required String viewId}) =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeRecordCashSpotPrint(
+        that: this,
+        viewId: viewId,
+      );
 
   /// Pull today's active bookings into the offline cache (best-effort; a
   /// `refresh_floor` does this too).

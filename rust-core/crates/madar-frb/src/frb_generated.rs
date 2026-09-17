@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 436284083;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 441936306;
 
 // Section: executor
 
@@ -9390,7 +9390,7 @@ fn wire__crate__api__bridge__MadarBridge_record_cash_movement_impl(
         },
     )
 }
-fn wire__crate__api__bridge__MadarBridge_record_cash_spot_check_impl(
+fn wire__crate__api__bridge__MadarBridge_record_cash_spot_print_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -9398,7 +9398,7 @@ fn wire__crate__api__bridge__MadarBridge_record_cash_spot_check_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_record_cash_spot_check",
+            debug_name: "MadarBridge_record_cash_spot_print",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -9415,12 +9415,7 @@ fn wire__crate__api__bridge__MadarBridge_record_cash_spot_check_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
             >>::sse_decode(&mut deserializer);
-            let api_counted_cash_minor = <i64>::sse_decode(&mut deserializer);
-            let api_counts =
-                <Vec<crate::api::cash_spot::SpotCountInput>>::sse_decode(&mut deserializer);
-            let api_note = <Option<String>>::sse_decode(&mut deserializer);
-            let api_approval =
-                <Option<crate::api::approvals::ApprovalView>>::sse_decode(&mut deserializer);
+            let api_view_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::error::MadarError>(
@@ -9442,12 +9437,9 @@ fn wire__crate__api__bridge__MadarBridge_record_cash_spot_check_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::bridge::MadarBridge::record_cash_spot_check(
+                        let output_ok = crate::api::bridge::MadarBridge::record_cash_spot_print(
                             &*api_that_guard,
-                            api_counted_cash_minor,
-                            api_counts,
-                            api_note,
-                            api_approval,
+                            api_view_id,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)
@@ -13880,11 +13872,11 @@ const _: fn() = || {
     }
     {
         let CashSpotView = None::<crate::api::cash_spot::CashSpotView>.unwrap();
+        let _: String = CashSpotView.view_id;
         let _: crate::api::till::TillReportView = CashSpotView.report;
         let _: i64 = CashSpotView.expected_cash_minor;
         let _: Vec<crate::api::till::CloseTillMethodView> = CashSpotView.methods;
-        let _: Vec<crate::api::cash_spot::SpotCheckLineView> = CashSpotView.checks;
-        let _: Option<String> = CashSpotView.approval_id;
+        let _: Vec<crate::api::cash_spot::SpotViewLineView> = CashSpotView.views;
     }
     {
         let CatStyleView = None::<crate::api::catalog::CatStyleView>.unwrap();
@@ -14670,36 +14662,13 @@ const _: fn() = || {
         let _: bool = SessionSnapshot.permissions_loaded;
     }
     {
-        let SpotCheckLineView = None::<crate::api::cash_spot::SpotCheckLineView>.unwrap();
-        let _: String = SpotCheckLineView.id;
-        let _: i64 = SpotCheckLineView.counted_cash_minor;
-        let _: i64 = SpotCheckLineView.expected_cash_minor;
-        let _: i64 = SpotCheckLineView.discrepancy_minor;
-        let _: String = SpotCheckLineView.checked_by_name;
-        let _: Option<String> = SpotCheckLineView.approved_by_name;
-        let _: String = SpotCheckLineView.checked_at;
-        let _: Option<String> = SpotCheckLineView.note;
-        let _: bool = SpotCheckLineView.queued;
-    }
-    {
-        let SpotCheckResultView = None::<crate::api::cash_spot::SpotCheckResultView>.unwrap();
-        let _: crate::api::cash_spot::SpotCheckLineView = SpotCheckResultView.check;
-        let _: Vec<crate::api::cash_spot::SpotMethodResultView> = SpotCheckResultView.methods;
-        let _: String = SpotCheckResultView.verdict;
-    }
-    {
-        let SpotCountInput = None::<crate::api::cash_spot::SpotCountInput>.unwrap();
-        let _: String = SpotCountInput.method;
-        let _: Option<i64> = SpotCountInput.counted_minor;
-    }
-    {
-        let SpotMethodResultView = None::<crate::api::cash_spot::SpotMethodResultView>.unwrap();
-        let _: String = SpotMethodResultView.method;
-        let _: String = SpotMethodResultView.label;
-        let _: bool = SpotMethodResultView.is_cash;
-        let _: i64 = SpotMethodResultView.expected_minor;
-        let _: Option<i64> = SpotMethodResultView.counted_minor;
-        let _: Option<i64> = SpotMethodResultView.discrepancy_minor;
+        let SpotViewLineView = None::<crate::api::cash_spot::SpotViewLineView>.unwrap();
+        let _: String = SpotViewLineView.id;
+        let _: String = SpotViewLineView.viewed_by_name;
+        let _: Option<String> = SpotViewLineView.approved_by_name;
+        let _: String = SpotViewLineView.viewed_at;
+        let _: bool = SpotViewLineView.printed;
+        let _: bool = SpotViewLineView.queued;
     }
     {
         let SyncMeta = None::<crate::api::sync::SyncMeta>.unwrap();
@@ -14862,7 +14831,7 @@ const _: fn() = || {
         let _: Option<i64> = TillReportView.open_bills_count;
         let _: bool = TillReportView.opened_while_another_open;
         let _: String = TillReportView.verification;
-        let _: Vec<crate::api::cash_spot::SpotCheckLineView> = TillReportView.spot_checks;
+        let _: Vec<crate::api::cash_spot::SpotViewLineView> = TillReportView.spot_views;
     }
     {
         let TillStatsView = None::<crate::api::till::TillStatsView>.unwrap();
@@ -15515,19 +15484,19 @@ impl SseDecode for crate::api::orders::CashQuickTenderView {
 impl SseDecode for crate::api::cash_spot::CashSpotView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_viewId = <String>::sse_decode(deserializer);
         let mut var_report = <crate::api::till::TillReportView>::sse_decode(deserializer);
         let mut var_expectedCashMinor = <i64>::sse_decode(deserializer);
         let mut var_methods =
             <Vec<crate::api::till::CloseTillMethodView>>::sse_decode(deserializer);
-        let mut var_checks =
-            <Vec<crate::api::cash_spot::SpotCheckLineView>>::sse_decode(deserializer);
-        let mut var_approvalId = <Option<String>>::sse_decode(deserializer);
+        let mut var_views =
+            <Vec<crate::api::cash_spot::SpotViewLineView>>::sse_decode(deserializer);
         return crate::api::cash_spot::CashSpotView {
+            view_id: var_viewId,
             report: var_report,
             expected_cash_minor: var_expectedCashMinor,
             methods: var_methods,
-            checks: var_checks,
-            approval_id: var_approvalId,
+            views: var_views,
         };
     }
 }
@@ -17209,41 +17178,13 @@ impl SseDecode for Vec<crate::api::loyalty::RewardPick> {
     }
 }
 
-impl SseDecode for Vec<crate::api::cash_spot::SpotCheckLineView> {
+impl SseDecode for Vec<crate::api::cash_spot::SpotViewLineView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::cash_spot::SpotCheckLineView>::sse_decode(
-                deserializer,
-            ));
-        }
-        return ans_;
-    }
-}
-
-impl SseDecode for Vec<crate::api::cash_spot::SpotCountInput> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<crate::api::cash_spot::SpotCountInput>::sse_decode(
-                deserializer,
-            ));
-        }
-        return ans_;
-    }
-}
-
-impl SseDecode for Vec<crate::api::cash_spot::SpotMethodResultView> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<crate::api::cash_spot::SpotMethodResultView>::sse_decode(
+            ans_.push(<crate::api::cash_spot::SpotViewLineView>::sse_decode(
                 deserializer,
             ));
         }
@@ -18641,75 +18582,22 @@ impl SseDecode for crate::api::types::SessionSnapshot {
     }
 }
 
-impl SseDecode for crate::api::cash_spot::SpotCheckLineView {
+impl SseDecode for crate::api::cash_spot::SpotViewLineView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <String>::sse_decode(deserializer);
-        let mut var_countedCashMinor = <i64>::sse_decode(deserializer);
-        let mut var_expectedCashMinor = <i64>::sse_decode(deserializer);
-        let mut var_discrepancyMinor = <i64>::sse_decode(deserializer);
-        let mut var_checkedByName = <String>::sse_decode(deserializer);
+        let mut var_viewedByName = <String>::sse_decode(deserializer);
         let mut var_approvedByName = <Option<String>>::sse_decode(deserializer);
-        let mut var_checkedAt = <String>::sse_decode(deserializer);
-        let mut var_note = <Option<String>>::sse_decode(deserializer);
+        let mut var_viewedAt = <String>::sse_decode(deserializer);
+        let mut var_printed = <bool>::sse_decode(deserializer);
         let mut var_queued = <bool>::sse_decode(deserializer);
-        return crate::api::cash_spot::SpotCheckLineView {
+        return crate::api::cash_spot::SpotViewLineView {
             id: var_id,
-            counted_cash_minor: var_countedCashMinor,
-            expected_cash_minor: var_expectedCashMinor,
-            discrepancy_minor: var_discrepancyMinor,
-            checked_by_name: var_checkedByName,
+            viewed_by_name: var_viewedByName,
             approved_by_name: var_approvedByName,
-            checked_at: var_checkedAt,
-            note: var_note,
+            viewed_at: var_viewedAt,
+            printed: var_printed,
             queued: var_queued,
-        };
-    }
-}
-
-impl SseDecode for crate::api::cash_spot::SpotCheckResultView {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_check = <crate::api::cash_spot::SpotCheckLineView>::sse_decode(deserializer);
-        let mut var_methods =
-            <Vec<crate::api::cash_spot::SpotMethodResultView>>::sse_decode(deserializer);
-        let mut var_verdict = <String>::sse_decode(deserializer);
-        return crate::api::cash_spot::SpotCheckResultView {
-            check: var_check,
-            methods: var_methods,
-            verdict: var_verdict,
-        };
-    }
-}
-
-impl SseDecode for crate::api::cash_spot::SpotCountInput {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_method = <String>::sse_decode(deserializer);
-        let mut var_countedMinor = <Option<i64>>::sse_decode(deserializer);
-        return crate::api::cash_spot::SpotCountInput {
-            method: var_method,
-            counted_minor: var_countedMinor,
-        };
-    }
-}
-
-impl SseDecode for crate::api::cash_spot::SpotMethodResultView {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_method = <String>::sse_decode(deserializer);
-        let mut var_label = <String>::sse_decode(deserializer);
-        let mut var_isCash = <bool>::sse_decode(deserializer);
-        let mut var_expectedMinor = <i64>::sse_decode(deserializer);
-        let mut var_countedMinor = <Option<i64>>::sse_decode(deserializer);
-        let mut var_discrepancyMinor = <Option<i64>>::sse_decode(deserializer);
-        return crate::api::cash_spot::SpotMethodResultView {
-            method: var_method,
-            label: var_label,
-            is_cash: var_isCash,
-            expected_minor: var_expectedMinor,
-            counted_minor: var_countedMinor,
-            discrepancy_minor: var_discrepancyMinor,
         };
     }
 }
@@ -19144,8 +19032,8 @@ impl SseDecode for crate::api::till::TillReportView {
         let mut var_openBillsCount = <Option<i64>>::sse_decode(deserializer);
         let mut var_openedWhileAnotherOpen = <bool>::sse_decode(deserializer);
         let mut var_verification = <String>::sse_decode(deserializer);
-        let mut var_spotChecks =
-            <Vec<crate::api::cash_spot::SpotCheckLineView>>::sse_decode(deserializer);
+        let mut var_spotViews =
+            <Vec<crate::api::cash_spot::SpotViewLineView>>::sse_decode(deserializer);
         return crate::api::till::TillReportView {
             teller_name: var_tellerName,
             opened_at: var_openedAt,
@@ -19183,7 +19071,7 @@ impl SseDecode for crate::api::till::TillReportView {
             open_bills_count: var_openBillsCount,
             opened_while_another_open: var_openedWhileAnotherOpen,
             verification: var_verification,
-            spot_checks: var_spotChecks,
+            spot_views: var_spotViews,
         };
     }
 }
@@ -20027,7 +19915,7 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        172 => wire__crate__api__bridge__MadarBridge_record_cash_spot_check_impl(
+        172 => wire__crate__api__bridge__MadarBridge_record_cash_spot_print_impl(
             port,
             ptr,
             rust_vec_len,
@@ -21203,11 +21091,11 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::orders::CashQuickT
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::cash_spot::CashSpotView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
+            self.0.view_id.into_into_dart().into_dart(),
             self.0.report.into_into_dart().into_dart(),
             self.0.expected_cash_minor.into_into_dart().into_dart(),
             self.0.methods.into_into_dart().into_dart(),
-            self.0.checks.into_into_dart().into_dart(),
-            self.0.approval_id.into_into_dart().into_dart(),
+            self.0.views.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -23455,98 +23343,27 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::SessionSnap
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::cash_spot::SpotCheckLineView> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::cash_spot::SpotViewLineView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.id.into_into_dart().into_dart(),
-            self.0.counted_cash_minor.into_into_dart().into_dart(),
-            self.0.expected_cash_minor.into_into_dart().into_dart(),
-            self.0.discrepancy_minor.into_into_dart().into_dart(),
-            self.0.checked_by_name.into_into_dart().into_dart(),
+            self.0.viewed_by_name.into_into_dart().into_dart(),
             self.0.approved_by_name.into_into_dart().into_dart(),
-            self.0.checked_at.into_into_dart().into_dart(),
-            self.0.note.into_into_dart().into_dart(),
+            self.0.viewed_at.into_into_dart().into_dart(),
+            self.0.printed.into_into_dart().into_dart(),
             self.0.queued.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::cash_spot::SpotCheckLineView>
+    for FrbWrapper<crate::api::cash_spot::SpotViewLineView>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::cash_spot::SpotCheckLineView>>
-    for crate::api::cash_spot::SpotCheckLineView
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::cash_spot::SpotViewLineView>>
+    for crate::api::cash_spot::SpotViewLineView
 {
-    fn into_into_dart(self) -> FrbWrapper<crate::api::cash_spot::SpotCheckLineView> {
-        self.into()
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::cash_spot::SpotCheckResultView> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.0.check.into_into_dart().into_dart(),
-            self.0.methods.into_into_dart().into_dart(),
-            self.0.verdict.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::cash_spot::SpotCheckResultView>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::cash_spot::SpotCheckResultView>>
-    for crate::api::cash_spot::SpotCheckResultView
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::cash_spot::SpotCheckResultView> {
-        self.into()
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::cash_spot::SpotCountInput> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.0.method.into_into_dart().into_dart(),
-            self.0.counted_minor.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::cash_spot::SpotCountInput>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::cash_spot::SpotCountInput>>
-    for crate::api::cash_spot::SpotCountInput
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::cash_spot::SpotCountInput> {
-        self.into()
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::cash_spot::SpotMethodResultView> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.0.method.into_into_dart().into_dart(),
-            self.0.label.into_into_dart().into_dart(),
-            self.0.is_cash.into_into_dart().into_dart(),
-            self.0.expected_minor.into_into_dart().into_dart(),
-            self.0.counted_minor.into_into_dart().into_dart(),
-            self.0.discrepancy_minor.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::cash_spot::SpotMethodResultView>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::cash_spot::SpotMethodResultView>>
-    for crate::api::cash_spot::SpotMethodResultView
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::cash_spot::SpotMethodResultView> {
+    fn into_into_dart(self) -> FrbWrapper<crate::api::cash_spot::SpotViewLineView> {
         self.into()
     }
 }
@@ -24096,7 +23913,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::TillReportVi
                 .into_into_dart()
                 .into_dart(),
             self.0.verification.into_into_dart().into_dart(),
-            self.0.spot_checks.into_into_dart().into_dart(),
+            self.0.spot_views.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -24655,11 +24472,11 @@ impl SseEncode for crate::api::orders::CashQuickTenderView {
 impl SseEncode for crate::api::cash_spot::CashSpotView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.view_id, serializer);
         <crate::api::till::TillReportView>::sse_encode(self.report, serializer);
         <i64>::sse_encode(self.expected_cash_minor, serializer);
         <Vec<crate::api::till::CloseTillMethodView>>::sse_encode(self.methods, serializer);
-        <Vec<crate::api::cash_spot::SpotCheckLineView>>::sse_encode(self.checks, serializer);
-        <Option<String>>::sse_encode(self.approval_id, serializer);
+        <Vec<crate::api::cash_spot::SpotViewLineView>>::sse_encode(self.views, serializer);
     }
 }
 
@@ -25804,32 +25621,12 @@ impl SseEncode for Vec<crate::api::loyalty::RewardPick> {
     }
 }
 
-impl SseEncode for Vec<crate::api::cash_spot::SpotCheckLineView> {
+impl SseEncode for Vec<crate::api::cash_spot::SpotViewLineView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::cash_spot::SpotCheckLineView>::sse_encode(item, serializer);
-        }
-    }
-}
-
-impl SseEncode for Vec<crate::api::cash_spot::SpotCountInput> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(self.len() as _, serializer);
-        for item in self {
-            <crate::api::cash_spot::SpotCountInput>::sse_encode(item, serializer);
-        }
-    }
-}
-
-impl SseEncode for Vec<crate::api::cash_spot::SpotMethodResultView> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(self.len() as _, serializer);
-        for item in self {
-            <crate::api::cash_spot::SpotMethodResultView>::sse_encode(item, serializer);
+            <crate::api::cash_spot::SpotViewLineView>::sse_encode(item, serializer);
         }
     }
 }
@@ -26764,47 +26561,15 @@ impl SseEncode for crate::api::types::SessionSnapshot {
     }
 }
 
-impl SseEncode for crate::api::cash_spot::SpotCheckLineView {
+impl SseEncode for crate::api::cash_spot::SpotViewLineView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.id, serializer);
-        <i64>::sse_encode(self.counted_cash_minor, serializer);
-        <i64>::sse_encode(self.expected_cash_minor, serializer);
-        <i64>::sse_encode(self.discrepancy_minor, serializer);
-        <String>::sse_encode(self.checked_by_name, serializer);
+        <String>::sse_encode(self.viewed_by_name, serializer);
         <Option<String>>::sse_encode(self.approved_by_name, serializer);
-        <String>::sse_encode(self.checked_at, serializer);
-        <Option<String>>::sse_encode(self.note, serializer);
+        <String>::sse_encode(self.viewed_at, serializer);
+        <bool>::sse_encode(self.printed, serializer);
         <bool>::sse_encode(self.queued, serializer);
-    }
-}
-
-impl SseEncode for crate::api::cash_spot::SpotCheckResultView {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <crate::api::cash_spot::SpotCheckLineView>::sse_encode(self.check, serializer);
-        <Vec<crate::api::cash_spot::SpotMethodResultView>>::sse_encode(self.methods, serializer);
-        <String>::sse_encode(self.verdict, serializer);
-    }
-}
-
-impl SseEncode for crate::api::cash_spot::SpotCountInput {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.method, serializer);
-        <Option<i64>>::sse_encode(self.counted_minor, serializer);
-    }
-}
-
-impl SseEncode for crate::api::cash_spot::SpotMethodResultView {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.method, serializer);
-        <String>::sse_encode(self.label, serializer);
-        <bool>::sse_encode(self.is_cash, serializer);
-        <i64>::sse_encode(self.expected_minor, serializer);
-        <Option<i64>>::sse_encode(self.counted_minor, serializer);
-        <Option<i64>>::sse_encode(self.discrepancy_minor, serializer);
     }
 }
 
@@ -27082,7 +26847,7 @@ impl SseEncode for crate::api::till::TillReportView {
         <Option<i64>>::sse_encode(self.open_bills_count, serializer);
         <bool>::sse_encode(self.opened_while_another_open, serializer);
         <String>::sse_encode(self.verification, serializer);
-        <Vec<crate::api::cash_spot::SpotCheckLineView>>::sse_encode(self.spot_checks, serializer);
+        <Vec<crate::api::cash_spot::SpotViewLineView>>::sse_encode(self.spot_views, serializer);
     }
 }
 

@@ -5,10 +5,10 @@
 //! MADAR_OB_TESTS=cash_spot_backend tool/offline_b_backend.sh
 //! ```
 //!
-//! * a manager takes a spot check OFFLINE; it lands once when back online and
-//!   the server's report lists it;
-//! * a teller without the grant gets a manager's one-time PIN for one check; the
-//!   server stores who approved it and records a verified approval;
+//! * a manager opens and prints the cash spot report OFFLINE; the look lands
+//!   once (printed) when back online and the Z report lists it;
+//! * a teller without the grant gets a manager's one-time PIN for one look; the
+//!   server stores who unlocked it and records a verified approval;
 //! * a teller without the grant closes BLIND with a short drawer; the till lands
 //!   in the owner's review queue (reconciliation disagreed).
 
@@ -63,7 +63,7 @@ async fn drain(core: &madar_core::MadarCore) {
 
 #[tokio::test]
 #[ignore]
-async fn a_manager_takes_a_spot_check_offline_and_it_lands_once() {
+async fn a_manager_views_and_prints_the_spot_report_offline_and_it_lands_once() {
     let fx = fixture(1).await;
     let (_, mgr) = manager(&fx, "864213").await;
     let proxy = Proxy::start(&fx.base).await;
@@ -88,14 +88,9 @@ async fn a_manager_takes_a_spot_check_offline_and_it_lands_once() {
     for _ in 0..3 {
         core.refresh_connectivity().await;
     }
-    let view = core.cash_spot_view(None).await.expect("live view offline");
-    let counted = view.expected_cash_minor - 250;
-    let done = core
-        .record_cash_spot_check(counted, vec![], Some("offline count".into()), None)
-        .await
-        .expect("queued offline");
-    assert_eq!(done.verdict, "short");
-    assert_eq!(done.check.discrepancy_minor, -250);
+    let view = core.cash_spot_view(None).await.expect("live report offline");
+    assert!(view.report.is_open);
+    core.record_cash_spot_print(view.view_id.clone()).await.expect("print recorded offline");
 
     proxy.online();
     core.refresh_connectivity().await;
@@ -104,32 +99,30 @@ async fn a_manager_takes_a_spot_check_offline_and_it_lands_once() {
     let till = uuid::Uuid::parse_str(&till_id).unwrap();
     let rows = fx
         .db
-        .query(
-            "SELECT id, cash_discrepancy, approved_by FROM till_spot_checks WHERE till_id = $1",
-            &[&till],
-        )
+        .query("SELECT id, printed, approved_by FROM till_spot_views WHERE till_id = $1", &[&till])
         .await
         .unwrap();
-    assert_eq!(rows.len(), 1, "one check, landed once");
-    assert_eq!(rows[0].get::<_, i64>(1), -250);
+    assert_eq!(rows.len(), 1, "one look, landed once");
+    assert!(rows[0].get::<_, bool>(1), "printed");
     assert!(rows[0].get::<_, Option<uuid::Uuid>>(2).is_none());
     let flags: i64 = fx
         .db
-        .query_one("SELECT COUNT(*) FROM authz_replay_flags WHERE op = 'CashSpotCheck'", &[])
+        .query_one("SELECT COUNT(*) FROM authz_replay_flags WHERE op = 'SpotReportView'", &[])
         .await
         .unwrap()
         .get(0);
-    assert_eq!(flags, 0, "a manager's check is not flagged");
+    assert_eq!(flags, 0, "a manager's look is not flagged");
     // The feed brings the till back with the check inside it: still one.
     let _ = core.sync_now().await;
     let report = core.till_report_for_checked(till_id.clone()).await.expect("report");
-    assert_eq!(report.spot_checks.len(), 1, "the Z report lists it once");
-    assert!(!report.spot_checks[0].queued);
+    assert_eq!(report.spot_views.len(), 1, "the Z report lists it once");
+    assert!(report.spot_views[0].printed);
+    assert!(!report.spot_views[0].queued);
 }
 
 #[tokio::test]
 #[ignore]
-async fn a_tellers_one_time_pin_unlocks_one_spot_check() {
+async fn a_tellers_one_time_pin_unlocks_one_spot_report_look() {
     let fx = fixture(1).await;
     let (teller_id, teller) = fx.tellers[0].clone();
     let (mgr_id, mgr) = manager(&fx, "864211").await;
@@ -153,29 +146,24 @@ async fn a_tellers_one_time_pin_unlocks_one_spot_check() {
     assert_eq!(approval.approver_name, mgr);
     assert_eq!(core.current_session().expect("session").user_id, teller_id.to_string(), "the person did not change");
 
-    let view = core.cash_spot_view(Some(approval.clone())).await.expect("unlocked view");
-    core.record_cash_spot_check(view.expected_cash_minor, vec![], None, Some(approval.clone()))
-        .await
-        .expect("recorded");
-    assert!(core.cash_spot_view(Some(approval)).await.is_err(), "one action only");
+    let view = core.cash_spot_view(Some(approval.clone())).await.expect("unlocked look");
+    assert!(core.cash_spot_view(Some(approval)).await.is_err(), "one look only");
     drain(&core).await;
 
     let till = uuid::Uuid::parse_str(&till_id).unwrap();
     let row = fx
         .db
-        .query_one(
-            "SELECT checked_by, approved_by, cash_discrepancy FROM till_spot_checks WHERE till_id = $1",
-            &[&till],
-        )
+        .query_one("SELECT id, viewed_by, approved_by, printed FROM till_spot_views WHERE till_id = $1", &[&till])
         .await
         .unwrap();
-    assert_eq!(row.get::<_, uuid::Uuid>(0), teller_id);
-    assert_eq!(row.get::<_, Option<uuid::Uuid>>(1), Some(mgr_id));
-    assert_eq!(row.get::<_, i64>(2), 0);
+    assert_eq!(row.get::<_, uuid::Uuid>(0).to_string(), view.view_id);
+    assert_eq!(row.get::<_, uuid::Uuid>(1), teller_id);
+    assert_eq!(row.get::<_, Option<uuid::Uuid>>(2), Some(mgr_id));
+    assert!(!row.get::<_, bool>(3));
     let verified: bool = fx
         .db
         .query_one(
-            "SELECT verified FROM approvals WHERE subject_user_id = $1 AND op = 'CashSpotCheck'",
+            "SELECT verified FROM approvals WHERE subject_user_id = $1 AND op = 'SpotReportView'",
             &[&teller_id],
         )
         .await
@@ -185,7 +173,7 @@ async fn a_tellers_one_time_pin_unlocks_one_spot_check() {
     let flags: i64 = fx
         .db
         .query_one(
-            "SELECT COUNT(*) FROM authz_replay_flags WHERE author_id = $1 AND op = 'CashSpotCheck'",
+            "SELECT COUNT(*) FROM authz_replay_flags WHERE author_id = $1 AND op = 'SpotReportView'",
             &[&teller_id],
         )
         .await

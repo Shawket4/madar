@@ -44,7 +44,7 @@ TillReportView _report(int expected) => TillReportView(
   fromServer: true,
   reconciliation: const [],
   verification: 'server',
-  spotChecks: const [],
+  spotViews: const [],
   openedWhileAnotherOpen: false,
   serviceChargeWaivedCount: 0,
   serviceChargeWaivedMinor: 0,

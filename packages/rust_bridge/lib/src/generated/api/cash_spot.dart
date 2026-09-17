@@ -8,168 +8,75 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'till.dart';
 
 class CashSpotView {
+  final String viewId;
   final TillReportView report;
   final PlatformInt64 expectedCashMinor;
   final List<CloseTillMethodView> methods;
-  final List<SpotCheckLineView> checks;
-  final String? approvalId;
+  final List<SpotViewLineView> views;
 
   const CashSpotView({
+    required this.viewId,
     required this.report,
     required this.expectedCashMinor,
     required this.methods,
-    required this.checks,
-    this.approvalId,
+    required this.views,
   });
 
   @override
   int get hashCode =>
+      viewId.hashCode ^
       report.hashCode ^
       expectedCashMinor.hashCode ^
       methods.hashCode ^
-      checks.hashCode ^
-      approvalId.hashCode;
+      views.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is CashSpotView &&
           runtimeType == other.runtimeType &&
+          viewId == other.viewId &&
           report == other.report &&
           expectedCashMinor == other.expectedCashMinor &&
           methods == other.methods &&
-          checks == other.checks &&
-          approvalId == other.approvalId;
+          views == other.views;
 }
 
-class SpotCheckLineView {
+class SpotViewLineView {
   final String id;
-  final PlatformInt64 countedCashMinor;
-  final PlatformInt64 expectedCashMinor;
-  final PlatformInt64 discrepancyMinor;
-  final String checkedByName;
+  final String viewedByName;
   final String? approvedByName;
-  final String checkedAt;
-  final String? note;
+  final String viewedAt;
+  final bool printed;
   final bool queued;
 
-  const SpotCheckLineView({
+  const SpotViewLineView({
     required this.id,
-    required this.countedCashMinor,
-    required this.expectedCashMinor,
-    required this.discrepancyMinor,
-    required this.checkedByName,
+    required this.viewedByName,
     this.approvedByName,
-    required this.checkedAt,
-    this.note,
+    required this.viewedAt,
+    required this.printed,
     required this.queued,
   });
 
   @override
   int get hashCode =>
       id.hashCode ^
-      countedCashMinor.hashCode ^
-      expectedCashMinor.hashCode ^
-      discrepancyMinor.hashCode ^
-      checkedByName.hashCode ^
+      viewedByName.hashCode ^
       approvedByName.hashCode ^
-      checkedAt.hashCode ^
-      note.hashCode ^
+      viewedAt.hashCode ^
+      printed.hashCode ^
       queued.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is SpotCheckLineView &&
+      other is SpotViewLineView &&
           runtimeType == other.runtimeType &&
           id == other.id &&
-          countedCashMinor == other.countedCashMinor &&
-          expectedCashMinor == other.expectedCashMinor &&
-          discrepancyMinor == other.discrepancyMinor &&
-          checkedByName == other.checkedByName &&
+          viewedByName == other.viewedByName &&
           approvedByName == other.approvedByName &&
-          checkedAt == other.checkedAt &&
-          note == other.note &&
+          viewedAt == other.viewedAt &&
+          printed == other.printed &&
           queued == other.queued;
-}
-
-class SpotCheckResultView {
-  final SpotCheckLineView check;
-  final List<SpotMethodResultView> methods;
-  final String verdict;
-
-  const SpotCheckResultView({
-    required this.check,
-    required this.methods,
-    required this.verdict,
-  });
-
-  @override
-  int get hashCode => check.hashCode ^ methods.hashCode ^ verdict.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is SpotCheckResultView &&
-          runtimeType == other.runtimeType &&
-          check == other.check &&
-          methods == other.methods &&
-          verdict == other.verdict;
-}
-
-class SpotCountInput {
-  final String method;
-  final PlatformInt64? countedMinor;
-
-  const SpotCountInput({required this.method, this.countedMinor});
-
-  @override
-  int get hashCode => method.hashCode ^ countedMinor.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is SpotCountInput &&
-          runtimeType == other.runtimeType &&
-          method == other.method &&
-          countedMinor == other.countedMinor;
-}
-
-class SpotMethodResultView {
-  final String method;
-  final String label;
-  final bool isCash;
-  final PlatformInt64 expectedMinor;
-  final PlatformInt64? countedMinor;
-  final PlatformInt64? discrepancyMinor;
-
-  const SpotMethodResultView({
-    required this.method,
-    required this.label,
-    required this.isCash,
-    required this.expectedMinor,
-    this.countedMinor,
-    this.discrepancyMinor,
-  });
-
-  @override
-  int get hashCode =>
-      method.hashCode ^
-      label.hashCode ^
-      isCash.hashCode ^
-      expectedMinor.hashCode ^
-      countedMinor.hashCode ^
-      discrepancyMinor.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is SpotMethodResultView &&
-          runtimeType == other.runtimeType &&
-          method == other.method &&
-          label == other.label &&
-          isCash == other.isCash &&
-          expectedMinor == other.expectedMinor &&
-          countedMinor == other.countedMinor &&
-          discrepancyMinor == other.discrepancyMinor;
 }

@@ -513,7 +513,7 @@ class TillReportView {
   final PlatformInt64? openBillsCount;
   final bool openedWhileAnotherOpen;
   final String verification;
-  final List<SpotCheckLineView> spotChecks;
+  final List<SpotViewLineView> spotViews;
 
   const TillReportView({
     required this.tellerName,
@@ -552,7 +552,7 @@ class TillReportView {
     this.openBillsCount,
     required this.openedWhileAnotherOpen,
     required this.verification,
-    required this.spotChecks,
+    required this.spotViews,
   });
 
   @override
@@ -593,7 +593,7 @@ class TillReportView {
       openBillsCount.hashCode ^
       openedWhileAnotherOpen.hashCode ^
       verification.hashCode ^
-      spotChecks.hashCode;
+      spotViews.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -636,7 +636,7 @@ class TillReportView {
           openBillsCount == other.openBillsCount &&
           openedWhileAnotherOpen == other.openedWhileAnotherOpen &&
           verification == other.verification &&
-          spotChecks == other.spotChecks;
+          spotViews == other.spotViews;
 }
 
 class TillStatsView {

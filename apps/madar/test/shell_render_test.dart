@@ -379,7 +379,7 @@ TillReportView _report({required bool fromServer}) => TillReportView(
   fromServer: fromServer,
   reconciliation: const [],
   verification: 'server',
-  spotChecks: const [],
+  spotViews: const [],
   openedWhileAnotherOpen: false,
   serviceChargeWaivedCount: 0,
   serviceChargeWaivedMinor: 0,

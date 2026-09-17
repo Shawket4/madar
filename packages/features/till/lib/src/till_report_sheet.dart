@@ -34,7 +34,15 @@ class TillReportSheet extends ConsumerStatefulWidget {
     this.report,
     this.tillId,
     this.closed = false,
+    this.titleKey,
+    this.onPrinted,
   });
+
+  /// The header's i18n key instead of the report's own (Cash spot).
+  final String? titleKey;
+
+  /// Called once the report has printed (Cash spot records the print).
+  final VoidCallback? onPrinted;
 
   /// Shown straight after a close: the title says the till is closed.
   final bool closed;
@@ -112,7 +120,10 @@ class _TillReportSheetState extends ConsumerState<TillReportSheet> {
           ),
           child: MadarHeader(
             title: t(
-              widget.closed ? 'till.closed_report_title' : 'till.report_title',
+              widget.titleKey ??
+                  (widget.closed
+                      ? 'till.closed_report_title'
+                      : 'till.report_title'),
             ),
             subtitle: subtitle,
             actions: [
@@ -148,7 +159,14 @@ class _TillReportSheetState extends ConsumerState<TillReportSheet> {
                 size: MadarButtonSize.compact,
                 loading: state.print == TillPrintState.printing,
                 enabled: report != null,
-                onTap: () => unawaited(notifier.printReport()),
+                onTap: () => unawaited(() async {
+                  await notifier.printReport();
+                  if (mounted &&
+                      ref.read(tillReportProvider(_request)).print ==
+                          TillPrintState.printed) {
+                    widget.onPrinted?.call();
+                  }
+                }()),
               ),
               MadarButton(
                 label: t('common.done'),
