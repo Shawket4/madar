@@ -75,6 +75,15 @@ abstract class MadarBridge implements RustOpaqueInterface {
     bool? own,
   });
 
+  /// A manager approves this bill's discount with their PIN on this device.
+  Future<ApprovalView> approveBillDiscount({
+    required String approverPin,
+    required String ticketId,
+    String? discountId,
+    String? discountType,
+    double? discountValue,
+  });
+
   /// Someone holding the grant unlocks one action with their PIN.
   Future<ApprovalView> approveCashSpot({required String approverPin});
 
@@ -122,6 +131,15 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// API base URL the core will talk to (from `.env`).
   String baseUrl();
+
+  /// What the bill's discount really takes off, so the manager prompt shows
+  /// the figure they are approving rather than a rule.
+  BillDiscountView billDiscount({
+    required String ticketId,
+    String? discountId,
+    String? discountType,
+    double? discountValue,
+  });
 
   /// A bill re-priced with rewards, under the settle's discount.
   TicketBillView? billWithRewards({
@@ -459,6 +477,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
     PlatformInt64? amountMinor,
     PlatformInt64? ageMinutes,
     bool? own,
+  });
+
+  /// Allowed / needs a manager / refused for the discount this settle would
+  /// charge — the cashier's, or the waiter's inherited from the ticket when
+  /// the cashier picks nothing. `allow` for a bill with no discount at all.
+  ActDecisionView decideBillDiscount({
+    required String ticketId,
+    String? discountId,
+    String? discountType,
+    double? discountValue,
   });
 
   /// Allowed / needs a manager / refused for a discount on the cart
@@ -1214,6 +1242,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<CheckoutRedemption> loyaltyRedemptions,
     required List<CheckoutSplit> splits,
     required bool waiveService,
+    ApprovalView? discountApproval,
   });
 
   /// One-call sign-in: online first, offline PIN unlock fallback.

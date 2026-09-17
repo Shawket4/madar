@@ -114,6 +114,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   AssetSyncView dco_decode_asset_sync_view(dynamic raw);
 
   @protected
+  BillDiscountView dco_decode_bill_discount_view(dynamic raw);
+
+  @protected
   BookingView dco_decode_booking_view(dynamic raw);
 
   @protected
@@ -1067,6 +1070,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   AssetSyncView sse_decode_asset_sync_view(SseDeserializer deserializer);
+
+  @protected
+  BillDiscountView sse_decode_bill_discount_view(SseDeserializer deserializer);
 
   @protected
   BookingView sse_decode_booking_view(SseDeserializer deserializer);
@@ -2302,6 +2308,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_asset_sync_view(AssetSyncView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_bill_discount_view(
+    BillDiscountView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_booking_view(BookingView self, SseSerializer serializer);

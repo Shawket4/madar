@@ -76,6 +76,7 @@ class CheckoutState {
     this.cartDiscount,
     this.billDiscount,
     this.billDiscountCleared = false,
+    this.billDiscountApproval,
     this.waiveService = false,
     this.canWaiveService = false,
     this.orgLogoPath,
@@ -148,6 +149,12 @@ class CheckoutState {
   /// "No discount" picked on a bill: the waiter's discount is cleared (the
   /// settle sends `none`), rather than inherited.
   final bool billDiscountCleared;
+
+  /// The manager's approval for this BILL's discount, when it is over the
+  /// cashier's cap. Minted at the charge tap (the only place with a context to
+  /// show the PIN sheet) and carried to `settleTicket`, which refuses without
+  /// it and sends it on the queued settle for the server to verify again.
+  final ApprovalView? billDiscountApproval;
 
   /// The service charge is removed from this bill. Only offered when
   /// [canWaiveService].
@@ -424,6 +431,7 @@ class CheckoutState {
     Object? cartDiscount = _unset,
     Object? billDiscount = _unset,
     bool? billDiscountCleared,
+    Object? billDiscountApproval = _unset,
     bool? waiveService,
     bool? canWaiveService,
     Object? orgLogoPath = _unset,
@@ -476,6 +484,9 @@ class CheckoutState {
           ? this.billDiscount
           : billDiscount as DiscountView?,
       billDiscountCleared: billDiscountCleared ?? this.billDiscountCleared,
+      billDiscountApproval: billDiscountApproval == _unset
+          ? this.billDiscountApproval
+          : billDiscountApproval as ApprovalView?,
       waiveService: waiveService ?? this.waiveService,
       canWaiveService: canWaiveService ?? this.canWaiveService,
       orgLogoPath: orgLogoPath == _unset
@@ -1110,10 +1121,55 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       (s) => s.copyWith(
         billDiscount: discount,
         billDiscountCleared: discount == null,
+        // A different discount is a different act: the manager approved the
+        // OLD one, and an approval must never stretch to a figure nobody saw.
+        billDiscountApproval: null,
       ),
     );
     _refillSplit();
   }
+
+  /// The discount act this bill's settle would perform, judged offline against
+  /// the cashier's own caps — `allow`, `needs_approval` or `deny`. A cart or an
+  /// online order has no bill discount to gate, and answers `allow`.
+  ///
+  /// It is asked at the CHARGE tap rather than at the picker because a bill can
+  /// carry a discount the cashier never touched: the waiter's, inherited in
+  /// silence. That silence was the hole this closes.
+  ActDecisionView? billDiscountDecision() {
+    final s = state;
+    final target = s.target;
+    if (target is! BillChargeTarget) return null;
+    final d = s.billDiscount;
+    return _bridge.decideBillDiscount(
+      ticketId: target.ticket.id,
+      discountId: d?.id,
+      discountType: d?.dtype ?? (s.billDiscountCleared ? 'none' : null),
+      discountValue: d?.value,
+    );
+  }
+
+  /// Mint the manager's approval for this bill's discount with their PIN.
+  Future<ApprovalView> approveBillDiscount(String pin) {
+    final s = state;
+    final target = s.target! as BillChargeTarget;
+    final d = s.billDiscount;
+    return _bridge.approveBillDiscount(
+      approverPin: pin,
+      ticketId: target.ticket.id,
+      discountId: d?.id,
+      discountType: d?.dtype ?? (s.billDiscountCleared ? 'none' : null),
+      discountValue: d?.value,
+    );
+  }
+
+  /// Keep the approval a manager just gave, for the settle about to be queued.
+  void setBillDiscountApproval(ApprovalView? approval) =>
+      _update((s) => s.copyWith(billDiscountApproval: approval));
+
+  /// Show the refusal the core gave for this bill's discount.
+  void showDiscountRefusal(String reason) =>
+      _update((s) => s.copyWith(error: UiText.raw(reason)));
 
   /// Remove (or restore) the service charge on this bill. Refused unless the
   /// signed-in user holds `orders:waive_service`; the server checks it again.
@@ -1328,6 +1384,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       // Only a split sends legs. Amounts typed before split was switched off
       // are dropped by `toggleSplit`; this is the second lock on that door.
       splits: s.splitMode ? s.splitLegs : const [],
+      discountApproval: s.billDiscountApproval,
     );
     ReceiptView? receipt;
     if (orderId != null) {
