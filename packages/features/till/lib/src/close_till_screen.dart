@@ -19,6 +19,7 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_till/src/cash_spot_screen.dart';
+import 'package:feature_till/src/held_orders_close_step.dart';
 import 'package:feature_till/src/till_providers.dart';
 import 'package:feature_till/src/till_report_sheet.dart';
 import 'package:flutter/widgets.dart';
@@ -57,6 +58,8 @@ class _CloseTillScreenState extends ConsumerState<CloseTillScreen> {
     final shell = ref.read(shellProvider.notifier);
     final notifier = ref.read(closeTillProvider.notifier);
     final bridge = ref.bridge;
+    // Held orders still parked on this device: say which, before anything else.
+    if (!await confirmHeldOrdersBeforeClose(context, ref) || !mounted) return;
     // The branch's last open till: say what stays open behind it. It never
     // blocks — bills belong to the branch, and the next till settles them.
     final warning = ref.read(closeTillProvider).preview?.lastTillWarning;
@@ -83,7 +86,7 @@ class _CloseTillScreenState extends ConsumerState<CloseTillScreen> {
       );
       if (!go || !mounted) return;
     }
-    final ok = await notifier.close(note: _note.text);
+    final ok = await notifier.close(note: _note.text, leaveHeldOpen: true);
     if (!ok || !mounted) return;
     // The Z report is the close's paper trail: offer it — print or read —
     // before the page goes, from the CLOSED till's own report.

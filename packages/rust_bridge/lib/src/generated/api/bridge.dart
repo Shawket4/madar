@@ -88,6 +88,13 @@ abstract class MadarBridge implements RustOpaqueInterface {
     PlatformInt64? percentBps,
   });
 
+  /// A manager approves a queue act on a held order with their PIN.
+  Future<ApprovalView> approveDraftAct({
+    required String approverPin,
+    required String act,
+    required String id,
+  });
+
   /// A manager approves an act on one sale with their PIN.
   Future<ApprovalView> approveOrderAct({
     required String approverPin,
@@ -393,10 +400,15 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The expected figures on the close screen, before closing.
   Future<CloseTillPreviewView> closeFigures({ApprovalView? approval});
 
+  /// The held-orders warning a close shows first: every order still parked
+  /// on this device (and the counter cart), with names and totals. Local.
+  ClosePreflightView closePreflight();
+
   Future<CloseTillOutcomeView> closeTill({
     required PlatformInt64 closingCashMinor,
     String? cashNote,
     required List<ReconciliationInput> reconciliation,
+    required bool leaveHeldOpen,
   });
 
   Future<CloseTillPreviewView> closeTillPreview();
@@ -458,6 +470,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
     PlatformInt64? amountMinor,
     PlatformInt64? percentBps,
   });
+
+  /// Allowed / needs a manager / refused for a queue act (`"resume"` |
+  /// `"discard"`) on a held order — whose it is and how old come from the core.
+  ActDecisionView decideDraftAct({required String act, required String id});
 
   /// Allowed / needs a manager / refused for an act on one sale (whose sale
   /// and how old come from the core's ledger).
@@ -525,8 +541,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   String deviceId();
 
-  /// Discard a parked draft (frees its table + any waitlist wish).
-  Future<void> discardDraft({required String id});
+  /// Discard a parked draft (frees its table + any waitlist wish). One
+  /// someone else started carries the manager's `approval` when
+  /// `decide_draft_act("discard")` asked for one.
+  Future<void> discardDraft({required String id, ApprovalView? approval});
 
   /// Discard a single DEAD command (the teller gives up on it). Returns true
   /// if a dead command with that id was removed.
@@ -1245,12 +1263,15 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Resume a parked order in one call: park `from_table_id`'s cart (if
   /// asked), park anything already in the draft's own context, restore the
   /// draft there with its meta. Activates nothing: the view's `table_id`
-  /// names the context the host should now show.
+  /// names the context the host should now show. Resuming an order someone
+  /// else started carries the manager's `approval` when `decide_draft_act`
+  /// asked for one.
   Future<DraftSwitchView> switchToDraft({
     String? fromTableId,
     required String id,
     HeldParkInput? parkInHand,
     HeldParkInput? parkAtTarget,
+    ApprovalView? approval,
   });
 
   /// Long-press: download everything again (unsent sales are kept).

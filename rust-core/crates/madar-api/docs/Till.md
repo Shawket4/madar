@@ -19,6 +19,8 @@ Name | Type | Description | Notes
 **force_close_reason** | Option<**String**> |  | [optional]
 **force_closed_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **force_closed_by** | Option<**uuid::Uuid**> |  | [optional]
+**held_orders_left_open** | Option<**i32**> | Held (parked) orders the closing teller was warned about and left open for the next till, and their total in minor units. `null` when the close did not say (older clients, forced closes). Additive. | [optional]
+**held_orders_left_open_total** | Option<**i32**> |  | [optional]
 **id** | **uuid::Uuid** |  | 
 **notes** | Option<**String**> |  | [optional]
 **old_bills_at_close** | Option<**i32**> |  | [optional]

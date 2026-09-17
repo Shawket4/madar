@@ -1052,7 +1052,10 @@ class CloseTillNotifier extends Notifier<CloseTillState> {
   /// Close the till with the counted drawer (+ [note], REQUIRED when the
   /// count deviates) and each method's check. Returns true on success — the
   /// SCREEN then offers the Z report and hands off to the shell.
-  Future<bool> close({required String note}) async {
+  ///
+  /// [leaveHeldOpen]: the held-orders warning was answered "close anyway" (or
+  /// there was nothing held); the core refuses otherwise while any are open.
+  Future<bool> close({required String note, bool leaveHeldOpen = false}) async {
     if (state.busy) return false;
     final missing = _missing(note);
     if (missing != null) {
@@ -1080,6 +1083,7 @@ class CloseTillNotifier extends Notifier<CloseTillState> {
                 note: check.disagrees ? check.note.trim() : null,
               ),
         ],
+        leaveHeldOpen: leaveHeldOpen,
       );
       // The core emptied this person's carts with the till; screens re-read.
       ref.read(cartsClearedTickProvider.notifier).bump();

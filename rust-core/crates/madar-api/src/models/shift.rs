@@ -51,6 +51,17 @@ pub struct Shift {
     pub force_closed_at: Option<chrono::DateTime<chrono::FixedOffset>>,
     #[serde(rename = "force_closed_by", skip_serializing_if = "Option::is_none")]
     pub force_closed_by: Option<uuid::Uuid>,
+    /// Held (parked) orders the closing teller was warned about and left open for the next till, and their total in minor units. `null` when the close did not say (older clients, forced closes). Additive.
+    #[serde(
+        rename = "held_orders_left_open",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub held_orders_left_open: Option<i32>,
+    #[serde(
+        rename = "held_orders_left_open_total",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub held_orders_left_open_total: Option<i32>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(rename = "notes", skip_serializing_if = "Option::is_none")]
@@ -147,6 +158,8 @@ impl Shift {
             force_close_reason: None,
             force_closed_at: None,
             force_closed_by: None,
+            held_orders_left_open: None,
+            held_orders_left_open_total: None,
             id,
             notes: None,
             old_bills_at_close: None,

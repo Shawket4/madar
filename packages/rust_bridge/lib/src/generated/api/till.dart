@@ -98,6 +98,42 @@ class CashMovementView {
           createdAt == other.createdAt;
 }
 
+/// What a till close warns about before it counts anything.
+class ClosePreflightView {
+  final PlatformInt64 heldCount;
+  final PlatformInt64 heldTotalMinor;
+  final List<HeldLeftOpenView> held;
+  final String title;
+  final String body;
+
+  const ClosePreflightView({
+    required this.heldCount,
+    required this.heldTotalMinor,
+    required this.held,
+    required this.title,
+    required this.body,
+  });
+
+  @override
+  int get hashCode =>
+      heldCount.hashCode ^
+      heldTotalMinor.hashCode ^
+      held.hashCode ^
+      title.hashCode ^
+      body.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ClosePreflightView &&
+          runtimeType == other.runtimeType &&
+          heldCount == other.heldCount &&
+          heldTotalMinor == other.heldTotalMinor &&
+          held == other.held &&
+          title == other.title &&
+          body == other.body;
+}
+
 class CloseTillMethodView {
   final String method;
   final String label;
@@ -195,6 +231,46 @@ class CloseTillPreviewView {
           lastTillWarning == other.lastTillWarning &&
           fromServer == other.fromServer &&
           figuresHidden == other.figuresHidden;
+}
+
+/// One order a till close would leave open.
+class HeldLeftOpenView {
+  final String id;
+  final String label;
+  final String? startedByName;
+  final PlatformInt64 itemCount;
+  final PlatformInt64 totalMinor;
+  final bool inHand;
+
+  const HeldLeftOpenView({
+    required this.id,
+    required this.label,
+    this.startedByName,
+    required this.itemCount,
+    required this.totalMinor,
+    required this.inHand,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      label.hashCode ^
+      startedByName.hashCode ^
+      itemCount.hashCode ^
+      totalMinor.hashCode ^
+      inHand.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is HeldLeftOpenView &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          label == other.label &&
+          startedByName == other.startedByName &&
+          itemCount == other.itemCount &&
+          totalMinor == other.totalMinor &&
+          inHand == other.inHand;
 }
 
 class LastTillWarningView {
@@ -511,6 +587,8 @@ class TillReportView {
   final List<ReconciliationLineView> reconciliation;
   final PlatformInt64? oldBillsCount;
   final PlatformInt64? openBillsCount;
+  final PlatformInt64? heldOrdersLeftOpen;
+  final PlatformInt64? heldOrdersLeftOpenTotalMinor;
   final bool openedWhileAnotherOpen;
   final String verification;
   final List<SpotViewLineView> spotViews;
@@ -550,6 +628,8 @@ class TillReportView {
     required this.reconciliation,
     this.oldBillsCount,
     this.openBillsCount,
+    this.heldOrdersLeftOpen,
+    this.heldOrdersLeftOpenTotalMinor,
     required this.openedWhileAnotherOpen,
     required this.verification,
     required this.spotViews,
@@ -591,6 +671,8 @@ class TillReportView {
       reconciliation.hashCode ^
       oldBillsCount.hashCode ^
       openBillsCount.hashCode ^
+      heldOrdersLeftOpen.hashCode ^
+      heldOrdersLeftOpenTotalMinor.hashCode ^
       openedWhileAnotherOpen.hashCode ^
       verification.hashCode ^
       spotViews.hashCode;
@@ -634,6 +716,8 @@ class TillReportView {
           reconciliation == other.reconciliation &&
           oldBillsCount == other.oldBillsCount &&
           openBillsCount == other.openBillsCount &&
+          heldOrdersLeftOpen == other.heldOrdersLeftOpen &&
+          heldOrdersLeftOpenTotalMinor == other.heldOrdersLeftOpenTotalMinor &&
           openedWhileAnotherOpen == other.openedWhileAnotherOpen &&
           verification == other.verification &&
           spotViews == other.spotViews;

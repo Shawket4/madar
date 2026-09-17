@@ -265,6 +265,7 @@ const _drafts = <DraftView>[
     totalMinor: 9000,
     createdAt: '2026-09-12T18:40:00Z',
     lockedByOther: false,
+    byOther: false,
   ),
 ];
 
@@ -453,7 +454,9 @@ class _FakeBridge implements MadarBridge {
   List<CartLineView> _cartOf(Invocation i) =>
       carts[i.namedArguments[#tableId] as String?] ??= [];
 
-  /// A sign-out: the core empties every context and its meta.
+  /// A sign-out: the core parks every non-empty cart under its author
+  /// (queue.rs, tested there) and leaves every context empty for the next
+  /// person; the fake only needs the empty contexts.
   void signOut(String nextUser) {
     carts.clear();
     metas.clear();
@@ -628,6 +631,9 @@ class _FakeBridge implements MadarBridge {
               )
             : _totals,
       );
+    }
+    if (name == #decideDraftAct) {
+      return const ActDecisionView(outcome: 'allow', reason: '');
     }
     if (name == #listDrafts) return Future<List<DraftView>>.value(drafts);
     if (name == #switchToDraft) {
@@ -1317,6 +1323,7 @@ void _cartContextTests() {
             tableId: 't5',
             tableLabel: 'T5',
             lockedByOther: false,
+            byOther: false,
           ),
         ],
       );
@@ -1507,29 +1514,30 @@ void _cartContextTests() {
       expect(linesOf(again, null), takeaway);
     });
 
-    testWidgets('a teller swap empties every cart; the tab is takeaway', (
-      tester,
-    ) async {
-      final bridge = withSavedTable();
-      final c = await _mount(
-        tester,
-        screen: const TakeawaySellScreen(),
-        size: _ipad,
-        bridge: bridge,
-      );
-      await settle(tester);
-      await c.read(orderProvider.notifier).ensureInit();
-      await c.read(cartProvider('t2').notifier).load();
-      expect(linesOf(c, 't2'), ['Lattex2']);
+    testWidgets(
+      'a teller swap leaves every cart empty in hand; the tab is takeaway',
+      (tester) async {
+        final bridge = withSavedTable();
+        final c = await _mount(
+          tester,
+          screen: const TakeawaySellScreen(),
+          size: _ipad,
+          bridge: bridge,
+        );
+        await settle(tester);
+        await c.read(orderProvider.notifier).ensureInit();
+        await c.read(cartProvider('t2').notifier).load();
+        expect(linesOf(c, 't2'), ['Lattex2']);
 
-      bridge.signOut('u-2');
-      await c.read(orderProvider.notifier).ensureInit();
-      await settle(tester);
-      expect(linesOf(c, null), isEmpty);
-      expect(linesOf(c, 't2'), isEmpty);
-      expect(c.read(cartProvider('t2')).name, isNull);
-      expect(titleOf(tester, find.byType(OrderScreen)), 'Pickup');
-    });
+        bridge.signOut('u-2');
+        await c.read(orderProvider.notifier).ensureInit();
+        await settle(tester);
+        expect(linesOf(c, null), isEmpty);
+        expect(linesOf(c, 't2'), isEmpty);
+        expect(c.read(cartProvider('t2')).name, isNull);
+        expect(titleOf(tester, find.byType(OrderScreen)), 'Pickup');
+      },
+    );
   });
 }
 

@@ -288,13 +288,19 @@ pub(crate) fn commit_open_till(tx: &Connection, op: &NewOutboxOp, record: &Value
 pub(crate) fn commit_close_till(tx: &Connection, op: &NewOutboxOp, closed_at: &str, declared: i64) -> CoreResult<i64> {
     let seq = enqueue_on(tx, op)?;
     if let Some(key) = op.entity_id.as_deref() {
-        modify(tx, T_TILL, key, |v| close_fields(v, closed_at, declared))?;
+        let p: Value = serde_json::from_str(&op.payload).unwrap_or(Value::Null);
+        modify(tx, T_TILL, key, |v| close_fields(v, closed_at, declared, &p["request"]))?;
     }
     Ok(seq)
 }
 
-fn close_fields(v: &mut Value, closed_at: &str, declared: i64) {
+fn close_fields(v: &mut Value, closed_at: &str, declared: i64, req: &Value) {
     if let Value::Object(m) = v {
+        for k in ["held_orders_left_open", "held_orders_left_open_total"] {
+            if let Some(n) = req.get(k).filter(|n| !n.is_null()) {
+                m.insert(k.into(), n.clone());
+            }
+        }
         m.insert("status".into(), json!("closed"));
         if m.get("closed_at").map(Value::is_null).unwrap_or(true) {
             m.insert("closed_at".into(), json!(closed_at));
@@ -331,7 +337,7 @@ pub(crate) fn reapply_pending(conn: &Connection, ty: &str, key: &str) -> CoreRes
                 let req = &p["request"];
                 let at = s(req, "closed_at").unwrap_or(&event_at).to_string();
                 let declared = req.get("closing_cash_declared").and_then(Value::as_i64).unwrap_or(0);
-                modify(conn, ty, key, |v| close_fields(v, &at, declared))?;
+                modify(conn, ty, key, |v| close_fields(v, &at, declared, req))?;
             }
             _ => {}
         }

@@ -34,6 +34,8 @@ Name | Type | Description | Notes
 **total_tips** | **i64** |  | 
 **voided_amount** | **i64** |  | 
 **as_of_seq** | Option<**i64**> | The branch changefeed horizon read BEFORE the figures (OFFLINE_B_DESIGN §7): every change with `seq <= as_of_seq` is in this report. A device whose cursor has reached it, with nothing of the till still on its way, can take these figures as the authority. `0` when no horizon was available (then it is never newer than any cursor). Additive. | [optional]
+**held_orders_left_open** | Option<**i32**> | \"N held orders left open\" at this close (see [`Till`]). Additive. | [optional]
+**held_orders_left_open_total** | Option<**i32**> |  | [optional]
 **old_bills_at_close** | Option<**i32**> |  | [optional]
 **open_bills_at_close** | Option<**i32**> |  | [optional]
 **order_number_range** | [**models::OrderNumberRange**](OrderNumberRange.md) |  | 

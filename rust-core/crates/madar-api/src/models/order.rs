@@ -287,6 +287,21 @@ pub struct Order {
     /// DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0).
     #[serde(rename = "shift_id")]
     pub shift_id: uuid::Uuid,
+    /// Who started this sale's cart when it is not the person who rang it: a held order resumed after a teller switch on the till. `null` otherwise. Additive.
+    #[serde(
+        rename = "started_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub started_by: Option<Option<uuid::Uuid>>,
+    #[serde(
+        rename = "started_by_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub started_by_name: Option<Option<String>>,
     #[serde(rename = "status")]
     pub status: String,
     #[serde(rename = "subtotal")]
@@ -459,6 +474,8 @@ impl Order {
             service_charge_waived_by: None,
             service_charge_waived_by_name: None,
             shift_id,
+            started_by: None,
+            started_by_name: None,
             status,
             subtotal,
             tax_amount,

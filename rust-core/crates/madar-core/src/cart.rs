@@ -215,6 +215,38 @@ pub(crate) const K_LEGACY_CONTEXT: &str = "cart:context";
 const K_CONTEXT_TABLES: &str = "cart:context_tables";
 /// kv key — the context's cart meta (JSON `CartMeta`).
 const K_META: &str = "cart:meta";
+/// kv key — who started the context's cart, when it is not the signed-in
+/// person's own (JSON `CartOwner`; see `queue.rs`). Kept apart from
+/// [`CartMeta`] because the host replaces the meta wholesale.
+const K_OWNER: &str = "cart:owner";
+
+/// Who a cart in hand belongs to, and the manager's approval that let someone
+/// else resume it. Core-only: never crosses the bridge.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub(crate) struct CartOwner {
+    pub user_id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub approval: Option<crate::approvals::ApprovalView>,
+}
+
+/// The context's recorded owner, if one was recorded.
+pub(crate) fn owner(store: &Store, ctx: Ctx<'_>) -> CoreResult<Option<CartOwner>> {
+    Ok(store
+        .kv_get(&key_for(ctx, K_OWNER))?
+        .and_then(|j| serde_json::from_str::<CartOwner>(&j).ok())
+        .filter(|o| !o.user_id.is_empty()))
+}
+
+/// Record (or, with `None`, forget) the context's owner.
+pub(crate) fn set_owner(store: &Store, ctx: Ctx<'_>, owner: Option<&CartOwner>) -> CoreResult<()> {
+    track(store, ctx)?;
+    match owner {
+        Some(o) => store.kv_put(&key_for(ctx, K_OWNER), &serde_json::to_string(o)?),
+        None => store.kv_put(&key_for(ctx, K_OWNER), ""),
+    }
+}
 
 /// The identity a context's cart carries while it is being built: what it is
 /// called, which parked order it came from, and the table/booking it belongs
@@ -318,8 +350,23 @@ pub(crate) fn clear_all(store: &Store) -> CoreResult<()> {
         store.kv_put(&key_for(t, K_META), "{}")?;
         store.kv_put(&key_for(t, K_KITCHEN_NOTES), "{}")?;
         store.kv_put(&key_for(t, K_KITCHEN_NOTE), "")?;
+        store.kv_put(&key_for(t, K_OWNER), "")?;
     }
     store.kv_put(K_CONTEXT_TABLES, "[]")?;
+    forget_legacy_context(store)
+}
+
+/// Forget the meta and owner of every context holding no lines (after a
+/// teller switch parked the rest); a context still holding lines is kept.
+pub(crate) fn clear_empty(store: &Store) -> CoreResult<()> {
+    let tables = context_tables(store)?;
+    for t in std::iter::once(None).chain(tables.iter().map(|t| Some(t.as_str()))) {
+        if load(store, t)?.is_empty() {
+            clear(store, t)?;
+            store.kv_put(&key_for(t, K_KITCHEN_NOTES), "{}")?;
+            store.kv_put(&key_for(t, K_KITCHEN_NOTE), "")?;
+        }
+    }
     forget_legacy_context(store)
 }
 
@@ -1460,6 +1507,7 @@ pub(crate) fn clear(store: &Store, ctx: Ctx<'_>) -> CoreResult<()> {
     set_note(store, ctx, None)?;
     store.kv_put(&ctx_key(ctx, K_LAST_REMOVED)?, "[]")?; // a stale undo must not resurrect a sold line
     store.kv_put(&key_for(ctx, K_META), "{}")?; // the spent cart forgets its name/draft/booking
+    store.kv_put(&key_for(ctx, K_OWNER), "")?; // and whose it was
     save(store, ctx, &[])
 }
 
@@ -1563,6 +1611,12 @@ pub struct DraftView {
     /// True when ANOTHER till is editing this order right now (resume claim
     /// held elsewhere) — the chip renders locked and cannot be restored.
     pub locked_by_other: bool,
+    /// Someone other than the signed-in person started this order (queue
+    /// rule 2): the strip shows [`Self::created_by_name`] on it, and resuming
+    /// it goes through `decide_draft_act`.
+    pub by_other: bool,
+    /// Who started it, when known.
+    pub created_by_name: Option<String>,
 }
 
 /// The identity a cart is parked under: its free-text name (may be empty), the
@@ -1644,6 +1698,8 @@ pub(crate) fn drafts(store: &Store) -> CoreResult<Vec<DraftView>> {
             table_id: None,
             table_label: None,
             locked_by_other: false,
+            by_other: false,
+            created_by_name: None,
         })
         .collect();
     out.reverse();

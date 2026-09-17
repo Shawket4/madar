@@ -190,6 +190,14 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub service_mode: Option<Option<String>>,
+    /// The person who started this sale's cart, when the till says it was not the person ringing it (a held order resumed after a teller switch). Recorded when it names someone of the same org; anything else is dropped with a warning, never refused. Additive; older tills omit it.
+    #[serde(
+        rename = "started_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub started_by: Option<Option<uuid::Uuid>>,
     #[serde(
         rename = "subtotal",
         default,
@@ -271,6 +279,7 @@ impl CreateOrderRequest {
             payment_method,
             payment_splits: None,
             service_mode: None,
+            started_by: None,
             subtotal: None,
             tax_amount: None,
             till_id,

@@ -147,7 +147,7 @@ void main() {
         tipMinor: 0,
         splits: const [],
         loyaltyRedemptions: const [],
-      dineIn: false,
+        dineIn: false,
       ),
     );
     expect(receipt.localOrderId, isNotEmpty);
@@ -170,6 +170,7 @@ void main() {
     await core.bridge.closeTill(
       closingCashMinor: report.expectedCashMinor,
       reconciliation: const [],
+      leaveHeldOpen: false,
     );
     final after = await core.bridge.currentTill();
     expect(after?.isOpen ?? false, isFalse);

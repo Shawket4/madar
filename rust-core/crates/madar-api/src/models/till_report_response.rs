@@ -107,6 +107,21 @@ pub struct TillReportResponse {
     /// The branch changefeed horizon read BEFORE the figures (OFFLINE_B_DESIGN §7): every change with `seq <= as_of_seq` is in this report. A device whose cursor has reached it, with nothing of the till still on its way, can take these figures as the authority. `0` when no horizon was available (then it is never newer than any cursor). Additive.
     #[serde(rename = "as_of_seq", skip_serializing_if = "Option::is_none")]
     pub as_of_seq: Option<i64>,
+    /// \"N held orders left open\" at this close (see [`Till`]). Additive.
+    #[serde(
+        rename = "held_orders_left_open",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub held_orders_left_open: Option<Option<i32>>,
+    #[serde(
+        rename = "held_orders_left_open_total",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub held_orders_left_open_total: Option<Option<i32>>,
     #[serde(
         rename = "old_bills_at_close",
         default,
@@ -181,6 +196,8 @@ impl TillReportResponse {
             total_tips,
             voided_amount,
             as_of_seq: None,
+            held_orders_left_open: None,
+            held_orders_left_open_total: None,
             old_bills_at_close: None,
             open_bills_at_close: None,
             order_number_range: Box::new(order_number_range),

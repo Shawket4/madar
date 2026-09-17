@@ -20,7 +20,16 @@ class HeldOrderTab {
     this.glyph,
     this.onClose,
     this.onRename,
+    this.author,
+    this.authorLabel,
   });
+
+  /// Who started this order, when it is not the person signed in: shown on
+  /// the chip so the next teller sees whose work it is.
+  final String? author;
+
+  /// The spoken form of [author] ("Started by Ali").
+  final String? authorLabel;
 
   final String key;
 
@@ -279,6 +288,36 @@ class _HeldOrderChip extends StatelessWidget {
                 ),
               ),
             ),
+            if (tab.author case final author?) ...[
+              const SizedBox(width: Space.xs),
+              Semantics(
+                label: tab.authorLabel ?? author,
+                excludeSemantics: true,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    MadarIcon(
+                      'person',
+                      tint: active ? colors.textOnAccent : colors.textMuted,
+                      size: IconSize.xs,
+                    ),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 80),
+                      child: Text(
+                        author,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: MadarType.labelSm.copyWith(
+                          color: active
+                              ? colors.textOnAccent
+                              : colors.textMuted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (active && tab.onRename != null) ...[
               const SizedBox(width: Space.xs),
               GestureDetector(

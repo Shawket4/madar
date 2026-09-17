@@ -18,6 +18,7 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart';
+import 'package:feature_history/feature_history.dart' show askManager;
 import 'package:feature_order/src/bill_screen.dart';
 import 'package:feature_order/src/floor_inspector.dart';
 import 'package:feature_order/src/floor_list.dart';
@@ -140,7 +141,17 @@ class _FloorScreenState extends ConsumerState<FloorScreen> {
         return;
       }
       // Into the draft's own table cart; the Sell tab's cart is untouched.
-      final landed = await _notifier.resumeDraft(held);
+      final landed = await _notifier.resumeDraft(
+        held,
+        askManager: (reason) => askManager(
+          context,
+          ref,
+          reason: reason,
+          capKey: '',
+          approve: (bridge, pin) =>
+              bridge.approveDraftAct(approverPin: pin, act: 'resume', id: held),
+        ),
+      );
       if (landed?.tableId case final id?) await _toTable(id);
       return;
     }

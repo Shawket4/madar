@@ -636,9 +636,11 @@ void main() {
     expect(find.text('Already refunded in full.'), findsWidgets);
   });
 
-  testWidgets('the void sheet: reason chips, restock, one danger button', (
+  testWidgets('the void sheet: reason chips, one danger button', (
     tester,
   ) async {
+    // Void always restores stock now (owner rule, stream 8): no restock
+    // toggle — the choice was removed, not defaulted.
     await _shoot(
       tester,
       screen: const OrderHistoryScreen(),
@@ -655,7 +657,7 @@ void main() {
       },
     );
     expect(find.text('Quality issue'), findsOneWidget);
-    expect(find.text('Restock ingredients'), findsOneWidget);
+    expect(find.text('Restock ingredients'), findsNothing);
     final confirm = tester.widget<MadarButton>(
       find.widgetWithText(MadarButton, 'Void order'),
     );

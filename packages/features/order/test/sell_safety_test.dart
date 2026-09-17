@@ -58,6 +58,7 @@ const _draft = DraftView(
   totalMinor: 3000,
   createdAt: '2026-09-13T09:00:00Z',
   lockedByOther: false,
+  byOther: false,
 );
 
 const _item = MenuItemView(
@@ -83,6 +84,15 @@ class _Fake implements MadarBridge {
 
   int holds = 0;
   int switches = 0;
+
+  /// What the core answers for a queue act on a held order.
+  ActDecisionView decision = const ActDecisionView(
+    outcome: 'allow',
+    reason: '',
+  );
+
+  /// The approval the last switch carried.
+  ApprovalView? switchedWith;
   int fires = 0;
   int removes = 0;
   int adds = 0;
@@ -110,6 +120,7 @@ class _Fake implements MadarBridge {
       meta = a[#meta]! as CartMeta;
       return Future<void>.value();
     }
+    if (name == #decideDraftAct) return decision;
     if (name == #listDrafts) {
       return Future<List<DraftView>>.value(const [_draft]);
     }
@@ -132,6 +143,7 @@ class _Fake implements MadarBridge {
     }
     if (name == #switchToDraft) {
       switches += 1;
+      switchedWith = a[#approval] as ApprovalView?;
       return switchGate.future.then((v) {
         meta = const CartMeta(name: 'Omar', draftId: 'd-1');
         return v;
@@ -221,6 +233,86 @@ void main() {
     expect(bridge.holds, 0, reason: 'the park rides inside the one call');
     expect(c.read(cartProvider(null)).draftId, 'd-1');
     expect(c.read(cartProvider(null)).name, 'Omar');
+  });
+
+  group("someone else's parked order", () {
+    const reason = "This isn't your sale — a manager must approve.";
+    const approval = ApprovalView(
+      id: 'ap-1',
+      capability: 'orders.held.resume_others',
+      approverId: 'm-1',
+      approverName: 'Mona',
+    );
+    const landed = DraftSwitchView(
+      lines: [_latte],
+      name: 'Omar',
+      createdAt: '2026-09-13T09:00:00Z',
+      tableTaken: false,
+    );
+
+    test(
+      'waits for a manager when the core asks, and carries the approval',
+      () async {
+        final bridge = _Fake()
+          ..decision = const ActDecisionView(
+            outcome: 'needs_approval',
+            reason: reason,
+          );
+        final c = _container(bridge);
+        final order = c.read(orderProvider.notifier);
+        await order.loadDrafts();
+        final asked = <String>[];
+
+        final resumed = order.resumeDraft(
+          'd-1',
+          askManager: (why) async {
+            asked.add(why);
+            return approval;
+          },
+        );
+        bridge.switchGate.complete(landed);
+        await resumed;
+
+        expect(asked, [reason], reason: "the sheet shows the core's reason");
+        expect(bridge.switches, 1);
+        expect(bridge.switchedWith, approval);
+      },
+    );
+
+    test('a dismissed manager sheet moves nothing', () async {
+      final bridge = _Fake()
+        ..decision = const ActDecisionView(
+          outcome: 'needs_approval',
+          reason: reason,
+        );
+      final c = _container(bridge);
+      final order = c.read(orderProvider.notifier);
+      await order.loadDrafts();
+
+      final out = await order.resumeDraft('d-1', askManager: (_) async => null);
+
+      expect(out, isNull);
+      expect(bridge.switches, 0);
+    });
+
+    test('a refusal moves nothing and asks nobody', () async {
+      final bridge = _Fake()
+        ..decision = const ActDecisionView(outcome: 'deny', reason: reason);
+      final c = _container(bridge);
+      final order = c.read(orderProvider.notifier);
+      var asked = false;
+
+      await order.resumeDraft(
+        'd-1',
+        askManager: (_) async {
+          asked = true;
+          return approval;
+        },
+      );
+
+      expect(asked, isFalse);
+      expect(bridge.switches, 0);
+    });
   });
 
   test('a double tap on Fire fires one round', () async {
