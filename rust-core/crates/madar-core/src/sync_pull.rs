@@ -766,13 +766,50 @@ pub(crate) fn grants_from_teller_row(row: &serde_json::Value) -> Option<crate::s
     keys("capabilities").map(|capabilities| crate::session::AuthzGrants {
         capabilities,
         ask_manager: keys("ask_manager").unwrap_or_default(),
-        limits: row
-            .get("limits")
-            .cloned()
-            .and_then(|l| serde_json::from_value(l).ok())
-            .unwrap_or_default(),
+        limits: limits_from_row(row),
         owner: row.get("is_owner").and_then(|x| x.as_bool()).unwrap_or(false),
     })
+}
+
+/// The row's `limits`, per capability. The server writes every field, `null`
+/// included (`"own": null` for unrestricted), which `madar_authz::Limits`
+/// (`own: bool`) refuses — and one refusal used to drop EVERY limit, so a
+/// teller's `max_value` silently did not apply on the till. Read leniently,
+/// one capability at a time.
+fn limits_from_row(row: &serde_json::Value) -> std::collections::BTreeMap<String, madar_authz::Limits> {
+    #[derive(serde::Deserialize)]
+    struct Wire {
+        #[serde(default)]
+        max_amount: Option<i64>,
+        #[serde(default)]
+        max_percent: Option<i64>,
+        #[serde(default)]
+        max_value: Option<i64>,
+        #[serde(default)]
+        max_age_minutes: Option<i64>,
+        #[serde(default)]
+        own: Option<bool>,
+    }
+    row.get("limits")
+        .and_then(|l| l.as_object())
+        .map(|m| {
+            m.iter()
+                .filter_map(|(k, v)| {
+                    let w: Wire = serde_json::from_value(v.clone()).ok()?;
+                    Some((
+                        k.clone(),
+                        madar_authz::Limits {
+                            max_amount: w.max_amount,
+                            max_percent: w.max_percent,
+                            max_value: w.max_value,
+                            max_age_minutes: w.max_age_minutes,
+                            own: w.own.unwrap_or(false),
+                        },
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 pub(crate) fn rows_of_type(store: &Store, branch: &str, ty: &str) -> Vec<serde_json::Value> {
@@ -1289,6 +1326,22 @@ impl MadarCore {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_teller_rows_limits_survive_the_servers_nulls() {
+        let row = serde_json::json!({
+            "capabilities": ["inventory.waste.record", "orders.void"],
+            "limits": {
+                "inventory.waste.record": {"max_amount": null, "max_percent": null, "max_value": 500, "max_age_minutes": null, "own": null},
+                "orders.void": {"max_amount": null, "max_percent": null, "max_value": null, "max_age_minutes": 10, "own": true}
+            }
+        });
+        let g = super::grants_from_teller_row(&row).expect("grants");
+        assert_eq!(g.limits["inventory.waste.record"].max_value, Some(500));
+        assert!(!g.limits["inventory.waste.record"].own);
+        assert!(g.limits["orders.void"].own);
+        assert_eq!(g.limits["orders.void"].max_age_minutes, Some(10));
+    }
+
     use super::*;
 
     const B: &str = "B1";
