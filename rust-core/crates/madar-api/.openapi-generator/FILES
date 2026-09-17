@@ -407,6 +407,10 @@ docs/PoLeadTimeRow.md
 docs/PoLineInput.md
 docs/PointsLiability.md
 docs/PolicyEntry.md
+docs/PosMetricsHour.md
+docs/PosMetricsItem.md
+docs/PosMetricsReport.md
+docs/PosMetricsTender.md
 docs/PrepTimeInput.md
 docs/PresenceRow.md
 docs/PresetInfo.md
@@ -1093,6 +1097,10 @@ src/models/po_lead_time_row.rs
 src/models/po_line_input.rs
 src/models/points_liability.rs
 src/models/policy_entry.rs
+src/models/pos_metrics_hour.rs
+src/models/pos_metrics_item.rs
+src/models/pos_metrics_report.rs
+src/models/pos_metrics_tender.rs
 src/models/prep_time_input.rs
 src/models/presence_row.rs
 src/models/preset_info.rs

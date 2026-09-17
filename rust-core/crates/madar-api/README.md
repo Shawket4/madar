@@ -394,6 +394,7 @@ Class | Method | HTTP request | Description
 *ReportsApi* | [**branch_low_stock**](docs/ReportsApi.md#branch_low_stock) | **GET** /reports/branches/{branch_id}/low-stock | 
 *ReportsApi* | [**branch_material_cost_trend**](docs/ReportsApi.md#branch_material_cost_trend) | **GET** /reports/branches/{branch_id}/material-cost-trend | 
 *ReportsApi* | [**branch_po_lead_time**](docs/ReportsApi.md#branch_po_lead_time) | **GET** /reports/branches/{branch_id}/po-lead-time | 
+*ReportsApi* | [**branch_pos_metrics**](docs/ReportsApi.md#branch_pos_metrics) | **GET** /reports/branches/{branch_id}/pos-metrics | 
 *ReportsApi* | [**branch_sales**](docs/ReportsApi.md#branch_sales) | **GET** /reports/branches/{branch_id}/sales | 
 *ReportsApi* | [**branch_sales_peak_days**](docs/ReportsApi.md#branch_sales_peak_days) | **GET** /reports/branches/{branch_id}/sales/peak-days | 
 *ReportsApi* | [**branch_sales_peak_hours**](docs/ReportsApi.md#branch_sales_peak_hours) | **GET** /reports/branches/{branch_id}/sales/peak-hours | 
@@ -929,6 +930,10 @@ Class | Method | HTTP request | Description
  - [PoLineInput](docs/PoLineInput.md)
  - [PointsLiability](docs/PointsLiability.md)
  - [PolicyEntry](docs/PolicyEntry.md)
+ - [PosMetricsHour](docs/PosMetricsHour.md)
+ - [PosMetricsItem](docs/PosMetricsItem.md)
+ - [PosMetricsReport](docs/PosMetricsReport.md)
+ - [PosMetricsTender](docs/PosMetricsTender.md)
  - [PrepTimeInput](docs/PrepTimeInput.md)
  - [PresenceRow](docs/PresenceRow.md)
  - [PresetInfo](docs/PresetInfo.md)

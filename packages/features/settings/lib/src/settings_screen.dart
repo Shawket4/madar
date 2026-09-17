@@ -14,6 +14,7 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_settings/src/labels.dart';
+import 'package:feature_settings/src/metrics_screen.dart';
 import 'package:feature_settings/src/settings_provider.dart';
 import 'package:feature_settings/src/settings_sheets.dart';
 import 'package:feature_settings/src/sync_provider.dart';
@@ -375,6 +376,14 @@ class _RowList extends ConsumerWidget {
     final server = Uri.tryParse(bridge.baseUrl())?.host ?? bridge.baseUrl();
     final diagnosticsMeta = MadarFormat.ltr('v${bridge.version()} · $server');
     final rows = <Widget>[
+      if (bridge.can(cap: Cap.reportsPosMetrics))
+        MadarListRow.nav(
+          title: t('metrics.title'),
+          glyph: MadarGlyph.list,
+          onTap: () => unawaited(
+            MadarPages.push<void>(context, (_) => const MetricsScreen()),
+          ),
+        ),
       MadarListRow.nav(
         title: t('settings.printer'),
         meta: printerSummary(bridge, config),

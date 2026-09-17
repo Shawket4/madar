@@ -93,7 +93,7 @@ bool fakeCan(String? role, String cap) {
       return teller || r == 'waiter';
     case Cap.kitchenDisplayRead:
       return true;
-    case Cap.tillReadBranch || Cap.tillForceClose:
+    case Cap.tillReadBranch || Cap.tillForceClose || Cap.reportsPosMetrics:
       return manager;
     default:
       return teller || r == 'waiter';

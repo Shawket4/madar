@@ -39,6 +39,7 @@ const _networkCapable = <Symbol>{
   #listBranches,
   #branchSales,
   #branchSalesTimeseries,
+  #posMetrics,
 };
 
 const _till = TillView(

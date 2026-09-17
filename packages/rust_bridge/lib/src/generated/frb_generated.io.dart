@@ -16,6 +16,7 @@ import 'api/error.dart';
 import 'api/floor.dart';
 import 'api/kds.dart';
 import 'api/loyalty.dart';
+import 'api/metrics.dart';
 import 'api/orders.dart';
 import 'api/printing.dart';
 import 'api/realtime.dart';
@@ -497,6 +498,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<MenuItemView> dco_decode_list_menu_item_view(dynamic raw);
 
   @protected
+  List<MetricsHourView> dco_decode_list_metrics_hour_view(dynamic raw);
+
+  @protected
+  List<MetricsItemView> dco_decode_list_metrics_item_view(dynamic raw);
+
+  @protected
+  List<MetricsPresetView> dco_decode_list_metrics_preset_view(dynamic raw);
+
+  @protected
+  List<MetricsTenderView> dco_decode_list_metrics_tender_view(dynamic raw);
+
+  @protected
   List<ModifierGroupView> dco_decode_list_modifier_group_view(dynamic raw);
 
   @protected
@@ -634,6 +647,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   MenuItemView dco_decode_menu_item_view(dynamic raw);
 
   @protected
+  MetricsHourView dco_decode_metrics_hour_view(dynamic raw);
+
+  @protected
+  MetricsItemView dco_decode_metrics_item_view(dynamic raw);
+
+  @protected
+  MetricsPresetView dco_decode_metrics_preset_view(dynamic raw);
+
+  @protected
+  MetricsTenderView dco_decode_metrics_tender_view(dynamic raw);
+
+  @protected
   ModifierGroupKind dco_decode_modifier_group_kind(dynamic raw);
 
   @protected
@@ -742,6 +767,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   PaymentMethodView dco_decode_payment_method_view(dynamic raw);
+
+  @protected
+  PosMetricsView dco_decode_pos_metrics_view(dynamic raw);
 
   @protected
   PrinterBrand dco_decode_printer_brand(dynamic raw);
@@ -1476,6 +1504,26 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<MetricsHourView> sse_decode_list_metrics_hour_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<MetricsItemView> sse_decode_list_metrics_item_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<MetricsPresetView> sse_decode_list_metrics_preset_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<MetricsTenderView> sse_decode_list_metrics_tender_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<ModifierGroupView> sse_decode_list_modifier_group_view(
     SseDeserializer deserializer,
   );
@@ -1667,6 +1715,22 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   MenuItemView sse_decode_menu_item_view(SseDeserializer deserializer);
 
   @protected
+  MetricsHourView sse_decode_metrics_hour_view(SseDeserializer deserializer);
+
+  @protected
+  MetricsItemView sse_decode_metrics_item_view(SseDeserializer deserializer);
+
+  @protected
+  MetricsPresetView sse_decode_metrics_preset_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MetricsTenderView sse_decode_metrics_tender_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ModifierGroupKind sse_decode_modifier_group_kind(
     SseDeserializer deserializer,
   );
@@ -1805,6 +1869,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   PaymentMethodView sse_decode_payment_method_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  PosMetricsView sse_decode_pos_metrics_view(SseDeserializer deserializer);
 
   @protected
   PrinterBrand sse_decode_printer_brand(SseDeserializer deserializer);
@@ -2713,6 +2780,30 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_metrics_hour_view(
+    List<MetricsHourView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_metrics_item_view(
+    List<MetricsItemView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_metrics_preset_view(
+    List<MetricsPresetView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_metrics_tender_view(
+    List<MetricsTenderView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_modifier_group_view(
     List<ModifierGroupView> self,
     SseSerializer serializer,
@@ -2953,6 +3044,30 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_menu_item_view(MenuItemView self, SseSerializer serializer);
 
   @protected
+  void sse_encode_metrics_hour_view(
+    MetricsHourView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_metrics_item_view(
+    MetricsItemView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_metrics_preset_view(
+    MetricsPresetView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_metrics_tender_view(
+    MetricsTenderView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_modifier_group_kind(
     ModifierGroupKind self,
     SseSerializer serializer,
@@ -3132,6 +3247,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_payment_method_view(
     PaymentMethodView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_pos_metrics_view(
+    PosMetricsView self,
     SseSerializer serializer,
   );
 

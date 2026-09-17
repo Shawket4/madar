@@ -254,6 +254,9 @@ class _FakeBridge implements MadarBridge {
   /// Recorded full re-downloads (long-press Sync).
   int fullSyncs = 0;
 
+  /// Metrics loads.
+  int metricsCalls = 0;
+
   final String lang;
   final SessionSnapshot session;
   final List<OutboxItemView> outbox;
@@ -286,6 +289,26 @@ class _FakeBridge implements MadarBridge {
         DateTime(at.year, at.month, at.day),
         locale: lang,
       );
+    }
+    if (name == #posMetricsPresets) {
+      return [
+        for (final k in [
+          'today',
+          'yesterday',
+          'this_week',
+          'this_month',
+          'last_7_days',
+          'custom',
+        ])
+          MetricsPresetView(
+            key: k,
+            label: (lang == 'ar' ? _ar : _en)['metrics.preset.$k'] ?? k,
+          ),
+      ];
+    }
+    if (name == #posMetrics) {
+      metricsCalls += 1;
+      return Future<PosMetricsView>.value(_metrics(lang));
     }
     if (name == #isRtl) return lang == 'ar';
     if (name == #currentSession) return session;
@@ -440,6 +463,68 @@ Future<void> _loadFonts() async {
     await loader.load();
   }
 }
+
+/// An offline day's metrics, as the core would answer.
+PosMetricsView _metrics(String lang) => PosMetricsView(
+  preset: 'today',
+  fromDate: '2026-09-17',
+  toDate: '2026-09-17',
+  rangeLabel: 'Sep 17',
+  source: 'device',
+  offlineNote: (lang == 'ar' ? _ar : _en)['metrics.offline_note']!
+      .replaceAll('{days}', '2')
+      .replaceAll('{since}', 'Sep 15, 11:00 AM'),
+  itemsNote: (lang == 'ar' ? _ar : _en)['metrics.items_missing']!.replaceAll(
+    '{count}',
+    '1',
+  ),
+  currencyCode: 'EGP',
+  netSalesMinor: 254000,
+  grossSalesMinor: 260000,
+  refundedAmountMinor: 6000,
+  orderCount: 23,
+  averageTicketMinor: 11043,
+  tenders: const [
+    MetricsTenderView(
+      method: 'cash',
+      label: 'Cash',
+      amountMinor: 180000,
+      orderCount: 17,
+      share: 0.69,
+    ),
+    MetricsTenderView(
+      method: 'card',
+      label: 'Card',
+      amountMinor: 80000,
+      orderCount: 6,
+      share: 0.31,
+    ),
+  ],
+  voidedCount: 1,
+  voidedAmountMinor: 4500,
+  refundedOrdersCount: 0,
+  refundsIssuedCount: 2,
+  refundsIssuedAmountMinor: 6000,
+  topItems: const [
+    MetricsItemView(name: 'Latte', quantity: 14, revenueMinor: 91000, share: 1),
+    MetricsItemView(
+      name: 'Croissant with a very long name indeed',
+      quantity: 9,
+      revenueMinor: 40500,
+      share: 0.64,
+    ),
+  ],
+  hourly: [
+    for (var h = 0; h < 24; h++)
+      MetricsHourView(
+        hour: h,
+        label: h.toString().padLeft(2, '0'),
+        orderCount: h >= 8 && h <= 20 ? 2 : 0,
+        netSalesMinor: h >= 8 && h <= 20 ? 20000 : 0,
+        share: h >= 8 && h <= 20 ? (h == 13 ? 1 : 0.5) : 0,
+      ),
+  ],
+);
 
 void main() {
   setUpAll(() async {
@@ -743,5 +828,82 @@ void main() {
     expect(find.text('Discard this action?'), findsOneWidget);
     expect(find.text('Cancel'), findsOneWidget);
     await _save(tester, 'sync-discard');
+  });
+
+  testWidgets('metrics offline on a phone, in Arabic', (tester) async {
+    final ar = _FakeBridge(lang: 'ar');
+    await _shoot(
+      tester,
+      size: _phone,
+      theme: MadarTheme.light(),
+      home: const MetricsScreen(),
+      bridge: ar,
+      name: 'metrics_phone_ar',
+      rtl: true,
+    );
+    expect(ar.metricsCalls, 1, reason: 'one load when the screen opens');
+  });
+
+  testWidgets('metrics offline on the iPad', (tester) async {
+    final en = _FakeBridge();
+    await _shoot(
+      tester,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      home: const MetricsScreen(),
+      bridge: en,
+      name: 'metrics_ipad',
+    );
+    expect(
+      find.textContaining(
+        'Offline: showing the last 2 days',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Latte'), findsOneWidget);
+  });
+
+  testWidgets('the Metrics row shows only with reports.pos_metrics', (
+    tester,
+  ) async {
+    await _shoot(
+      tester,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      home: const SettingsScreen(),
+      bridge: _FakeBridge(),
+      name: 'settings_teller_no_metrics',
+    );
+    expect(
+      find.text('Metrics'),
+      findsNothing,
+      reason: 'a teller does not hold it',
+    );
+  });
+
+  testWidgets('a manager sees the Metrics row', (tester) async {
+    const manager = SessionSnapshot(
+      userId: 'u2',
+      displayName: 'Mona',
+      role: 'branch_manager',
+      currencyCode: 'EGP',
+      taxRate: 0.14,
+      taxInclusive: true,
+      serviceChargeRate: 0.12,
+      serviceChargeTaxable: false,
+      requireTableForOrders: true,
+      online: true,
+      permissionsLoaded: true,
+    );
+    await _shoot(
+      tester,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      home: const SettingsScreen(),
+      bridge: _FakeBridge(session: manager),
+      name: 'settings_manager_metrics',
+    );
+    expect(find.text('Metrics'), findsOneWidget);
   });
 }

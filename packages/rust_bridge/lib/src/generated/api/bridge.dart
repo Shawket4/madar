@@ -16,6 +16,7 @@ import 'error.dart';
 import 'floor.dart';
 import 'kds.dart';
 import 'loyalty.dart';
+import 'metrics.dart';
 import 'orders.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'printing.dart';
@@ -804,6 +805,18 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Seconds before this tablet may try a PIN again (the server's growing
   /// delay, persisted across restarts); 0 when it may now.
   int pinWaitSeconds();
+
+  /// The Metrics screen for a preset (`custom` takes two `YYYY-MM-DD` days).
+  /// NETWORK-CAPABLE: one server call when online, the device's rows otherwise.
+  /// Call it when a person opens the screen or picks a window, never on a tick.
+  Future<PosMetricsView> posMetrics({
+    required String preset,
+    String? customFrom,
+    String? customTo,
+  });
+
+  /// The date presets, in order, labelled.
+  List<MetricsPresetView> posMetricsPresets();
 
   /// What a configured line would cost (unit, extras, whole line) — priced
   /// by the resolver the add uses. Adds nothing.

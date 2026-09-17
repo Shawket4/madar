@@ -15,6 +15,7 @@ Method | HTTP request | Description
 [**branch_low_stock**](ReportsApi.md#branch_low_stock) | **GET** /reports/branches/{branch_id}/low-stock | 
 [**branch_material_cost_trend**](ReportsApi.md#branch_material_cost_trend) | **GET** /reports/branches/{branch_id}/material-cost-trend | 
 [**branch_po_lead_time**](ReportsApi.md#branch_po_lead_time) | **GET** /reports/branches/{branch_id}/po-lead-time | 
+[**branch_pos_metrics**](ReportsApi.md#branch_pos_metrics) | **GET** /reports/branches/{branch_id}/pos-metrics | 
 [**branch_sales**](ReportsApi.md#branch_sales) | **GET** /reports/branches/{branch_id}/sales | 
 [**branch_sales_peak_days**](ReportsApi.md#branch_sales_peak_days) | **GET** /reports/branches/{branch_id}/sales/peak-days | 
 [**branch_sales_peak_hours**](ReportsApi.md#branch_sales_peak_hours) | **GET** /reports/branches/{branch_id}/sales/peak-hours | 
@@ -372,6 +373,36 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::PoLeadTimeReport**](PoLeadTimeReport.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## branch_pos_metrics
+
+> models::PosMetricsReport branch_pos_metrics(branch_id, from, to)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**branch_id** | **uuid::Uuid** | Branch ID | [required] |
+**from** | **chrono::NaiveDate** | First branch-local day, `YYYY-MM-DD` (inclusive). | [required] |
+**to** | **chrono::NaiveDate** | Last branch-local day, `YYYY-MM-DD` (inclusive). | [required] |
+
+### Return type
+
+[**models::PosMetricsReport**](PosMetricsReport.md)
 
 ### Authorization
 

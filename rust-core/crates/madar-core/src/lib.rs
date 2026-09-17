@@ -80,6 +80,8 @@ pub mod recipe;
 pub mod render;
 /// Dashboard analytics reads — projected KPI DTOs for the management app.
 pub mod reports;
+/// The till's Metrics screen (`reports.pos_metrics`): one call online, the ledger offline.
+pub mod metrics;
 /// Reservations & floor-plan view types (host operations exported from `lib.rs`).
 pub mod reservations;
 /// Session & auth — online login, offline unlock, token custody (PLAN §7.2).
