@@ -104,7 +104,7 @@ async fn a_held_order_started_by_one_teller_is_settled_by_the_next_and_names_bot
         .approve_draft_act("5678".into(), "resume".into(), regular.clone())
         .expect("the manager approves offline");
     let resumed = core
-        .switch_to_draft_approved(None, regular, None, None, Some(approval.clone()))
+        .switch_to_draft_approved(None, regular.clone(), None, None, Some(approval.clone()))
         .expect("resume");
     assert_eq!(resumed.lines.iter().map(|l| l.qty).sum::<i64>(), 2);
 
@@ -130,6 +130,8 @@ async fn a_held_order_started_by_one_teller_is_settled_by_the_next_and_names_bot
         .await
         .expect("settle offline");
     assert!(receipt.queued_offline);
+    // The host marks the resumed held order completed after the sale.
+    core.complete_draft(regular, None).expect("complete the held order");
 
     // Back online; Badr signs in for real and the queue drains.
     proxy.online();
@@ -188,4 +190,103 @@ async fn a_held_order_started_by_one_teller_is_settled_by_the_next_and_names_bot
 
     // Ali's second cart is still on the strip for whoever picks it up.
     assert_eq!(core.list_drafts().unwrap().len(), 1);
+
+    // Badr closes his till: the warning lists Ali's order; he closes anyway.
+    let preflight = core.close_preflight();
+    assert_eq!(preflight.held_count, 1, "{preflight:?}");
+    assert_eq!(preflight.held[0].started_by_name.as_deref(), Some(ali.as_str()));
+    assert!(core.close_till_confirmed(0, None, vec![], false).await.is_err(), "not without choosing");
+    let till_id = core.current_till().unwrap().expect("open").id;
+    core.close_till_confirmed(0, None, vec![], true).await.expect("close anyway");
+    settle(&core, 180).await;
+    assert_eq!(core.list_drafts().unwrap().len(), 1, "Ali's order survives the close");
+    let row = fx
+        .db
+        .query_one(
+            "SELECT status::text, held_orders_left_open, held_orders_left_open_total FROM tills WHERE id = $1",
+            &[&uuid::Uuid::parse_str(&till_id).unwrap()],
+        )
+        .await
+        .expect("the till");
+    assert_eq!(row.get::<_, String>(0), "closed");
+    assert_eq!(row.get::<_, Option<i32>>(1), Some(1), "the close shows 1 left open");
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(item.base_price_minor as i32));
+}
+
+/// Tables are nobody's (queue rule 4a): a waiter fires a table's bill on one
+/// device, a teller on ANOTHER device adds a round and settles it, with no
+/// per-person gate, and a switch on the waiter's device leaves nothing
+/// person-scoped behind. Online; the LAN relay is not part of this harness.
+#[tokio::test]
+#[ignore]
+async fn a_table_bill_is_shared_between_devices_and_people() {
+    let fx = fixture(1).await;
+    let (_, teller) = fx.tellers[0].clone();
+    let branch_uuid = uuid::Uuid::parse_str(&fx.branch).unwrap();
+    let mut waiters = Vec::new();
+    for pin in ["3456", "4567"] {
+        let id = uuid::Uuid::new_v4();
+        let name = format!("OB-w-{}", &id.simple().to_string()[..6]);
+        fx.db
+            .execute(
+                "INSERT INTO users (id, org_id, name, role, pin_hash)
+                 SELECT $1, org_id, $2, 'waiter'::public.user_role, crypt($3, gen_salt('bf', 4)) FROM branches WHERE id = $4",
+                &[&id, &name, &pin, &branch_uuid],
+            )
+            .await
+            .expect("insert waiter");
+        fx.db
+            .execute("INSERT INTO user_branch_assignments (user_id, branch_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", &[&id, &branch_uuid])
+            .await
+            .unwrap();
+        waiters.push((name, pin));
+    }
+    let (pa, pb) = (Proxy::start(&fx.base).await, Proxy::start(&fx.base).await);
+    let (da, dbp) = (temp_db("tbl-a"), temp_db("tbl-b"));
+
+    // Device A: waiter 1 fires the table's bill, then starts another round
+    // and signs out without sending it.
+    let a = signed_in_pin(&pa.base, &da, &waiters[0].0, &fx.branch, waiters[0].1).await;
+    a.refresh_connectivity().await;
+    a.refresh_catalog().await.expect("catalog");
+    a.sync_full().await.expect("snapshot");
+    let item = a.list_menu_items().unwrap().into_iter().find(|i| i.base_price_minor > 0).unwrap();
+    a.cart_add(None, item.id.clone(), item.name.clone(), item.base_price_minor).unwrap();
+    let ticket = a.fire_ticket(None, Some("Table 4".into()), None, Some(2), None).await.expect("fire").ticket_id;
+    settle(&a, 120).await;
+    a.cart_add(Some("t4-local".into()), item.id.clone(), item.name.clone(), item.base_price_minor).unwrap();
+    a.logout(false).unwrap();
+    assert!(a.list_drafts().unwrap_or_default().is_empty(), "no person-scoped copy of the table");
+    assert!(a.cart_lines(Some("t4-local".into())).unwrap().is_empty());
+
+    // Device A, waiter 2: sees the shared bill.
+    let a2 = signed_in_pin(&pa.base, &da, &waiters[1].0, &fx.branch, waiters[1].1).await;
+    a2.sync_full().await.expect("snapshot");
+    assert!(a2.list_open_tickets().await.unwrap().iter().any(|t| t.id == ticket || t.customer_name.as_deref() == Some("Table 4")));
+
+    // Device B, a teller: adds a round to the same bill and settles it.
+    let b = core_at(&pb.base, &dbp, &teller, &fx.branch).await;
+    let till = b.open_till(0, Some("tables".into())).await.unwrap().till.unwrap().id;
+    let bill = b
+        .list_open_tickets()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|t| t.customer_name.as_deref() == Some("Table 4"))
+        .expect("the bill is on the teller's device");
+    b.cart_add(None, item.id.clone(), item.name.clone(), item.base_price_minor).unwrap();
+    b.add_ticket_round(None, bill.id.clone()).await.expect("a round on someone else's table");
+    settle(&b, 120).await;
+    let cash = method(&b, true).expect("cash");
+    b.settle_ticket(bill.id.clone(), till, cash, Some(1_000_000), None, None, None, None, None, None, vec![], vec![], false)
+        .await
+        .expect("settle someone else's table");
+    settle(&b, 180).await;
+    let status: String = fx
+        .db
+        .query_one("SELECT status::text FROM open_tickets WHERE id = $1", &[&uuid::Uuid::parse_str(&bill.id).unwrap()])
+        .await
+        .expect("the bill")
+        .get(0);
+    assert_eq!(status, "settled");
 }
