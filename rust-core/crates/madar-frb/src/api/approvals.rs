@@ -171,4 +171,23 @@ impl MadarBridge {
             .await
             .map_err(MadarError::from)
     }
+
+    /// Refund naming the items it is for (their stock is logged as waste),
+    /// with a manager's approval when one was needed.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn refund_order_lines_approved(
+        &self,
+        order_id: String,
+        amount_minor: i64,
+        method: String,
+        reason: String,
+        note: Option<String>,
+        lines: Vec<crate::api::orders::RefundLinePick>,
+        approval: Option<ApprovalView>,
+    ) -> Result<(), MadarError> {
+        self.inner
+            .refund_order_lines_approved(order_id, amount_minor, method, reason, note, lines, approval)
+            .await
+            .map_err(MadarError::from)
+    }
 }

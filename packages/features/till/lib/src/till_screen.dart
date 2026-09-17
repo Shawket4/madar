@@ -95,11 +95,35 @@ class TillScreen extends ConsumerWidget {
       // No drawer: the tab IS the open-till form. A manager still sees the
       // branch's drawers underneath — the morning check needs no float.
       width = MadarContentWidth.form;
+      // Waste needs no drawer (it is stock, not money): offered here too,
+      // under the same capability check as with a till open.
+      final wasteRow = bridge.canRecordWaste()
+          ? MadarCard.column(
+              flush: true,
+              children: [
+                MadarListRow.nav(
+                  title: t('waste.title'),
+                  glyph: MadarGlyph.trash,
+                  onTap: () => _push(context, ref, WasteScreen.new),
+                ),
+              ],
+            )
+          : null;
       body = OpenTillScreen(
         embedded: true,
-        below: isManager
-            ? DrawersCard(onSeeAll: () => _push(context, ref, _pastTills))
-            : null,
+        below: wasteRow == null && !isManager
+            ? null
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: Space.xl,
+                children: [
+                  ?wasteRow,
+                  if (isManager)
+                    DrawersCard(
+                      onSeeAll: () => _push(context, ref, _pastTills),
+                    ),
+                ],
+              ),
       );
     } else {
       width = MadarContentWidth.full;
