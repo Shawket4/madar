@@ -757,6 +757,32 @@ pub(crate) fn local_checksums(store: &Store, branch: &str, types: &[String]) -> 
 /// Every row of a type for the branch (mirror re-pointing reads these).
 /// Architecture E capabilities from a feed teller row; `None` for an older
 /// backend's row, which carries only the legacy grid.
+/// A teller row's `limits` map. The server writes every key of a limit,
+/// absent ones as `null` (`"own": null`), which `madar_authz::Limits` (a plain
+/// `bool` for `own`) refuses — and one refusal used to drop the WHOLE map, so
+/// every cap an owner set silently read as unlimited on the till. Read each
+/// field on its own; null is unrestricted.
+fn limits_from_row(v: Option<&serde_json::Value>) -> std::collections::BTreeMap<String, madar_authz::Limits> {
+    let Some(serde_json::Value::Object(m)) = v else {
+        return Default::default();
+    };
+    m.iter()
+        .map(|(k, l)| {
+            let n = |f: &str| l.get(f).and_then(|x| x.as_i64());
+            (
+                k.clone(),
+                madar_authz::Limits {
+                    max_amount: n("max_amount"),
+                    max_percent: n("max_percent"),
+                    max_value: n("max_value"),
+                    max_age_minutes: n("max_age_minutes"),
+                    own: l.get("own").and_then(|x| x.as_bool()).unwrap_or(false),
+                },
+            )
+        })
+        .collect()
+}
+
 pub(crate) fn grants_from_teller_row(row: &serde_json::Value) -> Option<crate::session::AuthzGrants> {
     let keys = |f: &str| -> Option<Vec<String>> {
         row.get(f)
@@ -766,13 +792,24 @@ pub(crate) fn grants_from_teller_row(row: &serde_json::Value) -> Option<crate::s
     keys("capabilities").map(|capabilities| crate::session::AuthzGrants {
         capabilities,
         ask_manager: keys("ask_manager").unwrap_or_default(),
-        limits: row
-            .get("limits")
-            .cloned()
-            .and_then(|l| serde_json::from_value(l).ok())
-            .unwrap_or_default(),
+        limits: limits_from_row(row.get("limits")),
         owner: row.get("is_owner").and_then(|x| x.as_bool()).unwrap_or(false),
     })
+}
+
+#[cfg(test)]
+mod limits_row_tests {
+    #[test]
+    fn a_teller_row_limit_with_null_fields_still_caps() {
+        let row = serde_json::json!({
+            "capabilities": ["orders.discount.manual_amount"],
+            "limits": { "orders.discount.manual_amount":
+                { "max_amount": 500, "max_percent": null, "max_value": null, "max_age_minutes": null, "own": null } }
+        });
+        let g = super::grants_from_teller_row(&row).unwrap();
+        assert_eq!(g.limits["orders.discount.manual_amount"].max_amount, Some(500));
+        assert!(!g.limits["orders.discount.manual_amount"].own);
+    }
 }
 
 pub(crate) fn rows_of_type(store: &Store, branch: &str, ty: &str) -> Vec<serde_json::Value> {
