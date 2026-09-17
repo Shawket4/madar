@@ -263,6 +263,193 @@ impl MadarCore {
     }
 }
 
+/// The discount a SETTLE actually charges: the cashier's if they stated one,
+/// the waiter's inherited from the ticket otherwise, none at all for the
+/// literal `"none"`. The mirror of the server's `resolve_settle_discount` — a
+/// bill's discount must be gated on what is CHARGED, not on what was typed.
+pub(crate) fn resolve_settle_discount(
+    cashier_id: Option<&str>,
+    cashier_type: Option<&str>,
+    cashier_value: Option<f64>,
+    waiter: (Option<String>, Option<f64>),
+    waiter_id: Option<String>,
+) -> (Option<String>, Option<String>, Option<f64>) {
+    let spoke = cashier_id.is_some_and(|s| !s.is_empty())
+        || cashier_type.is_some_and(|s| !s.trim().is_empty())
+        || cashier_value.is_some();
+    if cashier_type == Some("none") {
+        (None, None, None)
+    } else if spoke {
+        (
+            cashier_id.filter(|s| !s.is_empty()).map(str::to_string),
+            cashier_type.map(str::to_string),
+            cashier_value,
+        )
+    } else {
+        (waiter_id, waiter.0, waiter.1)
+    }
+}
+
+/// Which discount ACT a resolved bill discount is, in the same vocabulary a
+/// counter sale uses: a preset id means preset, an ad-hoc one is manual of its
+/// type. Exactly the server's derivation in `discount_authz::ask_from`.
+pub(crate) fn kind_of(preset_id: Option<&str>, dtype: Option<&str>) -> Option<&'static str> {
+    match (preset_id, dtype) {
+        (Some(_), _) => Some(KIND_PRESET),
+        (None, Some("percentage")) => Some(KIND_MANUAL_PERCENT),
+        (None, Some("fixed")) => Some(KIND_MANUAL_AMOUNT),
+        _ => None,
+    }
+}
+
+/// What a bill discount takes off a bill whose pre-discount subtotal is
+/// `subtotal`: `(amount off, percent bps)`. A preset is read from the local
+/// catalogue; an ad-hoc percentage is a FRACTION on the wire (0.10 = 10%),
+/// matching `tax_rate` and the settle request.
+pub(crate) fn bill_figures(
+    kind: &str,
+    preset: Option<&models::Discount>,
+    dtype: Option<&str>,
+    dvalue: Option<f64>,
+    subtotal: i64,
+) -> (Option<i64>, Option<i64>) {
+    match kind {
+        KIND_PRESET => figures(KIND_PRESET, preset, None, None, subtotal),
+        KIND_MANUAL_PERCENT => {
+            figures(KIND_MANUAL_PERCENT, None, None, Some(bps_of_rate(dvalue.unwrap_or(0.0))), subtotal)
+        }
+        _ => {
+            let _ = dtype;
+            figures(KIND_MANUAL_AMOUNT, None, Some(dvalue.unwrap_or(0.0).round() as i64), None, subtotal)
+        }
+    }
+}
+
+/// A bill discount as the settle sheet and the gate both see it.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct BillDiscountView {
+    /// `preset` | `manual_amount` | `manual_percent`, empty for none.
+    pub kind: String,
+    pub preset_id: Option<String>,
+    /// What it takes off this bill right now, minor units.
+    pub amount_minor: i64,
+    /// Basis points, when it is a percentage.
+    pub percent_bps: Option<i64>,
+}
+
+impl MadarCore {
+    /// The discount act a settle of this ticket would perform, with its real
+    /// figures against the bill's own subtotal. `None` when the bill carries no
+    /// discount at all.
+    pub(crate) fn bill_discount_act(
+        &self,
+        ticket_id: &str,
+        discount_id: Option<&str>,
+        discount_type: Option<&str>,
+        discount_value: Option<f64>,
+    ) -> Option<(BillDiscountView, Request)> {
+        let cached = self.cached_ticket(ticket_id);
+        let waiter = cached
+            .as_ref()
+            .and_then(|(raw, _)| raw.as_ref().map(crate::tickets::waiter_discount))
+            .unwrap_or((None, None));
+        let waiter_id = cached
+            .as_ref()
+            .and_then(|(raw, _)| raw.as_ref())
+            .and_then(|v| v.discount_id.flatten())
+            .map(|id| id.to_string());
+        let (preset_id, dtype, dvalue) = resolve_settle_discount(
+            discount_id,
+            discount_type,
+            discount_value,
+            waiter,
+            waiter_id,
+        );
+        let kind = kind_of(preset_id.as_deref(), dtype.as_deref())?;
+        let preset = preset_id.as_deref().and_then(|id| self.preset_by_id(id));
+        // The bill BEFORE its discount: what a percentage is a percentage OF.
+        let subtotal = cached.as_ref().map(|(_, v)| v.subtotal_minor).unwrap_or(0);
+        let (amount, bps) = bill_figures(kind, preset.as_ref(), dtype.as_deref(), dvalue, subtotal);
+        let req = discount_request(kind, amount, bps)?;
+        Some((
+            BillDiscountView {
+                kind: kind.to_string(),
+                preset_id,
+                amount_minor: amount.unwrap_or(0),
+                percent_bps: bps,
+            },
+            req,
+        ))
+    }
+
+    /// Whether the signed-in cashier may settle this bill with this discount:
+    /// `allow`, `needs_approval` (a manager's PIN) or `deny`. Offline, and the
+    /// same three capabilities and caps a counter sale answers to — a discount
+    /// on a TABLE'S BILL used to be the one way round them.
+    ///
+    /// A bill with no discount is `allow`: there is no act to gate.
+    pub fn decide_bill_discount(
+        &self,
+        ticket_id: String,
+        discount_id: Option<String>,
+        discount_type: Option<String>,
+        discount_value: Option<f64>,
+    ) -> ActDecisionView {
+        match self.bill_discount_act(
+            &ticket_id,
+            discount_id.as_deref(),
+            discount_type.as_deref(),
+            discount_value,
+        ) {
+            Some((_, req)) => self.decide_request(&req),
+            None => decision_view(&Decision::Allow, &self.current_locale()),
+        }
+    }
+
+    /// The figures a bill's discount really has — what the settle sheet shows
+    /// beside the manager prompt, so nobody approves a number they cannot see.
+    pub fn bill_discount(
+        &self,
+        ticket_id: String,
+        discount_id: Option<String>,
+        discount_type: Option<String>,
+        discount_value: Option<f64>,
+    ) -> BillDiscountView {
+        self.bill_discount_act(
+            &ticket_id,
+            discount_id.as_deref(),
+            discount_type.as_deref(),
+            discount_value,
+        )
+        .map(|(v, _)| v)
+        .unwrap_or_default()
+    }
+
+    /// A manager approves this bill's discount with their PIN on this device.
+    pub fn approve_bill_discount(
+        &self,
+        approver_pin: String,
+        ticket_id: String,
+        discount_id: Option<String>,
+        discount_type: Option<String>,
+        discount_value: Option<f64>,
+    ) -> Result<ApprovalView, CoreError> {
+        let (_, req) = self
+            .bill_discount_act(
+                &ticket_id,
+                discount_id.as_deref(),
+                discount_type.as_deref(),
+                discount_value,
+            )
+            .ok_or_else(|| CoreError::Validation {
+                field: "discount".into(),
+                detail: "this bill carries no discount".into(),
+            })?;
+        self.approve_request(approver_pin, &req)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -306,5 +493,143 @@ mod tests {
         assert_eq!(figures(KIND_MANUAL_AMOUNT, None, Some(5000), None, 2000), (Some(2000), None));
         assert_eq!(figures(KIND_MANUAL_PERCENT, None, None, Some(1250), 2010), (Some(251), Some(1250)));
         assert_eq!(figures(KIND_MANUAL_PERCENT, None, None, Some(20_000), 100), (Some(100), Some(10_000)));
+    }
+}
+
+#[cfg(test)]
+mod bill_tests {
+    use super::*;
+    use madar_authz::{decide, Limits};
+
+    fn eff(caps: &[&str], limits: &[(&str, Limits)]) -> madar_authz::EffectiveSet {
+        crate::approvals::effective_from(&crate::session::AuthzGrants {
+            capabilities: caps.iter().map(|s| s.to_string()).collect(),
+            ask_manager: vec![],
+            limits: limits.iter().map(|(k, l)| (k.to_string(), *l)).collect(),
+            owner: false,
+        })
+    }
+
+    fn teller() -> madar_authz::EffectiveSet {
+        eff(
+            &[
+                "orders.discount.manual_amount",
+                "orders.discount.manual_percent",
+                "orders.discount.preset",
+            ],
+            &[
+                ("orders.discount.manual_amount", Limits { max_amount: Some(1000), ..Default::default() }),
+                ("orders.discount.manual_percent", Limits { max_percent: Some(1000), ..Default::default() }),
+            ],
+        )
+    }
+
+    /// The cashier said nothing, so the WAITER's discount is what the drawer
+    /// charges — and that is the act that must be judged. This silence was the
+    /// hole: the bill came off and nobody asked whose cap it was under.
+    #[test]
+    fn a_settle_in_silence_inherits_the_waiters_discount() {
+        let waiter = (Some("fixed".to_string()), Some(2000.0));
+        assert_eq!(
+            resolve_settle_discount(None, None, None, waiter.clone(), None),
+            (None, Some("fixed".into()), Some(2000.0))
+        );
+        // The cashier speaks: theirs replaces the waiter's OUTRIGHT, never a
+        // field-by-field merge.
+        assert_eq!(
+            resolve_settle_discount(None, Some("percentage"), Some(0.10), waiter.clone(), None),
+            (None, Some("percentage".into()), Some(0.10))
+        );
+        // `none` settles the bill with no discount at all.
+        assert_eq!(
+            resolve_settle_discount(None, Some("none"), None, waiter, None),
+            (None, None, None)
+        );
+    }
+
+    /// A bill's discount is derived into the SAME act vocabulary a counter
+    /// sale's is, so the same capability and the same cap answer for it.
+    #[test]
+    fn a_bills_discount_is_the_same_act_as_a_counter_sales() {
+        assert_eq!(kind_of(Some("d1"), None), Some(KIND_PRESET));
+        assert_eq!(kind_of(Some("d1"), Some("percentage")), Some(KIND_PRESET));
+        assert_eq!(kind_of(None, Some("percentage")), Some(KIND_MANUAL_PERCENT));
+        assert_eq!(kind_of(None, Some("fixed")), Some(KIND_MANUAL_AMOUNT));
+        assert_eq!(kind_of(None, None), None, "no discount is no act");
+    }
+
+    /// Over the cap, a bill needs a manager exactly as a cart does; at the cap
+    /// it goes through. A percentage bill discount is a FRACTION on the wire.
+    #[test]
+    fn a_bill_discount_over_the_cap_needs_a_manager_and_at_the_cap_is_allowed() {
+        let t = teller();
+        // 10.00 off a 50.00 bill: at the cap.
+        let (amt, bps) = bill_figures(KIND_MANUAL_AMOUNT, None, Some("fixed"), Some(1000.0), 5000);
+        assert_eq!((amt, bps), (Some(1000), None));
+        let at = discount_request(KIND_MANUAL_AMOUNT, amt, bps).unwrap();
+        assert_eq!(decide(&t, &at), Decision::Allow);
+
+        // 20.00 off: double it.
+        let (amt, bps) = bill_figures(KIND_MANUAL_AMOUNT, None, Some("fixed"), Some(2000.0), 5000);
+        let over = discount_request(KIND_MANUAL_AMOUNT, amt, bps).unwrap();
+        assert!(matches!(decide(&t, &over), Decision::NeedsApproval(_)));
+
+        // 12.5% on the wire is 0.125, which is 1250 bps — over a 10% cap.
+        let (amt, bps) = bill_figures(KIND_MANUAL_PERCENT, None, Some("percentage"), Some(0.125), 2000);
+        assert_eq!((amt, bps), (Some(250), Some(1250)));
+        let pct = discount_request(KIND_MANUAL_PERCENT, amt, bps).unwrap();
+        assert!(matches!(decide(&t, &pct), Decision::NeedsApproval(_)));
+
+        // 10% exactly: allowed.
+        let (amt, bps) = bill_figures(KIND_MANUAL_PERCENT, None, Some("percentage"), Some(0.10), 2000);
+        assert_eq!((amt, bps), (Some(200), Some(1000)));
+        let ok = discount_request(KIND_MANUAL_PERCENT, amt, bps).unwrap();
+        assert_eq!(decide(&t, &ok), Decision::Allow);
+    }
+
+    /// A PARTIAL settle is a smaller bill, so the same percentage is a smaller
+    /// amount and may pass a cap the whole bill fails. The figures are always
+    /// taken against THIS settle's subtotal — the discount is per financial
+    /// transaction, not per party.
+    #[test]
+    fn a_partial_settle_is_judged_on_its_own_subtotal() {
+        let capped = eff(
+            &["orders.discount.manual_percent"],
+            &[("orders.discount.manual_percent", Limits { max_amount: Some(1000), ..Default::default() })],
+        );
+        let whole = bill_figures(KIND_MANUAL_PERCENT, None, Some("percentage"), Some(0.20), 10_000);
+        assert_eq!(whole, (Some(2000), Some(2000)));
+        let half = bill_figures(KIND_MANUAL_PERCENT, None, Some("percentage"), Some(0.20), 5_000);
+        assert_eq!(half, (Some(1000), Some(2000)));
+        let r = |f: (Option<i64>, Option<i64>)| {
+            discount_request(KIND_MANUAL_PERCENT, f.0, f.1).unwrap()
+        };
+        // `manual_percent` is judged on its PERCENT, so a max_amount cap alone
+        // does not bite — the split does not launder a percentage past a cap.
+        assert_eq!(decide(&capped, &r(whole)), Decision::Allow);
+        assert_eq!(decide(&capped, &r(half)), Decision::Allow);
+
+        // An AMOUNT split in two, though, is two smaller acts — each answers
+        // for itself, and each is under the cap.
+        let t = teller();
+        let full = bill_figures(KIND_MANUAL_AMOUNT, None, Some("fixed"), Some(1500.0), 10_000);
+        assert!(matches!(
+            decide(&t, &discount_request(KIND_MANUAL_AMOUNT, full.0, full.1).unwrap()),
+            Decision::NeedsApproval(_)
+        ));
+        let leg = bill_figures(KIND_MANUAL_AMOUNT, None, Some("fixed"), Some(750.0), 5_000);
+        assert_eq!(
+            decide(&t, &discount_request(KIND_MANUAL_AMOUNT, leg.0, leg.1).unwrap()),
+            Decision::Allow
+        );
+    }
+
+    /// A discount never takes more off than the bill is worth.
+    #[test]
+    fn a_bill_discount_clamps_to_the_bill() {
+        assert_eq!(
+            bill_figures(KIND_MANUAL_AMOUNT, None, Some("fixed"), Some(9999.0), 2000),
+            (Some(2000), None)
+        );
     }
 }

@@ -38,6 +38,12 @@ pub(crate) struct SettleTicketCommand {
     pub ticket_id: String,
     #[serde(deserialize_with = "crate::till::de_legacy_till_request")]
     pub request: models::SettleOpenTicketRequest,
+    /// The manager's approval that let this bill's discount past the cashier's
+    /// cap. Rides on the replay envelope, where the server verifies it against
+    /// the bill's REAL figures. Absent on every settle queued before this
+    /// existed, which deserialize as `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval: Option<serde_json::Value>,
 }
 
 /// Void a ticket (and pull its kitchen tickets off the KDS).

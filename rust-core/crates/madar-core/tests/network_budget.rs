@@ -320,6 +320,7 @@ async fn an_offline_cold_start_reads_and_acts() {
             vec![],
             vec![],
             false,
+            None,
         )
         .await;
     settled.expect("settle queues");
