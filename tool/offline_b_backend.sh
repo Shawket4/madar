@@ -62,8 +62,8 @@ echo "==> building the backend ($MADAR_RUST)"
 BACKEND_TARGET="${MADAR_OB_BACKEND_TARGET_DIR:-$MADAR_RUST/target}"
 ( cd "$MADAR_RUST" && CARGO_TARGET_DIR="$BACKEND_TARGET" \
     DATABASE_URL="${MADAR_OB_BUILD_DATABASE_URL:-postgres://$(whoami)@localhost:5433/madar}" \
-    cargo build --release --bin madar-rust )
-BIN="$BACKEND_TARGET/release/madar-rust"
+    cargo build --profile scenario --bin madar-rust )
+BIN="$BACKEND_TARGET/scenario/madar-rust"
 
 echo "==> copying $SOURCE_DB -> $COPY"
 createdb "${PG_ARGS[@]}" -T "$SOURCE_DB" "$COPY"
