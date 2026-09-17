@@ -77,6 +77,9 @@ docs/BranchStockRow.md
 docs/BranchTable.md
 docs/BranchTarget.md
 docs/BranchesApi.md
+docs/BulkReviewPending.md
+docs/BulkReviewRequest.md
+docs/BulkReviewResult.md
 docs/Bundle.md
 docs/BundleComponentHydrated.md
 docs/BundleComponentInput.md
@@ -508,6 +511,7 @@ docs/RenameRoleRequest.md
 docs/ReorderCategoriesRequest.md
 docs/ReorderLine.md
 docs/ReorderSuggestion.md
+docs/ReplayApproval.md
 docs/ReplayFlag.md
 docs/ReportsApi.md
 docs/RepricingReport.md
@@ -795,6 +799,9 @@ src/models/branch_stock_report.rs
 src/models/branch_stock_row.rs
 src/models/branch_table.rs
 src/models/branch_target.rs
+src/models/bulk_review_pending.rs
+src/models/bulk_review_request.rs
+src/models/bulk_review_result.rs
 src/models/bundle.rs
 src/models/bundle_component_hydrated.rs
 src/models/bundle_component_input.rs
@@ -1200,6 +1207,7 @@ src/models/rename_role_request.rs
 src/models/reorder_categories_request.rs
 src/models/reorder_line.rs
 src/models/reorder_suggestion.rs
+src/models/replay_approval.rs
 src/models/replay_flag.rs
 src/models/repricing_report.rs
 src/models/repricing_suggestion.rs

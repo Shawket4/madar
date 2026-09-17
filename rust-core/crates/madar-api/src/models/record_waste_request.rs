@@ -26,6 +26,14 @@ pub struct RecordWasteRequest {
     /// Client-minted; the idempotency key.
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// A manager's one-time PIN approval for the LIVE route (owner, 2026-09-17), over the person's `max_value` limit. Additive.
+    #[serde(
+        rename = "live_approval",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub live_approval: Option<Option<Box<models::ReplayApproval>>>,
     #[serde(
         rename = "note",
         default,
@@ -92,6 +100,7 @@ impl RecordWasteRequest {
             branch_id,
             device_id: None,
             id,
+            live_approval: None,
             note: None,
             occurred_at: None,
             quantity,

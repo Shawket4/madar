@@ -90,6 +90,14 @@ pub struct SettleOpenTicketRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub discount_value: Option<Option<f64>>,
+    /// A manager's one-time PIN approval for the LIVE settle route (owner, 2026-09-17), same shape and same verification as the replay one. Additive.
+    #[serde(
+        rename = "live_approval",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub live_approval: Option<Option<Box<models::ReplayApproval>>>,
     /// The member spending a balance on this settle, when rewards are applied.
     #[serde(
         rename = "loyalty_customer_id",
@@ -167,6 +175,7 @@ impl SettleOpenTicketRequest {
             discount_percent_bps: None,
             discount_type: None,
             discount_value: None,
+            live_approval: None,
             loyalty_customer_id: None,
             loyalty_redemptions: None,
             payment_method,

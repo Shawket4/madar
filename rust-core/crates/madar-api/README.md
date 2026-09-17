@@ -42,6 +42,7 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**me**](docs/AuthApi.md#me) | **GET** /auth/me | 
 *AuthApi* | [**resolve_branch**](docs/AuthApi.md#resolve_branch) | **POST** /auth/resolve-branch | 
 *AuthzApi* | [**authz_keys**](docs/AuthzApi.md#authz_keys) | **GET** /auth/authz-keys | 
+*AuthzApi* | [**bulk_review_flags**](docs/AuthzApi.md#bulk_review_flags) | **POST** /authz/flags/bulk-review | Resolve many flags at once — \"select many\" or \"everything for this till or day\" from the dashboard's review queue (owner, 2026-09-17). Extends [`review_flag`] rather than duplicating it: same capability, same semantics (an acknowledgement, not an approval), now with an optional note and one id at a time so a bad id among many never loses the rest.
 *AuthzApi* | [**create_role**](docs/AuthzApi.md#create_role) | **POST** /authz/roles | 
 *AuthzApi* | [**delete_role**](docs/AuthzApi.md#delete_role) | **DELETE** /authz/roles/{id} | 
 *AuthzApi* | [**explain**](docs/AuthzApi.md#explain) | **GET** /authz/explain | 
@@ -625,6 +626,9 @@ Class | Method | HTTP request | Description
  - [BranchStockRow](docs/BranchStockRow.md)
  - [BranchTable](docs/BranchTable.md)
  - [BranchTarget](docs/BranchTarget.md)
+ - [BulkReviewPending](docs/BulkReviewPending.md)
+ - [BulkReviewRequest](docs/BulkReviewRequest.md)
+ - [BulkReviewResult](docs/BulkReviewResult.md)
  - [Bundle](docs/Bundle.md)
  - [BundleComponentHydrated](docs/BundleComponentHydrated.md)
  - [BundleComponentInput](docs/BundleComponentInput.md)
@@ -1029,6 +1033,7 @@ Class | Method | HTTP request | Description
  - [ReorderCategoriesRequest](docs/ReorderCategoriesRequest.md)
  - [ReorderLine](docs/ReorderLine.md)
  - [ReorderSuggestion](docs/ReorderSuggestion.md)
+ - [ReplayApproval](docs/ReplayApproval.md)
  - [ReplayFlag](docs/ReplayFlag.md)
  - [RepricingReport](docs/RepricingReport.md)
  - [RepricingSuggestion](docs/RepricingSuggestion.md)

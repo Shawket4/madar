@@ -22,6 +22,7 @@ Name | Type | Description | Notes
 **discount_value** | Option<**f64**> |  | [optional]
 **idempotency_key** | Option<**uuid::Uuid**> |  | [optional]
 **items** | [**Vec<models::OrderItemInput>**](OrderItemInput.md) |  | 
+**live_approval** | Option<[**models::ReplayApproval**](ReplayApproval.md)> | A manager's one-time PIN approval for the LIVE route (owner, 2026-09-17): the offline queue has always carried an `approval` on the replay envelope; this is the same object, sent with the live request instead, so a live over-cap discount need not queue to be approved. Verified the same way replay verifies one; `discount_approval_id` above is set from its `id` once verified. Additive. | [optional]
 **loyalty_customer_id** | Option<**uuid::Uuid**> | The loyalty member spending a balance on this sale. Required when `loyalty_redemptions` is non-empty, and ONLY for that: earning is a separate, later act (`POST /loyalty/award`), so a sale that redeems nothing never names a member here. | [optional]
 **loyalty_redemptions** | Option<[**Vec<models::LoyaltyRedemptionInput>**](LoyaltyRedemptionInput.md)> | Rewards covering lines of this cart. Each names a line by its index in `items` and how many of that line's units the reward pays for, so a mixed basket can have one free coffee among four paid ones. | [optional]
 **notes** | Option<**String**> |  | [optional]

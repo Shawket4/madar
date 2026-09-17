@@ -136,6 +136,14 @@ pub struct CreateOrderRequest {
     pub idempotency_key: Option<Option<uuid::Uuid>>,
     #[serde(rename = "items")]
     pub items: Vec<models::OrderItemInput>,
+    /// A manager's one-time PIN approval for the LIVE route (owner, 2026-09-17): the offline queue has always carried an `approval` on the replay envelope; this is the same object, sent with the live request instead, so a live over-cap discount need not queue to be approved. Verified the same way replay verifies one; `discount_approval_id` above is set from its `id` once verified. Additive.
+    #[serde(
+        rename = "live_approval",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub live_approval: Option<Option<Box<models::ReplayApproval>>>,
     /// The loyalty member spending a balance on this sale. Required when `loyalty_redemptions` is non-empty, and ONLY for that: earning is a separate, later act (`POST /loyalty/award`), so a sale that redeems nothing never names a member here.
     #[serde(
         rename = "loyalty_customer_id",
@@ -271,6 +279,7 @@ impl CreateOrderRequest {
             discount_value: None,
             idempotency_key: None,
             items,
+            live_approval: None,
             loyalty_customer_id: None,
             loyalty_redemptions: None,
             notes: None,

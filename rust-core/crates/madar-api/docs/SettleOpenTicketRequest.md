@@ -14,6 +14,7 @@ Name | Type | Description | Notes
 **discount_percent_bps** | Option<**i32**> | Basis points for a percentage bill discount (1250 = 12.5%). Additive. | [optional]
 **discount_type** | Option<**String**> |  | [optional]
 **discount_value** | Option<**f64**> |  | [optional]
+**live_approval** | Option<[**models::ReplayApproval**](ReplayApproval.md)> | A manager's one-time PIN approval for the LIVE settle route (owner, 2026-09-17), same shape and same verification as the replay one. Additive. | [optional]
 **loyalty_customer_id** | Option<**uuid::Uuid**> | The member spending a balance on this settle, when rewards are applied. | [optional]
 **loyalty_redemptions** | Option<[**Vec<models::LoyaltyRedemptionInput>**](LoyaltyRedemptionInput.md)> | Rewards covering lines of the ticket. A table-service bill redeems exactly like a counter one — the cashier scans at settle either way. | [optional]
 **payment_method** | **String** |  | 

@@ -5,6 +5,7 @@ All URIs are relative to *http://localhost:8080*
 Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**authz_keys**](AuthzApi.md#authz_keys) | **GET** /auth/authz-keys | 
+[**bulk_review_flags**](AuthzApi.md#bulk_review_flags) | **POST** /authz/flags/bulk-review | Resolve many flags at once — \"select many\" or \"everything for this till or day\" from the dashboard's review queue (owner, 2026-09-17). Extends [`review_flag`] rather than duplicating it: same capability, same semantics (an acknowledgement, not an approval), now with an optional note and one id at a time so a bad id among many never loses the rest.
 [**create_role**](AuthzApi.md#create_role) | **POST** /authz/roles | 
 [**delete_role**](AuthzApi.md#delete_role) | **DELETE** /authz/roles/{id} | 
 [**explain**](AuthzApi.md#explain) | **GET** /authz/explain | 
@@ -42,6 +43,34 @@ No authorization required
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## bulk_review_flags
+
+> models::BulkReviewResult bulk_review_flags(bulk_review_request)
+Resolve many flags at once — \"select many\" or \"everything for this till or day\" from the dashboard's review queue (owner, 2026-09-17). Extends [`review_flag`] rather than duplicating it: same capability, same semantics (an acknowledgement, not an approval), now with an optional note and one id at a time so a bad id among many never loses the rest.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**bulk_review_request** | [**BulkReviewRequest**](BulkReviewRequest.md) |  | [required] |
+
+### Return type
+
+[**models::BulkReviewResult**](BulkReviewResult.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
