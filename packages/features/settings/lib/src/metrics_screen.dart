@@ -299,7 +299,7 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen> {
           child: Column(
             children: [
               for (final tender in v.tenders)
-                _BarRow(
+                _ShareBar(
                   label: tender.label,
                   value: money(tender.amountMinor),
                   meta: '${tender.orderCount}',
@@ -350,7 +350,7 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen> {
           child: Column(
             children: [
               for (final item in v.topItems)
-                _BarRow(
+                _ShareBar(
                   label: item.name,
                   value: '${item.quantity}',
                   meta: money(item.revenueMinor),
@@ -371,8 +371,8 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen> {
 }
 
 /// A labelled horizontal bar: name, figure, a muted figure, the bar.
-class _BarRow extends StatelessWidget {
-  const _BarRow({
+class _ShareBar extends StatelessWidget {
+  const _ShareBar({
     required this.label,
     required this.value,
     required this.meta,
