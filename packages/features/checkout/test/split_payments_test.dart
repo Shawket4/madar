@@ -180,6 +180,11 @@ class _Fake implements MadarBridge {
       cartDiscounted = false;
       return Future<void>.value();
     }
+    if (name == #cartDiscount) {
+      return Future<CartDiscountView>.value(
+        const CartDiscountView(kind: '', offMinor: 0),
+      );
+    }
     if (name == #cartDiscountId) {
       return Future<String?>.value(cartDiscounted ? 'd10' : null);
     }

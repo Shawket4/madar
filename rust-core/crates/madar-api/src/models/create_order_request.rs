@@ -74,6 +74,22 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub discount_amount: Option<Option<i32>>,
+    /// Who put the discount on the sale (the signed-in till person). Read on replay only; live, it is the caller. Additive.
+    #[serde(
+        rename = "discount_applied_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_applied_by: Option<Option<uuid::Uuid>>,
+    /// The manager approval (`approval.id` on the replay envelope) that let the discount past the person's cap. Additive.
+    #[serde(
+        rename = "discount_approval_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_approval_id: Option<Option<uuid::Uuid>>,
     #[serde(
         rename = "discount_id",
         default,
@@ -81,6 +97,22 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub discount_id: Option<Option<uuid::Uuid>>,
+    /// Which discount act this is: `preset` | `manual_amount` | `manual_percent`. Absent (older clients): a `discount_id` means preset, an ad-hoc discount is manual of its type. Additive.
+    #[serde(
+        rename = "discount_kind",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_kind: Option<Option<String>>,
+    /// The percentage asked for, in basis points (1250 = 12.5%). Additive.
+    #[serde(
+        rename = "discount_percent_bps",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_percent_bps: Option<Option<i32>>,
     #[serde(
         rename = "discount_type",
         default,
@@ -222,7 +254,11 @@ impl CreateOrderRequest {
             device_code: None,
             device_id: None,
             discount_amount: None,
+            discount_applied_by: None,
+            discount_approval_id: None,
             discount_id: None,
+            discount_kind: None,
+            discount_percent_bps: None,
             discount_type: None,
             discount_value: None,
             idempotency_key: None,

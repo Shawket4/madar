@@ -402,6 +402,8 @@ pub mod discipline_row;
 pub use self::discipline_row::DisciplineRow;
 pub mod discount;
 pub use self::discount::Discount;
+pub mod discount_audit_entry;
+pub use self::discount_audit_entry::DiscountAuditEntry;
 pub mod drink_recipe;
 pub use self::drink_recipe::DrinkRecipe;
 pub mod employee;

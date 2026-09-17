@@ -23,9 +23,73 @@ pub struct _ApprovalView {
     pub approver_name: String,
     pub amount_minor: Option<i64>,
     pub value_minor: Option<i64>,
+    pub percent_bps: Option<i64>,
+}
+
+pub use madar_core::discounts::CartDiscountView;
+
+/// The cart's discount as the tender screen shows it.
+#[frb(mirror(CartDiscountView))]
+pub struct _CartDiscountView {
+    pub kind: String,
+    pub preset_id: Option<String>,
+    pub amount_minor: Option<i64>,
+    pub percent_bps: Option<i64>,
+    pub off_minor: i64,
+    pub approved_by_name: Option<String>,
 }
 
 impl MadarBridge {
+    /// Allowed / needs a manager / refused for a discount on the cart
+    /// (`kind`: preset | manual_amount | manual_percent). Offline.
+    #[frb(sync)]
+    pub fn decide_discount(
+        &self,
+        table_id: Option<String>,
+        kind: String,
+        preset_id: Option<String>,
+        amount_minor: Option<i64>,
+        percent_bps: Option<i64>,
+    ) -> ActDecisionView {
+        self.inner
+            .decide_discount(table_id, kind, preset_id, amount_minor, percent_bps)
+    }
+
+    /// A manager approves a discount on the cart with their PIN.
+    pub fn approve_discount(
+        &self,
+        approver_pin: String,
+        table_id: Option<String>,
+        kind: String,
+        preset_id: Option<String>,
+        amount_minor: Option<i64>,
+        percent_bps: Option<i64>,
+    ) -> Result<ApprovalView, MadarError> {
+        self.inner
+            .approve_discount(approver_pin, table_id, kind, preset_id, amount_minor, percent_bps)
+            .map_err(MadarError::from)
+    }
+
+    /// Put a discount on the cart; refused unless allowed or approved.
+    pub fn apply_discount(
+        &self,
+        table_id: Option<String>,
+        kind: String,
+        preset_id: Option<String>,
+        amount_minor: Option<i64>,
+        percent_bps: Option<i64>,
+        approval: Option<ApprovalView>,
+    ) -> Result<(), MadarError> {
+        self.inner
+            .apply_discount(table_id, kind, preset_id, amount_minor, percent_bps, approval)
+            .map_err(MadarError::from)
+    }
+
+    /// The cart's discount: kind, figures, what it takes off, who approved.
+    pub fn cart_discount(&self, table_id: Option<String>) -> Result<CartDiscountView, MadarError> {
+        self.inner.cart_discount(table_id).map_err(MadarError::from)
+    }
+
     /// Allowed, needs a manager, or refused — for the signed-in person, offline.
     #[frb(sync)]
     pub fn decide_act(

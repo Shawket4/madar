@@ -130,6 +130,7 @@ class _WasteScreenState extends ConsumerState<WasteScreen> {
           if (!mounted) return;
           approval = await askManager(
             context,
+            ref,
             reason: preview.decision.reason,
             capKey: Cap.inventoryWasteRecord,
             approve: (b, pin) => b.approveWaste(approverPin: pin, input: input),

@@ -228,6 +228,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CartBundleComponentView dco_decode_cart_bundle_component_view(dynamic raw);
 
   @protected
+  CartDiscountView dco_decode_cart_discount_view(dynamic raw);
+
+  @protected
   CartKitchenChit dco_decode_cart_kitchen_chit(dynamic raw);
 
   @protected
@@ -1194,6 +1197,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CartBundleComponentView sse_decode_cart_bundle_component_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  CartDiscountView sse_decode_cart_discount_view(SseDeserializer deserializer);
 
   @protected
   CartKitchenChit sse_decode_cart_kitchen_chit(SseDeserializer deserializer);
@@ -2440,6 +2446,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_cart_bundle_component_view(
     CartBundleComponentView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cart_discount_view(
+    CartDiscountView self,
     SseSerializer serializer,
   );
 
