@@ -28,6 +28,18 @@ pub enum TimeStyle {
 /// every order/shift payload that carries `timezone`), or Cairo — the
 /// product-home default, matching Flutter's fallback. Falling back is flagged
 /// (once per process) so a till printing in the default zone is visible.
+/// The first day of a week, everywhere (owner rule, 2026-09-17): SATURDAY. The
+/// backend (`tz::WEEK_START`) and the dashboard (`lib/week.ts`) carry the same
+/// rule; every week preset reads it through [`week_start`].
+pub const WEEK_START: chrono::Weekday = chrono::Weekday::Sat;
+
+/// The branch-local day the week holding `day` starts on.
+pub(crate) fn week_start(day: chrono::NaiveDate) -> chrono::NaiveDate {
+    use chrono::Datelike;
+    let back = (7 + day.weekday().num_days_from_monday() as i64 - WEEK_START.num_days_from_monday() as i64) % 7;
+    day - chrono::Duration::days(back)
+}
+
 /// A branch-local calendar day as UTC bounds, midnight to midnight (the
 /// backend's `service_day_bounds`; a DST gap resolves to the earliest valid instant).
 pub(crate) fn local_day_bounds(

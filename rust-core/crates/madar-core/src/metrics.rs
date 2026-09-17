@@ -245,6 +245,7 @@ pub(crate) fn local_figures(
     let mut f = Figures { hourly: vec![(0, 0); 24], ..Default::default() };
     let mut tenders: BTreeMap<String, (i64, i64)> = BTreeMap::new();
     let mut items: HashMap<(Option<String>, String), (i64, i64)> = HashMap::new();
+    let mut catalog = Catalog::default();
     let mut legs_of = conn.prepare("SELECT method, amount FROM ledger_payments WHERE okey = ?1 ORDER BY idx")?;
     for (okey, server_id, status, total, created_at, raw) in orders {
         let Some(at) = instant(&created_at).filter(|d| *d >= from && *d < to) else { continue };
@@ -288,16 +289,15 @@ pub(crate) fn local_figures(
         }
 
         let v: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
-        match v.get("items").and_then(Value::as_array) {
-            Some(lines) if !lines.is_empty() => {
+        match sale_lines(conn, &okey, &v, &mut catalog)? {
+            Some(lines) => {
                 for l in lines {
-                    let id = s(l, "menu_item_id").or(s(l, "bundle_id")).map(str::to_string);
-                    let e = items.entry((id, s(l, "item_name").unwrap_or("").to_string())).or_default();
-                    e.0 += i(l, "quantity");
-                    e.1 += i(l, "line_total");
+                    let e = items.entry((l.item_id, l.item_name)).or_default();
+                    e.0 += l.quantity;
+                    e.1 += l.revenue;
                 }
             }
-            _ => f.items_missing += 1,
+            None => f.items_missing += 1,
         }
     }
     f.average_ticket = average_ticket(f.net_sales, f.order_count);
@@ -323,10 +323,195 @@ pub(crate) fn local_figures(
     Ok(f)
 }
 
+// ── A sale's lines ───────────────────────────────────────────────────────────
+
+/// Names and prices of the menu this device holds (`catalog:menu_items`,
+/// `catalog:bundles`), read once per computation and only when a queued sale
+/// needs them.
+#[derive(Default)]
+struct Catalog {
+    loaded: bool,
+    /// id → (name, base price).
+    by_id: HashMap<String, (String, i64)>,
+}
+
+impl Catalog {
+    fn get(&mut self, conn: &Connection, id: &str) -> CoreResult<Option<(String, i64)>> {
+        if !self.loaded {
+            self.loaded = true;
+            for key in [crate::menu::K_MENU_ITEMS, crate::menu::K_BUNDLES] {
+                let raw: Option<String> =
+                    conn.query_row("SELECT v FROM kv WHERE k = ?1", [key], |r| r.get(0)).optional()?;
+                let list: Value = raw.and_then(|r| serde_json::from_str(&r).ok()).unwrap_or(Value::Null);
+                for it in list.as_array().into_iter().flatten() {
+                    if let (Some(id), Some(name)) = (s(it, "id"), s(it, "name")) {
+                        let price = it.get("base_price").or(it.get("price")).and_then(Value::as_i64).unwrap_or(0);
+                        self.by_id.insert(id.to_string(), (name.to_string(), price));
+                    }
+                }
+            }
+        }
+        Ok(self.by_id.get(id).cloned())
+    }
+}
+
+/// One line as the top items group it.
+#[derive(Debug, PartialEq, Eq)]
+struct Line {
+    item_id: Option<String>,
+    item_name: String,
+    quantity: i64,
+    revenue: i64,
+}
+
+/// A sale's lines, wherever this device holds them:
+/// 1. the row's own `items` (a synced sale, or one whose ack folded the server's
+///    answer in);
+/// 2. a sale still in the outbox (queued, in flight or dead-lettered): the
+///    `create_order` payload's cart lines (this device's, or a LAN peer's
+///    mirrored envelope), named from the menu this device holds and priced as
+///    rung (unit price × quantity, bundle component add-ons, less reward units);
+/// 3. a settled bill still in the outbox: the bill's synced lines (not voided)
+///    plus any round of it still queued here.
+///
+/// `None` only when none of these has them: a bill settled here whose ticket
+/// this device never received, or a line whose item is not in the menu this
+/// device holds (deleted from the catalogue since). Those sales are counted
+/// in `items_missing` and the screen says so.
+fn sale_lines(conn: &Connection, okey: &str, row: &Value, catalog: &mut Catalog) -> CoreResult<Option<Vec<Line>>> {
+    if let Some(lines) = row.get("items").and_then(Value::as_array).filter(|l| !l.is_empty()) {
+        return Ok(Some(
+            lines
+                .iter()
+                .map(|l| Line {
+                    item_id: s(l, "menu_item_id").or(s(l, "bundle_id")).map(str::to_string),
+                    item_name: s(l, "item_name").unwrap_or("").to_string(),
+                    quantity: i(l, "quantity"),
+                    revenue: i(l, "line_total"),
+                })
+                .collect(),
+        ));
+    }
+    let ops: Vec<(String, String)> = {
+        let mut st = conn.prepare(
+            "SELECT op_type, payload FROM outbox WHERE entity_type = ?1 AND entity_id = ?2 ORDER BY seq",
+        )?;
+        let v = st
+            .query_map([crate::ledger::T_ORDER, okey], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+        v
+    };
+    for (op_type, payload) in ops {
+        let p: Value = serde_json::from_str(&payload).unwrap_or(Value::Null);
+        let op = if op_type == "lan_mirror" { s(&p, "op").unwrap_or("").to_string() } else { op_type };
+        match op.as_str() {
+            "create_order" => {
+                let request = p.get("request").unwrap_or(&Value::Null);
+                let wire = request.get("items").and_then(Value::as_array).cloned().unwrap_or_default();
+                if wire.is_empty() {
+                    continue;
+                }
+                return wire_lines(conn, &wire, request.get("loyalty_redemptions"), catalog);
+            }
+            "settle_open_ticket" => return bill_lines(conn, okey, catalog),
+            _ => {}
+        }
+    }
+    Ok(None)
+}
+
+/// Cart lines as the outbox carries them (`OrderItemInput`), priced as rung.
+fn wire_lines(conn: &Connection, wire: &[Value], redemptions: Option<&Value>, catalog: &mut Catalog) -> CoreResult<Option<Vec<Line>>> {
+    let mut out = Vec::with_capacity(wire.len());
+    for (idx, l) in wire.iter().enumerate() {
+        let Some(id) = s(l, "menu_item_id").or(s(l, "bundle_id")) else { return Ok(None) };
+        let Some((name, base_price)) = catalog.get(conn, id)? else { return Ok(None) };
+        let quantity = i(l, "quantity");
+        let unit = l.get("unit_price").and_then(Value::as_i64).unwrap_or(base_price);
+        let addons_of = |v: &Value| -> i64 {
+            v.get("addons")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .map(|a| i(a, "unit_price") * a.get("quantity").and_then(Value::as_i64).unwrap_or(1))
+                .sum()
+        };
+        let surcharge: i64 = l
+            .get("bundle_components")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .map(|c| addons_of(c) * c.get("quantity").and_then(Value::as_i64).unwrap_or(1) * quantity)
+            .sum();
+        let charged = unit * quantity + surcharge;
+        let reward_units: i64 = redemptions
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter(|r| r.get("item_index").and_then(Value::as_u64) == Some(idx as u64))
+            .map(|r| i(r, "units"))
+            .sum();
+        let covered = if l.get("bundle_id").and_then(Value::as_str).is_some() {
+            0
+        } else {
+            crate::loyalty::covered_minor(unit * quantity, quantity, reward_units)
+        };
+        out.push(Line { item_id: Some(id.to_string()), item_name: name, quantity, revenue: (charged - covered).max(0) });
+    }
+    Ok(Some(out))
+}
+
+/// A bill settled here and not yet answered: its synced lines (not voided)
+/// plus the rounds of it this device still has queued.
+fn bill_lines(conn: &Connection, ticket: &str, catalog: &mut Catalog) -> CoreResult<Option<Vec<Line>>> {
+    let mut out = Vec::new();
+    let mut known = false;
+    let synced: Option<String> = conn
+        .query_row("SELECT data FROM sync_rows WHERE type = 'open_ticket' AND id = ?1", [ticket], |r| r.get(0))
+        .optional()?;
+    if let Some(v) = synced.and_then(|raw| serde_json::from_str::<Value>(&raw).ok()) {
+        known = true;
+        for it in v.get("items").and_then(Value::as_array).into_iter().flatten() {
+            if it.get("voided").and_then(Value::as_bool).unwrap_or(false) {
+                continue;
+            }
+            let line = it.get("line").unwrap_or(&Value::Null);
+            out.push(Line {
+                item_id: s(it, "menu_item_id").or(s(line, "bundle_id")).map(str::to_string),
+                item_name: s(line, "name").or(s(it, "item_name")).unwrap_or("").to_string(),
+                quantity: line.get("qty").and_then(Value::as_i64).unwrap_or(1),
+                revenue: i(it, "line_total"),
+            });
+        }
+    }
+    let rounds: Vec<String> = {
+        let mut st = conn.prepare(
+            "SELECT payload FROM outbox
+              WHERE op_type IN ('open_ticket', 'ticket_add_round') AND status != 'acked'
+                AND (id = ?1 OR json_extract(payload, '$.ticket_id') = ?1)
+              ORDER BY seq",
+        )?;
+        let v = st.query_map([ticket], |r| r.get(0))?.collect::<Result<Vec<_>, _>>()?;
+        v
+    };
+    for payload in rounds {
+        let p: Value = serde_json::from_str(&payload).unwrap_or(Value::Null);
+        let wire = p.pointer("/request/items").and_then(Value::as_array).cloned().unwrap_or_default();
+        match wire_lines(conn, &wire, None, catalog)? {
+            Some(lines) => {
+                known = true;
+                out.extend(lines);
+            }
+            None => return Ok(None),
+        }
+    }
+    Ok(known.then_some(out))
+}
+
 // ── Windows ──────────────────────────────────────────────────────────────────
 
-/// The branch-local days a preset covers on `today` (weeks start on Monday,
-/// like the backend's analytics presets).
+/// The branch-local days a preset covers on `today` (weeks start on SATURDAY,
+/// [`crate::timefmt::WEEK_START`], like the backend's analytics presets).
 pub(crate) fn preset_days(
     preset: &str,
     today: NaiveDate,
@@ -337,7 +522,7 @@ pub(crate) fn preset_days(
     Ok(match preset {
         "today" => (today, today),
         "yesterday" => (today - Duration::days(1), today - Duration::days(1)),
-        "this_week" => (today - Duration::days(today.weekday().num_days_from_monday() as i64), today),
+        "this_week" => (crate::timefmt::week_start(today), today),
         "this_month" => (today.with_day(1).unwrap_or(today), today),
         "last_7_days" => (today - Duration::days(6), today),
         "custom" => {
@@ -639,7 +824,7 @@ mod tests {
         let d = |p| preset_days(p, today, None, None).unwrap();
         assert_eq!(d("today"), (today, today));
         assert_eq!(d("yesterday"), (date("2026-09-16"), date("2026-09-16")));
-        assert_eq!(d("this_week"), (date("2026-09-14"), today));
+        assert_eq!(d("this_week"), (date("2026-09-12"), today), "weeks start Saturday");
         assert_eq!(d("this_month"), (date("2026-09-01"), today));
         assert_eq!(d("last_7_days"), (date("2026-09-11"), today));
         assert_eq!(preset_days("custom", today, Some("2026-09-01"), Some("2026-09-03")).unwrap(), (date("2026-09-01"), date("2026-09-03")));
@@ -647,22 +832,157 @@ mod tests {
         assert!(preset_days("custom", today, Some("2025-01-01"), Some("2026-09-01")).is_err());
         assert!(preset_days("custom", today, None, Some("2026-09-01")).is_err());
         assert!(preset_days("nope", today, None, None).is_err());
-        // Monday is its own week start.
-        assert_eq!(preset_days("this_week", date("2026-09-14"), None, None).unwrap().0, date("2026-09-14"));
+        // Saturday is its own week start; Friday is the last day of the week before.
+        assert_eq!(preset_days("this_week", date("2026-09-19"), None, None).unwrap().0, date("2026-09-19"));
+        assert_eq!(preset_days("this_week", date("2026-09-18"), None, None).unwrap().0, date("2026-09-12"));
+    }
+
+    fn put_order(store: &Store, key: &str, branch: &str, total: i64, at: &str) {
+        let row = serde_json::json!({
+            "id": key, "branch_id": branch, "till_id": "t1", "status": "completed", "payment_method": "cash",
+            "total_amount": total, "created_at": at, "items": [],
+            "payment_legs": [{"method": "cash", "amount": total, "is_cash": true}],
+        });
+        store
+            .with_tx(|tx| crate::ledger::write_row(tx, T_ORDER, key, &row, crate::ledger::Origin::Local, None).map(|_| ()))
+            .unwrap();
+    }
+
+    /// "This week" on the branch's clock: a sale at 23:30 Friday in Cairo is
+    /// last week once Saturday starts, one at 00:30 Saturday is this week —
+    /// though both are Friday in UTC.
+    #[test]
+    fn this_week_starts_saturday_on_the_branch_clock() {
+        let store = Store::open("").unwrap();
+        let tz = chrono_tz::Africa::Cairo; // UTC+3 in September 2026
+        put_order(&store, "fri", "b1", 100, "2026-09-18T20:30:00Z"); // Fri 23:30
+        put_order(&store, "sat", "b1", 200, "2026-09-18T21:30:00Z"); // Sat 00:30
+        let week_of = |now: &str| {
+            let today = instant(now).unwrap().with_timezone(&tz).date_naive();
+            let (from, to) = preset_days("this_week", today, None, None).unwrap();
+            let start = crate::timefmt::local_day_bounds(tz, from).0.with_timezone(&Utc);
+            let end = crate::timefmt::local_day_bounds(tz, to).1.with_timezone(&Utc);
+            store.with_conn(|c| local_figures(c, "b1", tz, start, end)).unwrap()
+        };
+        // Friday 23:45: the week began Saturday the 12th; only Friday's sale is in it.
+        let friday = week_of("2026-09-18T20:45:00Z");
+        assert_eq!((friday.order_count, friday.net_sales), (1, 100));
+        // Saturday 00:45: a new week, holding only the Saturday sale.
+        let saturday = week_of("2026-09-18T21:45:00Z");
+        assert_eq!((saturday.order_count, saturday.net_sales), (1, 200));
+    }
+
+    fn queue(store: &Store, op_type: &str, id: &str, entity: Option<&str>, payload: serde_json::Value) {
+        store
+            .enqueue(&crate::store::NewOutboxOp {
+                id: id.into(),
+                op_type: op_type.into(),
+                idempotency_key: id.into(),
+                payload: payload.to_string(),
+                event_at: "2026-09-17T05:00:00Z".into(),
+                entity_type: entity.map(|_| T_ORDER.to_string()),
+                entity_id: entity.map(str::to_string),
+                ..Default::default()
+            })
+            .unwrap();
+    }
+
+    fn catalog(store: &Store) {
+        store
+            .kv_put(
+                crate::menu::K_MENU_ITEMS,
+                &serde_json::json!([
+                    {"id": "00000000-0000-0000-0000-0000000000a1", "name": "Latte", "base_price": 500},
+                    {"id": "00000000-0000-0000-0000-0000000000a2", "name": "Tea", "base_price": 300}
+                ])
+                .to_string(),
+            )
+            .unwrap();
+        store
+            .kv_put(
+                crate::menu::K_BUNDLES,
+                &serde_json::json!([{"id": "00000000-0000-0000-0000-0000000000b1", "name": "Breakfast", "price": 900}]).to_string(),
+            )
+            .unwrap();
+    }
+
+    /// A queued sale's lines come from its outbox payload, named from the menu
+    /// this device holds and priced as rung, and rank with the synced ones by
+    /// quantity, then revenue, then name. A settled bill still queued reads its
+    /// ticket's lines and its queued rounds.
+    #[test]
+    fn queued_sales_bring_their_lines_to_the_top_items() {
+        let store = Store::open("").unwrap();
+        catalog(&store);
+        let branch = "b1";
+        let at = "2026-09-17T08:00:00+03:00";
+        put_order(&store, "local-1", branch, 1900, at);
+        queue(&store, "create_order", "local-1", Some("local-1"), serde_json::json!({"request": {
+            "branch_id": branch, "till_id": "t1", "payment_method": "cash",
+            "items": [
+                {"menu_item_id": "00000000-0000-0000-0000-0000000000a1", "quantity": 2, "unit_price": 600},
+                {"menu_item_id": "00000000-0000-0000-0000-0000000000a2", "quantity": 1},
+                {"bundle_id": "00000000-0000-0000-0000-0000000000b1", "quantity": 1, "unit_price": 900,
+                 "bundle_components": [{"item_id": "00000000-0000-0000-0000-0000000000a1", "quantity": 1,
+                                        "addons": [{"addon_item_id": "00000000-0000-0000-0000-0000000000c1", "unit_price": 50}]}]}
+            ],
+            "loyalty_redemptions": [{"item_index": 0, "units": 1}]
+        }}));
+        // A peer's queued sale, mirrored over the LAN.
+        put_order(&store, "peer-1", branch, 600, at);
+        queue(&store, "lan_mirror", "lanmirror:create_order:peer-1", Some("peer-1"), serde_json::json!({
+            "op": "create_order",
+            "request": {"items": [{"menu_item_id": "00000000-0000-0000-0000-0000000000a2", "quantity": 2}]}
+        }));
+        // A bill settled here: one synced line (another voided) and a round still queued.
+        put_order(&store, "tk-1", branch, 800, at);
+        store
+            .with_conn(|c| {
+                c.execute(
+                    "INSERT INTO sync_rows(type, id, branch_id, seq, data) VALUES('open_ticket', 'tk-1', ?1, 1, ?2)",
+                    rusqlite::params![branch, serde_json::json!({"id": "tk-1", "items": [
+                        {"menu_item_id": "00000000-0000-0000-0000-0000000000a1", "line_total": 500, "voided": false, "line": {"name": "Latte", "qty": 1}},
+                        {"menu_item_id": "00000000-0000-0000-0000-0000000000a2", "line_total": 300, "voided": true, "line": {"name": "Tea", "qty": 1}}
+                    ]}).to_string()],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        queue(&store, "ticket_add_round", "round-1", None, serde_json::json!({"ticket_id": "tk-1", "round_id": "round-1",
+            "request": {"items": [{"menu_item_id": "00000000-0000-0000-0000-0000000000a2", "quantity": 1, "unit_price": 300}]}}));
+        queue(&store, "settle_open_ticket", "tk-1:settle", Some("tk-1"), serde_json::json!({"ticket_id": "tk-1", "request": {"payment_method": "cash"}}));
+
+        let tz = chrono_tz::Africa::Cairo;
+        let (from, to) = crate::timefmt::local_day_bounds(tz, date("2026-09-17"));
+        let f = store
+            .with_conn(|c| local_figures(c, branch, tz, from.with_timezone(&Utc), to.with_timezone(&Utc)))
+            .unwrap();
+        assert_eq!(f.items_missing, 0, "every line is on this device");
+        let a1 = Some("00000000-0000-0000-0000-0000000000a1".to_string());
+        let a2 = Some("00000000-0000-0000-0000-0000000000a2".to_string());
+        let b1 = Some("00000000-0000-0000-0000-0000000000b1".to_string());
+        let item = |item_id: &Option<String>, name: &str, quantity, revenue| Item { item_id: item_id.clone(), item_name: name.into(), quantity, revenue };
+        assert_eq!(
+            f.top_items,
+            vec![
+                // Tea: 1 × 300 (catalogue price) + 2 × 300 (peer) + 1 × 300 (queued round).
+                item(&a2, "Tea", 4, 1200),
+                // Latte: 2 × 600 less one reward unit, + 1 synced bill line of 500.
+                item(&a1, "Latte", 3, 1100),
+                // Breakfast: 900 + the component's 50 add-on.
+                item(&b1, "Breakfast", 1, 950),
+            ]
+        );
     }
 
     #[test]
-    fn a_queued_sale_counts_everywhere_but_the_items_and_says_so() {
+    fn a_sale_whose_lines_are_nowhere_on_the_device_counts_everywhere_but_the_items_and_says_so() {
         let store = Store::open("").unwrap();
         let branch = "b1";
-        let row = serde_json::json!({
-            "id": "local-1", "branch_id": branch, "till_id": "t1", "status": "completed", "payment_method": "cash",
-            "total_amount": 1200, "created_at": "2026-09-17T08:00:00+03:00", "items": [],
-            "payment_legs": [{"method": "cash", "amount": 1200, "is_cash": true}],
-        });
-        store
-            .with_tx(|tx| crate::ledger::write_row(tx, T_ORDER, "local-1", &row, crate::ledger::Origin::Local, None).map(|_| ()))
-            .unwrap();
+        put_order(&store, "local-1", branch, 1200, "2026-09-17T08:00:00+03:00");
+        // A settle for a bill this device never received.
+        queue(&store, "settle_open_ticket", "local-1:settle", Some("local-1"), serde_json::json!({"ticket_id": "local-1", "request": {}}));
+
         let tz = chrono_tz::Africa::Cairo;
         let (from, to) = crate::timefmt::local_day_bounds(tz, date("2026-09-17"));
         let f = store

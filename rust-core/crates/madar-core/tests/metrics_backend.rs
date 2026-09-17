@@ -1,6 +1,7 @@
 //! The Metrics screen against the REAL backend: what this device computes from
 //! its own rows equals what `GET /reports/branches/{id}/pos-metrics` says for
-//! the same day, online, offline and after the backlog drains; and the screen
+//! the same day, online, offline (a queued sale's lines in the top items too) and
+//! after the backlog drains; and the screen
 //! is refused to someone without `reports.pos_metrics`.
 //!
 //! Ignored by `cargo test`. Run with the backend harness:
@@ -112,7 +113,9 @@ async fn device_figures_equal_the_servers_online_offline_and_drained() {
     sell(&core, 2, &cash, 1_000_000).await;
     let queued = core.pos_metrics("today".into(), None, None).await.unwrap();
     assert_eq!(queued.order_count, server.order_count + 1, "the queued sale counts");
-    assert!(queued.items_note.is_some(), "its lines are not here yet, and the screen says so");
+    // Its lines come from the queued checkout op: top items already include it.
+    assert_eq!(queued.items_note, None, "the queued sale's lines are on this device");
+    assert_ne!(queued.top_items, server.top_items, "the queued sale moved the top items");
 
     // Reconnected and drained: the two agree again, with the new sale in both.
     proxy.online();
@@ -123,5 +126,8 @@ async fn device_figures_equal_the_servers_online_offline_and_drained() {
     assert_eq!(server.source, "server");
     assert_eq!(server.order_count, queued.order_count);
     assert_eq!(figures(&device), figures(&server), "device rows vs the endpoint, drained");
+    // What the device showed offline for the queued sale is what the server
+    // booked: same items, same ranking, same quantities and revenue.
+    assert_eq!(queued.top_items, server.top_items, "offline top items (queued sale) vs the endpoint, drained");
     let _ = std::fs::remove_file(&db);
 }
