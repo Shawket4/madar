@@ -579,10 +579,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<RefundLinePick> dco_decode_list_refund_line_pick(dynamic raw);
+
+  @protected
   List<RefundLineView> dco_decode_list_refund_line_view(dynamic raw);
 
   @protected
   List<RefundView> dco_decode_list_refund_view(dynamic raw);
+
+  @protected
+  List<RefundableLineView> dco_decode_list_refundable_line_view(dynamic raw);
 
   @protected
   List<RewardLineInput> dco_decode_list_reward_line_input(dynamic raw);
@@ -829,6 +835,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   ReconfigureReadinessView dco_decode_reconfigure_readiness_view(dynamic raw);
 
   @protected
+  RefundLinePick dco_decode_refund_line_pick(dynamic raw);
+
+  @protected
   RefundLineView dco_decode_refund_line_view(dynamic raw);
 
   @protected
@@ -836,6 +845,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   RefundView dco_decode_refund_view(dynamic raw);
+
+  @protected
+  RefundableLineView dco_decode_refundable_line_view(dynamic raw);
 
   @protected
   RewardBoardView dco_decode_reward_board_view(dynamic raw);
@@ -1657,12 +1669,22 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<RefundLinePick> sse_decode_list_refund_line_pick(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<RefundLineView> sse_decode_list_refund_line_view(
     SseDeserializer deserializer,
   );
 
   @protected
   List<RefundView> sse_decode_list_refund_view(SseDeserializer deserializer);
+
+  @protected
+  List<RefundableLineView> sse_decode_list_refundable_line_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<RewardLineInput> sse_decode_list_reward_line_input(
@@ -1989,6 +2011,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  RefundLinePick sse_decode_refund_line_pick(SseDeserializer deserializer);
+
+  @protected
   RefundLineView sse_decode_refund_line_view(SseDeserializer deserializer);
 
   @protected
@@ -1996,6 +2021,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   RefundView sse_decode_refund_view(SseDeserializer deserializer);
+
+  @protected
+  RefundableLineView sse_decode_refundable_line_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   RewardBoardView sse_decode_reward_board_view(SseDeserializer deserializer);
@@ -3008,6 +3038,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_refund_line_pick(
+    List<RefundLinePick> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_refund_line_view(
     List<RefundLineView> self,
     SseSerializer serializer,
@@ -3016,6 +3052,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_refund_view(
     List<RefundView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_refundable_line_view(
+    List<RefundableLineView> self,
     SseSerializer serializer,
   );
 
@@ -3446,6 +3488,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_refund_line_pick(
+    RefundLinePick self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_refund_line_view(
     RefundLineView self,
     SseSerializer serializer,
@@ -3459,6 +3507,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_refund_view(RefundView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_refundable_line_view(
+    RefundableLineView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_reward_board_view(

@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1516884658;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1636299620;
 
 // Section: executor
 
@@ -9962,6 +9962,141 @@ fn wire__crate__api__bridge__MadarBridge_refund_order_approved_impl(
         },
     )
 }
+fn wire__crate__api__bridge__MadarBridge_refund_order_lines_approved_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_refund_order_lines_approved",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            let api_order_id = <String>::sse_decode(&mut deserializer);
+            let api_amount_minor = <i64>::sse_decode(&mut deserializer);
+            let api_method = <String>::sse_decode(&mut deserializer);
+            let api_reason = <String>::sse_decode(&mut deserializer);
+            let api_note = <Option<String>>::sse_decode(&mut deserializer);
+            let api_lines =
+                <Vec<crate::api::orders::RefundLinePick>>::sse_decode(&mut deserializer);
+            let api_approval =
+                <Option<crate::api::approvals::ApprovalView>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::MadarError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::bridge::MadarBridge::refund_order_lines_approved(
+                                &*api_that_guard,
+                                api_order_id,
+                                api_amount_minor,
+                                api_method,
+                                api_reason,
+                                api_note,
+                                api_lines,
+                                api_approval,
+                            )
+                            .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__bridge__MadarBridge_refundable_lines_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_refundable_lines",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            let api_order_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::MadarError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = crate::api::bridge::MadarBridge::refundable_lines(
+                            &*api_that_guard,
+                            api_order_id,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__bridge__MadarBridge_release_draft_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -14761,7 +14896,13 @@ const _: fn() = || {
         let _: u32 = ReconfigureReadinessView.outbox_total;
     }
     {
+        let RefundLinePick = None::<crate::api::orders::RefundLinePick>.unwrap();
+        let _: String = RefundLinePick.order_item_id;
+        let _: i32 = RefundLinePick.qty;
+    }
+    {
         let RefundLineView = None::<crate::api::orders::RefundLineView>.unwrap();
+        let _: String = RefundLineView.order_item_id;
         let _: String = RefundLineView.item_name;
         let _: i32 = RefundLineView.qty;
         let _: i64 = RefundLineView.amount_minor;
@@ -14786,6 +14927,15 @@ const _: fn() = || {
         let _: String = RefundView.issued_by_name;
         let _: Vec<crate::api::orders::RefundLineView> = RefundView.lines;
         let _: bool = RefundView.queued;
+    }
+    {
+        let RefundableLineView = None::<crate::api::orders::RefundableLineView>.unwrap();
+        let _: String = RefundableLineView.order_item_id;
+        let _: String = RefundableLineView.name;
+        let _: Option<String> = RefundableLineView.size_label;
+        let _: i32 = RefundableLineView.sold_qty;
+        let _: i32 = RefundableLineView.refundable_qty;
+        let _: i64 = RefundableLineView.unit_share_minor;
     }
     {
         let RewardBoardView = None::<crate::api::loyalty::RewardBoardView>.unwrap();
@@ -17365,6 +17515,20 @@ impl SseDecode for Vec<crate::api::device::ReconfigureBlockerView> {
     }
 }
 
+impl SseDecode for Vec<crate::api::orders::RefundLinePick> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::orders::RefundLinePick>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::orders::RefundLineView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -17386,6 +17550,20 @@ impl SseDecode for Vec<crate::api::orders::RefundView> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::orders::RefundView>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::orders::RefundableLineView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::orders::RefundableLineView>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -18814,14 +18992,28 @@ impl SseDecode for crate::api::device::ReconfigureReadinessView {
     }
 }
 
+impl SseDecode for crate::api::orders::RefundLinePick {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_orderItemId = <String>::sse_decode(deserializer);
+        let mut var_qty = <i32>::sse_decode(deserializer);
+        return crate::api::orders::RefundLinePick {
+            order_item_id: var_orderItemId,
+            qty: var_qty,
+        };
+    }
+}
+
 impl SseDecode for crate::api::orders::RefundLineView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_orderItemId = <String>::sse_decode(deserializer);
         let mut var_itemName = <String>::sse_decode(deserializer);
         let mut var_qty = <i32>::sse_decode(deserializer);
         let mut var_amountMinor = <i64>::sse_decode(deserializer);
         let mut var_restocked = <bool>::sse_decode(deserializer);
         return crate::api::orders::RefundLineView {
+            order_item_id: var_orderItemId,
             item_name: var_itemName,
             qty: var_qty,
             amount_minor: var_amountMinor,
@@ -18871,6 +19063,26 @@ impl SseDecode for crate::api::orders::RefundView {
             issued_by_name: var_issuedByName,
             lines: var_lines,
             queued: var_queued,
+        };
+    }
+}
+
+impl SseDecode for crate::api::orders::RefundableLineView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_orderItemId = <String>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_sizeLabel = <Option<String>>::sse_decode(deserializer);
+        let mut var_soldQty = <i32>::sse_decode(deserializer);
+        let mut var_refundableQty = <i32>::sse_decode(deserializer);
+        let mut var_unitShareMinor = <i64>::sse_decode(deserializer);
+        return crate::api::orders::RefundableLineView {
+            order_item_id: var_orderItemId,
+            name: var_name,
+            size_label: var_sizeLabel,
+            sold_qty: var_soldQty,
+            refundable_qty: var_refundableQty,
+            unit_share_minor: var_unitShareMinor,
         };
     }
 }
@@ -20453,253 +20665,265 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        182 => wire__crate__api__bridge__MadarBridge_release_draft_impl(
+        182 => wire__crate__api__bridge__MadarBridge_refund_order_lines_approved_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        183 => wire__crate__api__bridge__MadarBridge_rename_draft_impl(
+        183 => wire__crate__api__bridge__MadarBridge_refundable_lines_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        184 => wire__crate__api__bridge__MadarBridge_render_kitchen_chit_impl(
+        184 => wire__crate__api__bridge__MadarBridge_release_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        185 => wire__crate__api__bridge__MadarBridge_render_order_receipt_impl(
+        185 => wire__crate__api__bridge__MadarBridge_rename_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        186 => wire__crate__api__bridge__MadarBridge_render_receipt_impl(
+        186 => wire__crate__api__bridge__MadarBridge_render_kitchen_chit_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        187 => wire__crate__api__bridge__MadarBridge_render_till_report_impl(
+        187 => wire__crate__api__bridge__MadarBridge_render_order_receipt_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        188 => wire__crate__api__bridge__MadarBridge_repair_assets_impl(
+        188 => wire__crate__api__bridge__MadarBridge_render_receipt_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        189 => wire__crate__api__bridge__MadarBridge_restore_draft_impl(
+        189 => wire__crate__api__bridge__MadarBridge_render_till_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        190 => wire__crate__api__bridge__MadarBridge_restore_session_impl(
+        190 => wire__crate__api__bridge__MadarBridge_repair_assets_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        192 => wire__crate__api__bridge__MadarBridge_retry_outbox_impl(
+        191 => wire__crate__api__bridge__MadarBridge_restore_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        193 => wire__crate__api__bridge__MadarBridge_retry_till_outbox_impl(
+        192 => wire__crate__api__bridge__MadarBridge_restore_session_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        198 => wire__crate__api__bridge__MadarBridge_search_orders_impl(
+        194 => wire__crate__api__bridge__MadarBridge_retry_outbox_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        199 => wire__crate__api__bridge__MadarBridge_seat_booking_impl(
+        195 => wire__crate__api__bridge__MadarBridge_retry_till_outbox_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        200 => {
+        200 => wire__crate__api__bridge__MadarBridge_search_orders_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        201 => wire__crate__api__bridge__MadarBridge_seat_booking_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        202 => {
             wire__crate__api__bridge__MadarBridge_seat_table_impl(port, ptr, rust_vec_len, data_len)
         }
-        201 => wire__crate__api__bridge__MadarBridge_send_to_printer_impl(
+        203 => wire__crate__api__bridge__MadarBridge_send_to_printer_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        202 => wire__crate__api__bridge__MadarBridge_set_device_branch_impl(
+        204 => wire__crate__api__bridge__MadarBridge_set_device_branch_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        204 => wire__crate__api__bridge__MadarBridge_set_device_lan_hub_impl(
+        206 => wire__crate__api__bridge__MadarBridge_set_device_lan_hub_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        205 => wire__crate__api__bridge__MadarBridge_set_device_printer_impl(
+        207 => wire__crate__api__bridge__MadarBridge_set_device_printer_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        206 => wire__crate__api__bridge__MadarBridge_set_device_printer_bt_impl(
+        208 => wire__crate__api__bridge__MadarBridge_set_device_printer_bt_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        207 => wire__crate__api__bridge__MadarBridge_set_device_printer_paper_impl(
+        209 => wire__crate__api__bridge__MadarBridge_set_device_printer_paper_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        208 => wire__crate__api__bridge__MadarBridge_set_device_printer_transport_impl(
+        210 => wire__crate__api__bridge__MadarBridge_set_device_printer_transport_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        209 => wire__crate__api__bridge__MadarBridge_set_device_station_impl(
+        211 => wire__crate__api__bridge__MadarBridge_set_device_station_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        210 => wire__crate__api__bridge__MadarBridge_set_kitchen_routing_mode_impl(
+        212 => wire__crate__api__bridge__MadarBridge_set_kitchen_routing_mode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        212 => wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
+        214 => wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        213 => {
+        215 => {
             wire__crate__api__bridge__MadarBridge_sign_in_impl(port, ptr, rust_vec_len, data_len)
         }
-        216 => wire__crate__api__bridge__MadarBridge_start_realtime_impl(
+        218 => wire__crate__api__bridge__MadarBridge_start_realtime_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        217 => wire__crate__api__bridge__MadarBridge_start_reconfigure_impl(
+        219 => wire__crate__api__bridge__MadarBridge_start_reconfigure_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        218 => wire__crate__api__bridge__MadarBridge_suggested_opening_cash_minor_impl(
+        220 => wire__crate__api__bridge__MadarBridge_suggested_opening_cash_minor_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        219 => wire__crate__api__bridge__MadarBridge_swap_floor_tables_impl(
+        221 => wire__crate__api__bridge__MadarBridge_swap_floor_tables_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        220 => wire__crate__api__bridge__MadarBridge_switch_to_draft_impl(
+        222 => wire__crate__api__bridge__MadarBridge_switch_to_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        221 => {
+        223 => {
             wire__crate__api__bridge__MadarBridge_sync_full_impl(port, ptr, rust_vec_len, data_len)
         }
-        222 => {
+        224 => {
             wire__crate__api__bridge__MadarBridge_sync_now_impl(port, ptr, rust_vec_len, data_len)
         }
-        225 => wire__crate__api__bridge__MadarBridge_table_history_impl(
+        227 => wire__crate__api__bridge__MadarBridge_table_history_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        229 => wire__crate__api__bridge__MadarBridge_till_report_impl(
+        231 => wire__crate__api__bridge__MadarBridge_till_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        230 => wire__crate__api__bridge__MadarBridge_till_report_for_impl(
+        232 => wire__crate__api__bridge__MadarBridge_till_report_for_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        231 => wire__crate__api__bridge__MadarBridge_till_report_synced_impl(
+        233 => wire__crate__api__bridge__MadarBridge_till_report_synced_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        232 => {
+        234 => {
             wire__crate__api__bridge__MadarBridge_till_stats_impl(port, ptr, rust_vec_len, data_len)
         }
-        235 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
+        237 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        236 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
+        238 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        238 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
+        240 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        240 => {
+        242 => {
             wire__crate__api__bridge__MadarBridge_void_order_impl(port, ptr, rust_vec_len, data_len)
         }
-        241 => wire__crate__api__bridge__MadarBridge_void_order_approved_impl(
+        243 => wire__crate__api__bridge__MadarBridge_void_order_approved_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        242 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
+        244 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        243 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
+        245 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        247 => wire__crate__api__bridge__MadarBridge_watch_tables_impl(
+        249 => wire__crate__api__bridge__MadarBridge_watch_tables_impl(
             port,
             ptr,
             rust_vec_len,
@@ -20874,76 +21098,76 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        191 => wire__crate__api__bridge__MadarBridge_restore_session_cached_impl(
+        193 => wire__crate__api__bridge__MadarBridge_restore_session_cached_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        194 => wire__crate__api__bridge__MadarBridge_reward_board_impl(ptr, rust_vec_len, data_len),
-        195 => wire__crate__api__bridge__MadarBridge_reward_redemptions_impl(
+        196 => wire__crate__api__bridge__MadarBridge_reward_board_impl(ptr, rust_vec_len, data_len),
+        197 => wire__crate__api__bridge__MadarBridge_reward_redemptions_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        196 => wire__crate__api__bridge__MadarBridge_sale_tax_inclusive_impl(
+        198 => wire__crate__api__bridge__MadarBridge_sale_tax_inclusive_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        197 => {
+        199 => {
             wire__crate__api__bridge__MadarBridge_search_customers_impl(ptr, rust_vec_len, data_len)
         }
-        203 => {
+        205 => {
             wire__crate__api__bridge__MadarBridge_set_device_code_impl(ptr, rust_vec_len, data_len)
         }
-        211 => wire__crate__api__bridge__MadarBridge_set_locale_impl(ptr, rust_vec_len, data_len),
-        214 => {
+        213 => wire__crate__api__bridge__MadarBridge_set_locale_impl(ptr, rust_vec_len, data_len),
+        216 => {
             wire__crate__api__bridge__MadarBridge_split_auto_fill_impl(ptr, rust_vec_len, data_len)
         }
-        215 => {
+        217 => {
             wire__crate__api__bridge__MadarBridge_split_rest_here_impl(ptr, rust_vec_len, data_len)
         }
-        223 => wire__crate__api__bridge__MadarBridge_sync_on_till_open_status_impl(
+        225 => wire__crate__api__bridge__MadarBridge_sync_on_till_open_status_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        224 => wire__crate__api__bridge__MadarBridge_sync_status_impl(ptr, rust_vec_len, data_len),
-        226 => {
+        226 => wire__crate__api__bridge__MadarBridge_sync_status_impl(ptr, rust_vec_len, data_len),
+        228 => {
             wire__crate__api__bridge__MadarBridge_tender_summary_impl(ptr, rust_vec_len, data_len)
         }
-        227 => wire__crate__api__bridge__MadarBridge_ticket_reward_lines_impl(
+        229 => wire__crate__api__bridge__MadarBridge_ticket_reward_lines_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        228 => wire__crate__api__bridge__MadarBridge_till_cash_sales_minor_impl(
+        230 => wire__crate__api__bridge__MadarBridge_till_cash_sales_minor_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        233 => {
+        235 => {
             wire__crate__api__bridge__MadarBridge_toggle_reward_impl(ptr, rust_vec_len, data_len)
         }
-        234 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
-        237 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
+        236 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
+        239 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        239 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
-        244 => wire__crate__api__bridge__MadarBridge_waste_ingredients_impl(
+        241 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
+        246 => wire__crate__api__bridge__MadarBridge_waste_ingredients_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        245 => wire__crate__api__bridge__MadarBridge_waste_items_impl(ptr, rust_vec_len, data_len),
-        246 => {
+        247 => wire__crate__api__bridge__MadarBridge_waste_items_impl(ptr, rust_vec_len, data_len),
+        248 => {
             wire__crate__api__bridge__MadarBridge_waste_reasons_impl(ptr, rust_vec_len, data_len)
         }
-        248 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
-        249 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
-        250 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
+        250 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
+        251 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
+        252 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -23749,9 +23973,31 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::device::Reconfigur
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::RefundLinePick> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.order_item_id.into_into_dart().into_dart(),
+            self.0.qty.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::orders::RefundLinePick>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::orders::RefundLinePick>>
+    for crate::api::orders::RefundLinePick
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::orders::RefundLinePick> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::RefundLineView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
+            self.0.order_item_id.into_into_dart().into_dart(),
             self.0.item_name.into_into_dart().into_dart(),
             self.0.qty.into_into_dart().into_dart(),
             self.0.amount_minor.into_into_dart().into_dart(),
@@ -23820,6 +24066,31 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::orders::RefundView
     for crate::api::orders::RefundView
 {
     fn into_into_dart(self) -> FrbWrapper<crate::api::orders::RefundView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::RefundableLineView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.order_item_id.into_into_dart().into_dart(),
+            self.0.name.into_into_dart().into_dart(),
+            self.0.size_label.into_into_dart().into_dart(),
+            self.0.sold_qty.into_into_dart().into_dart(),
+            self.0.refundable_qty.into_into_dart().into_dart(),
+            self.0.unit_share_minor.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::orders::RefundableLineView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::orders::RefundableLineView>>
+    for crate::api::orders::RefundableLineView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::orders::RefundableLineView> {
         self.into()
     }
 }
@@ -26348,6 +26619,16 @@ impl SseEncode for Vec<crate::api::device::ReconfigureBlockerView> {
     }
 }
 
+impl SseEncode for Vec<crate::api::orders::RefundLinePick> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::orders::RefundLinePick>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::orders::RefundLineView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -26364,6 +26645,16 @@ impl SseEncode for Vec<crate::api::orders::RefundView> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::orders::RefundView>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::orders::RefundableLineView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::orders::RefundableLineView>::sse_encode(item, serializer);
         }
     }
 }
@@ -27332,9 +27623,18 @@ impl SseEncode for crate::api::device::ReconfigureReadinessView {
     }
 }
 
+impl SseEncode for crate::api::orders::RefundLinePick {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.order_item_id, serializer);
+        <i32>::sse_encode(self.qty, serializer);
+    }
+}
+
 impl SseEncode for crate::api::orders::RefundLineView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.order_item_id, serializer);
         <String>::sse_encode(self.item_name, serializer);
         <i32>::sse_encode(self.qty, serializer);
         <i64>::sse_encode(self.amount_minor, serializer);
@@ -27365,6 +27665,18 @@ impl SseEncode for crate::api::orders::RefundView {
         <String>::sse_encode(self.issued_by_name, serializer);
         <Vec<crate::api::orders::RefundLineView>>::sse_encode(self.lines, serializer);
         <bool>::sse_encode(self.queued, serializer);
+    }
+}
+
+impl SseEncode for crate::api::orders::RefundableLineView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.order_item_id, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <Option<String>>::sse_encode(self.size_label, serializer);
+        <i32>::sse_encode(self.sold_qty, serializer);
+        <i32>::sse_encode(self.refundable_qty, serializer);
+        <i64>::sse_encode(self.unit_share_minor, serializer);
     }
 }
 

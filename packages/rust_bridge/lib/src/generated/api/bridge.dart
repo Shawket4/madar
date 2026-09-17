@@ -935,6 +935,22 @@ abstract class MadarBridge implements RustOpaqueInterface {
     ApprovalView? approval,
   });
 
+  /// Refund naming the items it is for (their stock is logged as waste),
+  /// with a manager's approval when one was needed.
+  Future<void> refundOrderLinesApproved({
+    required String orderId,
+    required PlatformInt64 amountMinor,
+    required String method,
+    required String reason,
+    String? note,
+    required List<RefundLinePick> lines,
+    ApprovalView? approval,
+  });
+
+  /// The sale's lines and how many units of each may still be refunded.
+  /// Refunded items were served: their stock stays deducted as waste.
+  Future<List<RefundableLineView>> refundableLines({required String orderId});
+
   /// Give a restored draft's claim back without changes (the "never mind"
   /// path out of a resume).
   Future<void> releaseDraft({required String id});
