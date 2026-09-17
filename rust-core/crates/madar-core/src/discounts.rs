@@ -313,15 +313,19 @@ pub(crate) fn bill_figures(
     dvalue: Option<f64>,
     subtotal: i64,
 ) -> (Option<i64>, Option<i64>) {
+    let _ = dtype;
+    // A bill whose lines this device has not cached yet has NO known subtotal.
+    // Clamping to it would clamp every amount to zero, and a zero discount is
+    // under every cap — the gate would wave through exactly the bills it knows
+    // least about. So an unknown subtotal clamps to nothing and the figure is
+    // judged as typed.
+    let ceiling = if subtotal > 0 { subtotal } else { i64::MAX };
     match kind {
-        KIND_PRESET => figures(KIND_PRESET, preset, None, None, subtotal),
+        KIND_PRESET => figures(KIND_PRESET, preset, None, None, ceiling),
         KIND_MANUAL_PERCENT => {
-            figures(KIND_MANUAL_PERCENT, None, None, Some(bps_of_rate(dvalue.unwrap_or(0.0))), subtotal)
+            figures(KIND_MANUAL_PERCENT, None, None, Some(bps_of_rate(dvalue.unwrap_or(0.0))), ceiling)
         }
-        _ => {
-            let _ = dtype;
-            figures(KIND_MANUAL_AMOUNT, None, Some(dvalue.unwrap_or(0.0).round() as i64), None, subtotal)
-        }
+        _ => figures(KIND_MANUAL_AMOUNT, None, Some(dvalue.unwrap_or(0.0).round() as i64), None, ceiling),
     }
 }
 
@@ -622,6 +626,20 @@ mod bill_tests {
             decide(&t, &discount_request(KIND_MANUAL_AMOUNT, leg.0, leg.1).unwrap()),
             Decision::Allow
         );
+    }
+
+    /// An UNKNOWN subtotal must not wave a discount through. Clamping to a
+    /// subtotal of zero made every amount zero, and zero is under every cap —
+    /// the gate would have been loosest on the bills it knew least about.
+    #[test]
+    fn an_unknown_subtotal_judges_the_figure_as_typed() {
+        let t = teller();
+        let (amt, bps) = bill_figures(KIND_MANUAL_AMOUNT, None, Some("fixed"), Some(2000.0), 0);
+        assert_eq!((amt, bps), (Some(2000), None));
+        assert!(matches!(
+            decide(&t, &discount_request(KIND_MANUAL_AMOUNT, amt, bps).unwrap()),
+            Decision::NeedsApproval(_)
+        ));
     }
 
     /// A discount never takes more off than the bill is worth.
