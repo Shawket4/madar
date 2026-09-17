@@ -26,6 +26,7 @@ import 'package:feature_till/src/till_history_screen.dart';
 import 'package:feature_till/src/till_notices.dart';
 import 'package:feature_till/src/till_providers.dart';
 import 'package:feature_till/src/till_report_sheet.dart';
+import 'package:feature_till/src/waste_screen.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -159,10 +160,13 @@ class _DrawerHome extends ConsumerWidget {
 
     void cashInOut() => _push(context, ref, CashMovementsScreen.new);
     void pastTills() => _push(context, ref, _pastTills);
+    // Hidden unless the person holds the capability or may ask a manager.
+    final canWaste = bridge.canRecordWaste();
 
     final links = _Links(
       onOpenOrders: onOpenOrders,
       onCashInOut: cashInOut,
+      onWaste: canWaste ? () => _push(context, ref, WasteScreen.new) : null,
       onPastTills: pastTills,
       withPrint: layout.isPhone,
     );
@@ -362,12 +366,16 @@ class _Links extends ConsumerWidget {
   const _Links({
     required this.onOpenOrders,
     required this.onCashInOut,
+    required this.onWaste,
     required this.onPastTills,
     required this.withPrint,
   });
 
   final VoidCallback? onOpenOrders;
   final VoidCallback onCashInOut;
+
+  /// Record waste; null hides the row (no capability, no ask-a-manager).
+  final VoidCallback? onWaste;
   final VoidCallback onPastTills;
 
   /// The phone has no header actions: Print X is a row.
@@ -406,6 +414,14 @@ class _Links extends ConsumerWidget {
               valueText: MadarFormat.ltr('$movementCount'),
               onTap: onCashInOut,
             ),
+            if (onWaste != null) ...[
+              const MadarHairline.row(),
+              MadarListRow.nav(
+                title: t('waste.title'),
+                glyph: MadarGlyph.trash,
+                onTap: onWaste,
+              ),
+            ],
             const MadarHairline.row(),
             MadarListRow.nav(
               title: t('till.preview_x'),

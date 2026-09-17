@@ -31,5 +31,6 @@ export 'src/generated/api/tickets.dart';
 export 'src/generated/api/till.dart';
 export 'src/generated/api/types.dart';
 export 'src/generated/api/vault.dart';
+export 'src/generated/api/waste.dart';
 export 'src/tr_check.dart';
 export 'src/ui_text.dart';

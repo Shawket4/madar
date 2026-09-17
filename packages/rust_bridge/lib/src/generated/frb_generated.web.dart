@@ -28,6 +28,7 @@ import 'api/sync.dart';
 import 'api/tickets.dart';
 import 'api/till.dart';
 import 'api/types.dart';
+import 'api/waste.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -201,6 +202,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   BigInt dco_decode_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  WasteInput dco_decode_box_autoadd_waste_input(dynamic raw);
 
   @protected
   BranchOpenTillView dco_decode_branch_open_till_view(dynamic raw);
@@ -613,6 +617,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<TransferQueueView> dco_decode_list_transfer_queue_view(dynamic raw);
 
   @protected
+  List<WasteIngredientView> dco_decode_list_waste_ingredient_view(dynamic raw);
+
+  @protected
+  List<WasteItemView> dco_decode_list_waste_item_view(dynamic raw);
+
+  @protected
+  List<WasteLineView> dco_decode_list_waste_line_view(dynamic raw);
+
+  @protected
+  List<WasteReasonView> dco_decode_list_waste_reason_view(dynamic raw);
+
+  @protected
   LoginMode dco_decode_login_mode(dynamic raw);
 
   @protected
@@ -930,6 +946,27 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   BigInt dco_decode_usize(dynamic raw);
 
   @protected
+  WasteIngredientView dco_decode_waste_ingredient_view(dynamic raw);
+
+  @protected
+  WasteInput dco_decode_waste_input(dynamic raw);
+
+  @protected
+  WasteItemView dco_decode_waste_item_view(dynamic raw);
+
+  @protected
+  WasteLineView dco_decode_waste_line_view(dynamic raw);
+
+  @protected
+  WastePreviewView dco_decode_waste_preview_view(dynamic raw);
+
+  @protected
+  WasteReasonView dco_decode_waste_reason_view(dynamic raw);
+
+  @protected
+  WasteRecordedView dco_decode_waste_recorded_view(dynamic raw);
+
+  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
@@ -1113,6 +1150,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  WasteInput sse_decode_box_autoadd_waste_input(SseDeserializer deserializer);
 
   @protected
   BranchOpenTillView sse_decode_branch_open_till_view(
@@ -1671,6 +1711,26 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<WasteIngredientView> sse_decode_list_waste_ingredient_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<WasteItemView> sse_decode_list_waste_item_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<WasteLineView> sse_decode_list_waste_line_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<WasteReasonView> sse_decode_list_waste_reason_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LoginMode sse_decode_login_mode(SseDeserializer deserializer);
 
   @protected
@@ -2056,6 +2116,31 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   BigInt sse_decode_usize(SseDeserializer deserializer);
 
   @protected
+  WasteIngredientView sse_decode_waste_ingredient_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  WasteInput sse_decode_waste_input(SseDeserializer deserializer);
+
+  @protected
+  WasteItemView sse_decode_waste_item_view(SseDeserializer deserializer);
+
+  @protected
+  WasteLineView sse_decode_waste_line_view(SseDeserializer deserializer);
+
+  @protected
+  WastePreviewView sse_decode_waste_preview_view(SseDeserializer deserializer);
+
+  @protected
+  WasteReasonView sse_decode_waste_reason_view(SseDeserializer deserializer);
+
+  @protected
+  WasteRecordedView sse_decode_waste_recorded_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -2288,6 +2373,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_waste_input(
+    WasteInput self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_branch_open_till_view(
@@ -2989,6 +3080,30 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_waste_ingredient_view(
+    List<WasteIngredientView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_waste_item_view(
+    List<WasteItemView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_waste_line_view(
+    List<WasteLineView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_waste_reason_view(
+    List<WasteReasonView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_login_mode(LoginMode self, SseSerializer serializer);
 
   @protected
@@ -3515,6 +3630,39 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_waste_ingredient_view(
+    WasteIngredientView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_waste_input(WasteInput self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_waste_item_view(WasteItemView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_waste_line_view(WasteLineView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_waste_preview_view(
+    WastePreviewView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_waste_reason_view(
+    WasteReasonView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_waste_recorded_view(
+    WasteRecordedView self,
+    SseSerializer serializer,
+  );
 }
 
 // Section: wire_class

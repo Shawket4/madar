@@ -175,6 +175,7 @@ Class | Method | HTTP request | Description
 *InventoryApi* | [**list_movements**](docs/InventoryApi.md#list_movements) | **GET** /inventory/branches/{branch_id}/movements | 
 *InventoryApi* | [**list_transfers**](docs/InventoryApi.md#list_transfers) | **GET** /inventory/branches/{branch_id}/transfers | 
 *InventoryApi* | [**list_waste**](docs/InventoryApi.md#list_waste) | **GET** /inventory/branches/{branch_id}/waste | 
+*InventoryApi* | [**record_waste**](docs/InventoryApi.md#record_waste) | **POST** /inventory/waste | POST /inventory/waste — record waste at a branch (ingredient or menu item).
 *InventoryApi* | [**set_par_levels**](docs/InventoryApi.md#set_par_levels) | **PUT** /inventory/branches/{branch_id}/stock/{org_ingredient_id}/par | 
 *InventoryApi* | [**update_catalog_item**](docs/InventoryApi.md#update_catalog_item) | **PATCH** /inventory/orgs/{org_id}/catalog/{id} | 
 *InventoryApi* | [**update_ingredient_category**](docs/InventoryApi.md#update_ingredient_category) | **PATCH** /inventory/orgs/{org_id}/categories/{id} | 
@@ -1009,6 +1010,7 @@ Class | Method | HTTP request | Description
  - [RecipeStepInput](docs/RecipeStepInput.md)
  - [RecipeStepPreset](docs/RecipeStepPreset.md)
  - [ReconciliationInput](docs/ReconciliationInput.md)
+ - [RecordWasteRequest](docs/RecordWasteRequest.md)
  - [Refund](docs/Refund.md)
  - [RefundFull](docs/RefundFull.md)
  - [RefundIssued](docs/RefundIssued.md)
@@ -1173,6 +1175,8 @@ Class | Method | HTTP request | Description
  - [WalletProvider](docs/WalletProvider.md)
  - [WalletStatus](docs/WalletStatus.md)
  - [WalletStep](docs/WalletStep.md)
+ - [WasteLine](docs/WasteLine.md)
+ - [WasteRecorded](docs/WasteRecorded.md)
  - [WasteReportRow](docs/WasteReportRow.md)
  - [WhatsappStatus](docs/WhatsappStatus.md)
  - [WidgetOutcome](docs/WidgetOutcome.md)

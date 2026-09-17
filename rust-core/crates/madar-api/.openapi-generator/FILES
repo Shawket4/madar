@@ -490,6 +490,7 @@ docs/RecipeStepInput.md
 docs/RecipeStepPreset.md
 docs/RecipesApi.md
 docs/ReconciliationInput.md
+docs/RecordWasteRequest.md
 docs/Refund.md
 docs/RefundFull.md
 docs/RefundIssued.md
@@ -664,6 +665,8 @@ docs/WaiveDeductionRequest.md
 docs/WalletProvider.md
 docs/WalletStatus.md
 docs/WalletStep.md
+docs/WasteLine.md
+docs/WasteRecorded.md
 docs/WasteReportRow.md
 docs/WhatsappApi.md
 docs/WhatsappStatus.md
@@ -1176,6 +1179,7 @@ src/models/recipe_step.rs
 src/models/recipe_step_input.rs
 src/models/recipe_step_preset.rs
 src/models/reconciliation_input.rs
+src/models/record_waste_request.rs
 src/models/refund.rs
 src/models/refund_full.rs
 src/models/refund_issued.rs
@@ -1340,6 +1344,8 @@ src/models/waive_deduction_request.rs
 src/models/wallet_provider.rs
 src/models/wallet_status.rs
 src/models/wallet_step.rs
+src/models/waste_line.rs
+src/models/waste_recorded.rs
 src/models/waste_report_row.rs
 src/models/whatsapp_status.rs
 src/models/widget_outcome.rs

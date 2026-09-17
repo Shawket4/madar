@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StockMovement {
+    /// The manager who approved it on the till.
+    #[serde(
+        rename = "approved_by_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub approved_by_name: Option<Option<String>>,
     #[serde(rename = "balance_after")]
     pub balance_after: f64,
     #[serde(rename = "below_zero")]
@@ -50,6 +58,20 @@ pub struct StockMovement {
         skip_serializing_if = "Option::is_none"
     )]
     pub created_by_name: Option<Option<String>>,
+    #[serde(
+        rename = "device_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_id: Option<Option<uuid::Uuid>>,
+    #[serde(
+        rename = "device_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_name: Option<Option<String>>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(rename = "ingredient_name")]
@@ -64,6 +86,14 @@ pub struct StockMovement {
         skip_serializing_if = "Option::is_none"
     )]
     pub note: Option<Option<String>>,
+    /// When it happened on the device (a queued waste lands later).
+    #[serde(
+        rename = "occurred_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub occurred_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "org_ingredient_id")]
     pub org_ingredient_id: uuid::Uuid,
     /// Signed delta applied to stock (consumption negative, replenishment positive).
@@ -90,6 +120,13 @@ pub struct StockMovement {
         skip_serializing_if = "Option::is_none"
     )]
     pub source_type: Option<Option<String>>,
+    #[serde(
+        rename = "till_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub till_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "unit")]
     pub unit: String,
     /// Piastres per unit at movement time; `null` ⟺ unknown.
@@ -100,6 +137,60 @@ pub struct StockMovement {
         skip_serializing_if = "Option::is_none"
     )]
     pub unit_cost: Option<Option<i64>>,
+    /// The quantity as the person typed it, in `waste_unit`.
+    #[serde(
+        rename = "waste_quantity",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub waste_quantity: Option<Option<f64>>,
+    #[serde(
+        rename = "waste_size_label",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub waste_size_label: Option<Option<String>>,
+    /// `pos` | `dashboard` | `order` (a voided made order).
+    #[serde(
+        rename = "waste_source",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub waste_source: Option<Option<String>>,
+    /// `ingredient` | `menu_item`, when the waste was recorded with a header.
+    #[serde(
+        rename = "waste_subject_kind",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub waste_subject_kind: Option<Option<String>>,
+    /// What the person picked (the menu item for an exploded item waste).
+    #[serde(
+        rename = "waste_subject_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub waste_subject_name: Option<Option<String>>,
+    #[serde(
+        rename = "waste_unit",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub waste_unit: Option<Option<String>>,
+    /// The whole waste's value (all its lines), piastres.
+    #[serde(
+        rename = "waste_value_minor",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub waste_value_minor: Option<Option<i64>>,
 }
 
 impl StockMovement {
@@ -116,6 +207,7 @@ impl StockMovement {
         unit: String,
     ) -> StockMovement {
         StockMovement {
+            approved_by_name: None,
             balance_after,
             below_zero,
             branch_id,
@@ -124,17 +216,28 @@ impl StockMovement {
             created_at,
             created_by: None,
             created_by_name: None,
+            device_id: None,
+            device_name: None,
             id,
             ingredient_name,
             movement_type,
             note: None,
+            occurred_at: None,
             org_ingredient_id,
             quantity,
             reason: None,
             source_id: None,
             source_type: None,
+            till_id: None,
             unit,
             unit_cost: None,
+            waste_quantity: None,
+            waste_size_label: None,
+            waste_source: None,
+            waste_subject_kind: None,
+            waste_subject_name: None,
+            waste_unit: None,
+            waste_value_minor: None,
         }
     }
 }

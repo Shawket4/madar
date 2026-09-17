@@ -26,6 +26,7 @@ import 'sync.dart';
 import 'tickets.dart';
 import 'till.dart';
 import 'types.dart';
+import 'waste.dart';
 
 /// FFI contract version this wrapper was written against (madar-core's
 /// `ffi_surface_version`). Dart asserts equality at startup.
@@ -71,6 +72,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
     PlatformInt64? amountMinor,
   });
 
+  /// A manager approves this waste with their PIN.
+  Future<ApprovalView> approveWaste({
+    required String approverPin,
+    required WasteInput input,
+  });
+
   /// Assign / move / unassign a parked draft's table. Errors loudly when the
   /// table is taken (interactive path — the teller picks another).
   Future<void> assignDraftTable({required String id, String? tableId});
@@ -107,6 +114,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// Not held, but the owner lets this person ask a manager to approve it.
   bool canAskManager({required String cap});
+
+  /// Whether the waste screen is offered (held, or ask-a-manager).
+  bool canRecordWaste();
 
   /// May the signed-in PIN user remove the service charge from a table's
   /// bill? Their effective `orders:waive_service` grant — never the role.
@@ -828,6 +838,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required PlatformInt64 qty,
   });
 
+  /// Lines, value and decision for what is picked. Offline.
+  WastePreviewView previewWaste({required WasteInput input});
+
   /// Print pre-rendered ESC/POS bytes to the DEVICE's configured printer
   /// (from the core device config). Errors if no printer is bound.
   Future<void> printToDevice({required List<int> bytes});
@@ -857,6 +870,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String note,
     String? kind,
     String? corrects,
+  });
+
+  /// Record the waste (queued; works offline).
+  Future<WasteRecordedView> recordWaste({
+    required WasteInput input,
+    ApprovalView? approval,
   });
 
   /// Pull today's active bookings into the offline cache (best-effort; a
@@ -1288,6 +1307,14 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String itemId,
     String? reason,
   });
+
+  /// Catalog ingredients matching a name. Offline.
+  List<WasteIngredientView> wasteIngredients({required String query});
+
+  /// Menu items with a recipe matching a name. Offline.
+  List<WasteItemView> wasteItems({required String query});
+
+  List<WasteReasonView> wasteReasons();
 
   /// Local table changes, as batches of logical table names (`orders`, `tills`,
   /// `open_tickets`, …, or `*` = re-read everything), coalesced over 50 ms.

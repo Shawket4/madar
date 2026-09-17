@@ -18,6 +18,7 @@ Method | HTTP request | Description
 [**list_movements**](InventoryApi.md#list_movements) | **GET** /inventory/branches/{branch_id}/movements | 
 [**list_transfers**](InventoryApi.md#list_transfers) | **GET** /inventory/branches/{branch_id}/transfers | 
 [**list_waste**](InventoryApi.md#list_waste) | **GET** /inventory/branches/{branch_id}/waste | 
+[**record_waste**](InventoryApi.md#record_waste) | **POST** /inventory/waste | POST /inventory/waste — record waste at a branch (ingredient or menu item).
 [**set_par_levels**](InventoryApi.md#set_par_levels) | **PUT** /inventory/branches/{branch_id}/stock/{org_ingredient_id}/par | 
 [**update_catalog_item**](InventoryApi.md#update_catalog_item) | **PATCH** /inventory/orgs/{org_id}/catalog/{id} | 
 [**update_ingredient_category**](InventoryApi.md#update_ingredient_category) | **PATCH** /inventory/orgs/{org_id}/categories/{id} | 
@@ -430,6 +431,34 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## record_waste
+
+> models::WasteRecorded record_waste(record_waste_request)
+POST /inventory/waste — record waste at a branch (ingredient or menu item).
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**record_waste_request** | [**RecordWasteRequest**](RecordWasteRequest.md) |  | [required] |
+
+### Return type
+
+[**models::WasteRecorded**](WasteRecorded.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

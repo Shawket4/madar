@@ -35,6 +35,8 @@ pub struct ApprovalView {
     pub approver_id: String,
     pub approver_name: String,
     pub amount_minor: Option<i64>,
+    /// The value the approval covers (`max_value` limits, e.g. a waste).
+    pub value_minor: Option<i64>,
 }
 
 /// The wire form a queued op carries (`approval` on the replay envelope).
@@ -44,6 +46,7 @@ pub(crate) fn approval_wire(a: &ApprovalView) -> serde_json::Value {
         "capability": a.capability,
         "approver_id": a.approver_id,
         "amount_minor": a.amount_minor,
+        "value_minor": a.value_minor,
     })
 }
 
@@ -190,6 +193,16 @@ impl MadarCore {
             field: "capability".into(),
             detail: "unknown capability".into(),
         })?;
+        self.approve_request(approver_pin, cap_key, request(cap, amount_minor, age_minutes, own))
+    }
+
+    /// Mint an approval of `req` by the person whose PIN this is.
+    pub(crate) fn approve_request(
+        &self,
+        approver_pin: String,
+        cap_key: String,
+        req: Request,
+    ) -> Result<ApprovalView, CoreError> {
         let (subject, branch) = {
             let g = self.session.read().unwrap_or_else(|e| e.into_inner());
             let s = g.as_ref().ok_or_else(|| CoreError::Unauthenticated {
@@ -216,7 +229,7 @@ impl MadarCore {
             &effective_from(&grants),
             &approver_id,
             &subject,
-            &request(cap, amount_minor, age_minutes, own),
+            &req,
         )
         .map_err(|w| CoreError::Forbidden {
             resource: "approval".into(),
@@ -227,7 +240,8 @@ impl MadarCore {
             capability: cap_key,
             approver_id,
             approver_name,
-            amount_minor,
+            amount_minor: req.amount,
+            value_minor: req.value,
         })
     }
 }

@@ -32,6 +32,7 @@ class ApprovalView {
   final String approverId;
   final String approverName;
   final PlatformInt64? amountMinor;
+  final PlatformInt64? valueMinor;
 
   const ApprovalView({
     required this.id,
@@ -39,6 +40,7 @@ class ApprovalView {
     required this.approverId,
     required this.approverName,
     this.amountMinor,
+    this.valueMinor,
   });
 
   @override
@@ -47,7 +49,8 @@ class ApprovalView {
       capability.hashCode ^
       approverId.hashCode ^
       approverName.hashCode ^
-      amountMinor.hashCode;
+      amountMinor.hashCode ^
+      valueMinor.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -58,5 +61,6 @@ class ApprovalView {
           capability == other.capability &&
           approverId == other.approverId &&
           approverName == other.approverName &&
-          amountMinor == other.amountMinor;
+          amountMinor == other.amountMinor &&
+          valueMinor == other.valueMinor;
 }
