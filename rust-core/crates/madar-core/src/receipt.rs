@@ -882,6 +882,8 @@ mod tests {
             reconciliation: vec![],
             old_bills_count: None,
             open_bills_count: None,
+            held_orders_left_open: None,
+            held_orders_left_open_total_minor: None,
             opened_while_another_open: false,
             verification: "server".into(),
         };
@@ -980,6 +982,8 @@ mod tests {
             reconciliation: vec![],
             old_bills_count: None,
             open_bills_count: None,
+            held_orders_left_open: None,
+            held_orders_left_open_total_minor: None,
             opened_while_another_open: false,
             verification: "server".into(),
         }
@@ -1939,6 +1943,8 @@ mod tests {
             reconciliation: vec![],
             old_bills_count: None,
             open_bills_count: None,
+            held_orders_left_open: None,
+            held_orders_left_open_total_minor: None,
             opened_while_another_open: false,
             verification: "server".into(),
         }

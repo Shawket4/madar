@@ -11,6 +11,28 @@ use crate::api::types::TillView;
 
 use crate::api::catalog::PaymentMethodView;
 pub use madar_core::orders::TillStatsView;
+pub use madar_core::queue::{ClosePreflightView, HeldLeftOpenView};
+
+/// One order a till close would leave open.
+#[frb(mirror(HeldLeftOpenView))]
+pub struct _HeldLeftOpenView {
+    pub id: String,
+    pub label: String,
+    pub started_by_name: Option<String>,
+    pub item_count: i64,
+    pub total_minor: i64,
+    pub in_hand: bool,
+}
+
+/// What a till close warns about before it counts anything.
+#[frb(mirror(ClosePreflightView))]
+pub struct _ClosePreflightView {
+    pub held_count: i64,
+    pub held_total_minor: i64,
+    pub held: Vec<HeldLeftOpenView>,
+    pub title: String,
+    pub body: String,
+}
 pub use madar_core::till::{
     BranchOpenTillView, CashMovementView, CloseTillMethodView, CloseTillOutcomeView,
     CloseTillPreviewView, LastTillWarningView, OpenBillsNoticeView, OpenTillOutcome,
@@ -104,6 +126,8 @@ pub struct _TillReportView {
     pub reconciliation: Vec<ReconciliationLineView>,
     pub old_bills_count: Option<i64>,
     pub open_bills_count: Option<i64>,
+    pub held_orders_left_open: Option<i64>,
+    pub held_orders_left_open_total_minor: Option<i64>,
     pub opened_while_another_open: bool,
     pub verification: String,
 }
@@ -270,11 +294,19 @@ impl MadarBridge {
         closing_cash_minor: i64,
         cash_note: Option<String>,
         reconciliation: Vec<ReconciliationInput>,
+        leave_held_open: bool,
     ) -> Result<CloseTillOutcomeView, MadarError> {
         self.inner
-            .close_till(closing_cash_minor, cash_note, reconciliation)
+            .close_till_confirmed(closing_cash_minor, cash_note, reconciliation, leave_held_open)
             .await
             .map_err(MadarError::from)
+    }
+
+    /// The held-orders warning a close shows first: every order still parked
+    /// on this device (and the counter cart), with names and totals. Local.
+    #[frb(sync)]
+    pub fn close_preflight(&self) -> ClosePreflightView {
+        self.inner.close_preflight()
     }
 
     pub async fn force_close_till(&self, till_id: String, reason: String) -> Result<(), MadarError> {

@@ -36,6 +36,21 @@ pub struct CloseTillRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub device_id: Option<Option<uuid::Uuid>>,
+    /// Held orders (and open counter carts) still parked on the device when the teller chose to close anyway, and their total. Additive; older tills omit them.
+    #[serde(
+        rename = "held_orders_left_open",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub held_orders_left_open: Option<Option<i32>>,
+    #[serde(
+        rename = "held_orders_left_open_total",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub held_orders_left_open_total: Option<Option<i32>>,
     /// Absent (old clients) → every used method is stored `unreviewed`.
     #[serde(
         rename = "reconciliation",
@@ -53,6 +68,8 @@ impl CloseTillRequest {
             closed_at: None,
             closing_cash_declared,
             device_id: None,
+            held_orders_left_open: None,
+            held_orders_left_open_total: None,
             reconciliation: None,
         }
     }

@@ -388,6 +388,9 @@ pub struct TillReportView {
     /// Old / all open bills at the branch when the till closed.
     pub old_bills_count: Option<i64>,
     pub open_bills_count: Option<i64>,
+    /// Held orders left open at this close for the next till, and their total.
+    pub held_orders_left_open: Option<i64>,
+    pub held_orders_left_open_total_minor: Option<i64>,
     pub opened_while_another_open: bool,
     /// `server` | `lan` | `unverified` | `legacy`.
     pub verification: String,
@@ -474,6 +477,8 @@ pub(crate) fn report_view(
         reconciliation: reconciliation_lines_from_api(&report.reconciliation, label),
         old_bills_count: report.old_bills_at_close.flatten().map(i64::from),
         open_bills_count: report.open_bills_at_close.flatten().map(i64::from),
+        held_orders_left_open: report.held_orders_left_open.flatten().map(i64::from),
+        held_orders_left_open_total_minor: report.held_orders_left_open_total.flatten().map(i64::from),
         opened_while_another_open: shift.opened_while_another_open,
         verification: shift.verification.to_string(),
     }

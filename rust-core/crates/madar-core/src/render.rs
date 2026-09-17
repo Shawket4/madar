@@ -738,6 +738,11 @@ impl Renderer {
             self.rule();
             self.row(&t("till.z_old_bills"), &old.to_string(), RS_BODY, Weight::NORMAL);
         }
+        if let Some(n) = r.held_orders_left_open.filter(|n| *n > 0) {
+            self.rule();
+            let total = r.held_orders_left_open_total_minor.map(|v| format!(" · {}", m(v))).unwrap_or_default();
+            self.row(&t("till.z_held_left_open"), &format!("{n}{total}"), RS_BODY, Weight::NORMAL);
+        }
         if r.voided_amount_minor > 0 {
             self.rule();
             self.row(
@@ -1327,6 +1332,8 @@ mod tests {
             reconciliation: vec![],
             old_bills_count: None,
             open_bills_count: None,
+            held_orders_left_open: None,
+            held_orders_left_open_total_minor: None,
             opened_while_another_open: false,
             verification: "server".into(),
         }
@@ -1339,6 +1346,8 @@ mod tests {
         report.order_number_first = Some(1);
         report.order_number_last = Some(42);
         report.old_bills_count = Some(3);
+        report.held_orders_left_open = Some(2);
+        report.held_orders_left_open_total_minor = Some(12_500);
         report.opened_while_another_open = true;
         report.reconciliation = vec![
             crate::till::ReconciliationLineView {

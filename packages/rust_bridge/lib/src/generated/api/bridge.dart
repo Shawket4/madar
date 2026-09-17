@@ -353,10 +353,15 @@ abstract class MadarBridge implements RustOpaqueInterface {
     PlatformInt64? countedMinor,
   });
 
+  /// The held-orders warning a close shows first: every order still parked
+  /// on this device (and the counter cart), with names and totals. Local.
+  ClosePreflightView closePreflight();
+
   Future<CloseTillOutcomeView> closeTill({
     required PlatformInt64 closingCashMinor,
     String? cashNote,
     required List<ReconciliationInput> reconciliation,
+    required bool leaveHeldOpen,
   });
 
   Future<CloseTillPreviewView> closeTillPreview();

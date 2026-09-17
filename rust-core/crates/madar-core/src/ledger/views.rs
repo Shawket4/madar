@@ -302,6 +302,8 @@ pub(crate) fn till_report_rows(store: &Store, till_id: &str, label: &dyn Fn(&str
         reconciliation,
         old_bills_count: opt_i("old_bills_at_close"),
         open_bills_count: opt_i("open_bills_at_close"),
+        held_orders_left_open: opt_i("held_orders_left_open"),
+        held_orders_left_open_total_minor: opt_i("held_orders_left_open_total"),
         opened_while_another_open: flag("opened_while_another_open"),
         verification: s(t, "verification").unwrap_or("legacy").to_string(),
     }))

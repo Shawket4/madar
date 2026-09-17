@@ -36,6 +36,12 @@
 //!    order parked on a table resumes like one's own). A switch leaves nothing
 //!    person-scoped on a table: an unsent table cart is emptied exactly as it
 //!    was before this feature (the shared ticket holds what was sent).
+//! 8. **A till close warns first.** When held orders (or a counter cart) are
+//!    still on the device, the close shows them (`close_preflight`: count,
+//!    names, totals) before any count; the teller goes back to resolve them or
+//!    closes anyway. Closing anyway parks the counter cart, leaves every held
+//!    order parked for the next till, and records `held_orders_left_open` (+
+//!    total) on the close, which the Z report shows.
 //! 5. **Settling** a resumed order records BOTH people: the order is rung by
 //!    the person signed in (`teller_id`, as always) and carries `started_by`
 //!    (the author) plus the manager's approval, when one was needed, on the
@@ -58,6 +64,34 @@ use crate::cart;
 use crate::error::CoreError;
 use crate::held;
 use crate::MadarCore;
+
+/// One order a till close would leave open.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HeldLeftOpenView {
+    /// The held order's id; empty for a counter cart never parked.
+    pub id: String,
+    /// Its name, table, or "this order".
+    pub label: String,
+    /// Who started it, when that is someone other than the person closing.
+    pub started_by_name: Option<String>,
+    pub item_count: i64,
+    pub total_minor: i64,
+    /// The counter cart in hand (it is parked by the close).
+    pub in_hand: bool,
+}
+
+/// What a till close warns about before it counts anything (rule 8).
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClosePreflightView {
+    pub held_count: i64,
+    pub held_total_minor: i64,
+    pub held: Vec<HeldLeftOpenView>,
+    /// Localized "{count} held orders are still open" and the explanation.
+    pub title: String,
+    pub body: String,
+}
 
 /// The capability resuming (continuing, then settling) a held order asks for.
 pub(crate) const RESUME_CAP: Cap = Cap::OrdersHeldResumeOthers;
@@ -268,6 +302,69 @@ impl MadarCore {
             let (user_id, name) = self.me();
             let _ = cart::set_owner(&self.store, None, Some(&cart::CartOwner { user_id, name, approval: None }));
         }
+    }
+
+    /// Close preflight (rule 8): every held order still parked on this device,
+    /// plus the counter cart in hand, with names and totals, for the warning a
+    /// till close shows first. Local only.
+    pub fn close_preflight(&self) -> ClosePreflightView {
+        let locale = self.current_locale();
+        let (me, _) = self.me();
+        let this_order = crate::i18n::tr(&locale, "drafts.this_order");
+        let mut held: Vec<HeldLeftOpenView> = held::load_held(&self.store)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|h| h.is_live())
+            .map(|h| {
+                let (item_count, total_minor) = cart::payload_counts(&h.cart);
+                let label = [Some(h.name.clone()), h.table_label.clone()]
+                    .into_iter()
+                    .flatten()
+                    .find(|n| !n.trim().is_empty())
+                    .unwrap_or_else(|| this_order.clone());
+                HeldLeftOpenView {
+                    id: h.id,
+                    label,
+                    started_by_name: h.created_by_name.filter(|_| {
+                        started_by_other(h.created_by.as_deref(), &me)
+                    }),
+                    item_count,
+                    total_minor,
+                    in_hand: false,
+                }
+            })
+            .collect();
+        if let Ok(lines) = cart::lines(&self.store, None) {
+            if !lines.is_empty() {
+                let meta = cart::meta(&self.store, None).unwrap_or_default();
+                let (author, author_name) = self.cart_author(None);
+                held.push(HeldLeftOpenView {
+                    id: meta.draft_id.clone().unwrap_or_default(),
+                    label: Some(meta.name).filter(|n| !n.trim().is_empty()).unwrap_or_else(|| this_order.clone()),
+                    started_by_name: (author != me).then_some(author_name),
+                    item_count: lines.iter().map(|l| l.qty).sum(),
+                    total_minor: lines.iter().map(|l| l.line_total_minor).sum(),
+                    in_hand: true,
+                });
+            }
+        }
+        let count = held.len() as i64;
+        ClosePreflightView {
+            held_count: count,
+            held_total_minor: held.iter().map(|h| h.total_minor).sum(),
+            title: crate::i18n::tr(&locale, "till.held_open_title").replace("{count}", &count.to_string()),
+            body: crate::i18n::tr(&locale, "till.held_open_body"),
+            held,
+        }
+    }
+
+    /// At a close the teller chose to make with work still parked: the counter
+    /// cart is parked like at a switch, and what is left open is counted
+    /// `(count, total_minor)` for the close record.
+    pub(crate) fn leave_queue_for_next_till(&self) -> (i64, i64) {
+        self.park_queue_for_switch();
+        let p = self.close_preflight();
+        (p.held_count, p.held_total_minor)
     }
 }
 

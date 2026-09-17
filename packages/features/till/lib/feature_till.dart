@@ -9,6 +9,7 @@ export 'src/cash_in_out_panel.dart';
 export 'src/cash_movements_screen.dart';
 export 'src/close_till_screen.dart';
 export 'src/drawers_card.dart';
+export 'src/held_orders_close_step.dart';
 export 'src/open_till_screen.dart';
 export 'src/till_history_screen.dart';
 export 'src/till_notices.dart';

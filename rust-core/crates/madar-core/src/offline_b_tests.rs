@@ -618,7 +618,7 @@ async fn the_parity_guard_compares_every_field_and_closed_unreviewed_tills() {
         voided_amount_minor: 0, refunds_issued_minor: 0, refunds_issued_cash_minor: 0, refunds_issued_count: 0,
         cash_in_refunded_sales_minor: 0, total_tax_minor: 0, total_service_charge_minor: 0, service_charge_waived_count: 0, service_charge_waived_minor: 0, cash_movements_net_minor: 0, cash_in_minor: 0, cash_out_minor: 0,
         payment_lines: vec![], cash_movements: vec![], from_server: false, device_code: None, order_number_first: None,
-        order_number_last: None, reconciliation: vec![], old_bills_count: None, open_bills_count: None,
+        order_number_last: None, reconciliation: vec![], old_bills_count: None, open_bills_count: None, held_orders_left_open: None, held_orders_left_open_total_minor: None,
         opened_while_another_open: false, verification: "server".into(),
     };
     mk(&mut a);
@@ -633,6 +633,7 @@ async fn the_parity_guard_compares_every_field_and_closed_unreviewed_tills() {
         |v: &mut crate::till::TillReportView| v.device_code = Some("36B".into()),
         |v: &mut crate::till::TillReportView| v.opening_cash_edit_reason = Some("r".into()),
         |v: &mut crate::till::TillReportView| v.open_bills_count = Some(2),
+        |v: &mut crate::till::TillReportView| v.held_orders_left_open = Some(1),
         |v: &mut crate::till::TillReportView| v.verification = "lan".into(),
         |v: &mut crate::till::TillReportView| v.cash_movements.push(crate::till::TillReportCashLine { amount_minor: 5, note: "n".into(), moved_by_name: "m".into(), created_at: "2026-09-14T09:00:00Z".into() }),
         |v: &mut crate::till::TillReportView| v.reconciliation.push(crate::till::ReconciliationLineView { method: "card".into(), label: "Card".into(), is_cash: false, system_total_minor: 1, status: "disagreed".into(), declared_amount_minor: Some(0), note: None, changed_after_close: false }),
@@ -1673,4 +1674,61 @@ async fn a_customer_added_offline_rides_ahead_of_the_sale_that_names_it() {
     if !till_open_pending {
         assert_eq!(sale.depends_on_seq, Some(create.seq), "the sale waits for its customer");
     }
+}
+
+/// Queue rule 8: a close with nothing parked warns about nothing.
+#[tokio::test]
+async fn a_close_with_nothing_held_has_no_warning() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    core.open_till(0, None).await.unwrap();
+    let p = core.close_preflight();
+    assert_eq!((p.held_count, p.held_total_minor), (0, 0));
+    assert!(p.held.is_empty());
+    core.close_till_confirmed(0, None, vec![], false).await.expect("nothing to warn about");
+}
+
+/// Queue rule 8: another person's parked order is listed by name, author and
+/// total; the close refuses until the teller chooses to close anyway, and then
+/// records it and leaves it parked (with the cart in hand parked beside it).
+#[tokio::test]
+async fn a_close_lists_someone_elses_held_order_and_closing_anyway_records_and_keeps_it() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    core.open_till(0, None).await.unwrap();
+    let line = serde_json::json!({ "lines": [{ "item_id": "i", "name": "Latte", "unit_price_minor": 4000,
+        "qty": 2, "addons": [], "optionals": [] }] });
+    crate::cart::set_cart_payload(&core.store, None, &line).unwrap();
+    core.hold_cart(None, "Omar".into(), None, None).unwrap();
+    let mut list = crate::held::load_held(&core.store).unwrap();
+    list[0].created_by = Some("someone-else".into());
+    list[0].created_by_name = Some("Ali".into());
+    core.store.kv_put(crate::held::K_HELD_MIRROR, &serde_json::to_string(&list).unwrap()).unwrap();
+    crate::cart::set_cart_payload(&core.store, None, &line).unwrap();
+
+    let p = core.close_preflight();
+    assert_eq!(p.held_count, 2, "{p:?}");
+    let omar = p.held.iter().find(|h| !h.in_hand).unwrap();
+    assert_eq!(omar.label, "Omar");
+    assert_eq!(omar.started_by_name.as_deref(), Some("Ali"));
+    assert_eq!(omar.total_minor, 8000);
+    assert!(p.held.iter().any(|h| h.in_hand && h.started_by_name.is_none()));
+    assert_eq!(p.held_total_minor, 16000);
+    assert!(p.title.contains('2'));
+
+    let refused = core.close_till_confirmed(0, None, vec![], false).await;
+    assert!(matches!(refused, Err(crate::error::CoreError::Validation { .. })), "{refused:?}");
+    assert!(core.current_till().unwrap().is_some_and(|t| t.is_open), "nothing closed");
+
+    core.close_till_confirmed(0, None, vec![], true).await.expect("close anyway");
+    let drafts = core.list_drafts().unwrap();
+    assert_eq!(drafts.len(), 2, "both stay parked for the next till: {drafts:?}");
+    assert!(core.cart_lines(None).unwrap().is_empty());
+    let op = core.store.pending().unwrap().into_iter().find(|i| i.op_type == "close_till").unwrap();
+    let payload: serde_json::Value = serde_json::from_str(&op.payload).unwrap();
+    assert_eq!(payload["request"]["held_orders_left_open"], 2);
+    assert_eq!(payload["request"]["held_orders_left_open_total"], 16000);
+    let report = core.till_report_for(op.till_id.clone().unwrap()).await.unwrap();
+    assert_eq!(report.held_orders_left_open, Some(2), "the Z report says so");
+    assert_eq!(report.held_orders_left_open_total_minor, Some(16000));
 }

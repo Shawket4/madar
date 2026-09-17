@@ -271,6 +271,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CloseCountCheck dco_decode_close_count_check(dynamic raw);
 
   @protected
+  ClosePreflightView dco_decode_close_preflight_view(dynamic raw);
+
+  @protected
   CloseTillMethodView dco_decode_close_till_method_view(dynamic raw);
 
   @protected
@@ -326,6 +329,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   GroupViolationView dco_decode_group_violation_view(dynamic raw);
+
+  @protected
+  HeldLeftOpenView dco_decode_held_left_open_view(dynamic raw);
 
   @protected
   HeldParkInput dco_decode_held_park_input(dynamic raw);
@@ -470,6 +476,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<GroupViolationView> dco_decode_list_group_violation_view(dynamic raw);
+
+  @protected
+  List<HeldLeftOpenView> dco_decode_list_held_left_open_view(dynamic raw);
 
   @protected
   List<ItemAddonView> dco_decode_list_item_addon_view(dynamic raw);
@@ -1170,6 +1179,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CloseCountCheck sse_decode_close_count_check(SseDeserializer deserializer);
 
   @protected
+  ClosePreflightView sse_decode_close_preflight_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CloseTillMethodView sse_decode_close_till_method_view(
     SseDeserializer deserializer,
   );
@@ -1243,6 +1257,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   GroupViolationView sse_decode_group_violation_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  HeldLeftOpenView sse_decode_held_left_open_view(SseDeserializer deserializer);
 
   @protected
   HeldParkInput sse_decode_held_park_input(SseDeserializer deserializer);
@@ -1431,6 +1448,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<GroupViolationView> sse_decode_list_group_violation_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<HeldLeftOpenView> sse_decode_list_held_left_open_view(
     SseDeserializer deserializer,
   );
 
@@ -2325,6 +2347,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_close_preflight_view(
+    ClosePreflightView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_close_till_method_view(
     CloseTillMethodView self,
     SseSerializer serializer,
@@ -2417,6 +2445,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_group_violation_view(
     GroupViolationView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_held_left_open_view(
+    HeldLeftOpenView self,
     SseSerializer serializer,
   );
 
@@ -2657,6 +2691,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_group_violation_view(
     List<GroupViolationView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_held_left_open_view(
+    List<HeldLeftOpenView> self,
     SseSerializer serializer,
   );
 
