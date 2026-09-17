@@ -5,7 +5,7 @@
 #   tool/offline_b_backend.sh --perf     # also the large-branch performance probe
 #
 # What it does, and undoes:
-#   1. builds the backend (`madar-rust`, release) from $MADAR_RUST;
+#   1. builds the backend (`madar-rust`, the `scenario` profile: release without LTO) from $MADAR_RUST;
 #   2. copies a LOCAL database with `createdb -T` ($MADAR_OB_SOURCE_DB, default
 #      madar_dash_tills) — never madar_dev or madar_prodcopy, which it refuses;
 #   3. starts the backend on a free port against the copy (it migrates the copy);
@@ -63,8 +63,8 @@ echo "==> building the backend ($MADAR_RUST)"
 BACKEND_TARGET="${MADAR_OB_BACKEND_TARGET_DIR:-$MADAR_RUST/target}"
 ( cd "$MADAR_RUST" && CARGO_TARGET_DIR="$BACKEND_TARGET" \
     DATABASE_URL="${MADAR_OB_BUILD_DATABASE_URL:-postgres://$(whoami)@localhost:5433/madar}" \
-    cargo build --release --bin madar-rust )
-BIN="$BACKEND_TARGET/release/madar-rust"
+    cargo build --profile scenario --bin madar-rust )
+BIN="$BACKEND_TARGET/scenario/madar-rust"
 
 echo "==> copying $SOURCE_DB -> $COPY"
 createdb "${PG_ARGS[@]}" -T "$SOURCE_DB" "$COPY"

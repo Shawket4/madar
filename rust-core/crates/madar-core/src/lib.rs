@@ -38,6 +38,7 @@ pub mod customers;
 pub mod waste;
 /// Delivery-order management (teller side) — list/advance/cancel/finalize.
 pub mod delivery;
+pub mod discounts;
 /// Device binding (branch / till / station / printer / reconfigure) — persisted in
 /// the CORE store so the hosts hold no device state (THE ONE RULE).
 pub mod device;
@@ -6324,9 +6325,32 @@ impl MadarCore {
             now,
         )?;
 
+        let mut prepared = prepared;
+        // The discount, re-decided on the sale's REAL figures (the cart may have
+        // grown since it was applied): allowed, covered by the manager approval
+        // kept with the cart, or refused before anything is committed.
+        if let Some(kind) = prepared.command.request.discount_kind.clone().flatten() {
+            let r = &prepared.command.request;
+            let amount = r.discount_amount.flatten().map(i64::from);
+            let bps = r.discount_percent_bps.flatten().map(i64::from);
+            if let Some(req) = discounts::discount_request(&kind, amount, bps) {
+                let kept = cart::discount_approval(&self.store, table_id.as_deref())?;
+                let approval = self.discount_authority(&req, kept)?;
+                let (me, _) = self.outbox_meta();
+                let r = &mut prepared.command.request;
+                r.discount_applied_by = me
+                    .as_deref()
+                    .and_then(|u| uuid::Uuid::parse_str(u).ok())
+                    .map(Some);
+                r.discount_approval_id = approval
+                    .as_ref()
+                    .and_then(|a| uuid::Uuid::parse_str(&a.id).ok())
+                    .map(Some);
+                prepared.command.approval = approval.as_ref().map(approvals::approval_wire);
+            }
+        }
         // Per-device numbering (contract §4.7): the minted RRRR is the order number,
         // sent with the device code and the till's verification.
-        let mut prepared = prepared;
         let dev = self.lan_device_id();
         let code = checkout::device_code_or_default(&self.store);
         if let Some(n) = prepared.receipt.order_number {
@@ -10605,6 +10629,7 @@ mod lifecycle_tests {
                 order_number: 12,
                 verification: "lan".into(),
             }),
+            approval: None,
         };
         let env = checkout::order_envelope(&cmd, "t", &core.device_id());
         assert_eq!(env["device_code"], "36B");

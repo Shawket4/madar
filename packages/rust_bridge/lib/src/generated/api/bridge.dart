@@ -55,6 +55,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The screen to show. Re-read at deliberate transitions only.
   AppRoute appRoute();
 
+  /// Put a discount on the cart; refused unless allowed or approved.
+  Future<void> applyDiscount({
+    String? tableId,
+    required String kind,
+    String? presetId,
+    PlatformInt64? amountMinor,
+    PlatformInt64? percentBps,
+    ApprovalView? approval,
+  });
+
   /// A manager approves the act with their own PIN on this device.
   Future<ApprovalView> approveAct({
     required String approverPin,
@@ -62,6 +72,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
     PlatformInt64? amountMinor,
     PlatformInt64? ageMinutes,
     bool? own,
+  });
+
+  /// A manager approves a discount on the cart with their PIN.
+  Future<ApprovalView> approveDiscount({
+    required String approverPin,
+    String? tableId,
+    required String kind,
+    String? presetId,
+    PlatformInt64? amountMinor,
+    PlatformInt64? percentBps,
   });
 
   /// A manager approves an act on one sale with their PIN.
@@ -189,6 +209,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? tableId,
     required String lineKey,
   });
+
+  /// The cart's discount: kind, figures, what it takes off, who approved.
+  Future<CartDiscountView> cartDiscount({String? tableId});
 
   /// The selected discount id (for the tender UI), or `None`.
   Future<String?> cartDiscountId({String? tableId});
@@ -411,6 +434,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
     PlatformInt64? amountMinor,
     PlatformInt64? ageMinutes,
     bool? own,
+  });
+
+  /// Allowed / needs a manager / refused for a discount on the cart
+  /// (`kind`: preset | manual_amount | manual_percent). Offline.
+  ActDecisionView decideDiscount({
+    String? tableId,
+    required String kind,
+    String? presetId,
+    PlatformInt64? amountMinor,
+    PlatformInt64? percentBps,
   });
 
   /// Allowed / needs a manager / refused for an act on one sale (whose sale

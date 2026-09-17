@@ -370,7 +370,7 @@ impl MadarCore {
     /// A manager approves this waste with their PIN on this device.
     pub fn approve_waste(&self, approver_pin: String, input: WasteInput) -> Result<ApprovalView, CoreError> {
         let p = self.plan_waste(&input)?;
-        self.approve_request(approver_pin, CAP.into(), Self::waste_request(p.value_minor))
+        self.approve_request(approver_pin, &Self::waste_request(p.value_minor))
     }
 
     /// Record the waste. Works offline: it is queued and replayed. Needs the

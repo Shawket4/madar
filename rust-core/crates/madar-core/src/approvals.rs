@@ -36,7 +36,11 @@ pub struct ApprovalView {
     pub approver_name: String,
     pub amount_minor: Option<i64>,
     /// The value the approval covers (`max_value` limits, e.g. a waste).
+    #[serde(default)]
     pub value_minor: Option<i64>,
+    /// Basis points, for an act capped by a percentage (a discount).
+    #[serde(default)]
+    pub percent_bps: Option<i64>,
 }
 
 /// The wire form a queued op carries (`approval` on the replay envelope).
@@ -47,6 +51,7 @@ pub(crate) fn approval_wire(a: &ApprovalView) -> serde_json::Value {
         "approver_id": a.approver_id,
         "amount_minor": a.amount_minor,
         "value_minor": a.value_minor,
+        "percent_bps": a.percent_bps,
     })
 }
 
@@ -64,7 +69,7 @@ pub(crate) fn effective_from(g: &AuthzGrants) -> EffectiveSet {
     }
 }
 
-fn request(cap: Cap, amount_minor: Option<i64>, age_minutes: Option<i64>, own: Option<bool>) -> Request {
+pub(crate) fn request(cap: Cap, amount_minor: Option<i64>, age_minutes: Option<i64>, own: Option<bool>) -> Request {
     let mut r = Request::of(cap);
     r.amount = amount_minor;
     r.age_minutes = age_minutes;
@@ -106,9 +111,23 @@ impl MadarCore {
         age_minutes: Option<i64>,
         own: Option<bool>,
     ) -> ActDecisionView {
-        let locale = self.current_locale();
         let Some(cap) = Cap::from_key(&cap_key) else {
-            return decision_view(&Decision::Deny(Why::UnknownCapability), &locale);
+            return decision_view(&Decision::Deny(Why::UnknownCapability), &self.current_locale());
+        };
+        self.decide_request(&request(cap, amount_minor, age_minutes, own))
+    }
+
+    /// [`Self::decide_act`] over a whole request (amount, percent, age, own).
+    pub(crate) fn decide_request(&self, req: &Request) -> ActDecisionView {
+        let locale = self.current_locale();
+        decision_view(&self.decision_for(req), &locale)
+    }
+
+    /// The raw decision for the signed-in person. Unknown grants: the legacy
+    /// grid (role defaults) decides, as `can` does; signed out is a refusal.
+    pub(crate) fn decision_for(&self, req: &Request) -> Decision {
+        let Some(cap) = Cap::from_id(req.cap) else {
+            return Decision::Deny(Why::UnknownCapability);
         };
         let grants = self
             .session
@@ -118,13 +137,13 @@ impl MadarCore {
             .and_then(|s| s.authz.clone());
         let Some(grants) = grants else {
             // Grants not known (an older backend): the legacy grid decides, as `can` does.
-            let d = if self.can(cap_key) { Decision::Allow } else { Decision::Deny(Why::NotHeld) };
-            return decision_view(&d, &locale);
+            return if self.can(cap.key().to_string()) {
+                Decision::Allow
+            } else {
+                Decision::Deny(Why::NotHeld)
+            };
         };
-        decision_view(
-            &decide(&effective_from(&grants), &request(cap, amount_minor, age_minutes, own)),
-            &locale,
-        )
+        decide(&effective_from(&grants), req)
     }
 
     /// Whose sale `order_id` is and how old, from the local ledger: the
@@ -193,16 +212,19 @@ impl MadarCore {
             field: "capability".into(),
             detail: "unknown capability".into(),
         })?;
-        self.approve_request(approver_pin, cap_key, request(cap, amount_minor, age_minutes, own))
+        self.approve_request(approver_pin, &request(cap, amount_minor, age_minutes, own))
     }
 
-    /// Mint an approval of `req` by the person whose PIN this is.
+    /// A manager approves a whole request with their PIN (see [`Self::approve_act`]).
     pub(crate) fn approve_request(
         &self,
         approver_pin: String,
-        cap_key: String,
-        req: Request,
+        req: &Request,
     ) -> Result<ApprovalView, CoreError> {
+        let cap = Cap::from_id(req.cap).ok_or_else(|| CoreError::Validation {
+            field: "capability".into(),
+            detail: "unknown capability".into(),
+        })?;
         let (subject, branch) = {
             let g = self.session.read().unwrap_or_else(|e| e.into_inner());
             let s = g.as_ref().ok_or_else(|| CoreError::Unauthenticated {
@@ -229,7 +251,7 @@ impl MadarCore {
             &effective_from(&grants),
             &approver_id,
             &subject,
-            &req,
+            req,
         )
         .map_err(|w| CoreError::Forbidden {
             resource: "approval".into(),
@@ -237,11 +259,12 @@ impl MadarCore {
         })?;
         Ok(ApprovalView {
             id: uuid::Uuid::new_v4().to_string(),
-            capability: cap_key,
+            capability: cap.key().to_string(),
             approver_id,
             approver_name,
             amount_minor: req.amount,
             value_minor: req.value,
+            percent_bps: req.percent,
         })
     }
 }

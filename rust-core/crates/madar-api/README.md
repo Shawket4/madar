@@ -758,6 +758,7 @@ Class | Method | HTTP request | Description
  - [DisciplineReport](docs/DisciplineReport.md)
  - [DisciplineRow](docs/DisciplineRow.md)
  - [Discount](docs/Discount.md)
+ - [DiscountAuditEntry](docs/DiscountAuditEntry.md)
  - [DrinkRecipe](docs/DrinkRecipe.md)
  - [Employee](docs/Employee.md)
  - [ErrorBody](docs/ErrorBody.md)

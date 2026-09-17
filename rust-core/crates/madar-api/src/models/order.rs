@@ -90,6 +90,37 @@ pub struct Order {
     pub device_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "discount_amount")]
     pub discount_amount: i32,
+    /// Who applied the discount. Additive.
+    #[serde(
+        rename = "discount_applied_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_applied_by: Option<Option<uuid::Uuid>>,
+    #[serde(
+        rename = "discount_applied_by_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_applied_by_name: Option<Option<String>>,
+    /// The manager approval that let the discount past the person's cap. Additive.
+    #[serde(
+        rename = "discount_approval_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_approval_id: Option<Option<uuid::Uuid>>,
+    /// The approving manager's name, when the approval was recorded. Additive.
+    #[serde(
+        rename = "discount_approved_by_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_approved_by_name: Option<Option<String>>,
     #[serde(
         rename = "discount_id",
         default,
@@ -97,6 +128,22 @@ pub struct Order {
         skip_serializing_if = "Option::is_none"
     )]
     pub discount_id: Option<Option<uuid::Uuid>>,
+    /// `preset` | `manual_amount` | `manual_percent`; `null` without a discount or on sales from before discounts were attributed. Additive.
+    #[serde(
+        rename = "discount_kind",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_kind: Option<Option<String>>,
+    /// The percentage asked for, in basis points. Additive.
+    #[serde(
+        rename = "discount_percent_bps",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_percent_bps: Option<Option<i32>>,
     /// The stored value — a fraction for a percentage. Same column as [`Order::discount_value`].
     #[serde(rename = "discount_rate", skip_serializing_if = "Option::is_none")]
     pub discount_rate: Option<f64>,
@@ -380,7 +427,13 @@ impl Order {
             device_code: None,
             device_id: None,
             discount_amount,
+            discount_applied_by: None,
+            discount_applied_by_name: None,
+            discount_approval_id: None,
+            discount_approved_by_name: None,
             discount_id: None,
+            discount_kind: None,
+            discount_percent_bps: None,
             discount_rate: None,
             discount_type: None,
             discount_value,
