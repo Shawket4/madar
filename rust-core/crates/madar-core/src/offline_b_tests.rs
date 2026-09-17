@@ -619,7 +619,7 @@ async fn the_parity_guard_compares_every_field_and_closed_unreviewed_tills() {
         cash_in_refunded_sales_minor: 0, total_tax_minor: 0, total_service_charge_minor: 0, service_charge_waived_count: 0, service_charge_waived_minor: 0, cash_movements_net_minor: 0, cash_in_minor: 0, cash_out_minor: 0,
         payment_lines: vec![], cash_movements: vec![], from_server: false, device_code: None, order_number_first: None,
         order_number_last: None, reconciliation: vec![], old_bills_count: None, open_bills_count: None,
-        opened_while_another_open: false, verification: "server".into(), spot_checks: vec![],
+        opened_while_another_open: false, verification: "server".into(), spot_views: vec![],
     };
     mk(&mut a);
     let mut b = a.clone();
@@ -1675,7 +1675,7 @@ async fn a_customer_added_offline_rides_ahead_of_the_sale_that_names_it() {
     }
 }
 
-// ── cash spot check (owner design 2026-09-16 item 5) ─────────────────────────
+// ── cash spot (owner design 2026-09-16 item 5, corrected 2026-09-17) ───────
 
 fn grant_spot(core: &crate::MadarCore, held: bool) {
     let mut g = core.session.write().unwrap();
@@ -1689,7 +1689,7 @@ fn grant_spot(core: &crate::MadarCore, held: bool) {
 }
 
 #[tokio::test]
-async fn without_the_grant_the_till_counts_blind_and_the_pin_is_offered() {
+async fn without_the_grant_the_till_counts_blind_and_one_pin_unlocks_one_look() {
     let core = testkit::offline_core("http://127.0.0.1:1", "").await;
     seed_methods(&core);
     seed_rows(&core, &[]);
@@ -1706,33 +1706,38 @@ async fn without_the_grant_the_till_counts_blind_and_the_pin_is_offered() {
     assert!(p.methods.iter().all(|m| m.system_total_minor == 0));
     assert!(matches!(core.cash_spot_view(None).await, Err(crate::error::CoreError::Forbidden { .. })));
     assert!(matches!(core.close_figures(None).await, Err(crate::error::CoreError::Forbidden { .. })));
-    assert!(matches!(core.record_cash_spot_check(1_456, vec![], None, None).await, Err(crate::error::CoreError::Forbidden { .. })));
-    // A made-up approval unlocks nothing.
     let fake = crate::approvals::ApprovalView {
         id: "nope".into(), capability: crate::cash_spot::CAP_CASH_SPOT.into(),
         approver_id: "m".into(), approver_name: "M".into(), amount_minor: None,
     };
-    assert!(core.cash_spot_view(Some(fake.clone())).await.is_err());
+    assert!(core.cash_spot_view(Some(fake.clone())).await.is_err(), "a made-up approval unlocks nothing");
+    let till_id = core.current_till().unwrap().unwrap().id;
+    assert!(core.store.with_conn(|c| crate::ledger::spot::for_till(c, &till_id)).unwrap().is_empty());
 
-    // A minted approval unlocks ONE check, then is spent.
-    core.store.kv_put("cash_spot:approval:ok", &serde_json::to_string(&crate::approvals::ApprovalView { id: "ok".into(), ..fake.clone() }).unwrap()).unwrap();
+    // A minted approval unlocks ONE look (and its print), then is spent.
     let a = crate::approvals::ApprovalView { id: "ok".into(), ..fake };
+    core.store.kv_put("cash_spot:approval:ok", &serde_json::to_string(&a).unwrap()).unwrap();
     let view = core.cash_spot_view(Some(a.clone())).await.unwrap();
     assert_eq!(view.expected_cash_minor, 1_456);
-    let done = core.record_cash_spot_check(1_356, vec![], Some("short".into()), Some(a.clone())).await.unwrap();
-    assert_eq!(done.verdict, "short");
-    assert_eq!(done.check.discrepancy_minor, -100);
-    assert_eq!(done.check.approved_by_name.as_deref(), Some("M"));
-    assert!(core.cash_spot_view(Some(a)).await.is_err(), "one action only");
+    assert_eq!(view.report.expected_cash_minor, 1_456, "the full live report");
+    assert_eq!(view.views.len(), 1);
+    assert_eq!(view.views[0].approved_by_name.as_deref(), Some("M"));
+    assert!(!view.views[0].printed);
+    let printed = core.record_cash_spot_print(view.view_id.clone()).await.unwrap();
+    assert!(printed.printed);
+    assert!(core.cash_spot_view(Some(a)).await.is_err(), "one look only");
 
-    // The queued op carries the approval on its envelope.
+    // Both queued ops name the view and carry the unlock; no amounts anywhere.
     let ops = core.store.pending().unwrap();
-    let op = ops.iter().find(|o| o.op_type == "cash_spot_check").expect("queued");
-    let Ok((env, _)) = core.replay_envelope(op) else { panic!("envelope") };
-    assert_eq!(env["op"], "cash_spot_check");
-    assert_eq!(env["approval"]["approver_id"], "m");
-    assert_eq!(env["request"]["expected_cash"], 1_456);
-    assert_eq!(env["request"]["counted_cash"], 1_356);
+    let spot: Vec<_> = ops.iter().filter(|o| o.op_type == "spot_report_view").collect();
+    assert_eq!(spot.len(), 2);
+    for op in spot {
+        let Ok((env, _)) = core.replay_envelope(op) else { panic!("envelope") };
+        assert_eq!(env["op"], "spot_report_view");
+        assert_eq!(env["request"]["id"], view.view_id.as_str());
+        assert_eq!(env["approval"]["approver_id"], "m");
+        assert!(env["request"].get("counted_cash").is_none());
+    }
 
     // The blind close: a card count that disagrees is sent disagreed with a note.
     let lines = crate::till::resolve_blind_counts(
@@ -1744,7 +1749,7 @@ async fn without_the_grant_the_till_counts_blind_and_the_pin_is_offered() {
 }
 
 #[tokio::test]
-async fn with_the_grant_a_spot_check_is_recorded_offline_and_shows_on_the_z_report() {
+async fn with_the_grant_a_look_is_recorded_offline_and_shows_on_the_z_report() {
     let core = testkit::offline_core("http://127.0.0.1:1", "").await;
     seed_methods(&core);
     seed_rows(&core, &[]);
@@ -1756,26 +1761,25 @@ async fn with_the_grant_a_spot_check_is_recorded_offline_and_shows_on_the_z_repo
     let view = core.cash_spot_view(None).await.unwrap();
     assert_eq!(view.expected_cash_minor, 1_456);
     assert!(view.methods[0].is_cash);
-    let done = core.record_cash_spot_check(1_506, vec![], None, None).await.unwrap();
-    assert_eq!(done.verdict, "over");
-    assert!(done.check.queued);
+    assert!(view.views[0].approved_by_name.is_none());
+    core.record_cash_spot_print(view.view_id.clone()).await.unwrap();
     let report = core.till_report_checked().await.unwrap();
-    assert_eq!(report.spot_checks.len(), 1);
-    assert_eq!(report.spot_checks[0].discrepancy_minor, 50);
-    assert_eq!(report.expected_cash_minor, 1_456, "a count never moves the drawer");
+    assert_eq!(report.spot_views.len(), 1);
+    assert!(report.spot_views[0].printed);
+    assert!(report.spot_views[0].queued);
+    assert_eq!(report.expected_cash_minor, 1_456, "a look never moves the drawer");
     assert!(!core.close_till_preview_checked().await.unwrap().figures_hidden);
     assert!(core.close_figures(None).await.is_ok());
 
-    // The feed brings the same check inside the till row: still one row.
-    let id = done.check.id.clone();
+    // The feed brings the same look inside the till row: still one row.
+    let id = view.view_id.clone();
     let till_id = till.till.map(|t| t.id).unwrap_or_default();
     core.store
         .with_tx(|tx| {
-            crate::ledger::spot::from_till_row(tx, &serde_json::json!({"id": till_id, "spot_checks": [
-                {"id": id, "till_id": till_id, "counted_cash": 1506, "expected_cash": 1456, "cash_discrepancy": 50,
-                 "checked_by_name": "Sara", "checked_at": "2026-09-17T09:00:00Z"}
+            crate::ledger::spot::from_till_row(tx, &serde_json::json!({"id": till_id, "spot_views": [
+                {"id": id, "till_id": till_id, "viewed_by_name": "Sara", "printed": true, "viewed_at": "2026-09-17T09:00:00Z"}
             ]}))
         })
         .unwrap();
-    assert_eq!(core.till_report_checked().await.unwrap().spot_checks.len(), 1);
+    assert_eq!(core.till_report_checked().await.unwrap().spot_views.len(), 1);
 }

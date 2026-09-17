@@ -36,12 +36,12 @@ pub struct CloseTillParams {
     pub close_till_request: models::CloseTillRequest,
 }
 
-/// struct for passing parameters to the method [`create_spot_check`]
+/// struct for passing parameters to the method [`create_spot_view`]
 #[derive(Clone, Debug)]
-pub struct CreateSpotCheckParams {
+pub struct CreateSpotViewParams {
     /// Till ID
     pub till_id: String,
-    pub cash_spot_check_request: models::CashSpotCheckRequest,
+    pub spot_view_request: models::SpotViewRequest,
 }
 
 /// struct for passing parameters to the method [`delete_till`]
@@ -109,9 +109,9 @@ pub struct ListOpenTillsParams {
     pub branch_id: String,
 }
 
-/// struct for passing parameters to the method [`list_spot_checks`]
+/// struct for passing parameters to the method [`list_spot_views`]
 #[derive(Clone, Debug)]
-pub struct ListSpotChecksParams {
+pub struct ListSpotViewsParams {
     /// Till ID
     pub till_id: String,
 }
@@ -179,10 +179,10 @@ pub enum CloseTillError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`create_spot_check`]
+/// struct for typed errors of method [`create_spot_view`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum CreateSpotCheckError {
+pub enum CreateSpotViewError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -309,10 +309,10 @@ pub enum ListOpenTillsError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`list_spot_checks`]
+/// struct for typed errors of method [`list_spot_views`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum ListSpotChecksError {
+pub enum ListSpotViewsError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -495,12 +495,12 @@ pub async fn close_till(
     }
 }
 
-pub async fn create_spot_check(
+pub async fn create_spot_view(
     configuration: &configuration::Configuration,
-    params: CreateSpotCheckParams,
-) -> Result<models::TillSpotCheck, Error<CreateSpotCheckError>> {
+    params: CreateSpotViewParams,
+) -> Result<models::TillSpotView, Error<CreateSpotViewError>> {
     let uri_str = format!(
-        "{}/tills/{till_id}/spot-checks",
+        "{}/tills/{till_id}/spot-views",
         configuration.base_path,
         till_id = crate::apis::urlencode(params.till_id)
     );
@@ -514,7 +514,7 @@ pub async fn create_spot_check(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.cash_spot_check_request);
+    req_builder = req_builder.json(&params.spot_view_request);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -531,12 +531,12 @@ pub async fn create_spot_check(
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::TillSpotCheck`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TillSpotCheck`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::TillSpotView`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TillSpotView`")))),
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<CreateSpotCheckError> = serde_json::from_str(&content).ok();
+        let entity: Option<CreateSpotViewError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -964,12 +964,12 @@ pub async fn list_open_tills(
     }
 }
 
-pub async fn list_spot_checks(
+pub async fn list_spot_views(
     configuration: &configuration::Configuration,
-    params: ListSpotChecksParams,
-) -> Result<Vec<models::TillSpotCheck>, Error<ListSpotChecksError>> {
+    params: ListSpotViewsParams,
+) -> Result<Vec<models::TillSpotView>, Error<ListSpotViewsError>> {
     let uri_str = format!(
-        "{}/tills/{till_id}/spot-checks",
+        "{}/tills/{till_id}/spot-views",
         configuration.base_path,
         till_id = crate::apis::urlencode(params.till_id)
     );
@@ -997,12 +997,12 @@ pub async fn list_spot_checks(
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::TillSpotCheck&gt;`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::TillSpotCheck&gt;`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::TillSpotView&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::TillSpotView&gt;`")))),
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<ListSpotChecksError> = serde_json::from_str(&content).ok();
+        let entity: Option<ListSpotViewsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

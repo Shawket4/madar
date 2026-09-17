@@ -884,7 +884,7 @@ mod tests {
             open_bills_count: None,
             opened_while_another_open: false,
             verification: "server".into(),
-            spot_checks: Vec::new(),
+            spot_views: Vec::new(),
         };
         let labels = z_labels();
         let lines = layout_till_report(&report, "Cafe Madar", "EGP", 32, &labels);
@@ -983,7 +983,7 @@ mod tests {
             open_bills_count: None,
             opened_while_another_open: false,
             verification: "server".into(),
-            spot_checks: Vec::new(),
+            spot_views: Vec::new(),
         }
     }
 
@@ -1943,7 +1943,7 @@ mod tests {
             open_bills_count: None,
             opened_while_another_open: false,
             verification: "server".into(),
-            spot_checks: Vec::new(),
+            spot_views: Vec::new(),
         }
     }
 

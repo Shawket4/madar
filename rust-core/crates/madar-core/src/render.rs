@@ -663,26 +663,20 @@ impl Renderer {
         }
         self.rule();
 
-        // ── cash spot checks (each count, what was expected, the difference) ──
-        if !r.spot_checks.is_empty() {
+        // ── cash spot reports viewed (who, when, printed, whose PIN) ──
+        if !r.spot_views.is_empty() {
             let tr = |k: &str| crate::i18n::tr(&lab.locale, k);
-            self.center(&tr("spot.checks").to_uppercase(), RS_SMALL, Weight::SEMIBOLD);
-            for c in &r.spot_checks {
-                let when = crate::timefmt::format_in(lab.tz, &c.checked_at, crate::timefmt::TimeStyle::Time, &lab.locale);
-                let who = match &c.approved_by_name {
-                    Some(a) => format!("{} · {} {}", c.checked_by_name, tr("spot.approved_by"), a),
-                    None => c.checked_by_name.clone(),
-                };
+            self.center(&tr("spot.views").to_uppercase(), RS_SMALL, Weight::SEMIBOLD);
+            for v in &r.spot_views {
+                let when = crate::timefmt::format_in(lab.tz, &v.viewed_at, crate::timefmt::TimeStyle::Time, &lab.locale);
+                let mut who = v.viewed_by_name.clone();
+                if let Some(a) = &v.approved_by_name {
+                    who = format!("{who} · {} {a}", tr("spot.approved_by"));
+                }
+                if v.printed {
+                    who = format!("{who} · {}", tr("spot.printed"));
+                }
                 self.indented(&format!("{when}  {who}"), RS_SMALL, 0);
-                self.row(&format!("  {}", tr("spot.counted")), &m(c.counted_cash_minor), RS_SMALL, Weight::NORMAL);
-                self.row(&format!("  {}", tr("spot.expected")), &m(c.expected_cash_minor), RS_SMALL, Weight::NORMAL);
-                let sign = if c.discrepancy_minor < 0 { "−" } else if c.discrepancy_minor > 0 { "+" } else { "" };
-                self.row(
-                    &format!("  {}", tr("spot.discrepancy")),
-                    &format!("{}{}", sign, m(c.discrepancy_minor.abs())),
-                    RS_SMALL,
-                    Weight::SEMIBOLD,
-                );
             }
             self.rule();
         }
@@ -1353,7 +1347,7 @@ mod tests {
             open_bills_count: None,
             opened_while_another_open: false,
             verification: "server".into(),
-            spot_checks: Vec::new(),
+            spot_views: Vec::new(),
         }
     }
 

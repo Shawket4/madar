@@ -12,8 +12,16 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CashSpotCheckRequest {
-    /// Replay only: the approval id carried on the envelope (ignored live).
+pub struct SpotViewRequest {
+    /// Live route: the one-time unlock, when the caller does not hold `till.cash_spot_check`. (Replay carries it on the envelope.)
+    #[serde(
+        rename = "approval",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub approval: Option<Option<Box<models::SpotViewApproval>>>,
+    /// Set by replay from a verified envelope approval (ignored live).
     #[serde(
         rename = "approval_id",
         default,
@@ -21,7 +29,7 @@ pub struct CashSpotCheckRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub approval_id: Option<Option<uuid::Uuid>>,
-    /// Replay only: the person whose PIN unlocked this check (ignored live).
+    /// Set by replay from a verified envelope approval (ignored live).
     #[serde(
         rename = "approved_by",
         default,
@@ -30,31 +38,13 @@ pub struct CashSpotCheckRequest {
     )]
     pub approved_by: Option<Option<uuid::Uuid>>,
     #[serde(
-        rename = "checked_at",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub checked_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
-    /// The cash counted in the drawer, minor units.
-    #[serde(rename = "counted_cash")]
-    pub counted_cash: i64,
-    #[serde(
         rename = "device_id",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
     pub device_id: Option<Option<uuid::Uuid>>,
-    /// The expected cash the counter saw. Absent → the server computes it now.
-    #[serde(
-        rename = "expected_cash",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub expected_cash: Option<Option<i64>>,
-    /// Client-minted id; a retried or replayed check with the same id is one check.
+    /// Client-minted id; a retry, a replay or the print of the same view is one row.
     #[serde(
         rename = "id",
         default,
@@ -62,35 +52,36 @@ pub struct CashSpotCheckRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub id: Option<Option<uuid::Uuid>>,
-    /// Per-method expected / counted figures. Absent → the server's own totals, uncounted.
+    /// The spot report was printed.
+    #[serde(rename = "printed", skip_serializing_if = "Option::is_none")]
+    pub printed: Option<bool>,
     #[serde(
-        rename = "methods",
+        rename = "printed_at",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub methods: Option<Option<Vec<models::SpotCheckMethodInput>>>,
+    pub printed_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(
-        rename = "note",
+        rename = "viewed_at",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub note: Option<Option<String>>,
+    pub viewed_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
 }
 
-impl CashSpotCheckRequest {
-    pub fn new(counted_cash: i64) -> CashSpotCheckRequest {
-        CashSpotCheckRequest {
+impl SpotViewRequest {
+    pub fn new() -> SpotViewRequest {
+        SpotViewRequest {
+            approval: None,
             approval_id: None,
             approved_by: None,
-            checked_at: None,
-            counted_cash,
             device_id: None,
-            expected_cash: None,
             id: None,
-            methods: None,
-            note: None,
+            printed: None,
+            printed_at: None,
+            viewed_at: None,
         }
     }
 }

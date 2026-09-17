@@ -10,7 +10,7 @@ use crate::api::orders::OrderSummaryView;
 use crate::api::types::TillView;
 
 use crate::api::catalog::PaymentMethodView;
-use crate::api::cash_spot::SpotCheckLineView;
+use crate::api::cash_spot::SpotViewLineView;
 pub use madar_core::orders::TillStatsView;
 pub use madar_core::till::{
     BranchOpenTillView, CashMovementView, CloseTillMethodView, CloseTillOutcomeView,
@@ -107,7 +107,7 @@ pub struct _TillReportView {
     pub open_bills_count: Option<i64>,
     pub opened_while_another_open: bool,
     pub verification: String,
-    pub spot_checks: Vec<SpotCheckLineView>,
+    pub spot_views: Vec<SpotViewLineView>,
 }
 
 #[frb(mirror(TillStatsView))]

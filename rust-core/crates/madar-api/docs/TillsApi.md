@@ -7,7 +7,7 @@ Method | HTTP request | Description
 [**add_cash_movement**](TillsApi.md#add_cash_movement) | **POST** /tills/{till_id}/cash-movements | 
 [**close_preview**](TillsApi.md#close_preview) | **GET** /tills/{till_id}/close-preview | 
 [**close_till**](TillsApi.md#close_till) | **POST** /tills/{till_id}/close | 
-[**create_spot_check**](TillsApi.md#create_spot_check) | **POST** /tills/{till_id}/spot-checks | 
+[**create_spot_view**](TillsApi.md#create_spot_view) | **POST** /tills/{till_id}/spot-views | 
 [**delete_till**](TillsApi.md#delete_till) | **DELETE** /tills/{till_id} | 
 [**force_close_till**](TillsApi.md#force_close_till) | **POST** /tills/{till_id}/force-close | 
 [**get_current_till**](TillsApi.md#get_current_till) | **GET** /tills/branches/{branch_id}/current | 
@@ -17,7 +17,7 @@ Method | HTTP request | Description
 [**legacy_list_till_entities**](TillsApi.md#legacy_list_till_entities) | **GET** /tills | `GET /tills` — the removed entity list, synthesized (one \"Till 1\" per branch).
 [**list_cash_movements**](TillsApi.md#list_cash_movements) | **GET** /tills/{till_id}/cash-movements | 
 [**list_open_tills**](TillsApi.md#list_open_tills) | **GET** /tills/branches/{branch_id}/open | 
-[**list_spot_checks**](TillsApi.md#list_spot_checks) | **GET** /tills/{till_id}/spot-checks | 
+[**list_spot_views**](TillsApi.md#list_spot_views) | **GET** /tills/{till_id}/spot-views | 
 [**list_tills**](TillsApi.md#list_tills) | **GET** /tills/branches/{branch_id} | 
 [**open_till**](TillsApi.md#open_till) | **POST** /tills/branches/{branch_id}/open | 
 
@@ -109,9 +109,9 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
-## create_spot_check
+## create_spot_view
 
-> models::TillSpotCheck create_spot_check(till_id, cash_spot_check_request)
+> models::TillSpotView create_spot_view(till_id, spot_view_request)
 
 
 ### Parameters
@@ -120,11 +120,11 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **till_id** | **uuid::Uuid** | Till ID | [required] |
-**cash_spot_check_request** | [**CashSpotCheckRequest**](CashSpotCheckRequest.md) |  | [required] |
+**spot_view_request** | [**SpotViewRequest**](SpotViewRequest.md) |  | [required] |
 
 ### Return type
 
-[**models::TillSpotCheck**](TillSpotCheck.md)
+[**models::TillSpotView**](TillSpotView.md)
 
 ### Authorization
 
@@ -392,9 +392,9 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
-## list_spot_checks
+## list_spot_views
 
-> Vec<models::TillSpotCheck> list_spot_checks(till_id)
+> Vec<models::TillSpotView> list_spot_views(till_id)
 
 
 ### Parameters
@@ -406,7 +406,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**Vec<models::TillSpotCheck>**](TillSpotCheck.md)
+[**Vec<models::TillSpotView>**](TillSpotView.md)
 
 ### Authorization
 

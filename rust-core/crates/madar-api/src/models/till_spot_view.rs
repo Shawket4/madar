@@ -12,7 +12,7 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct TillSpotCheck {
+pub struct TillSpotView {
     #[serde(
         rename = "approval_id",
         default,
@@ -36,17 +36,6 @@ pub struct TillSpotCheck {
     pub approved_by_name: Option<Option<String>>,
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
-    /// `counted_cash - expected_cash`.
-    #[serde(rename = "cash_discrepancy")]
-    pub cash_discrepancy: i64,
-    #[serde(rename = "checked_at")]
-    pub checked_at: chrono::DateTime<chrono::FixedOffset>,
-    #[serde(rename = "checked_by")]
-    pub checked_by: uuid::Uuid,
-    #[serde(rename = "checked_by_name")]
-    pub checked_by_name: String,
-    #[serde(rename = "counted_cash")]
-    pub counted_cash: i64,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(
@@ -56,54 +45,52 @@ pub struct TillSpotCheck {
         skip_serializing_if = "Option::is_none"
     )]
     pub device_id: Option<Option<uuid::Uuid>>,
-    #[serde(rename = "expected_cash")]
-    pub expected_cash: i64,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
-    #[serde(rename = "methods")]
-    pub methods: Vec<models::SpotCheckMethodLine>,
+    #[serde(rename = "printed")]
+    pub printed: bool,
     #[serde(
-        rename = "note",
+        rename = "printed_at",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub note: Option<Option<String>>,
+    pub printed_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "till_id")]
     pub till_id: uuid::Uuid,
+    #[serde(rename = "viewed_at")]
+    pub viewed_at: chrono::DateTime<chrono::FixedOffset>,
+    #[serde(rename = "viewed_by")]
+    pub viewed_by: uuid::Uuid,
+    #[serde(rename = "viewed_by_name")]
+    pub viewed_by_name: String,
 }
 
-impl TillSpotCheck {
+impl TillSpotView {
     pub fn new(
         branch_id: uuid::Uuid,
-        cash_discrepancy: i64,
-        checked_at: chrono::DateTime<chrono::FixedOffset>,
-        checked_by: uuid::Uuid,
-        checked_by_name: String,
-        counted_cash: i64,
         created_at: chrono::DateTime<chrono::FixedOffset>,
-        expected_cash: i64,
         id: uuid::Uuid,
-        methods: Vec<models::SpotCheckMethodLine>,
+        printed: bool,
         till_id: uuid::Uuid,
-    ) -> TillSpotCheck {
-        TillSpotCheck {
+        viewed_at: chrono::DateTime<chrono::FixedOffset>,
+        viewed_by: uuid::Uuid,
+        viewed_by_name: String,
+    ) -> TillSpotView {
+        TillSpotView {
             approval_id: None,
             approved_by: None,
             approved_by_name: None,
             branch_id,
-            cash_discrepancy,
-            checked_at,
-            checked_by,
-            checked_by_name,
-            counted_cash,
             created_at,
             device_id: None,
-            expected_cash,
             id,
-            methods,
-            note: None,
+            printed,
+            printed_at: None,
             till_id,
+            viewed_at,
+            viewed_by,
+            viewed_by_name,
         }
     }
 }

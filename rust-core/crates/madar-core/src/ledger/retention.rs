@@ -84,7 +84,7 @@ pub(crate) fn sweep(conn: &Connection, now_ms: i64) -> CoreResult<u32> {
         n += conn.execute("DELETE FROM ledger_orders WHERE till_id=?1", [id])? as u32;
         n += conn.execute("DELETE FROM ledger_cash WHERE till_id=?1", [id])? as u32;
         n += conn.execute("DELETE FROM ledger_refunds WHERE till_id=?1", [id])? as u32;
-        n += conn.execute("DELETE FROM ledger_spot_checks WHERE till_id=?1", [id])? as u32;
+        n += conn.execute("DELETE FROM ledger_spot_views WHERE till_id=?1", [id])? as u32;
         n += conn.execute("DELETE FROM ledger_tills WHERE id=?1", [id])? as u32;
         conn.execute("DELETE FROM till_reports WHERE till_id=?1", [id])?;
     }

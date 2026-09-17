@@ -1,4 +1,5 @@
-//! Cash spot check and the live drawer figures (owner design 2026-09-16 item 5).
+//! Cash spot: the live till report, its print, and the record of every look
+//! (owner design 2026-09-16 item 5, corrected 2026-09-17).
 //! Pure delegation to madar-core; owns the view mirrors.
 use flutter_rust_bridge::frb;
 
@@ -7,51 +8,25 @@ use crate::api::bridge::MadarBridge;
 use crate::api::error::MadarError;
 use crate::api::till::{CloseTillMethodView, CloseTillPreviewView, TillReportView};
 
-pub use madar_core::cash_spot::{SpotCheckLineView, CashSpotView, SpotCheckResultView, SpotCountInput, SpotMethodResultView};
+pub use madar_core::cash_spot::{CashSpotView, SpotViewLineView};
 
-#[frb(mirror(SpotCheckLineView))]
-pub struct _SpotCheckLineView {
+#[frb(mirror(SpotViewLineView))]
+pub struct _SpotViewLineView {
     pub id: String,
-    pub counted_cash_minor: i64,
-    pub expected_cash_minor: i64,
-    pub discrepancy_minor: i64,
-    pub checked_by_name: String,
+    pub viewed_by_name: String,
     pub approved_by_name: Option<String>,
-    pub checked_at: String,
-    pub note: Option<String>,
+    pub viewed_at: String,
+    pub printed: bool,
     pub queued: bool,
 }
 
 #[frb(mirror(CashSpotView))]
 pub struct _CashSpotView {
+    pub view_id: String,
     pub report: TillReportView,
     pub expected_cash_minor: i64,
     pub methods: Vec<CloseTillMethodView>,
-    pub checks: Vec<SpotCheckLineView>,
-    pub approval_id: Option<String>,
-}
-
-#[frb(mirror(SpotCountInput))]
-pub struct _SpotCountInput {
-    pub method: String,
-    pub counted_minor: Option<i64>,
-}
-
-#[frb(mirror(SpotMethodResultView))]
-pub struct _SpotMethodResultView {
-    pub method: String,
-    pub label: String,
-    pub is_cash: bool,
-    pub expected_minor: i64,
-    pub counted_minor: Option<i64>,
-    pub discrepancy_minor: Option<i64>,
-}
-
-#[frb(mirror(SpotCheckResultView))]
-pub struct _SpotCheckResultView {
-    pub check: SpotCheckLineView,
-    pub methods: Vec<SpotMethodResultView>,
-    pub verdict: String,
+    pub views: Vec<SpotViewLineView>,
 }
 
 impl MadarBridge {
@@ -72,27 +47,18 @@ impl MadarBridge {
         self.inner.approve_cash_spot(approver_pin).map_err(MadarError::from)
     }
 
-    /// The full live drawer view.
+    /// Open the cash spot: the full live till report (records the look).
     pub async fn cash_spot_view(&self, approval: Option<ApprovalView>) -> Result<CashSpotView, MadarError> {
         self.inner.cash_spot_view(approval).await.map_err(MadarError::from)
+    }
+
+    /// The spot report of this look was printed.
+    pub async fn record_cash_spot_print(&self, view_id: String) -> Result<SpotViewLineView, MadarError> {
+        self.inner.record_cash_spot_print(view_id).await.map_err(MadarError::from)
     }
 
     /// The expected figures on the close screen, before closing.
     pub async fn close_figures(&self, approval: Option<ApprovalView>) -> Result<CloseTillPreviewView, MadarError> {
         self.inner.close_figures(approval).await.map_err(MadarError::from)
-    }
-
-    /// Record a spot check (queued; offline-capable).
-    pub async fn record_cash_spot_check(
-        &self,
-        counted_cash_minor: i64,
-        counts: Vec<SpotCountInput>,
-        note: Option<String>,
-        approval: Option<ApprovalView>,
-    ) -> Result<SpotCheckResultView, MadarError> {
-        self.inner
-            .record_cash_spot_check(counted_cash_minor, counts, note, approval)
-            .await
-            .map_err(MadarError::from)
     }
 }

@@ -76,9 +76,9 @@ pub struct ShiftReportResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub service_charge_waived_count: Option<i64>,
-    /// Cash spot checks taken on this till, oldest first. Additive.
-    #[serde(rename = "spot_checks", skip_serializing_if = "Option::is_none")]
-    pub spot_checks: Option<Vec<models::TillSpotCheck>>,
+    /// Who viewed (and printed) the cash spot report of this till, oldest first. Additive.
+    #[serde(rename = "spot_views", skip_serializing_if = "Option::is_none")]
+    pub spot_views: Option<Vec<models::TillSpotView>>,
     /// `branches.standard_float`.
     #[serde(rename = "standard_float", skip_serializing_if = "Option::is_none")]
     pub standard_float: Option<i64>,
@@ -148,7 +148,7 @@ impl ShiftReportResponse {
             safe_drops,
             service_charge_waived_amount: None,
             service_charge_waived_count: None,
-            spot_checks: None,
+            spot_views: None,
             standard_float: None,
             suggested_safe_drop: None,
             timezone: None,

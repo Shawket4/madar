@@ -391,8 +391,8 @@ pub struct TillReportView {
     pub opened_while_another_open: bool,
     /// `server` | `lan` | `unverified` | `legacy`.
     pub verification: String,
-    /// Cash spot checks taken on this till, oldest first (Z report).
-    pub spot_checks: Vec<crate::cash_spot::SpotCheckLineView>,
+    /// Who viewed / printed the cash spot report, oldest first (Z report).
+    pub spot_views: Vec<crate::cash_spot::SpotViewLineView>,
 }
 
 /// One itemised cash-drawer movement on the report. `amount_minor` is signed
@@ -478,19 +478,16 @@ pub(crate) fn report_view(
         open_bills_count: report.open_bills_at_close.flatten().map(i64::from),
         opened_while_another_open: shift.opened_while_another_open,
         verification: shift.verification.to_string(),
-        spot_checks: report
-            .spot_checks
+        spot_views: report
+            .spot_views
             .iter()
             .flatten()
-            .map(|c| crate::cash_spot::SpotCheckLineView {
-                id: c.id.to_string(),
-                counted_cash_minor: c.counted_cash,
-                expected_cash_minor: c.expected_cash,
-                discrepancy_minor: c.cash_discrepancy,
-                checked_by_name: c.checked_by_name.clone(),
-                approved_by_name: c.approved_by_name.clone().flatten(),
-                checked_at: c.checked_at.to_rfc3339(),
-                note: c.note.clone().flatten(),
+            .map(|v| crate::cash_spot::SpotViewLineView {
+                id: v.id.to_string(),
+                viewed_by_name: v.viewed_by_name.clone(),
+                approved_by_name: v.approved_by_name.clone().flatten(),
+                viewed_at: v.viewed_at.to_rfc3339(),
+                printed: v.printed,
                 queued: false,
             })
             .collect(),

@@ -373,7 +373,7 @@ pub(crate) fn write_row(
                     acked as i64
                 ],
             )?;
-            // The till's spot checks ride its projection.
+            // Who viewed the till's spot report rides its projection.
             if origin != Origin::Local {
                 spot::from_till_row(conn, v)?;
             }
