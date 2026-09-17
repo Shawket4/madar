@@ -63,6 +63,25 @@ impl MadarBridge {
         self.inner.decide_order_act(cap_key, order_id, amount_minor)
     }
 
+    /// Allowed / needs a manager / refused for a queue act (`"resume"` |
+    /// `"discard"`) on a held order — whose it is and how old come from the core.
+    #[frb(sync)]
+    pub fn decide_draft_act(&self, act: String, id: String) -> ActDecisionView {
+        self.inner.decide_draft_act(act, id)
+    }
+
+    /// A manager approves a queue act on a held order with their PIN.
+    pub fn approve_draft_act(
+        &self,
+        approver_pin: String,
+        act: String,
+        id: String,
+    ) -> Result<ApprovalView, MadarError> {
+        self.inner
+            .approve_draft_act(approver_pin, act, id)
+            .map_err(MadarError::from)
+    }
+
     /// A manager approves an act on one sale with their PIN.
     pub fn approve_order_act(
         &self,

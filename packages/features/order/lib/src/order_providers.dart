@@ -629,26 +629,62 @@ class OrderNotifier extends Notifier<OrderState> {
   ///
   /// Returns where the draft landed (`tableId` null = takeaway), or null
   /// when nothing moved (refused, locked, or another park/resume running).
+  ///
+  /// An order someone else started may need a manager: the core decides, and
+  /// [askManager] (the approval sheet) is shown only when it says so.
   Future<({String? tableId})?> resumeDraft(
     String id, {
     String? fromTableId,
     bool parkInHand = false,
+    Future<ApprovalView?> Function(String reason)? askManager,
   }) async {
     if (_heldOp != null) {
       await _heldOp;
       return null;
     }
+    // Decided synchronously: an allowed resume claims the held op in this
+    // same turn, so a double tap still resumes once.
+    final pending = _clearDraftAct('resume', id, askManager);
+    final cleared = pending is Future ? await pending : pending;
+    if (!cleared.ok || (pending is Future && _heldOp != null)) return null;
     ({String? tableId})? landed;
     await _heldOnce(() async {
-      landed = await _resume(id, fromTableId, parkInHand: parkInHand);
+      landed = await _resume(
+        id,
+        fromTableId,
+        parkInHand: parkInHand,
+        approval: cleared.approval,
+      );
     });
     return landed;
+  }
+
+  /// The core's answer for a queue act on a held order, and the manager's
+  /// approval when it asks for one. `ok` false when refused or dismissed.
+  FutureOr<({bool ok, ApprovalView? approval})> _clearDraftAct(
+    String act,
+    String id,
+    Future<ApprovalView?> Function(String reason)? askManager,
+  ) {
+    final decision = _bridge.decideDraftAct(act: act, id: id);
+    switch (decision.outcome) {
+      case 'allow':
+        return (ok: true, approval: null);
+      case 'needs_approval' when askManager != null:
+        return askManager(
+          decision.reason,
+        ).then((approval) => (ok: approval != null, approval: approval));
+      default:
+        showToast(decision.reason, tone: ChipTone.warning, icon: 'lock');
+        return (ok: false, approval: null);
+    }
   }
 
   Future<({String? tableId})?> _resume(
     String id,
     String? fromTableId, {
     required bool parkInHand,
+    ApprovalView? approval,
   }) async {
     var draft = state.drafts.where((d) => d.id == id).firstOrNull;
     if (draft == null) {
@@ -673,6 +709,7 @@ class OrderNotifier extends Notifier<OrderState> {
         id: id,
         parkInHand: parkInHand ? park(from) : null,
         parkAtTarget: park(target),
+        approval: approval,
       );
     } on MadarError catch (e) {
       // Refused before anything moved: every cart is exactly as it was.
@@ -721,9 +758,16 @@ class OrderNotifier extends Notifier<OrderState> {
     await loadDrafts();
   }
 
-  Future<void> discardDraft(String id) async {
+  /// Discard a parked order. One someone else started follows the void
+  /// rules; [askManager] is shown when the core asks for a manager.
+  Future<void> discardDraft(
+    String id, {
+    Future<ApprovalView?> Function(String reason)? askManager,
+  }) async {
+    final cleared = await _clearDraftAct('discard', id, askManager);
+    if (!cleared.ok) return;
     try {
-      await _bridge.discardDraft(id: id);
+      await _bridge.discardDraft(id: id, approval: cleared.approval);
     } on MadarError catch (e) {
       showToast(
         _bridge.humanMessage(e),

@@ -241,6 +241,7 @@ const _drafts = <DraftView>[
     totalMinor: 9000,
     createdAt: '2026-09-12T18:40:00Z',
     lockedByOther: false,
+    byOther: false,
   ),
 ];
 
@@ -718,6 +719,9 @@ class _FakeBridge implements MadarBridge {
       );
     }
     if (name == #cartTotals) return Future<CartTotals>.value(_totals);
+    if (name == #decideDraftAct) {
+      return const ActDecisionView(outcome: 'allow', reason: '');
+    }
     if (name == #listDrafts) return Future<List<DraftView>>.value(drafts);
     if (name == #switchToDraft) {
       // What the one core call does: park the cart in hand if asked, then

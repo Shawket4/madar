@@ -647,6 +647,7 @@ fn en(key: &str) -> Option<&'static str> {
         "drafts.discard_body" => "Its {count} items are gone for good. Nothing was sent, so nothing is refunded or voided.",
         "drafts.on_table" => "Held on {table}",
         "drafts.this_order" => "this order",
+        "drafts.started_by" => "Started by {name}",
         "drafts.discard" => "Discard",
         "drafts.rename" => "Name this order",
         // side-rail labels + section captions
@@ -1835,6 +1836,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "drafts.discard_body" => "ستُحذف أصنافه ({count}) نهائيًا. لم يُرسل شيء، فلا استرداد ولا إبطال.",
         "drafts.on_table" => "مُعلّق على {table}",
         "drafts.this_order" => "هذا الطلب",
+        "drafts.started_by" => "بدأه {name}",
         "drafts.discard" => "إلغاء الطلب",
         "drafts.rename" => "اسم هذا الطلب",
         "nav.incoming" => "الوارد",

@@ -8,12 +8,16 @@ import 'package:rust_bridge/rust_bridge.dart';
 /// THEIR PIN on this device, over the teller's session. The core finds them,
 /// checks they may approve this act for this person, and returns the approval
 /// the act then carries. Pops the approval, or null when dismissed.
+///
+/// An act on a sale names [capKey] + [orderId]; any other act (a held order
+/// someone else started) passes [approve], which asks the core with the PIN.
 Future<ApprovalView?> askManager(
   BuildContext context, {
   required String reason,
-  required String capKey,
-  required String orderId,
+  String capKey = '',
+  String orderId = '',
   int? amountMinor,
+  Future<ApprovalView> Function(String pin)? approve,
 }) {
   return showMadarSheet<ApprovalView>(
     context,
@@ -24,6 +28,7 @@ Future<ApprovalView?> askManager(
       capKey: capKey,
       orderId: orderId,
       amountMinor: amountMinor,
+      approve: approve,
     ),
   );
 }
@@ -34,12 +39,14 @@ class _ApprovalSheet extends ConsumerStatefulWidget {
     required this.capKey,
     required this.orderId,
     required this.amountMinor,
+    required this.approve,
   });
 
   final String reason;
   final String capKey;
   final String orderId;
   final int? amountMinor;
+  final Future<ApprovalView> Function(String pin)? approve;
 
   @override
   ConsumerState<_ApprovalSheet> createState() => _ApprovalSheetState();
@@ -63,14 +70,18 @@ class _ApprovalSheetState extends ConsumerState<_ApprovalSheet> {
       _error = null;
     });
     try {
-      final approval = await ref
-          .read(bridgeProvider)
-          .approveOrderAct(
-            approverPin: _pin.text.trim(),
-            capKey: widget.capKey,
-            orderId: widget.orderId,
-            amountMinor: widget.amountMinor,
-          );
+      final pin = _pin.text.trim();
+      final approve = widget.approve;
+      final approval = approve != null
+          ? await approve(pin)
+          : await ref
+                .read(bridgeProvider)
+                .approveOrderAct(
+                  approverPin: pin,
+                  capKey: widget.capKey,
+                  orderId: widget.orderId,
+                  amountMinor: widget.amountMinor,
+                );
       if (mounted) await Navigator.of(context).maybePop(approval);
     } on MadarError catch (e) {
       MadarHaptics.warning();
