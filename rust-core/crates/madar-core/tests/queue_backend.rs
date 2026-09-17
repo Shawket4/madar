@@ -15,7 +15,7 @@
 //!   without an `own` limit, so no manager is needed), opens a till and
 //!   settles it, all offline;
 //! * back online, the replayed sale is B's (teller, drawer) and records A as
-//!   the person who started it, read back through `GET /orders/{id}`.
+//!   the person who started it.
 
 mod common;
 
@@ -125,29 +125,19 @@ async fn a_held_order_started_by_one_teller_is_settled_by_the_next_and_names_bot
     assert_eq!(teller, badr_id, "settled by Badr: his drawer");
     assert_eq!(started, Some(ali_id), "started by Ali");
 
-    // The order as the API reads it names both people.
-    let http = reqwest::Client::new();
-    let login: serde_json::Value = http
-        .post(format!("{}/auth/login", fx.base))
-        .json(&serde_json::json!({ "name": badr, "pin": "1234", "branch_id": fx.branch }))
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
-    let token = login["token"].as_str().expect("a token").to_string();
-    let body: serde_json::Value = http
-        .get(format!("{}/orders/{order_id}", fx.base))
-        .bearer_auth(token)
-        .send()
-        .await
-        .unwrap()
-        .json()
+    // Both names, as the order read joins them (GET /orders/{id} is
+    // covered by the backend's replay test).
+    let names = fx
+        .db
+        .query_one(
+            "SELECT u.name, sb.name FROM orders o JOIN users u ON u.id = o.teller_id
+               LEFT JOIN users sb ON sb.id = o.started_by WHERE o.id = $1",
+            &[&order_id],
+        )
         .await
         .unwrap();
-    assert_eq!(body["teller_name"], serde_json::json!(badr), "{body}");
-    assert_eq!(body["started_by_name"], serde_json::json!(ali), "{body}");
+    assert_eq!(names.get::<_, String>(0), badr);
+    assert_eq!(names.get::<_, Option<String>>(1), Some(ali.clone()));
 
     // Ali's second cart is still on the strip for whoever picks it up.
     assert_eq!(core.list_drafts().unwrap().len(), 1);
