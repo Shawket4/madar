@@ -64,11 +64,15 @@ async fn drain(core: &madar_core::MadarCore) {
 #[tokio::test]
 #[ignore]
 async fn a_manager_takes_a_spot_check_offline_and_it_lands_once() {
-    let fx = fixture(0).await;
-    let (_, mgr) = manager(&fx, "735102").await;
+    let fx = fixture(1).await;
+    let (_, mgr) = manager(&fx, "864213").await;
     let proxy = Proxy::start(&fx.base).await;
     let db = temp_db("spot-mgr");
-    let core = signed_in_pin(&proxy.base, &db, &mgr, &fx.branch, "735102").await;
+    {
+        let core = signed_in_pin(&fx.base, &db, &mgr, &fx.branch, "864213").await;
+        core.logout(false).ok();
+    }
+    let core = signed_in_pin(&proxy.base, &db, &mgr, &fx.branch, "864213").await;
     core.refresh_connectivity().await;
     core.refresh_catalog().await.expect("catalog");
     core.sync_full().await.expect("snapshot");
@@ -116,8 +120,11 @@ async fn a_manager_takes_a_spot_check_offline_and_it_lands_once() {
         .unwrap()
         .get(0);
     assert_eq!(flags, 0, "a manager's check is not flagged");
-    let report = server_report(&fx, &mgr, &till_id).await;
-    assert_eq!(report.spot_checks.len(), 1, "the Z report lists it");
+    // The feed brings the till back with the check inside it: still one.
+    let _ = core.sync_now().await;
+    let report = core.till_report_for_checked(till_id.clone()).await.expect("report");
+    assert_eq!(report.spot_checks.len(), 1, "the Z report lists it once");
+    assert!(!report.spot_checks[0].queued);
 }
 
 #[tokio::test]
