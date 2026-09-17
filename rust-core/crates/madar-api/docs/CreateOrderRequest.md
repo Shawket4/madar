@@ -26,6 +26,7 @@ Name | Type | Description | Notes
 **payment_method** | **String** |  | 
 **payment_splits** | Option<[**Vec<models::PaymentSplitInput>**](PaymentSplitInput.md)> |  | [optional]
 **service_mode** | Option<**String**> | Where the drink is going: `\"takeaway\"` (default) or `\"dine_in\"`. NOT `order_type`: that is derived from whether a waiter's ticket was settled and decides the service charge. This says only whether the customer is drinking in — so a counter shop with no floor can say it — and its only effect is that packaging (cups, lids, straws) is not deducted from stock. Absent ⇒ takeaway, which is what every client before this did. | [optional]
+**started_by** | Option<**uuid::Uuid**> | The person who started this sale's cart, when the till says it was not the person ringing it (a held order resumed after a teller switch). Recorded when it names someone of the same org; anything else is dropped with a warning, never refused. Additive; older tills omit it. | [optional]
 **subtotal** | Option<**i32**> |  | [optional]
 **tax_amount** | Option<**i32**> |  | [optional]
 **till_id** | **uuid::Uuid** |  | 

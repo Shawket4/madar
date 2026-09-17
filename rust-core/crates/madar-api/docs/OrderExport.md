@@ -43,6 +43,8 @@ Name | Type | Description | Notes
 **service_charge_waived_by** | Option<**uuid::Uuid**> | Who removed the service charge from this table's bill (a holder of `orders:waive_service`), or `null`. Additive. | [optional]
 **service_charge_waived_by_name** | Option<**String**> |  | [optional]
 **shift_id** | **uuid::Uuid** | DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0). | 
+**started_by** | Option<**uuid::Uuid**> | Who started this sale's cart when it is not the person who rang it: a held order resumed after a teller switch on the till. `null` otherwise. Additive. | [optional]
+**started_by_name** | Option<**String**> |  | [optional]
 **status** | **String** |  | 
 **subtotal** | **i32** |  | 
 **tax_amount** | **i32** |  | 
