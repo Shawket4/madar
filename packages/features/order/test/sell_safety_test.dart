@@ -239,7 +239,7 @@ void main() {
     const reason = "This isn't your sale — a manager must approve.";
     const approval = ApprovalView(
       id: 'ap-1',
-      capability: 'orders.create',
+      capability: 'orders.held.resume_others',
       approverId: 'm-1',
       approverName: 'Mona',
     );

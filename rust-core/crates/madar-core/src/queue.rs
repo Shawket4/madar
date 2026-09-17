@@ -6,15 +6,15 @@
 //!
 //! # Rules
 //!
-//! 1. **A teller switch keeps the queue.** A switch is the person-level
-//!    sign-out ([`MadarCore::logout`], the PIN pad's "Sign out") followed by
-//!    another person's PIN sign-in or offline unlock on the same device.
-//!    Nothing is silently discarded: every context's non-empty cart is PARKED
-//!    as a held order under its author before the session goes (a cart that
-//!    cannot be parked is left in place, still stamped with its author), and
-//!    every held order stays in the mirror. The next person starts with an
-//!    empty cart in hand and the whole queue on the strip. No network: the
-//!    park is the local mirror, exactly like a manual park.
+//! 1. **A teller switch keeps the counter queue.** A switch is the
+//!    person-level sign-out ([`MadarCore::logout`], the PIN pad's "Sign out")
+//!    followed by another person's PIN sign-in or offline unlock on the same
+//!    device. The counter's cart in hand is PARKED as a held order under its
+//!    author before the session goes (a cart that cannot be parked is left in
+//!    place, still stamped with its author), and every held order stays in the
+//!    mirror. The next person starts with an empty counter cart and the whole
+//!    queue on the strip. No network: the park is the local mirror. Held orders
+//!    also carry over from till to till; a till close warns about them first.
 //! 2. **Ownership.** A held order keeps the person who started it
 //!    (`created_by`), across re-parks by anyone. A cart resumed from a held
 //!    order carries that author (`cart:owner`) until it is sold or parked
@@ -24,14 +24,18 @@
 //!    every held order, and marks the ones someone else started with their
 //!    name.
 //! 4. **Resuming someone else's order** (restoring it to continue or settle
-//!    it) is an `own`-scoped act on [`RESUME_CAP`] (`orders.create`, the
-//!    capability that settles it). Allowed outright for one's own order or
-//!    when the grant carries no `own` limit; with an `own` limit it needs a
-//!    manager's PIN approval (the same approval sheet, `approve_draft_act`).
-//!    NOTE: the spec today does not let an owner put `own` on
-//!    `orders.create`, so in practice anyone who may sell may resume any
-//!    queued order; a dedicated key is proposed to the owner (see the stream
-//!    report). The gate is in place and switches with this one constant.
+//!    it) asks for [`RESUME_CAP`], `orders.held.resume_others` (owner and
+//!    manager by default). Without it the act needs a manager's PIN approval
+//!    (the same approval sheet, `approve_draft_act`): the capability accepts
+//!    approval, so "not held" reads as "ask a manager" here. Resuming one's
+//!    own order asks for nothing new.
+//! 4a. **Tables are nobody's.** A table's order is shared state: the open
+//!    ticket, server-authoritative online and relayed over the LAN offline.
+//!    Anyone holding the normal floor and order capabilities adds to it or
+//!    settles it; `orders.held.resume_others` never applies to a table (a held
+//!    order parked on a table resumes like one's own). A switch leaves nothing
+//!    person-scoped on a table: an unsent table cart is emptied exactly as it
+//!    was before this feature (the shared ticket holds what was sent).
 //! 5. **Settling** a resumed order records BOTH people: the order is rung by
 //!    the person signed in (`teller_id`, as always) and carries `started_by`
 //!    (the author) plus the manager's approval, when one was needed, on the
@@ -56,7 +60,7 @@ use crate::held;
 use crate::MadarCore;
 
 /// The capability resuming (continuing, then settling) a held order asks for.
-pub(crate) const RESUME_CAP: Cap = Cap::OrdersCreate;
+pub(crate) const RESUME_CAP: Cap = Cap::OrdersHeldResumeOthers;
 /// The capability discarding someone else's held order asks for.
 pub(crate) const DISCARD_CAP: Cap = Cap::OrdersVoid;
 
@@ -86,7 +90,7 @@ impl DraftAct {
 
     fn cap(self) -> Cap {
         match self {
-            Self::Resume => resume_cap(),
+            Self::Resume => RESUME_CAP,
             Self::Discard => DISCARD_CAP,
         }
     }
@@ -99,22 +103,6 @@ impl DraftAct {
     }
 }
 
-#[cfg(not(test))]
-fn resume_cap() -> Cap {
-    RESUME_CAP
-}
-
-#[cfg(test)]
-thread_local! {
-    /// Tests stand a capability that accepts `own` + approval in for
-    /// [`RESUME_CAP`], to prove the approval path the spec cannot reach yet.
-    static RESUME_CAP_OVERRIDE: std::cell::Cell<Option<Cap>> = const { std::cell::Cell::new(None) };
-}
-
-#[cfg(test)]
-fn resume_cap() -> Cap {
-    RESUME_CAP_OVERRIDE.with(|c| c.get()).unwrap_or(RESUME_CAP)
-}
 
 impl MadarCore {
     fn me(&self) -> (String, String) {
@@ -138,6 +126,13 @@ impl MadarCore {
         Ok((own, age))
     }
 
+    fn draft_on_table(&self, id: &str) -> bool {
+        held::get(&self.store, id)
+            .ok()
+            .flatten()
+            .is_some_and(|h| h.table_id.is_some_and(|t| !t.is_empty()))
+    }
+
     /// May the signed-in person `act` (`"resume"` | `"discard"`) on held order
     /// `id`? Allowed, needs a manager, or refused. Offline.
     pub fn decide_draft_act(&self, act: String, id: String) -> ActDecisionView {
@@ -149,11 +144,26 @@ impl MadarCore {
             Ok(f) => f,
             Err(_) => return approvals::decision_view(&Decision::Deny(Why::NotHeld), &locale),
         };
-        if a == DraftAct::Discard && own {
+        if a == DraftAct::Resume && self.draft_on_table(&id) {
+            // A table's order is shared, never gated per person (rule 4a).
             return approvals::decision_view(&Decision::Allow, &locale);
         }
-        let age = if a == DraftAct::Discard { age } else { None };
-        self.decide_act(a.cap().key().to_string(), None, age, Some(own))
+        if own {
+            // One's own parked cart: resuming or discarding it is as free as it was.
+            return approvals::decision_view(&Decision::Allow, &locale);
+        }
+        match a {
+            DraftAct::Discard => self.decide_act(a.cap().key().to_string(), None, age, Some(false)),
+            DraftAct::Resume => {
+                let view = self.decide_act(a.cap().key().to_string(), None, None, None);
+                if view.outcome == "deny" {
+                    // Not held: a manager may approve it (the capability takes approval).
+                    approvals::decision_view(&Decision::NeedsApproval(Why::NotHeld), &locale)
+                } else {
+                    view
+                }
+            }
+        }
     }
 
     /// A manager approves a queue act on held order `id` with their PIN.
@@ -165,8 +175,11 @@ impl MadarCore {
     ) -> Result<ApprovalView, CoreError> {
         let a = DraftAct::parse(&act)?;
         let (own, age) = self.draft_facts(&id)?;
-        let age = if a == DraftAct::Discard { age } else { None };
-        self.approve_act(approver_pin, a.cap().key().to_string(), None, age, Some(own))
+        let (age, own) = match a {
+            DraftAct::Discard => (age, Some(own)),
+            DraftAct::Resume => (None, None),
+        };
+        self.approve_act(approver_pin, a.cap().key().to_string(), None, age, own)
     }
 
     /// Refuse a queue act the signed-in person may not do now. An approval
@@ -236,34 +249,24 @@ impl MadarCore {
     /// keeps its lines and is stamped with its author instead.
     pub(crate) fn park_queue_for_switch(&self) {
         let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
-        let mut contexts: Vec<Option<String>> = vec![None];
-        contexts.extend(
-            cart::table_contexts_with_lines(&self.store)
-                .unwrap_or_default()
-                .into_iter()
-                .map(Some),
+        // Tables first (rule 4a): nothing person-scoped survives on a table.
+        for t in cart::table_contexts_with_lines(&self.store).unwrap_or_default() {
+            let _ = cart::clear(&self.store, Some(&t));
+        }
+        if cart::lines(&self.store, None).map(|l| l.is_empty()).unwrap_or(true) {
+            return;
+        }
+        let meta = cart::meta(&self.store, None).unwrap_or_default();
+        let parked = self.hold_cart_on_table_locked(
+            None,
+            meta.name.clone(),
+            meta.draft_id.clone(),
+            meta.started_at.clone(),
+            None,
         );
-        for ctx in contexts {
-            let c = ctx.as_deref();
-            if cart::lines(&self.store, c).map(|l| l.is_empty()).unwrap_or(true) {
-                continue;
-            }
-            let meta = cart::meta(&self.store, c).unwrap_or_default();
-            let parked = self.hold_cart_on_table_locked(
-                c,
-                meta.name.clone(),
-                meta.draft_id.clone(),
-                meta.started_at.clone(),
-                ctx.clone(),
-            );
-            if parked.is_err() && cart::owner(&self.store, c).ok().flatten().is_none() {
-                let (user_id, name) = self.me();
-                let _ = cart::set_owner(
-                    &self.store,
-                    c,
-                    Some(&cart::CartOwner { user_id, name, approval: None }),
-                );
-            }
+        if parked.is_err() && cart::owner(&self.store, None).ok().flatten().is_none() {
+            let (user_id, name) = self.me();
+            let _ = cart::set_owner(&self.store, None, Some(&cart::CartOwner { user_id, name, approval: None }));
         }
     }
 }
@@ -318,7 +321,7 @@ mod tests {
             .unwrap();
         let manager = serde_json::json!({"id": MONA, "user_id": MONA, "name": "Mona",
             "role": "branch_manager", "is_active": true,
-            "capabilities": ["orders.create", "orders.void", "pos.sign_in"], "is_owner": false});
+            "capabilities": ["orders.create", "orders.void", "orders.held.resume_others", "pos.sign_in"], "is_owner": false});
         core.store
             .with_conn(|c| {
                 c.execute(
@@ -331,8 +334,14 @@ mod tests {
         core
     }
 
-    /// The person on the till: `own`-limited on `limited` when given.
+    /// The person on the till: `own`-limited on `limited` when given; a key
+    /// in `limited` that is `orders.held.resume_others` GRANTS it instead.
     fn sign_in(core: &MadarCore, id: &str, name: &str, limited: &[&str]) {
+        let mut caps = vec!["orders.create".to_string(), "orders.void".to_string()];
+        if limited.contains(&RESUME_CAP.key()) {
+            caps.push(RESUME_CAP.key().into());
+        }
+        let limited: Vec<&str> = limited.iter().copied().filter(|k| *k != RESUME_CAP.key()).collect();
         let limits = limited
             .iter()
             .map(|k| (k.to_string(), Limits { own: true, ..Default::default() }))
@@ -360,7 +369,7 @@ mod tests {
             }],
             token: None,
             authz: Some(AuthzGrants {
-                capabilities: vec!["orders.create".into(), "orders.void".into()],
+                capabilities: caps,
                 ask_manager: vec![],
                 limits,
                 owner: false,
@@ -408,22 +417,38 @@ mod tests {
     }
 
     #[test]
-    fn a_table_cart_is_kept_across_a_switch_too() {
+    fn a_switch_leaves_nothing_person_scoped_on_a_table() {
         let core = device();
         sign_in(&core, ALI, "Ali", &[]);
         put_line(&core, Some("t-1"), "Soup");
         core.logout(false).unwrap();
         sign_in(&core, BADR, "Badr", &[]);
-        let drafts = core.list_drafts().unwrap();
-        assert_eq!(drafts.len(), 1);
-        assert_eq!(drafts[0].item_count, 1);
+        assert!(core.list_drafts().unwrap().is_empty(), "no parked copy of the table");
         assert!(core.cart_lines(Some("t-1".into())).unwrap().is_empty());
+        assert!(cart::owner(&core.store, Some("t-1")).unwrap().is_none());
+        assert!(cart::table_contexts_with_lines(&core.store).unwrap().is_empty());
+    }
+
+    #[test]
+    fn resuming_an_order_parked_on_a_table_is_never_gated_per_person() {
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        put_line(&core, None, "Soup");
+        core.hold_cart(None, "Table".into(), None, None).unwrap();
+        let id = core.list_drafts().unwrap()[0].id.clone();
+        let mut list = held::load_held(&core.store).unwrap();
+        list[0].table_id = Some("t-4".into());
+        core.store.kv_put(held::K_HELD_MIRROR, &serde_json::to_string(&list).unwrap()).unwrap();
+        core.logout(false).unwrap();
+        sign_in(&core, BADR, "Badr", &[]);
+        assert_eq!(core.decide_draft_act("resume".into(), id.clone()).outcome, "allow");
+        core.switch_to_draft(None, id, None, None).expect("a table resumes without a manager");
     }
 
     #[test]
     fn resuming_your_own_order_is_allowed() {
         let core = device();
-        sign_in(&core, ALI, "Ali", &[RESUME_CAP.key()]);
+        sign_in(&core, ALI, "Ali", &[]);
         let id = park(&core, "Mine");
         assert_eq!(core.decide_draft_act("resume".into(), id.clone()).outcome, "allow");
         let view = core.switch_to_draft(None, id, None, None).unwrap();
@@ -432,36 +457,24 @@ mod tests {
     }
 
     #[test]
-    fn resuming_someone_elses_order_without_an_own_limit_is_allowed_and_names_the_author() {
+    fn someone_holding_resume_others_resumes_without_a_manager_and_names_the_author() {
         let core = device();
         sign_in(&core, ALI, "Ali", &[]);
         let id = park(&core, "Ali's");
         core.logout(false).unwrap();
-        sign_in(&core, BADR, "Badr", &[]);
+        sign_in(&core, BADR, "Badr", &[RESUME_CAP.key()]);
         assert_eq!(core.decide_draft_act("resume".into(), id.clone()).outcome, "allow");
         core.switch_to_draft(None, id, None, None).unwrap();
         assert_eq!(core.sale_started_by(None), (Some(ALI.to_string()), None));
     }
 
     #[test]
-    fn the_spec_cannot_put_resume_behind_a_manager_yet() {
-        // orders.create takes no approval: an `own` limit on it refuses outright.
+    fn resuming_someone_elses_order_without_the_capability_needs_a_manager_and_carries_the_approval() {
         let core = device();
         sign_in(&core, ALI, "Ali", &[]);
         let id = park(&core, "Ali's");
         core.logout(false).unwrap();
-        sign_in(&core, BADR, "Badr", &[RESUME_CAP.key()]);
-        assert_eq!(core.decide_draft_act("resume".into(), id).outcome, "deny");
-    }
-
-    #[test]
-    fn resuming_someone_elses_order_when_own_limited_needs_a_manager_and_carries_the_approval() {
-        RESUME_CAP_OVERRIDE.with(|c| c.set(Some(Cap::OrdersVoid)));
-        let core = device();
-        sign_in(&core, ALI, "Ali", &[]);
-        let id = park(&core, "Ali's");
-        core.logout(false).unwrap();
-        sign_in(&core, BADR, "Badr", &["orders.void"]);
+        sign_in(&core, BADR, "Badr", &[]);
 
         let d = core.decide_draft_act("resume".into(), id.clone());
         assert_eq!(d.outcome, "needs_approval");
@@ -473,18 +486,18 @@ mod tests {
         assert!(core.approve_draft_act("2222".into(), "resume".into(), id.clone()).is_err(), "not himself");
         let approval = core.approve_draft_act("9999".into(), "resume".into(), id.clone()).unwrap();
         assert_eq!(approval.approver_id, MONA);
+        assert_eq!(approval.capability, "orders.held.resume_others");
         core.switch_to_draft_approved(None, id, None, None, Some(approval.clone())).unwrap();
 
         let (by, wire) = core.sale_started_by(None);
         assert_eq!(by.as_deref(), Some(ALI));
         let wire = wire.expect("the approval rides the sale");
         assert_eq!(wire["approver_id"], MONA);
-        assert_eq!(wire["id"], approval.id.as_str());
+        assert_eq!(wire["capability"], "orders.held.resume_others");
 
         // Parked again by Badr: still Ali's.
         core.hold_cart(None, "again".into(), None, None).unwrap();
         assert_eq!(core.list_drafts().unwrap()[0].created_by_name.as_deref(), Some("Ali"));
-        RESUME_CAP_OVERRIDE.with(|c| c.set(None));
     }
 
     #[test]
