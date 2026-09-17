@@ -56,13 +56,13 @@ async fn after_replay_a_void_restocks_and_a_refund_is_waste() {
         .await
         .expect("ingredient")
         .get(0);
+    // `menu_item_recipes` is now a compatibility VIEW over `recipe_lines`
+    // (menu-modeling), read-only for old clients. Write the real table: one
+    // line per the item's own sizes, keyed by `menu_item_sizes.id`.
     fx.db
         .execute(
-            "INSERT INTO menu_item_recipes (menu_item_id, org_ingredient_id, quantity_used, size_label, ingredient_name, ingredient_unit)
-             SELECT $1, $2, 10, l, 'RW rice', 'g' FROM (
-               SELECT size_label AS l FROM menu_item_recipes WHERE menu_item_id = $1
-               UNION SELECT label FROM menu_item_sizes WHERE menu_item_id = $1
-               UNION SELECT 'one_size') s",
+            "INSERT INTO recipe_lines (owner_type, owner_id, ingredient_id, quantity, unit)
+             SELECT 'item_size', ms.id, $2, 10, 'g' FROM menu_item_sizes ms WHERE ms.menu_item_id = $1",
             &[&item_id, &rice],
         )
         .await
