@@ -36,6 +36,14 @@ pub struct CloseTillParams {
     pub close_till_request: models::CloseTillRequest,
 }
 
+/// struct for passing parameters to the method [`create_spot_check`]
+#[derive(Clone, Debug)]
+pub struct CreateSpotCheckParams {
+    /// Till ID
+    pub till_id: String,
+    pub cash_spot_check_request: models::CashSpotCheckRequest,
+}
+
 /// struct for passing parameters to the method [`delete_till`]
 #[derive(Clone, Debug)]
 pub struct DeleteTillParams {
@@ -101,6 +109,13 @@ pub struct ListOpenTillsParams {
     pub branch_id: String,
 }
 
+/// struct for passing parameters to the method [`list_spot_checks`]
+#[derive(Clone, Debug)]
+pub struct ListSpotChecksParams {
+    /// Till ID
+    pub till_id: String,
+}
+
 /// struct for passing parameters to the method [`list_tills`]
 #[derive(Clone, Debug)]
 pub struct ListTillsParams {
@@ -155,6 +170,19 @@ pub enum ClosePreviewError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CloseTillError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`create_spot_check`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CreateSpotCheckError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -272,6 +300,19 @@ pub enum ListCashMovementsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListOpenTillsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`list_spot_checks`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListSpotChecksError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -446,6 +487,56 @@ pub async fn close_till(
     } else {
         let content = resp.text().await?;
         let entity: Option<CloseTillError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn create_spot_check(
+    configuration: &configuration::Configuration,
+    params: CreateSpotCheckParams,
+) -> Result<models::TillSpotCheck, Error<CreateSpotCheckError>> {
+    let uri_str = format!(
+        "{}/tills/{till_id}/spot-checks",
+        configuration.base_path,
+        till_id = crate::apis::urlencode(params.till_id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.cash_spot_check_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::TillSpotCheck`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TillSpotCheck`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<CreateSpotCheckError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -865,6 +956,53 @@ pub async fn list_open_tills(
     } else {
         let content = resp.text().await?;
         let entity: Option<ListOpenTillsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn list_spot_checks(
+    configuration: &configuration::Configuration,
+    params: ListSpotChecksParams,
+) -> Result<Vec<models::TillSpotCheck>, Error<ListSpotChecksError>> {
+    let uri_str = format!(
+        "{}/tills/{till_id}/spot-checks",
+        configuration.base_path,
+        till_id = crate::apis::urlencode(params.till_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::TillSpotCheck&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::TillSpotCheck&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ListSpotChecksError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

@@ -10,6 +10,7 @@ use crate::api::orders::OrderSummaryView;
 use crate::api::types::TillView;
 
 use crate::api::catalog::PaymentMethodView;
+pub use madar_core::cash_spot::SpotCheckLineView;
 pub use madar_core::orders::TillStatsView;
 pub use madar_core::till::{
     BranchOpenTillView, CashMovementView, CloseTillMethodView, CloseTillOutcomeView,
@@ -106,6 +107,7 @@ pub struct _TillReportView {
     pub open_bills_count: Option<i64>,
     pub opened_while_another_open: bool,
     pub verification: String,
+    pub spot_checks: Vec<SpotCheckLineView>,
 }
 
 #[frb(mirror(TillStatsView))]
@@ -174,6 +176,7 @@ pub struct _CloseTillPreviewView {
     pub methods: Vec<CloseTillMethodView>,
     pub last_till_warning: Option<LastTillWarningView>,
     pub from_server: bool,
+    pub figures_hidden: bool,
 }
 
 #[frb(mirror(ReconciliationLineView))]
@@ -262,7 +265,7 @@ impl MadarBridge {
 
     // close / reconciliation
     pub async fn close_till_preview(&self) -> Result<CloseTillPreviewView, MadarError> {
-        self.inner.close_till_preview().await.map_err(MadarError::from)
+        self.inner.close_till_preview_checked().await.map_err(MadarError::from)
     }
 
     pub async fn close_till(
@@ -285,11 +288,11 @@ impl MadarBridge {
     }
 
     pub async fn till_report(&self) -> Result<TillReportView, MadarError> {
-        self.inner.till_report().await.map_err(MadarError::from)
+        self.inner.till_report_checked().await.map_err(MadarError::from)
     }
 
     pub async fn till_report_for(&self, till_id: String) -> Result<TillReportView, MadarError> {
-        self.inner.till_report_for(till_id).await.map_err(MadarError::from)
+        self.inner.till_report_for_checked(till_id).await.map_err(MadarError::from)
     }
 
     // lists

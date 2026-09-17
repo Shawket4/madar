@@ -663,6 +663,30 @@ impl Renderer {
         }
         self.rule();
 
+        // ── cash spot checks (each count, what was expected, the difference) ──
+        if !r.spot_checks.is_empty() {
+            let tr = |k: &str| crate::i18n::tr(&lab.locale, k);
+            self.center(&tr("spot.checks").to_uppercase(), RS_SMALL, Weight::SEMIBOLD);
+            for c in &r.spot_checks {
+                let when = crate::timefmt::format_in(lab.tz, &c.checked_at, crate::timefmt::TimeStyle::Time, &lab.locale);
+                let who = match &c.approved_by_name {
+                    Some(a) => format!("{} · {} {}", c.checked_by_name, tr("spot.approved_by"), a),
+                    None => c.checked_by_name.clone(),
+                };
+                self.indented(&format!("{when}  {who}"), RS_SMALL, 0);
+                self.row(&format!("  {}", tr("spot.counted")), &m(c.counted_cash_minor), RS_SMALL, Weight::NORMAL);
+                self.row(&format!("  {}", tr("spot.expected")), &m(c.expected_cash_minor), RS_SMALL, Weight::NORMAL);
+                let sign = if c.discrepancy_minor < 0 { "−" } else if c.discrepancy_minor > 0 { "+" } else { "" };
+                self.row(
+                    &format!("  {}", tr("spot.discrepancy")),
+                    &format!("{}{}", sign, m(c.discrepancy_minor.abs())),
+                    RS_SMALL,
+                    Weight::SEMIBOLD,
+                );
+            }
+            self.rule();
+        }
+
         // ── cash reconciliation ──
         self.center(&lab.cash_recon.to_uppercase(), RS_SMALL, Weight::SEMIBOLD);
         self.row(
@@ -1329,6 +1353,7 @@ mod tests {
             open_bills_count: None,
             opened_while_another_open: false,
             verification: "server".into(),
+            spot_checks: Vec::new(),
         }
     }
 

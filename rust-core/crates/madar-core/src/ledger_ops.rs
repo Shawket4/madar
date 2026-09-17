@@ -270,6 +270,7 @@ impl MadarCore {
             // The figures are this device's; they are the server's only when the
             // stored server report is the authority for the till.
             from_server: confirmed && authority,
+            figures_hidden: false,
         })
     }
 

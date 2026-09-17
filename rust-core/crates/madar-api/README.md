@@ -523,6 +523,7 @@ Class | Method | HTTP request | Description
 *TillsApi* | [**add_cash_movement**](docs/TillsApi.md#add_cash_movement) | **POST** /tills/{till_id}/cash-movements | 
 *TillsApi* | [**close_preview**](docs/TillsApi.md#close_preview) | **GET** /tills/{till_id}/close-preview | 
 *TillsApi* | [**close_till**](docs/TillsApi.md#close_till) | **POST** /tills/{till_id}/close | 
+*TillsApi* | [**create_spot_check**](docs/TillsApi.md#create_spot_check) | **POST** /tills/{till_id}/spot-checks | 
 *TillsApi* | [**delete_till**](docs/TillsApi.md#delete_till) | **DELETE** /tills/{till_id} | 
 *TillsApi* | [**force_close_till**](docs/TillsApi.md#force_close_till) | **POST** /tills/{till_id}/force-close | 
 *TillsApi* | [**get_current_till**](docs/TillsApi.md#get_current_till) | **GET** /tills/branches/{branch_id}/current | 
@@ -532,6 +533,7 @@ Class | Method | HTTP request | Description
 *TillsApi* | [**legacy_list_till_entities**](docs/TillsApi.md#legacy_list_till_entities) | **GET** /tills | `GET /tills` — the removed entity list, synthesized (one \"Till 1\" per branch).
 *TillsApi* | [**list_cash_movements**](docs/TillsApi.md#list_cash_movements) | **GET** /tills/{till_id}/cash-movements | 
 *TillsApi* | [**list_open_tills**](docs/TillsApi.md#list_open_tills) | **GET** /tills/branches/{branch_id}/open | 
+*TillsApi* | [**list_spot_checks**](docs/TillsApi.md#list_spot_checks) | **GET** /tills/{till_id}/spot-checks | 
 *TillsApi* | [**list_tills**](docs/TillsApi.md#list_tills) | **GET** /tills/branches/{branch_id} | 
 *TillsApi* | [**open_till**](docs/TillsApi.md#open_till) | **POST** /tills/branches/{branch_id}/open | 
 *UploadsApi* | [**upload_bundle_image**](docs/UploadsApi.md#upload_bundle_image) | **POST** /uploads/bundles/{bundle_id} | 
@@ -641,6 +643,7 @@ Class | Method | HTTP request | Description
  - [CashMovementKind](docs/CashMovementKind.md)
  - [CashMovementRequest](docs/CashMovementRequest.md)
  - [CashMovementSummaryRow](docs/CashMovementSummaryRow.md)
+ - [CashSpotCheckRequest](docs/CashSpotCheckRequest.md)
  - [CatalogSyncResponse](docs/CatalogSyncResponse.md)
  - [Category](docs/Category.md)
  - [CategoryRoute](docs/CategoryRoute.md)
@@ -1064,6 +1067,8 @@ Class | Method | HTTP request | Description
  - [SlotAvailability](docs/SlotAvailability.md)
  - [SnapshotCursor](docs/SnapshotCursor.md)
  - [Sort](docs/Sort.md)
+ - [SpotCheckMethodInput](docs/SpotCheckMethodInput.md)
+ - [SpotCheckMethodLine](docs/SpotCheckMethodLine.md)
  - [StaffDocument](docs/StaffDocument.md)
  - [StaffRequest](docs/StaffRequest.md)
  - [StationRoutes](docs/StationRoutes.md)
@@ -1103,6 +1108,7 @@ Class | Method | HTTP request | Description
  - [TillRefunds](docs/TillRefunds.md)
  - [TillReportFigures](docs/TillReportFigures.md)
  - [TillReportResponse](docs/TillReportResponse.md)
+ - [TillSpotCheck](docs/TillSpotCheck.md)
  - [TillStatus](docs/TillStatus.md)
  - [TillVerification](docs/TillVerification.md)
  - [TimeseriesPoint](docs/TimeseriesPoint.md)

@@ -17,6 +17,7 @@
 uniffi::setup_scaffolding!();
 
 pub mod approvals;
+pub mod cash_spot;
 mod authz_snapshot;
 mod config;
 pub use config::MadarConfig;
@@ -1466,6 +1467,21 @@ impl MadarCore {
                 (
                     with_approval(
                         serde_json::json!({ "op": "refund_order", "teller_id": teller_id, "request": cmd.request }),
+                        cmd.approval,
+                    ),
+                    Idem::Yes,
+                )
+            }
+            "cash_spot_check" => {
+                let cmd: cash_spot::CashSpotCheckCommand = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
+                };
+                let device_id = cmd.device_id.clone().unwrap_or_else(|| self.lan_device_id());
+                (
+                    with_approval(
+                        serde_json::json!({ "op": "cash_spot_check", "teller_id": teller_id, "till_id": cmd.till_id,
+                            "device_id": device_id, "request": cmd.request }),
                         cmd.approval,
                     ),
                     Idem::Yes,
@@ -5235,6 +5251,9 @@ impl MadarCore {
             if let (Some(ty), Some(key)) = (ty, key) {
                 if ledger::is_ledger_type(&ty) {
                     ledger::local::discard(tx, &ty, &key)?;
+                }
+                if ty == ledger::spot::T_SPOT {
+                    tx.execute("DELETE FROM ledger_spot_checks WHERE id=?1 AND origin='local'", [&key])?;
                 }
             }
             touched.extend(changes::tables_for_op(&op_type));

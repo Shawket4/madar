@@ -78,6 +78,7 @@ pub fn tables_for_op(op_type: &str) -> Vec<&'static str> {
         "create_order" | "void_order" => &[ORDERS, TILLS][..],
         "refund_order" => &[REFUNDS, ORDERS, TILLS][..],
         "cash_movement" => &[CASH_MOVEMENTS, TILLS][..],
+        "cash_spot_check" => &[TILLS][..],
         "settle_open_ticket" => &[OPEN_TICKETS, ORDERS, TILLS, FLOOR][..],
         "open_ticket" | "ticket_add_round" | "void_ticket" | "void_ticket_line" => {
             &[OPEN_TICKETS, FLOOR, KITCHEN][..]

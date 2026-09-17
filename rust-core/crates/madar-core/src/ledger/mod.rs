@@ -23,6 +23,7 @@ pub(crate) mod local;
 pub(crate) mod migrate;
 pub(crate) mod report;
 pub(crate) mod retention;
+pub(crate) mod spot;
 pub(crate) mod views;
 
 use rusqlite::{params, Connection, OptionalExtension};
@@ -372,6 +373,10 @@ pub(crate) fn write_row(
                     acked as i64
                 ],
             )?;
+            // The till's spot checks ride its projection.
+            if origin != Origin::Local {
+                spot::from_till_row(conn, v)?;
+            }
         }
         T_ORDER => {
             exec(conn, 

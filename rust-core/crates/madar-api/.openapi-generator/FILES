@@ -98,6 +98,7 @@ docs/CashMovement.md
 docs/CashMovementKind.md
 docs/CashMovementRequest.md
 docs/CashMovementSummaryRow.md
+docs/CashSpotCheckRequest.md
 docs/CatalogSyncResponse.md
 docs/Category.md
 docs/CategoryRoute.md
@@ -550,6 +551,8 @@ docs/SkuCost.md
 docs/SlotAvailability.md
 docs/SnapshotCursor.md
 docs/Sort.md
+docs/SpotCheckMethodInput.md
+docs/SpotCheckMethodLine.md
 docs/StaffApi.md
 docs/StaffDocument.md
 docs/StaffRequest.md
@@ -592,6 +595,7 @@ docs/TillReconciliationLine.md
 docs/TillRefunds.md
 docs/TillReportFigures.md
 docs/TillReportResponse.md
+docs/TillSpotCheck.md
 docs/TillStatus.md
 docs/TillVerification.md
 docs/TillsApi.md
@@ -804,6 +808,7 @@ src/models/cash_movement.rs
 src/models/cash_movement_kind.rs
 src/models/cash_movement_request.rs
 src/models/cash_movement_summary_row.rs
+src/models/cash_spot_check_request.rs
 src/models/catalog_sync_response.rs
 src/models/category.rs
 src/models/category_route.rs
@@ -1228,6 +1233,8 @@ src/models/sku_cost.rs
 src/models/slot_availability.rs
 src/models/snapshot_cursor.rs
 src/models/sort.rs
+src/models/spot_check_method_input.rs
+src/models/spot_check_method_line.rs
 src/models/staff_document.rs
 src/models/staff_request.rs
 src/models/station_routes.rs
@@ -1267,6 +1274,7 @@ src/models/till_reconciliation_line.rs
 src/models/till_refunds.rs
 src/models/till_report_figures.rs
 src/models/till_report_response.rs
+src/models/till_spot_check.rs
 src/models/till_status.rs
 src/models/till_verification.rs
 src/models/timeseries_point.rs

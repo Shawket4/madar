@@ -77,6 +77,9 @@ pub struct TillReportFigures {
         skip_serializing_if = "Option::is_none"
     )]
     pub service_charge_waived_count: Option<i64>,
+    /// Cash spot checks taken on this till, oldest first. Additive.
+    #[serde(rename = "spot_checks", skip_serializing_if = "Option::is_none")]
+    pub spot_checks: Option<Vec<models::TillSpotCheck>>,
     /// `branches.standard_float`.
     #[serde(
         rename = "standard_float",
@@ -156,6 +159,7 @@ impl TillReportFigures {
             safe_drops,
             service_charge_waived_amount: None,
             service_charge_waived_count: None,
+            spot_checks: None,
             standard_float: None,
             suggested_safe_drop: None,
             timezone: None,

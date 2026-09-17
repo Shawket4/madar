@@ -1,4 +1,5 @@
 pub mod approvals;
+pub mod cash_spot;
 pub mod bookings;
 pub mod bridge;
 pub mod cart;

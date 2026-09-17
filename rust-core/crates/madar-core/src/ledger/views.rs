@@ -304,6 +304,7 @@ pub(crate) fn till_report_rows(store: &Store, till_id: &str, label: &dyn Fn(&str
         open_bills_count: opt_i("open_bills_at_close"),
         opened_while_another_open: flag("opened_while_another_open"),
         verification: s(t, "verification").unwrap_or("legacy").to_string(),
+        spot_checks: f.spot_checks.iter().map(crate::cash_spot::line_view).collect(),
     }))
 }
 
