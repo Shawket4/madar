@@ -289,7 +289,15 @@ impl MadarCore {
             Some(a) => vec![("approval", approval_wire(a).to_string())],
             None => Vec::new(),
         };
-        let body = self.api.get_text("/authz/flags", &query).await?;
+        // Retried once on a dropped connection, exactly like [`Self::bulk_review`]:
+        // an idle keep-alive socket the server closed must not read as "this
+        // till may not see its flags".
+        let body = match self.api.get_text("/authz/flags", &query).await {
+            Err(e) if crate::net::is_connectivity_failure(&e) => {
+                self.api.get_text("/authz/flags", &query).await?
+            }
+            other => other?,
+        };
         let all: Vec<CachedFlag> = serde_json::from_str(&body).unwrap_or_default();
         let branch = self.current_session().and_then(|s| s.branch_id);
         let mine: Vec<CachedFlag> = all
