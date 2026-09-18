@@ -31,13 +31,14 @@ void _keyboardUp(WidgetTester tester) {
   addTearDown(tester.view.resetViewInsets);
 }
 
-Widget _app(Widget home, {TextDirection dir = TextDirection.ltr}) => MaterialApp(
-  theme: MadarTheme.light(),
-  home: Directionality(
-    textDirection: dir,
-    child: Scaffold(body: home),
-  ),
-);
+Widget _app(Widget home, {TextDirection dir = TextDirection.ltr}) =>
+    MaterialApp(
+      theme: MadarTheme.light(),
+      home: Directionality(
+        textDirection: dir,
+        child: Scaffold(body: home),
+      ),
+    );
 
 /// The app as it is really wired: the Done bar sits in `MaterialApp.builder`,
 /// ABOVE every Scaffold — a Scaffold eats the bottom inset for its body, so a
@@ -223,29 +224,30 @@ void main() {
       expect(MadarDigitsFormatter.foldDigits('abc'), 'abc');
     });
 
-    testWidgets('a quantity typed in Arabic digits reaches the caller as ASCII', (
-      tester,
-    ) async {
-      _size(tester, _ipad9);
-      final controller = TextEditingController();
-      String? seen;
-      await tester.pumpWidget(
-        _app(
-          MadarField(
-            controller: controller,
-            placeholder: 'الكمية',
-            kind: MadarFieldKind.decimal,
-            onChanged: (v) => seen = v,
+    testWidgets(
+      'a quantity typed in Arabic digits reaches the caller as ASCII',
+      (tester) async {
+        _size(tester, _ipad9);
+        final controller = TextEditingController();
+        String? seen;
+        await tester.pumpWidget(
+          _app(
+            MadarField(
+              controller: controller,
+              placeholder: 'الكمية',
+              kind: MadarFieldKind.decimal,
+              onChanged: (v) => seen = v,
+            ),
+            dir: TextDirection.rtl,
           ),
-          dir: TextDirection.rtl,
-        ),
-      );
-      await tester.enterText(find.byType(TextField), '١٢٫٥');
-      await tester.pump();
-      expect(seen, '12.5');
-      expect(controller.text, '12.5');
-      expect(double.tryParse(controller.text), 12.5);
-    });
+        );
+        await tester.enterText(find.byType(TextField), '١٢٫٥');
+        await tester.pump();
+        expect(seen, '12.5');
+        expect(controller.text, '12.5');
+        expect(double.tryParse(controller.text), 12.5);
+      },
+    );
 
     testWidgets('a quantity refuses letters and a second separator', (
       tester,
@@ -358,23 +360,24 @@ void main() {
       expect(find.text('Done'), findsNothing, reason: 'the bar goes with it');
     });
 
-    testWidgets('with a hardware keyboard (no inset) there is nothing to dismiss', (
-      tester,
-    ) async {
-      _size(tester, _ipad9);
-      await tester.pumpWidget(
-        _appWithBar(
-          MadarField(
-            controller: TextEditingController(),
-            placeholder: 'Count',
-            kind: MadarFieldKind.digits,
+    testWidgets(
+      'with a hardware keyboard (no inset) there is nothing to dismiss',
+      (tester) async {
+        _size(tester, _ipad9);
+        await tester.pumpWidget(
+          _appWithBar(
+            MadarField(
+              controller: TextEditingController(),
+              placeholder: 'Count',
+              kind: MadarFieldKind.digits,
+            ),
           ),
-        ),
-      );
-      await tester.tap(find.byType(TextField));
-      await tester.pumpAndSettle();
-      expect(find.text('Done'), findsNothing);
-    });
+        );
+        await tester.tap(find.byType(TextField));
+        await tester.pumpAndSettle();
+        expect(find.text('Done'), findsNothing);
+      },
+    );
 
     testWidgets('an amount field claims the bar as well', (tester) async {
       _size(tester, _ipad9Portrait);
