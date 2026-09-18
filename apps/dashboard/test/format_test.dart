@@ -27,11 +27,26 @@ void main() {
     });
 
     test('an hour is 12-hour, noon and midnight included, Arabic too', () {
-      expect(fmtAxisDate('2026-09-13T00:00:00', hourly: true, locale: 'en'), '12 AM');
-      expect(fmtAxisDate('2026-09-13T12:00:00', hourly: true, locale: 'en'), '12 PM');
-      expect(fmtAxisDate('2026-09-13T14:00:00', hourly: true, locale: 'en'), '2 PM');
-      expect(fmtAxisDate('2026-09-13T14:00:00', hourly: true, locale: 'ar'), '2 م');
-      expect(fmtAxisDate('2026-09-13T09:00:00', hourly: true, locale: 'ar'), '9 ص');
+      expect(
+        fmtAxisDate('2026-09-13T00:00:00', hourly: true, locale: 'en'),
+        '12 AM',
+      );
+      expect(
+        fmtAxisDate('2026-09-13T12:00:00', hourly: true, locale: 'en'),
+        '12 PM',
+      );
+      expect(
+        fmtAxisDate('2026-09-13T14:00:00', hourly: true, locale: 'en'),
+        '2 PM',
+      );
+      expect(
+        fmtAxisDate('2026-09-13T14:00:00', hourly: true, locale: 'ar'),
+        '2 م',
+      );
+      expect(
+        fmtAxisDate('2026-09-13T09:00:00', hourly: true, locale: 'ar'),
+        '9 ص',
+      );
     });
 
     test('garbage falls back to the raw string', () {
