@@ -20,10 +20,28 @@ Renders: `packages/design_system/test/components_render_test.dart`
 | **iPad portrait** (834×1194) | shortest side ≥ 600, width < height | rail 88 + top bar 56 | 24 | page area 746 |
 | **Desktop** (macOS/Windows/Linux window) | platform, not a phone | rail + top bar | 24 | page area ≥ 1012 |
 | **Phone** (390×844, any orientation) | shortest side < 600 | top bar + bottom tabs 64 | 16 | full width |
+| **Small iPad** (iPad 9th gen, 1080×810 / 810×1080) | a tablet, by the same rule | rail 88 + top bar 56 | 24 | page area 992 landscape, 722 portrait |
+| **8" Android** (800×1280) | a tablet | rail 88 + top bar 56 | 24 | page area 712 |
 
 `MadarLayout` (phone/tablet) stays the chrome switch; `MadarSizeClass` is the grid's finer
 question. A widget deciding about its own box (a 340 cart column) still uses
 `Responsive`/`LayoutBuilder`.
+
+**Room.** Beyond phone/tablet, `MadarRoom` classes each window axis as `tight` / `snug`
+/ `roomy` (height: < 640 / < 900 / ≥ 900; width: < 600 / < 1000 / ≥ 1000). A screen that
+stacks a footer under a list, or a cart beside a grid, decides by this, never by a
+per-screen pixel guess:
+
+| Window | width | height | What changes |
+|---|---|---|---|
+| iPad landscape (1194×834, 1080×810) | roomy | snug | dense footers (compact kitchen button + note tile; Park beside Charge) |
+| iPad portrait (834×1194, 810×1080), 8" Android | snug | roomy | 300 cart column (`Responsive.cartColumnWidthSnug`), compact sell tiles (112–160, three columns), Park above Charge, a round line's stepper under its name |
+| Landscape phone (844×390) | roomy | tight | dense AND capped: the cart footer scrolls inside 52% of the height |
+| Desktop window | roomy | roomy | the regular layout |
+
+Nothing is hidden by room — reflow, scroll or shrink a label, never drop a control or a
+figure. Centred dialog surfaces that lay their own card (the tablet Charge modal) sit in
+`MadarKeyboardInset`, which pads by the keyboard and hands the card the height left.
 
 Vertical rhythm on every page: header starts `Space.md` (12) under the top bar; body
 starts `Space.lg` (16) under the header block; sections are `Space.xl` (24) apart.
