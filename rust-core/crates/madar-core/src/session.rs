@@ -525,6 +525,18 @@ pub(crate) fn bundle_person_by_pin(store: &Store, pin: &str) -> CoreResult<(Stri
     }
 }
 
+/// The name of a person in the offline bundle, for showing who did something
+/// while the till has no connection. `None` when this device never cached them.
+pub(crate) fn bundle_person_name(store: &Store, user_id: &str) -> Option<String> {
+    let raw = store.kv_get(BUNDLE_KEY).ok()??;
+    let bundle: models::OfflineAuthBundle = serde_json::from_str(&raw).ok()?;
+    bundle
+        .tellers
+        .iter()
+        .find(|t| t.user_id.to_string() == user_id)
+        .map(|t| t.name.clone())
+}
+
 /// The offline refusal when a PIN typed without a name opens more than one
 /// person's verifier (pre-rollout duplicate PINs).
 pub(crate) const PIN_NOT_UNIQUE_OFFLINE: &str = "this PIN belongs to more than one person";
