@@ -574,6 +574,8 @@ class _FakeBridge implements MadarBridge {
   dynamic noSuchMethod(Invocation invocation) {
     final can = fakeCanInvocation(invocation, () => currentSession()?.role);
     if (can != null) return can;
+    final review = fakeManagerActionsInvocation(invocation);
+    if (review != null) return review;
     final name = invocation.memberName;
     // The core's drawer and Orders decisions (till_views), in miniature.
     if (name == #paymentMethodLabel) {

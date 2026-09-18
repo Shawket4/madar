@@ -17,6 +17,7 @@ const _refusedVoid = ManagerActionView(
   why: 'The server would not accept it without a manager.',
   capability: 'orders.void',
   personName: 'Sara',
+  personId: 'u-teller',
   occurredAt: '2026-09-17T10:00:00Z',
   amountMinor: 500,
 );
@@ -27,6 +28,7 @@ const _flaggedDiscount = ManagerActionView(
   why: 'It went through, but without the permission.',
   capability: 'orders.discount.manual_amount',
   personName: 'Sara',
+  personId: 'u-teller',
   occurredAt: '2026-09-17T09:00:00Z',
 );
 
@@ -176,7 +178,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(bridge.pins, ['9999']);
-    expect(bridge.batches.single, isEmpty, reason: 'nothing picked = all of it');
+    expect(
+      bridge.batches.single,
+      isEmpty,
+      reason: 'nothing picked = all of it',
+    );
     expect(find.text('2 of 2'), findsOneWidget);
   });
 
@@ -195,6 +201,7 @@ void main() {
             why: 'Mona may not approve a void.',
             capability: 'orders.void',
             personName: 'Sara',
+            personId: 'u-teller',
             occurredAt: '2026-09-17T10:00:00Z',
           ),
         ],

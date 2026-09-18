@@ -15723,6 +15723,7 @@ const _: fn() = || {
         let _: String = ManagerActionView.why;
         let _: String = ManagerActionView.capability;
         let _: String = ManagerActionView.person_name;
+        let _: String = ManagerActionView.person_id;
         let _: String = ManagerActionView.occurred_at;
         let _: Option<i64> = ManagerActionView.amount_minor;
     }
@@ -19338,6 +19339,7 @@ impl SseDecode for crate::api::till_review::ManagerActionView {
         let mut var_why = <String>::sse_decode(deserializer);
         let mut var_capability = <String>::sse_decode(deserializer);
         let mut var_personName = <String>::sse_decode(deserializer);
+        let mut var_personId = <String>::sse_decode(deserializer);
         let mut var_occurredAt = <String>::sse_decode(deserializer);
         let mut var_amountMinor = <Option<i64>>::sse_decode(deserializer);
         return crate::api::till_review::ManagerActionView {
@@ -19347,6 +19349,7 @@ impl SseDecode for crate::api::till_review::ManagerActionView {
             why: var_why,
             capability: var_capability,
             person_name: var_personName,
+            person_id: var_personId,
             occurred_at: var_occurredAt,
             amount_minor: var_amountMinor,
         };
@@ -24740,6 +24743,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till_review::Manag
             self.0.why.into_into_dart().into_dart(),
             self.0.capability.into_into_dart().into_dart(),
             self.0.person_name.into_into_dart().into_dart(),
+            self.0.person_id.into_into_dart().into_dart(),
             self.0.occurred_at.into_into_dart().into_dart(),
             self.0.amount_minor.into_into_dart().into_dart(),
         ]
@@ -28793,6 +28797,7 @@ impl SseEncode for crate::api::till_review::ManagerActionView {
         <String>::sse_encode(self.why, serializer);
         <String>::sse_encode(self.capability, serializer);
         <String>::sse_encode(self.person_name, serializer);
+        <String>::sse_encode(self.person_id, serializer);
         <String>::sse_encode(self.occurred_at, serializer);
         <Option<i64>>::sse_encode(self.amount_minor, serializer);
     }

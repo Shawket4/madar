@@ -14446,8 +14446,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   ManagerActionView dco_decode_manager_action_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return ManagerActionView(
       id: dco_decode_String(arr[0]),
       kind: dco_decode_String(arr[1]),
@@ -14455,8 +14455,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       why: dco_decode_String(arr[3]),
       capability: dco_decode_String(arr[4]),
       personName: dco_decode_String(arr[5]),
-      occurredAt: dco_decode_String(arr[6]),
-      amountMinor: dco_decode_opt_box_autoadd_i_64(arr[7]),
+      personId: dco_decode_String(arr[6]),
+      occurredAt: dco_decode_String(arr[7]),
+      amountMinor: dco_decode_opt_box_autoadd_i_64(arr[8]),
     );
   }
 
@@ -18980,6 +18981,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_why = sse_decode_String(deserializer);
     var var_capability = sse_decode_String(deserializer);
     var var_personName = sse_decode_String(deserializer);
+    var var_personId = sse_decode_String(deserializer);
     var var_occurredAt = sse_decode_String(deserializer);
     var var_amountMinor = sse_decode_opt_box_autoadd_i_64(deserializer);
     return ManagerActionView(
@@ -18989,6 +18991,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       why: var_why,
       capability: var_capability,
       personName: var_personName,
+      personId: var_personId,
       occurredAt: var_occurredAt,
       amountMinor: var_amountMinor,
     );
@@ -23371,6 +23374,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_String(self.why, serializer);
     sse_encode_String(self.capability, serializer);
     sse_encode_String(self.personName, serializer);
+    sse_encode_String(self.personId, serializer);
     sse_encode_String(self.occurredAt, serializer);
     sse_encode_opt_box_autoadd_i_64(self.amountMinor, serializer);
   }

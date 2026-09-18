@@ -17,6 +17,7 @@ pub struct _ManagerActionView {
     pub why: String,
     pub capability: String,
     pub person_name: String,
+    pub person_id: String,
     pub occurred_at: String,
     pub amount_minor: Option<i64>,
 }

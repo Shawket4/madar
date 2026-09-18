@@ -39,6 +39,7 @@ class ManagerActionView {
   final String why;
   final String capability;
   final String personName;
+  final String personId;
   final String occurredAt;
   final PlatformInt64? amountMinor;
 
@@ -49,6 +50,7 @@ class ManagerActionView {
     required this.why,
     required this.capability,
     required this.personName,
+    required this.personId,
     required this.occurredAt,
     this.amountMinor,
   });
@@ -61,6 +63,7 @@ class ManagerActionView {
       why.hashCode ^
       capability.hashCode ^
       personName.hashCode ^
+      personId.hashCode ^
       occurredAt.hashCode ^
       amountMinor.hashCode;
 
@@ -75,6 +78,7 @@ class ManagerActionView {
           why == other.why &&
           capability == other.capability &&
           personName == other.personName &&
+          personId == other.personId &&
           occurredAt == other.occurredAt &&
           amountMinor == other.amountMinor;
 }

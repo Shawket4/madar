@@ -221,17 +221,31 @@ impl MadarCore {
         approver_pin: String,
         req: &Request,
     ) -> Result<ApprovalView, CoreError> {
+        self.approve_request_for(approver_pin, req, None)
+    }
+
+    /// [`Self::approve_request`] for an act somebody ELSE did — clearing a
+    /// till's backlog, where the person who rang it may be off shift. The
+    /// same-person rule is checked against the ACTOR, not against whoever
+    /// happens to be signed in; `None` means the signed-in person.
+    pub(crate) fn approve_request_for(
+        &self,
+        approver_pin: String,
+        req: &Request,
+        actor: Option<&str>,
+    ) -> Result<ApprovalView, CoreError> {
         let cap = Cap::from_id(req.cap).ok_or_else(|| CoreError::Validation {
             field: "capability".into(),
             detail: "unknown capability".into(),
         })?;
-        let (subject, branch) = {
+        let (signed_in, branch) = {
             let g = self.session.read().unwrap_or_else(|e| e.into_inner());
             let s = g.as_ref().ok_or_else(|| CoreError::Unauthenticated {
                 detail: "not signed in".into(),
             })?;
             (s.snapshot.user_id.clone(), s.snapshot.branch_id.clone().unwrap_or_default())
         };
+        let subject = actor.map(str::to_string).unwrap_or(signed_in);
         let (approver_id, approver_name) =
             crate::session::bundle_person_by_pin(&self.store, approver_pin.trim())?;
         let grants = self

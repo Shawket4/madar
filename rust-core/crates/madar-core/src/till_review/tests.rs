@@ -305,3 +305,36 @@ async fn the_list_speaks_arabic() {
     assert!(v.headline.contains("عملية محتاجة مدير"), "{}", v.headline);
     assert!(v.blocked_reason.contains("نت"), "{}", v.blocked_reason);
 }
+
+/// The bulk endpoint reads the BEARER, not the PIN, so a till whose signed-in
+/// person lacks `approvals.review` is refused the flags half. That must not
+/// cost the refusals, which were already re-queued with the approval: they
+/// stay authorized and the flags come back with the server's own words.
+#[tokio::test]
+async fn a_refused_bulk_call_keeps_the_re_sent_ops_and_repeats_the_servers_words() {
+    let stub = Stub::start(|r| {
+        if r.path.starts_with("/authz/flags/bulk-review") {
+            return Some(StubResponse::json(
+                403,
+                json!({ "error": "missing permission: approvals.review" }),
+            ));
+        }
+        None
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    core.set_online(true);
+    add_manager(&core, &["orders.void", "approvals.review"]);
+    let seq = refused(&core, "void_order", json!({"order_id":"o1"}), "orders.void");
+    cache_flag(&core, 7, "orders.void", "unauthorized_offline");
+
+    let res = core.authorize_manager_actions("9999".into(), vec![]).await.unwrap();
+    assert_eq!(res.authorized, vec![format!("op:{seq}")], "the re-send stands");
+    assert_eq!(res.left.len(), 1);
+    assert!(res.left[0].why.contains("approvals.review"), "{}", res.left[0].why);
+    assert_eq!(res.summary, "1 of 2");
+    // The op really is back in the queue with its approval.
+    let back = core.store.list_active().unwrap().into_iter().find(|o| o.seq == seq).unwrap();
+    assert_eq!(back.status, "pending");
+    assert!(back.payload.contains("approver_id"));
+}

@@ -47,6 +47,8 @@ pub(crate) struct CachedFlag {
     pub branch_id: Option<String>,
     pub op: String,
     #[serde(default)]
+    pub author_id: Option<String>,
+    #[serde(default)]
     pub author_name: Option<String>,
     pub capability: String,
     pub reason: String,
@@ -71,6 +73,10 @@ pub struct ManagerActionView {
     pub capability: String,
     /// Who did it. Empty when the server did not name them.
     pub person_name: String,
+    /// Their user id — who the approval is FOR. A manager may not approve
+    /// their own act, and that rule is checked against this person, not
+    /// against whoever happens to be signed in while the backlog is cleared.
+    pub person_id: String,
     /// When it happened (RFC3339, the event time — not when it was flagged).
     pub occurred_at: String,
     /// The money it moved, when the act has an amount.
@@ -225,6 +231,7 @@ impl MadarCore {
                 why: tr(why_key("refused", "")),
                 capability: cap,
                 person_name: self.person_name(op.user_id.as_deref()),
+                person_id: op.user_id.clone().unwrap_or_default(),
                 occurred_at: op.event_at.clone(),
                 amount_minor: amount_of(&op.payload),
             });
@@ -237,6 +244,7 @@ impl MadarCore {
                 why: tr(why_key("flagged", &f.reason)),
                 capability: f.capability,
                 person_name: f.author_name.unwrap_or_default(),
+                person_id: f.author_id.unwrap_or_default(),
                 occurred_at: f.occurred_at,
                 amount_minor: None,
             });
@@ -321,7 +329,9 @@ impl MadarCore {
             // `own` is false: by construction this is someone else's act being
             // approved, which is exactly what an `own` limit must not cover.
             let req = request(cap, item.amount_minor, None, Some(false));
-            let approval = match self.approve_request(approver_pin.clone(), &req) {
+            let actor = (!item.person_id.is_empty()).then(|| item.person_id.clone());
+            let approval = match self.approve_request_for(approver_pin.clone(), &req, actor.as_deref())
+            {
                 Ok(a) => a,
                 Err(CoreError::Forbidden { action, .. }) => {
                     left.push(with_why(item, action));
@@ -346,8 +356,21 @@ impl MadarCore {
             // dashboard's queue shows who cleared it and from where.
             let note = format!("{} {approver_name} ({approver_id})", tr("review.note_prefix"));
             let body = serde_json::json!({ "flag_ids": flag_ids, "note": note });
-            let resp = self.api.post_json("/authz/flags/bulk-review", &body).await?;
-            let parsed: Value = serde_json::from_str(&resp).unwrap_or_default();
+            // A failure here must not lose the refusals already re-queued: the
+            // flags stay listed with the server's own words, and the re-sent
+            // ops keep their approval. Today this is how a till whose SIGNED-IN
+            // person lacks `approvals.review` is told so — the endpoint reads
+            // the bearer, not the PIN (see DEFERRED_FEATURES_STATUS stream 11).
+            let parsed: Value = match self.bulk_review(&body).await {
+                Ok(resp) => serde_json::from_str(&resp).unwrap_or_default(),
+                Err(e) => {
+                    let why = server_words(&e);
+                    for item in flag_items.drain(..) {
+                        left.push(with_why(item, why.clone()));
+                    }
+                    Value::Null
+                }
+            };
             let done: Vec<i64> = parsed
                 .get("resolved")
                 .and_then(Value::as_array)
@@ -387,6 +410,19 @@ impl MadarCore {
         })
     }
 
+    /// `POST /authz/flags/bulk-review`, retried once on a dropped connection.
+    /// The endpoint is idempotent by design, so a second attempt can only ever
+    /// resolve the same ids — and an idle keep-alive connection closed by the
+    /// server must not read as "the manager could not clear these".
+    async fn bulk_review(&self, body: &Value) -> Result<String, CoreError> {
+        match self.api.post_json("/authz/flags/bulk-review", body).await {
+            Err(e) if crate::net::is_connectivity_failure(&e) => {
+                self.api.post_json("/authz/flags/bulk-review", body).await
+            }
+            other => other,
+        }
+    }
+
     /// Write the approval into a refused op's payload and put it back in the
     /// queue. The op never left the outbox, so nothing is re-created here.
     fn attach_approval(&self, seq: i64, approval: &ApprovalView) -> Result<(), CoreError> {
@@ -410,6 +446,15 @@ impl MadarCore {
         map.insert("approval".into(), approval_wire(approval));
         self.store.requeue_refused(seq, &payload.to_string())?;
         Ok(())
+    }
+}
+
+/// The server's own words for a failed call, so the till repeats them rather
+/// than inventing a reason of its own.
+fn server_words(e: &CoreError) -> String {
+    match e {
+        CoreError::Forbidden { action, .. } => action.clone(),
+        other => other.to_string(),
     }
 }
 

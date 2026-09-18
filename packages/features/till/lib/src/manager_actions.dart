@@ -107,8 +107,9 @@ class _ManagerActionsScreenState extends ConsumerState<ManagerActionsScreen> {
     final res = await askManagerBatch(
       context,
       reason: bridge.tr(key: 'review.enter_pin'),
-      authorize: (pin) =>
-          ref.read(managerActionsProvider.notifier).authorize(pin, _picked.toList()),
+      authorize: (pin) => ref
+          .read(managerActionsProvider.notifier)
+          .authorize(pin, _picked.toList()),
     );
     if (res == null || !mounted) return;
     setState(() {
