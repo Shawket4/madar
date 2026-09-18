@@ -121,6 +121,10 @@ class _CountingBridge implements MadarBridge {
     }
     if (name == #kitchenRoutingMode) return Future<String?>.value('till');
     if (name == #clockSkewMinutes) return 0;
+    // Local reads the connectivity signal makes on every pulse. Neither
+    // touches the network — they are counted like any other call, and the
+    // assertion below is on `networkCalls()`, not on the total.
+    if (name == #lanPeerCount) return 0;
     if (name == #hasPermission) return true;
     // Everything else: a read the device cannot answer here. The providers
     // treat it as they treat an offline core.

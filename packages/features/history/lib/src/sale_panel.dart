@@ -396,6 +396,11 @@ class _Actions extends ConsumerWidget {
     final o = order;
     final state = SaleState.of(o);
     final canReprint = state != SaleState.queued && state != SaleState.failed;
+    // A queued sale CAN be previewed even though it cannot be reprinted: the
+    // core kept the receipt it printed on the sale's own row, so a teller can
+    // look at the receipt they have just handed over with no network at all.
+    // Reprint stays out until the sale is real on the server.
+    final canPreview = canReprint || state == SaleState.queued;
     final canAward =
         ref.watch(historyProvider.select((s) => s.loyaltyOffered)) &&
         state != SaleState.voided &&
@@ -423,14 +428,15 @@ class _Actions extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.sm,
         children: [
-          if (canReprint || canAward)
+          if (canPreview || canAward)
             Row(
               spacing: Space.sm,
               children: [
-                if (canReprint) ...[
+                if (canReprint)
                   Expanded(
                     child: _ReprintButton(order: o, receipt: receipt),
                   ),
+                if (canPreview)
                   Expanded(
                     child: MadarButton(
                       label: t('history.preview_receipt'),
@@ -441,7 +447,6 @@ class _Actions extends ConsumerWidget {
                           unawaited(_previewReceipt(context, ref, o, receipt)),
                     ),
                   ),
-                ],
                 if (canAward)
                   Expanded(
                     child: MadarButton(
