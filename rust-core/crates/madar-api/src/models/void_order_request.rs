@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct VoidOrderRequest {
+    /// A manager's on-the-spot unlock for a void the teller's own limits do not allow (someone else's sale, or one older than their window). Additive: an older till never sends it and is refused exactly as before.
+    #[serde(
+        rename = "live_approval",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub live_approval: Option<Option<Box<models::ReplayApproval>>>,
     /// Free-text explanation. Required when `reason` is \"other\".
     #[serde(
         rename = "note",
@@ -43,6 +51,7 @@ pub struct VoidOrderRequest {
 impl VoidOrderRequest {
     pub fn new(reason: String) -> VoidOrderRequest {
         VoidOrderRequest {
+            live_approval: None,
             note: None,
             reason,
             restore_inventory: None,

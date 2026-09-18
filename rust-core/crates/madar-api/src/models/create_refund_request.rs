@@ -42,6 +42,14 @@ pub struct CreateRefundRequest {
     pub issued_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "lines", skip_serializing_if = "Option::is_none")]
     pub lines: Option<Vec<models::RefundLineInput>>,
+    /// A manager's on-the-spot unlock for a refund over the issuer's own `max_amount` (the teller default is 0, so every refund asks). Additive.
+    #[serde(
+        rename = "live_approval",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub live_approval: Option<Option<Box<models::ReplayApproval>>>,
     /// How the money went back — a name from the org's payment-method vocabulary. One tender per refund; a split is two refunds.
     #[serde(rename = "method")]
     pub method: String,
@@ -81,6 +89,7 @@ impl CreateRefundRequest {
             device_id: None,
             issued_at: None,
             lines: None,
+            live_approval: None,
             method,
             note: None,
             order_id,
