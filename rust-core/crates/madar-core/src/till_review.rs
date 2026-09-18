@@ -272,8 +272,24 @@ impl MadarCore {
 
     /// Pull this branch's open flags so the list is current. Best-effort: the
     /// last pull stands when there is no connection.
+    ///
+    /// A till signed in as a TELLER does not hold `approvals.review`, so the
+    /// plain pull 403s for it; the batch flow calls
+    /// [`Self::pull_flags`] with the manager approval it just minted instead
+    /// (backend, 2026-09-18).
     pub async fn refresh_review_flags(&self) -> Result<u32, CoreError> {
-        let body = self.api.get_text("/authz/flags", &[]).await?;
+        self.pull_flags(None).await
+    }
+
+    /// `GET /authz/flags`, optionally carrying a one-time manager approval.
+    /// The server scopes an approval-opened pull to this session's own branch;
+    /// the local filter below stays as the second belt.
+    async fn pull_flags(&self, approval: Option<&ApprovalView>) -> Result<u32, CoreError> {
+        let query: Vec<(&str, String)> = match approval {
+            Some(a) => vec![("approval", approval_wire(a).to_string())],
+            None => Vec::new(),
+        };
+        let body = self.api.get_text("/authz/flags", &query).await?;
         let all: Vec<CachedFlag> = serde_json::from_str(&body).unwrap_or_default();
         let branch = self.current_session().and_then(|s| s.branch_id);
         let mine: Vec<CachedFlag> = all
@@ -308,6 +324,24 @@ impl MadarCore {
         // A wrong PIN is one error for the batch, not a per-item refusal.
         let (approver_id, approver_name) =
             crate::session::bundle_person_by_pin(&self.store, approver_pin.trim())?;
+
+        // One approval for the flag half, minted from the SAME PIN: it is what
+        // lets a till signed in as a teller both pull and clear its own flags.
+        // `None` here is not an error — a manager signed in at the till holds
+        // `approvals.review` outright (and cannot approve for themselves), so
+        // the calls below simply go out plain, exactly as they used to.
+        let review_approval = self
+            .approve_request_for(
+                approver_pin.clone(),
+                &request(Cap::ApprovalsReview, None, None, Some(false)),
+                None,
+            )
+            .ok();
+        if let Some(a) = review_approval.as_ref() {
+            // Best-effort: a stale cache must not block the batch, and the
+            // server answers for its own branch scoping either way.
+            let _ = self.pull_flags(Some(a)).await;
+        }
 
         let all = self.pending_manager_actions().items;
         let wanted: Vec<ManagerActionView> = if ids.is_empty() {
@@ -355,12 +389,16 @@ impl MadarCore {
             // The flags half: one call, the approver named in the note so the
             // dashboard's queue shows who cleared it and from where.
             let note = format!("{} {approver_name} ({approver_id})", tr("review.note_prefix"));
-            let body = serde_json::json!({ "flag_ids": flag_ids, "note": note });
+            let mut body = serde_json::json!({ "flag_ids": flag_ids, "note": note });
+            if let (Some(a), Some(map)) = (review_approval.as_ref(), body.as_object_mut()) {
+                map.insert("approval".into(), approval_wire(a));
+            }
             // A failure here must not lose the refusals already re-queued: the
             // flags stay listed with the server's own words, and the re-sent
-            // ops keep their approval. Today this is how a till whose SIGNED-IN
-            // person lacks `approvals.review` is told so — the endpoint reads
-            // the bearer, not the PIN (see DEFERRED_FEATURES_STATUS stream 11).
+            // ops keep their approval. Since 2026-09-18 the endpoint also takes
+            // the one-time approval above, so a till signed in as a TELLER gets
+            // through; a 403 here now means the APPROVER does not hold
+            // `approvals.review`, and the server's own words say so.
             let parsed: Value = match self.bulk_review(&body).await {
                 Ok(resp) => serde_json::from_str(&resp).unwrap_or_default(),
                 Err(e) => {
