@@ -537,8 +537,13 @@ class HistoryNotifier extends Notifier<HistoryState> {
   /// Open a sale. Its lines and its receipt are fetched together — the
   /// receipt is what Reprint prints, and it carries the service charge and
   /// tip the detail view does not — each best-effort and cached by the core
-  /// for any order seen online. A queued sale is not on the server yet: the
-  /// panel shows its summary figures and nothing is fetched.
+  /// for any order seen online.
+  ///
+  /// A QUEUED sale is not on the server yet, so its detail and its refunds
+  /// cannot be asked for — but its RECEIPT can: the core kept the one it
+  /// printed on the sale's own ledger row, so the teller can look at a receipt
+  /// they have just handed over, with no network. That read is local, so it
+  /// does not break the rule that a screen read never waits on the wire.
   void select(OrderSummaryView order) {
     if (state.selectedId == order.id) return;
     state = state.copyWith(
@@ -548,7 +553,24 @@ class HistoryNotifier extends Notifier<HistoryState> {
       refunds: null,
       detailLoading: !order.queued,
     );
-    if (!order.queued) unawaited(_loadDetail(order.id));
+    if (order.queued) {
+      unawaited(_loadQueuedReceipt(order.id));
+    } else {
+      unawaited(_loadDetail(order.id));
+    }
+  }
+
+  /// The receipt of a sale still in the queue — the core answers from the row
+  /// it wrote when the sale was rung. Nothing else is asked for.
+  Future<void> _loadQueuedReceipt(String id) async {
+    ReceiptView? receipt;
+    try {
+      receipt = await _bridge.orderReceiptView(orderId: id);
+    } on MadarError {
+      return;
+    }
+    if (!_alive || state.selectedId != id) return;
+    state = state.copyWith(receipt: receipt);
   }
 
   /// Close the sale panel.

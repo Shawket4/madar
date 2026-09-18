@@ -18,6 +18,7 @@ import 'dart:ui' as ui;
 import 'package:app_core/app_core.dart';
 import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/feature_checkout.dart' show ReceiptPaper;
 import 'package:feature_history/feature_history.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -459,9 +460,26 @@ class _FakeBridge implements MadarBridge {
       );
     }
     if (name == #orderDetail) {
+      // A sale's LINES come from the server; with no network there are none.
+      if (!online) {
+        return Future<OrderDetailView>.error(
+          const MadarError.offline(detail: 'no route'),
+        );
+      }
       return Future<OrderDetailView>.value(_detail1042);
     }
+    if (name == #listOrderRefunds) {
+      if (!online) {
+        return Future<OrderRefundsView>.error(
+          const MadarError.offline(detail: 'no route'),
+        );
+      }
+    }
+    // What the receipt sheet draws around the lines.
+    if (name == #receiptFooter) return 'Thank you!';
     if (name == #orderReceiptView) {
+      // The RECEIPT is a local read: the core keeps the one it printed on the
+      // sale's own ledger row, so it answers with no network at all.
       return Future<ReceiptView>.value(_receipt1042);
     }
     if (name == #refreshConnectivity) return Future<bool>.value(online);
@@ -689,6 +707,33 @@ void main() {
       expect(b.enabled, isFalse, reason: label);
     }
     expect(find.text('Reprint'), findsNothing);
+    // ...but it CAN be previewed: the core kept the receipt this till printed
+    // on the sale's own row, so the teller can look at what they handed over.
+    expect(find.text('Preview'), findsOneWidget);
+  });
+
+  testWidgets('a queued sale previews its receipt with NO network', (
+    tester,
+  ) async {
+    await _shoot(
+      tester,
+      screen: const OrderHistoryScreen(),
+      bridge: _FakeBridge(online: false),
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'ipad-queued-preview-offline',
+      then: (t) async {
+        await t.tap(find.text('Queued'));
+        await t.pump();
+        await t.pump(const Duration(milliseconds: 400));
+        await t.tap(find.text('Preview'));
+        await t.pump();
+        await t.pump(const Duration(milliseconds: 400));
+      },
+    );
+    // The sheet opened and drew the receipt — offline, from the device's own
+    // ledger, through the same projection the printer is handed.
+    expect(find.byType(ReceiptPaper), findsOneWidget);
   });
 
   testWidgets('All, in the dark: every shift, dated, Load more', (

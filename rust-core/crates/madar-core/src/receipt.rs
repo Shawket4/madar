@@ -1087,6 +1087,54 @@ mod tests {
         }
     }
 
+    /// A receipt previewed OFFLINE goes through the stash on the queued sale's
+    /// ledger row (`ledger::local::LOCAL_RECEIPT`), which is a JSON round trip.
+    /// It must lay out line for line exactly like the one the printer was
+    /// handed — same VAT wording and rate, same inclusive note, same org
+    /// footer, same Arabic — or a teller checking a receipt would be reading
+    /// something other than what the customer holds.
+    #[test]
+    fn an_offline_preview_lays_out_identically_to_what_was_printed() {
+        for mut printed in [cash_receipt(), {
+            // The inclusive-VAT bill, with Arabic lines and a teller footer.
+            let mut r = cash_receipt();
+            r.lines = vec![line("شاورما", 2, 9000), line("عصير", 1, 3500)];
+            r.payment_label = "نقدي".into();
+            r.teller_name = Some("سارة".into());
+            r.tax_inclusive = true;
+            r
+        }] {
+            printed.display_number = "36B-12".into();
+
+            // The round trip the stash performs.
+            let json = serde_json::to_string(&printed).expect("stash serialises");
+            let previewed: ReceiptView =
+                serde_json::from_str(&json).expect("stash deserialises");
+            assert_eq!(previewed, printed, "the stash is lossless");
+
+            // ...and through the SAME renderer, the same paper.
+            let ctx = ctx();
+            let printed_lines = layout(&printed, &ctx);
+            let preview_lines = layout(&previewed, &ctx);
+            assert_eq!(preview_lines, printed_lines, "preview == print");
+
+            // The things the owner names, still on it.
+            let text: Vec<String> = preview_lines.iter().map(|l| l.text.clone()).collect();
+            let joined = text.join("\n");
+            assert!(joined.contains("VAT (14%)"), "the VAT line and its rate: {joined}");
+            if printed.tax_inclusive {
+                assert!(
+                    joined.contains("Prices include VAT (14%)"),
+                    "the inclusive note: {joined}"
+                );
+            }
+            assert!(joined.contains("Thank you!"), "the org footer: {joined}");
+            if printed.teller_name.is_some() {
+                assert!(joined.contains("سارة"), "Arabic teller in the footer: {joined}");
+            }
+        }
+    }
+
     #[test]
     fn money_formats_minor_units_with_currency_and_sign() {
         assert_eq!(money(14250, "EGP"), "142.50 EGP");

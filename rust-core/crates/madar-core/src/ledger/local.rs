@@ -7,7 +7,7 @@
 //! (history, drawer, Z report) handles a queued sale and a synced one with the
 //! same code.
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 
 use super::{s, stored, write_row, Origin, T_CASH, T_ORDER, T_REFUND, T_TILL};
@@ -101,6 +101,65 @@ pub(crate) fn order_json(cmd: &CheckoutCommand, okey: &str, who: &Ringer<'_>, me
         "created_at": flat(&r.created_at).map(|d| d.to_rfc3339()),
         "items": [],
     })
+}
+
+/// Where a queued sale keeps the receipt it printed, on its own ledger row.
+///
+/// A sale rung offline cannot be projected back into an `OrderFull`: the
+/// outbox command carries `menu_item_id` and a price, but no item NAME — the
+/// server names the lines — so `order_json` writes `"items": []` and the
+/// receipt could not be rebuilt from the row. Previewing one therefore fell
+/// through to the network and failed with "this sale is not on this device
+/// yet", which is how a till lost the ability to look at a receipt it had just
+/// printed.
+///
+/// So the `ReceiptView` the printer was handed rides along with the row.
+/// It is not a cache of anything on the server: it is THIS device's own record
+/// of what it put on paper, and it is what makes a re-preview byte-identical to
+/// the print. The moment the sale acks, the server's record supersedes it and
+/// every read resolves through `order_full` as before.
+pub(crate) const LOCAL_RECEIPT: &str = "local_receipt";
+
+/// Attach the printed receipt to a queued sale's row (see [`LOCAL_RECEIPT`]).
+/// An extra key is safe: the row is local-only — the outbox carries the command
+/// — and the generated models ignore fields they do not know.
+pub(crate) fn stash_receipt(row: &mut Value, receipt: &crate::checkout::ReceiptView) {
+    if let Ok(v) = serde_json::to_value(receipt) {
+        row[LOCAL_RECEIPT] = v;
+    }
+}
+
+/// The receipt a queued sale printed, by client key or server id. `None` once
+/// the sale has synced (the server's record answers instead) or for a sale this
+/// device never rang.
+pub(crate) fn queued_receipt(
+    store: &crate::store::Store,
+    order_id: &str,
+) -> CoreResult<Option<crate::checkout::ReceiptView>> {
+    let raw: Option<String> = store.with_conn(|c| {
+        Ok(c.query_row(
+            "SELECT raw FROM ledger_orders WHERE server_id=?1 OR okey=?1 LIMIT 1",
+            [order_id],
+            |r| r.get(0),
+        )
+        .optional()?)
+    })?;
+    let Some(raw) = raw else { return Ok(None) };
+    let v: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
+    let Some(stashed) = v.get(LOCAL_RECEIPT) else {
+        return Ok(None);
+    };
+    let Ok(mut receipt) = serde_json::from_value::<crate::checkout::ReceiptView>(stashed.clone())
+    else {
+        return Ok(None);
+    };
+    // The stash is frozen at the moment of printing; the ROW keeps moving. A
+    // sale voided after it was rung must preview with its VOIDED stamp, or the
+    // preview would quietly disagree with the history beside it.
+    if v.get("status").and_then(Value::as_str) == Some("voided") {
+        receipt.is_voided = true;
+    }
+    Ok(Some(receipt))
 }
 
 /// Queue a sale: the outbox op and its local row, one transaction.

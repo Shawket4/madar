@@ -6508,7 +6508,7 @@ impl MadarCore {
         };
         // The sale's row and its outbox op commit together (offline plan B §5):
         // the history, the drawer and the Z report see it the instant it is rung.
-        let row = ledger::local::order_json(
+        let mut row = ledger::local::order_json(
             &prepared.command,
             &okey,
             &ledger::local::Ringer {
@@ -6517,6 +6517,10 @@ impl MadarCore {
             },
             &ledger::views::payment_method_rows(&self.store),
         );
+        // The receipt this sale printed travels with its row, so it can be
+        // previewed before it syncs — offline, from the device's own ledger,
+        // through the same renderer the printer used.
+        ledger::local::stash_receipt(&mut row, &prepared.receipt);
         self.store.with_tx_touch(|tx, touched| {
             ledger::local::commit_order(tx, &op, &row)?;
             touched.extend(changes::tables_for_op("create_order"));
@@ -7098,8 +7102,7 @@ impl MadarCore {
         width: u32,
         brand: receipt::PrinterBrand,
     ) -> Result<Vec<u8>, CoreError> {
-        let o = self.order_full_for(&order_id).await?;
-        let receipt = orders::order_to_receipt(&o, &self.current_locale());
+        let receipt = self.receipt_view_for(&order_id).await?;
         Ok(self.render_receipt(receipt, store_name, currency, width, brand))
     }
 
@@ -7109,7 +7112,29 @@ impl MadarCore {
         &self,
         order_id: String,
     ) -> Result<checkout::ReceiptView, CoreError> {
-        let o = self.order_full_for(&order_id).await?;
+        self.receipt_view_for(&order_id).await
+    }
+
+    /// THE one way a receipt is resolved, for the preview and for the printer
+    /// alike — so what a teller looks at is what came out of the printer.
+    ///
+    /// Local rows first, network last (the network rule): a sale this device
+    /// holds in full projects straight from its row; a sale it RANG but has not
+    /// synced answers from the receipt stashed on that row, which is the only
+    /// record of it that exists anywhere yet; only a sale this device has never
+    /// seen goes to the server, and that is the one case that still fails
+    /// offline, in the core's words.
+    async fn receipt_view_for(
+        &self,
+        order_id: &str,
+    ) -> Result<checkout::ReceiptView, CoreError> {
+        if let Some(full) = ledger::views::order_full(&self.store, order_id)? {
+            return Ok(orders::order_to_receipt(&full, &self.current_locale()));
+        }
+        if let Some(receipt) = ledger::local::queued_receipt(&self.store, order_id)? {
+            return Ok(receipt);
+        }
+        let o = self.order_full_for(order_id).await?;
         Ok(orders::order_to_receipt(&o, &self.current_locale()))
     }
 
