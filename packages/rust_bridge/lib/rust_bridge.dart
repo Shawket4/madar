@@ -30,6 +30,7 @@ export 'src/generated/api/routes.dart';
 export 'src/generated/api/sync.dart';
 export 'src/generated/api/tickets.dart';
 export 'src/generated/api/till.dart';
+export 'src/generated/api/till_review.dart';
 export 'src/generated/api/types.dart';
 export 'src/generated/api/vault.dart';
 export 'src/generated/api/waste.dart';

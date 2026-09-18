@@ -22,6 +22,7 @@ import 'package:feature_till/src/cash_movements_screen.dart';
 import 'package:feature_till/src/cash_spot_screen.dart';
 import 'package:feature_till/src/close_till_screen.dart';
 import 'package:feature_till/src/drawers_card.dart';
+import 'package:feature_till/src/manager_actions.dart';
 import 'package:feature_till/src/open_till_screen.dart';
 import 'package:feature_till/src/till_history_screen.dart';
 import 'package:feature_till/src/till_notices.dart';
@@ -213,6 +214,7 @@ class _DrawerHome extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: Space.xl,
               children: [
+                const ManagerActionsBanner(),
                 ?noticeBanner,
                 const _StatCards(),
                 if (twoUp)
@@ -240,6 +242,7 @@ class _DrawerHome extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
       children: [
+        const ManagerActionsBanner(),
         if (noticeBanner != null) ...[
           noticeBanner,
           const SizedBox(height: Space.xl),

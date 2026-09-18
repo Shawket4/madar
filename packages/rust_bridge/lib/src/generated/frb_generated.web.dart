@@ -28,6 +28,7 @@ import 'api/routes.dart';
 import 'api/sync.dart';
 import 'api/tickets.dart';
 import 'api/till.dart';
+import 'api/till_review.dart';
 import 'api/types.dart';
 import 'api/waste.dart';
 import 'dart:async';
@@ -112,6 +113,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   AssetSyncView dco_decode_asset_sync_view(dynamic raw);
+
+  @protected
+  BatchAuthorizeView dco_decode_batch_authorize_view(dynamic raw);
 
   @protected
   BillDiscountView dco_decode_bill_discount_view(dynamic raw);
@@ -520,6 +524,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<LoyaltyRewardView> dco_decode_list_loyalty_reward_view(dynamic raw);
 
   @protected
+  List<ManagerActionView> dco_decode_list_manager_action_view(dynamic raw);
+
+  @protected
   List<MenuItemView> dco_decode_list_menu_item_view(dynamic raw);
 
   @protected
@@ -688,6 +695,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   MadarError dco_decode_madar_error(dynamic raw);
+
+  @protected
+  ManagerActionView dco_decode_manager_action_view(dynamic raw);
+
+  @protected
+  ManagerActionsView dco_decode_manager_actions_view(dynamic raw);
 
   @protected
   MenuItemView dco_decode_menu_item_view(dynamic raw);
@@ -1070,6 +1083,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   AssetSyncView sse_decode_asset_sync_view(SseDeserializer deserializer);
+
+  @protected
+  BatchAuthorizeView sse_decode_batch_authorize_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   BillDiscountView sse_decode_bill_discount_view(SseDeserializer deserializer);
@@ -1600,6 +1618,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<ManagerActionView> sse_decode_list_manager_action_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<MenuItemView> sse_decode_list_menu_item_view(
     SseDeserializer deserializer,
   );
@@ -1846,6 +1869,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   MadarError sse_decode_madar_error(SseDeserializer deserializer);
+
+  @protected
+  ManagerActionView sse_decode_manager_action_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ManagerActionsView sse_decode_manager_actions_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   MenuItemView sse_decode_menu_item_view(SseDeserializer deserializer);
@@ -2308,6 +2341,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_asset_sync_view(AssetSyncView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_batch_authorize_view(
+    BatchAuthorizeView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_bill_discount_view(
@@ -2985,6 +3024,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_manager_action_view(
+    List<ManagerActionView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_menu_item_view(
     List<MenuItemView> self,
     SseSerializer serializer,
@@ -3292,6 +3337,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_madar_error(MadarError self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_manager_action_view(
+    ManagerActionView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_manager_actions_view(
+    ManagerActionsView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_menu_item_view(MenuItemView self, SseSerializer serializer);
