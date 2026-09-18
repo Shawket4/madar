@@ -42,6 +42,12 @@ extension MadarErrorMessage on MadarBridge {
 /// Pinned against the core's sources by `tests/i18n_call_sites.rs`, which
 /// checks every key below exists in both languages.
 const Map<String, String> coreDetailKeys = {
+  // A bill that adds up to less than nothing (owner, 2026-09-18): refused as
+  // the line is put down, and again before anything reaches the outbox.
+  'This item works out to less than nothing. Check its price and its extras.':
+      'checkout.negative_line',
+  "This order works out to less than nothing, so it can't be rung up. Check the prices and the extras.":
+      'checkout.negative_order',
   'not signed in': 'err.not_signed_in',
   'token expired': 'err.session_expired',
   'wrong pin': 'err.wrong_pin',
