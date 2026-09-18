@@ -87,6 +87,12 @@ fn why_key(w: &Why) -> &'static str {
     }
 }
 
+/// A refusal with a reason of this module's own, for a state the authz
+/// vocabulary has no `Why` for (nobody signed in).
+pub(crate) fn deny_because(key: &str, locale: &str) -> ActDecisionView {
+    ActDecisionView { outcome: "deny".into(), reason: crate::i18n::tr(locale, key) }
+}
+
 pub(crate) fn decision_view(d: &Decision, locale: &str) -> ActDecisionView {
     match d {
         Decision::Allow => ActDecisionView { outcome: "allow".into(), reason: String::new() },

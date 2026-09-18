@@ -17,6 +17,10 @@
 //! * back online, the replayed sale is B's (teller, drawer) and records A as
 //!   the person who started it, with the manager's approval verified and no
 //!   authorization flag.
+//!
+//! And, the other way round: a teller whose OWN order is still parked when a
+//! manager uses the till in between resumes and settles it with no approval
+//! asked for anywhere, and the sale records nobody but them.
 
 mod common;
 
@@ -211,6 +215,158 @@ async fn a_held_order_started_by_one_teller_is_settled_by_the_next_and_names_bot
     assert_eq!(row.get::<_, String>(0), "closed");
     assert_eq!(row.get::<_, Option<i32>>(1), Some(1), "the close shows 1 left open");
     assert_eq!(row.get::<_, Option<i32>>(2), Some(item.base_price_minor as i32));
+}
+
+/// The owner's report: "when a teller signs in after a manager they shouldn't
+/// need to enter their password to finish their held order."
+///
+/// A teller parks an order, a BRANCH MANAGER signs in on the same till and
+/// out again, and the teller comes back. Their own order must resume and
+/// settle with no approval asked for anywhere — and the replayed sale carries
+/// no `started_by` and no approval, because there was only ever one person.
+#[tokio::test]
+#[ignore]
+async fn a_teller_resumes_their_own_held_order_after_a_manager_used_the_till() {
+    let fx = fixture(1).await;
+    let (ali_id, ali) = fx.tellers[0].clone();
+    let proxy = Proxy::start(&fx.base).await;
+    let db = temp_db("queue_own");
+
+    // A branch manager with their own PIN, who will use the till in between.
+    let mona_id = uuid::Uuid::new_v4();
+    let mona = format!("OB-mgr-{}", &mona_id.simple().to_string()[..6]);
+    let branch_uuid = uuid::Uuid::parse_str(&fx.branch).unwrap();
+    fx.db
+        .execute(
+            "INSERT INTO users (id, org_id, name, role, pin_hash)
+             SELECT $1, org_id, $2, 'branch_manager'::public.user_role, crypt('5678', gen_salt('bf', 4))
+               FROM branches WHERE id = $3",
+            &[&mona_id, &mona, &branch_uuid],
+        )
+        .await
+        .expect("insert manager");
+    fx.db
+        .execute(
+            "INSERT INTO user_branch_assignments (user_id, branch_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            &[&mona_id, &branch_uuid],
+        )
+        .await
+        .expect("assign manager");
+
+    // Ali parks an order.
+    let core = core_at(&proxy.base, &db, &ali, &fx.branch).await;
+    let item = core
+        .list_menu_items()
+        .expect("items")
+        .into_iter()
+        .find(|i| i.base_price_minor > 0)
+        .expect("a priced item");
+    core.cart_add(None, item.id.clone(), item.name.clone(), item.base_price_minor)
+        .unwrap();
+    core.hold_cart(None, "Ali's tab".into(), None, None).unwrap();
+    core.logout(false).unwrap();
+
+    // The manager takes the till, then leaves it.
+    core.sign_in(LoginRequest {
+        mode: LoginMode::Pin,
+        name: Some(mona.clone()),
+        pin: Some("5678".into()),
+        branch_id: Some(fx.branch.clone()),
+        email: None,
+        password: None,
+        org_id: None,
+    })
+    .await
+    .expect("the manager signs in on the till");
+    core.logout(false).unwrap();
+
+    // Ali comes back to finish his order.
+    core.sign_in(LoginRequest {
+        mode: LoginMode::Pin,
+        name: Some(ali.clone()),
+        pin: Some("1234".into()),
+        branch_id: Some(fx.branch.clone()),
+        email: None,
+        password: None,
+        org_id: None,
+    })
+    .await
+    .expect("Ali signs back in");
+
+    let drafts = core.list_drafts().unwrap();
+    assert_eq!(drafts.len(), 1, "his order is still on the strip: {drafts:?}");
+    assert!(!drafts[0].by_other, "his own chip wears no lock: {drafts:?}");
+    assert_eq!(drafts[0].created_by_name.as_deref(), Some(ali.as_str()));
+    let tab = drafts[0].id.clone();
+
+    let decision = core.decide_draft_act("resume".into(), tab.clone());
+    assert_eq!(decision.outcome, "allow", "no prompt on his own order: {decision:?}");
+    let resumed = core
+        .switch_to_draft(None, tab.clone(), None, None)
+        .expect("resumes with no approval at all");
+    assert_eq!(resumed.lines.iter().map(|l| l.qty).sum::<i64>(), 1);
+
+    core.open_till(5_000, Some("own held order scenario".into()))
+        .await
+        .expect("open");
+    let cash = method(&core, true).expect("a cash method");
+    let receipt = core
+        .checkout(
+            None,
+            CheckoutInput {
+                payment_method_id: cash,
+                amount_tendered_minor: 1_000_000,
+                tip_minor: 0,
+                tip_payment_method_id: None,
+                customer_name: None,
+                notes: None,
+                splits: vec![],
+                loyalty_customer_id: None,
+                dine_in: false,
+                customer_id: None,
+                loyalty_redemptions: vec![],
+            },
+        )
+        .await
+        .expect("settle");
+    core.complete_draft(tab, None).expect("complete the held order");
+    settle(&core, 180).await;
+
+    let key = uuid::Uuid::parse_str(&receipt.local_order_id).unwrap();
+    let row = fx
+        .db
+        .query_one(
+            "SELECT id, teller_id, started_by FROM orders WHERE idempotency_key = $1",
+            &[&key],
+        )
+        .await
+        .expect("the sale replayed");
+    let (order_id, teller, started): (uuid::Uuid, uuid::Uuid, Option<uuid::Uuid>) =
+        (row.get(0), row.get(1), row.get(2));
+    assert_eq!(teller, ali_id, "Ali's sale");
+    assert_eq!(started, None, "one person: nothing extra recorded on the sale");
+    let approvals: i64 = fx
+        .db
+        .query_one(
+            "SELECT count(*) FROM approvals WHERE order_id = $1",
+            &[&order_id],
+        )
+        .await
+        .map(|r| r.get(0))
+        .unwrap_or(0);
+    assert_eq!(approvals, 0, "no manager was ever asked");
+    let flags: i64 = fx
+        .db
+        .query_one(
+            "SELECT count(*) FROM authz_replay_flags WHERE author_id = $1",
+            &[&ali_id],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(flags, 0, "his own order is not flagged at replay");
+
+    assert!(core.list_drafts().unwrap().is_empty(), "the strip is clear");
 }
 
 /// Tables are nobody's (queue rule 4a): a waiter fires a table's bill on one

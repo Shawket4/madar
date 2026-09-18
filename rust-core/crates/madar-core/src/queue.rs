@@ -99,7 +99,18 @@ pub(crate) const RESUME_CAP: Cap = Cap::OrdersHeldResumeOthers;
 pub(crate) const DISCARD_CAP: Cap = Cap::OrdersVoid;
 
 /// `true` when a known author is not `me` (an unknown author is nobody's).
+///
+/// An EMPTY `me` is not an identity — it is "nobody is signed in" (`me()`
+/// defaults when the session snapshot is absent: between a sign-out and the
+/// next sign-in, or before a cached session is restored at boot). Comparing a
+/// real author against it used to make EVERY parked order "someone else's",
+/// which put a lock on the teller's own chip and asked a manager to approve
+/// them resuming their own work. Nobody-in-particular can't be said to differ
+/// from the author, so it never reports "other".
 pub(crate) fn started_by_other(created_by: Option<&str>, me: &str) -> bool {
+    if me.is_empty() {
+        return false;
+    }
     matches!(created_by, Some(a) if !a.is_empty() && a != me)
 }
 
@@ -139,10 +150,19 @@ impl DraftAct {
 
 
 impl MadarCore {
+    /// The signed-in person, or `("", "")` when nobody is. Callers that
+    /// COMPARE identities must treat the empty id as "unknown", never as a
+    /// user id — see [`started_by_other`] and [`MadarCore::signed_in`].
     fn me(&self) -> (String, String) {
         self.current_session()
             .map(|s| (s.user_id, s.display_name))
             .unwrap_or_default()
+    }
+
+    /// Is anyone signed in? A queue act belongs to the person doing it, so
+    /// with nobody on the till there is nothing to decide.
+    fn signed_in(&self) -> bool {
+        !self.me().0.is_empty()
     }
 
     /// `(own, age_minutes)` for a held order: whether the signed-in person
@@ -174,6 +194,12 @@ impl MadarCore {
         let Ok(a) = DraftAct::parse(&act) else {
             return approvals::decision_view(&Decision::Deny(Why::UnknownCapability), &locale);
         };
+        // Nobody is signed in: there is no "own" to measure against, and a
+        // manager's PIN must not be able to open someone's parked order on a
+        // till nobody is standing at. Refuse outright rather than prompt.
+        if !self.signed_in() {
+            return approvals::deny_because("approval.why_signed_out", &locale);
+        }
         let (own, age) = match self.draft_facts(&id) {
             Ok(f) => f,
             Err(_) => return approvals::decision_view(&Decision::Deny(Why::NotHeld), &locale),
@@ -271,7 +297,9 @@ impl MadarCore {
     ) -> (Option<String>, Option<serde_json::Value>) {
         let (me, _) = self.me();
         match cart::owner(&self.store, ctx).ok().flatten() {
-            Some(o) if o.user_id != me => {
+            // `started_by_other`, not `!=`: with nobody signed in there is no
+            // "someone else" to name on the sale.
+            Some(o) if started_by_other(Some(&o.user_id), &me) => {
                 (Some(o.user_id), o.approval.as_ref().map(approvals::approval_wire))
             }
             _ => (None, None),
@@ -540,6 +568,90 @@ mod tests {
         sign_in(&core, BADR, "Badr", &[]);
         assert_eq!(core.decide_draft_act("resume".into(), id.clone()).outcome, "allow");
         core.switch_to_draft(None, id, None, None).expect("a table resumes without a manager");
+    }
+
+    #[test]
+    fn a_teller_finishes_their_own_held_order_after_a_manager_used_the_till() {
+        // The owner's report: a teller parks an order, a manager signs in on
+        // the same till, the teller comes back — and must NOT be asked to
+        // approve resuming their own work.
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let id = park(&core, "Mine");
+
+        core.logout(false).unwrap();
+        sign_in(&core, MONA, "Mona", &[RESUME_CAP.key()]);
+        // The manager takes it, works on it, and parks it back: rule 2 keeps
+        // Ali as the author through the round trip.
+        core.switch_to_draft(None, id.clone(), None, None).unwrap();
+        core.hold_cart(None, "Mine".into(), None, None).unwrap();
+        let id = core.list_drafts().unwrap()[0].id.clone();
+
+        core.logout(false).unwrap();
+        sign_in(&core, ALI, "Ali", &[]);
+        let drafts = core.list_drafts().unwrap();
+        assert!(!drafts[0].by_other, "still Ali's own chip, no lock");
+        let d = core.decide_draft_act("resume".into(), id.clone());
+        assert_eq!(d.outcome, "allow", "no prompt on his own order: {d:?}");
+        core.switch_to_draft(None, id, None, None).expect("resumes with no approval");
+        assert_eq!(core.sale_started_by(None), (None, None), "his own sale, nothing extra");
+    }
+
+    #[test]
+    fn a_manager_leaving_lines_behind_does_not_make_the_next_tellers_order_theirs() {
+        // The manager's own lines park under the MANAGER when they sign out;
+        // what the teller starts afterwards is the teller's.
+        let core = device();
+        sign_in(&core, MONA, "Mona", &[RESUME_CAP.key()]);
+        put_line(&core, None, "ManagerLines");
+        core.logout(false).unwrap();
+        sign_in(&core, ALI, "Ali", &[]);
+        assert!(
+            cart::owner(&core.store, None).unwrap().is_none(),
+            "no stale owner left on the counter cart"
+        );
+        let id = park(&core, "AliOwn");
+        let drafts = core.list_drafts().unwrap();
+        let mine = drafts.iter().find(|d| d.name == "AliOwn").unwrap();
+        assert!(!mine.by_other);
+        assert_eq!(mine.created_by_name.as_deref(), Some("Ali"));
+        assert_eq!(core.decide_draft_act("resume".into(), id).outcome, "allow");
+        // The manager's leftovers are still the manager's.
+        let theirs = drafts.iter().find(|d| d.name != "AliOwn").unwrap();
+        assert!(theirs.by_other);
+        assert_eq!(theirs.created_by_name.as_deref(), Some("Mona"));
+    }
+
+    #[test]
+    fn with_nobody_signed_in_a_parked_order_is_refused_not_offered_to_a_manager() {
+        // `me()` is ("", "") between sign-ins and before a cached session is
+        // restored. An empty id is NOT an identity: it used to read as
+        // "someone else", so every chip wore a lock and the teller's own
+        // order asked for a manager's PIN. It must read as unknown, and the
+        // act must be refused outright — a manager's PIN cannot open
+        // someone's order on a till nobody is standing at.
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let id = park(&core, "Mine");
+        core.logout(false).unwrap();
+
+        assert!(!core.list_drafts().unwrap()[0].by_other, "not 'someone else's'");
+        let d = core.decide_draft_act("resume".into(), id.clone());
+        assert_eq!(d.outcome, "deny", "refused, never needs_approval: {d:?}");
+        assert!(!d.reason.is_empty());
+        // And a manager's PIN does not get past it.
+        let approval = core.approve_draft_act("9999".into(), "resume".into(), id.clone());
+        let refused = core.switch_to_draft_approved(None, id, None, None, approval.ok());
+        assert!(matches!(refused, Err(CoreError::Forbidden { .. })), "{refused:?}");
+    }
+
+    #[test]
+    fn an_unknown_viewer_never_claims_an_author_is_somebody_else() {
+        assert!(!started_by_other(Some(ALI), ""), "nobody signed in: unknown, not other");
+        assert!(!started_by_other(None, ALI), "no author: nobody's in particular");
+        assert!(!started_by_other(Some(""), ALI), "an empty author is no author");
+        assert!(!started_by_other(Some(ALI), ALI), "his own");
+        assert!(started_by_other(Some(ALI), BADR), "Badr looking at Ali's");
     }
 
     #[test]
