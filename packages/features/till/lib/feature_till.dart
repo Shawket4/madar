@@ -11,6 +11,7 @@ export 'src/cash_spot_screen.dart';
 export 'src/close_till_screen.dart';
 export 'src/drawers_card.dart';
 export 'src/held_orders_close_step.dart';
+export 'src/manager_actions.dart';
 export 'src/open_till_screen.dart';
 export 'src/till_history_screen.dart';
 export 'src/till_notices.dart';

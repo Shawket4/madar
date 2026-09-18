@@ -350,6 +350,9 @@ class _FakeBridge implements MadarBridge {
     final can = fakeCanInvocation(invocation, () => currentSession()?.role);
     if (can != null) return can;
     final name = invocation.memberName;
+    // Nothing at this till needs a manager, so the indicator stays silent.
+    final review = fakeManagerActionsInvocation(invocation);
+    if (review != null) return review;
     // The core's drawer and Orders decisions (till_views), in miniature.
     if (name == #paymentMethodLabel) {
       final code = invocation.namedArguments[#code] as String;

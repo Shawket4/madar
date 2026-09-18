@@ -37,6 +37,9 @@ pub mod catstyle;
 pub mod checkout;
 pub mod customers;
 pub mod waste;
+/// "N actions need a manager": the till's refused + flagged acts and the one
+/// manager PIN that clears the batch.
+pub mod till_review;
 /// Delivery-order management (teller side) — list/advance/cancel/finalize.
 pub mod delivery;
 pub mod discounts;
@@ -1160,6 +1163,20 @@ impl MadarCore {
                     // one): it holds only its own till's ops until retried with
                     // `requeue_dead_for_till`, and the teller keeps selling.
                 }
+                // Refused for a permission. It stays in the queue, marked with
+                // the capability it wanted, so the till can list it under
+                // "N actions need a manager" and a manager's PIN can re-send it
+                // with an approval attached (`till_review`). An op no permission
+                // gates falls back to a plain dead-letter.
+                SendOutcome::Refused(err) => {
+                    match till_review::capability_for_op(&item.op_type, &item.payload) {
+                        Some(cap) => self.store.mark_dead_refused(item.seq, &err, cap)?,
+                        None => self.store.mark_dead(item.seq, &err)?,
+                    }
+                    self.store
+                        .emit_changes(changes::tables_for_op(&item.op_type));
+                    self.push_diag("error", format!("{} refused: {err}", item.op_type));
+                }
                 // Token expired → park the whole queue (no budget burned) until
                 // the next successful login re-drains.
                 SendOutcome::AuthExpired => {
@@ -1990,6 +2007,10 @@ enum SendOutcome {
     Acked(Option<String>),
     /// Permanent rejection — dead-letter, surface in the stuck list.
     Dead(String),
+    /// 403 — the server refused it for a permission. Dead-lettered like any
+    /// other permanent rejection, but marked with the capability so the till
+    /// can offer it under "needs a manager" and re-send it with an approval.
+    Refused(String),
     /// 401 — park the whole queue until the next successful login.
     AuthExpired,
     /// Connectivity blip — reschedule without burning retry budget; stop the pass.
@@ -2036,9 +2057,8 @@ fn classify_send(err: CoreError, idem: Idem) -> SendOutcome {
             SendOutcome::Retry(detail)
         }
         // Permanent validation/permission — retrying can't help.
-        CoreError::Validation { detail, .. } | CoreError::Forbidden { action: detail, .. } => {
-            SendOutcome::Dead(detail)
-        }
+        CoreError::Validation { detail, .. } => SendOutcome::Dead(detail),
+        CoreError::Forbidden { action: detail, .. } => SendOutcome::Refused(detail),
         CoreError::Server { status, detail, .. } => match (status, idem) {
             (409, Idem::Yes) | (409, Idem::VoidIdem) | (404, Idem::Yes) => SendOutcome::Acked(None),
             // void 404 = the order never landed → don't silently swallow the void.
@@ -8769,13 +8789,19 @@ mod tests {
             },
             Idem::No
         )));
-        assert!(dead(&classify_send(
-            CoreError::Forbidden {
-                resource: "api".into(),
-                action: "no".into()
-            },
-            Idem::No
-        )));
+        // A 403 is permanent too, but it is dead-lettered as a REFUSAL so the
+        // till can offer it under "needs a manager" and re-send it with an
+        // approval (`till_review`) instead of it just sitting there.
+        assert!(matches!(
+            classify_send(
+                CoreError::Forbidden {
+                    resource: "api".into(),
+                    action: "no".into()
+                },
+                Idem::No
+            ),
+            SendOutcome::Refused(_)
+        ));
         // 409: order/open NOT recorded → dead; void/close already-applied → ack.
         assert!(dead(&classify_send(srv(409), Idem::No)));
         assert!(ack(&classify_send(srv(409), Idem::Yes)));

@@ -96,6 +96,11 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE outbox ADD COLUMN device_id TEXT",
     "ALTER TABLE outbox ADD COLUMN entity_type TEXT",
     "ALTER TABLE outbox ADD COLUMN entity_id TEXT",
+    // ── clearable refusals (DEFERRED_FEATURES_STATUS stream 11, part 2) ──
+    // The capability a 403 refused this op for, so the till can list it under
+    // "needs a manager" and re-send it with an approval. NULL for every other
+    // dead-lettering (validation, 404, exhausted retries).
+    "ALTER TABLE outbox ADD COLUMN refused_cap TEXT",
 ];
 
 /// Tables + indexes created AFTER the column migrations (they reference them).
@@ -836,6 +841,42 @@ impl Store {
         self.lock().execute(
             "UPDATE outbox SET status='dead', last_error=?2 WHERE seq=?1",
             params![seq, error],
+        )?;
+        self.changes.emit([crate::changes::OUTBOX]);
+        Ok(())
+    }
+
+    /// Dead-lettered because the server refused it for a permission (403), with
+    /// the capability it wanted. Separate from [`Self::mark_dead`] so the till's
+    /// "needs a manager" list can tell a refusal apart from a bad payload.
+    pub fn mark_dead_refused(&self, seq: i64, error: &str, capability: &str) -> CoreResult<()> {
+        self.lock().execute(
+            "UPDATE outbox SET status='dead', last_error=?2, refused_cap=?3 WHERE seq=?1",
+            params![seq, error, capability],
+        )?;
+        self.changes.emit([crate::changes::OUTBOX]);
+        Ok(())
+    }
+
+    /// Every op the server refused for a permission, oldest first, with that
+    /// capability. Still in the queue — nothing was dropped.
+    pub fn refused_ops(&self) -> CoreResult<Vec<(OutboxItem, String)>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {COLS},refused_cap FROM outbox              WHERE status='dead' AND refused_cap IS NOT NULL ORDER BY seq ASC"
+        ))?;
+        let rows = stmt
+            .query_map([], |r| Ok((map_item(r)?, r.get::<_, String>(18)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    /// Put a refused op back in the queue with an approval written into its
+    /// payload. The retry budget starts over and the refusal mark is cleared.
+    pub fn requeue_refused(&self, seq: i64, payload: &str) -> CoreResult<()> {
+        self.lock().execute(
+            "UPDATE outbox SET status='pending', attempts=0, next_attempt_at=0,                     last_error=NULL, refused_cap=NULL, payload=?2               WHERE seq=?1 AND status='dead'",
+            params![seq, payload],
         )?;
         self.changes.emit([crate::changes::OUTBOX]);
         Ok(())

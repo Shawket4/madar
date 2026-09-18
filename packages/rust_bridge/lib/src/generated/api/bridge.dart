@@ -26,6 +26,7 @@ import 'routes.dart';
 import 'sync.dart';
 import 'tickets.dart';
 import 'till.dart';
+import 'till_review.dart';
 import 'types.dart';
 import 'waste.dart';
 
@@ -121,6 +122,13 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Assign / move / unassign a parked draft's table. Errors loudly when the
   /// table is taken (interactive path — the teller picks another).
   Future<void> assignDraftTable({required String id, String? tableId});
+
+  /// One manager PIN for the whole batch. The signed-in person does not
+  /// change. An empty `ids` means everything in the list.
+  Future<BatchAuthorizeView> authorizeManagerActions({
+    required String approverPin,
+    required List<String> ids,
+  });
 
   /// Bundles orderable right now — status active and within their date/time
   /// window at `now` (branch-local). The host passes its local time so the
@@ -902,6 +910,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// A payment method code in the till's language — never a raw code.
   String paymentMethodLabel({required String code});
 
+  /// Everything at this till that needs a manager. Offline — the outbox and
+  /// the last pulled flags, never the network.
+  ManagerActionsView pendingManagerActions();
+
   Future<int> pendingOutboxCount();
 
   /// Seconds before this tablet may try a PIN again (the server's growing
@@ -992,6 +1004,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// re-arranged the room in the dashboard, another till seated a party).
   /// Best-effort: offline leaves the mirrors as they are.
   Future<void> refreshFloor();
+
+  /// Pull this branch's open flags so the list is current. Best-effort.
+  Future<int> refreshReviewFlags();
 
   Future<TillView?> refreshTill();
 

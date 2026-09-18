@@ -14,6 +14,7 @@ library;
 import 'dart:io';
 
 import 'package:app_core/src/generated/capabilities.dart';
+import 'package:rust_bridge/rust_bridge.dart';
 
 final Map<String, Map<String, String>> _tables = {};
 
@@ -101,6 +102,23 @@ bool fakeCan(String? role, String cap) {
     default:
       return teller || r == 'waiter';
   }
+}
+
+/// `noSuchMethod` helper for the till's "needs a manager" list: an empty one,
+/// so a fake bridge that has no opinion renders a silent indicator instead of
+/// throwing. Returns null when the invocation is something else.
+Object? fakeManagerActionsInvocation(Invocation invocation) {
+  if (invocation.memberName == #pendingManagerActions) {
+    return const ManagerActionsView(
+      count: 0,
+      items: [],
+      headline: '',
+      canAuthorize: false,
+      blockedReason: '',
+    );
+  }
+  if (invocation.memberName == #refreshReviewFlags) return Future<int>.value(0);
+  return null;
 }
 
 /// `noSuchMethod` helper: the answer for a `can` / `canAskManager`

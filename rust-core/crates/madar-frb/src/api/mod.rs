@@ -20,5 +20,6 @@ pub mod sync;
 pub mod tickets;
 pub mod drawer;
 pub mod till;
+pub mod till_review;
 pub mod types;
 pub mod waste;
