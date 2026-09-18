@@ -267,7 +267,16 @@ impl MadarCore {
     /// cannot say "no till", so the local state stands.
     pub async fn refresh_till(&self) -> Result<Option<TillView>, CoreError> {
         let sp = self.session_parts()?;
-        if sp.role != "teller" {
+        // Who holds a drawer, framed the same way `open_till` frames it: waiters
+        // and kitchen devices never do; EVERYONE else who may work a till does —
+        // managers and owners included (architecture E put them on tills).
+        //
+        // This used to read `sp.role != "teller"`, so a signed-in manager or
+        // owner got `None` here. The Till tab asks this whenever it is ONLINE
+        // (`_deviceTill`), takes the answer as the truth, and so rendered the
+        // open-till form for them forever: opening a till changed nothing on
+        // screen even though the open had already landed on the server.
+        if sp.role == "waiter" || sp.role == "kitchen" {
             return Ok(None);
         }
         let local = till::current(&self.store)?;

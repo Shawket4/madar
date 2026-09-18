@@ -10867,6 +10867,44 @@ mod lifecycle_tests {
         assert!(matches!(err, Err(CoreError::Validation { .. })));
     }
 
+    /// The owner's report, 2026-09-18: signed in as a MANAGER, opening a till
+    /// left the screen on the open-till form. `refresh_till` was gated on the
+    /// literal role "teller" and answered `None` for anyone else; the Till tab
+    /// asks it whenever it is online and took that as "no drawer".
+    #[tokio::test]
+    async fn refresh_till_keeps_the_signed_in_persons_own_till_whatever_their_role() {
+        for role in ["teller", "branch_manager", "org_admin"] {
+            let core = MadarCore::from_env().unwrap();
+            core.set_device_branch("b".into(), None).unwrap();
+            let me = uuid::Uuid::new_v4().to_string();
+            let mut offline = teller_session(&me, Some("b"));
+            offline.snapshot.role = role.into();
+            offline.snapshot.online = false;
+            set_session(&core, Some(offline.clone()));
+            core.open_till(50_000, None).await.unwrap();
+
+            // Back online — which is when the Till tab calls refresh_till.
+            let mut online = offline.clone();
+            online.snapshot.online = true;
+            set_session(&core, Some(online));
+            let got = core.refresh_till().await.unwrap();
+            assert!(
+                got.as_ref().map(|t| t.is_open).unwrap_or(false),
+                "{role}: refresh_till dropped this person's own open till"
+            );
+            assert_eq!(core.app_route(), AppRoute::Order, "{role}: route");
+        }
+
+        // A waiter holds no drawer and must still get None.
+        let core = MadarCore::from_env().unwrap();
+        core.set_device_branch("b".into(), None).unwrap();
+        let mut w = teller_session(&uuid::Uuid::new_v4().to_string(), Some("b"));
+        w.snapshot.role = "waiter".into();
+        w.snapshot.online = true;
+        set_session(&core, Some(w));
+        assert!(core.refresh_till().await.unwrap().is_none(), "waiter holds no drawer");
+    }
+
     #[test]
     fn route_device_setup_until_branch_bound() {
         let core = MadarCore::from_env().unwrap();
