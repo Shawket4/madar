@@ -10906,6 +10906,31 @@ mod lifecycle_tests {
         assert_eq!(core.app_route(), AppRoute::Order);
     }
 
+    /// REPRO (owner, 2026-09-18): open a till through the real `open_till()`
+    /// and the shell's route must move off OpenTill — for a manager too.
+    #[tokio::test]
+    async fn repro_open_till_moves_the_route_for_a_manager() {
+        for role in ["teller", "branch_manager", "org_admin"] {
+            let core = MadarCore::from_env().unwrap();
+            core.set_device_branch("b".into(), None).unwrap();
+            let me = uuid::Uuid::new_v4().to_string();
+            let mut sess = teller_session(&me, Some("b"));
+            sess.snapshot.role = role.into();
+            sess.snapshot.online = false; // offline path: no server prefill
+            set_session(&core, Some(sess));
+            assert_eq!(core.app_route(), AppRoute::OpenTill, "{role}: before");
+            let out = core.open_till(50000, None).await.unwrap();
+            assert!(out.open_elsewhere.is_none(), "{role}: blocked unexpectedly");
+            assert!(out.till.is_some(), "{role}: no till returned");
+            assert_eq!(
+                core.current_till().unwrap().map(|t| t.is_open),
+                Some(true),
+                "{role}: current_till not open"
+            );
+            assert_eq!(core.app_route(), AppRoute::Order, "{role}: after open_till");
+        }
+    }
+
     #[test]
     fn route_open_shift_for_a_foreign_tellers_shift() {
         // A stale shift left by a DIFFERENT teller must not route the new one in.
