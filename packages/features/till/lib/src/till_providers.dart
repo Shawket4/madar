@@ -39,7 +39,12 @@ Future<TillView?> _cachedTill(MadarBridge bridge) =>
 Future<TillView?> _deviceTill(MadarBridge bridge) async {
   if (bridge.currentSession()?.online ?? false) {
     try {
-      return await bridge.refreshTill();
+      // Belt and braces: a null here means "no drawer" only if the core holds
+      // none either. Taking a bare null as the truth is what turned one
+      // role-gated `Ok(None)` in the core into a Till tab that could never
+      // leave the open-till form, so fall through to the cache instead.
+      final fresh = await bridge.refreshTill();
+      if (fresh != null) return fresh;
     } on Exception catch (_) {}
   }
   try {
