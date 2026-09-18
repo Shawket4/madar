@@ -158,7 +158,12 @@ pub(crate) fn order_envelope(
 /// layout prints `+ name` and, when `price_minor > 0`, the charge. Mirrors the
 /// Flutter receipt's addon/optional rows.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+// Serialised ONLY to ride along with a queued sale's ledger row
+// (`ledger::local::LOCAL_RECEIPT`), so a receipt can be previewed
+// offline before it syncs. `default` keeps a stash written by an
+// older build readable after a field is added.
+#[serde(default)]
 pub struct ReceiptModifierView {
     pub name: String,
     pub price_minor: i64,
@@ -167,7 +172,12 @@ pub struct ReceiptModifierView {
 /// One component of a bundle line on the receipt, with its own modifiers —
 /// printed indented under the bundle header (Flutter `bundleComponents`).
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+// Serialised ONLY to ride along with a queued sale's ledger row
+// (`ledger::local::LOCAL_RECEIPT`), so a receipt can be previewed
+// offline before it syncs. `default` keeps a stash written by an
+// older build readable after a field is added.
+#[serde(default)]
 pub struct ReceiptComponentView {
     pub name: String,
     pub size_label: Option<String>,
@@ -179,7 +189,12 @@ pub struct ReceiptComponentView {
 /// full modifier/bundle breakdown so the printed receipt matches Flutter's
 /// `printer_service.dart` item block exactly.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+// Serialised ONLY to ride along with a queued sale's ledger row
+// (`ledger::local::LOCAL_RECEIPT`), so a receipt can be previewed
+// offline before it syncs. `default` keeps a stash written by an
+// older build readable after a field is added.
+#[serde(default)]
 pub struct ReceiptLineView {
     pub name: String,
     pub qty: i64,
@@ -199,7 +214,12 @@ pub struct ReceiptLineView {
 /// The order confirmation / receipt summary.
 // `Eq` dropped: `tax_rate: f64` (the bill's own frozen rate) doesn't implement it.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+// Serialised ONLY to ride along with a queued sale's ledger row
+// (`ledger::local::LOCAL_RECEIPT`), so a receipt can be previewed
+// offline before it syncs. `default` keeps a stash written by an
+// older build readable after a field is added.
+#[serde(default)]
 pub struct ReceiptView {
     /// Client-generated order id (the outbox idempotency key). The server id
     /// lands later via sync; this identifies the order locally meanwhile.
@@ -276,7 +296,12 @@ pub struct ReceiptView {
 /// One tender on a split receipt: the method as the customer reads it, and
 /// what it paid.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+// Serialised ONLY to ride along with a queued sale's ledger row
+// (`ledger::local::LOCAL_RECEIPT`), so a receipt can be previewed
+// offline before it syncs. `default` keeps a stash written by an
+// older build readable after a field is added.
+#[serde(default)]
 pub struct ReceiptPaymentView {
     pub label: String,
     pub amount_minor: i64,

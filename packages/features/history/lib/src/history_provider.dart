@@ -266,7 +266,11 @@ class HistoryNotifier extends Notifier<HistoryState> {
       // never the one from when it was opened.
       ..listen(drawerTickProvider, (_, _) => _refreshQuietly())
       ..listen(ticketTickProvider, (_, _) => _refreshQuietly())
-      ..listen(connectivityPulseProvider, (_, _) => _refreshQuietly());
+      ..listen(connectivityPulseProvider, (_, _) => _refreshQuietly())
+      // Listen to the SIGNAL, not only to the pulse that makes it re-read:
+      // both providers hang off the same pulse, so watching the pulse alone
+      // could read the connectivity state one bump behind.
+      ..listen(connectivityProvider, (_, _) => _refreshQuietly());
     _alive = true;
     ref.onDispose(() => _alive = false);
     unawaited(Future.microtask(load));
@@ -295,6 +299,22 @@ class HistoryNotifier extends Notifier<HistoryState> {
   /// A background re-read: only the This till ledger (All is paged by
   /// hand, and re-fetching it would throw away the pages loaded so far).
   void _refreshQuietly() {
+    // The All scope is paged by hand and is NOT re-fetched here — but its
+    // `online` flag still has to follow the core, or it latches. It is only
+    // ever written by `_loadAll`, so a search that ran while the link was down
+    // left "showing cached results — you are offline" on screen for as long as
+    // the teller stayed in this scope, while the top bar (which re-reads the
+    // core on every pulse) said Online and the device really was online. Adopt
+    // the authoritative signal, and re-run the search on the offline→online
+    // edge so the words and the rows recover together.
+    if (_alive && state.scope == OrdersScope.all) {
+      final reachable = ref.read(connectivityProvider).reachable;
+      if (reachable != state.online) {
+        state = _derive(state.copyWith(online: reachable));
+        if (reachable && !state.loading) unawaited(_loadAll(reset: true));
+      }
+      return;
+    }
     if (!_alive || state.scope != OrdersScope.thisTill || state.loading) {
       return;
     }
@@ -517,8 +537,13 @@ class HistoryNotifier extends Notifier<HistoryState> {
   /// Open a sale. Its lines and its receipt are fetched together — the
   /// receipt is what Reprint prints, and it carries the service charge and
   /// tip the detail view does not — each best-effort and cached by the core
-  /// for any order seen online. A queued sale is not on the server yet: the
-  /// panel shows its summary figures and nothing is fetched.
+  /// for any order seen online.
+  ///
+  /// A QUEUED sale is not on the server yet, so its detail and its refunds
+  /// cannot be asked for — but its RECEIPT can: the core kept the one it
+  /// printed on the sale's own ledger row, so the teller can look at a receipt
+  /// they have just handed over, with no network. That read is local, so it
+  /// does not break the rule that a screen read never waits on the wire.
   void select(OrderSummaryView order) {
     if (state.selectedId == order.id) return;
     state = state.copyWith(
@@ -528,7 +553,24 @@ class HistoryNotifier extends Notifier<HistoryState> {
       refunds: null,
       detailLoading: !order.queued,
     );
-    if (!order.queued) unawaited(_loadDetail(order.id));
+    if (order.queued) {
+      unawaited(_loadQueuedReceipt(order.id));
+    } else {
+      unawaited(_loadDetail(order.id));
+    }
+  }
+
+  /// The receipt of a sale still in the queue — the core answers from the row
+  /// it wrote when the sale was rung. Nothing else is asked for.
+  Future<void> _loadQueuedReceipt(String id) async {
+    ReceiptView? receipt;
+    try {
+      receipt = await _bridge.orderReceiptView(orderId: id);
+    } on MadarError {
+      return;
+    }
+    if (!_alive || state.selectedId != id) return;
+    state = state.copyWith(receipt: receipt);
   }
 
   /// Close the sale panel.

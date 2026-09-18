@@ -817,3 +817,122 @@ fn a_queued_partial_refund_takes_its_share_of_tax_and_service_off_the_z() {
     assert_eq!((f.total_tax, f.total_service_charge), (1109, 720));
     assert_eq!((f.refunds_issued_tax, f.refunds_issued_service_charge), (431, 280));
 }
+
+// ── A receipt must be previewable offline (owner bug 2) ────────────────────
+//
+// The failing case: a sale rung with no network has no server record and its
+// local row carries `"items": []` (the command names no item NAMES), so
+// `order_full` could not rebuild it and the preview fell through to the network
+// and refused. The receipt the printer was handed now rides on the row.
+
+fn arabic_receipt(order_id: &str) -> crate::checkout::ReceiptView {
+    crate::checkout::ReceiptView {
+        local_order_id: order_id.into(),
+        display_number: "36B-12".into(),
+        lines: vec![crate::checkout::ReceiptLineView {
+            name: "شاورما".into(),
+            qty: 2,
+            line_total_minor: 9000,
+            ..Default::default()
+        }],
+        payment_label: "نقدي".into(),
+        subtotal_minor: 9000,
+        // The bill's OWN frozen rate — a reprint must show what applied to it.
+        tax_rate: 0.14,
+        tax_minor: 1260,
+        tax_inclusive: true,
+        total_minor: 10260,
+        is_cash: true,
+        teller_name: Some("سارة".into()),
+        ..Default::default()
+    }
+}
+
+/// A sale rung OFFLINE previews before it syncs, from the device's own row,
+/// with its Arabic lines and its frozen VAT rate intact.
+#[test]
+fn a_queued_sale_previews_from_its_own_row_before_it_syncs() {
+    let store = Store::open("").unwrap();
+    let key = "11111111-1111-1111-1111-111111111111";
+    let printed = arabic_receipt(key);
+
+    let mut row = cash_sale(key, 10260);
+    local::stash_receipt(&mut row, &printed);
+    store
+        .with_tx(|tx| {
+            local::commit_order(
+                tx,
+                &NewOutboxOp {
+                    id: key.into(),
+                    op_type: "create_order".into(),
+                    idempotency_key: key.into(),
+                    payload: "{}".into(),
+                    event_at: "2026-09-14T09:00:00Z".into(),
+                    till_id: Some(TILL.into()),
+                    entity_type: Some(T_ORDER.into()),
+                    entity_id: Some(key.into()),
+                    ..Default::default()
+                },
+                &row,
+            )
+        })
+        .unwrap();
+
+    // The row alone cannot rebuild the sale — that is the bug's shape.
+    assert!(
+        views::order_full(&store, key).unwrap().is_none(),
+        "a queued sale has no items to project; the stash is the only record"
+    );
+
+    // ...but the receipt it printed is right there, unchanged.
+    let back = local::queued_receipt(&store, key).unwrap().expect("queued receipt");
+    assert_eq!(back, printed, "the preview is what came out of the printer");
+    assert_eq!(back.lines[0].name, "شاورما", "Arabic survives the round trip");
+    assert_eq!(back.tax_rate, 0.14, "the bill's frozen VAT rate is kept");
+    assert!(back.tax_inclusive);
+    assert_eq!(back.total_minor, 10260);
+    assert!(!back.is_voided);
+}
+
+/// Voiding a queued sale must move its preview too: the stash is frozen at the
+/// moment of printing, the ROW keeps moving, and the two must not disagree.
+#[test]
+fn voiding_a_queued_sale_stamps_its_offline_preview() {
+    let store = Store::open("").unwrap();
+    let key = "22222222-2222-2222-2222-222222222222";
+    let mut row = cash_sale(key, 10260);
+    local::stash_receipt(&mut row, &arabic_receipt(key));
+    row["status"] = json!("voided");
+    store
+        .with_tx(|tx| {
+            local::commit_order(
+                tx,
+                &NewOutboxOp {
+                    id: key.into(),
+                    op_type: "create_order".into(),
+                    idempotency_key: key.into(),
+                    payload: "{}".into(),
+                    event_at: "2026-09-14T09:00:00Z".into(),
+                    till_id: Some(TILL.into()),
+                    entity_type: Some(T_ORDER.into()),
+                    entity_id: Some(key.into()),
+                    ..Default::default()
+                },
+                &row,
+            )
+        })
+        .unwrap();
+    let back = local::queued_receipt(&store, key).unwrap().expect("queued receipt");
+    assert!(back.is_voided, "a voided sale previews with its VOIDED stamp");
+}
+
+/// A sale with no stash (one this device never rang) returns None rather than
+/// an empty receipt — the caller then goes to the server, and says so offline.
+#[test]
+fn a_sale_this_device_never_rang_has_no_stashed_receipt() {
+    let store = Store::open("").unwrap();
+    let key = "33333333-3333-3333-3333-333333333333";
+    sell(&store, key, 5000);
+    assert!(local::queued_receipt(&store, key).unwrap().is_none());
+    assert!(local::queued_receipt(&store, "nobody").unwrap().is_none());
+}

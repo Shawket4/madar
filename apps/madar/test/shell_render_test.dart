@@ -1266,6 +1266,80 @@ void main() {
     await _shot(tester, 'shell-teller-noshift-ipad-offline');
   });
 
+  // ── The status bar and the shared signal must never contradict ──────────
+  //
+  // The owner's bug: a screen saying offline over a top bar saying online, on
+  // a device that was online. These pin that both sides of the app read the
+  // SAME fact, and that "there is queued work" is never worded as "offline".
+
+  testWidgets('a queued backlog on a reachable server is queued, NOT offline', (
+    tester,
+  ) async {
+    final container = await _mount(
+      tester,
+      bridge: _FakeBridge(pending: 7),
+      size: _ipad,
+    );
+    // The pill says queued and shows the count...
+    final pill = tester.widget<MadarOutboxPill>(find.byType(MadarOutboxPill));
+    expect(pill.state, OutboxState.queued);
+    expect(pill.count, 7);
+    // ...and the shared signal agrees: reachable, with work waiting. A screen
+    // that only needs "is there queued work" reads `hasQueuedWork` and has no
+    // business saying offline.
+    final signal = container.read(connectivityProvider);
+    expect(signal.reachable, isTrue);
+    expect(signal.hasQueuedWork, isTrue);
+    expect(signal.queued, 7);
+  });
+
+  testWidgets('online: the pill and the shared signal agree', (tester) async {
+    final container = await _mount(
+      tester,
+      bridge: _FakeBridge(pending: 2),
+      size: _ipad,
+    );
+    final pill = tester.widget<MadarOutboxPill>(find.byType(MadarOutboxPill));
+    final signal = container.read(connectivityProvider);
+    // One fact, two readers — the word on the bar and the flag every screen
+    // gates on are derived from the same `syncStatus().online`.
+    expect(signal.reachable, isTrue);
+    expect(pill.state, OutboxState.queued);
+    expect(
+      pill.state == OutboxState.offline,
+      !signal.reachable,
+      reason: 'the bar may only say offline when the signal says unreachable',
+    );
+  });
+
+  testWidgets('offline: the pill and the shared signal agree', (tester) async {
+    final container = await _mount(
+      tester,
+      bridge: _FakeBridge(online: false, pending: 2),
+      size: _ipad,
+    );
+    final pill = tester.widget<MadarOutboxPill>(find.byType(MadarOutboxPill));
+    final signal = container.read(connectivityProvider);
+    expect(signal.reachable, isFalse);
+    expect(pill.state, OutboxState.offline);
+    expect(pill.state == OutboxState.offline, !signal.reachable);
+  });
+
+  testWidgets('LAN peers are their own fact, not a reachability one', (
+    tester,
+  ) async {
+    // Offline to the server, but on a LAN with peers — the two must not be
+    // fused, or a LAN-only tablet loses features that need no internet.
+    final container = await _mount(
+      tester,
+      bridge: _FakeBridge(online: false),
+      size: _ipad,
+    );
+    final signal = container.read(connectivityProvider);
+    expect(signal.reachable, isFalse);
+    expect(signal.lanPeers, 2, reason: 'peers survive an unreachable server');
+  });
+
   testWidgets('stuck work and a paused session are said under the bar', (
     tester,
   ) async {
