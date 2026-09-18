@@ -282,6 +282,7 @@ void main() {
     ('ipad9', Size(1080, 810)),
     ('ipad9p', Size(810, 1080)),
     ('tab8', Size(800, 1280)),
+    ('lenovo', Size(1280, 800)),
     ('phone', Size(390, 844)),
   ];
   for (final (device, size) in devices) {

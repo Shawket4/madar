@@ -860,6 +860,8 @@ void main() {
     ('ipad9-ar', const Size(1080, 810), true, false),
     ('ipad9p-ar', const Size(810, 1080), true, false),
     ('tab8', const Size(800, 1280), false, false),
+    ('lenovo', const Size(1280, 800), false, false),
+    ('lenovo-ar-dark', const Size(1280, 800), true, true),
     ('phone', _phone, false, true),
     ('phone-ar', _phone, true, false),
   ]) {

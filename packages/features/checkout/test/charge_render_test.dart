@@ -987,6 +987,7 @@ void main() {
     ('ipad9', Size(1080, 810)),
     ('ipad9p', Size(810, 1080)),
     ('tab8', Size(800, 1280)),
+    ('lenovo', Size(1280, 800)),
   ]) {
     for (final rtl in [false, true]) {
       testWidgets('a bill charge on the $label${rtl ? ' in Arabic' : ''}', (
@@ -1015,39 +1016,44 @@ void main() {
     }
   }
 
-  testWidgets('the Charge bar stays above the keyboard on the small iPad', (
-    tester,
-  ) async {
-    // The 10.2" iPad in landscape with its keyboard up: 810 tall, the keys
-    // take the bottom ~320. A 700-tall card centred in the window would put
-    // Charge under them; the card shrinks instead.
-    await _mount(tester, size: const Size(1080, 810), bridge: _FakeBridge());
-    final host = tester.element(find.byType(_Host));
-    final pending = showCharge(
-      host,
-      ChargeTarget.bill(_ticket, tableLabel: 'T5'),
-      presentDoneCard: false,
-    );
-    await _settle(tester);
-    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
-    addTearDown(tester.view.resetViewInsets);
-    await _settle(tester);
-    await tester.pump(MotionSpec.standardDuration);
-    final bar = find.byType(MadarMoneyBar);
-    expect(bar, findsOneWidget);
-    await _capture(tester, 'charge-bill-ipad9-keyboard');
-    expect(
-      tester.getBottomLeft(bar).dy,
-      lessThanOrEqualTo(810 - 320),
-      reason: 'Charge is reachable with the keyboard up',
-    );
-    expect(tester.takeException(), isNull);
-    tester.view.resetViewInsets();
-    await _settle(tester);
-    Navigator.of(tester.element(find.byType(ChargeSheet))).pop();
-    await _settle(tester);
-    expect(await pending, isNull);
-  });
+  for (final (label, size) in const [
+    ('ipad9', Size(1080, 810)),
+    ('lenovo', Size(1280, 800)),
+  ]) {
+    testWidgets('the Charge bar stays above the keyboard on the $label', (
+      tester,
+    ) async {
+      // The 10.2" iPad in landscape with its keyboard up: 810 tall, the keys
+      // take the bottom ~320. A 700-tall card centred in the window would put
+      // Charge under them; the card shrinks instead.
+      await _mount(tester, size: size, bridge: _FakeBridge());
+      final host = tester.element(find.byType(_Host));
+      final pending = showCharge(
+        host,
+        ChargeTarget.bill(_ticket, tableLabel: 'T5'),
+        presentDoneCard: false,
+      );
+      await _settle(tester);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+      addTearDown(tester.view.resetViewInsets);
+      await _settle(tester);
+      await tester.pump(MotionSpec.standardDuration);
+      final bar = find.byType(MadarMoneyBar);
+      expect(bar, findsOneWidget);
+      await _capture(tester, 'charge-bill-$label-keyboard');
+      expect(
+        tester.getBottomLeft(bar).dy,
+        lessThanOrEqualTo(size.height - 320),
+        reason: 'Charge is reachable with the keyboard up',
+      );
+      expect(tester.takeException(), isNull);
+      tester.view.resetViewInsets();
+      await _settle(tester);
+      Navigator.of(tester.element(find.byType(ChargeSheet))).pop();
+      await _settle(tester);
+      expect(await pending, isNull);
+    });
+  }
 
   testWidgets('a shop with no programme is offered no card to scan', (
     tester,

@@ -122,7 +122,11 @@ Future<void> _fill(WidgetTester tester) async {
 }
 
 void main() {
-  for (final size in const [Size(1080, 810), Size(810, 1080)]) {
+  for (final size in const [
+    Size(1080, 810),
+    Size(810, 1080),
+    Size(1280, 800),
+  ]) {
     testWidgets('the form lays out on the small iPad at $size', (tester) async {
       final bridge = _Bridge(outcome: 'allow');
       await _pump(tester, bridge, size: size);

@@ -351,6 +351,7 @@ enum _Device {
   ipad9(Size(1080, 810)),
   ipad9Portrait(Size(810, 1080)),
   tab8(Size(800, 1280)),
+  lenovo(Size(1280, 800)),
   desktop(Size(1440, 900)),
   phone(Size(390, 844));
 

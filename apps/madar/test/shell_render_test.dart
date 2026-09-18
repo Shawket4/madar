@@ -1729,6 +1729,7 @@ void pageShellMain() {
     ('ipad9', _ipad9),
     ('ipad9-portrait', _ipad9Portrait),
     ('tab8', _tab8),
+    ('lenovo', _lenovo),
     ('phone', _phone),
   ]) {
     for (final MapEntry(key: name, value: page) in _pages.entries) {
@@ -1819,12 +1820,16 @@ const Size _ipad9Portrait = Size(810, 1080);
 /// An 8" Android tablet, portrait.
 const Size _tab8 = Size(800, 1280);
 
+/// A Lenovo Tab (M8 rotated, M10/M11 natural) in landscape.
+const Size _lenovo = Size(1280, 800);
+
 const _boardSizes = <String, Size>{
   'ipad': _ipad,
   'ipad-portrait': _ipadPortrait,
   'ipad9': _ipad9,
   'ipad9-portrait': _ipad9Portrait,
   'tab8': _tab8,
+  'lenovo': _lenovo,
   'desktop': _desktop,
   'phone': _phone,
 };
@@ -1951,7 +1956,8 @@ void specBoardMain() {
             (!ar && !dark) ||
             (device == 'ipad' && ar && dark) ||
             (device == 'ipad9' && ar && !dark) ||
-            (device == 'ipad9-portrait' && ar && !dark);
+            (device == 'ipad9-portrait' && ar && !dark) ||
+            (device == 'lenovo' && ar && !dark);
         if (!_render && !cheap) continue;
         for (final MapEntry(key: name, value: screen) in _board.entries) {
           testWidgets('board: $name · $device · $tag', (tester) async {

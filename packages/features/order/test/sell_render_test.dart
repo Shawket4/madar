@@ -40,12 +40,16 @@ const Size _ipad9Portrait = Size(810, 1080);
 /// An 8" Android tablet, portrait.
 const Size _tab8 = Size(800, 1280);
 
+/// A Lenovo Tab (M8 rotated, M10/M11 natural) in landscape.
+const Size _lenovo = Size(1280, 800);
+
 const _devices = <(String, Size)>[
   ('ipad', _ipad),
   ('ipadp', _ipadPortrait),
   ('ipad9', _ipad9),
   ('ipad9p', _ipad9Portrait),
   ('tab8', _tab8),
+  ('lenovo', _lenovo),
   ('desktop', _desktop),
   ('phone', _phone),
 ];
@@ -362,50 +366,55 @@ void main() {
   });
 
   group('a bill round on the small iPad', () {
-    testWidgets('both lines of the round are in view, with the dense footer', (
-      tester,
-    ) async {
-      final bridge = _FakeBridge();
-      bridge.carts['t2'] = List.of(_cart);
-      await _mount(
+    for (final (label, size) in const [
+      ('ipad9', _ipad9),
+      ('lenovo', _lenovo),
+    ]) {
+      testWidgets('both lines of the round are in view on the $label', (
         tester,
-        screen: const TableOrderScreen(tableId: 't2'),
-        size: _ipad9,
-        bridge: bridge,
-      );
-      await _settle(tester);
-      final cart = tester.getRect(find.byType(SellCart));
-      // Every round line whole inside the cart: the footer no longer leaves
-      // the list one line and a half tall.
-      for (final key in ['round-k-espresso', 'round-k-flat']) {
-        final line = tester.getRect(find.byKey(ValueKey(key)));
-        expect(
-          line.bottom <= cart.bottom && line.top >= cart.top,
-          isTrue,
-          reason: '$key is fully in view ($line within $cart)',
+      ) async {
+        final bridge = _FakeBridge();
+        bridge.carts['t2'] = List.of(_cart);
+        await _mount(
+          tester,
+          screen: const TableOrderScreen(tableId: 't2'),
+          size: size,
+          bridge: bridge,
         );
-      }
-      // The dense footer: the compact kitchen button with the note as a
-      // tile beside it — nothing hidden, the note still one tap away.
-      expect(find.byKey(const ValueKey('cart-kitchen-note')), findsOneWidget);
-      expect(
-        tester
-            .widget<MadarButton>(
-              find.byKey(const ValueKey('print-cart-kitchen')),
-            )
-            .size,
-        MadarButtonSize.compact,
-      );
-      expect(find.byType(MadarStepper), findsNWidgets(2));
-      for (final stepper in find.byType(MadarStepper).evaluate()) {
+        await _settle(tester);
+        final cart = tester.getRect(find.byType(SellCart));
+        // Every round line whole inside the cart: the footer no longer leaves
+        // the list one line and a half tall.
+        for (final key in ['round-k-espresso', 'round-k-flat']) {
+          final line = tester.getRect(find.byKey(ValueKey(key)));
+          expect(
+            line.bottom <= cart.bottom && line.top >= cart.top,
+            isTrue,
+            reason: '$key is fully in view ($line within $cart)',
+          );
+        }
+        // The dense footer: the compact kitchen button with the note as a
+        // tile beside it — nothing hidden, the note still one tap away.
+        expect(find.byKey(const ValueKey('cart-kitchen-note')), findsOneWidget);
         expect(
-          tester.getSize(find.byWidget(stepper.widget)).height,
-          greaterThanOrEqualTo(44),
-          reason: 'a 44pt target',
+          tester
+              .widget<MadarButton>(
+                find.byKey(const ValueKey('print-cart-kitchen')),
+              )
+              .size,
+          MadarButtonSize.compact,
         );
-      }
-      await _capture(tester, 'sell-round-ipad9-inview');
-    });
+        expect(find.byType(MadarStepper), findsNWidgets(2));
+        for (final stepper in find.byType(MadarStepper).evaluate()) {
+          expect(
+            tester.getSize(find.byWidget(stepper.widget)).height,
+            greaterThanOrEqualTo(44),
+            reason: 'a 44pt target',
+          );
+        }
+        await _capture(tester, 'sell-round-$label-inview');
+      });
+    }
 
     testWidgets(
       'in portrait the catalog keeps three columns beside a 300 cart',

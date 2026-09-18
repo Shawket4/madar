@@ -124,7 +124,11 @@ void main() {
     expect(find.text('2 actions need a manager'), findsOneWidget);
   });
 
-  for (final size in const [Size(1080, 810), Size(810, 1080)]) {
+  for (final size in const [
+    Size(1080, 810),
+    Size(810, 1080),
+    Size(1280, 800),
+  ]) {
     testWidgets('the batch lays out on the small iPad at $size', (
       tester,
     ) async {

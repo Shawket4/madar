@@ -850,6 +850,7 @@ void main() {
     for (final (name, size) in const [
       ('metrics_ipad9_ar', Size(1080, 810)),
       ('metrics_ipad9p_ar', Size(810, 1080)),
+      ('metrics_lenovo_ar', Size(1280, 800)),
     ]) {
       await _shoot(
         tester,
