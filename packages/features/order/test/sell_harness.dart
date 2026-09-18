@@ -930,8 +930,14 @@ Future<ProviderContainer> _mount(
 }
 
 Future<void> _capture(WidgetTester tester, String name) async {
-  expect(tester.takeException(), isNull, reason: '$name laid out cleanly');
-  if (!_render) return;
+  final error = tester.takeException();
+  // Rendering: the picture is written BEFORE the layout check, so a frame
+  // that overflowed can be looked at (the stripe says where).
+  if (_render) await _writeFrame(tester, name);
+  expect(error, isNull, reason: '$name laid out cleanly');
+}
+
+Future<void> _writeFrame(WidgetTester tester, String name) async {
   final boundary =
       tester.renderObject(find.byKey(const ValueKey('shot')))
           as RenderRepaintBoundary;

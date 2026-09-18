@@ -115,8 +115,9 @@ abstract final class Metrics {
   static const double glyphTile = 44;
   static const double glyphTileLarge = 56;
 
-  /// A stepper's track and each of its keys.
-  static const double stepper = 40;
+  /// A stepper's track and each of its keys — a 44pt target, like every
+  /// other thing a thumb hits all shift (SPEC §13).
+  static const double stepper = 44;
 
   /// The dark rail on the start edge of a tablet.
   static const double railWidth = 88;

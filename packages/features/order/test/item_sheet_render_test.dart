@@ -278,6 +278,10 @@ void main() {
 
   const devices = <(String, Size)>[
     ('ipad', Size(1194, 834)),
+    // The iPad 9th generation, landscape and portrait, and an 8" Android.
+    ('ipad9', Size(1080, 810)),
+    ('ipad9p', Size(810, 1080)),
+    ('tab8', Size(800, 1280)),
     ('phone', Size(390, 844)),
   ];
   for (final (device, size) in devices) {

@@ -982,6 +982,39 @@ void main() {
     },
   );
 
+  // The smaller tablets: the iPad 9th generation both ways and an 8" Android.
+  for (final (label, size) in const [
+    ('ipad9', Size(1080, 810)),
+    ('ipad9p', Size(810, 1080)),
+    ('tab8', Size(800, 1280)),
+  ]) {
+    for (final rtl in [false, true]) {
+      testWidgets('a bill charge on the $label${rtl ? ' in Arabic' : ''}', (
+        tester,
+      ) async {
+        await _mount(
+          tester,
+          size: size,
+          bridge: _FakeBridge(rtl: rtl),
+          rtl: rtl,
+        );
+        final host = tester.element(find.byType(_Host));
+        final pending = showCharge(
+          host,
+          ChargeTarget.bill(_ticket, tableLabel: 'T5'),
+          presentDoneCard: false,
+        );
+        await _settle(tester);
+        await tester.tap(find.text('200'));
+        await _settle(tester);
+        await _capture(tester, 'charge-bill-$label${rtl ? '-ar' : ''}');
+        Navigator.of(tester.element(find.byType(ChargeSheet))).pop();
+        await _settle(tester);
+        expect(await pending, isNull);
+      });
+    }
+  }
+
   testWidgets('a shop with no programme is offered no card to scan', (
     tester,
   ) async {

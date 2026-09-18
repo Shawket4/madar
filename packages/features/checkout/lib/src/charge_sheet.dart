@@ -129,29 +129,39 @@ Future<ChargeOutcome?> _showChargeModal(
     context,
     pageBuilder: (context) {
       final window = MediaQuery.sizeOf(context);
+      // The keyboard the amount field raises takes the bottom of the window;
+      // the card shrinks to what is left above it, and the Charge bar at
+      // its foot stays in reach — on a 10.2" iPad in landscape the keys
+      // would otherwise cover it.
+      final keyboard = MediaQuery.viewInsetsOf(context).bottom;
       final maxHeight = math.min(
-        window.height * _modalHeightFraction,
+        (window.height - keyboard) * _modalHeightFraction,
         _modalMaxHeight,
       );
-      return SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: math.min(_modalWidth, window.width - Space.xl * 2),
-              maxHeight: maxHeight,
-              minHeight: maxHeight,
-            ),
-            child: Material(
-              type: MaterialType.transparency,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: BorderRadius.circular(Radii.sheet),
-                  boxShadow: MadarElevation.raised.shadows(colors, dark: dark),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(Radii.sheet),
-                  child: ChargeSheet(target: target),
+      return MadarKeyboardInset(
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: math.min(_modalWidth, window.width - Space.xl * 2),
+                maxHeight: maxHeight,
+                minHeight: maxHeight,
+              ),
+              child: Material(
+                type: MaterialType.transparency,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(Radii.sheet),
+                    boxShadow: MadarElevation.raised.shadows(
+                      colors,
+                      dark: dark,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(Radii.sheet),
+                    child: ChargeSheet(target: target),
+                  ),
                 ),
               ),
             ),
@@ -511,7 +521,10 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
   ///
   /// The core asks again when it builds the settle, and the server asks a third
   /// time at replay — this is the prompt, not the lock.
-  Future<void> _chargeGated(BuildContext context, CheckoutNotifier notifier) async {
+  Future<void> _chargeGated(
+    BuildContext context,
+    CheckoutNotifier notifier,
+  ) async {
     final decision = notifier.billDiscountDecision();
     if (decision != null && decision.outcome == 'deny') {
       notifier.showDiscountRefusal(decision.reason);

@@ -48,6 +48,13 @@ const String _kCombos = '__combos__';
 const double kSellTileMinWidth = 150;
 const double kSellTileMaxWidth = 210;
 
+/// The compact band — a catalog column narrower than
+/// [Responsive.sellGridCompact] on a tablet (the 10.2" iPad in portrait with
+/// the cart beside it): three columns of smaller tiles rather than two
+/// oversized ones, and every tile still well past a 44pt target.
+const double kSellTileMinWidthCompact = 112;
+const double kSellTileMaxWidthCompact = 160;
+
 /// The gap between tiles.
 const double kSellTileGap = Space.md;
 
@@ -70,10 +77,16 @@ const double _kTileTextBlock =
 /// many as fit at the minimum, then one more for as long as the tiles would
 /// otherwise grow past the maximum. Both ends matter — a 13" of four 300px
 /// cards looks as wrong as a phone of five 70px ones.
-int sellGridColumns(double usable) {
-  var columns = math.max(1, (usable / kSellTileMinWidth).floor());
+///
+/// [compact] picks the compact band ([kSellTileMinWidthCompact]) — the
+/// caller says so for a tablet's narrow column, never for a phone, whose
+/// two wide tiles are the right shape for a thumb.
+int sellGridColumns(double usable, {bool compact = false}) {
+  final minWidth = compact ? kSellTileMinWidthCompact : kSellTileMinWidth;
+  final maxWidth = compact ? kSellTileMaxWidthCompact : kSellTileMaxWidth;
+  var columns = math.max(1, (usable / minWidth).floor());
   double widthAt(int n) => (usable - kSellTileGap * (n - 1)) / n;
-  while (widthAt(columns) > kSellTileMaxWidth) {
+  while (widthAt(columns) > maxWidth) {
     columns += 1;
   }
   return columns;
@@ -435,7 +448,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                       Expanded(child: catalog),
                       const VerticalDivider(width: 1, thickness: 1),
                       SizedBox(
-                        width: Responsive.cartColumnWidth,
+                        // 340 with the width to spare, 300 on a portrait or
+                        // small tablet — the catalog keeps three columns.
+                        width: MadarRoom.of(context).cartColumnWidth,
                         child: SellCart(
                           tableId: _tableId,
                           onTerminal: () => unawaited(_terminal()),
@@ -645,7 +660,10 @@ class _Catalog extends ConsumerWidget {
     final textScaler = MediaQuery.textScalerOf(context);
     SliverGridDelegate delegateFor(double width) {
       final usable = width - layout.gutter * 2;
-      final columns = sellGridColumns(usable);
+      final columns = sellGridColumns(
+        usable,
+        compact: layout.isTablet && usable < Responsive.sellGridCompact,
+      );
       final tileWidth = (usable - kSellTileGap * (columns - 1)) / columns;
       return SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns,
@@ -916,7 +934,10 @@ class SellTileName extends StatelessWidget {
           return w;
         }
 
-        final maxW = c.maxWidth;
+        // A point of slack: a word measured a hair under the box still
+        // broke mid-word on a 116-wide tile once the paragraph laid it out
+        // ("Cappuccin/o"), so "fits" means fits with room to spare.
+        final maxW = c.maxWidth - 1;
         var longest = maxW.isFinite ? widest(style) : 0.0;
         var wordFits = longest <= maxW;
         if (!wordFits) {
@@ -1182,19 +1203,16 @@ class _BundleTile extends StatelessWidget {
                 style: MadarType.title.copyWith(color: colors.textPrimary),
               ),
             ),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '+ $label',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: MadarType.bodySm.copyWith(color: colors.accent),
-                  ),
-                ),
-                MoneyText(bundle.priceMinor, currency: currency),
-              ],
+            // Stacked, never beside each other: on a compact tile the two
+            // would not share one line, and the price scales down before
+            // it ever clips (the same rule as an item tile's).
+            Text(
+              '+ $label',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: MadarType.bodySm.copyWith(color: colors.accent),
             ),
+            _TilePrice(minor: bundle.priceMinor, currency: currency),
           ],
         ),
       ),

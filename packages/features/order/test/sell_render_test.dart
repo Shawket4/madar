@@ -33,9 +33,19 @@ part 'sell_harness.dart';
 const Size _ipadPortrait = Size(834, 1194);
 const Size _desktop = Size(1280, 800);
 
+/// The iPad 9th generation (10.2", 4:3): the smallest iPad the till ships on.
+const Size _ipad9 = Size(1080, 810);
+const Size _ipad9Portrait = Size(810, 1080);
+
+/// An 8" Android tablet, portrait.
+const Size _tab8 = Size(800, 1280);
+
 const _devices = <(String, Size)>[
   ('ipad', _ipad),
   ('ipadp', _ipadPortrait),
+  ('ipad9', _ipad9),
+  ('ipad9p', _ipad9Portrait),
+  ('tab8', _tab8),
   ('desktop', _desktop),
   ('phone', _phone),
 ];

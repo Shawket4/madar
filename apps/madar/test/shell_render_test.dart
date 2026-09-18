@@ -1724,7 +1724,13 @@ const _headerByHand = <String>{};
 }
 
 void pageShellMain() {
-  for (final (label, size) in [('ipad', _ipad), ('phone', _phone)]) {
+  for (final (label, size) in [
+    ('ipad', _ipad),
+    ('ipad9', _ipad9),
+    ('ipad9-portrait', _ipad9Portrait),
+    ('tab8', _tab8),
+    ('phone', _phone),
+  ]) {
     for (final MapEntry(key: name, value: page) in _pages.entries) {
       testWidgets('page board: $name on the $label', (tester) async {
         await _openPage(tester, page, size);
@@ -1805,9 +1811,20 @@ void pageShellMain() {
 const Size _ipadPortrait = Size(834, 1194);
 const Size _desktop = Size(1440, 900);
 
+/// The iPad 9th generation (10.2", 4:3, home button): the smallest iPad the
+/// till ships on, landscape and portrait.
+const Size _ipad9 = Size(1080, 810);
+const Size _ipad9Portrait = Size(810, 1080);
+
+/// An 8" Android tablet, portrait.
+const Size _tab8 = Size(800, 1280);
+
 const _boardSizes = <String, Size>{
   'ipad': _ipad,
   'ipad-portrait': _ipadPortrait,
+  'ipad9': _ipad9,
+  'ipad9-portrait': _ipad9Portrait,
+  'tab8': _tab8,
   'desktop': _desktop,
   'phone': _phone,
 };
@@ -1930,7 +1947,11 @@ void specBoardMain() {
         final tag = '${ar ? 'ar' : 'en'}-${dark ? 'dark' : 'light'}';
         // Unrendered, one light English pass per size and the Arabic dark
         // iPad keep the matrix honest without laying out all 16 each run.
-        final cheap = (!ar && !dark) || (device == 'ipad' && ar && dark);
+        final cheap =
+            (!ar && !dark) ||
+            (device == 'ipad' && ar && dark) ||
+            (device == 'ipad9' && ar && !dark) ||
+            (device == 'ipad9-portrait' && ar && !dark);
         if (!_render && !cheap) continue;
         for (final MapEntry(key: name, value: screen) in _board.entries) {
           testWidgets('board: $name · $device · $tag', (tester) async {

@@ -1,3 +1,4 @@
+import 'package:design_system/src/tokens/motion.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -105,8 +106,17 @@ abstract final class Responsive {
   /// ≥ → desktop mode: cap & center content.
   static const double desktop = 1100;
 
-  /// The cart column beside the catalog on a tablet.
+  /// The cart column beside the catalog on a tablet with width to spare.
   static const double cartColumnWidth = 340;
+
+  /// The cart column on a portrait or small tablet ([MadarRoom] width snug):
+  /// enough for a line's name, stepper and print tile, and no more — the
+  /// catalog beside it keeps three columns of tiles.
+  static const double cartColumnWidthSnug = 300;
+
+  /// A sell grid column narrower than this (its usable width) takes the
+  /// compact tile band ([MadarRoom] snug widths, a phone).
+  static const double sellGridCompact = 480;
 
   /// The Bill, centred on a tablet.
   static const double billMaxWidth = 640;
@@ -269,5 +279,136 @@ class MadarContentFrame extends StatelessWidget {
       );
     }
     return out;
+  }
+}
+
+/// How much ROOM one axis of the window has — the question [MadarLayout]
+/// does not ask. The 10.2" iPad (1080 × 810) and the 13" (1194 × 834, or
+/// bigger) are both tablets and both get the rail; but 810 points of height
+/// under a top bar is not a lot, and 722 points of page width in portrait is
+/// not 1106. Screens that stack a footer under a list, or a cart beside a
+/// grid, decide by this and not by a per-screen pixel guess.
+///
+/// * [tight] — a phone's width, or a landscape phone's height: every control
+///   is worth its height and the rest scrolls.
+/// * [snug]  — a small or portrait tablet: dense variants (a compact footer,
+///   a narrower cart column, a tighter tile band), nothing hidden.
+/// * [roomy] — a large tablet or a desktop window: the regular layout.
+enum MadarSpan {
+  tight,
+  snug,
+  roomy;
+
+  bool get isTight => this == MadarSpan.tight;
+  bool get isSnug => this == MadarSpan.snug;
+  bool get isRoomy => this == MadarSpan.roomy;
+
+  /// At most snug: the dense variants apply.
+  bool get isDense => this != MadarSpan.roomy;
+}
+
+/// The room the window has on each axis, in points. Read it with
+/// [MadarRoom.of]; test it with [MadarRoom.fromSize].
+///
+/// ```dart
+/// final room = MadarRoom.of(context);
+/// final footer = room.height.isDense ? denseFooter : regularFooter;
+/// ```
+///
+/// The thresholds (see docs/design/SPEC.md §1):
+///
+/// | axis   | tight   | snug           | roomy   |
+/// |--------|---------|----------------|---------|
+/// | height | < 640   | 640 – 899      | ≥ 900   |
+/// | width  | < 600   | 600 – 999      | ≥ 1000  |
+///
+/// So an iPad in landscape is width-roomy and height-snug (834 and 810 are
+/// both under 900), an iPad in portrait is width-snug and height-roomy, an
+/// 8" Android in portrait (800 × 1280) the same, a landscape phone is
+/// height-tight, and a desktop window is usually roomy both ways.
+@immutable
+class MadarRoom {
+  const MadarRoom({required this.width, required this.height});
+
+  /// The room of the window this [context] is in.
+  factory MadarRoom.of(BuildContext context) =>
+      MadarRoom.fromSize(MediaQuery.sizeOf(context));
+
+  /// The room a window of [size] has (tests, previews).
+  factory MadarRoom.fromSize(Size size) => MadarRoom(
+    width: size.width < tightWidth
+        ? MadarSpan.tight
+        : size.width < snugWidth
+        ? MadarSpan.snug
+        : MadarSpan.roomy,
+    height: size.height < tightHeight
+        ? MadarSpan.tight
+        : size.height < snugHeight
+        ? MadarSpan.snug
+        : MadarSpan.roomy,
+  );
+
+  /// Height under which the window is height-tight (a landscape phone).
+  static const double tightHeight = 640;
+
+  /// Height under which the window is height-snug (a landscape tablet).
+  static const double snugHeight = 900;
+
+  /// Width under which the window is width-tight (a phone).
+  static const double tightWidth = MadarLayout.tabletMinShortSide;
+
+  /// Width under which the window is width-snug (a portrait tablet).
+  static const double snugWidth = 1000;
+
+  final MadarSpan width;
+  final MadarSpan height;
+
+  /// The cart column beside the catalog: [Responsive.cartColumnWidth] with
+  /// the width to spare, [Responsive.cartColumnWidthSnug] on a portrait or
+  /// small tablet — so the catalog keeps three columns of tiles.
+  double get cartColumnWidth => width.isRoomy
+      ? Responsive.cartColumnWidth
+      : Responsive.cartColumnWidthSnug;
+
+  @override
+  bool operator ==(Object other) =>
+      other is MadarRoom && other.width == width && other.height == height;
+
+  @override
+  int get hashCode => Object.hash(width, height);
+
+  @override
+  String toString() => 'MadarRoom(width: $width, height: $height)';
+}
+
+extension MadarRoomX on BuildContext {
+  /// `context.madarRoom` — see [MadarRoom].
+  MadarRoom get madarRoom => MadarRoom.of(this);
+}
+
+/// Keeps [child] above the software keyboard: pads by the bottom view inset
+/// and hands the child a [MediaQuery] with that inset removed, so a centred
+/// modal (the Charge drawer on a tablet) shrinks to the space that is left
+/// instead of sitting half under the keys. A sheet already does this itself
+/// (`showMadarSheet`); a page's `Scaffold` does it too. This is for the
+/// dialog surfaces that lay their own card.
+class MadarKeyboardInset extends StatelessWidget {
+  const MadarKeyboardInset({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    return AnimatedPadding(
+      duration: MotionSpec.standardDuration,
+      curve: MotionSpec.standardCurve,
+      padding: EdgeInsets.only(bottom: inset),
+      child: MediaQuery.removeViewInsets(
+        context: context,
+        removeBottom: true,
+        child: child,
+      ),
+    );
   }
 }

@@ -1338,21 +1338,35 @@ class MadarChip extends StatelessWidget {
         color: fill,
         borderRadius: BorderRadius.circular(_tile ? Radii.control : Radii.pill),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        spacing: Space.sm,
-        children: [
-          if (glyph != null)
-            MadarGlyphIcon(glyph!, size: IconSize.md, color: fg),
-          Text(label, maxLines: 1, style: style),
-          if (count != null)
-            Text(
-              '$count',
-              textDirection: TextDirection.ltr,
-              style: MadarType.numMd.copyWith(color: fg),
-            ),
-        ],
+      // The label gives way (ellipsis) where the chip's box is bounded — a
+      // note chip in a 300-wide cart — and takes its natural width where it
+      // is not (a horizontal strip). A Flexible under an unbounded width
+      // would throw, so the box decides.
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final text = Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          );
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            spacing: Space.sm,
+            children: [
+              if (glyph != null)
+                MadarGlyphIcon(glyph!, size: IconSize.md, color: fg),
+              if (c.hasBoundedWidth) Flexible(child: text) else text,
+              if (count != null)
+                Text(
+                  '$count',
+                  textDirection: TextDirection.ltr,
+                  style: MadarType.numMd.copyWith(color: fg),
+                ),
+            ],
+          );
+        },
       ),
     );
     if (!enabled) {

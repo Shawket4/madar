@@ -523,6 +523,15 @@ class _OnBillLine extends StatelessWidget {
 /// One editable line of this round: swipe start→end removes it (the notifier
 /// offers Undo), tap opens the sheet to edit it, the stepper changes its
 /// count and removes it at zero.
+/// A cart footer narrower than this takes the dense footer: the compact
+/// kitchen button with its note tile, and Park on its own row above Charge.
+const double kCartFooterNarrowWidth = 320;
+
+/// A round line's inner width under which its stepper and print tile drop
+/// under the name instead of sitting beside it: the stepper (3 × 44), the
+/// tile (44), the gaps, and at least a word's worth of name.
+const double kRoundLineStackWidth = 264;
+
 class _RoundLine extends ConsumerWidget {
   const _RoundLine({
     required this.tableId,
@@ -557,6 +566,102 @@ class _RoundLine extends ConsumerWidget {
     ];
     final notes = line.notes?.trim();
 
+    final info = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          line.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: MadarType.title.copyWith(color: colors.textPrimary),
+        ),
+        if (mods.isNotEmpty)
+          Text(
+            mods.join(' · '),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+          ),
+        if (notes != null && notes.isNotEmpty)
+          Text(
+            // The quote marks are the language's: “…” in English,
+            // «…» in Arabic — hard-coded curly quotes read backwards
+            // in RTL.
+            ref
+                .read(bridgeProvider)
+                .tr(key: 'common.quoted')
+                .replaceAll('{text}', notes),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: MadarType.bodySm.copyWith(
+              color: colors.textMuted,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        if (line.kitchenNote case final k? when k.trim().isNotEmpty)
+          Text(
+            '${orderWord(ref.read(bridgeProvider), 'sell.kitchen_note')}: ${k.trim()}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: MadarType.bodySm.copyWith(
+              color: colors.warning,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        const SizedBox(height: Space.xs),
+        MoneyText(
+          line.lineTotalMinor,
+          currency: currency,
+          color: colors.textPrimary,
+        ),
+      ],
+    );
+    final controls = <Widget>[
+      MadarStepper(
+        value: line.qty,
+        onChanged: (q) => unawaited(notifier.setQty(line.key, q)),
+      ),
+      // ONE small trailing button for this row's kitchen action — never
+      // confused with the cart-level "Send to kitchen" in the footer,
+      // which sends every line. Tap prints just this dish now; long
+      // press opens a sheet for its kitchen note, a preview, and print.
+      Tooltip(
+        message: orderWord(ref.read(bridgeProvider), 'sell.kitchen_row_hint'),
+        child: MadarGlyphTile(
+          key: ValueKey('kitchen-${line.key}'),
+          glyph: MadarGlyph.printer,
+          semanticLabel: orderWord(
+            ref.read(bridgeProvider),
+            'sell.kitchen_row_hint',
+          ),
+          onTap: () => unawaited(
+            ref
+                .read(orderProvider.notifier)
+                .printKitchenChit(
+                  line,
+                  tableId: tableId,
+                  tableLabel: tableLabel,
+                  ticketRef: ticketRef,
+                ),
+          ),
+          onLongPress: () => unawaited(
+            showMadarSheet<void>(
+              context,
+              size: SheetSize.hug,
+              maxWidth: Responsive.sheetCompactMaxWidth,
+              builder: (_) => _RowKitchenSheet(
+                tableId: tableId,
+                line: line,
+                tableLabel: tableLabel,
+                ticketRef: ticketRef,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ];
+
     final body = Container(
       padding: const EdgeInsetsDirectional.symmetric(
         horizontal: Space.lg,
@@ -567,110 +672,35 @@ class _RoundLine extends ConsumerWidget {
         borderRadius: BorderRadius.circular(Radii.control),
         border: Border.all(color: colors.borderLight),
       ),
-      child: Row(
-        spacing: Space.md,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+      // Beside the name where the row is wide enough for both; under it in
+      // a narrow cart (the 300 column of a portrait tablet), so the name and
+      // its modifiers keep the whole width and never lose a word to the
+      // stepper. Decided by this row's own box, not the window.
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final stacked = c.maxWidth < kRoundLineStackWidth;
+          if (!stacked) {
+            return Row(
+              spacing: Space.md,
               children: [
-                Text(
-                  line.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MadarType.title.copyWith(color: colors.textPrimary),
-                ),
-                if (mods.isNotEmpty)
-                  Text(
-                    mods.join(' · '),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: MadarType.bodySm.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                if (notes != null && notes.isNotEmpty)
-                  Text(
-                    // The quote marks are the language's: “…” in English,
-                    // «…» in Arabic — hard-coded curly quotes read backwards
-                    // in RTL.
-                    ref
-                        .read(bridgeProvider)
-                        .tr(key: 'common.quoted')
-                        .replaceAll('{text}', notes),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: MadarType.bodySm.copyWith(
-                      color: colors.textMuted,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                if (line.kitchenNote case final k? when k.trim().isNotEmpty)
-                  Text(
-                    '${orderWord(ref.read(bridgeProvider), 'sell.kitchen_note')}: ${k.trim()}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: MadarType.bodySm.copyWith(
-                      color: colors.warning,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                const SizedBox(height: Space.xs),
-                MoneyText(
-                  line.lineTotalMinor,
-                  currency: currency,
-                  color: colors.textPrimary,
-                ),
+                Expanded(child: info),
+                ...controls,
               ],
-            ),
-          ),
-          MadarStepper(
-            value: line.qty,
-            onChanged: (q) => unawaited(notifier.setQty(line.key, q)),
-          ),
-          // ONE small trailing button for this row's kitchen action — never
-          // confused with the cart-level "Send to kitchen" in the footer,
-          // which sends every line. Tap prints just this dish now; long
-          // press opens a sheet for its kitchen note, a preview, and print.
-          Tooltip(
-            message: orderWord(
-              ref.read(bridgeProvider),
-              'sell.kitchen_row_hint',
-            ),
-            child: MadarGlyphTile(
-              key: ValueKey('kitchen-${line.key}'),
-              glyph: MadarGlyph.printer,
-              semanticLabel: orderWord(
-                ref.read(bridgeProvider),
-                'sell.kitchen_row_hint',
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: Space.sm,
+            children: [
+              info,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                spacing: Space.md,
+                children: controls,
               ),
-              onTap: () => unawaited(
-                ref
-                    .read(orderProvider.notifier)
-                    .printKitchenChit(
-                      line,
-                      tableId: tableId,
-                      tableLabel: tableLabel,
-                      ticketRef: ticketRef,
-                    ),
-              ),
-              onLongPress: () => unawaited(
-                showMadarSheet<void>(
-                  context,
-                  size: SheetSize.hug,
-                  maxWidth: Responsive.sheetCompactMaxWidth,
-                  builder: (_) => _RowKitchenSheet(
-                    tableId: tableId,
-                    line: line,
-                    tableLabel: tableLabel,
-                    ticketRef: ticketRef,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
 
@@ -874,14 +904,98 @@ class _CartFooter extends ConsumerWidget {
     final kitchenNote = ref
         .watch(_cartKitchenNoteProvider((tableId, lineCount)))
         .value;
-    // A short viewport — a small tablet in landscape — is the case the footer
-    // used to eat alive: every control here is worth its height on a phone,
-    // and together they left the cart itself a couple of rows tall. Below the
-    // threshold the footer tightens (smaller padding and gaps, a compact
-    // kitchen button beside its note instead of stacked) AND is capped at a
-    // share of the screen, scrolling inside that cap rather than stealing more.
+    // The footer is the case that used to eat a short screen alive: every
+    // control here is worth its height, and together they left the cart
+    // itself a couple of rows tall on a 10.2" iPad in landscape — with a
+    // bill's rounds above them, one line and a half. The window's room
+    // decides, the same way for every tablet (`MadarRoom`, not a per-screen
+    // pixel guess):
+    //
+    //  * height DENSE (any landscape tablet, 810–834 tall): smaller padding
+    //    and gaps, the compact kitchen button with its note as a 44pt tile
+    //    beside it instead of a chip under it. Nothing goes away.
+    //  * height TIGHT (a landscape phone): dense AND capped at a share of
+    //    the screen, scrolling inside that cap rather than stealing more.
+    final room = MadarRoom.of(context);
+    final tight = room.height.isTight;
     final viewport = MediaQuery.sizeOf(context).height;
-    final tight = viewport < 640;
+    final hasKitchenNote = kitchenNote != null && kitchenNote.trim().isNotEmpty;
+
+    return LayoutBuilder(
+      builder: (context, box) {
+        // A narrow column (the 300 of a portrait tablet, a phone's sheet)
+        // takes the dense footer too: the long labels would not fit beside
+        // the figures, and Park goes above Charge instead of beside it.
+        final narrow = box.maxWidth < kCartFooterNarrowWidth;
+        final dense = room.height.isDense || narrow;
+        return _build(
+          context,
+          ref,
+          colors: colors,
+          bridge: bridge,
+          totals: totals,
+          currency: currency,
+          isBusy: isBusy,
+          startedAt: startedAt,
+          itemsWord: itemsWord,
+          hasKitchenNote: hasKitchenNote,
+          tight: tight,
+          dense: dense,
+          narrow: narrow,
+          viewport: viewport,
+        );
+      },
+    );
+  }
+
+  Widget _build(
+    BuildContext context,
+    WidgetRef ref, {
+    required MadarColors colors,
+    required MadarBridge bridge,
+    required CartTotals totals,
+    required String currency,
+    required bool isBusy,
+    required String? startedAt,
+    required String itemsWord,
+    required bool hasKitchenNote,
+    required bool tight,
+    required bool dense,
+    required bool narrow,
+    required double viewport,
+  }) {
+    // The whole-cart kitchen print, clearly separate from Charge/Fire: an
+    // extra early copy for the kitchen, never instead of it. Short press
+    // prints now, long press previews first — the same contract as every
+    // other print button in the app.
+    final kitchenButton = MadarButton(
+      key: const ValueKey('print-cart-kitchen'),
+      size: dense ? MadarButtonSize.compact : MadarButtonSize.regular,
+      label: dense
+          ? '${orderWord(bridge, 'sell.kitchen_cart_button')} ($lineCount)'
+          : '${orderWord(bridge, 'sell.kitchen_cart_button')} '
+                '($lineCount $itemsWord)',
+      glyph: MadarGlyph.printer,
+      variant: MadarButtonVariant.secondary,
+      onTap: () => unawaited(
+        _printWholeCartToKitchen(
+          context,
+          ref,
+          tableId: tableId,
+          tableLabel: tableLabel,
+          ticketRef: ticketRef,
+        ),
+      ),
+      onLongPress: () => unawaited(
+        _previewWholeCartKitchenChit(
+          context,
+          ref,
+          tableId: tableId,
+          tableLabel: tableLabel,
+          ticketRef: ticketRef,
+        ),
+      ),
+    );
 
     return ColoredBox(
       color: colors.bg,
@@ -894,59 +1008,51 @@ class _CartFooter extends ConsumerWidget {
               ? const ClampingScrollPhysics()
               : const NeverScrollableScrollPhysics(),
           child: Padding(
-            padding: EdgeInsetsDirectional.all(tight ? Space.md : Space.lg),
+            padding: EdgeInsetsDirectional.all(dense ? Space.md : Space.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: tight ? Space.xs : Space.sm,
+              spacing: dense ? Space.xs : Space.sm,
               children: [
                 const MadarHairline(light: true),
-                // The whole-cart kitchen print, clearly separate from Charge/
-                // Fire: an extra early copy for the kitchen, never instead of
-                // it. Short press prints now, long press previews first — the
-                // same contract as every other print button in the app. Its own
-                // note sits right under it, never crammed into the same row —
-                // that is what overflowed at a narrow width.
-                MadarButton(
-                  key: const ValueKey('print-cart-kitchen'),
-                  size: tight
-                      ? MadarButtonSize.compact
-                      : MadarButtonSize.regular,
-                  label: tight
-                      ? '${orderWord(bridge, 'sell.kitchen_cart_button')} ($lineCount)'
-                      : '${orderWord(bridge, 'sell.kitchen_cart_button')} '
-                            '($lineCount $itemsWord)',
-                  glyph: MadarGlyph.printer,
-                  variant: MadarButtonVariant.secondary,
-                  onTap: () => unawaited(
-                    _printWholeCartToKitchen(
-                      context,
-                      ref,
-                      tableId: tableId,
-                      tableLabel: tableLabel,
-                      ticketRef: ticketRef,
+                if (dense)
+                  // The note beside the button as a tile: a chip's words
+                  // would not fit the row at 300 wide, and its state (set or
+                  // not) is the tint. The sheet it opens shows the text.
+                  Row(
+                    spacing: Space.sm,
+                    children: [
+                      Expanded(child: kitchenButton),
+                      MadarGlyphTile(
+                        key: const ValueKey('cart-kitchen-note'),
+                        glyph: MadarGlyph.note,
+                        tint: hasKitchenNote ? colors.accent : null,
+                        background: hasKitchenNote ? colors.accentBg : null,
+                        semanticLabel: orderWord(
+                          bridge,
+                          'sell.kitchen_cart_note_field',
+                        ),
+                        onTap: () => unawaited(
+                          editCartKitchenNote(context, ref, tableId),
+                        ),
+                      ),
+                    ],
+                  )
+                else ...[
+                  kitchenButton,
+                  // Its own note sits right under it, never crammed into the
+                  // same row — that is what overflowed at a narrow width.
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: MadarChip(
+                      key: const ValueKey('cart-kitchen-note'),
+                      label: orderWord(bridge, 'sell.kitchen_cart_note_field'),
+                      glyph: MadarGlyph.note,
+                      selected: hasKitchenNote,
+                      onTap: () =>
+                          unawaited(editCartKitchenNote(context, ref, tableId)),
                     ),
                   ),
-                  onLongPress: () => unawaited(
-                    _previewWholeCartKitchenChit(
-                      context,
-                      ref,
-                      tableId: tableId,
-                      tableLabel: tableLabel,
-                      ticketRef: ticketRef,
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: MadarChip(
-                    label: orderWord(bridge, 'sell.kitchen_cart_note_field'),
-                    glyph: MadarGlyph.note,
-                    selected:
-                        kitchenNote != null && kitchenNote.trim().isNotEmpty,
-                    onTap: () =>
-                        unawaited(editCartKitchenNote(context, ref, tableId)),
-                  ),
-                ),
+                ],
                 if (cta.sendsToKitchen) ...[
                   _FigureRow(
                     label: orderWord(bridge, 'sell.round_total'),
@@ -991,14 +1097,26 @@ class _CartFooter extends ConsumerWidget {
                       currency: currency,
                       muted: true,
                     ),
+                  if (canPark && narrow)
+                    MadarButton(
+                      key: const ValueKey('cart-park'),
+                      label: bridge.tr(key: 'drafts.hold'),
+                      glyph: MadarGlyph.bag,
+                      variant: MadarButtonVariant.secondary,
+                      size: MadarButtonSize.compact,
+                      onTap: onHold,
+                    ),
                   Row(
                     spacing: Space.sm,
                     children: [
                       // Park, right beside Charge — not a tap buried in the ⋯
                       // menu. The owner's report was that parking read as a dead
-                      // end; a control nobody finds might as well not exist.
-                      if (canPark)
+                      // end; a control nobody finds might as well not exist. In
+                      // a narrow column it takes its own row above (see
+                      // [narrow]), so Charge keeps room for its word AND figure.
+                      if (canPark && !narrow)
                         MadarGlyphTile(
+                          key: const ValueKey('cart-park'),
                           glyph: MadarGlyph.bag,
                           tint: colors.accent,
                           background: colors.accentBg,
@@ -1288,44 +1406,64 @@ class _CartSummary extends ConsumerWidget {
             ),
             // Wraps rather than scrolling: a chip cut off at the cart's edge
             // reads as broken, and a long note must still show it is set.
-            child: Wrap(
-              spacing: Space.sm,
-              runSpacing: Space.sm,
-              children: [
-                if (counter) ...[
-                  MadarChip(
-                    label: name ?? orderWord(bridge, 'sell.customer'),
-                    glyph: MadarGlyph.user,
-                    selected: name != null,
-                    onTap: () =>
-                        unawaited(editLiveOrderName(context, ref, tableId)),
-                  ),
-                  MadarChip(
-                    label: discount ?? orderWord(bridge, 'sell.discount'),
-                    glyph: MadarGlyph.percent,
-                    selected: discount != null,
-                    onTap: () => unawaited(() async {
-                      final changed = await showCartDiscountPicker(
-                        context,
-                        ref,
-                        tableId: tableId,
-                      );
-                      if (changed) {
-                        await ref.read(cartProvider(tableId).notifier).load();
-                      }
-                    }()),
-                  ),
-                ],
-                MadarChip(
-                  label: note ?? orderWord(bridge, 'sell.note'),
-                  glyph: MadarGlyph.note,
-                  selected: note != null,
-                  onTap: () => unawaited(editCartNote(context, ref, tableId)),
-                ),
-                // The whole-cart kitchen print and its note live in the
-                // footer, beside Charge/Fire — a cart-level action, kept
-                // apart from every row's own small kitchen button.
-              ],
+            // Each chip is capped at the cart's width so a long note
+            // ellipsizes inside its chip instead of running past the edge.
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final cap = BoxConstraints(maxWidth: c.maxWidth);
+                return Wrap(
+                  spacing: Space.sm,
+                  runSpacing: Space.sm,
+                  children: [
+                    if (counter) ...[
+                      ConstrainedBox(
+                        constraints: cap,
+                        child: MadarChip(
+                          label: name ?? orderWord(bridge, 'sell.customer'),
+                          glyph: MadarGlyph.user,
+                          selected: name != null,
+                          onTap: () => unawaited(
+                            editLiveOrderName(context, ref, tableId),
+                          ),
+                        ),
+                      ),
+                      ConstrainedBox(
+                        constraints: cap,
+                        child: MadarChip(
+                          label: discount ?? orderWord(bridge, 'sell.discount'),
+                          glyph: MadarGlyph.percent,
+                          selected: discount != null,
+                          onTap: () => unawaited(() async {
+                            final changed = await showCartDiscountPicker(
+                              context,
+                              ref,
+                              tableId: tableId,
+                            );
+                            if (changed) {
+                              await ref
+                                  .read(cartProvider(tableId).notifier)
+                                  .load();
+                            }
+                          }()),
+                        ),
+                      ),
+                    ],
+                    ConstrainedBox(
+                      constraints: cap,
+                      child: MadarChip(
+                        label: note ?? orderWord(bridge, 'sell.note'),
+                        glyph: MadarGlyph.note,
+                        selected: note != null,
+                        onTap: () =>
+                            unawaited(editCartNote(context, ref, tableId)),
+                      ),
+                    ),
+                    // The whole-cart kitchen print and its note live in the
+                    // footer, beside Charge/Fire — a cart-level action, kept
+                    // apart from every row's own small kitchen button.
+                  ],
+                );
+              },
             ),
           ),
           const MadarHairline(light: true),
