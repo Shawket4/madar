@@ -855,6 +855,11 @@ void main() {
   for (final (label, size, arabic, dark) in [
     ('ipad', _ipad, false, false),
     ('ipad-ar-dark', _ipad, true, true),
+    // The iPad 9th generation, both ways, and an 8" Android.
+    ('ipad9', const Size(1080, 810), false, false),
+    ('ipad9-ar', const Size(1080, 810), true, false),
+    ('ipad9p-ar', const Size(810, 1080), true, false),
+    ('tab8', const Size(800, 1280), false, false),
     ('phone', _phone, false, true),
     ('phone-ar', _phone, true, false),
   ]) {

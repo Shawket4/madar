@@ -86,8 +86,12 @@ class _Bridge implements MadarBridge {
   }
 }
 
-Future<void> _pump(WidgetTester tester, _Bridge bridge) async {
-  tester.view.physicalSize = const Size(1194, 1600);
+Future<void> _pump(
+  WidgetTester tester,
+  _Bridge bridge, {
+  Size size = const Size(1194, 1600),
+}) async {
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -118,6 +122,15 @@ Future<void> _fill(WidgetTester tester) async {
 }
 
 void main() {
+  for (final size in const [Size(1080, 810), Size(810, 1080)]) {
+    testWidgets('the form lays out on the small iPad at $size', (tester) async {
+      final bridge = _Bridge(outcome: 'allow');
+      await _pump(tester, bridge, size: size);
+      await _fill(tester);
+      expect(tester.takeException(), isNull, reason: '$size laid out cleanly');
+    });
+  }
+
   testWidgets('a waste within the limit is recorded as picked', (tester) async {
     final bridge = _Bridge(outcome: 'allow');
     await _pump(tester, bridge);

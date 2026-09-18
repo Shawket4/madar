@@ -844,6 +844,26 @@ void main() {
     expect(ar.metricsCalls, 1, reason: 'one load when the screen opens');
   });
 
+  testWidgets('metrics on the small iPad, both ways, in Arabic', (
+    tester,
+  ) async {
+    for (final (name, size) in const [
+      ('metrics_ipad9_ar', Size(1080, 810)),
+      ('metrics_ipad9p_ar', Size(810, 1080)),
+    ]) {
+      await _shoot(
+        tester,
+        size: size,
+        theme: MadarTheme.light(),
+        home: const MetricsScreen(),
+        bridge: _FakeBridge(lang: 'ar'),
+        name: name,
+        rtl: true,
+      );
+      expect(find.text('Latte'), findsOneWidget);
+    }
+  });
+
   testWidgets('metrics offline on the iPad', (tester) async {
     final en = _FakeBridge();
     await _shoot(

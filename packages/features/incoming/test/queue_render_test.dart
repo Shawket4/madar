@@ -557,27 +557,30 @@ Future<void> _shoot(
   await tester.pump(const Duration(milliseconds: 50));
   await tester.pump(MotionSpec.standardDuration);
   await tester.pump(MotionSpec.gentleDuration);
-  expect(tester.takeException(), isNull, reason: '$name laid out cleanly');
+  final error = tester.takeException();
   // An overflow stripe is painted, not always thrown — look for it.
   final overflowing = tester.allRenderObjects
       .whereType<RenderFlex>()
       .where((f) => f.toStringShort().contains('OVERFLOWING'))
       .map((f) => f.debugCreator)
       .toList();
+  // Rendering: the picture is written BEFORE the checks, so a frame that
+  // overflowed can be looked at (the stripe says where).
+  if (_render) {
+    final boundary =
+        tester.renderObject(find.byKey(const ValueKey('shot')))
+            as RenderRepaintBoundary;
+    await tester.runAsync(() async {
+      final image = await boundary.toImage(pixelRatio: 2);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      final dir = Directory('build/render')..createSync(recursive: true);
+      File(
+        '${dir.path}/queue-$name.png',
+      ).writeAsBytesSync(bytes!.buffer.asUint8List());
+    });
+  }
+  expect(error, isNull, reason: '$name laid out cleanly');
   expect(overflowing, isEmpty, reason: '$name has no overflowing flex');
-
-  if (!_render) return;
-  final boundary =
-      tester.renderObject(find.byKey(const ValueKey('shot')))
-          as RenderRepaintBoundary;
-  await tester.runAsync(() async {
-    final image = await boundary.toImage(pixelRatio: 2);
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    final dir = Directory('build/render')..createSync(recursive: true);
-    File(
-      '${dir.path}/queue-$name.png',
-    ).writeAsBytesSync(bytes!.buffer.asUint8List());
-  });
 }
 
 /// Loads the design system's Plex faces so the boards render real type —
@@ -603,6 +606,10 @@ void main() {
   for (final (device, size) in const [
     ('ipad', _ipad),
     ('ipadp', Size(834, 1194)),
+    // The iPad 9th generation, both ways, and an 8" Android.
+    ('ipad9', Size(1080, 810)),
+    ('ipad9p', Size(810, 1080)),
+    ('tab8', Size(800, 1280)),
     ('desktop', Size(1280, 800)),
     ('phone', _phone),
   ]) {

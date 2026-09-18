@@ -66,8 +66,13 @@ class _Bridge implements MadarBridge {
   }
 }
 
-Future<void> _pump(WidgetTester tester, _Bridge bridge, Widget home) async {
-  tester.view.physicalSize = const Size(1194, 1600);
+Future<void> _pump(
+  WidgetTester tester,
+  _Bridge bridge,
+  Widget home, {
+  Size size = const Size(1194, 1600),
+}) async {
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -118,6 +123,24 @@ void main() {
     await _pump(tester, bridge, const ManagerActionsBanner());
     expect(find.text('2 actions need a manager'), findsOneWidget);
   });
+
+  for (final size in const [Size(1080, 810), Size(810, 1080)]) {
+    testWidgets('the batch lays out on the small iPad at $size', (
+      tester,
+    ) async {
+      final bridge = _Bridge(
+        view: _list(const [_refusedVoid, _flaggedDiscount]),
+        result: const BatchAuthorizeView(
+          authorized: [],
+          left: [],
+          summary: '0 of 0',
+        ),
+      );
+      await _pump(tester, bridge, const ManagerActionsScreen(), size: size);
+      expect(find.text('Void'), findsWidgets);
+      expect(tester.takeException(), isNull, reason: '$size laid out cleanly');
+    });
+  }
 
   testWidgets('the list says what each one was, who and why', (tester) async {
     final bridge = _Bridge(

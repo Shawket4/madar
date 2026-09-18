@@ -348,6 +348,9 @@ Future<void> _loadFonts() async {
 enum _Device {
   ipad(Size(1194, 834)),
   portrait(Size(834, 1194)),
+  ipad9(Size(1080, 810)),
+  ipad9Portrait(Size(810, 1080)),
+  tab8(Size(800, 1280)),
   desktop(Size(1440, 900)),
   phone(Size(390, 844));
 

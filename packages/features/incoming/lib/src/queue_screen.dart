@@ -144,9 +144,18 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                 constraints: const BoxConstraints(maxWidth: _segmentMaxWidth),
                 child: segmented,
               ),
-              const Spacer(),
+              // The accepting chips get ALL the leftover width, wrapping at
+              // its end — a Spacer beside a Flexible split it in two, and on
+              // an 8" tablet the widest chip no longer fit its half.
               if (segment == QueueSegment.online)
-                const Flexible(child: AcceptingRow(compact: true)),
+                const Expanded(
+                  child: Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: AcceptingRow(compact: true),
+                  ),
+                )
+              else
+                const Spacer(),
             ],
           );
 
