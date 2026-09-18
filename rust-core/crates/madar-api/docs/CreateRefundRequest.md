@@ -9,6 +9,7 @@ Name | Type | Description | Notes
 **device_id** | Option<**uuid::Uuid**> | The device issuing the refund (else the `X-Madar-Device` header). | [optional]
 **issued_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> | When the refund was issued. Omit for live requests — the server stamps `now()`. An offline till sends the real time; future values are rejected. | [optional]
 **lines** | Option<[**Vec<models::RefundLineInput>**](RefundLineInput.md)> |  | [optional]
+**live_approval** | Option<[**models::ReplayApproval**](ReplayApproval.md)> | A manager's on-the-spot unlock for a refund over the issuer's own `max_amount` (the teller default is 0, so every refund asks). Additive. | [optional]
 **method** | **String** | How the money went back — a name from the org's payment-method vocabulary. One tender per refund; a split is two refunds. | 
 **note** | Option<**String**> | Free-text explanation. Required when `reason` is `other`. | [optional]
 **order_id** | **uuid::Uuid** | The settled sale the money goes back against. | 
