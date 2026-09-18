@@ -476,6 +476,68 @@ void main() {
       expect(MadarSizeClass.phone.gutter, 16);
       expect(MadarSizeClass.desktop.gutter, 24);
     });
+
+    test(
+      'room: the small iPad is snug in height landscape, in width portrait',
+      () {
+        const ipad9 = Size(1080, 810);
+        const ipad9Portrait = Size(810, 1080);
+        const tab8 = Size(800, 1280);
+        const phoneLandscape = Size(844, 390);
+
+        // Every landscape iPad is height-snug: the footer of a stacked screen
+        // takes its dense variant on the 13" too, not only on the 10.2".
+        expect(MadarRoom.fromSize(_ipadLandscape).height, MadarSpan.snug);
+        expect(MadarRoom.fromSize(_ipadLandscape).width, MadarSpan.roomy);
+        expect(MadarRoom.fromSize(ipad9).height, MadarSpan.snug);
+        expect(MadarRoom.fromSize(ipad9).width, MadarSpan.roomy);
+        // Portrait: tall enough, but a 300 cart column, not 340.
+        expect(MadarRoom.fromSize(ipad9Portrait).height, MadarSpan.roomy);
+        expect(MadarRoom.fromSize(ipad9Portrait).width, MadarSpan.snug);
+        expect(MadarRoom.fromSize(ipad9Portrait).cartColumnWidth, 300);
+        expect(MadarRoom.fromSize(_ipadPortrait).cartColumnWidth, 300);
+        expect(MadarRoom.fromSize(tab8).width, MadarSpan.snug);
+        expect(MadarRoom.fromSize(ipad9).cartColumnWidth, 340);
+        expect(
+          MadarRoom.fromSize(_desktop),
+          const MadarRoom(width: MadarSpan.roomy, height: MadarSpan.roomy),
+        );
+        // A phone is tight in width; sideways it is tight in height too.
+        expect(MadarRoom.fromSize(_phone).width, MadarSpan.tight);
+        expect(MadarRoom.fromSize(_phone).height, MadarSpan.snug);
+        expect(MadarRoom.fromSize(phoneLandscape).height, MadarSpan.tight);
+        expect(MadarSpan.tight.isDense, isTrue);
+        expect(MadarSpan.snug.isDense, isTrue);
+        expect(MadarSpan.roomy.isDense, isFalse);
+      },
+    );
+
+    testWidgets('MadarKeyboardInset keeps its child above the keyboard', (
+      tester,
+    ) async {
+      _size(tester, _ipadLandscape);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpWidget(
+        _app(
+          const MadarKeyboardInset(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: SizedBox(key: Key('bar'), width: 100, height: 56),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.getBottomLeft(find.byKey(const Key('bar'))).dy,
+        lessThanOrEqualTo(834 - 320),
+        reason: 'the bar sits above the keyboard, not under it',
+      );
+      // The child no longer sees the inset (it would otherwise pad twice).
+      final inner = tester.element(find.byKey(const Key('bar')));
+      expect(MediaQuery.viewInsetsOf(inner).bottom, 0);
+    });
   });
 
   group('totals and empty pages', () {

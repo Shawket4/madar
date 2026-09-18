@@ -361,6 +361,81 @@ void main() {
     });
   });
 
+  group('a bill round on the small iPad', () {
+    testWidgets('both lines of the round are in view, with the dense footer', (
+      tester,
+    ) async {
+      final bridge = _FakeBridge();
+      bridge.carts['t2'] = List.of(_cart);
+      await _mount(
+        tester,
+        screen: const TableOrderScreen(tableId: 't2'),
+        size: _ipad9,
+        bridge: bridge,
+      );
+      await _settle(tester);
+      final cart = tester.getRect(find.byType(SellCart));
+      // Every round line whole inside the cart: the footer no longer leaves
+      // the list one line and a half tall.
+      for (final key in ['round-k-espresso', 'round-k-flat']) {
+        final line = tester.getRect(find.byKey(ValueKey(key)));
+        expect(
+          line.bottom <= cart.bottom && line.top >= cart.top,
+          isTrue,
+          reason: '$key is fully in view ($line within $cart)',
+        );
+      }
+      // The dense footer: the compact kitchen button with the note as a
+      // tile beside it — nothing hidden, the note still one tap away.
+      expect(find.byKey(const ValueKey('cart-kitchen-note')), findsOneWidget);
+      expect(
+        tester
+            .widget<MadarButton>(
+              find.byKey(const ValueKey('print-cart-kitchen')),
+            )
+            .size,
+        MadarButtonSize.compact,
+      );
+      expect(find.byType(MadarStepper), findsNWidgets(2));
+      for (final stepper in find.byType(MadarStepper).evaluate()) {
+        expect(
+          tester.getSize(find.byWidget(stepper.widget)).height,
+          greaterThanOrEqualTo(44),
+          reason: 'a 44pt target',
+        );
+      }
+      await _capture(tester, 'sell-round-ipad9-inview');
+    });
+
+    testWidgets(
+      'in portrait the catalog keeps three columns beside a 300 cart',
+      (tester) async {
+        await _mount(
+          tester,
+          screen: const TakeawaySellScreen(),
+          size: const Size(722, 1024),
+          bridge: _FakeBridge(),
+        );
+        expect(tester.getSize(find.byType(SellCart)).width, 300);
+        final tiles = find.byType(SellTile);
+        final firstRowY = tester.getTopLeft(tiles.first).dy;
+        final inFirstRow = tiles
+            .evaluate()
+            .where(
+              (e) => tester.getTopLeft(find.byWidget(e.widget)).dy == firstRowY,
+            )
+            .length;
+        expect(inFirstRow, 3);
+        // Park keeps its word above Charge in the narrow column.
+        expect(
+          tester.widget(find.byKey(const ValueKey('cart-park'))),
+          isA<MadarButton>(),
+        );
+        await _capture(tester, 'sell-counter-narrow-column');
+      },
+    );
+  });
+
   for (final (device, size) in _devices) {
     for (final ar in [false, true]) {
       for (final dark in [false, true]) {

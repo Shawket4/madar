@@ -610,10 +610,17 @@ class _RoundLine extends ConsumerWidget {
             ),
           ),
         const SizedBox(height: Space.xs),
-        MoneyText(
-          line.lineTotalMinor,
-          currency: currency,
-          color: colors.textPrimary,
+        // One line, scaled down before it ever wraps: "EGP 100.00" beside a
+        // stepper in a 340 column has ~80 points, and a figure broken over
+        // two lines reads as two figures.
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: AlignmentDirectional.centerStart,
+          child: MoneyText(
+            line.lineTotalMinor,
+            currency: currency,
+            color: colors.textPrimary,
+          ),
         ),
       ],
     );

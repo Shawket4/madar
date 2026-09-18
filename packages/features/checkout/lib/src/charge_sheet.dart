@@ -127,48 +127,53 @@ Future<ChargeOutcome?> _showChargeModal(
   // lands on an undimmed flash or on the modal's fading barrier.
   return showMadarDialogSurface<ChargeOutcome>(
     context,
-    pageBuilder: (context) {
-      final window = MediaQuery.sizeOf(context);
-      // The keyboard the amount field raises takes the bottom of the window;
-      // the card shrinks to what is left above it, and the Charge bar at
-      // its foot stays in reach — on a 10.2" iPad in landscape the keys
-      // would otherwise cover it.
-      final keyboard = MediaQuery.viewInsetsOf(context).bottom;
-      final maxHeight = math.min(
-        (window.height - keyboard) * _modalHeightFraction,
-        _modalMaxHeight,
-      );
-      return MadarKeyboardInset(
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: math.min(_modalWidth, window.width - Space.xl * 2),
-                maxHeight: maxHeight,
-                minHeight: maxHeight,
-              ),
-              child: Material(
-                type: MaterialType.transparency,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: BorderRadius.circular(Radii.sheet),
-                    boxShadow: MadarElevation.raised.shadows(
-                      colors,
-                      dark: dark,
+    // A Builder, so the read of the keyboard inset is a widget dependency
+    // and the card re-lays when the keyboard comes and goes — the route's
+    // page builder alone runs once.
+    pageBuilder: (context) => Builder(
+      builder: (context) {
+        final window = MediaQuery.sizeOf(context);
+        // The keyboard the amount field raises takes the bottom of the window;
+        // the card shrinks to what is left above it, and the Charge bar at
+        // its foot stays in reach — on a 10.2" iPad in landscape the keys
+        // would otherwise cover it.
+        final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+        final maxHeight = math.min(
+          (window.height - keyboard) * _modalHeightFraction,
+          _modalMaxHeight,
+        );
+        return MadarKeyboardInset(
+          child: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: math.min(_modalWidth, window.width - Space.xl * 2),
+                  maxHeight: maxHeight,
+                  minHeight: maxHeight,
+                ),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colors.surface,
+                      borderRadius: BorderRadius.circular(Radii.sheet),
+                      boxShadow: MadarElevation.raised.shadows(
+                        colors,
+                        dark: dark,
+                      ),
                     ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(Radii.sheet),
-                    child: ChargeSheet(target: target),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(Radii.sheet),
+                      child: ChargeSheet(target: target),
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      );
-    },
+        );
+      },
+    ),
   );
 }
 
@@ -463,10 +468,27 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         spacing: Space.lg,
                         children: [
-                          _Hero(state: s, tr: tr, bridge: bridge, flat: true),
-                          if (!s.splitMode && s.takesTender && s.isCash)
-                            _Readout(state: s, bridge: bridge),
-                          const Spacer(),
+                          // The figures scroll if they must (the card
+                          // shrunk above a keyboard on a small iPad); the
+                          // bar never does.
+                          Expanded(
+                            child: SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                spacing: Space.lg,
+                                children: [
+                                  _Hero(
+                                    state: s,
+                                    tr: tr,
+                                    bridge: bridge,
+                                    flat: true,
+                                  ),
+                                  if (!s.splitMode && s.takesTender && s.isCash)
+                                    _Readout(state: s, bridge: bridge),
+                                ],
+                              ),
+                            ),
+                          ),
                           ?error,
                           bar,
                           ?oneMethod,
