@@ -195,13 +195,13 @@ suites read `docs/design/format_fixtures.json`.
 | Signed (ledger) | `+EGP 20.00` | `⁦+20.00⁩ ج.م` |
 | No currency | `1,234.50` | `⁦1,234.50⁩` |
 | Currency label | ISO code | EGP ج.م · SAR ر.س · AED د.إ · KWD د.ك · QAR ر.ق · BHD د.ب · OMR ر.ع · JOD د.أ · else code |
-| Stamp, same day | `18:02` | `18:02` |
-| Stamp, this year | `Sep 12 · 18:02` | `12 سبتمبر · 18:02` |
-| Stamp, other year | `Dec 31, 2025 · 23:30` | `3 يناير 2025 · 07:00` |
+| Stamp, same day | `06:02 PM` | `06:02 م` |
+| Stamp, this year | `Sep 12 · 06:02 PM` | `12 سبتمبر · 06:02 م` |
+| Stamp, other year | `Dec 31, 2025 · 11:30 PM` | `3 يناير 2025 · 07:00 ص` |
 | Elapsed | `0m` · `42m` · `1h 05m` · `1d 03h` | `42 د` · `1 س 05 د` · `1 ي 03 س` |
 
-Rules: thousands grouped, always two decimals, seconds dropped from elapsed, 24-hour stamps
-in the **branch** timezone (`formatStamp` converts; `MadarFormat.stamp` expects branch
+Rules: thousands grouped, always two decimals, seconds dropped from elapsed, **12-hour** stamps
+(zero-padded hour, `AM`/`PM`, Arabic `ص`/`م`; figures stay Western) in the **branch** timezone (`formatStamp` converts; `MadarFormat.stamp` expects branch
 wall-clock). Receipts keep their own `TimeStyle.receipt`. `Money.format` without a locale is
 the English shape (for strings assembled outside widgets); `MoneyText` follows the app
 language.

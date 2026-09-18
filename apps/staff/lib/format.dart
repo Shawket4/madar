@@ -72,15 +72,37 @@ String _weekday(DateTime d, {bool short = false}) {
   return short ? w.substring(0, 3) : w;
 }
 
-/// `HH:mm` of a wall-clock time — a picked time, the live clock.
-String formatTimeOfDay(int hour, int minute) => '${_two(hour)}:${_two(minute)}';
+/// `HH:mm`, 24-hour — the WIRE shape. The API takes and stores times of day
+/// as `HH:mm` (a request's from/to, a timesheet edit); only what a person
+/// READS is 12-hour. Never use [formatTimeOfDay] to build a payload.
+String hhmmWire(int hour, int minute) => '${_two(hour)}:${_two(minute)}';
 
-/// Renders an instant's `HH:mm` in the BRANCH's timezone. Wired to the core
+/// A wire `HH:mm` (as the API stores a request's from/to) READ BACK for
+/// display, 12-hour. Anything that is not `HH:mm` passes through unchanged.
+String formatWireTime(String hhmm) {
+  final m = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(hhmm);
+  if (m == null) return hhmm;
+  final h = int.parse(m.group(1)!);
+  final min = int.parse(m.group(2)!);
+  if (h > 23 || min > 59) return hhmm;
+  return formatTimeOfDay(h, min);
+}
+
+/// A wall-clock time, 12-hour — a picked time, the live clock. `06:02 PM`,
+/// Arabic `06:02 م`. Mirrors the core's `display::hhmm12` and the design
+/// system's `MadarFormat.clock`; every time of day the app shows is 12-hour.
+String formatTimeOfDay(int hour, int minute) {
+  final h12 = hour % 12 == 0 ? 12 : hour % 12;
+  final meridiem = hour < 12 ? (_ar ? 'ص' : 'AM') : (_ar ? 'م' : 'PM');
+  return '${_two(h12)}:${_two(minute)} $meridiem';
+}
+
+/// Renders an instant's 12-hour clock time in the BRANCH's timezone. Wired to the core
 /// at boot (`MadarBridge.formatClock`, which reads the zone the staff payloads
 /// carry) — the same formatter the till prints with.
 String Function(String rfc3339)? branchClock;
 
-/// `HH:mm` from an RFC3339 instant, in the branch's timezone — never the
+/// The 12-hour clock time of an RFC3339 instant, in the branch's timezone — never the
 /// phone's. A phone abroad still shows the shop's clock. Without a core
 /// (unit tests) the instant reads in UTC, never device-local.
 String formatClock(String rfc3339) {

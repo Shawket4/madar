@@ -136,14 +136,26 @@ abstract final class MadarFormat {
     'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
   ];
 
-  /// A row's timestamp, 24-hour: `18:02` on the same day as [now];
-  /// `Sep 12 · 18:02` (`12 سبتمبر · 18:02`) this year; `Sep 12, 2025 · 18:02`
-  /// before. Both are wall-clock in the SAME zone — the branch's. A screen
-  /// holding an RFC3339 string asks the bridge instead
+  /// A clock time, 12-hour, in [locale]: `06:02 PM`, Arabic `06:02 م`. The
+  /// hour is zero-padded — the mirror of the core's `display::hhmm12`. Every
+  /// time of day the app shows reads this shape; figures stay Western and
+  /// only the meridiem word changes. `docs/design/SPEC.md` §Formats.
+  static String clock(int hour, int minute, {String locale = 'en'}) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final h12 = hour % 12 == 0 ? 12 : hour % 12;
+    final meridiem = hour < 12
+        ? (isArabic(locale) ? 'ص' : 'AM')
+        : (isArabic(locale) ? 'م' : 'PM');
+    return '${two(h12)}:${two(minute)} $meridiem';
+  }
+
+  /// A row's timestamp, 12-hour: `06:02 PM` on the same day as [now];
+  /// `Sep 12 · 06:02 PM` (`12 سبتمبر · 06:02 م`) this year;
+  /// `Sep 12, 2025 · 06:02 PM` before. Both are wall-clock in the SAME zone —
+  /// the branch's. A screen holding an RFC3339 string asks the bridge instead
   /// (`formatStamp`), which converts the zone.
   static String stamp(DateTime at, DateTime now, {String locale = 'en'}) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    final time = '${two(at.hour)}:${two(at.minute)}';
+    final time = clock(at.hour, at.minute, locale: locale);
     if (at.year == now.year && at.month == now.month && at.day == now.day) {
       return time;
     }

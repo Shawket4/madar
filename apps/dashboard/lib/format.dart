@@ -53,6 +53,14 @@ String fmtAxisDate(
   if (m == null) return period.length > 5 ? period.substring(5) : period;
   final month = int.parse(m.group(1)!);
   final day = int.parse(m.group(2)!);
-  if (hourly) return fmtInt(int.parse(m.group(3) ?? '0'), locale: locale);
+  if (hourly) {
+    // A clock hour is shown 12-hour, like every other time in the app:
+    // `2 PM` / `2 م`. Figures stay Western; only the meridiem word changes.
+    final h24 = int.parse(m.group(3) ?? '0');
+    final h12 = h24 % 12 == 0 ? 12 : h24 % 12;
+    final ar = locale.startsWith('ar');
+    final meridiem = h24 < 12 ? (ar ? 'ص' : 'AM') : (ar ? 'م' : 'PM');
+    return '${fmtInt(h12, locale: locale)} $meridiem';
+  }
   return '${fmtInt(day, locale: locale)}/${fmtInt(month, locale: locale)}';
 }
