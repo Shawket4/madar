@@ -250,3 +250,172 @@ async fn a_manager_approves_a_void_the_teller_may_only_ask_for() {
     assert!(row.get::<_, bool>(0));
     assert_eq!(row.get::<_, uuid::Uuid>(1), manager_id);
 }
+
+/// Staging run 2, bug 2: an OWNER's PIN could not approve anything at a till.
+/// An owner is provisioned all-branches with no legacy `user_branch_assignments`
+/// row, and the device's offline auth bundle filtered on that legacy table alone,
+/// so the owner was absent from every device's bundle — and the POS resolves an
+/// approver's PIN against exactly that bundle.
+///
+/// This is the manager scenario with the approver swapped for an owner: a teller
+/// is signed in at the till, a void the teller may only ask for is unlocked by
+/// the OWNER's PIN, the void lands, and the record names the owner. It fails
+/// against the pre-fix backend, where the owner never reaches the bundle and
+/// `approve_order_act` cannot find them.
+#[tokio::test]
+#[ignore]
+async fn an_owners_pin_approves_a_void_at_a_tellers_till() {
+    let fx = fixture(1).await;
+    let (teller_id, teller) = fx.tellers[0].clone();
+    let branch = uuid::Uuid::parse_str(&fx.branch).unwrap();
+    let org: uuid::Uuid = fx
+        .db
+        .query_one("SELECT org_id FROM branches WHERE id = $1", &[&branch])
+        .await
+        .unwrap()
+        .get(0);
+
+    // The owner: a PIN nobody else in the fixture shares, an email (owners are
+    // dashboard people), and deliberately NO `user_branch_assignments` row.
+    let owner_id = uuid::Uuid::new_v4();
+    let owner = format!("PERM-owner-{}", &owner_id.simple().to_string()[..6]);
+    fx.db
+        .execute(
+            "INSERT INTO users (id, org_id, name, email, password_hash, role, pin_hash, is_owner)
+             VALUES ($1, $2, $3, $4, 'x', 'org_admin'::public.user_role,
+                     crypt('730415', gen_salt('bf', 4)), true)",
+            &[
+                &owner_id,
+                &org,
+                &owner,
+                &format!("{}@scenario.test", owner.to_lowercase()),
+            ],
+        )
+        .await
+        .expect("insert owner");
+    // Assert the shape the bug lived in rather than building it by hand: the
+    // owner's role assignment is auto-provisioned all-branches, with no legacy row.
+    let shape = fx
+        .db
+        .query_one(
+            "SELECT ra.all_branches,
+                    (SELECT count(*) FROM user_branch_assignments a WHERE a.user_id = $1)
+               FROM role_assignments ra
+              WHERE ra.user_id = $1 AND ra.revoked_at IS NULL",
+            &[&owner_id],
+        )
+        .await
+        .expect("the owner holds a role assignment");
+    assert!(
+        shape.get::<_, bool>(0),
+        "an owner is provisioned across all branches"
+    );
+    assert_eq!(
+        shape.get::<_, i64>(1),
+        0,
+        "and holds no legacy branch assignment — the shape the bundle used to miss"
+    );
+
+    // The owner's settings: no voids for this teller, but they may ask.
+    let void_cap: i16 = 64;
+    fx.db
+        .execute(
+            "INSERT INTO user_overrides (org_id, user_id, capability_id, effect, reason)
+             VALUES ($1, $2, $3, 'deny', 'scenario')",
+            &[&org, &teller_id, &void_cap],
+        )
+        .await
+        .unwrap();
+    fx.db
+        .execute(
+            "INSERT INTO org_capability_policy (org_id, capability_id, ask_manager) VALUES ($1, $2, true)
+             ON CONFLICT (org_id, capability_id) DO UPDATE SET ask_manager = true",
+            &[&org, &void_cap],
+        )
+        .await
+        .unwrap();
+
+    let db = temp_db("perm-owner-approval");
+    // ACTIVATE the device first. This matters: the offline auth bundle is scoped
+    // by the `X-Madar-Device` header, and only a device the backend knows narrows
+    // it to a branch. An unactivated core gets the whole org and would never see
+    // the gap this scenario is here to cover.
+    let code = format!("{:08}", owner_id.as_u128() % 100_000_000);
+    fx.db
+        .execute(
+            "INSERT INTO device_activation_codes (org_id, branch_id, code, label)
+             VALUES ($1, $2, $3, 'Owner-approval scenario tablet')",
+            &[&org, &branch, &code],
+        )
+        .await
+        .expect("insert activation code");
+    {
+        let core = madar_core::MadarCore::new(madar_core::MadarConfig {
+            base_url: fx.base.clone(),
+            environment: "dev".into(),
+            db_path: db.clone(),
+            locale: "en".into(),
+            app_version: None,
+        })
+        .expect("core");
+        let bound = core.activate_device(code).await.expect("activate");
+        assert_eq!(bound.id, fx.branch);
+    }
+    // The owner signs in online once on this device so the backend derives their
+    // offline PIN verifier; then the TELLER works the till, as in the shop.
+    {
+        let core = signed_in_pin(&fx.base, &db, &owner, &fx.branch, "730415").await;
+        core.logout(false).ok();
+    }
+    // The bundle this device now holds is branch-scoped, and it must list the
+    // owner: that is exactly what the pre-fix backend got wrong.
+
+    let core = core_at(&fx.base, &db, &teller, &fx.branch).await;
+    core.open_till(10_000, None).await.expect("open");
+    let cash = method(&core, true).expect("cash");
+    let sale = sell(&core, 1, &cash, 1_000_000).await;
+    settle(&core, 60).await;
+
+    let d = core.decide_order_act("orders.void".into(), sale.clone(), None);
+    assert_eq!(d.outcome, "needs_approval", "{d:?}");
+    let approval = core
+        .approve_order_act("730415".into(), "orders.void".into(), sale.clone(), None)
+        .expect("the OWNER's PIN unlocks the void");
+    assert_eq!(
+        approval.approver_name, owner,
+        "the approval names the owner, not the teller"
+    );
+
+    core.void_order_approved(
+        sale.clone(),
+        "customer_changed_mind".into(),
+        None,
+        false,
+        Some(approval.clone()),
+    )
+    .await
+    .expect("void queues");
+    for _ in 0..30 {
+        if core.sync_status().pending_outbox == 0 {
+            break;
+        }
+        let _ = core.sync_now().await;
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
+    let left = core.list_outbox().unwrap_or_default();
+    assert!(left.is_empty(), "the void landed: {left:?}");
+    let row = fx
+        .db
+        .query_one(
+            "SELECT verified, approver_user_id FROM approvals WHERE id = $1",
+            &[&uuid::Uuid::parse_str(&approval.id).unwrap()],
+        )
+        .await
+        .expect("the approval is on record");
+    assert!(row.get::<_, bool>(0), "the server verified it");
+    assert_eq!(
+        row.get::<_, uuid::Uuid>(1),
+        owner_id,
+        "the record attributes the act to the owner"
+    );
+}
