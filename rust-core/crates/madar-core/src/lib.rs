@@ -1118,14 +1118,22 @@ impl MadarCore {
             let mut body = None;
             let mut sync_seq = None;
             let outcome = self.send_outbox_item_body(&item, &mut body, &mut sync_seq).await;
-            // A REAL outbox send is the authority for the online banner: a clean ack
-            // proves we're online; a transport failure proves we're offline. (A
-            // 4xx/5xx/401 reached the server — those are handled by the arms below
-            // without touching `online`.) This is why a lone /health blip on resume
-            // no longer flaps the banner: only a genuine send failure flips it off.
+            // A REAL outbox send is the strongest connectivity evidence there is: a
+            // clean ack proves we're online; a transport failure is evidence we're
+            // offline. (A 4xx/5xx/401 reached the server — those are handled by the
+            // arms below without touching `online`.)
+            //
+            // BOTH directions go through `note_connectivity` so they obey the SAME
+            // hysteresis as every other probe: an ack recovers instantly, while a
+            // lone failed send only counts toward [`K_OFFLINE_CONFIRM`]. It used to
+            // call `set_online(false)` directly, so ONE send that lost its transport
+            // (a slow server mid-drain, a radio waking under a big backlog) dropped
+            // the whole UI to offline while the `/health` probe a moment later still
+            // said online — the pill and the screens then disagreed until something
+            // else re-checked. Confirmation, not a single sample, flips it off.
             match &outcome {
-                SendOutcome::Acked(_) => self.set_online(true),
-                SendOutcome::Offline => self.set_online(false),
+                SendOutcome::Acked(_) => self.note_connectivity(true),
+                SendOutcome::Offline => self.note_connectivity(false),
                 _ => {}
             }
             match outcome {
@@ -6777,20 +6785,24 @@ impl MadarCore {
                 // outcome decide (`drain_outbox` sets `online` from it — an ack ⇒
                 // online, a transport failure ⇒ offline).
                 //
-                // Only a drain that actually SENT something is evidence. A backlog
-                // whose every row is inside its backoff gate (or waiting on a
-                // dependency) sends nothing, and treating "there is a backlog" as
+                // The failed probe is ONE piece of evidence and always counts. A
+                // backlog whose every row is inside its backoff gate (or waiting on
+                // a dependency) sends nothing, and treating "there is a backlog" as
                 // "the drain will tell us" left the banner reading online forever
-                // while the network was gone (OFFLINE_B_DESIGN §0, audit row 4). So
-                // the probe failure counts toward K_OFFLINE_CONFIRM whenever the
-                // drain produced no send at all.
+                // while the network was gone (OFFLINE_B_DESIGN §0, audit row 4).
+                //
+                // The drain that follows then adds its OWN evidence through the same
+                // counter (`drain_outbox` → `note_connectivity`): a send that also
+                // lost its transport is a second failure, so probe-fail + send-fail
+                // reaches K_OFFLINE_CONFIRM on this very pass and the banner drops
+                // without waiting for another round. An ACK instead proves the probe
+                // was the blip — `note_connectivity(true)` resets the streak and we
+                // stay online. Either way it takes TWO samples to go offline and ONE
+                // to come back.
+                self.note_connectivity(false);
                 let flushable = self.api.has_bearer() && !self.auth_paused.load(Relaxed);
-                let before = self.sends_attempted.load(Relaxed);
                 if flushable {
                     let _ = self.drain_outbox().await;
-                }
-                if self.sends_attempted.load(Relaxed) == before {
-                    self.note_connectivity(false);
                 }
                 self.current_session().map(|s| s.online).unwrap_or(false)
             }
@@ -9317,6 +9329,115 @@ mod tests {
             "streak reset → one blip tolerated again"
         );
         assert!(online());
+    }
+
+    /// The ONE authoritative signal's state machine, driven through
+    /// `note_connectivity` — the single funnel every piece of connectivity
+    /// evidence now goes through (the `/health` probe, a changefeed pull, AND an
+    /// outbox send). Pinned here because the drain used to bypass it with a bare
+    /// `set_online(false)`, so ONE send that lost its transport dropped the whole
+    /// UI to offline while the probe a moment later still said online.
+    ///
+    /// The contract: TWO consecutive failures to go offline, ONE success to come
+    /// back, and any success resets the streak.
+    #[tokio::test]
+    async fn connectivity_needs_two_failures_to_drop_and_one_success_to_recover() {
+        let core = signed_in_core_for_connectivity().await;
+        let online = || core.current_session().map(|s| s.online).unwrap_or(false);
+
+        core.set_online(true);
+
+        // ── Hysteresis: one failure is not proof. ────────────────────────────
+        core.note_connectivity(false);
+        assert!(online(), "one failed request must not flip the whole UI");
+        core.note_connectivity(false);
+        assert!(!online(), "two consecutive failures confirm offline");
+
+        // ── Recovery is immediate: one good call is enough. ──────────────────
+        core.note_connectivity(true);
+        assert!(online(), "a single success recovers at once");
+
+        // ── Flapping: a success between failures resets the streak, so an
+        //    alternating link never latches offline.
+        for _ in 0..5 {
+            core.note_connectivity(false);
+            core.note_connectivity(true);
+            assert!(online(), "fail/succeed flapping must stay online");
+        }
+
+        // ── And the streak really is reset — it takes two AGAIN, not one. ────
+        core.note_connectivity(false);
+        assert!(online(), "streak was reset by the success");
+        core.note_connectivity(false);
+        assert!(!online());
+    }
+
+    /// `sync_status().online` and the session snapshot are the SAME fact — the
+    /// status bar and every screen must never be able to disagree because they
+    /// asked different accessors.
+    #[tokio::test]
+    async fn sync_status_and_session_report_one_and_the_same_online_fact() {
+        let core = signed_in_core_for_connectivity().await;
+        for want in [true, false, true] {
+            core.set_online(want);
+            assert_eq!(core.sync_status().online, want);
+            assert_eq!(core.current_session().map(|s| s.online), Some(want));
+        }
+        // Offline is NOT "there is queued work": an empty-queue device that
+        // cannot reach the server is offline, and a reachable device with a
+        // backlog is online. The two axes are independent.
+        core.set_online(true);
+        let s = core.sync_status();
+        assert!(s.online && s.pending_outbox == 0);
+    }
+
+    /// A signed-in core pointed at a dead port — the shared fixture for the
+    /// connectivity state-machine tests above.
+    async fn signed_in_core_for_connectivity() -> std::sync::Arc<MadarCore> {
+        use argon2::password_hash::SaltString;
+        use argon2::{Argon2, PasswordHasher};
+
+        let core = MadarCore::new(MadarConfig {
+            base_url: "http://127.0.0.1:1".into(),
+            environment: "dev".into(),
+            db_path: String::new(),
+            locale: "en".into(),
+            app_version: None,
+        })
+        .unwrap();
+        let salt = SaltString::encode_b64(b"madar-test-salt").unwrap();
+        let phc = Argon2::default()
+            .hash_password(b"1234", &salt)
+            .unwrap()
+            .to_string();
+        let bundle = serde_json::json!({
+            "org_id": "00000000-0000-0000-0000-0000000000aa",
+            "generated_at": "2026-06-19T10:00:00Z",
+            "lan_secret": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+            "tellers": [{
+                "user_id": "00000000-0000-0000-0000-0000000000bb",
+                "name": "Sara", "role": "teller", "is_active": true,
+                "offline_pin_hash": phc,
+            }]
+        });
+        core.store
+            .kv_put(session::BUNDLE_KEY, &bundle.to_string())
+            .unwrap();
+        core.store
+            .kv_put(session::ORG_CONFIG_KEY, r#"{"org_id":"00000000-0000-0000-0000-0000000000aa","currency_code":"EGP","tax_rate":0.14}"#)
+            .unwrap();
+        core.sign_in(session::LoginRequest {
+            mode: session::LoginMode::Pin,
+            name: Some("Sara".into()),
+            pin: Some("1234".into()),
+            branch_id: Some("00000000-0000-0000-0000-000000000001".into()),
+            email: None,
+            password: None,
+            org_id: None,
+        })
+        .await
+        .expect("offline sign-in");
+        core
     }
 }
 
