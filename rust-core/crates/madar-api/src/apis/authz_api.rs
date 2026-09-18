@@ -51,6 +51,8 @@ pub struct GetMyAuthzParams {
 pub struct ListFlagsParams {
     /// Include flags already reviewed. Default false: the queue is what is left to look at.
     pub include_reviewed: Option<bool>,
+    /// Optional one-time manager approval, the ordinary `ReplayApproval` shape JSON-encoded (a GET has no body). A till signed in as a TELLER uses it to pull its own branch's flags with a manager's PIN; leaving it out is exactly the old behaviour, `approvals.review` on the bearer.
+    pub approval: Option<String>,
 }
 
 /// struct for passing parameters to the method [`rename_role`]
@@ -621,6 +623,9 @@ pub async fn list_flags(
 
     if let Some(ref param_value) = params.include_reviewed {
         req_builder = req_builder.query(&[("include_reviewed", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.approval {
+        req_builder = req_builder.query(&[("approval", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());

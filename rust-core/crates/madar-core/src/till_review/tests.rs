@@ -306,10 +306,11 @@ async fn the_list_speaks_arabic() {
     assert!(v.blocked_reason.contains("نت"), "{}", v.blocked_reason);
 }
 
-/// The bulk endpoint reads the BEARER, not the PIN, so a till whose signed-in
-/// person lacks `approvals.review` is refused the flags half. That must not
-/// cost the refusals, which were already re-queued with the approval: they
-/// stay authorized and the flags come back with the server's own words.
+/// The server refuses the flags half — today that means the APPROVER does not
+/// hold `approvals.review` (the routes take the one-time approval since
+/// 2026-09-18). That must not cost the refusals, which were already re-queued
+/// with the approval: they stay authorized and the flags come back with the
+/// server's own words.
 #[tokio::test]
 async fn a_refused_bulk_call_keeps_the_re_sent_ops_and_repeats_the_servers_words() {
     let stub = Stub::start(|r| {
@@ -337,4 +338,115 @@ async fn a_refused_bulk_call_keeps_the_re_sent_ops_and_repeats_the_servers_words
     let back = core.store.list_active().unwrap().into_iter().find(|o| o.seq == seq).unwrap();
     assert_eq!(back.status, "pending");
     assert!(back.payload.contains("approver_id"));
+}
+
+/// The other half of the same story (backend, 2026-09-18): with a TELLER signed
+/// in at the till, the minted approval rides both the `GET /authz/flags` pull
+/// and the bulk review, the batch fully works, and the server is told who
+/// approved. `add_manager` gives Mona `approvals.review`; the signed-in person
+/// (Sara) never changes.
+#[tokio::test]
+async fn a_teller_till_clears_its_flags_with_the_managers_approval_on_the_wire() {
+    let stub = Stub::start(|r| {
+        if r.path.starts_with("/authz/flags/bulk-review") {
+            let body: serde_json::Value = serde_json::from_str(&r.body).unwrap_or_default();
+            // Exactly what the backend does: no approval and this teller is
+            // refused; a valid one and the flags clear.
+            return Some(match body.get("approval") {
+                Some(_) => StubResponse::json(200, json!({ "resolved": [7], "pending": [] })),
+                None => StubResponse::json(
+                    403,
+                    json!({ "error": "missing permission: approvals.review" }),
+                ),
+            });
+        }
+        if r.path.starts_with("/authz/flags") {
+            return Some(if r.path.contains("approval=") {
+                StubResponse::json(
+                    200,
+                    json!([{ "id": 7, "branch_id": BRANCH, "op": "CreateOrder",
+                             "author_id": TELLER, "author_name": "Sara",
+                             "capability": "orders.void", "reason": "unauthorized_offline",
+                             "occurred_at": "2026-09-17T09:00:00Z",
+                             "created_at": "2026-09-17T09:00:00Z" }]),
+                )
+            } else {
+                StubResponse::json(403, json!({ "error": "missing permission: approvals.review" }))
+            });
+        }
+        None
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    core.set_online(true);
+    add_manager(&core, &["orders.void", "approvals.review"]);
+    let seq = refused(&core, "void_order", json!({"order_id":"o1"}), "orders.void");
+    cache_flag(&core, 7, "orders.void", "unauthorized_offline");
+
+    // The plain pull is still refused for a teller — nothing was weakened.
+    assert!(core.refresh_review_flags().await.is_err());
+
+    let res = core.authorize_manager_actions("9999".into(), vec![]).await.unwrap();
+    assert_eq!(res.left, vec![], "nothing left over: {:?}", res.left);
+    assert_eq!(res.authorized.len(), 2, "the re-send AND the flag");
+    assert!(res.authorized.contains(&format!("op:{seq}")));
+    assert!(res.authorized.contains(&"flag:7".to_string()));
+    assert_eq!(res.summary, "2 of 2");
+
+    // The pull carried the approval...
+    let pulls = stub.requests("/authz/flags?");
+    assert!(
+        pulls.iter().any(|r| r.path.contains("approval=")),
+        "the GET pull carries the minted approval: {:?}",
+        pulls.iter().map(|r| r.path.clone()).collect::<Vec<_>>()
+    );
+    // ...and so did the bulk call, naming Mona as the approver, for Sara's act.
+    let calls = stub.requests("/authz/flags/bulk-review");
+    let body: serde_json::Value = serde_json::from_str(&calls.last().unwrap().body).unwrap();
+    assert_eq!(body["approval"]["capability"], "approvals.review");
+    assert_eq!(body["approval"]["approver_id"], MANAGER);
+    assert!(
+        body["note"].as_str().unwrap().contains(MANAGER),
+        "the note names the approver: {}",
+        body["note"]
+    );
+    assert_eq!(body["flag_ids"], json!([7]));
+
+    // The cleared flag is gone from the local cache straight away.
+    let left: Vec<serde_json::Value> = core
+        .store
+        .kv_get("review:flags")
+        .unwrap()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    assert!(left.is_empty(), "the indicator falls without waiting for a pull");
+}
+
+/// An approver who does NOT hold `approvals.review` mints no approval, so the
+/// call goes out plain and the server's 403 stands — partial results stay
+/// honest and the refusal half is still settled.
+#[tokio::test]
+async fn an_approver_without_the_review_right_still_gets_the_servers_403_on_the_flags() {
+    let stub = Stub::start(|r| {
+        if r.path.starts_with("/authz/flags/bulk-review") {
+            let body: serde_json::Value = serde_json::from_str(&r.body).unwrap_or_default();
+            assert!(body.get("approval").is_none(), "nothing to send");
+            return Some(StubResponse::json(
+                403,
+                json!({ "error": "missing permission: approvals.review" }),
+            ));
+        }
+        None
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    core.set_online(true);
+    add_manager(&core, &["orders.void"]);
+    let seq = refused(&core, "void_order", json!({"order_id":"o1"}), "orders.void");
+    cache_flag(&core, 7, "orders.void", "unauthorized_offline");
+
+    let res = core.authorize_manager_actions("9999".into(), vec![]).await.unwrap();
+    assert_eq!(res.authorized, vec![format!("op:{seq}")]);
+    assert_eq!(res.left.len(), 1);
+    assert!(res.left[0].why.contains("approvals.review"), "{}", res.left[0].why);
 }

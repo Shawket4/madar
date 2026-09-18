@@ -16,11 +16,11 @@
 //! * re-submitting clears nothing more and raises no error (idempotent), and
 //!   the till's indicator is back to zero.
 //!
-//! Note (stream 11): the bulk endpoint authorizes the BEARER, so the person
-//! signed in at the till must hold `approvals.review` — here a branch manager
-//! on the till. The teller-signed-in case is covered by the core's
-//! `a_refused_bulk_call_keeps_the_re_sent_ops_and_repeats_the_servers_words`
-//! until the server takes a one-time approval on this route.
+//! Both halves of the sign-in question are covered here (backend, 2026-09-18):
+//! a TELLER signed in at the till clears the batch with a manager's one-time
+//! approval on the wire, and a MANAGER signed in at the till still works on
+//! their own `approvals.review` with no approval at all. The plain,
+//! approval-less pull is still refused for a teller — nothing was weakened.
 
 mod common;
 
@@ -170,10 +170,48 @@ async fn a_flagged_offline_sale_is_listed_at_the_till_and_one_pin_clears_it() {
         matches!(refused_pull, Err(madar_core::error::CoreError::Forbidden { .. })),
         "{refused_pull:?}"
     );
+
+    // ...but the manager's PIN, typed at the TELLER's till, does the whole
+    // thing: the batch mints one `approvals.review` approval, pulls the flags
+    // with it and clears them, with Sara still signed in.
+    let teller_run = core
+        .authorize_manager_actions("864210".into(), vec![])
+        .await
+        .expect("a teller till authorizes with a manager PIN");
+    assert!(
+        teller_run.authorized.contains(&format!("flag:{}", flag.0)),
+        "{teller_run:?}"
+    );
+    assert!(teller_run.left.is_empty(), "{:?}", teller_run.left);
+    let (by, note): (Option<uuid::Uuid>, Option<String>) = {
+        let r = fx
+            .db
+            .query_one(
+                "SELECT reviewed_by, review_note FROM authz_replay_flags WHERE id = $1 AND reviewed_at IS NOT NULL",
+                &[&flag.0],
+            )
+            .await
+            .expect("cleared from a teller's till");
+        (r.get(0), r.get(1))
+    };
+    assert_eq!(by, Some(manager_id), "recorded under the APPROVER, not the teller");
+    assert!(note.unwrap_or_default().contains(&manager_id.to_string()));
     core.logout(false).ok();
 
-    // A manager signed in at the till pulls it, and the till says a manager is
-    // needed, naming the act in the shop's words.
+    // The same act again, this time with a MANAGER signed in: the plain path is
+    // untouched — the pull needs no approval and the list reads the same.
+    let flag2: i64 = fx
+        .db
+        .query_one(
+            "INSERT INTO authz_replay_flags (org_id, branch_id, op, author_id, capability, reason, occurred_at)
+             VALUES ($1, $2, 'CreateOrder', $3, $4, 'unauthorized_offline', now()) RETURNING id",
+            &[&org, &branch, &teller_id, &flag.1],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    let flag = (flag2, flag.1, flag.2);
+
     let mgr_core = signed_in_pin(&fx.base, &db, &manager, &fx.branch, "864210").await;
     let n = mgr_core.refresh_review_flags().await.expect("pull the flags");
     assert!(n >= 1, "the flag reached the till");

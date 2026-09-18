@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BulkReviewRequest {
+    /// Optional one-time manager approval (the ordinary `ReplayApproval` shape, as `live_approval` carries on an order, a refund or a waste). Additive: without it the call behaves exactly as before.
+    #[serde(
+        rename = "approval",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub approval: Option<Option<Box<models::ReplayApproval>>>,
     /// Every open flag to resolve at once — a till, a day, or a hand-picked selection. Order does not matter; each id is its own transaction.
     #[serde(rename = "flag_ids")]
     pub flag_ids: Vec<i64>,
@@ -28,6 +36,7 @@ pub struct BulkReviewRequest {
 impl BulkReviewRequest {
     pub fn new(flag_ids: Vec<i64>) -> BulkReviewRequest {
         BulkReviewRequest {
+            approval: None,
             flag_ids,
             note: None,
         }

@@ -217,7 +217,7 @@ This endpoint does not need any parameter.
 
 ## list_flags
 
-> Vec<models::ReplayFlag> list_flags(include_reviewed)
+> Vec<models::ReplayFlag> list_flags(include_reviewed, approval)
 
 
 ### Parameters
@@ -226,6 +226,7 @@ This endpoint does not need any parameter.
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **include_reviewed** | Option<**bool**> | Include flags already reviewed. Default false: the queue is what is left to look at. |  |
+**approval** | Option<**String**> | Optional one-time manager approval, the ordinary `ReplayApproval` shape JSON-encoded (a GET has no body). A till signed in as a TELLER uses it to pull its own branch's flags with a manager's PIN; leaving it out is exactly the old behaviour, `approvals.review` on the bearer. |  |
 
 ### Return type
 
