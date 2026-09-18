@@ -266,7 +266,11 @@ class HistoryNotifier extends Notifier<HistoryState> {
       // never the one from when it was opened.
       ..listen(drawerTickProvider, (_, _) => _refreshQuietly())
       ..listen(ticketTickProvider, (_, _) => _refreshQuietly())
-      ..listen(connectivityPulseProvider, (_, _) => _refreshQuietly());
+      ..listen(connectivityPulseProvider, (_, _) => _refreshQuietly())
+      // Listen to the SIGNAL, not only to the pulse that makes it re-read:
+      // both providers hang off the same pulse, so watching the pulse alone
+      // could read the connectivity state one bump behind.
+      ..listen(connectivityProvider, (_, _) => _refreshQuietly());
     _alive = true;
     ref.onDispose(() => _alive = false);
     unawaited(Future.microtask(load));
@@ -295,6 +299,22 @@ class HistoryNotifier extends Notifier<HistoryState> {
   /// A background re-read: only the This till ledger (All is paged by
   /// hand, and re-fetching it would throw away the pages loaded so far).
   void _refreshQuietly() {
+    // The All scope is paged by hand and is NOT re-fetched here — but its
+    // `online` flag still has to follow the core, or it latches. It is only
+    // ever written by `_loadAll`, so a search that ran while the link was down
+    // left "showing cached results — you are offline" on screen for as long as
+    // the teller stayed in this scope, while the top bar (which re-reads the
+    // core on every pulse) said Online and the device really was online. Adopt
+    // the authoritative signal, and re-run the search on the offline→online
+    // edge so the words and the rows recover together.
+    if (_alive && state.scope == OrdersScope.all) {
+      final reachable = ref.read(connectivityProvider).reachable;
+      if (reachable != state.online) {
+        state = _derive(state.copyWith(online: reachable));
+        if (reachable && !state.loading) unawaited(_loadAll(reset: true));
+      }
+      return;
+    }
     if (!_alive || state.scope != OrdersScope.thisTill || state.loading) {
       return;
     }

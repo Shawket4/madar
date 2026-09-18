@@ -444,6 +444,99 @@ final connectivityPulseProvider =
       ConnectivityPulseNotifier.new,
     );
 
+/// The THREE facts a screen can mean by "offline", kept apart on purpose.
+///
+/// They used to be fused into one boolean that every feature re-cached in its
+/// own state class, so two screens could hold different answers between pulses
+/// and the app contradicted itself — a banner reading offline over a top bar
+/// reading online, on a device that was online. There is ONE reachability fact
+/// and it lives in the Rust core (`session.snapshot.online`, surfaced as
+/// `syncStatus().online`); this is its single Dart mirror. A feature reads it,
+/// it does not keep its own copy.
+///
+/// Pick the one you actually mean:
+/// * [reachable] — "we can reach the server right now". The ONLY thing that may
+///   be worded "offline". It already carries the core's hysteresis, so it does
+///   not flicker on one failed request.
+/// * [queued] / [dead] — "there is work waiting" / "work the server refused".
+///   Local facts that say nothing about reachability: a device with a backlog
+///   can be perfectly online, and a screen that only needs to know whether
+///   something is queued must NOT say offline.
+/// * [lanPeers] — "this device is on a LAN with other tills". Needs no internet
+///   at all, so it must never be gated on [reachable].
+class ConnectivitySignal {
+  const ConnectivitySignal({
+    this.reachable = true,
+    this.queued = 0,
+    this.dead = 0,
+    this.lanPeers = 0,
+  });
+
+  /// Can we reach the server right now? The core's confirmed signal.
+  final bool reachable;
+
+  /// Outbox rows waiting to go. NOT a reachability fact.
+  final int queued;
+
+  /// Outbox rows the server refused — someone has to act. NOT reachability.
+  final int dead;
+
+  /// Live LAN peers. Independent of the internet.
+  final int lanPeers;
+
+  /// "There is work waiting" — queued or refused.
+  bool get hasQueuedWork => queued > 0 || dead > 0;
+}
+
+/// THE Dart mirror of the core's one connectivity signal. Re-reads on every
+/// [connectivityPulseProvider] bump (the app-level service pulses after each
+/// OS network change, app resume, failed request or timer re-check), so every
+/// screen watching this sees the same answer at the same time.
+class ConnectivityNotifier extends Notifier<ConnectivitySignal> {
+  @override
+  ConnectivitySignal build() {
+    ref.listen(connectivityPulseProvider, (_, _) => refresh());
+    // Read the core NOW rather than on a microtask: a first frame that guessed
+    // and then corrected itself is the same contradiction this provider exists
+    // to remove.
+    return _read() ?? const ConnectivitySignal();
+  }
+
+  void refresh() {
+    final next = _read();
+    if (next != null) state = next;
+  }
+
+  /// The core's answer, or null if it could not be asked — in which case the
+  /// last honest reading stands. Guessing "offline" here is exactly how the UI
+  /// used to contradict itself.
+  ConnectivitySignal? _read() {
+    final bridge = ref.read(bridgeProvider);
+    try {
+      final status = bridge.syncStatus();
+      var peers = 0;
+      try {
+        peers = bridge.lanPeerCount();
+      } on Object {
+        // The LAN relay is optional; its absence is not a connectivity fact.
+      }
+      return ConnectivitySignal(
+        reachable: status.online,
+        queued: status.pendingOutbox,
+        dead: status.deadOutbox,
+        lanPeers: peers,
+      );
+    } on Object {
+      return null;
+    }
+  }
+}
+
+final connectivityProvider =
+    NotifierProvider<ConnectivityNotifier, ConnectivitySignal>(
+      ConnectivityNotifier.new,
+    );
+
 /// True only for TRANSPORT-class failures (the device/link is down, or the
 /// server is unreachable) — the errors that should trigger a connectivity
 /// re-check. Business errors (`Unauthenticated`/`Forbidden`/`Validation`/
