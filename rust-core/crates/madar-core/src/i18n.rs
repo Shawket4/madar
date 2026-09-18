@@ -221,6 +221,11 @@ fn en(key: &str) -> Option<&'static str> {
         "checkout.keep_service" => "Keep service charge",
         "checkout.service_removed_hint" => "Service charge removed from this bill",
         "checkout.tax_included_in_prices" => "Tax included in prices",
+        // A bill that adds up to less than nothing (owner, 2026-09-18). It is
+        // never the teller's doing — a price or an extra is wrong in the menu —
+        // so the wording points at the prices, not at them.
+        "checkout.negative_line" => "This item works out to less than nothing. Check its price and its extras.",
+        "checkout.negative_order" => "This order works out to less than nothing, so it can't be rung up. Check the prices and the extras.",
         "till.total_tax" => "VAT (net of refunds)",
         "till.total_service" => "Service charge (net of refunds)",
         "till.service_waived" => "Service charge waived",
@@ -1523,6 +1528,8 @@ fn ar(key: &str) -> Option<&'static str> {
         "checkout.keep_service" => "إبقاء رسوم الخدمة",
         "checkout.service_removed_hint" => "تم إلغاء رسوم الخدمة من هذه الفاتورة",
         "checkout.tax_included_in_prices" => "الضريبة مشمولة في الأسعار",
+        "checkout.negative_line" => "الصنف ده حسابه طالع بالسالب. راجع سعره والإضافات اللي عليه.",
+        "checkout.negative_order" => "الطلب ده حسابه طالع بالسالب، مش هينفع يتسجّل. راجع الأسعار والإضافات.",
         "till.total_tax" => "ضريبة القيمة المضافة (بعد المرتجعات)",
         "till.total_service" => "رسوم الخدمة (بعد المرتجعات)",
         "till.service_waived" => "رسوم خدمة ملغاة",

@@ -1338,11 +1338,32 @@ pub(crate) fn clear_all_kitchen_notes(store: &Store, ctx: Ctx<'_>) -> CoreResult
 }
 
 /// Push a resolved line, merging into an identical existing line (same key).
+/// A line may never come to less than nothing (owner, 2026-09-18).
+///
+/// The teller cannot cause this: it takes a menu price or an extra that is
+/// itself negative — a swap delta is already floored at zero, but a plain
+/// addon, an optional field or a base price is whatever the dashboard stored.
+/// Caught HERE, as the line is put down, rather than at Charge: a cart that
+/// only refuses at the end is a cart the teller has already read out to a
+/// customer. The detail is English so a log reads it; `coreDetailKeys` in
+/// `rust_bridge` turns it into the teller's language.
+pub(crate) fn reject_if_negative(line: &StoredLine) -> CoreResult<()> {
+    if line_total(line) < 0 {
+        return Err(CoreError::Validation {
+            field: "line".into(),
+            detail: "This item works out to less than nothing. Check its price and its extras."
+                .into(),
+        });
+    }
+    Ok(())
+}
+
 pub(crate) fn add_resolved(
     store: &Store,
     ctx: Ctx<'_>,
     line: StoredLine,
 ) -> CoreResult<Vec<CartLineView>> {
+    reject_if_negative(&line)?;
     let mut lines = load(store, ctx)?;
     let sig = signature(&line);
     match lines.iter_mut().find(|l| signature(l) == sig) {
@@ -1370,6 +1391,7 @@ pub(crate) fn replace_resolved(
     line_key: &str,
     line: StoredLine,
 ) -> CoreResult<Vec<CartLineView>> {
+    reject_if_negative(&line)?;
     let mut lines = load(store, ctx)?;
     let Some(at) = lines.iter().position(|l| signature(l) == line_key) else {
         return Err(CoreError::Validation {
@@ -2032,6 +2054,71 @@ mod tests {
 
     fn store() -> Store {
         Store::open("").unwrap()
+    }
+
+    // ── A line may never come to less than nothing (owner, 2026-09-18) ──
+
+    fn neg_line(unit: i64, addon_delta: i64, optional: i64, qty: i64) -> StoredLine {
+        StoredLine {
+            item_id: "latte".into(),
+            name: "Latte".into(),
+            unit_price_minor: unit,
+            qty,
+            size_label: None,
+            addons: vec![StoredAddon {
+                addon_item_id: "a1".into(),
+                name: "Odd".into(),
+                price_modifier_minor: addon_delta,
+                qty: 1,
+            }],
+            optionals: vec![StoredOptional {
+                optional_field_id: "o1".into(),
+                name: "Odd".into(),
+                price_minor: optional,
+            }],
+            notes: None,
+            bundle_id: None,
+            bundle_components: vec![],
+        }
+    }
+
+    #[test]
+    fn a_negative_unit_price_never_enters_the_cart() {
+        let s = store();
+        let err = add(&s, None, "latte", "Latte", -1000).unwrap_err();
+        assert!(matches!(&err, CoreError::Validation { detail, .. }
+            if detail.contains("less than nothing")));
+        assert!(lines(&s, None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_modifier_priced_below_the_item_it_modifies_never_enters_the_cart() {
+        // The one shape a swap delta's `.max(0)` does not cover: a plain addon
+        // or an optional field whose stored price is itself below zero.
+        let s = store();
+        assert!(add_resolved(&s, None, neg_line(100, -500, 0, 1)).is_err());
+        assert!(add_resolved(&s, None, neg_line(100, 0, -500, 1)).is_err());
+        assert!(lines(&s, None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_line_that_lands_exactly_on_zero_is_allowed() {
+        // Zero is a real bill (a fully covered reward, a free item); only
+        // BELOW zero is refused.
+        let s = store();
+        assert!(add_resolved(&s, None, neg_line(500, -500, 0, 1)).is_ok());
+        assert_eq!(lines(&s, None).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn editing_a_line_into_a_negative_one_is_refused_and_leaves_the_old_one() {
+        let s = store();
+        add_resolved(&s, None, neg_line(500, 0, 0, 1)).unwrap();
+        let key = lines(&s, None).unwrap()[0].key.clone();
+        assert!(replace_resolved(&s, None, &key, neg_line(100, -900, 0, 1)).is_err());
+        let after = lines(&s, None).unwrap();
+        assert_eq!(after.len(), 1);
+        assert_eq!(after[0].line_total_minor, 500);
     }
 
     fn addon(id: &str, kind: &str, price: i64) -> menu::AddonItemView {

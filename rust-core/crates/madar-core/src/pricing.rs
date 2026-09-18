@@ -233,6 +233,109 @@ pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
 mod tests {
     use super::*;
 
+    // ── The owner's rule: a bill may never be negative ──────────────────
+    //
+    // A DISCOUNT is capped; everything else is refused higher up. These pin
+    // the capping half, in the engine that both the till and the server run.
+
+    #[test]
+    fn a_fixed_amount_larger_than_the_subtotal_takes_the_subtotal_and_no_more() {
+        let b = price_cart(cart(vec![line(1000, 1)], DiscountKind::Fixed, 5000.0, 0.0));
+        assert_eq!(b.discount_minor, 1000);
+        assert_eq!(b.taxable_minor, 0);
+        assert_eq!(b.total_minor, 0);
+    }
+
+    #[test]
+    fn a_percentage_over_a_hundred_takes_the_whole_bill_and_no_more() {
+        // 150% of 1000 is 1500; the bill is 1000, so the discount is 1000.
+        let b = price_cart(cart(vec![line(1000, 1)], DiscountKind::Percentage, 1.5, 0.14));
+        assert_eq!(b.discount_minor, 1000);
+        assert_eq!(b.total_minor, 0);
+        assert_eq!(b.tax_minor, 0);
+    }
+
+    #[test]
+    fn a_negative_percentage_is_no_discount_rather_than_a_surcharge() {
+        let b = price_cart(cart(vec![line(1000, 1)], DiscountKind::Percentage, -0.20, 0.0));
+        assert_eq!(b.discount_minor, 0);
+        assert_eq!(b.total_minor, 1000);
+    }
+
+    #[test]
+    fn a_negative_fixed_amount_is_no_discount_rather_than_a_surcharge() {
+        let b = price_cart(cart(vec![line(1000, 1)], DiscountKind::Fixed, -500.0, 0.0));
+        assert_eq!(b.discount_minor, 0);
+        assert_eq!(b.total_minor, 1000);
+    }
+
+    #[test]
+    fn a_hundred_percent_off_leaves_no_tax_and_no_service_charge() {
+        let mut c = cart(vec![line(1000, 1)], DiscountKind::Percentage, 1.0, 0.14);
+        c.service_charge_rate = 0.12;
+        let b = price_cart(c);
+        assert_eq!(b.discount_minor, 1000);
+        assert_eq!(b.taxable_minor, 0);
+        assert_eq!(b.service_charge_minor, 0);
+        assert_eq!(b.tax_minor, 0);
+        assert_eq!(b.total_minor, 0);
+    }
+
+    #[test]
+    fn an_order_of_only_zero_priced_items_is_a_zero_bill_not_a_negative_one() {
+        let mut c = cart(vec![line(0, 3)], DiscountKind::Fixed, 500.0, 0.14);
+        c.service_charge_rate = 0.12;
+        let b = price_cart(c);
+        assert_eq!(b.subtotal_minor, 0);
+        assert_eq!(b.discount_minor, 0);
+        assert_eq!(b.total_minor, 0);
+    }
+
+    #[test]
+    fn a_discount_on_a_line_with_modifiers_is_capped_at_the_whole_line() {
+        // 1000 item + 2 x 250 of a modifier = 1500 charged; a 9999 fixed
+        // discount takes 1500, never more.
+        let l = CartLine {
+            quantity: 1,
+            unit_price: 1000,
+            is_bundle: false,
+            reward_units: 0,
+            addons: vec![AddonSel { price_modifier: 250, quantity: 2 }],
+            optionals: vec![],
+            bundle_components: vec![],
+        };
+        let b = price_cart(cart(vec![l], DiscountKind::Fixed, 9999.0, 0.14));
+        assert_eq!(b.subtotal_minor, 1500);
+        assert_eq!(b.discount_minor, 1500);
+        assert_eq!(b.total_minor, 0);
+    }
+
+    #[test]
+    fn stacked_against_a_reward_the_discount_still_cannot_pass_what_is_left() {
+        // One unit covered by a reward, then a fixed amount bigger than the
+        // rest: the discount takes what remains and the bill lands on zero.
+        let mut l = line(1000, 2);
+        l.reward_units = 1;
+        let b = price_cart(cart(vec![l], DiscountKind::Fixed, 9999.0, 0.14));
+        assert_eq!(b.reward_covered_minor, 1000);
+        assert_eq!(b.subtotal_minor, 1000);
+        assert_eq!(b.discount_minor, 1000);
+        assert_eq!(b.total_minor, 0);
+    }
+
+    #[test]
+    fn a_half_piastre_rounds_the_decimal_way_and_never_past_the_bill() {
+        // 105 x 10% = 10.5 -> 11 (half away from zero), which is what the
+        // server's Decimal does; a binary float would give 10.
+        let b = price_cart(cart(vec![line(105, 1)], DiscountKind::Percentage, 0.10, 0.0));
+        assert_eq!(b.discount_minor, 11);
+        assert_eq!(b.total_minor, 94);
+        // And at the boundary the rounding can never overshoot the subtotal.
+        let b = price_cart(cart(vec![line(1, 1)], DiscountKind::Percentage, 0.999, 0.0));
+        assert_eq!(b.discount_minor, 1);
+        assert_eq!(b.total_minor, 0);
+    }
+
     fn line(unit: MoneyMinor, qty: i64) -> CartLine {
         CartLine {
             quantity: qty,

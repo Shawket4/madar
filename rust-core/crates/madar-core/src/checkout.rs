@@ -642,6 +642,47 @@ pub(crate) fn prepare(
         cash_tip,
     });
 
+    // NOTHING NEGATIVE ENTERS THE OUTBOX (owner, 2026-09-18).
+    //
+    // This is the last gate before a sale is queued, and the only one that
+    // sees the WHOLE bill: `cart::reject_if_negative` catches a bad line as it
+    // is put down, but a reward, a discount and a tax policy all land here. A
+    // queued negative order is the worst of both worlds — the teller believes
+    // it sold, and the server refuses it hours later into a dead-letter nobody
+    // is standing next to. So it never enters the queue at all.
+    //
+    // The discount is NOT part of this: `price_cart` caps it to the subtotal
+    // by the shared engine, so it cannot be what drives the bill under. Only a
+    // price can, and a price the till cannot fix is not a sale it may ring.
+    if crate::tax::negative_part(&crate::tax::Breakdown {
+        subtotal: priced.subtotal_minor,
+        discount: priced.discount_minor,
+        service_charge: priced.service_charge_minor,
+        tax: priced.tax_minor,
+        total: priced.total_minor,
+        net: priced.total_minor - priced.tax_minor,
+    })
+    .is_some()
+    {
+        return Err(CoreError::Validation {
+            field: "total".into(),
+            detail: "This order works out to less than nothing, so it can't be rung up.                      Check the prices and the extras."
+                .into(),
+        });
+    }
+    // A split leg of its own. The sum check below floors each leg at zero, so a
+    // leg of -500 beside one of +500 would fail it with an arithmetic message
+    // about a total that looks right on screen.
+    if let Some(bad) = input.splits.iter().find(|l| l.amount_minor < 0) {
+        return Err(CoreError::Validation {
+            field: "splits".into(),
+            detail: format!(
+                "a payment of {} is less than nothing — check the split",
+                bad.amount_minor
+            ),
+        });
+    }
+
     let order_id = uuid::Uuid::new_v4();
 
     let items = lines_to_wire_items(&lines);
@@ -1518,6 +1559,24 @@ mod tests {
         .unwrap();
         assert_eq!(p.command.request.payment_method, "Cash"); // raw name on the wire
         assert_eq!(p.receipt.payment_label, "نقدي"); // localized on the receipt
+    }
+
+    // ── Nothing negative reaches the outbox (owner, 2026-09-18) ────────
+
+    #[test]
+    fn a_negative_priced_item_never_reaches_the_cart_let_alone_the_outbox() {
+        let store = Store::open("").unwrap();
+        seed_methods(&store);
+        let err = cart::add(&store, None, ITEM, "Latte", -1000).unwrap_err();
+        assert!(
+            matches!(&err, CoreError::Validation { detail, .. }
+                if detail.contains("less than nothing")),
+            "{err:?}"
+        );
+        // Refused at the point of entry: the cart is untouched, so the teller
+        // never reads a wrong total out to a customer and never reaches Charge.
+        assert!(cart::lines(&store, None).unwrap().is_empty());
+        assert_eq!(store.pending_count().unwrap(), 0);
     }
 
     #[test]
