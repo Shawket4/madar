@@ -424,6 +424,7 @@ class _Count extends ConsumerWidget {
               ),
             MadarField(
               controller: note,
+              kind: MadarFieldKind.note,
               placeholder: switch (diff) {
                 null || 0 => t('till.cash_note'),
                 < 0 => t('till.why_short'),
@@ -607,6 +608,7 @@ class _MethodCheckFormState extends ConsumerState<_MethodCheckForm> {
                 key: ValueKey('note-${m.method}'),
                 controller: _note,
                 placeholder: t('till.reconcile_note'),
+                kind: MadarFieldKind.note,
                 glyph: needsNote ? MadarGlyph.alertCircle : MadarGlyph.note,
                 onChanged: (v) => notifier.setMethodNote(m.method, v),
               ),

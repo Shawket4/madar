@@ -63,6 +63,7 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
   /// nothing has focus.
   final _wedge = TextEditingController();
   final _wedgeFocus = FocusNode();
+  final _phoneFocus = FocusNode();
   final _phone = TextEditingController();
   bool _phoneMode = false;
   MobileScannerController? _camera;
@@ -121,6 +122,7 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
     unawaited(_camera?.dispose());
     _wedge.dispose();
     _wedgeFocus.dispose();
+    _phoneFocus.dispose();
     _phone.dispose();
     super.dispose();
   }
@@ -233,8 +235,16 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
                     textField: true,
                     child: TextField(
                       controller: _phone,
-                      autofocus: true,
-                      keyboardType: TextInputType.phone,
+                      focusNode: _phoneFocus,
+                      keyboardType: MadarFieldKind.phone.keyboardType,
+                      // The same rules every other field in the app gets:
+                      // no autocorrect on a number, the dialling punctuation
+                      // only, Arabic-Indic digits folded to ASCII, and the
+                      // figure kept LTR inside an Arabic sheet.
+                      inputFormatters: MadarFieldKind.phone.inputFormatters,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      textDirection: TextDirection.ltr,
                       cursorColor: colors.accent,
                       style: MadarType.body.copyWith(color: colors.textPrimary),
                       decoration: InputDecoration.collapsed(
@@ -305,7 +315,6 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
               child: TextField(
                 controller: _wedge,
                 focusNode: _wedgeFocus,
-                autofocus: true,
                 // A hardware wedge types; nobody does. `none` keeps the soft
                 // keyboard DOWN while the field still holds focus — raising
                 // it jumped the sheet (and the one beneath) up the screen
@@ -353,7 +362,15 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
             size: MadarButtonSize.compact,
             onTap: () {
               setState(() => _phoneMode = !_phoneMode);
-              if (!_phoneMode) _wedgeFocus.requestFocus();
+              // Never raw `autofocus: true` on iPad — it races the sheet's
+              // entrance and wedges the text-input connection, after which
+              // every later tap on any field does nothing (see
+              // design_system's `EntranceFocus`). Ask AFTER the frame the
+              // switch causes, when the field it belongs to exists.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                (_phoneMode ? _phoneFocus : _wedgeFocus).requestFocus();
+              });
             },
           ),
         ),

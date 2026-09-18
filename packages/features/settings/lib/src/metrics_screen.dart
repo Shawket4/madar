@@ -166,8 +166,8 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen> {
               child: MadarField(
                 controller: _from,
                 placeholder: '${t('metrics.custom_from')} (YYYY-MM-DD)',
+                kind: MadarFieldKind.date,
                 glyph: MadarGlyph.calendar,
-                keyboardType: TextInputType.datetime,
               ),
             ),
             const SizedBox(width: Space.sm),
@@ -175,8 +175,8 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen> {
               child: MadarField(
                 controller: _to,
                 placeholder: '${t('metrics.custom_to')} (YYYY-MM-DD)',
+                kind: MadarFieldKind.date,
                 glyph: MadarGlyph.calendar,
-                keyboardType: TextInputType.datetime,
               ),
             ),
             const SizedBox(width: Space.sm),

@@ -244,6 +244,51 @@ header actions and trailing table actions are 44 tiles; the phone never puts two
 closer than 8. Every gesture has a visible, tappable equivalent (no long-press-only
 actions).
 
+## 13a. Text entry (iPad / iOS)
+
+Every input is a `MadarField` or a `MadarAmountField`, and each one declares a
+**kind** (`design_system/input.dart`, `MadarFieldKind`) — what is being typed, never
+how the keyboard should behave. The kind is the single answer for the keyboard,
+autocorrect, capitalisation, accepted characters, text direction, paste and the
+return key; a screen does not set `keyboardType` or `obscure` itself.
+
+| Kind | Keyboard | Corrections | Notes |
+|---|---|---|---|
+| `text` · `name` · `note` | text / name / multiline | only `note` autocorrects | `name` capitalises words, `note` sentences |
+| `search` | text | none | return key reads "search" |
+| `phone` | phone pad | none | digits + `+()- `, LTR |
+| `digits` · `decimal` | number / decimal pad | none | digits (one separator), LTR |
+| `code` | alphanumeric (`visiblePassword`) | none | activation / device code: upper-cased, LTR, **pasteable** |
+| `pin` | number pad | none | a typed manager PIN: masked, **not selectable or pasteable** |
+| `email` · `url` · `date` | matching | none | LTR |
+| `password` | text | none | masked |
+
+Rules the kinds encode:
+
+- **A keyboard with no return key owes a Done bar.** The iOS number, decimal and
+  phone pads have no return key at all, so `needsDoneBar` kinds publish their focus
+  node and `MadarKeyboardDoneBar` — wrapped around the whole app in
+  `MaterialApp.builder`, above every `Scaffold`, because a `Scaffold` eats the
+  bottom inset — draws a 44pt bar directly over the keys. Nothing is drawn when no
+  such field has focus or no software keyboard is up.
+- **The keyboard never covers the field.** A field brings itself into view
+  (`Scrollable.ensureVisible`, centred) after the inset lands, not before — asking
+  earlier scrolls against a viewport that has not shrunk yet. A tap outside any
+  field drops focus (`orientationProbe`).
+- **Figures are LTR islands.** Anything numeric keeps `TextDirection.ltr` whatever
+  the script around it; prose follows the screen.
+- **Arabic-Indic digits fold to ASCII as they are typed** (`MadarDigitsFormatter`,
+  ٠-٩ and ۰-۹, plus the Arabic decimal separator). An Arabic keyboard's number row
+  otherwise parsed as nothing and left the field silently empty.
+- **Paste**: allowed everywhere except a typed manager PIN, which is a credential
+  the manager types at the till — a PIN on the clipboard is exactly the sharing the
+  approval exists to prevent. An activation code is read off the dashboard, so it
+  stays pasteable.
+- **Focus order**: a field given a `nextFocus` shows a "next" return key and moves
+  there, which is also what a hardware or Bluetooth keyboard's Tab follows.
+- **Never raw `autofocus: true`** — see `EntranceFocus`; it races a route transition
+  on iPad and wedges the text-input connection for every later field.
+
 ## 14. Motion
 
 `MotionSpec.standardDuration` 220ms ease-out for colour/opacity/expand/rotate;

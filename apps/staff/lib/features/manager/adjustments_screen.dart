@@ -707,9 +707,14 @@ class _AddSheetState extends ConsumerState<_AddSheet> {
             const SizedBox(height: Space.xs),
             TextField(
               controller: _amount,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
+              keyboardType: MadarFieldKind.decimal.keyboardType,
+              // The shared numeric rules: Arabic-Indic digits folded to
+              // ASCII, one separator, the figure kept LTR. See
+              // design_system/input.dart.
+              inputFormatters: MadarFieldKind.decimal.inputFormatters,
+              textDirection: TextDirection.ltr,
+              autocorrect: false,
+              enableSuggestions: false,
               onChanged: (_) => setState(() {}),
               style: MadarType.numMd.copyWith(color: colors.textPrimary),
               decoration: _decoration(colors, '0.00'),
@@ -813,9 +818,14 @@ class _ReasonSheetState extends ConsumerState<_ReasonSheet> {
             const SizedBox(height: Space.xs),
             TextField(
               controller: _amount,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
+              keyboardType: MadarFieldKind.decimal.keyboardType,
+              // The shared numeric rules: Arabic-Indic digits folded to
+              // ASCII, one separator, the figure kept LTR. See
+              // design_system/input.dart.
+              inputFormatters: MadarFieldKind.decimal.inputFormatters,
+              textDirection: TextDirection.ltr,
+              autocorrect: false,
+              enableSuggestions: false,
               onChanged: (_) => setState(() {}),
               style: MadarType.numMd.copyWith(color: colors.textPrimary),
               decoration: _decoration(colors, '0.00'),

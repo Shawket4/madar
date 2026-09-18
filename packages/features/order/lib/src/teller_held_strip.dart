@@ -194,6 +194,7 @@ class TellerHeldStrip extends ConsumerWidget {
             MadarField(
               controller: controller,
               placeholder: bridge.tr(key: 'waiter.customer_optional'),
+              kind: MadarFieldKind.name,
               autofocus: true,
               onSubmitted: (v) => Navigator.of(sheetContext).maybePop(v.trim()),
             ),

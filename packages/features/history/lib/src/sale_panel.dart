@@ -1091,6 +1091,7 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
                 MadarField(
                   controller: _note,
                   placeholder: t('void.note'),
+                  kind: MadarFieldKind.note,
                   glyph: MadarGlyph.note,
                   enabled: !_busy,
                 ),
@@ -1230,6 +1231,7 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
                 MadarField(
                   controller: _note,
                   placeholder: t('void.note'),
+                  kind: MadarFieldKind.note,
                   glyph: MadarGlyph.note,
                   enabled: !form.busy,
                 ),

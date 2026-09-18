@@ -131,6 +131,7 @@ class _CashInOutPanelState extends ConsumerState<CashInOutPanel> {
             MadarField(
               controller: _note,
               placeholder: t('cash.note_hint'),
+              kind: MadarFieldKind.note,
               glyph: MadarGlyph.note,
               onChanged: notifier.setNote,
               onSubmitted: (_) => unawaited(_record()),

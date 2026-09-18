@@ -620,6 +620,7 @@ class _DeclineSheetState extends ConsumerState<_DeclineSheet> {
             ),
           MadarField(
             controller: _reason,
+            kind: MadarFieldKind.note,
             placeholder: bridge.trOr(QueueKeys.declineReason),
             glyph: MadarGlyph.note,
             autofocus: true,
@@ -708,6 +709,7 @@ class _CancelSheetState extends ConsumerState<_CancelSheet> {
             ),
           MadarField(
             controller: _reason,
+            kind: MadarFieldKind.note,
             placeholder: bridge.tr(key: 'delivery.cancel_reason'),
             glyph: MadarGlyph.note,
           ),

@@ -295,6 +295,7 @@ class _FormColumn extends ConsumerWidget {
                   MadarField(
                     controller: reason,
                     placeholder: t('till.opening_reason_label'),
+                    kind: MadarFieldKind.note,
                     icon: 'exclamationmark.bubble',
                   ),
                 Text(
@@ -401,6 +402,7 @@ class _OpeningForm extends ConsumerWidget {
               MadarField(
                 controller: reason,
                 placeholder: t('till.opening_reason_label'),
+                kind: MadarFieldKind.note,
                 glyph: MadarGlyph.alertCircle,
               ),
             Text(

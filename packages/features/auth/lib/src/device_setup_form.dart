@@ -34,6 +34,9 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
   final TextEditingController _password = TextEditingController();
   final TextEditingController _code = TextEditingController();
 
+  /// Where the email field's return key goes.
+  final FocusNode _passwordFocus = FocusNode();
+
   /// An activation code from the dashboard is the primary way to bind a
   /// device (POS_SIGNIN_OVERHAUL §4); the manager login stays for now.
   bool _useCode = true;
@@ -43,6 +46,7 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
     _code.dispose();
     _email.dispose();
     _password.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -142,26 +146,31 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
           MadarField(
             controller: _code,
             placeholder: t('setup.activation_code'),
+            kind: MadarFieldKind.code,
             icon: 'lock.open',
             enabled: !busy,
             autofocus: true,
-            keyboardType: TextInputType.number,
             onSubmitted: (_) => _activate(),
           )
         else ...[
+          // Email then password: the return key moves on instead of putting
+          // the keyboard away halfway through the form — the same order a
+          // hardware keyboard's Tab follows.
           MadarField(
             controller: _email,
             placeholder: t('setup.email'),
+            kind: MadarFieldKind.email,
             icon: 'envelope',
             enabled: !busy,
-            keyboardType: TextInputType.emailAddress,
+            nextFocus: _passwordFocus,
           ),
           MadarField(
             controller: _password,
             placeholder: t('setup.password'),
+            kind: MadarFieldKind.password,
             icon: 'lock',
-            obscure: true,
             enabled: !busy,
+            focusNode: _passwordFocus,
             onSubmitted: (_) => _authenticate(),
           ),
         ],

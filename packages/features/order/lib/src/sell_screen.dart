@@ -408,6 +408,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         ? MadarField(
             controller: _search,
             placeholder: bridge.tr(key: 'order.search'),
+            kind: MadarFieldKind.search,
             glyph: MadarGlyph.search,
             autofocus: true,
             onChanged: (_) => setState(() {}),
