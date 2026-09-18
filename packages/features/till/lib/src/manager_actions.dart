@@ -296,11 +296,11 @@ class _BatchPinSheetState extends ConsumerState<_BatchPinSheet> {
           MadarField(
             controller: _pin,
             placeholder: t('approval.pin'),
+            kind: MadarFieldKind.pin,
+            maxLength: 6,
             icon: 'lock',
-            obscure: true,
             autofocus: true,
             enabled: !_busy,
-            keyboardType: TextInputType.number,
             onSubmitted: (_) => _go(),
           ),
           if (_error != null)

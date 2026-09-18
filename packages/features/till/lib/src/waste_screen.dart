@@ -258,6 +258,7 @@ class _WasteScreenState extends ConsumerState<WasteScreen> {
                 MadarField(
                   controller: _search,
                   placeholder: t('waste.search'),
+                  kind: MadarFieldKind.search,
                   glyph: MadarGlyph.search,
                   onChanged: (_) => setState(() {}),
                 ),
@@ -302,10 +303,8 @@ class _WasteScreenState extends ConsumerState<WasteScreen> {
                 MadarField(
                   controller: _qty,
                   placeholder: t('waste.quantity'),
+                  kind: MadarFieldKind.decimal,
                   glyph: MadarGlyph.plus,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
                   onChanged: (_) => setState(() {}),
                 ),
                 if (_units.length > 1)
@@ -337,6 +336,7 @@ class _WasteScreenState extends ConsumerState<WasteScreen> {
                 MadarField(
                   controller: _note,
                   placeholder: t('waste.note'),
+                  kind: MadarFieldKind.note,
                   glyph: MadarGlyph.note,
                 ),
               ],

@@ -42,7 +42,8 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
   bool get _needsFrom => _kind == 'early_departure' || _kind == 'excuse';
   bool get _needsTo => _kind == 'late_arrival' || _kind == 'excuse';
 
-  String _hhmm(TimeOfDay t) => formatTimeOfDay(t.hour, t.minute);
+  /// The payload shape, 24-hour — not what the row shows (see `hhmmWire`).
+  String _hhmm(TimeOfDay t) => hhmmWire(t.hour, t.minute);
 
   Future<void> _submit() async {
     final t = ref.read(tProvider);

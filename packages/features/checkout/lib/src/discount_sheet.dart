@@ -277,12 +277,10 @@ class _CartDiscountSheetState extends ConsumerState<_CartDiscountSheet> {
             MadarField(
               controller: _percent,
               placeholder: t('discount.percent_hint'),
+              kind: MadarFieldKind.decimal,
               glyph: MadarGlyph.percent,
               autofocus: true,
               enabled: !_busy,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
               onSubmitted: (_) => _apply(),
             ),
           if (_error != null)

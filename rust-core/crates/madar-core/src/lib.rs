@@ -5407,14 +5407,20 @@ impl MadarCore {
         timefmt::format(&self.store, &rfc3339, style, &self.current_locale())
     }
 
-    /// `HH:mm` (24h) of an instant in the branch zone — the staff app's clock
-    /// rows. Empty or unparseable input reads `—`.
+    /// A bare clock time of an instant in the branch zone, 12-hour
+    /// (`06:02 PM`, Arabic `06:02 م`) — the staff app's clock rows. Empty or
+    /// unparseable input reads `—`.
     pub fn format_clock(&self, rfc3339: String) -> String {
-        timefmt::hhmm_in(timefmt::branch_tz(&self.store), &rfc3339).unwrap_or_else(|| "—".into())
+        timefmt::hhmm_in(
+            timefmt::branch_tz(&self.store),
+            &rfc3339,
+            &self.current_locale(),
+        )
+        .unwrap_or_else(|| "—".into())
     }
 
-    /// A row's stamp in the branch zone by the corrected clock: `18:02` today,
-    /// `Sep 12 · 18:02` otherwise. See `display::format_stamp`.
+    /// A row's stamp in the branch zone by the corrected clock: `06:02 PM`
+    /// today, `Sep 12 · 06:02 PM` otherwise. See `display::format_stamp`.
     pub fn format_stamp(&self, rfc3339: String) -> String {
         timefmt::format_stamp(
             &self.store,

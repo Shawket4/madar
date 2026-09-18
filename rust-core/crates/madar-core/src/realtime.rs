@@ -128,14 +128,14 @@ fn alert_for(event_type: &str, data: &str, locale: &str, tz: &str) -> Option<Ale
             .filter(|s| !s.is_empty())
     };
     if event_type.starts_with("booking.") {
-        // "Ahmed · 4 · 19:30 · T12" — who, how many, when (branch zone), where.
+        // "Ahmed · 4 · 07:30 PM · T12" — who, how many, when (branch zone), where.
         let id = pick(&["id"]).unwrap_or_default();
         let guest = pick(&["guest_name"]);
         let party = v
             .get("party_size")
             .and_then(|x| x.as_i64())
             .map(|n| n.to_string());
-        let when = pick(&["starts_at"]).and_then(|s| local_hhmm(&s, tz));
+        let when = pick(&["starts_at"]).and_then(|s| local_hhmm(&s, tz, locale));
         let tables = v
             .get("table_labels")
             .and_then(|x| x.as_array())
@@ -238,10 +238,11 @@ pub(crate) fn alert_tag(event_type: &str, id: &str) -> String {
     format!("{event_type}:{id}")
 }
 
-/// `HH:MM` of an RFC3339 instant in the branch zone (`None` when unparsable).
-fn local_hhmm(rfc3339: &str, tz: &str) -> Option<String> {
+/// The 12-hour clock time of an RFC3339 instant in the branch zone, in
+/// `locale` (`None` when unparsable).
+fn local_hhmm(rfc3339: &str, tz: &str, locale: &str) -> Option<String> {
     let zone: chrono_tz::Tz = tz.parse().unwrap_or(chrono_tz::Africa::Cairo);
-    crate::timefmt::hhmm_in(zone, rfc3339)
+    crate::timefmt::hhmm_in(zone, rfc3339, locale)
 }
 
 /// Per-role alert relevance: a device pings/notifies only for events that are
@@ -865,7 +866,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(a.tag, "booking.created:b1");
-        assert_eq!(a.body, "Ahmed · 4 · 19:30 · T12");
+        assert_eq!(a.body, "Ahmed · 4 · 07:30 PM · T12");
         assert!(alert_for(
             "booking.arriving",
             r#"{"id":"b1","guest_name":"A"}"#,

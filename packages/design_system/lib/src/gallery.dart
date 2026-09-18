@@ -11,6 +11,7 @@ import 'package:design_system/src/chrome.dart';
 import 'package:design_system/src/controls.dart';
 import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/icons.dart';
+import 'package:design_system/src/input.dart';
 import 'package:design_system/src/money.dart';
 import 'package:design_system/src/page.dart';
 import 'package:design_system/src/sheet.dart';
@@ -565,6 +566,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
         children: [
           MadarField(
             controller: _galleryField,
+            kind: MadarFieldKind.name,
             placeholder: 'Guest name',
             icon: 'person',
           ),

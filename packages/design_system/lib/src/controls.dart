@@ -21,10 +21,13 @@
 /// live here.
 library;
 
+import 'dart:async';
+
 import 'package:design_system/src/focus.dart';
 import 'package:design_system/src/format.dart';
 import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/icons.dart';
+import 'package:design_system/src/input.dart';
 import 'package:design_system/src/money.dart';
 import 'package:design_system/src/tokens/colors.dart';
 import 'package:design_system/src/tokens/dimens.dart';
@@ -33,6 +36,23 @@ import 'package:design_system/src/tokens/motion.dart';
 import 'package:design_system/src/tokens/typography.dart';
 import 'package:design_system/src/touch.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+/// Is this field actually hidden behind the software keyboard?
+///
+/// Only then is it worth scrolling. Scrolling regardless drags the page under
+/// whatever chrome sits above it — the close-till header went under the
+/// status bar — for a field that was already in plain sight.
+bool _hiddenByKeyboard(BuildContext context) {
+  final inset = MediaQuery.viewInsetsOf(context).bottom;
+  if (inset <= 0) return false; // no software keyboard: nothing covers it
+  final box = context.findRenderObject();
+  if (box is! RenderBox || !box.hasSize || !box.attached) return false;
+  final top = box.localToGlobal(Offset.zero).dy;
+  final bottom = top + box.size.height;
+  final clear = MediaQuery.sizeOf(context).height - inset;
+  return bottom > clear;
+}
 
 /// Loading spinner diameter / stroke.
 const double _spinnerSize = 20;
@@ -562,18 +582,21 @@ class MadarField extends StatefulWidget {
   const MadarField({
     required this.controller,
     required this.placeholder,
+    this.kind = MadarFieldKind.text,
     this.glyph,
     this.icon,
     this.onChanged,
     this.onSubmitted,
     this.enabled = true,
-    this.obscure = false,
+    this.obscure,
     this.autofocus = false,
     this.keyboardType,
     this.textInputAction,
     this.maxLines = 1,
+    this.maxLength,
     this.trailing,
     this.focusNode,
+    this.nextFocus,
     super.key,
   });
 
@@ -588,12 +611,20 @@ class MadarField extends StatefulWidget {
   /// Legacy leading icon by SF-Symbol name. Prefer [glyph].
   final String? icon;
 
+  /// What this field is FOR. It decides the keyboard, the corrections, the
+  /// capitalisation, the accepted characters, the text direction, whether the
+  /// text may be pasted and whether the app must draw a Done bar over a
+  /// keyboard that has no return key. See `input.dart` — a screen says what
+  /// the field is, never how the keyboard should behave.
+  final MadarFieldKind kind;
+
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final bool enabled;
 
-  /// Masks the text (a PIN, a password).
-  final bool obscure;
+  /// Masks the text. Defaults to the [kind]'s own answer (a PIN and a
+  /// password mask; nothing else does).
+  final bool? obscure;
 
   /// Focuses once the enclosing route's entrance animation settles. NEVER
   /// raw `autofocus: true` — see [EntranceFocus].
@@ -611,6 +642,14 @@ class MadarField extends StatefulWidget {
   /// An external focus node, for a screen that moves focus itself.
   final FocusNode? focusNode;
 
+  /// The next field in a form. Given one, the return key reads "next" and
+  /// moves there — what a hardware or Bluetooth keyboard's Tab does anyway,
+  /// and what the software keyboard has no way to do without being told.
+  final FocusNode? nextFocus;
+
+  /// A hard cap on the length (a PIN, a code). `null` for no cap.
+  final int? maxLength;
+
   @override
   State<MadarField> createState() => _MadarFieldState();
 }
@@ -623,19 +662,100 @@ class _MadarFieldState extends State<MadarField>
   @override
   void initState() {
     super.initState();
+    _focus.addListener(_onFocusChanged);
     if (widget.autofocus) focusAfterEntrance(_focus);
   }
 
   @override
   void dispose() {
+    _cancelNudges();
+    _focus.removeListener(_onFocusChanged);
+    MadarKeyboardDone.release(_focus);
     _own?.dispose();
     super.dispose();
+  }
+
+  /// Two things happen when a field takes focus on a tablet, and both of them
+  /// are about the keyboard that is on its way up.
+  void _onFocusChanged() {
+    if (!mounted) return;
+    if (!_focus.hasFocus) {
+      _cancelNudges();
+      MadarKeyboardDone.release(_focus);
+      return;
+    }
+    // 1. A number / decimal / phone pad has NO return key, so the app owes
+    //    this field a Done bar of its own.
+    if (widget.kind.needsDoneBar) MadarKeyboardDone.claim(_focus);
+    // 2. The keyboard is about to cover the lower third of the screen. Bring
+    //    the field into view AFTER the inset has landed — asking before it
+    //    does scrolls against a viewport that has not shrunk yet, which is
+    //    how a field ends up half under the keys.
+    _scrollIntoViewAfterTheKeyboard();
+  }
+
+  /// Pending nudges, held so they can be cancelled: a field disposed while
+  /// one is in flight must not leave a timer behind (nor scroll a tree that
+  /// is gone).
+  final List<Timer> _nudges = [];
+
+  void _scrollIntoViewAfterTheKeyboard() {
+    // The inset animates in; one frame is not enough, and there is no
+    // "keyboard settled" callback. Nudging twice covers both the quick
+    // hardware-keyboard case (no inset at all) and the software one.
+    for (final delay in const [Duration.zero, Duration(milliseconds: 220)]) {
+      _nudges.add(
+        Timer(delay, () {
+          if (!mounted || !_focus.hasFocus) return;
+          if (Scrollable.maybeOf(context) == null) return;
+          if (!_hiddenByKeyboard(context)) return;
+          Scrollable.ensureVisible(
+            context,
+            // Centre it: a field pinned to the very top of the viewport reads
+            // as though the form above it is gone.
+            alignment: 0.5,
+            duration: MotionSpec.standardDuration,
+            curve: MotionSpec.standardCurve,
+          );
+        }),
+      );
+    }
+  }
+
+  void _cancelNudges() {
+    for (final t in _nudges) {
+      t.cancel();
+    }
+    _nudges.clear();
+  }
+
+  /// The return key. A caller's choice wins; otherwise a field with a next
+  /// one says "next", and the kind decides the rest.
+  TextInputAction? get _action =>
+      widget.textInputAction ??
+      (widget.nextFocus != null
+          ? TextInputAction.next
+          : widget.kind.defaultAction);
+
+  List<TextInputFormatter> get _formatters => [
+    ...widget.kind.inputFormatters,
+    if (widget.maxLength != null)
+      LengthLimitingTextInputFormatter(widget.maxLength),
+  ];
+
+  /// Return pressed: hand on to the caller, then move to the next field if
+  /// there is one and the caller did not take over.
+  void _submit(String value) {
+    widget.onSubmitted?.call(value);
+    final next = widget.nextFocus;
+    if (next != null && widget.onSubmitted == null) next.requestFocus();
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final single = widget.obscure || widget.maxLines == 1;
+    final obscure = widget.obscure ?? widget.kind.obscures;
+    final single = obscure || widget.maxLines == 1;
     return ListenableBuilder(
       listenable: _focus,
       builder: (context, _) {
@@ -692,10 +812,22 @@ class _MadarFieldState extends State<MadarField>
                     focusNode: _focus,
                     enabled: widget.enabled,
                     onChanged: widget.onChanged,
-                    onSubmitted: widget.onSubmitted,
-                    obscureText: widget.obscure,
-                    keyboardType: widget.keyboardType,
-                    textInputAction: widget.textInputAction,
+                    onSubmitted: _submit,
+                    obscureText: obscure,
+                    // The kind answers unless the caller overrode it.
+                    keyboardType:
+                        widget.keyboardType ?? widget.kind.keyboardType,
+                    textInputAction: _action,
+                    autocorrect: widget.kind.autocorrect,
+                    enableSuggestions: widget.kind.enableSuggestions,
+                    textCapitalization: widget.kind.textCapitalization,
+                    enableInteractiveSelection: widget.kind.allowsPaste,
+                    inputFormatters: _formatters,
+                    // A figure or a code is an LTR island whatever the script
+                    // around it: "12.50" reorders in an Arabic line otherwise.
+                    textDirection: widget.kind.forcesLtr
+                        ? TextDirection.ltr
+                        : null,
                     maxLines: single ? 1 : widget.maxLines,
                     cursorColor: colors.accent,
                     style: textStyle,
@@ -753,6 +885,11 @@ class MadarAmountField extends StatefulWidget {
 
 class _MadarAmountFieldState extends State<MadarAmountField>
     with EntranceFocus<MadarAmountField> {
+  /// An amount is a decimal figure: the decimal pad, digits and one
+  /// separator, Arabic-Indic digits folded to ASCII, LTR — and, because that
+  /// keyboard has no return key, a Done bar.
+  static const MadarFieldKind _kind = MadarFieldKind.decimal;
+
   late final TextEditingController _controller = TextEditingController(
     text: _textFor(widget.amountMinor),
   );
@@ -772,10 +909,49 @@ class _MadarAmountFieldState extends State<MadarAmountField>
   void initState() {
     super.initState();
     _lastEmitted = widget.amountMinor;
+    _focus.addListener(_onFocusChanged);
     // Never raw `autofocus: true` — on iPad it races the route transition and
     // wedges the text-input connection, after which EVERY later tap on ANY
     // field does nothing.
     if (widget.autofocus) focusAfterEntrance(_focus);
+  }
+
+  /// The decimal pad has no return key, so this field owes the person a Done
+  /// bar, and the keyboard it raises will cover the Charge / Save button
+  /// under it unless the field is scrolled into view once the inset lands.
+  void _onFocusChanged() {
+    if (!mounted) return;
+    if (!_focus.hasFocus) {
+      _cancelNudges();
+      MadarKeyboardDone.release(_focus);
+      return;
+    }
+    MadarKeyboardDone.claim(_focus);
+    for (final delay in const [Duration.zero, Duration(milliseconds: 220)]) {
+      _nudges.add(
+        Timer(delay, () {
+          if (!mounted || !_focus.hasFocus) return;
+          if (Scrollable.maybeOf(context) == null) return;
+          if (!_hiddenByKeyboard(context)) return;
+          Scrollable.ensureVisible(
+            context,
+            alignment: 0.5,
+            duration: MotionSpec.standardDuration,
+            curve: MotionSpec.standardCurve,
+          );
+        }),
+      );
+    }
+  }
+
+  /// Pending nudges, cancelled on dispose — see `_MadarFieldState._nudges`.
+  final List<Timer> _nudges = [];
+
+  void _cancelNudges() {
+    for (final t in _nudges) {
+      t.cancel();
+    }
+    _nudges.clear();
   }
 
   @override
@@ -789,6 +965,9 @@ class _MadarAmountFieldState extends State<MadarAmountField>
 
   @override
   void dispose() {
+    _cancelNudges();
+    _focus.removeListener(_onFocusChanged);
+    MadarKeyboardDone.release(_focus);
     _controller.dispose();
     _focus.dispose();
     super.dispose();
@@ -848,9 +1027,13 @@ class _MadarAmountFieldState extends State<MadarAmountField>
                     cursorColor: colors.accent,
                     // Figures are LTR islands, whatever the script around them.
                     textDirection: TextDirection.ltr,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    keyboardType: _kind.keyboardType,
+                    // Folds ٠-٩ / ۰-۹ to ASCII as they are typed and keeps
+                    // one separator: an amount entered on an Arabic iPad used
+                    // to parse as nothing and leave the field silently empty.
+                    inputFormatters: _kind.inputFormatters,
+                    autocorrect: false,
+                    enableSuggestions: false,
                     style: MadarType.moneyDisplay.copyWith(
                       fontSize: 28,
                       color: colors.textPrimary,

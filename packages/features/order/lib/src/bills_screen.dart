@@ -89,9 +89,9 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
             MadarField(
               controller: controller,
               placeholder: orderWord(bridge, 'sell.guest_name'),
+              kind: MadarFieldKind.name,
               glyph: MadarGlyph.user,
               autofocus: true,
-              textInputAction: TextInputAction.done,
               onSubmitted: (v) => Navigator.of(sheetContext).maybePop(v),
             ),
             MadarButton(

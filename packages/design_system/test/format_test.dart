@@ -74,6 +74,28 @@ void main() {
     }
   });
 
+  test('a clock time is 12-hour, midnight and noon included', () {
+    // The mirror of the core's display::hhmm12 — hour zero-padded, figures
+    // Western, only the meridiem word changes with the language.
+    expect(MadarFormat.clock(0, 5), '12:05 AM');
+    expect(MadarFormat.clock(9, 0), '09:00 AM');
+    expect(MadarFormat.clock(11, 59), '11:59 AM');
+    expect(MadarFormat.clock(12, 0), '12:00 PM');
+    expect(MadarFormat.clock(18, 2), '06:02 PM');
+    expect(MadarFormat.clock(23, 30), '11:30 PM');
+    expect(MadarFormat.clock(0, 5, locale: 'ar'), '12:05 ص');
+    expect(MadarFormat.clock(18, 2, locale: 'ar'), '06:02 م');
+    // Never a 24-hour hour, in either language.
+    for (var h = 0; h < 24; h++) {
+      for (final l in ['en', 'ar']) {
+        final out = MadarFormat.clock(h, 0, locale: l);
+        final hour = int.parse(out.substring(0, 2));
+        expect(hour, greaterThanOrEqualTo(1), reason: '$l $h -> $out');
+        expect(hour, lessThanOrEqualTo(12), reason: '$l $h -> $out');
+      }
+    }
+  });
+
   test('Money.format is the English shape by default', () {
     expect(Money.format(623000, currency: 'EGP'), 'EGP 6,230.00');
     expect(Money.format(-5000, currency: 'egp'), '−EGP 50.00');

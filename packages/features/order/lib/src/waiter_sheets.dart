@@ -150,6 +150,7 @@ class _WaiterVoidSheetState extends ConsumerState<WaiterVoidSheet> {
           MadarField(
             controller: _note,
             placeholder: bridge.tr(key: 'void.note'),
+            kind: MadarFieldKind.note,
             icon: 'note.text',
           ),
           const SizedBox(height: Space.md),

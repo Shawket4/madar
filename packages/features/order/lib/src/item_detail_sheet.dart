@@ -1091,6 +1091,7 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                     MadarField(
                       controller: _notes,
                       placeholder: bridge.tr(key: 'sell.item_note_hint'),
+                      kind: MadarFieldKind.note,
                       icon: 'text.bubble',
                     ),
                   ],
@@ -1168,6 +1169,7 @@ class _OptionalsSectionState extends ConsumerState<_OptionalsSection> {
           MadarField(
             controller: _search,
             placeholder: bridge.tr(key: 'order.search_addons'),
+            kind: MadarFieldKind.search,
             icon: 'magnifyingglass',
           ),
           const SizedBox(height: Space.sm),
@@ -1676,6 +1678,7 @@ class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
               MadarField(
                 controller: _search,
                 placeholder: bridge.tr(key: 'order.search_addons'),
+                kind: MadarFieldKind.search,
                 icon: 'magnifyingglass',
               ),
               const SizedBox(height: Space.md),

@@ -21,6 +21,9 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
   final _query = TextEditingController();
   final _name = TextEditingController();
   final _phone = TextEditingController();
+
+  /// Where the name field's return key goes.
+  final _phoneFocus = FocusNode();
   List<CustomerView> _results = const [];
   bool _adding = false;
   String? _error;
@@ -36,6 +39,7 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
     _query.dispose();
     _name.dispose();
     _phone.dispose();
+    _phoneFocus.dispose();
     super.dispose();
   }
 
@@ -77,15 +81,19 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
     Widget field(
       TextEditingController c,
       String hint, {
-      TextInputType? keyboard,
+      MadarFieldKind kind = MadarFieldKind.text,
       ValueChanged<String>? onChanged,
       bool autofocus = false,
+      FocusNode? focusNode,
+      FocusNode? nextFocus,
     }) => MadarField(
       controller: c,
       placeholder: hint,
-      keyboardType: keyboard,
+      kind: kind,
       onChanged: onChanged,
       autofocus: autofocus,
+      focusNode: focusNode,
+      nextFocus: nextFocus,
     );
 
     return SingleChildScrollView(
@@ -107,6 +115,7 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
             field(
               _query,
               t('customers.search_hint'),
+              kind: MadarFieldKind.search,
               autofocus: true,
               onChanged: _search,
             ),
@@ -145,8 +154,22 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
                 }),
               ),
           ] else ...[
-            field(_name, t('customers.name'), autofocus: true),
-            field(_phone, t('customers.phone'), keyboard: TextInputType.phone),
+            // Name then phone, in that order, on a hardware keyboard too:
+            // the name's return key moves to the phone instead of dropping
+            // focus and putting the keyboard away mid-form.
+            field(
+              _name,
+              t('customers.name'),
+              kind: MadarFieldKind.name,
+              autofocus: true,
+              nextFocus: _phoneFocus,
+            ),
+            field(
+              _phone,
+              t('customers.phone'),
+              kind: MadarFieldKind.phone,
+              focusNode: _phoneFocus,
+            ),
             MadarButton(label: t('customers.save'), onTap: _save),
           ],
           if (_error != null)

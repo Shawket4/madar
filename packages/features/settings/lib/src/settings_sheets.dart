@@ -12,8 +12,7 @@ import 'package:feature_auth/feature_auth.dart' show showReconfigureSheet;
 import 'package:feature_checkout/feature_checkout.dart' show PrintState;
 import 'package:feature_settings/src/labels.dart';
 import 'package:feature_settings/src/settings_provider.dart';
-import 'package:flutter/services.dart'
-    show Clipboard, ClipboardData, TextInputAction;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -237,8 +236,8 @@ class _PrinterSheetState extends ConsumerState<_PrinterSheet> {
           MadarField(
             controller: _host,
             placeholder: t('settings.printer_hint'),
+            kind: MadarFieldKind.url,
             glyph: MadarGlyph.printer,
-            keyboardType: TextInputType.url,
             onChanged: (value) => unawaited(notifier.persistPrinter(value)),
           ),
         _Choice<int>(
@@ -442,8 +441,8 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
         MadarField(
           controller: _code,
           placeholder: t('settings.device_code_hint'),
+          kind: MadarFieldKind.code,
           glyph: MadarGlyph.tag,
-          textInputAction: TextInputAction.done,
           onChanged: notifier.setDeviceCode,
         ),
         _Caption(t('settings.device_code_caption')),
@@ -455,6 +454,7 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
         MadarField(
           controller: _hub,
           placeholder: t('settings.lan_hub_hint'),
+          kind: MadarFieldKind.url,
           glyph: MadarGlyph.wifi,
           keyboardType: TextInputType.url,
           onChanged: (value) => unawaited(notifier.setLanHub(value)),

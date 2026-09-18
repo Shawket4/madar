@@ -106,6 +106,7 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
     final search = MadarField(
       controller: _searchField,
       placeholder: t('history.search_hint'),
+      kind: MadarFieldKind.search,
       glyph: MadarGlyph.search,
       onChanged: notifier.setSearch,
     );

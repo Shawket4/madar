@@ -67,15 +67,15 @@ void main() {
       final seen = <String>[];
       branchClock = (s) {
         seen.add(s);
-        return '02:30';
+        return '02:30 AM';
       };
       addTearDown(() => branchClock = null);
-      expect(formatClock('2026-09-12T23:30:00Z'), '02:30');
+      expect(formatClock('2026-09-12T23:30:00Z'), '02:30 AM');
       expect(seen, ['2026-09-12T23:30:00Z']);
     });
 
     test('without a core it is UTC, not the device clock', () {
-      expect(formatClock('2026-09-12T23:30:00+03:00'), '20:30');
+      expect(formatClock('2026-09-12T23:30:00+03:00'), '08:30 PM');
     });
   });
 }

@@ -1513,6 +1513,7 @@ Future<void> editCartNote(
           MadarField(
             controller: controller,
             placeholder: orderWord(bridge, 'sell.note_hint'),
+            kind: MadarFieldKind.note,
             icon: 'text.bubble',
             autofocus: true,
           ),
@@ -1645,6 +1646,7 @@ Future<void> editCartKitchenNote(
           MadarField(
             controller: controller,
             placeholder: orderWord(bridge, 'sell.cart_kitchen_note_hint'),
+            kind: MadarFieldKind.note,
             icon: 'text.bubble',
             autofocus: true,
           ),
@@ -1697,6 +1699,7 @@ Future<void> editLineKitchenNote(
           MadarField(
             controller: controller,
             placeholder: orderWord(bridge, 'sell.kitchen_note_hint'),
+            kind: MadarFieldKind.note,
             icon: 'text.bubble',
             autofocus: true,
           ),

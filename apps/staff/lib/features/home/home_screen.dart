@@ -574,11 +574,12 @@ String requestKindIcon(String kind) => switch (kind) {
   _ => 'sun.max',
 };
 
-/// The window a request covers, as a bare number string.
+/// The window a request covers, as a bare string. The API stores the times
+/// as 24-hour `HH:mm`; what is SHOWN is 12-hour (`formatWireTime`).
 String requestWindow(StaffRequestView r) => switch (r.kind) {
-  'late_arrival' => r.toTime,
-  'early_departure' => r.fromTime,
-  'excuse' => '${r.fromTime}–${r.toTime}',
+  'late_arrival' => formatWireTime(r.toTime),
+  'early_departure' => formatWireTime(r.fromTime),
+  'excuse' => '${formatWireTime(r.fromTime)}–${formatWireTime(r.toTime)}',
   _ =>
     r.endDate.isNotEmpty && r.endDate != r.onDate
         ? '${r.onDate} → ${r.endDate}'

@@ -25,6 +25,10 @@ class MadarShell extends ConsumerWidget {
     final lang = ref.watch(
       localeProvider.select((s) => s.locale.split(RegExp('[-_]')).first),
     );
+    // The Done bar's one word, from the core's i18n like every other string
+    // the app shows. Set here because this is where the language is known;
+    // the bar itself is drawn far from any provider scope.
+    MadarKeyboardDone.label = ref.read(bridgeProvider).tr(key: 'common.done');
     return MaterialApp(
       title: 'Madar Cashier',
       debugShowCheckedModeBanner: false,
@@ -42,9 +46,16 @@ class MadarShell extends ConsumerWidget {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       // Direction sits ABOVE the navigator, so every pushed screen, sheet
       // and modal mirrors with the locale — not only the home route.
-      builder: (context, child) => Directionality(
-        textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
-        child: motionScope(context, motion, orientationProbe(context, child)),
+      // The Done bar sits OUTSIDE the direction/motion scopes, over the whole
+      // app, because the software keyboard does: the iOS number, decimal and
+      // phone pads have no return key, so a field taking one of them has no
+      // way to put the keyboard away on its own. It draws nothing at all
+      // unless such a field holds focus (`MadarKeyboardDone`).
+      builder: (context, child) => MadarKeyboardDoneBar(
+        child: Directionality(
+          textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+          child: motionScope(context, motion, orientationProbe(context, child)),
+        ),
       ),
       home: const _RouteHost(),
     );

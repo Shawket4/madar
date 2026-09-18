@@ -158,11 +158,36 @@ pub(crate) const AR_MONTHS: [&str; 12] = [
     "ديسمبر",
 ];
 
-/// A row's timestamp, 24-hour. Today: `18:02`. This year: `Sep 12 · 18:02`
-/// (Arabic `12 سبتمبر · 18:02`). Another year: `Sep 12, 2025 · 18:02`
-/// (`12 سبتمبر 2025 · 18:02`). Both arguments are wall-clock in the SAME zone.
+/// A clock time, 12-hour, in `locale`: `06:02 PM`, Arabic `06:02 م`. The hour
+/// is zero-padded, like `timefmt`'s `%I:%M %p` — every time of day the app
+/// shows reads the same shape. Figures stay Western; only the meridiem word
+/// changes. `docs/design/SPEC.md` §Formats.
+pub(crate) fn hhmm12(at: NaiveDateTime, locale: &str) -> String {
+    let h24 = at.hour();
+    let h = match h24 % 12 {
+        0 => 12,
+        h => h,
+    };
+    let meridiem = if h24 < 12 {
+        if is_arabic(locale) {
+            "ص"
+        } else {
+            "AM"
+        }
+    } else if is_arabic(locale) {
+        "م"
+    } else {
+        "PM"
+    };
+    format!("{:02}:{:02} {}", h, at.minute(), meridiem)
+}
+
+/// A row's timestamp, 12-hour. Today: `06:02 PM`. This year:
+/// `Sep 12 · 06:02 PM` (Arabic `12 سبتمبر · 06:02 م`). Another year:
+/// `Sep 12, 2025 · 06:02 PM` (`12 سبتمبر 2025 · 06:02 م`). Both arguments are
+/// wall-clock in the SAME zone.
 pub fn format_stamp(at: NaiveDateTime, now: NaiveDateTime, locale: &str) -> String {
-    let time = format!("{:02}:{:02}", at.hour(), at.minute());
+    let time = hhmm12(at, locale);
     if at.date() == now.date() {
         return time;
     }
@@ -198,6 +223,33 @@ mod tests {
 
     fn naive(s: &str) -> NaiveDateTime {
         NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S").expect("fixture datetime")
+    }
+
+    #[test]
+    fn a_clock_time_is_twelve_hour_midnight_and_noon_included() {
+        let at = |h: u32, m: u32| {
+            NaiveDateTime::parse_from_str(
+                &format!("2026-09-12T{h:02}:{m:02}:00"),
+                "%Y-%m-%dT%H:%M:%S",
+            )
+            .unwrap()
+        };
+        assert_eq!(hhmm12(at(0, 5), "en"), "12:05 AM");
+        assert_eq!(hhmm12(at(9, 0), "en"), "09:00 AM");
+        assert_eq!(hhmm12(at(11, 59), "en"), "11:59 AM");
+        assert_eq!(hhmm12(at(12, 0), "en"), "12:00 PM");
+        assert_eq!(hhmm12(at(18, 2), "en"), "06:02 PM");
+        assert_eq!(hhmm12(at(23, 30), "en"), "11:30 PM");
+        assert_eq!(hhmm12(at(0, 5), "ar"), "12:05 ص");
+        assert_eq!(hhmm12(at(18, 2), "ar"), "06:02 م");
+        // Never a 24-hour hour, in either language.
+        for h in 0..24 {
+            for locale in ["en", "ar"] {
+                let out = hhmm12(at(h, 0), locale);
+                let hour: u32 = out[..2].parse().unwrap();
+                assert!((1..=12).contains(&hour), "{locale} {h} -> {out}");
+            }
+        }
     }
 
     #[test]

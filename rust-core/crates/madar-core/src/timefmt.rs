@@ -124,10 +124,12 @@ pub(crate) fn date_in(tz: chrono_tz::Tz, rfc3339: &str) -> String {
     format_pat_in(tz, rfc3339, "%d/%m/%Y", "en")
 }
 
-/// `HH:MM` (24h) of an instant in `tz`; `None` when unparsable.
-pub(crate) fn hhmm_in(tz: chrono_tz::Tz, rfc3339: &str) -> Option<String> {
+/// A bare clock time of an instant in `tz`, 12-hour: `06:02 PM` (Arabic
+/// `06:02 م`); `None` when unparsable. Every time of day the app SHOWS is
+/// 12-hour — see `docs/design/SPEC.md` §Formats.
+pub(crate) fn hhmm_in(tz: chrono_tz::Tz, rfc3339: &str, locale: &str) -> Option<String> {
     let at = chrono::DateTime::parse_from_rfc3339(rfc3339).ok()?;
-    Some(at.with_timezone(&tz).format("%H:%M").to_string())
+    Some(strftime_in(&at.with_timezone(&tz), "%I:%M %p", locale))
 }
 
 /// `yyMMdd` of an instant in `tz` (the order-ref date segment).
@@ -143,8 +145,8 @@ fn format_pat_in(tz: chrono_tz::Tz, rfc3339: &str, pat: &str, locale: &str) -> S
     }
 }
 
-/// A table row's stamp in the branch zone, 24-hour: `18:02` on the same
-/// branch-local day as `now`, else `Sep 12 · 18:02` (see `display::format_stamp`).
+/// A table row's stamp in the branch zone, 12-hour: `06:02 PM` on the same
+/// branch-local day as `now`, else `Sep 12 · 06:02 PM` (see `display::format_stamp`).
 /// Unparseable input passes through unchanged.
 pub(crate) fn format_stamp(
     store: &Store,
@@ -222,7 +224,7 @@ mod tests {
     fn clock_and_dates_read_the_next_calendar_day_after_a_late_utc_instant() {
         let cairo = chrono_tz::Africa::Cairo;
         let late = "2026-09-12T23:30:00Z"; // 02:30 on Sep 13, Cairo summer (UTC+3)
-        assert_eq!(hhmm_in(cairo, late).as_deref(), Some("02:30"));
+        assert_eq!(hhmm_in(cairo, late, "en").as_deref(), Some("02:30 AM"));
         assert_eq!(date_in(cairo, late), "13/09/2026");
         assert_eq!(yymmdd_in(cairo, late).as_deref(), Some("260913"));
         assert_eq!(format_in(cairo, late, TimeStyle::Time, "en"), "02:30 AM");
@@ -288,12 +290,15 @@ mod tests {
             .unwrap()
             .with_timezone(&chrono::Utc);
         let at = "2026-09-12T22:05:00+00:00"; // 01:05 on the 13th, Cairo
-        assert_eq!(format_stamp(&store, at, "en", now), "01:05");
+        assert_eq!(format_stamp(&store, at, "en", now), "01:05 AM");
         let yesterday = "2026-09-12T15:02:00+00:00"; // 18:02 on the 12th, Cairo
-        assert_eq!(format_stamp(&store, yesterday, "en", now), "Sep 12 · 18:02");
+        assert_eq!(
+            format_stamp(&store, yesterday, "en", now),
+            "Sep 12 · 06:02 PM"
+        );
         assert_eq!(
             format_stamp(&store, yesterday, "ar", now),
-            "12 سبتمبر · 18:02"
+            "12 سبتمبر · 06:02 م"
         );
     }
 
