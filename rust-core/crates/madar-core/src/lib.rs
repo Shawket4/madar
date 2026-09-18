@@ -309,9 +309,11 @@ pub struct MadarCore {
     /// to 0 by any confirmed connectivity (a ping OK or an outbox ack).
     offline_probe_fails: std::sync::atomic::AtomicU32,
     /// Outbox sends that actually reached the network layer (acked, rejected or
-    /// failed in transport). `refresh_connectivity` compares it across a drain to
-    /// learn whether the drain produced any connectivity evidence at all — a
-    /// backlog whose rows are all backoff-gated sends nothing and proves nothing.
+    /// failed in transport). `refresh_connectivity` no longer gates on it — the
+    /// failed probe always counts and the drain adds its own evidence through
+    /// `note_connectivity` — but it still says whether a drain put anything on
+    /// the wire at all (a backlog whose rows are all backoff-gated sends
+    /// nothing), which the offline tests assert on.
     sends_attempted: std::sync::atomic::AtomicU64,
     /// The SSE stream is connected right now (fed by [`SyncNudgeListener`]).
     realtime_connected: Arc<std::sync::atomic::AtomicBool>,
