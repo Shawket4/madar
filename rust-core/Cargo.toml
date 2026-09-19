@@ -32,7 +32,16 @@ publish = false
 # Smaller, faster native libs for the mobile/desktop artifacts.
 lto = true
 codegen-units = 1
-strip = "symbols"
+# NO stripping. Cargo's `strip` runs Apple's `strip` over the linked dylib, and
+# on this toolchain (Xcode 27 / macOS 27) that leaves a `libmadar_frb.dylib`
+# dyld refuses to load: "mis-aligned LINKEDIT string pool". `packages/rust_bridge`'s
+# smoke gate then fails for anyone who rebuilds it, on a tree with no other
+# change. Measured 2026-09-19: `strip = "symbols"` broken, `strip = "debuginfo"`
+# ALSO broken, `strip = false` loads and the gate passes — so it is stripping at
+# all, not which kind. The dylib is 21 MB; LTO and codegen-units=1 already carry
+# the size win that matters. Revisit when the toolchain is fixed, and if you
+# turn it back on, run `flutter test` in packages/rust_bridge before trusting it.
+strip = false
 
 # Profiling: fully release-optimized (inherits LTO + codegen-units=1) but keeps
 # symbols so Xcode Instruments / Flutter DevTools attribute native time to real
