@@ -42,6 +42,9 @@ class _Bridge implements MadarBridge {
   bool figuresVisible = true;
   bool failList = false;
   int listCalls = 0;
+
+  /// The ungated shift totals must never be reached from this screen.
+  int plainStatsCalls = 0;
   List<OrderSummaryView> rows = const [];
   final List<int> pages = [];
 
@@ -126,12 +129,21 @@ class _Bridge implements MadarBridge {
           : Future<List<OrderSummaryView>>.value(rows);
     }
     if (name == #tillStatsChecked) {
-      // The Till section's totals: refused without `till.cash_spot_check`.
-      return Future<TillStatsView>.error(
-        const MadarError.forbidden(resource: 'till', action: 'spot.blind'),
-      );
+      // The core's one gate: the shift totals are refused without
+      // `till.cash_spot_check`, exactly as `till_stats_checked` does.
+      return figuresVisible
+          ? Future<TillStatsView>.value(
+              const TillStatsView(salesMinor: 62300, orderCount: 7),
+            )
+          : Future<TillStatsView>.error(
+              const MadarError.forbidden(
+                resource: 'till',
+                action: 'spot.blind',
+              ),
+            );
     }
     if (name == #tillStats) {
+      plainStatsCalls++;
       return Future<TillStatsView>.value(
         const TillStatsView(salesMinor: 62300, orderCount: 7),
       );
@@ -188,7 +200,9 @@ void main() {
   late ProviderContainer container;
 
   // Owner decision 3 (2026-09-19): widening `till.cash_spot_check` must not
-  // reach PAST ORDERS — not the list, not a sale's own total, not the header.
+  // reach PAST ORDERS — not the list, not a sale's own total, not its items,
+  // payments, receipt or reprint. The header's SHIFT AGGREGATE is the one
+  // exception (owner, 2026-09-19): it is a till money figure and is hidden.
   test(
     'past orders keep their figures when the till figures are hidden',
     () async {
@@ -203,11 +217,33 @@ void main() {
       await _settle();
       final s = container.read(historyProvider);
       expect(s.rows.single.totalMinor, 1000, reason: "the sale's own total");
-      expect(s.stats?.orderCount, 7, reason: 'the plain totals, never refused');
-      expect(s.stats?.salesMinor, 62300);
-      expect(s.error, isNull);
+      expect(s.rows, hasLength(1), reason: 'the list itself is never gated');
+      expect(
+        s.stats,
+        isNull,
+        reason: 'the shift aggregate goes through the one gate',
+      );
+      expect(s.error, isNull, reason: 'a hidden aggregate is not an error');
     },
   );
+
+  // With the grant the same header carries the shift total and count again,
+  // and it comes from the CHECKED call, never the plain one.
+  test('the shift aggregate comes back with till.cash_spot_check', () async {
+    final bridge = _Bridge()
+      ..figuresVisible = true
+      ..rows = [_o('o1', 12, '2026-09-19T09:00:00Z')];
+    final container = ProviderContainer(
+      overrides: [bridgeProvider.overrideWithValue(bridge)],
+    );
+    addTearDown(container.dispose);
+    container.listen(historyProvider, (_, _) {});
+    await _settle();
+    final s = container.read(historyProvider);
+    expect(s.stats?.orderCount, 7);
+    expect(s.stats?.salesMinor, 62300);
+    expect(bridge.plainStatsCalls, 0, reason: 'never the ungated call');
+  });
 
   test('a sale reads by its device number, then the server number', () {
     final server = _o('o-1', 12, '2026-09-12T15:10:00Z');

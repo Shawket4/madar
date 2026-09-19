@@ -151,9 +151,12 @@ impl MadarCore {
     /// person may see them: refused without the grant, the same one check
     /// the report and the close preview go through.
     ///
-    /// The PAST ORDERS screen keeps the plain [`MadarCore::till_stats`] —
-    /// owner decision 3 (2026-09-19): the list, each sale's own total, its
-    /// items, payments, receipt and reprint are never gated.
+    /// The PAST ORDERS screen's header aggregate goes through HERE too
+    /// (owner, 2026-09-19): its shift sales total and order count are the
+    /// same figures the rule hides everywhere else. Owner decision 3 covers
+    /// the rest of that screen — the list, each sale's own total, its items,
+    /// payments, receipt and reprint are never gated, and they read the
+    /// orders directly, not this.
     pub fn till_stats_checked(
         &self,
         orders: Vec<crate::orders::OrderSummaryView>,

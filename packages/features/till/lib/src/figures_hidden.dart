@@ -6,8 +6,12 @@
 /// shows no shift or drawer aggregate at all. Every surface that would have
 /// shown one shows THIS panel instead — there is only ever one of them.
 ///
-/// Past orders are never gated (owner decision 3), so this panel never
-/// appears there.
+/// Past orders keep their list, each sale's own total, its items, payments,
+/// receipt and reprint (owner decision 3), so this panel never appears there.
+/// That screen's ONE shift aggregate — the header's sales total and order
+/// count — is a till money figure and is gated like the rest, but a one-line
+/// header has no room for a card, so it drops the figures and says
+/// `spot.blind_count_note` instead.
 library;
 
 import 'package:app_core/app_core.dart';

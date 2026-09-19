@@ -234,9 +234,13 @@ class _FakeBridge implements MadarBridge {
     this.online = true,
     this.arabic = false,
     this.fullyRefunded = false,
+    this.blind = false,
   });
 
   final bool online;
+
+  /// The signed-in person does not hold `till.cash_spot_check`.
+  final bool blind;
   final bool arabic;
 
   /// The one sale with refunds on it has had ALL of its money given back.
@@ -244,6 +248,7 @@ class _FakeBridge implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #tillFiguresVisible) return !blind;
     final can = fakeCanInvocation(invocation, () => currentSession()?.role);
     if (can != null) return can;
     final name = invocation.memberName;
@@ -421,6 +426,11 @@ class _FakeBridge implements MadarBridge {
     if (name == #listTillOrders) {
       return Future<List<OrderSummaryView>>.value(_tillOrders);
     }
+    if (name == #tillStatsChecked && blind) {
+      return Future<TillStatsView>.error(
+        const MadarError.forbidden(resource: 'till', action: 'spot.blind'),
+      );
+    }
     if (name == #tillStats || name == #tillStatsChecked) {
       return Future<TillStatsView>.value(
         const TillStatsView(salesMinor: 623000, orderCount: 42),
@@ -589,6 +599,38 @@ void main() {
   setUpAll(() async {
     _loadWords();
     await _loadFonts();
+  });
+
+  // The widened `till.cash_spot_check` (owner, 2026-09-19): the header's
+  // shift aggregate is a till money figure and goes. NOTHING else on this
+  // screen does — the list, each sale's own total, its items, payments,
+  // receipt preview and reprint all stay.
+  testWidgets('blind: the header drops the shift aggregate, the sales stay', (
+    tester,
+  ) async {
+    await _shoot(
+      tester,
+      screen: const OrderHistoryScreen(),
+      bridge: _FakeBridge(blind: true),
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'ipad-blind',
+      then: (t) => _open(t, 1042),
+    );
+    expect(find.text('This till · Blind count'), findsOneWidget);
+    expect(
+      find.textContaining('sales ·'),
+      findsNothing,
+      reason: 'no shift sales total, no order count',
+    );
+    expect(find.text('EGP 6,230.00'), findsNothing);
+    // Everything else is untouched.
+    expect(_ref('#1042'), findsWidgets);
+    expect(find.text('Queued'), findsOneWidget);
+    expect(find.widgetWithText(MadarStatusPill, 'Voided'), findsOneWidget);
+    expect(find.textContaining('Latte'), findsOneWidget);
+    expect(find.text('Reprint'), findsOneWidget);
+    expect(find.text('EGP 190.00'), findsWidgets, reason: "the sale's own");
   });
 
   testWidgets('the iPad: this shift beside the selected sale', (tester) async {
