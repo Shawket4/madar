@@ -1366,7 +1366,17 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The current till's Z report with its freshness and queue.
   Future<SyncedTillReport> tillReportSynced();
 
+  /// The shift totals of the PAST ORDERS screen (owner decision 3: that
+  /// screen is never gated). Every other surface uses
+  /// [`Self::till_stats_checked`].
   Future<TillStatsView> tillStats({required List<OrderSummaryView> orders});
+
+  /// The shift totals as the signed-in person may see them: refused
+  /// (`Forbidden`) without `till.cash_spot_check`, the one check the report
+  /// and the close preview go through.
+  Future<TillStatsView> tillStatsChecked({
+    required List<OrderSummaryView> orders,
+  });
 
   /// The tap on a reward line: one more unit, or clear it.
   List<RewardPick> toggleReward({

@@ -54,6 +54,9 @@ TillReportView _report(int expected) => TillReportView(
 
 const _offline = MadarError.offline(detail: 'offline');
 
+/// What the core answers for a figure the person may not see.
+const _hidden = MadarError.forbidden(resource: 'till', action: 'spot.blind');
+
 class _Bridge implements MadarBridge {
   bool failReport = false;
   bool blind = false;
@@ -63,6 +66,7 @@ class _Bridge implements MadarBridge {
   bool failMovements = false;
   final List<int> closes = [];
   final List<String> reportsFor = [];
+  final List<Symbol> statsReads = [];
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -135,12 +139,15 @@ class _Bridge implements MadarBridge {
       return Future<TillView?>.value(_till);
     }
     if (name == #tillReport) {
+      // The core refuses an OPEN till's report without the grant.
+      if (blind) return Future<TillReportView>.error(_hidden);
       return failReport
           ? Future<TillReportView>.error(_offline)
           : Future<TillReportView>.value(_report(100000));
     }
     if (name == #tillReportFor) {
       reportsFor.add(args[#tillId] as String);
+      if (blind) return Future<TillReportView>.error(_hidden);
       return failReport
           ? Future<TillReportView>.error(_offline)
           : Future<TillReportView>.value(_report(100000));
@@ -153,9 +160,13 @@ class _Bridge implements MadarBridge {
           ? Future<List<OrderSummaryView>>.error(_offline)
           : Future<List<OrderSummaryView>>.value(const []);
     }
-    if (name == #tillStats) {
+    if (name == #tillStats || name == #tillStatsChecked) {
+      statsReads.add(name);
+      if (blind && name == #tillStatsChecked) {
+        return Future<TillStatsView>.error(_hidden);
+      }
       return Future<TillStatsView>.value(
-        const TillStatsView(salesMinor: 0, orderCount: 0),
+        const TillStatsView(salesMinor: 62300, orderCount: 7),
       );
     }
     if (name == #listTills) {
@@ -265,6 +276,58 @@ void main() {
       expect(s.loadError, isNull);
       expect(s.report, isNotNull);
     });
+  });
+
+  // `till.cash_spot_check` widened (owner, 2026-09-19): it is "may see this
+  // till's money figures", so the Till tab's shift totals go with the report.
+  group('the till tab without till.cash_spot_check', () {
+    test('asks for no shift aggregate at all', () async {
+      bridge.blind = true;
+      container.listen(tillProvider, (_, _) {});
+      await _settle();
+      final s = container.read(tillProvider);
+      expect(s.report, isNull, reason: 'the drawer figures are refused');
+      expect(s.stats, isNull, reason: 'and the shift totals are not asked for');
+      expect(
+        bridge.statsReads,
+        isEmpty,
+        reason: 'the tab does not even call the checked totals',
+      );
+      expect(s.till, isNotNull, reason: 'the drawer itself still shows');
+    });
+
+    test('with the grant the totals are there as before', () async {
+      container.listen(tillProvider, (_, _) {});
+      await _settle();
+      final s = container.read(tillProvider);
+      expect(s.report?.expectedCashMinor, 100000);
+      expect(s.stats?.orderCount, 7);
+      expect(bridge.statsReads, [#tillStatsChecked]);
+    });
+
+    test('the close screen shows no sales count either', () async {
+      bridge.blind = true;
+      container.listen(closeTillProvider, (_, _) {});
+      await _settle();
+      final s = container.read(closeTillProvider);
+      expect(s.blind, isTrue);
+      expect(s.orderCount, isNull, reason: 'an order count is an aggregate');
+      expect(bridge.statsReads, isEmpty);
+    });
+
+    test(
+      'the live report sheet shows the hidden panel, not an error',
+      () async {
+        bridge.blind = true;
+        const request = TillReportRequest();
+        container.listen(tillReportProvider(request), (_, _) {});
+        await _settle();
+        final s = container.read(tillReportProvider(request));
+        expect(s.figuresHidden, isTrue);
+        expect(s.loadError, isNull, reason: 'hidden is not a failure');
+        expect(s.report, isNull);
+      },
+    );
   });
 
   test(

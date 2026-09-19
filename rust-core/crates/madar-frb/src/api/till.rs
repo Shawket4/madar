@@ -336,8 +336,18 @@ impl MadarBridge {
         self.inner.branch_open_tills().await.map_err(MadarError::from)
     }
 
+    /// The shift totals of the PAST ORDERS screen (owner decision 3: that
+    /// screen is never gated). Every other surface uses
+    /// [`Self::till_stats_checked`].
     pub fn till_stats(&self, orders: Vec<OrderSummaryView>) -> TillStatsView {
         self.inner.till_stats(orders)
+    }
+
+    /// The shift totals as the signed-in person may see them: refused
+    /// (`Forbidden`) without `till.cash_spot_check`, the one check the report
+    /// and the close preview go through.
+    pub fn till_stats_checked(&self, orders: Vec<OrderSummaryView>) -> Result<TillStatsView, MadarError> {
+        self.inner.till_stats_checked(orders).map_err(MadarError::from)
     }
 
     // payment methods

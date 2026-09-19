@@ -39,6 +39,7 @@ OrderSummaryView _o(String id, int number, String at) => OrderSummaryView(
 
 class _Bridge implements MadarBridge {
   TillView? till = _till;
+  bool figuresVisible = true;
   bool failList = false;
   int listCalls = 0;
   List<OrderSummaryView> rows = const [];
@@ -46,6 +47,7 @@ class _Bridge implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #tillFiguresVisible) return figuresVisible;
     final can = fakeCanInvocation(invocation, () => currentSession()?.role);
     if (can != null) return can;
     final name = invocation.memberName;
@@ -123,9 +125,15 @@ class _Bridge implements MadarBridge {
             )
           : Future<List<OrderSummaryView>>.value(rows);
     }
+    if (name == #tillStatsChecked) {
+      // The Till section's totals: refused without `till.cash_spot_check`.
+      return Future<TillStatsView>.error(
+        const MadarError.forbidden(resource: 'till', action: 'spot.blind'),
+      );
+    }
     if (name == #tillStats) {
       return Future<TillStatsView>.value(
-        const TillStatsView(salesMinor: 0, orderCount: 0),
+        const TillStatsView(salesMinor: 62300, orderCount: 7),
       );
     }
     if (name == #syncStatus) {
@@ -178,6 +186,28 @@ Future<void> _settle() async {
 void main() {
   late _Bridge bridge;
   late ProviderContainer container;
+
+  // Owner decision 3 (2026-09-19): widening `till.cash_spot_check` must not
+  // reach PAST ORDERS — not the list, not a sale's own total, not the header.
+  test(
+    'past orders keep their figures when the till figures are hidden',
+    () async {
+      final bridge = _Bridge()
+        ..figuresVisible = false
+        ..rows = [_o('o1', 12, '2026-09-19T09:00:00Z')];
+      final container = ProviderContainer(
+        overrides: [bridgeProvider.overrideWithValue(bridge)],
+      );
+      addTearDown(container.dispose);
+      container.listen(historyProvider, (_, _) {});
+      await _settle();
+      final s = container.read(historyProvider);
+      expect(s.rows.single.totalMinor, 1000, reason: "the sale's own total");
+      expect(s.stats?.orderCount, 7, reason: 'the plain totals, never refused');
+      expect(s.stats?.salesMinor, 62300);
+      expect(s.error, isNull);
+    },
+  );
 
   test('a sale reads by its device number, then the server number', () {
     final server = _o('o-1', 12, '2026-09-12T15:10:00Z');

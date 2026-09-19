@@ -1,12 +1,18 @@
 //! Cash spot: the full live till report and its print (owner design
 //! 2026-09-16 evening item 5, corrected 2026-09-17).
 //!
-//! * With `till.cash_spot_check` the person opens the FULL live till report of
-//!   their open till (expected cash, every payment method, all figures: the old
-//!   X report) and may print it; the expected figures also show on the close
-//!   screen before closing.
-//! * Without it the person counts BLIND at close: the open till's figures are
-//!   not given out, and the finished report is shown only after the close.
+//! * `till.cash_spot_check` is "may see this till's money figures" (owner,
+//!   2026-09-19), not only "may open the live report". With it the person
+//!   opens the FULL live till report of their open till (expected cash, every
+//!   payment method, all figures: the old X report) and may print it; the
+//!   expected figures also show on the close screen before closing, and the
+//!   Till tab shows its shift totals.
+//! * Without it the person counts BLIND at close AND the Till section shows no
+//!   shift or drawer aggregate at all — no cash in till, expected cash, sales
+//!   total, tender breakdown, discount or refund total, and no order counts.
+//!   The finished report is still shown, and printed, AFTER the close.
+//! * PAST ORDERS are never gated (owner decision 3): the list, each sale's own
+//!   total, its items, payments, receipt preview and reprint stay as they are.
 //! * A lesser account still gets the Cash spot button and the close figures
 //!   action: someone holding the grant types their PIN (`approve_cash_spot`),
 //!   which unlocks exactly ONE look. The signed-in person never changes.
@@ -125,15 +131,37 @@ impl MadarCore {
         }
     }
 
+    /// The refusal every hidden figure gives, in the till's language.
+    pub(crate) fn figures_hidden(&self) -> CoreError {
+        CoreError::Forbidden {
+            resource: "till".into(),
+            action: crate::i18n::tr(&self.current_locale(), "spot.blind"),
+        }
+    }
+
     /// Guard for the open till's report: blind unless visible.
     pub(crate) fn require_figures_for(&self, report: &till::TillReportView) -> Result<(), CoreError> {
         if report.is_open && !self.till_figures_visible() {
-            return Err(CoreError::Forbidden {
-                resource: "till".into(),
-                action: crate::i18n::tr(&self.current_locale(), "spot.blind"),
-            });
+            return Err(self.figures_hidden());
         }
         Ok(())
+    }
+
+    /// The open shift's totals (sales and order count) as the signed-in
+    /// person may see them: refused without the grant, the same one check
+    /// the report and the close preview go through.
+    ///
+    /// The PAST ORDERS screen keeps the plain [`MadarCore::till_stats`] —
+    /// owner decision 3 (2026-09-19): the list, each sale's own total, its
+    /// items, payments, receipt and reprint are never gated.
+    pub fn till_stats_checked(
+        &self,
+        orders: Vec<crate::orders::OrderSummaryView>,
+    ) -> Result<crate::orders::TillStatsView, CoreError> {
+        if !self.till_figures_visible() {
+            return Err(self.figures_hidden());
+        }
+        Ok(self.till_stats(orders))
     }
 
     /// The open till's report as the signed-in person may see it: refused
@@ -154,7 +182,8 @@ impl MadarCore {
 
     /// The close screen as the signed-in person may see it: without the grant
     /// the methods to count are listed but every expected figure is hidden
-    /// (`figures_hidden`, amounts zero).
+    /// (`figures_hidden`, amounts and per-method order counts zero, and the
+    /// open-bills warning keeps its count without its money).
     pub async fn close_till_preview_checked(&self) -> Result<till::CloseTillPreviewView, CoreError> {
         let mut p = self.close_till_preview().await?;
         if !self.till_figures_visible() {
@@ -162,6 +191,10 @@ impl MadarCore {
             p.expected_cash_minor = 0;
             for m in p.methods.iter_mut() {
                 m.system_total_minor = 0;
+                m.order_count = 0;
+            }
+            if let Some(w) = p.last_till_warning.as_mut() {
+                w.open_bills_amount_minor = 0;
             }
         }
         Ok(p)

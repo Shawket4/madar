@@ -245,9 +245,11 @@ class TillNotifier extends Notifier<TillState> {
     if (_disposed) return;
     // Stats are computed in the core over the orders the till just listed —
     // the same queue-merged set the Orders row counts.
+    // `till.cash_spot_check` is "may see this till's money figures": the core
+    // refuses `tillStatsChecked` without it, so the tab does not ask.
     TillStatsView? stats;
-    if (orders != null) {
-      stats = await _quiet(() => _bridge.tillStats(orders: orders));
+    if (orders != null && _bridge.tillFiguresVisible()) {
+      stats = await _quiet(() => _bridge.tillStatsChecked(orders: orders));
       if (_disposed) return;
     }
     final branchDrawers = drawers ?? const <TillSummaryView>[];
@@ -282,16 +284,17 @@ class TillNotifier extends Notifier<TillState> {
       final report = await _bridge.tillReportFor(tillId: tillId);
       if (!_disposed) state = state.copyWith(drawerReportLoadingId: null);
       return report;
-    } on Exception catch (_) {
+    } on Exception catch (e) {
       if (_disposed) return null;
+      final blind = e is MadarError_Forbidden;
       _toastSeq += 1;
       state = state.copyWith(
         drawerReportLoadingId: null,
         toast: ToastData(
           id: _toastSeq,
-          text: _bridge.tr(key: 'err.generic'),
-          tone: ChipTone.danger,
-          icon: 'xmark.circle',
+          text: _bridge.tr(key: blind ? 'spot.blind' : 'err.generic'),
+          tone: blind ? ChipTone.warning : ChipTone.danger,
+          icon: blind ? 'lock' : 'xmark.circle',
         ),
       );
       return null;
@@ -343,6 +346,12 @@ class TillNotifier extends Notifier<TillState> {
   /// while one is already printing is ignored instead of printing twice.
   Future<void> printX() async {
     if (state.printingX) return;
+    if (!_bridge.tillFiguresVisible()) {
+      // The live figures are not this person's to see or to print; Cash spot
+      // is where a manager's PIN unlocks one look.
+      _tillToast('spot.blind', tone: ChipTone.warning, icon: 'lock');
+      return;
+    }
     final tx = ref.read(printerServiceProvider).activeTransport();
     if (tx == null) {
       _tillToast('receipt.no_printer', tone: ChipTone.warning, icon: 'printer');
@@ -1027,11 +1036,13 @@ class CloseTillNotifier extends Notifier<CloseTillState> {
     } on Object catch (_) {
       // No preview: the count still closes; there is nothing to check.
     }
-    try {
-      final orders = await _bridge.listTillOrders();
-      final stats = await _bridge.tillStats(orders: orders);
-      if (!_disposed) state = state.copyWith(orderCount: stats.orderCount);
-    } on Exception catch (_) {}
+    if (!blind) {
+      try {
+        final orders = await _bridge.listTillOrders();
+        final stats = await _bridge.tillStatsChecked(orders: orders);
+        if (!_disposed) state = state.copyWith(orderCount: stats.orderCount);
+      } on Exception catch (_) {}
+    }
   }
 
   /// The words for what still stops [close], or null when it may go. A
@@ -1446,16 +1457,21 @@ class TillHistoryNotifier extends Notifier<TillHistoryState> {
       final report = await _bridge.tillReportFor(tillId: tillId);
       if (!_disposed) state = state.copyWith(reportLoadingId: null);
       return report;
-    } on Exception catch (_) {
+    } on Exception catch (e) {
       if (_disposed) return null;
+      // A still-OPEN till's figures without `till.cash_spot_check` are not a
+      // failure: say they are hidden, in the core's words.
+      final blind = e is MadarError_Forbidden;
       _toastSeq += 1;
       state = state.copyWith(
         reportLoadingId: null,
         toast: ToastData(
           id: _toastSeq,
-          text: _bridge.tr(key: 'till.report_load_failed'),
-          tone: ChipTone.danger,
-          icon: 'xmark.circle',
+          text: _bridge.tr(
+            key: blind ? 'spot.blind' : 'till.report_load_failed',
+          ),
+          tone: blind ? ChipTone.warning : ChipTone.danger,
+          icon: blind ? 'lock' : 'xmark.circle',
         ),
       );
       return null;
@@ -1620,6 +1636,7 @@ class TillReportSheetState {
     this.print = TillPrintState.idle,
     this.loadError,
     this.ordersError,
+    this.figuresHidden = false,
   });
 
   /// Why the report could not be read, or null (the sheet used to spin
@@ -1644,6 +1661,11 @@ class TillReportSheetState {
   /// Print feedback.
   final TillPrintState print;
 
+  /// The till is still OPEN and its money figures are not this person's to
+  /// see (`till.cash_spot_check`): the sheet shows the hidden panel. A
+  /// CLOSED till's finished report is never hidden.
+  final bool figuresHidden;
+
   /// Copies with the given overrides (nullables clear through the sentinel).
   TillReportSheetState copyWith({
     Object? report = _unset,
@@ -1652,6 +1674,7 @@ class TillReportSheetState {
     TillPrintState? print,
     Object? loadError = _unset,
     Object? ordersError = _unset,
+    bool? figuresHidden,
   }) {
     return TillReportSheetState(
       loadError: loadError == _unset ? this.loadError : loadError as UiText?,
@@ -1664,6 +1687,7 @@ class TillReportSheetState {
           : orders as List<OrderSummaryView>?,
       expanded: expanded ?? this.expanded,
       print: print ?? this.print,
+      figuresHidden: figuresHidden ?? this.figuresHidden,
     );
   }
 }
@@ -1702,6 +1726,10 @@ class TillReportNotifier extends Notifier<TillReportSheetState> {
           : await _bridge.tillReportFor(tillId: id);
       if (_disposed) return;
       state = state.copyWith(report: report);
+    } on MadarError_Forbidden catch (_) {
+      // An OPEN till's figures without `till.cash_spot_check`: the sheet says
+      // so in the one hidden panel, rather than reading as a failure.
+      if (!_disposed) state = state.copyWith(figuresHidden: true);
     } on Exception catch (e) {
       if (!_disposed) state = state.copyWith(loadError: _failure(e));
     }

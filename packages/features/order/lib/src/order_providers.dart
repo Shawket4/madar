@@ -388,9 +388,13 @@ class OrderNotifier extends Notifier<OrderState> {
   /// closes (a placed order moves them).
   Future<void> loadTillStats() async {
     if (state.isWaiter) return;
+    // `till.cash_spot_check` is "may see this till's money figures": without
+    // it the core refuses the shift totals, and the sell screen keeps the
+    // zeros it starts with.
+    if (!_bridge.tillFiguresVisible()) return;
     final orders = await _quiet(_bridge.listTillOrders);
     if (orders == null) return;
-    final stats = await _quiet(() => _bridge.tillStats(orders: orders));
+    final stats = await _quiet(() => _bridge.tillStatsChecked(orders: orders));
     if (stats == null) return;
     state = state.copyWith(
       tillSalesMinor: stats.salesMinor,

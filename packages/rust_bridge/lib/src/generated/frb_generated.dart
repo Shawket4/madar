@@ -89,7 +89,7 @@ class RustBridge
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 594338088;
+  int get rustContentHash => 413844519;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -1470,6 +1470,11 @@ abstract class RustBridgeApi extends BaseApi {
   });
 
   Future<TillStatsView> crateApiBridgeMadarBridgeTillStats({
+    required MadarBridge that,
+    required List<OrderSummaryView> orders,
+  });
+
+  Future<TillStatsView> crateApiBridgeMadarBridgeTillStatsChecked({
     required MadarBridge that,
     required List<OrderSummaryView> orders,
   });
@@ -11622,6 +11627,44 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  Future<TillStatsView> crateApiBridgeMadarBridgeTillStatsChecked({
+    required MadarBridge that,
+    required List<OrderSummaryView> orders,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_list_order_summary_view(orders, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 254,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_till_stats_view,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeTillStatsCheckedConstMeta,
+        argValues: [that, orders],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeTillStatsCheckedConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_till_stats_checked",
+        argNames: ["that", "orders"],
+      );
+
+  @override
   List<RewardPick> crateApiBridgeMadarBridgeToggleReward({
     required MadarBridge that,
     required List<RewardLineInput> lines,
@@ -11644,7 +11687,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 254,
+            funcId: 255,
           )!;
         },
         codec: SseCodec(
@@ -11681,7 +11724,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 255,
+            funcId: 256,
           )!;
         },
         codec: SseCodec(
@@ -11722,7 +11765,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 256,
+            funcId: 257,
             port: port_,
           );
         },
@@ -11760,7 +11803,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 257,
+            funcId: 258,
             port: port_,
           );
         },
@@ -11796,7 +11839,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 258,
+            funcId: 259,
           )!;
         },
         codec: SseCodec(
@@ -11838,7 +11881,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 259,
+            funcId: 260,
             port: port_,
           );
         },
@@ -11872,7 +11915,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 260,
+            funcId: 261,
           )!;
         },
         codec: SseCodec(
@@ -11912,7 +11955,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 261,
+            funcId: 262,
             port: port_,
           );
         },
@@ -11958,7 +12001,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 262,
+            funcId: 263,
             port: port_,
           );
         },
@@ -12005,7 +12048,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 263,
+            funcId: 264,
             port: port_,
           );
         },
@@ -12047,7 +12090,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 264,
+            funcId: 265,
             port: port_,
           );
         },
@@ -12085,7 +12128,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 265,
+            funcId: 266,
           )!;
         },
         codec: SseCodec(
@@ -12122,7 +12165,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 266,
+            funcId: 267,
           )!;
         },
         codec: SseCodec(
@@ -12157,7 +12200,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 267,
+            funcId: 268,
           )!;
         },
         codec: SseCodec(
@@ -12195,7 +12238,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 268,
+              funcId: 269,
               port: port_,
             );
           },
@@ -12227,7 +12270,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 269,
+            funcId: 270,
           )!;
         },
         codec: SseCodec(
@@ -12253,7 +12296,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 270,
+            funcId: 271,
           )!;
         },
         codec: SseCodec(
@@ -12280,7 +12323,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 271,
+            funcId: 272,
           )!;
         },
         codec: SseCodec(
@@ -26935,11 +26978,24 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   Future<SyncedTillReport> tillReportSynced() => RustBridge.instance.api
       .crateApiBridgeMadarBridgeTillReportSynced(that: this);
 
+  /// The shift totals of the PAST ORDERS screen (owner decision 3: that
+  /// screen is never gated). Every other surface uses
+  /// [`Self::till_stats_checked`].
   Future<TillStatsView> tillStats({required List<OrderSummaryView> orders}) =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeTillStats(
         that: this,
         orders: orders,
       );
+
+  /// The shift totals as the signed-in person may see them: refused
+  /// (`Forbidden`) without `till.cash_spot_check`, the one check the report
+  /// and the close preview go through.
+  Future<TillStatsView> tillStatsChecked({
+    required List<OrderSummaryView> orders,
+  }) => RustBridge.instance.api.crateApiBridgeMadarBridgeTillStatsChecked(
+    that: this,
+    orders: orders,
+  );
 
   /// The tap on a reward line: one more unit, or clear it.
   List<RewardPick> toggleReward({

@@ -10,7 +10,9 @@
 //! * a teller without the grant gets a manager's one-time PIN for one look; the
 //!   server stores who unlocked it and records a verified approval;
 //! * a teller without the grant closes BLIND with a short drawer; the till lands
-//!   in the owner's review queue (reconciliation disagreed).
+//!   in the owner's review queue (reconciliation disagreed). The widened rule
+//!   (owner 2026-09-19) rides along: no shift totals before the close, past
+//!   orders untouched, and the finished report shown AND printed after it.
 
 mod common;
 
@@ -199,6 +201,15 @@ async fn a_blind_close_without_the_grant_flags_its_discrepancy() {
     let preview = core.close_till_preview_checked().await.expect("preview");
     assert!(preview.figures_hidden);
     assert_eq!(preview.expected_cash_minor, 0);
+    assert!(preview.methods.iter().all(|m| m.system_total_minor == 0 && m.order_count == 0));
+
+    // Widened 2026-09-19: the SHIFT TOTALS go with the figures — and the past
+    // orders do not (owner decision 3).
+    let orders = core.list_till_orders().await.expect("the sales are always listed");
+    assert!(!orders.is_empty());
+    assert!(orders.iter().all(|o| o.total_minor > 0), "each sale keeps its own total");
+    assert!(core.till_stats_checked(orders.clone()).is_err(), "no shift totals");
+    assert!(core.till_stats(orders).sales_minor > 0, "the past-orders header is untouched");
 
     // What the drawer really holds, known only to the test.
     let expected = core.close_till_preview().await.expect("truth").expected_cash_minor;
@@ -214,8 +225,20 @@ async fn a_blind_close_without_the_grant_flags_its_discrepancy() {
         })
         .collect();
     core.close_till(expected - 700, None, counts).await.expect("blind close");
+    // Owner decision 1: after the close the teller still gets the finished
+    // report on screen AND on paper, with no grant and no PIN.
     let after = core.till_report_checked().await.expect("the finished report after the close");
     assert!(!after.is_open);
+    assert!(after.expected_cash_minor > 0, "it carries its figures");
+    let paper = core.render_till_report(
+        after.clone(),
+        "Rue Zamalek".into(),
+        "EGP".into(),
+        32,
+        madar_core::receipt::PrinterBrand::Epson,
+        vec![],
+    );
+    assert!(!paper.is_empty(), "the finished report still prints");
     drain(&core).await;
 
     let till = uuid::Uuid::parse_str(&till_id).unwrap();
