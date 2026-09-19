@@ -19,7 +19,7 @@ type Step = fn(&Transaction<'_>) -> CoreResult<()>;
 
 /// The steps, in order. Step N brings the store from `user_version = N-1` to N.
 /// Append only: a shipped step is never edited.
-const STEPS: &[Step] = &[step1_sync_streams, step2_ledger, step3_order_details, step4_backfill_ledger, step5_drop_legacy_read_caches, step6_lan_authz_flags, step7_spot_views];
+const STEPS: &[Step] = &[step1_sync_streams, step2_ledger, step3_order_details, step4_backfill_ledger, step5_drop_legacy_read_caches, step6_lan_authz_flags, step7_spot_views, step8_staff_drinks];
 
 /// The schema version this build writes.
 pub(crate) fn latest() -> i64 {
@@ -310,6 +310,30 @@ fn step7_spot_views(tx: &Transaction<'_>) -> CoreResult<()> {
            local_updated_at INTEGER NOT NULL
          );
          CREATE INDEX IF NOT EXISTS ledger_spot_views_till ON ledger_spot_views(till_id, viewed_at);",
+    )?;
+    Ok(())
+}
+
+/// Staff drinks (owner design 2026-09-19): one row per drink the branch put on
+/// its daily pool, keyed by its client-minted id. The count the teller sees is
+/// taken over `(branch_id, business_date)`, which is also why the pool resets
+/// by itself — a new business date simply has no rows on it yet. Written
+/// locally with its outbox op, from a LAN peer, and from the feed's
+/// `staff_drink` type.
+fn step8_staff_drinks(tx: &Transaction<'_>) -> CoreResult<()> {
+    tx.execute_batch(
+        "CREATE TABLE IF NOT EXISTS ledger_staff_drinks (
+           id            TEXT PRIMARY KEY,
+           branch_id     TEXT NOT NULL,
+           business_date TEXT NOT NULL,
+           quantity      INTEGER NOT NULL DEFAULT 1,
+           recorded_at   TEXT NOT NULL,
+           raw           TEXT NOT NULL,
+           origin        TEXT NOT NULL,
+           local_updated_at INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS ledger_staff_drinks_day
+           ON ledger_staff_drinks(branch_id, business_date, recorded_at);",
     )?;
     Ok(())
 }

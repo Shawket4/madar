@@ -140,6 +140,12 @@ pub(crate) fn op_key(envelope: &Value) -> Option<String> {
         let line = envelope.get("item_id").and_then(Value::as_str)?;
         return Some(format!("{LINE_KEY}{line}"));
     }
+    // A staff drink's identity is its client-minted row id: the same drink
+    // heard twice (live now, catch-up later) is one event, and one count.
+    if op == "record_staff_drink" {
+        let id = envelope.get("request").and_then(|r| r.get("id")).and_then(Value::as_str)?;
+        return Some(format!("{op}:{id}"));
+    }
     let handle = envelope
         .get("request")
         .and_then(|r| r.get("idempotency_key").or_else(|| r.get("client_ref")))

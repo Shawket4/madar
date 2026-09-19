@@ -23,6 +23,10 @@ pub(crate) const F_ROUTING: (&str, &str) = ("kitchen_routing_effective", crate::
 pub(crate) const F_STATIONS: (&str, &str) = ("kitchen_stations", "cache:kds_stations");
 pub(crate) const F_DELIVERY: (&str, &str) = ("delivery", "cache:delivery_settings");
 pub(crate) const F_LOYALTY: (&str, &str) = ("loyalty", crate::K_LOYALTY_SETTINGS);
+/// The staff drinks pool (owner, 2026-09-19). It rides `branch_settings`
+/// exactly as loyalty does, and has no legacy endpoint to fill from: a
+/// backend that has never heard of the pool simply leaves it off.
+pub(crate) const F_STAFF_POOL: (&str, &str) = ("staff_pool", "cache:staff_pool_settings");
 
 /// Fields already filled (or being filled) this session.
 #[derive(Default)]

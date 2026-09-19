@@ -24,6 +24,7 @@ pub(crate) mod migrate;
 pub(crate) mod report;
 pub(crate) mod retention;
 pub(crate) mod spot;
+pub(crate) mod staff_drinks;
 pub(crate) mod views;
 
 use rusqlite::{params, Connection, OptionalExtension};

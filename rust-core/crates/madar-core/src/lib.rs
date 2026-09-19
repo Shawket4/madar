@@ -99,6 +99,7 @@ pub mod till;
 pub mod staff;
 /// The branch's daily staff drinks pool — the allowance, the required note,
 /// and the overspend mark. Shared with the backend by `staff_pool_vectors.json`.
+pub mod staff_drink;
 pub mod staff_pool;
 /// Local store — SQLite mirror + durable outbox + id_map + sync cursors (PLAN §8).
 pub mod store;
@@ -1488,6 +1489,12 @@ impl MadarCore {
                 Ok(env) => (env, Idem::No),
                 Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
             },
+            // The drink's id IS its idempotency key, so a replay after a lost
+            // ack is the same row and not a second one off the allowance.
+            "record_staff_drink" => match staff_drink::replay_envelope(&item.payload, &teller_id, delta) {
+                Ok(env) => (env, Idem::Yes),
+                Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
+            },
             "award_loyalty_points" => {
                 let mut cmd: loyalty::AwardCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
@@ -2831,6 +2838,9 @@ impl LanBridge {
                     }
                 }
             }
+            // A peer's staff drink: applied at once, so two tills at one
+            // counter cannot both spend the last drink of the day.
+            "staff_drink.recorded" => staff_drink::apply_lan(&self.store, &e.data),
             "kitchen.item_bumped" | "kitchen.item_unbumped" => {
                 if let Some(id) = serde_json::from_str::<serde_json::Value>(&e.data)
                     .ok()
@@ -2990,7 +3000,7 @@ fn mirror_replay_op(store: &store::Store, envelope_json: &str) {
     // op kind + its primary idempotency handle.
     let handle = env
         .get("request")
-        .and_then(|r| r.get("idempotency_key").or_else(|| r.get("client_ref")))
+        .and_then(|r| r.get("idempotency_key").or_else(|| r.get("client_ref")).or_else(|| r.get("id")))
         .and_then(|v| v.as_str())
         .or_else(|| env.get("item_id").and_then(|v| v.as_str()))
         .or_else(|| env.get("order_id").and_then(|v| v.as_str()))
@@ -3302,6 +3312,7 @@ impl MadarCore {
                 "void_order" => ("orders", "order.voided"),
                 "refund_order" => ("orders", "order.refunded"),
                 "cash_movement" => ("orders", "till.cash_movement"),
+                "record_staff_drink" => ("orders", "staff_drink.recorded"),
                 _ => continue,
             };
             let Ok((envelope, _)) = self.replay_envelope(&item) else { continue };
@@ -3318,6 +3329,14 @@ impl MadarCore {
                 "bump_kitchen" | "unbump_kitchen" => {
                     serde_json::json!({ "item_id": envelope.get("item_id") }).to_string()
                 }
+                // The drink's LAN payload IS its row, so a peer that catches up
+                // days later still counts it on the right business date.
+                "record_staff_drink" => item
+                    .entity_id
+                    .as_deref()
+                    .and_then(|id| self.store.with_conn(|c| ledger::staff_drinks::raw(c, id)).ok().flatten())
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "{}".into()),
                 _ => "{}".into(),
             };
             let entry = lan_sync::LogEntry {
@@ -5444,6 +5463,11 @@ impl MadarCore {
                 }
                 if ty == ledger::spot::T_SPOT {
                     tx.execute("DELETE FROM ledger_spot_views WHERE id=?1 AND origin='local'", [&key])?;
+                }
+                if ty == ledger::staff_drinks::T_STAFF_DRINK {
+                    // A drink nobody will ever send is a drink the branch never
+                    // spent: it stops counting against today's pool too.
+                    tx.execute("DELETE FROM ledger_staff_drinks WHERE id=?1 AND origin='local'", [&key])?;
                 }
             }
             touched.extend(changes::tables_for_op(&op_type));

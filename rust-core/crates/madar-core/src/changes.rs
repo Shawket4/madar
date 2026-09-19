@@ -63,6 +63,7 @@ pub fn table_for_sync_type(ty: &str) -> &'static str {
         "kitchen_ticket" => KITCHEN,
         "delivery" => DELIVERY,
         "booking" => BOOKINGS,
+        "staff_drink" => ORDERS,
         "floor_section" | "floor_table" | "table_occupancy" | "table_transfer" => FLOOR,
         "payment_method" | "payment_availability" => PAYMENT_METHODS,
         _ => CATALOG,
@@ -79,6 +80,8 @@ pub fn tables_for_op(op_type: &str) -> Vec<&'static str> {
         "refund_order" => &[REFUNDS, ORDERS, TILLS][..],
         "cash_movement" => &[CASH_MOVEMENTS, TILLS][..],
         "spot_report_view" => &[TILLS][..],
+        // The pool count lives on the order screen, beside the cart it is spent from.
+        "record_staff_drink" => &[ORDERS][..],
         "settle_open_ticket" => &[OPEN_TICKETS, ORDERS, TILLS, FLOOR][..],
         "open_ticket" | "ticket_add_round" | "void_ticket" | "void_ticket_line" => {
             &[OPEN_TICKETS, FLOOR, KITCHEN][..]
