@@ -42,7 +42,7 @@ const _sizes = <String, Size>{
 
 /// Saturday 19 September 2026 in the branch — so the grid's first column is
 /// today's, and the 20th is the branch's tomorrow.
-const _today = '2026-09-19';  // the default `fakeDatePickerChrome` carries
+const _today = '2026-09-19'; // the default `fakeDatePickerChrome` carries
 
 const _manager = SessionSnapshot(
   userId: 'u3',
@@ -321,8 +321,16 @@ void main() {
   });
 
   testWidgets('the picker in the dark, in Arabic', (tester) async {
-    await _pump(tester, size: _sizes['ipad9-landscape']!, lang: 'ar', dark: true);
-    await _openPicker(tester, label: coreWord('metrics.preset.today', arabic: true));
+    await _pump(
+      tester,
+      size: _sizes['ipad9-landscape']!,
+      lang: 'ar',
+      dark: true,
+    );
+    await _openPicker(
+      tester,
+      label: coreWord('metrics.preset.today', arabic: true),
+    );
     expect(tester.takeException(), isNull);
     await _save(tester, 'period-ipad9-landscape-ar-dark');
   });
@@ -458,7 +466,10 @@ void main() {
     tester,
   ) async {
     await _pump(tester, size: _sizes['ipad9-portrait']!, lang: 'ar');
-    await _openPicker(tester, label: coreWord('metrics.preset.today', arabic: true));
+    await _openPicker(
+      tester,
+      label: coreWord('metrics.preset.today', arabic: true),
+    );
     expect(find.text('سبتمبر 2026'), findsOneWidget);
 
     // The week's first column is Saturday's, and in Arabic it is the RIGHTMOST

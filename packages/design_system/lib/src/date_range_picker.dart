@@ -162,8 +162,11 @@ String madarDayLabel(MadarCalendarChrome chrome, DateTime day) =>
     '${chrome.monthsShort[day.month - 1]} ${day.day}';
 
 /// `Sep 17` for one day, `Sep 17 – Sep 21` for a window.
-String madarRangeLabel(MadarCalendarChrome chrome, DateTime from, DateTime to) =>
-    from == to
+String madarRangeLabel(
+  MadarCalendarChrome chrome,
+  DateTime from,
+  DateTime to,
+) => from == to
     ? madarDayLabel(chrome, from)
     : '${madarDayLabel(chrome, from)} – ${madarDayLabel(chrome, to)}';
 
@@ -325,7 +328,8 @@ class _DateRangeSheetState extends State<_DateRangeSheet> {
       setState(() => _month = DateTime.utc(_month.year, _month.month + months));
 
   /// Nothing after the branch's today, so a month past it is unreachable.
-  bool get _canStepForward => _month.isBefore(DateTime.utc(_today.year, _today.month));
+  bool get _canStepForward =>
+      _month.isBefore(DateTime.utc(_today.year, _today.month));
 
   void _apply() {
     final from = _from;
@@ -351,7 +355,10 @@ class _DateRangeSheetState extends State<_DateRangeSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(labels.title, style: MadarType.h2.copyWith(color: colors.textPrimary)),
+          Text(
+            labels.title,
+            style: MadarType.h2.copyWith(color: colors.textPrimary),
+          ),
           const SizedBox(height: Space.lg),
 
           // Quick presets — a tap here is the whole answer.
@@ -364,8 +371,10 @@ class _DateRangeSheetState extends State<_DateRangeSheet> {
                   MadarChip(
                     label: p.label,
                     selected: widget.value.preset == p.key,
-                    onTap: () =>
-                        MadarSheet.close(context, MadarDateWindow.preset(p.key)),
+                    onTap: () => MadarSheet.close(
+                      context,
+                      MadarDateWindow.preset(p.key),
+                    ),
                   ),
             ],
           ),
@@ -373,17 +382,11 @@ class _DateRangeSheetState extends State<_DateRangeSheet> {
           const MadarHairline(),
           const SizedBox(height: Space.lg),
 
-          _Summary(
-            chrome: widget.chrome,
-            labels: labels,
-            from: from,
-            to: end,
-          ),
+          _Summary(chrome: widget.chrome, labels: labels, from: from, to: end),
           const SizedBox(height: Space.lg),
 
           _MonthBar(
-            title:
-                '${widget.chrome.months[_month.month - 1]} ${_month.year}',
+            title: '${widget.chrome.months[_month.month - 1]} ${_month.year}',
             previousLabel: labels.previousMonth,
             nextLabel: labels.nextMonth,
             onPrevious: () => _step(-1),
@@ -699,9 +702,7 @@ class _DayCell extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: isEdge ? colors.accent : null,
-          border: isToday && !isEdge
-              ? Border.all(color: colors.accent)
-              : null,
+          border: isToday && !isEdge ? Border.all(color: colors.accent) : null,
         ),
         child: label,
       ),
