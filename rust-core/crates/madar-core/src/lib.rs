@@ -97,6 +97,9 @@ pub mod session;
 pub mod till;
 /// Employee self-service reads/writes for the staff app (`/staff/me/*`).
 pub mod staff;
+/// The branch's daily staff drinks pool — the allowance, the required note,
+/// and the overspend mark. Shared with the backend by `staff_pool_vectors.json`.
+pub mod staff_pool;
 /// Local store — SQLite mirror + durable outbox + id_map + sync cursors (PLAN §8).
 pub mod store;
 pub mod changes;
