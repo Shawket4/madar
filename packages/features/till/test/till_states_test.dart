@@ -315,16 +315,19 @@ void main() {
       expect(bridge.statsReads, isEmpty);
     });
 
-    test('the live report sheet shows the hidden panel, not an error', () async {
-      bridge.blind = true;
-      const request = TillReportRequest();
-      container.listen(tillReportProvider(request), (_, _) {});
-      await _settle();
-      final s = container.read(tillReportProvider(request));
-      expect(s.figuresHidden, isTrue);
-      expect(s.loadError, isNull, reason: 'hidden is not a failure');
-      expect(s.report, isNull);
-    });
+    test(
+      'the live report sheet shows the hidden panel, not an error',
+      () async {
+        bridge.blind = true;
+        const request = TillReportRequest();
+        container.listen(tillReportProvider(request), (_, _) {});
+        await _settle();
+        final s = container.read(tillReportProvider(request));
+        expect(s.figuresHidden, isTrue);
+        expect(s.loadError, isNull, reason: 'hidden is not a failure');
+        expect(s.report, isNull);
+      },
+    );
   });
 
   test(

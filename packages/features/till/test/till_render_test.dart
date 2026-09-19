@@ -693,28 +693,27 @@ void main() {
     expect(find.text('Preview X report'), findsNothing);
   });
 
-  testWidgets(
-    'without till.cash_spot_check the Till shows ONE hidden panel',
-    (tester) async {
-      await _shoot(
-        tester,
-        screen: TillScreen(onOpenOrders: () {}),
-        bridge: _FakeBridge(figuresVisible: false),
-        size: _ipad,
-        theme: MadarTheme.light(),
-        name: 'ipad-figures-hidden',
-      );
-      // The one panel, and nothing it stands in for.
-      expect(find.byType(FiguresHiddenPanel), findsOneWidget);
-      expect(find.text('EGP 2,380.00'), findsNothing, reason: 'cash in till');
-      expect(find.text('EGP 6,230.00'), findsNothing, reason: 'sales total');
-      expect(find.text('\u2066420\u2069'), findsNothing, reason: 'net');
-      expect(find.text('\u206642\u2069'), findsNothing, reason: 'order count');
-      // The drawer itself, its ledger rows and Cash spot are all still here.
-      expect(find.byType(CashLedger), findsOneWidget);
-      expect(find.text('Cash spot'), findsWidgets);
-    },
-  );
+  testWidgets('without till.cash_spot_check the Till shows ONE hidden panel', (
+    tester,
+  ) async {
+    await _shoot(
+      tester,
+      screen: TillScreen(onOpenOrders: () {}),
+      bridge: _FakeBridge(figuresVisible: false),
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'ipad-figures-hidden',
+    );
+    // The one panel, and nothing it stands in for.
+    expect(find.byType(FiguresHiddenPanel), findsOneWidget);
+    expect(find.text('EGP 2,380.00'), findsNothing, reason: 'cash in till');
+    expect(find.text('EGP 6,230.00'), findsNothing, reason: 'sales total');
+    expect(find.text('\u2066420\u2069'), findsNothing, reason: 'net');
+    expect(find.text('\u206642\u2069'), findsNothing, reason: 'order count');
+    // The drawer itself, its ledger rows and Cash spot are all still here.
+    expect(find.byType(CashLedger), findsOneWidget);
+    expect(find.text('Cash spot'), findsWidgets);
+  });
 
   testWidgets('the Till offline, in the dark', (tester) async {
     await _shoot(
