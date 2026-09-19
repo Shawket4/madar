@@ -2,7 +2,9 @@
 ///
 /// THIS TILL is the till's own ledger: `listTillOrders()` (the synced
 /// sales plus the still-queued ones, straight from the local mirror, so it
-/// works with no network) with `tillStats()` for the header's count line.
+/// works with no network) with `tillStatsChecked()` for the header's count
+/// line — the one shift aggregate on this screen, hidden without
+/// `till.cash_spot_check`.
 /// ALL is every till in the branch: `searchOrders()`, online only, paged
 /// 50 at a time by the server. The two share one search box, one chip row
 /// and one selection, so a teller who cannot find yesterday's receipt under
@@ -373,9 +375,14 @@ class HistoryNotifier extends Notifier<HistoryState> {
       );
       return;
     }
+    // The header's shift aggregate is a till money figure: it goes through
+    // the one `till.cash_spot_check` gate (`tillStatsChecked`), so a blind
+    // teller's header carries no shift total and no order count. Everything
+    // else on this screen — the list, each sale's own total, its items,
+    // payments, receipt preview and reprint — is never gated.
     TillStatsView? stats;
     try {
-      stats = await _bridge.tillStats(orders: rows);
+      stats = await _bridge.tillStatsChecked(orders: rows);
     } on MadarError {
       stats = null;
     }

@@ -153,6 +153,10 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
 
   /// The header's second line: "This till · 42 sales · EGP 6,230.00", or
   /// "All · 318 found", or the honest "No till open".
+  ///
+  /// Without `till.cash_spot_check` the shift aggregate is gone and the line
+  /// reads "This till · Blind count" (owner, 2026-09-19): the sales total and
+  /// the order count are the same figures the rule hides everywhere else.
   String? _scopeLine(WidgetRef ref, MadarBridge bridge) {
     final scope = ref.watch(historyProvider.select((s) => s.scope));
     final currency = ref.watch(
@@ -166,6 +170,13 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
         final loading = ref.watch(historyProvider.select((s) => s.loading));
         if (!hasTill && !loading) return t('history.no_shift');
         final parts = <String>[t('history.this_shift')];
+        // The shift aggregate is the one till money figure on this screen:
+        // without `till.cash_spot_check` there is no total and no count, and
+        // the header says so in the Till section's own words rather than
+        // going quiet. The list below keeps every sale's own total.
+        if (stats == null && hasTill && !bridge.tillFiguresVisible()) {
+          parts.add(bridge.tr(key: 'spot.blind_count_note'));
+        }
         if (stats != null) {
           parts
             ..add(
