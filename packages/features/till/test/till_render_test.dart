@@ -311,7 +311,12 @@ class _FakeBridge implements MadarBridge {
     this.sync,
     this.methods = _methods,
     this.preflight,
+    this.figuresVisible = true,
   });
+
+  /// The person holds `till.cash_spot_check` — "may see this till's money
+  /// figures" (owner, 2026-09-19).
+  final bool figuresVisible;
 
   /// Held orders still parked on the device at close.
   final ClosePreflightView? preflight;
@@ -347,6 +352,7 @@ class _FakeBridge implements MadarBridge {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #tillFiguresVisible) return figuresVisible;
     final can = fakeCanInvocation(invocation, () => currentSession()?.role);
     if (can != null) return can;
     final name = invocation.memberName;
@@ -476,7 +482,9 @@ class _FakeBridge implements MadarBridge {
     if (name == #currentTill || name == #refreshTill) {
       return Future<TillView?>.value(till);
     }
+    const hidden = MadarError.forbidden(resource: 'till', action: 'spot.blind');
     if (name == #tillReport) {
+      if (!figuresVisible) return Future<TillReportView>.error(hidden);
       return Future<TillReportView>.value(_report(fromServer: online));
     }
     if (name == #tillReportFor) {
@@ -487,7 +495,10 @@ class _FakeBridge implements MadarBridge {
         _orders(queued: online ? 0 : 3),
       );
     }
-    if (name == #tillStats) {
+    if (name == #tillStatsChecked && !figuresVisible) {
+      return Future<TillStatsView>.error(hidden);
+    }
+    if (name == #tillStats || name == #tillStatsChecked) {
       return Future<TillStatsView>.value(
         const TillStatsView(salesMinor: 623000, orderCount: 42),
       );
@@ -681,6 +692,29 @@ void main() {
     // Cash spot replaces the X preview (owner design 2026-09-16 item 5).
     expect(find.text('Preview X report'), findsNothing);
   });
+
+  testWidgets(
+    'without till.cash_spot_check the Till shows ONE hidden panel',
+    (tester) async {
+      await _shoot(
+        tester,
+        screen: TillScreen(onOpenOrders: () {}),
+        bridge: _FakeBridge(figuresVisible: false),
+        size: _ipad,
+        theme: MadarTheme.light(),
+        name: 'ipad-figures-hidden',
+      );
+      // The one panel, and nothing it stands in for.
+      expect(find.byType(FiguresHiddenPanel), findsOneWidget);
+      expect(find.text('EGP 2,380.00'), findsNothing, reason: 'cash in till');
+      expect(find.text('EGP 6,230.00'), findsNothing, reason: 'sales total');
+      expect(find.text('\u2066420\u2069'), findsNothing, reason: 'net');
+      expect(find.text('\u206642\u2069'), findsNothing, reason: 'order count');
+      // The drawer itself, its ledger rows and Cash spot are all still here.
+      expect(find.byType(CashLedger), findsOneWidget);
+      expect(find.text('Cash spot'), findsWidgets);
+    },
+  );
 
   testWidgets('the Till offline, in the dark', (tester) async {
     await _shoot(

@@ -878,7 +878,7 @@ class _FakeBridge implements MadarBridge {
         _orders(queued: online ? 0 : pending),
       );
     }
-    if (name == #tillStats) {
+    if (name == #tillStats || name == #tillStatsChecked) {
       return Future<TillStatsView>.value(
         const TillStatsView(salesMinor: 623000, orderCount: 42),
       );

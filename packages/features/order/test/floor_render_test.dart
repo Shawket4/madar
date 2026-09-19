@@ -312,7 +312,7 @@ class _Fake implements MadarBridge {
     if (n == #listTillOrders) {
       return Future<List<OrderSummaryView>>.value([]);
     }
-    if (n == #tillStats) {
+    if (n == #tillStats || n == #tillStatsChecked) {
       return Future<TillStatsView>.value(
         const TillStatsView(salesMinor: 0, orderCount: 0),
       );

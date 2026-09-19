@@ -1842,3 +1842,80 @@ async fn with_the_grant_a_look_is_recorded_offline_and_shows_on_the_z_report() {
         .unwrap();
     assert_eq!(core.till_report_checked().await.unwrap().spot_views.len(), 1);
 }
+
+/// `till.cash_spot_check` widened (owner, 2026-09-19): it is "may see this
+/// till's money figures", so the Till section's SHIFT TOTALS go with the
+/// report — and the past-orders screen still does not.
+#[tokio::test]
+async fn without_the_grant_the_shift_totals_are_hidden_but_past_orders_are_not() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    seed_rows(&core, &[]);
+    core.open_till(1_000, None).await.unwrap();
+    ring(&core, 400, CASH, 400).await;
+    ring(&core, 700, CASH, 700).await;
+    grant_spot(&core, false);
+
+    let orders = core.list_till_orders().await.unwrap();
+    assert_eq!(orders.len(), 2, "the sales themselves are always listed");
+    // Past orders: the list, and each sale's own total, are never gated.
+    assert!(orders.iter().all(|o| o.total_minor > 0));
+    let plain = core.till_stats(orders.clone());
+    assert_eq!(plain.order_count, 2, "the past-orders header keeps its count");
+    assert!(plain.sales_minor > 0);
+
+    // The Till section asks the checked one, and is refused.
+    assert!(matches!(
+        core.till_stats_checked(orders.clone()),
+        Err(crate::error::CoreError::Forbidden { .. })
+    ));
+    // …and the close screen's per-method counts go too.
+    let p = core.close_till_preview_checked().await.unwrap();
+    assert!(p.figures_hidden);
+    assert!(p.methods.iter().all(|m| m.order_count == 0 && m.system_total_minor == 0));
+
+    // One manager PIN unlocks one look at the same figures, unchanged.
+    let a = crate::approvals::ApprovalView {
+        id: "ok".into(),
+        capability: crate::cash_spot::CAP_CASH_SPOT.into(),
+        approver_id: "m".into(),
+        approver_name: "M".into(),
+        amount_minor: None,
+        percent_bps: None,
+        value_minor: None,
+    };
+    core.store.kv_put("cash_spot:approval:ok", &serde_json::to_string(&a).unwrap()).unwrap();
+    let figures = core.close_figures(Some(a)).await.unwrap();
+    assert!(!figures.figures_hidden);
+    assert!(figures.expected_cash_minor > 0);
+
+    // The blind close: after it, the finished report is still theirs to see
+    // and to print (owner decision 1 — today's behaviour, unchanged).
+    let till_id = core.current_till().unwrap().unwrap().id;
+    core.close_till_confirmed(1_000, Some("blind".into()), vec![], false).await.unwrap();
+    let report = core.till_report_for_checked(till_id).await.unwrap();
+    assert!(!report.is_open);
+    assert!(report.expected_cash_minor > 0, "the closed report carries its figures");
+    // The past orders of that closed till are still listed with their totals.
+    assert!(!core.till_stats(core.list_till_orders().await.unwrap_or_default()).sales_minor.is_negative());
+}
+
+/// With the grant nothing changes: the shift totals are the plain ones.
+#[tokio::test]
+async fn with_the_grant_the_shift_totals_are_the_plain_ones() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    seed_rows(&core, &[]);
+    core.open_till(1_000, None).await.unwrap();
+    ring(&core, 400, CASH, 400).await;
+    grant_spot(&core, true);
+
+    let orders = core.list_till_orders().await.unwrap();
+    assert_eq!(
+        core.till_stats_checked(orders.clone()).unwrap(),
+        core.till_stats(orders),
+    );
+    let p = core.close_till_preview_checked().await.unwrap();
+    assert!(!p.figures_hidden);
+    assert!(p.methods.iter().any(|m| m.order_count > 0));
+}
