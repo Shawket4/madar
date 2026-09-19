@@ -76,6 +76,20 @@ fn banner_for(state: &str, reason: Option<&str>) -> Option<String> {
     }
 }
 
+/// The `FreshnessView.reason` an error class maps to.
+fn reason_kind(k: &str) -> String {
+    match k {
+        "auth" => "auth_expired",
+        "forbidden" => "forbidden",
+        "decode" => "decode",
+        "offline" => "offline",
+        // Paced by the server (429): the next pass resumes in seconds, no banner.
+        "throttled" => "throttled",
+        _ => "server_error",
+    }
+    .to_string()
+}
+
 /// A pull older than this is stale even with no error since (§6).
 pub(crate) const FRESH_FOR_MS: i64 = 60_000;
 
@@ -168,28 +182,35 @@ pub(crate) fn freshness(store: &Store, branch: &str, realtime_live: bool, now_ms
         .flatten()
         .is_some();
     let pull = stream_freshness(store, &stream_key(branch), complete, realtime_live, now_ms);
-    // A device that has never ATTEMPTED a catalog refresh is not thereby
-    // suspect: on a feed-complete branch the changefeed carries the catalog and
-    // the refresh is a fallback. What must never be hidden is a refresh that
-    // has been tried and is failing, or one that succeeded and has since gone
-    // cold — that is a till selling from a menu that stopped moving.
-    match stream_row(store, &catalog_stream_key(branch)) {
-        Some(_) => worse_of(pull, catalog_freshness(store, branch, now_ms)),
-        None => pull,
-    }
+    worse_of(pull, catalog_freshness(store, branch, now_ms))
 }
 
 /// Freshness of the CATALOG stream alone, for a UI that wants to say which half
 /// is behind. A branch that has never run a catalog refresh is bootstrapping,
 /// exactly like one that has never pulled.
-pub(crate) fn catalog_freshness(store: &Store, branch: &str, now_ms: i64) -> FreshnessView {
-    let key = catalog_stream_key(branch);
-    // "Complete" for the catalog means a refresh has actually SUCCEEDED once —
-    // not the pull's full-snapshot marker, which says nothing about it. And the
-    // catalog has no realtime stream of its own, so `realtime_live` is false:
-    // only a real refresh makes it fresh.
-    let complete = stream_row(store, &key).is_some_and(|(ok, _)| ok.is_some());
-    stream_freshness(store, &key, complete, false, now_ms)
+pub(crate) fn catalog_freshness(store: &Store, branch: &str, _now_ms: i64) -> FreshnessView {
+    // Deliberately NOT judged by age, unlike the pull stream. Nothing refreshes
+    // the catalog on a beat — it happens when a till opens, when someone syncs,
+    // or when the menu changes — so "older than a minute" is the normal, healthy
+    // state of every device in the field and would mean permanent staleness.
+    // What is worth reporting is a refresh that is FAILING, or one that has
+    // never succeeded on a device that has tried: that is a till selling from a
+    // menu, prices and a payment-method list that stopped moving.
+    let (state, reason) = match stream_row(store, &catalog_stream_key(branch)) {
+        // Never attempted. On a feed-complete branch the changefeed carries the
+        // catalog and the refresh is a fallback, so this is not evidence of
+        // anything; the pull stream speaks for the device.
+        None => ("fresh", None),
+        Some((_, Some(kind))) => ("stale", Some(reason_kind(&kind))),
+        Some((Some(_), None)) => ("fresh", None),
+        Some((None, None)) => ("bootstrapping", Some("never_synced".to_string())),
+    };
+    FreshnessView {
+        banner: banner_for(state, reason.as_deref()),
+        state: state.into(),
+        reason,
+        age_secs: None,
+    }
 }
 
 /// `(last_ok_at, last_err_kind)` for one stream, or `None` when it has never
@@ -230,18 +251,7 @@ fn stream_freshness(
     let row = stream_row(store, key);
     let (last_ok, err_kind) = row.unwrap_or((None, None));
     let age_secs = last_ok.map(|t| ((now_ms - t).max(0) / 1000) as u64);
-    let reason_of = |k: &str| {
-        match k {
-            "auth" => "auth_expired",
-            "forbidden" => "forbidden",
-            "decode" => "decode",
-            "offline" => "offline",
-            // Paced by the server (429): the next pass resumes in seconds, no banner.
-            "throttled" => "throttled",
-            _ => "server_error",
-        }
-        .to_string()
-    };
+    let reason_of = reason_kind;
     let (state, reason) = if store.future_schema() {
         ("stale", Some("newer_build".to_string()))
     } else if !complete {
@@ -1565,6 +1575,29 @@ mod tests {
 
         // …and a live realtime stream does not paper over it either.
         assert_eq!(freshness(&store, branch, true, now).state, "stale");
+
+        // But AGE alone must not: nothing refreshes the catalog on a beat — it
+        // happens when a till opens, when someone syncs, or when the menu
+        // changes — so "older than a minute" is the normal, healthy state of
+        // every device in the field. Judging it by age made every device
+        // permanently stale (it wedged the real-backend backlog scenario,
+        // which waits for `fresh` after a drain).
+        record_catalog_outcome(&store, branch, Ok(()), now);
+        record_pull_outcome(&store, branch, Ok(()), now + 600_000);
+        assert_eq!(
+            freshness(&store, branch, false, now + 600_000).state,
+            "fresh",
+            "a catalog that succeeded ten minutes ago is not a problem"
+        );
+
+        // A branch that has never attempted one is not suspect either: the
+        // changefeed carries the catalog and the refresh is the fallback.
+        let fresh_store = Store::open("").unwrap();
+        fresh_store
+            .kv_put(&format!("{K_LAST_FULL}b2"), "2026-09-19T10:00:00Z")
+            .unwrap();
+        record_pull_outcome(&fresh_store, "b2", Ok(()), now);
+        assert_eq!(freshness(&fresh_store, "b2", false, now).state, "fresh");
     }
 
     /// Coalescing must never swallow an announced change: a change announced
