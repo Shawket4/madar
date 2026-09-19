@@ -150,6 +150,8 @@ class _Bridge implements MadarBridge {
     }
     if (name == #syncStatus) {
       return SyncStatusView(
+        repairedTypes: const [],
+        catalogFreshness: const FreshnessView(state: 'fresh'),
         blockedClose: false,
         pendingOutbox: 0,
         deadOutbox: 0,

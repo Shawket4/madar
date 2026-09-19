@@ -438,6 +438,8 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #syncStatus) {
       return SyncStatusView(
+        repairedTypes: const [],
+        catalogFreshness: const FreshnessView(state: 'fresh'),
         blockedClose: false,
         pendingOutbox: online ? 0 : 1,
         deadOutbox: 0,

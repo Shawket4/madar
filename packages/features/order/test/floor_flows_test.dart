@@ -145,6 +145,8 @@ class _Fake implements MadarBridge {
     if (n == #refreshConnectivity) return Future<bool>.value(true);
     if (n == #syncStatus) {
       return SyncStatusView(
+        repairedTypes: const [],
+        catalogFreshness: const FreshnessView(state: 'fresh'),
         blockedClose: false,
         pendingOutbox: 0,
         deadOutbox: 0,

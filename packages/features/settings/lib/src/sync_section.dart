@@ -142,7 +142,11 @@ class _SyncSectionState extends ConsumerState<SyncSection> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.lg,
       children: [
-        _HealthCard(pendingCount: waitingRows.length, clear: clear),
+        _HealthCard(
+          pendingCount: waitingRows.length,
+          clear: clear,
+          compact: widget.compact,
+        ),
         if (stuckRows.isNotEmpty) ...[
           MadarSectionHeader(
             text:
@@ -235,10 +239,17 @@ class _SyncSectionState extends ConsumerState<SyncSection> {
 /// button: Sync now. When the queue is empty the row says so in one line —
 /// no illustration.
 class _HealthCard extends ConsumerWidget {
-  const _HealthCard({required this.pendingCount, required this.clear});
+  const _HealthCard({
+    required this.pendingCount,
+    required this.clear,
+    required this.compact,
+  });
 
   final int pendingCount;
   final bool clear;
+  /// Settings / Me render a compact strip; the full Sync screen has room for
+  /// the rebuild action and what it does.
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -309,6 +320,24 @@ class _HealthCard extends ConsumerWidget {
                 onTap: () => ref.read(reauthRequestProvider.notifier).request(),
               ),
             ),
+          // A repair is not a failure, but it is not nothing: a device that
+          // keeps having to be rebuilt from the server is a device with a
+          // problem, and healing in silence is what hid that.
+          if ((status?.repairedTypes ?? const []).isNotEmpty)
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                Space.lg,
+                0,
+                Space.lg,
+                Space.md,
+              ),
+              child: NoticeBanner(
+                text:
+                    '${bridge.tr(key: 'sync.repaired')} · '
+                    '${status!.repairedTypes.length}',
+                icon: 'shield',
+              ),
+            ),
           if (skew >= _skewBannerMinutes)
             Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(
@@ -355,6 +384,39 @@ class _HealthCard extends ConsumerWidget {
               onLongPress: () => unawaited(confirmFullSync(context, ref)),
             ),
           ),
+          // The same act, but FINDABLE. It was only ever a long press on Push
+          // — a gesture nobody discovers and nothing announces, so the one
+          // action that repairs a device that has drifted was effectively not
+          // there. On the full Sync screen it is a plain button with a line
+          // saying what it does; the long press stays for anyone used to it.
+          if (!compact)
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                Space.lg,
+                0,
+                Space.lg,
+                Space.lg,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: Space.xs,
+                children: [
+                  MadarButton(
+                    label: bridge.tr(key: 'sync.rebuild'),
+                    glyph: MadarGlyph.undo,
+                    variant: MadarButtonVariant.ghost,
+                    enabled: !pushing,
+                    onTap: () => unawaited(confirmFullSync(context, ref)),
+                  ),
+                  Text(
+                    bridge.tr(key: 'sync.rebuild_hint'),
+                    style: MadarType.bodySm.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

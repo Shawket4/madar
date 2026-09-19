@@ -126,10 +126,21 @@ impl MadarCore {
 }
 
 impl MadarCore {
+    /// Something says there is new work on the server. Recorded on the pull
+    /// single-flight BEFORE the debounce, so a pull already in flight — whose
+    /// request predates this news — cannot be handed back as if it covered it.
+    pub(crate) fn announce_change(&self) {
+        self.scheduler.pull_flight.announce();
+    }
+
     /// Ask for a drain + incremental pull soon. Cheap and idempotent: nudges
     /// inside the debounce window collapse into one pull. A no-op without a
     /// tokio runtime or a session.
     pub(crate) fn nudge_sync(&self) {
+        // Announce FIRST, even when there is no session or no runtime to act on
+        // it: the news is real whatever we do about it, and a pull already on
+        // the wire cannot contain it.
+        self.announce_change();
         if self.current_session().is_none() {
             return;
         }

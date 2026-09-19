@@ -49,8 +49,14 @@ pub struct _SyncStatusView {
     pub blocked: u32,
     /// One of them is the drawer's own close.
     pub blocked_close: bool,
-    /// How far the local data can be trusted (`fresh` / `stale` / `bootstrapping`).
+    /// How far the local data can be trusted (`fresh` / `stale` / `bootstrapping`)
+    /// — the worse of the pull stream and the catalog stream.
     pub freshness: FreshnessView,
+    /// The catalog refresh alone (menu, prices, payment methods, discounts).
+    pub catalog_freshness: FreshnessView,
+    /// What the checksum self-heal last rebuilt from the server, and when.
+    pub repaired_types: Vec<String>,
+    pub repaired_at: Option<String>,
 }
 
 /// Freshness of the replicated store (OFFLINE_B_DESIGN §6).

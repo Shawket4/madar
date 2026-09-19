@@ -272,6 +272,8 @@ final _bills = <TicketView>[
 ];
 
 SyncStatusView _status() => SyncStatusView(
+  repairedTypes: const [],
+  catalogFreshness: const FreshnessView(state: 'fresh'),
   blockedClose: false,
   pendingOutbox: 2,
   deadOutbox: 1,
@@ -703,6 +705,8 @@ void main() {
       bridge: _FakeBridge(
         outbox: const [],
         status: SyncStatusView(
+          repairedTypes: const [],
+          catalogFreshness: const FreshnessView(state: 'fresh'),
           blockedClose: false,
           pendingOutbox: 0,
           deadOutbox: 0,
@@ -737,6 +741,8 @@ void main() {
         outbox: _waiterOutbox,
         tillOpen: false,
         status: SyncStatusView(
+          repairedTypes: const [],
+          catalogFreshness: const FreshnessView(state: 'fresh'),
           blockedClose: false,
           pendingOutbox: 2,
           deadOutbox: 1,
@@ -775,6 +781,8 @@ void main() {
         outbox: _waiterOutbox,
         tillOpen: false,
         status: SyncStatusView(
+          repairedTypes: const [],
+          catalogFreshness: const FreshnessView(state: 'fresh'),
           blockedClose: false,
           pendingOutbox: 2,
           deadOutbox: 1,

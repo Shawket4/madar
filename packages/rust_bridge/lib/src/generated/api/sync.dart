@@ -213,8 +213,16 @@ class SyncStatusView {
   /// One of them is the drawer's own close.
   final bool blockedClose;
 
-  /// How far the local data can be trusted (`fresh` / `stale` / `bootstrapping`).
+  /// How far the local data can be trusted (`fresh` / `stale` / `bootstrapping`)
+  /// — the worse of the pull stream and the catalog stream.
   final FreshnessView freshness;
+
+  /// The catalog refresh alone (menu, prices, payment methods, discounts).
+  final FreshnessView catalogFreshness;
+
+  /// What the checksum self-heal last rebuilt from the server, and when.
+  final List<String> repairedTypes;
+  final String? repairedAt;
 
   const SyncStatusView({
     required this.phase,
@@ -231,6 +239,9 @@ class SyncStatusView {
     required this.blocked,
     required this.blockedClose,
     required this.freshness,
+    required this.catalogFreshness,
+    required this.repairedTypes,
+    this.repairedAt,
   });
 
   @override
@@ -248,7 +259,10 @@ class SyncStatusView {
       authPaused.hashCode ^
       blocked.hashCode ^
       blockedClose.hashCode ^
-      freshness.hashCode;
+      freshness.hashCode ^
+      catalogFreshness.hashCode ^
+      repairedTypes.hashCode ^
+      repairedAt.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -268,7 +282,10 @@ class SyncStatusView {
           authPaused == other.authPaused &&
           blocked == other.blocked &&
           blockedClose == other.blockedClose &&
-          freshness == other.freshness;
+          freshness == other.freshness &&
+          catalogFreshness == other.catalogFreshness &&
+          repairedTypes == other.repairedTypes &&
+          repairedAt == other.repairedAt;
 }
 
 class SyncedDeliveries {

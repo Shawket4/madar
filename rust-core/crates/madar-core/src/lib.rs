@@ -2038,7 +2038,13 @@ enum SendOutcome {
 enum Idem {
     /// Not idempotent for our purposes: 409/404 are genuine rejections → dead.
     No,
-    /// Idempotent already-applied: 409/404 → treat as success.
+    /// Idempotent already-applied: a 409 means the server has this op already,
+    /// so it is success. A 404 is NOT: it means something the op needed is not
+    /// on the server, so the op never applied. Treating it as an ack destroyed
+    /// the work — most sharply for a `lan_mirror` backup, which exists to
+    /// survive exactly the failure that produces the 404, and for a
+    /// `close_till` whose till the server has not seen, which left the drawer
+    /// open server-side forever with nothing queued to close it.
     Yes,
     /// Void: 409 → already-voided (success); 404 → order never synced → dead.
     VoidIdem,
@@ -2070,7 +2076,13 @@ fn classify_send(err: CoreError, idem: Idem) -> SendOutcome {
         CoreError::Validation { detail, .. } => SendOutcome::Dead(detail),
         CoreError::Forbidden { action: detail, .. } => SendOutcome::Refused(detail),
         CoreError::Server { status, detail, .. } => match (status, idem) {
-            (409, Idem::Yes) | (409, Idem::VoidIdem) | (404, Idem::Yes) => SendOutcome::Acked(None),
+            (409, Idem::Yes) | (409, Idem::VoidIdem) => SendOutcome::Acked(None),
+            // A 404 is never an ack: the op did not apply. Dead-lettering keeps
+            // it — visible in the stuck list, retryable once whatever it
+            // depended on has landed — instead of dropping it silently.
+            (404, Idem::Yes) => SendOutcome::Dead(format!(
+                "the server does not have what this needs yet — {detail}"
+            )),
             // void 404 = the order never landed → don't silently swallow the void.
             (404, Idem::VoidIdem) => {
                 SendOutcome::Dead(format!("order not found on server — {detail}"))
@@ -2949,6 +2961,21 @@ fn mirror_replay_op(store: &store::Store, envelope_json: &str) {
         .or_else(|| env.get("order_id").and_then(|v| v.as_str()))
         .or_else(|| env.get("ticket_id").and_then(|v| v.as_str()))
         .unwrap_or(op);
+    // Carry the peer's TILL. Without it a mirrored backup sat outside the
+    // per-till FIFO entirely (`must_wait` keys on `till_id`), so a mirrored
+    // sale could be sent before the mirrored opening it belongs to — and the
+    // 404 that came back was read as an ack, destroying the very backup that
+    // existed to survive the peer's failure.
+    let till_id = env
+        .get("till_id")
+        .and_then(|v| v.as_str())
+        .or_else(|| {
+            env.get("request")
+                .and_then(|r| r.get("till_id"))
+                .and_then(|v| v.as_str())
+        })
+        .or_else(|| env.get("shift_id").and_then(|v| v.as_str()))
+        .map(|s| s.to_string());
     let mut backup = store::NewOutboxOp {
         id: format!("lanmirror:{op}:{handle}"),
         op_type: "lan_mirror".into(),
@@ -2958,7 +2985,7 @@ fn mirror_replay_op(store: &store::Store, envelope_json: &str) {
         depends_on_seq: None,
         user_id: teller_id.clone(),
         clock_offset_ms: None,
-        till_id: None,
+        till_id,
         ..Default::default()
     };
     // A peer's MONEY op also becomes the row it stands for on this device (the
@@ -6037,6 +6064,23 @@ impl MadarCore {
     /// that was never bumped (a direct database edit, a missed bump) otherwise
     /// leaves the option sheet stale no matter how often anyone syncs.
     pub(crate) async fn refresh_catalog_with(&self, force: bool) -> Result<(), CoreError> {
+        let out = self.refresh_catalog_inner(force).await;
+        // The catalog is its own SYNC STREAM. Recording it is what lets
+        // `freshness()` tell the truth: a device whose `/sync/pull` is healthy
+        // but whose catalog refresh keeps failing is NOT fresh — it is selling
+        // from a menu, prices and a payment-method list that stopped moving.
+        if let Ok(branch) = self.session_branch_id() {
+            sync_pull::record_catalog_outcome(
+                &self.store,
+                &branch,
+                out.as_ref().map(|_| ()).map_err(|e| e),
+                now_ms(),
+            );
+        }
+        out
+    }
+
+    async fn refresh_catalog_inner(&self, force: bool) -> Result<(), CoreError> {
         use madar_api::apis::{bundles_api, discounts_api, menu_api, payment_methods_api};
         use madar_api::models::BundleStatus;
 
@@ -8871,9 +8915,15 @@ mod tests {
         assert!(dead(&classify_send(srv(409), Idem::No)));
         assert!(ack(&classify_send(srv(409), Idem::Yes)));
         assert!(ack(&classify_send(srv(409), Idem::VoidIdem)));
-        // 404: idempotent gone → ack; but a VOID 404 (order never landed) → dead.
-        assert!(ack(&classify_send(srv(404), Idem::Yes)));
+        // 404 is NEVER an ack. It says the server does not have something the
+        // op needed, which means the op did not apply — so acking it destroyed
+        // the work: a `lan_mirror` backup died on exactly the failure it exists
+        // to survive, and a `close_till` for a till the server had not seen
+        // left the drawer open server-side with nothing left to close it.
+        // Dead-lettering keeps it visible and retryable instead.
+        assert!(dead(&classify_send(srv(404), Idem::Yes)));
         assert!(dead(&classify_send(srv(404), Idem::VoidIdem)));
+        assert!(dead(&classify_send(srv(404), Idem::No)));
         // 429: paced, never dead, whatever the endpoint.
         for idem in [Idem::No, Idem::Yes, Idem::VoidIdem] {
             assert!(matches!(classify_send(srv(429), idem), SendOutcome::Throttled(_)));

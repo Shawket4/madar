@@ -16226,6 +16226,9 @@ const _: fn() = || {
         let _: u32 = SyncStatusView.blocked;
         let _: bool = SyncStatusView.blocked_close;
         let _: crate::api::sync::FreshnessView = SyncStatusView.freshness;
+        let _: crate::api::sync::FreshnessView = SyncStatusView.catalog_freshness;
+        let _: Vec<String> = SyncStatusView.repaired_types;
+        let _: Option<String> = SyncStatusView.repaired_at;
     }
     {
         let TenderSummaryView = None::<crate::api::orders::TenderSummaryView>.unwrap();
@@ -20679,6 +20682,9 @@ impl SseDecode for crate::api::sync::SyncStatusView {
         let mut var_blocked = <u32>::sse_decode(deserializer);
         let mut var_blockedClose = <bool>::sse_decode(deserializer);
         let mut var_freshness = <crate::api::sync::FreshnessView>::sse_decode(deserializer);
+        let mut var_catalogFreshness = <crate::api::sync::FreshnessView>::sse_decode(deserializer);
+        let mut var_repairedTypes = <Vec<String>>::sse_decode(deserializer);
+        let mut var_repairedAt = <Option<String>>::sse_decode(deserializer);
         return crate::api::sync::SyncStatusView {
             phase: var_phase,
             next_seq: var_nextSeq,
@@ -20694,6 +20700,9 @@ impl SseDecode for crate::api::sync::SyncStatusView {
             blocked: var_blocked,
             blocked_close: var_blockedClose,
             freshness: var_freshness,
+            catalog_freshness: var_catalogFreshness,
+            repaired_types: var_repairedTypes,
+            repaired_at: var_repairedAt,
         };
     }
 }
@@ -26051,6 +26060,9 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::sync::SyncStatusVi
             self.0.blocked.into_into_dart().into_dart(),
             self.0.blocked_close.into_into_dart().into_dart(),
             self.0.freshness.into_into_dart().into_dart(),
+            self.0.catalog_freshness.into_into_dart().into_dart(),
+            self.0.repaired_types.into_into_dart().into_dart(),
+            self.0.repaired_at.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -29705,6 +29717,9 @@ impl SseEncode for crate::api::sync::SyncStatusView {
         <u32>::sse_encode(self.blocked, serializer);
         <bool>::sse_encode(self.blocked_close, serializer);
         <crate::api::sync::FreshnessView>::sse_encode(self.freshness, serializer);
+        <crate::api::sync::FreshnessView>::sse_encode(self.catalog_freshness, serializer);
+        <Vec<String>>::sse_encode(self.repaired_types, serializer);
+        <Option<String>>::sse_encode(self.repaired_at, serializer);
     }
 }
 

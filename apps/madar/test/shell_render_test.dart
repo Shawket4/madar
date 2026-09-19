@@ -744,6 +744,8 @@ class _FakeBridge implements MadarBridge {
     // ── connectivity, sync ─────────────────────────────────────────────────
     if (name == #syncStatus) {
       return SyncStatusView(
+        repairedTypes: const [],
+        catalogFreshness: const FreshnessView(state: 'fresh'),
         blockedClose: false,
         pendingOutbox: pending,
         deadOutbox: failed,

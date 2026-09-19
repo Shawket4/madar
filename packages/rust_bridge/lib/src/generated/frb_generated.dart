@@ -15399,8 +15399,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   SyncStatusView dco_decode_sync_status_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 14)
-      throw Exception('unexpected arr length: expect 14 but see ${arr.length}');
+    if (arr.length != 17)
+      throw Exception('unexpected arr length: expect 17 but see ${arr.length}');
     return SyncStatusView(
       phase: dco_decode_String(arr[0]),
       nextSeq: dco_decode_opt_box_autoadd_i_64(arr[1]),
@@ -15416,6 +15416,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       blocked: dco_decode_u_32(arr[11]),
       blockedClose: dco_decode_bool(arr[12]),
       freshness: dco_decode_freshness_view(arr[13]),
+      catalogFreshness: dco_decode_freshness_view(arr[14]),
+      repairedTypes: dco_decode_list_String(arr[15]),
+      repairedAt: dco_decode_opt_String(arr[16]),
     );
   }
 
@@ -20261,6 +20264,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_blocked = sse_decode_u_32(deserializer);
     var var_blockedClose = sse_decode_bool(deserializer);
     var var_freshness = sse_decode_freshness_view(deserializer);
+    var var_catalogFreshness = sse_decode_freshness_view(deserializer);
+    var var_repairedTypes = sse_decode_list_String(deserializer);
+    var var_repairedAt = sse_decode_opt_String(deserializer);
     return SyncStatusView(
       phase: var_phase,
       nextSeq: var_nextSeq,
@@ -20276,6 +20282,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       blocked: var_blocked,
       blockedClose: var_blockedClose,
       freshness: var_freshness,
+      catalogFreshness: var_catalogFreshness,
+      repairedTypes: var_repairedTypes,
+      repairedAt: var_repairedAt,
     );
   }
 
@@ -24356,6 +24365,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_u_32(self.blocked, serializer);
     sse_encode_bool(self.blockedClose, serializer);
     sse_encode_freshness_view(self.freshness, serializer);
+    sse_encode_freshness_view(self.catalogFreshness, serializer);
+    sse_encode_list_String(self.repairedTypes, serializer);
+    sse_encode_opt_String(self.repairedAt, serializer);
   }
 
   @protected

@@ -84,6 +84,11 @@ fn en(key: &str) -> Option<&'static str> {
         "sync.pending_count" => "{count} waiting to send",
         "sync.full_confirm_title" => "Download everything again?",
         "sync.full_confirm_body" => "Unsent sales are kept.",
+        "sync.rebuild" => "Rebuild from server",
+        "sync.rebuild_hint" => {
+            "Replaces the menu, prices and settings on this device with the server's. Anything waiting to send is kept."
+        }
+        "sync.repaired" => "Repaired from the server",
         // login (teller)
         "login.welcome_back" => "Welcome back",
         "login.subtitle" => "Sign in to open your till",
@@ -1408,6 +1413,9 @@ fn ar(key: &str) -> Option<&'static str> {
         "sync.pending_count" => "{count} بانتظار الإرسال",
         "sync.full_confirm_title" => "تنزيل كل البيانات من جديد؟",
         "sync.full_confirm_body" => "المبيعات غير المرسلة ستبقى محفوظة.",
+        "sync.rebuild" => "إعادة التحميل من السيرفر",
+        "sync.rebuild_hint" => "هيجيب المنيو والأسعار والإعدادات من السيرفر من الأول. أي حاجة لسه مستنية ترفع هتفضل زي ما هي.",
+        "sync.repaired" => "اتصلحت من السيرفر",
         "login.welcome_back" => "مرحبًا بعودتك",
         "login.subtitle" => "سجّل الدخول لفتح الخزينة",
         "login.name" => "الاسم",
