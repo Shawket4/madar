@@ -23,6 +23,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'printing.dart';
 import 'realtime.dart';
 import 'routes.dart';
+import 'staff_pool.dart';
 import 'sync.dart';
 import 'tickets.dart';
 import 'till.dart';
@@ -113,6 +114,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     PlatformInt64? amountMinor,
   });
 
+  /// A manager unlocks this act with their PIN.
+  Future<ApprovalView> approveStaffDrink({required String approverPin});
+
   /// A manager approves this waste with their PIN.
   Future<ApprovalView> approveWaste({
     required String approverPin,
@@ -171,6 +175,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// Not held, but the owner lets this person ask a manager to approve it.
   bool canAskManager({required String cap});
+
+  /// The action is offered at all (held, or ask-a-manager).
+  bool canRecordStaffDrink();
 
   /// Whether the waste screen is offered (held, or ask-a-manager).
   bool canRecordWaste();
@@ -947,6 +954,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required PlatformInt64 qty,
   });
 
+  /// The verdict on this drink before it is committed.
+  StaffDrinkPreviewView previewStaffDrink({required StaffDrinkInput input});
+
   /// Lines, value and decision for what is picked. Offline.
   WastePreviewView previewWaste({required WasteInput input});
 
@@ -983,6 +993,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// The spot report of this look was printed.
   Future<SpotViewLineView> recordCashSpotPrint({required String viewId});
+
+  /// Put the drink on the branch's pool (queued; works offline).
+  Future<StaffDrinkRecordedView> recordStaffDrink({
+    required StaffDrinkInput input,
+    ApprovalView? approval,
+  });
 
   /// Record the waste (queued; works offline).
   Future<WasteRecordedView> recordWaste({
@@ -1282,6 +1298,15 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<CheckoutSplit> legs,
     required String target,
   });
+
+  /// `allow` / `needs_approval` / `deny` for the signed-in person.
+  ActDecisionView staffDrinkAccess();
+
+  /// Today's drinks, oldest first.
+  List<StaffDrinkLineView> staffDrinksToday();
+
+  /// The branch's pool for its business day. Local; no network.
+  StaffPoolTodayView staffPoolToday();
 
   /// Open the device's ONE session-level subscription. The core owns topic
   /// policy and alert decisions; `events` refreshes boards, `alerts`
