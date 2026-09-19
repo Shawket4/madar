@@ -26,6 +26,23 @@ pub(crate) const NUDGE_DEBOUNCE: Duration = Duration::from_millis(250);
 pub(crate) const POLL_MIN: Duration = Duration::from_secs(5);
 pub(crate) const POLL_MAX: Duration = Duration::from_secs(60);
 
+/// How long a CONNECTED stream may stay silent before the fallback poll stops
+/// trusting it. "Connected" only means the socket is open: a stream can be
+/// deaf — a server-side cursor problem, a proxy holding frames — and the device
+/// would then sit online and stale forever, because the poll used to skip every
+/// beat while `realtime_live()`. The server sends a keep-alive every 20s but
+/// the core only records real events, so this is sized well past a genuinely
+/// quiet branch's gaps and still bounded: at worst the device is two minutes
+/// stale before it checks for itself.
+pub(crate) const REALTIME_SILENCE_GRACE: Duration = Duration::from_secs(120);
+
+/// May the fallback poll skip this beat? Only while the stream is BOTH
+/// connected and has spoken within the grace — a connected stream that has gone
+/// silent is not evidence of freshness, it is the shape of the deaf-stream bug.
+pub(crate) fn poll_skips(live: bool, silence_ms: u64) -> bool {
+    live && silence_ms <= REALTIME_SILENCE_GRACE.as_millis() as u64
+}
+
 /// The next fallback-poll interval: doubles, capped.
 pub(crate) fn next_poll_interval(current: Duration) -> Duration {
     (current * 2).clamp(POLL_MIN, POLL_MAX)
@@ -58,9 +75,37 @@ pub(crate) struct SchedulerState {
     pub nudges_wanted: AtomicU64,
     /// The fallback poll was asked to run.
     pub poll_wanted: AtomicBool,
+    /// Monotonic ms (process uptime) of the last realtime event or connect.
+    /// 0 = nothing yet this process.
+    pub last_realtime_ms: AtomicU64,
+}
+
+/// Process-uptime clock for the silence grace. Deliberately NOT the wall clock:
+/// a tablet whose clock jumps (see the LAN skew work) must not make the stream
+/// look silent for hours, or fresh.
+fn uptime_ms() -> u64 {
+    use std::sync::OnceLock;
+    static START: OnceLock<std::time::Instant> = OnceLock::new();
+    START.get_or_init(std::time::Instant::now).elapsed().as_millis() as u64 + 1
 }
 
 impl MadarCore {
+    /// Record that the realtime stream just spoke (an event, or a connect).
+    pub(crate) fn mark_realtime_activity(&self) {
+        self.scheduler
+            .last_realtime_ms
+            .store(uptime_ms(), Ordering::Relaxed);
+    }
+
+    /// Has a connected stream been silent past [`REALTIME_SILENCE_GRACE`]?
+    pub(crate) fn realtime_gone_quiet(&self) -> bool {
+        let last = self.scheduler.last_realtime_ms.load(Ordering::Relaxed);
+        if last == 0 {
+            return true;
+        }
+        !poll_skips(true, uptime_ms().saturating_sub(last))
+    }
+
     /// Switch this core to manual scheduling (see [`SchedulerState::manual`]).
     #[doc(hidden)]
     pub fn set_manual_scheduling(&self, on: bool) {
@@ -152,9 +197,17 @@ impl MadarCore {
                     core.scheduler.poll_running.store(false, Ordering::SeqCst);
                     return;
                 }
-                if core.realtime_live() {
+                // Skip the beat only while the stream is BOTH connected and
+                // actually speaking. A connected-but-silent stream is exactly
+                // the failure that hid the restarted-bus bug, so past the
+                // grace we poll anyway — on the slow beat, so a quiet branch
+                // costs one request a minute, not a busy loop.
+                if core.realtime_live() && !core.realtime_gone_quiet() {
                     interval = POLL_MIN;
                     continue;
+                }
+                if core.realtime_live() {
+                    interval = POLL_MAX;
                 }
                 core.scheduler.pulls_started.fetch_add(1, Ordering::Relaxed);
                 let _ = core.drain_outbox().await;
@@ -178,6 +231,7 @@ pub(crate) struct SyncNudgeListener {
 impl EventListener for SyncNudgeListener {
     fn on_event(&self, event: RealtimeEvent) {
         if let Some(core) = self.core.upgrade() {
+            core.mark_realtime_activity();
             core.store.emit_changes(crate::changes::tables_for_event(&event.event_type));
             core.nudge_sync();
         }
@@ -187,6 +241,7 @@ impl EventListener for SyncNudgeListener {
     fn on_connection_changed(&self, connected: bool) {
         self.connected.store(connected, Ordering::Relaxed);
         if let Some(core) = self.core.upgrade() {
+            core.mark_realtime_activity();
             core.store.emit_changes([crate::changes::SYNC]);
             if connected {
                 // A reconnect may have missed events: catch up once.
@@ -202,6 +257,20 @@ impl EventListener for SyncNudgeListener {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_connected_but_silent_stream_does_not_hold_the_poll_off() {
+        assert!(poll_skips(true, 0), "a live, talking stream: no poll needed");
+        assert!(
+            poll_skips(true, REALTIME_SILENCE_GRACE.as_millis() as u64),
+            "at the grace it is still trusted"
+        );
+        assert!(
+            !poll_skips(true, REALTIME_SILENCE_GRACE.as_millis() as u64 + 1),
+            "a stream that has gone quiet is checked for itself, not believed"
+        );
+        assert!(!poll_skips(false, 0), "a down stream always polls");
+    }
 
     #[test]
     fn an_idle_fallback_poll_backs_off_and_a_busy_one_keeps_the_beat() {

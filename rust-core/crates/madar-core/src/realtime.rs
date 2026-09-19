@@ -597,11 +597,14 @@ async fn drain_stream(
         for frame in parser.push(&bytes) {
             // `resync` says the server could not replay our gap: the host
             // re-seeds every board (it is forwarded like any event), and the
-            // cursor keeps tracking from here.
+            // cursor is RESET rather than kept. Our own cursor may belong to a
+            // previous backend process lifetime — after a restart the bus
+            // numbers from 1 again — and carrying it into the next connect
+            // would have the server filter out every live event until the
+            // branch published past the stale number: "online", receiving
+            // nothing. The frame carries the cursor to adopt.
             let frame_id = frame.id.clone();
-            if let Some(id) = frame.id {
-                *last_event_id = Some(id);
-            }
+            advance_cursor(last_event_id, &frame);
             // A comment-only keepalive (`: ping`) yields no data → skip.
             if !frame.data.is_empty() {
                 let event = RealtimeEvent {
@@ -618,6 +621,28 @@ async fn drain_stream(
             }
         }
     }
+}
+
+/// Move the resume cursor for one frame. An ordinary frame advances it to its
+/// `id:`; a `resync` RESETS it (see [`resync_cursor`]) instead of keeping ours.
+fn advance_cursor(last_event_id: &mut Option<String>, frame: &SseFrame) {
+    if frame.event_type == "resync" {
+        *last_event_id = resync_cursor(frame.id.as_deref(), &frame.data);
+    } else if let Some(id) = frame.id.as_deref() {
+        *last_event_id = Some(id.to_string());
+    }
+}
+
+/// The cursor to resume from after a `resync` frame: the server's own
+/// `last_event_id` (the highest id it has issued) when the frame carries one,
+/// else its `id:` line, else nothing at all — never the cursor we arrived with.
+fn resync_cursor(frame_id: Option<&str>, data: &str) -> Option<String> {
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(data) {
+        if let Some(n) = v.get("last_event_id").and_then(|x| x.as_u64()) {
+            return Some(n.to_string());
+        }
+    }
+    frame_id.map(|s| s.to_string())
 }
 
 /// Consecutive failed reconnects before the SSE supervisor reports itself as
@@ -756,6 +781,52 @@ impl SseParser {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A `resync` means "your cursor is worthless" — most sharply after a
+    /// backend restart, where our cursor belongs to the previous process
+    /// lifetime and the bus has numbered from 1 again. Carrying it into the
+    /// next connect makes the server filter out every live event: online,
+    /// receiving nothing. We adopt the server's cursor instead.
+    #[test]
+    fn a_resync_resets_the_resume_cursor_instead_of_keeping_ours() {
+        let mut cursor = Some("5000".to_string());
+        let resync = SseFrame {
+            event_type: "resync".into(),
+            data: r#"{"reason":"restart","last_event_id":0}"#.into(),
+            // `id:` is sticky in SSE, so the frame can still carry OUR old id.
+            id: Some("5000".to_string()),
+        };
+        advance_cursor(&mut cursor, &resync);
+        assert_eq!(
+            cursor.as_deref(),
+            Some("0"),
+            "the server's cursor wins over the one we arrived with"
+        );
+
+        // An ordinary frame still advances normally.
+        advance_cursor(
+            &mut cursor,
+            &SseFrame {
+                event_type: "ticket.fired".into(),
+                data: "{}".into(),
+                id: Some("1".into()),
+            },
+        );
+        assert_eq!(cursor.as_deref(), Some("1"));
+
+        // An older server that sends no cursor at all: forget ours entirely and
+        // reconnect clean rather than resume from a number it may not know.
+        let mut old = Some("5000".to_string());
+        advance_cursor(
+            &mut old,
+            &SseFrame {
+                event_type: "resync".into(),
+                data: r#"{"reason":"gap"}"#.into(),
+                id: None,
+            },
+        );
+        assert_eq!(old, None, "no cursor offered → start fresh, never stale");
+    }
 
     fn frames(chunks: &[&str]) -> Vec<SseFrame> {
         let mut p = SseParser::new();
