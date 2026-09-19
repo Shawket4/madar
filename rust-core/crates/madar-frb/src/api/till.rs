@@ -257,6 +257,7 @@ impl MadarBridge {
 
     /// Whether the shell must wall this device to the open-till screen, with
     /// the reason and what to do next. Sync + offline-safe.
+    #[frb(sync)]
     pub fn till_lock(&self) -> TillLockView {
         self.inner.till_lock()
     }

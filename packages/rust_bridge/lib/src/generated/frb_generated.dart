@@ -1456,9 +1456,7 @@ abstract class RustBridgeApi extends BaseApi {
 
   bool crateApiBridgeMadarBridgeTillFiguresVisible({required MadarBridge that});
 
-  Future<TillLockView> crateApiBridgeMadarBridgeTillLock({
-    required MadarBridge that,
-  });
+  TillLockView crateApiBridgeMadarBridgeTillLock({required MadarBridge that});
 
   Future<TillReportView> crateApiBridgeMadarBridgeTillReport({
     required MadarBridge that,
@@ -11483,23 +11481,20 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<TillLockView> crateApiBridgeMadarBridgeTillLock({
-    required MadarBridge that,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
+  TillLockView crateApiBridgeMadarBridgeTillLock({required MadarBridge that}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
             that,
             serializer,
           );
-          pdeCallFfi(
+          return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
             funcId: 250,
-            port: port_,
-          );
+          )!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_till_lock_view,
@@ -27060,7 +27055,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
 
   /// Whether the shell must wall this device to the open-till screen, with
   /// the reason and what to do next. Sync + offline-safe.
-  Future<TillLockView> tillLock() =>
+  TillLockView tillLock() =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeTillLock(that: this);
 
   Future<TillReportView> tillReport() =>

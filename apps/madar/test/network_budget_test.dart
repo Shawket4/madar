@@ -119,6 +119,17 @@ class _CountingBridge implements MadarBridge {
     if (name == #branchOpenTills) {
       return Future<List<BranchOpenTillView>>.value(const []);
     }
+    // The device lock: a purely local read of the till record, no network.
+    if (name == #tillLock) {
+      return const TillLockView(
+        locked: false,
+        reason: '',
+        title: '',
+        body: '',
+        canOpen: true,
+        holdsDrawer: true,
+      );
+    }
     if (name == #kitchenRoutingMode) return Future<String?>.value('till');
     if (name == #clockSkewMinutes) return 0;
     // Local reads the connectivity signal makes on every pulse. Neither

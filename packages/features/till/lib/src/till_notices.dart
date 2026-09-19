@@ -143,3 +143,57 @@ class OpenBillsNoticeBanner extends ConsumerWidget {
     );
   }
 }
+
+/// "Open the till to start the day" — the words the locked device shows.
+///
+/// The text is the core's (`till_lock()`): the reason this device is walled
+/// to the open-till screen and what to do next, already localized. The shell
+/// never writes its own sentence for a refusal, so EN and AR say the same
+/// thing and a new reason needs no Dart change.
+class TillLockNotice extends ConsumerWidget {
+  /// Creates the notice.
+  const TillLockNotice({required this.lock, super.key});
+
+  /// The core's lock state.
+  final TillLockView lock;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    // A refusal this person cannot clear is the loud one; "count the drawer
+    // and open" is just the start of the day.
+    final refusal = !lock.canOpen;
+    return MadarCard.column(
+      key: const ValueKey('till.lock_notice'),
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: Space.md,
+          children: [
+            MadarGlyphIcon(
+              refusal ? MadarGlyph.alertTriangle : MadarGlyph.lock,
+              size: IconSize.xl,
+              color: refusal ? colors.warning : colors.textSecondary,
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: Space.xs,
+                children: [
+                  Text(
+                    lock.title,
+                    style: MadarType.title.copyWith(color: colors.textPrimary),
+                  ),
+                  Text(
+                    lock.body,
+                    style: MadarType.body.copyWith(color: colors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
