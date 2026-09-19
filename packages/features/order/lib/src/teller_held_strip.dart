@@ -95,12 +95,14 @@ class TellerHeldStrip extends ConsumerWidget {
     DraftView draft,
   ) async {
     final notifier = ref.read(orderProvider.notifier);
+    // No `askManager` on a resume: a held order is shared state on the till
+    // (owner decision 2026-09-19), so whoever is signed in continues it —
+    // theirs, another teller's or a manager's. Only a DISCARD still asks.
     if (draft.tableId == null || draft.lockedByOther) {
       await notifier.resumeDraft(
         draft.id,
         fromTableId: tableId,
         parkInHand: true,
-        askManager: _askManager(context, ref, 'resume', draft.id),
       );
       return;
     }
@@ -111,10 +113,7 @@ class TellerHeldStrip extends ConsumerWidget {
     if (ModalRoute.of(context) is MadarSheetRoute) {
       MadarSheet.close<void>(context);
     }
-    final landed = await notifier.resumeDraft(
-      draft.id,
-      askManager: _askManager(context, ref, 'resume', draft.id),
-    );
+    final landed = await notifier.resumeDraft(draft.id);
     final table = landed?.tableId;
     if (table == null) return;
     await navigator.push(
@@ -122,7 +121,8 @@ class TellerHeldStrip extends ConsumerWidget {
     );
   }
 
-  /// The manager-PIN sheet for a queue act on someone else's held order.
+  /// The manager-PIN sheet for DISCARDING someone else's held order (the only
+  /// queue act still gated: resuming one never asks, rule 4).
   Future<ApprovalView?> Function(String reason) _askManager(
     BuildContext context,
     WidgetRef ref,

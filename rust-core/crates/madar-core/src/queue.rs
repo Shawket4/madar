@@ -23,19 +23,22 @@
 //! 3. **Viewing** the queue is open to whoever is signed in: the strip lists
 //!    every held order, and marks the ones someone else started with their
 //!    name.
-//! 4. **Resuming someone else's order** (restoring it to continue or settle
-//!    it) asks for [`RESUME_CAP`], `orders.held.resume_others` (owner and
-//!    manager by default). Without it the act needs a manager's PIN approval
-//!    (the same approval sheet, `approve_draft_act`): the capability accepts
-//!    approval, so "not held" reads as "ask a manager" here. Resuming one's
-//!    own order asks for nothing new.
-//! 4a. **Tables are nobody's.** A table's order is shared state: the open
-//!    ticket, server-authoritative online and relayed over the LAN offline.
-//!    Anyone holding the normal floor and order capabilities adds to it or
-//!    settles it; `orders.held.resume_others` never applies to a table (a held
-//!    order parked on a table resumes like one's own). A switch leaves nothing
-//!    person-scoped on a table: an unsent table cart is emptied exactly as it
-//!    was before this feature (the shared ticket holds what was sent).
+//! 4. **Resuming an order is never gated** (owner decision, 2026-09-19).
+//!    A held order is shared state on the till, exactly like a table: whoever
+//!    is signed in continues or settles it, whether they started it, another
+//!    teller did, or a manager did. No capability, no manager PIN, no lock on
+//!    the chip. The ONE condition is that somebody is signed in: with nobody
+//!    on the till the act is refused outright (`approval.why_signed_out`), so
+//!    an unattended device never hands out someone's parked order. This
+//!    replaces the earlier `orders.held.resume_others` gate (capability 222,
+//!    now retired). `started_by` is still recorded on the sale (rule 5) —
+//!    that attribution is how a handover is traced.
+//! 4a. **Tables are nobody's** either. A table's order is shared state: the
+//!    open ticket, server-authoritative online and relayed over the LAN
+//!    offline. Anyone holding the normal floor and order capabilities adds to
+//!    it or settles it. A switch leaves nothing person-scoped on a table: an
+//!    unsent table cart is emptied exactly as it was before this feature (the
+//!    shared ticket holds what was sent).
 //! 8. **A till close warns first.** When held orders (or a counter cart) are
 //!    still on the device, the close shows them (`close_preflight`: count,
 //!    names, totals) before any count; the teller goes back to resolve them or
@@ -93,8 +96,6 @@ pub struct ClosePreflightView {
     pub body: String,
 }
 
-/// The capability resuming (continuing, then settling) a held order asks for.
-pub(crate) const RESUME_CAP: Cap = Cap::OrdersHeldResumeOthers;
 /// The capability discarding someone else's held order asks for.
 pub(crate) const DISCARD_CAP: Cap = Cap::OrdersVoid;
 
@@ -133,10 +134,12 @@ impl DraftAct {
         }
     }
 
-    fn cap(self) -> Cap {
+    /// The capability the act asks for, when it asks for one. Resuming asks
+    /// for nothing (rule 4): a held order is shared state on the till.
+    fn cap(self) -> Option<Cap> {
         match self {
-            Self::Resume => RESUME_CAP,
-            Self::Discard => DISCARD_CAP,
+            Self::Resume => None,
+            Self::Discard => Some(DISCARD_CAP),
         }
     }
 
@@ -180,13 +183,6 @@ impl MadarCore {
         Ok((own, age))
     }
 
-    fn draft_on_table(&self, id: &str) -> bool {
-        held::get(&self.store, id)
-            .ok()
-            .flatten()
-            .is_some_and(|h| h.table_id.is_some_and(|t| !t.is_empty()))
-    }
-
     /// May the signed-in person `act` (`"resume"` | `"discard"`) on held order
     /// `id`? Allowed, needs a manager, or refused. Offline.
     pub fn decide_draft_act(&self, act: String, id: String) -> ActDecisionView {
@@ -204,24 +200,15 @@ impl MadarCore {
             Ok(f) => f,
             Err(_) => return approvals::decision_view(&Decision::Deny(Why::NotHeld), &locale),
         };
-        if a == DraftAct::Resume && self.draft_on_table(&id) {
-            // A table's order is shared, never gated per person (rule 4a).
-            return approvals::decision_view(&Decision::Allow, &locale);
-        }
-        if own {
-            // One's own parked cart: resuming or discarding it is as free as it was.
-            return approvals::decision_view(&Decision::Allow, &locale);
-        }
         match a {
-            DraftAct::Discard => self.decide_act(a.cap().key().to_string(), None, age, Some(false)),
-            DraftAct::Resume => {
-                let view = self.decide_act(a.cap().key().to_string(), None, None, None);
-                if view.outcome == "deny" {
-                    // Not held: a manager may approve it (the capability takes approval).
-                    approvals::decision_view(&Decision::NeedsApproval(Why::NotHeld), &locale)
-                } else {
-                    view
-                }
+            // Rule 4: a held order is shared state on the till. Whoever is
+            // signed in resumes it — their own, another teller's, a manager's,
+            // on the counter or on a table. Nothing to decide.
+            DraftAct::Resume => approvals::decision_view(&Decision::Allow, &locale),
+            // One's own parked cart is discarded as freely as it ever was.
+            DraftAct::Discard if own => approvals::decision_view(&Decision::Allow, &locale),
+            DraftAct::Discard => {
+                self.decide_act(DISCARD_CAP.key().to_string(), None, age, Some(false))
             }
         }
     }
@@ -235,11 +222,15 @@ impl MadarCore {
     ) -> Result<ApprovalView, CoreError> {
         let a = DraftAct::parse(&act)?;
         let (own, age) = self.draft_facts(&id)?;
-        let (age, own) = match a {
-            DraftAct::Discard => (age, Some(own)),
-            DraftAct::Resume => (None, None),
+        // Rule 4: resuming needs nobody's approval, so there is no approval to
+        // mint for it. Only discarding someone else's order still asks.
+        let Some(cap) = a.cap() else {
+            return Err(CoreError::Validation {
+                field: "act".into(),
+                detail: "resuming a held order needs no approval".into(),
+            });
         };
-        self.approve_act(approver_pin, a.cap().key().to_string(), None, age, own)
+        self.approve_act(approver_pin, cap.key().to_string(), None, age, Some(own))
     }
 
     /// Refuse a queue act the signed-in person may not do now. An approval
@@ -253,12 +244,16 @@ impl MadarCore {
     ) -> Result<bool, CoreError> {
         // A missing order refuses as missing, not as a permission.
         self.draft_facts(id)?;
-        let key = act.cap().key();
+        let key = act.cap().map(|c| c.key());
         let view = self.decide_draft_act(act.key().to_string(), id.to_string());
         let (me, _) = self.me();
         match (view.outcome.as_str(), approval) {
             ("allow", _) => Ok(false),
-            ("needs_approval", Some(a)) if a.capability == key && a.approver_id != me => Ok(true),
+            ("needs_approval", Some(a))
+                if Some(a.capability.as_str()) == key && a.approver_id != me =>
+            {
+                Ok(true)
+            }
             _ => Err(CoreError::Forbidden { resource: "held_order".into(), action: view.reason }),
         }
     }
@@ -446,7 +441,7 @@ mod tests {
             .unwrap();
         let manager = serde_json::json!({"id": MONA, "user_id": MONA, "name": "Mona",
             "role": "branch_manager", "is_active": true,
-            "capabilities": ["orders.create", "orders.void", "orders.held.resume_others", "pos.sign_in"], "is_owner": false});
+            "capabilities": ["orders.create", "orders.void", "pos.sign_in"], "is_owner": false});
         core.store
             .with_conn(|c| {
                 c.execute(
@@ -459,14 +454,9 @@ mod tests {
         core
     }
 
-    /// The person on the till: `own`-limited on `limited` when given; a key
-    /// in `limited` that is `orders.held.resume_others` GRANTS it instead.
+    /// The person on the till: `own`-limited on each key in `limited`.
     fn sign_in(core: &MadarCore, id: &str, name: &str, limited: &[&str]) {
-        let mut caps = vec!["orders.create".to_string(), "orders.void".to_string()];
-        if limited.contains(&RESUME_CAP.key()) {
-            caps.push(RESUME_CAP.key().into());
-        }
-        let limited: Vec<&str> = limited.iter().copied().filter(|k| *k != RESUME_CAP.key()).collect();
+        let caps = vec!["orders.create".to_string(), "orders.void".to_string()];
         let limits = limited
             .iter()
             .map(|k| (k.to_string(), Limits { own: true, ..Default::default() }))
@@ -580,7 +570,7 @@ mod tests {
         let id = park(&core, "Mine");
 
         core.logout(false).unwrap();
-        sign_in(&core, MONA, "Mona", &[RESUME_CAP.key()]);
+        sign_in(&core, MONA, "Mona", &[]);
         // The manager takes it, works on it, and parks it back: rule 2 keeps
         // Ali as the author through the round trip.
         core.switch_to_draft(None, id.clone(), None, None).unwrap();
@@ -602,7 +592,7 @@ mod tests {
         // The manager's own lines park under the MANAGER when they sign out;
         // what the teller starts afterwards is the teller's.
         let core = device();
-        sign_in(&core, MONA, "Mona", &[RESUME_CAP.key()]);
+        sign_in(&core, MONA, "Mona", &[]);
         put_line(&core, None, "ManagerLines");
         core.logout(false).unwrap();
         sign_in(&core, ALI, "Ali", &[]);
@@ -639,9 +629,11 @@ mod tests {
         let d = core.decide_draft_act("resume".into(), id.clone());
         assert_eq!(d.outcome, "deny", "refused, never needs_approval: {d:?}");
         assert!(!d.reason.is_empty());
-        // And a manager's PIN does not get past it.
+        // And no manager PIN gets past it: there is no approval to mint for a
+        // resume any more, and switching is refused with or without one.
         let approval = core.approve_draft_act("9999".into(), "resume".into(), id.clone());
-        let refused = core.switch_to_draft_approved(None, id, None, None, approval.ok());
+        assert!(approval.is_err(), "a resume mints no approval: {approval:?}");
+        let refused = core.switch_to_draft_approved(None, id, None, None, None);
         assert!(matches!(refused, Err(CoreError::Forbidden { .. })), "{refused:?}");
     }
 
@@ -666,47 +658,69 @@ mod tests {
     }
 
     #[test]
-    fn someone_holding_resume_others_resumes_without_a_manager_and_names_the_author() {
+    fn a_teller_resumes_another_tellers_order_with_no_prompt_and_names_the_author() {
         let core = device();
         sign_in(&core, ALI, "Ali", &[]);
         let id = park(&core, "Ali's");
         core.logout(false).unwrap();
-        sign_in(&core, BADR, "Badr", &[RESUME_CAP.key()]);
+        // Badr holds nothing beyond selling: rule 4, no gate.
+        sign_in(&core, BADR, "Badr", &[]);
+        let d = core.decide_draft_act("resume".into(), id.clone());
+        assert_eq!(d.outcome, "allow", "a held order is shared state: {d:?}");
+        core.switch_to_draft(None, id, None, None).expect("resumes with no approval");
+        // The attribution survives: the sale still names who started it, and
+        // carries no approval because none was needed.
+        assert_eq!(core.sale_started_by(None), (Some(ALI.to_string()), None));
+    }
+
+    #[test]
+    fn a_teller_resumes_a_managers_held_order_with_no_manager_pin() {
+        // The owner's decision: "even if it's a manager's held order it
+        // shouldn't require the manager's PIN to continue."
+        let core = device();
+        sign_in(&core, MONA, "Mona", &[]);
+        let id = park(&core, "Mona's");
+        core.logout(false).unwrap();
+        sign_in(&core, ALI, "Ali", &[]);
+
+        let drafts = core.list_drafts().unwrap();
+        assert!(drafts[0].by_other, "still named as Mona's on the strip");
+        assert_eq!(drafts[0].created_by_name.as_deref(), Some("Mona"));
+        assert_eq!(core.decide_draft_act("resume".into(), id.clone()).outcome, "allow");
+        core.switch_to_draft(None, id.clone(), None, None).expect("no PIN sheet");
+        assert_eq!(core.sale_started_by(None), (Some(MONA.to_string()), None));
+        // Minting an approval for it is refused: there is nothing to approve.
+        assert!(core.approve_draft_act("9999".into(), "resume".into(), id).is_err());
+    }
+
+    #[test]
+    fn a_manager_resumes_a_tellers_order_with_no_prompt() {
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let id = park(&core, "Ali's");
+        core.logout(false).unwrap();
+        sign_in(&core, MONA, "Mona", &[]);
         assert_eq!(core.decide_draft_act("resume".into(), id.clone()).outcome, "allow");
         core.switch_to_draft(None, id, None, None).unwrap();
         assert_eq!(core.sale_started_by(None), (Some(ALI.to_string()), None));
     }
 
     #[test]
-    fn resuming_someone_elses_order_without_the_capability_needs_a_manager_and_carries_the_approval() {
+    fn a_stale_approval_passed_with_a_resume_is_dropped_not_carried() {
+        // An older tablet (or an in-flight sheet) may still hand one over.
+        // It must not end up on the sale envelope.
         let core = device();
         sign_in(&core, ALI, "Ali", &[]);
         let id = park(&core, "Ali's");
         core.logout(false).unwrap();
         sign_in(&core, BADR, "Badr", &[]);
-
-        let d = core.decide_draft_act("resume".into(), id.clone());
-        assert_eq!(d.outcome, "needs_approval");
-        assert!(!d.reason.is_empty());
-        let refused = core.switch_to_draft(None, id.clone(), None, None);
-        assert!(matches!(refused, Err(CoreError::Forbidden { .. })), "{refused:?}");
-        assert_eq!(core.list_drafts().unwrap().len(), 1, "a refusal moves nothing");
-
-        assert!(core.approve_draft_act("2222".into(), "resume".into(), id.clone()).is_err(), "not himself");
-        let approval = core.approve_draft_act("9999".into(), "resume".into(), id.clone()).unwrap();
-        assert_eq!(approval.approver_id, MONA);
-        assert_eq!(approval.capability, "orders.held.resume_others");
-        core.switch_to_draft_approved(None, id, None, None, Some(approval.clone())).unwrap();
-
+        let stale = core
+            .approve_act("9999".into(), "orders.void".into(), None, None, Some(false))
+            .expect("a real approval for another capability");
+        core.switch_to_draft_approved(None, id, None, None, Some(stale)).unwrap();
         let (by, wire) = core.sale_started_by(None);
-        assert_eq!(by.as_deref(), Some(ALI));
-        let wire = wire.expect("the approval rides the sale");
-        assert_eq!(wire["approver_id"], MONA);
-        assert_eq!(wire["capability"], "orders.held.resume_others");
-
-        // Parked again by Badr: still Ali's.
-        core.hold_cart(None, "again".into(), None, None).unwrap();
-        assert_eq!(core.list_drafts().unwrap()[0].created_by_name.as_deref(), Some("Ali"));
+        assert_eq!(by.as_deref(), Some(ALI), "the author is still recorded");
+        assert!(wire.is_none(), "no approval rides a resume any more");
     }
 
     #[test]
