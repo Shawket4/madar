@@ -485,6 +485,53 @@ class TillElsewhereView {
           source == other.source;
 }
 
+/// Is this device walled to the open-till screen, and why? ONE answer the
+/// shell reads — no screen decides this for itself.
+class TillLockView {
+  final bool locked;
+
+  /// `""` | `"no_till"` | `"not_permitted"` | `"open_elsewhere"`.
+  final String reason;
+  final String title;
+  final String body;
+  final bool canOpen;
+  final bool holdsDrawer;
+  final TillElsewhereView? elsewhere;
+
+  const TillLockView({
+    required this.locked,
+    required this.reason,
+    required this.title,
+    required this.body,
+    required this.canOpen,
+    required this.holdsDrawer,
+    this.elsewhere,
+  });
+
+  @override
+  int get hashCode =>
+      locked.hashCode ^
+      reason.hashCode ^
+      title.hashCode ^
+      body.hashCode ^
+      canOpen.hashCode ^
+      holdsDrawer.hashCode ^
+      elsewhere.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TillLockView &&
+          runtimeType == other.runtimeType &&
+          locked == other.locked &&
+          reason == other.reason &&
+          title == other.title &&
+          body == other.body &&
+          canOpen == other.canOpen &&
+          holdsDrawer == other.holdsDrawer &&
+          elsewhere == other.elsewhere;
+}
+
 class TillReportCashLine {
   final PlatformInt64 amountMinor;
   final String note;

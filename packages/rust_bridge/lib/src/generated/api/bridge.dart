@@ -1359,6 +1359,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The signed-in person may see the open till's figures.
   bool tillFiguresVisible();
 
+  /// Whether the shell must wall this device to the open-till screen, with
+  /// the reason and what to do next. Sync + offline-safe.
+  Future<TillLockView> tillLock();
+
   Future<TillReportView> tillReport();
 
   Future<TillReportView> tillReportFor({required String tillId});
