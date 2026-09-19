@@ -707,14 +707,30 @@ pub(crate) fn resolve_line(
     qty: i64,
     notes: Option<String>,
 ) -> StoredLine {
+    // Price lives in SIZES. An item has no price of its own: with a size label
+    // the charged price is that size's, and without one it is the LOWEST size
+    // price — the "from" price the grid shows. `base_price_minor` is only the
+    // server's mirror of that same lowest price, kept for old builds, so it is
+    // the last resort rather than the rule. Resolving it here rather than
+    // trusting the mirror is what keeps an OFFLINE sale identical to what the
+    // server would have charged, even from a catalog cached mid-edit.
+    let lowest = || {
+        item.sizes
+            .iter()
+            .map(|s| s.price_minor)
+            .min()
+            .unwrap_or(item.base_price_minor)
+    };
     let unit_price = match &size_label {
         Some(lbl) => item
             .sizes
             .iter()
             .find(|s| &s.label == lbl)
             .map(|s| s.price_minor)
-            .unwrap_or(item.base_price_minor),
-        None => item.base_price_minor,
+            // An unknown label means a stale cache, not a free drink: fall back
+            // to the same "from" price a sizeless tap would charge.
+            .unwrap_or_else(lowest),
+        None => lowest(),
     };
     StoredLine {
         item_id: item.id.clone(),
@@ -2144,12 +2160,25 @@ mod tests {
             is_active: true,
             default_milk_addon_id: Some("oat".into()), // base milk = oat @1500
             allowed_addon_ids: vec![],
-            sizes: vec![menu::ItemSizeView {
-                id: "lg".into(),
-                label: "Large".into(),
-                price_minor: 6000,
-                is_active: true,
-            }],
+            // A real multi-size item: `base_price_minor` is the server's mirror
+            // of the LOWEST size price, so Small must be 5000. An item with no
+            // size of its own is modelled by `sizes: vec![]` (the legacy
+            // projection hides the `one_size` row), and then base_price IS its
+            // one price — see `a_sizeless_item_charges_its_own_price`.
+            sizes: vec![
+                menu::ItemSizeView {
+                    id: "sm".into(),
+                    label: "Small".into(),
+                    price_minor: 5000,
+                    is_active: true,
+                },
+                menu::ItemSizeView {
+                    id: "lg".into(),
+                    label: "Large".into(),
+                    price_minor: 6000,
+                    is_active: true,
+                },
+            ],
             addon_slots: vec![],
             optional_fields: vec![menu::OptionalFieldView {
                 id: "van".into(),
@@ -3683,7 +3712,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_line_unknown_size_falls_back_to_base() {
+    fn resolve_line_unknown_size_falls_back_to_the_from_price() {
         let line = resolve_line(
             &item(),
             &catalog(),
@@ -3693,9 +3722,68 @@ mod tests {
             1,
             None,
         );
-        assert_eq!(line.unit_price_minor, 5000); // base, unknown size label ignored
-                                                 // The bogus size label is still recorded (and so part of the signature).
+        // A label the cached catalog does not know means a stale cache, not a
+        // free drink: it charges the item's "from" price, the cheapest size.
+        assert_eq!(line.unit_price_minor, 5000);
+        // The bogus size label is still recorded (and so part of the signature).
         assert_eq!(line.size_label.as_deref(), Some("Gigantic"));
+    }
+
+    // ── price lives in sizes: the POS resolves it the way the server does ──
+
+    #[test]
+    fn a_sizeless_tap_charges_the_lowest_size_price() {
+        // No size chosen on a multi-size item ⇒ the "from" price. This is what
+        // the grid tile shows, so the tap charges exactly what was on screen.
+        let line = resolve_line(&item(), &catalog(), None, &[], &[], 1, None);
+        assert_eq!(line.unit_price_minor, 5000);
+
+        // Make the cheapest size dearer and the "from" price follows it — the
+        // item itself has no price to fall back on.
+        let mut dearer = item();
+        dearer.sizes[0].price_minor = 5500;
+        let line = resolve_line(&dearer, &catalog(), None, &[], &[], 1, None);
+        assert_eq!(line.unit_price_minor, 5500);
+    }
+
+    #[test]
+    fn the_lowest_price_wins_whatever_order_the_sizes_arrive_in() {
+        // There is no default-size marker, so nothing about ordering may matter.
+        let mut reversed = item();
+        reversed.sizes.reverse();
+        assert_eq!(
+            resolve_line(&reversed, &catalog(), None, &[], &[], 1, None).unit_price_minor,
+            5000
+        );
+    }
+
+    #[test]
+    fn a_sizeless_item_charges_its_own_price() {
+        // A simple item: the legacy projection hides its `one_size` row, so the
+        // POS sees no sizes and the mirrored item price is the one price.
+        let mut simple = item();
+        simple.sizes.clear();
+        simple.base_price_minor = 9500;
+        let line = resolve_line(&simple, &catalog(), None, &[], &[], 1, None);
+        assert_eq!(line.unit_price_minor, 9500);
+    }
+
+    #[test]
+    fn a_stale_mirror_never_beats_the_sizes() {
+        // The till cached the catalog mid-edit: the item's mirrored price is the
+        // old one, the sizes are current. The sizes win, because they are where
+        // price lives — this is what keeps an OFFLINE sale matching the server.
+        let mut stale = item();
+        stale.base_price_minor = 4000; // stale
+        assert_eq!(
+            resolve_line(&stale, &catalog(), None, &[], &[], 1, None).unit_price_minor,
+            5000
+        );
+        assert_eq!(
+            resolve_line(&stale, &catalog(), Some("Large".into()), &[], &[], 1, None)
+                .unit_price_minor,
+            6000
+        );
     }
 
     #[test]

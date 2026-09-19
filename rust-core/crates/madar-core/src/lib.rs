@@ -4106,8 +4106,16 @@ impl MadarCore {
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
         cart::lines(&self.store, table_id.as_deref())
     }
-    /// Add one unit of a menu item (merges into the matching line). The host
-    /// passes the resolved display name + unit price so the cart is self-contained.
+    /// Add one unit of a menu item (merges into the matching line).
+    ///
+    /// The price is resolved HERE from the cached catalog, exactly as
+    /// `cart_add_configured` does — an item has no price of its own, so a
+    /// sizeless tap charges the LOWEST size price, which is the number the grid
+    /// tile shows. `unit_price_minor` is what the host had on screen and is used
+    /// only when the item is no longer in the catalog at all; trusting it
+    /// otherwise would charge a stale mirror that a mid-edit resync had already
+    /// superseded, and would disagree with what the server charges for the same
+    /// tap.
     pub fn cart_add(
         &self,
         table_id: Option<String>,
@@ -4115,13 +4123,28 @@ impl MadarCore {
         name: String,
         unit_price_minor: i64,
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
-        cart::add(
-            &self.store,
-            table_id.as_deref(),
-            &item_id,
-            &name,
-            unit_price_minor,
-        )
+        let resolved = self.catalog().ok().and_then(|catalog| {
+            let item = catalog.items.iter().find(|i| i.id == item_id)?;
+            Some(cart::resolve_line(
+                item,
+                &catalog.addons,
+                None,
+                &[],
+                &[],
+                1,
+                None,
+            ))
+        });
+        match resolved {
+            Some(line) => cart::add_resolved(&self.store, table_id.as_deref(), line),
+            None => cart::add(
+                &self.store,
+                table_id.as_deref(),
+                &item_id,
+                &name,
+                unit_price_minor,
+            ),
+        }
     }
     /// Add a CONFIGURED line (size + addons + optionals + notes). The core
     /// resolves the charged prices from the cached catalog (size unit price;
