@@ -227,6 +227,9 @@ class MadarDateRangePicker extends StatelessWidget {
   Future<void> _open(BuildContext context) async {
     final picked = await showMadarSheet<MadarDateWindow>(
       context,
+      // Hug: a calendar is a fixed shape, and `auto` would float it at the top
+      // of a card stretched to 88% of a tall tablet.
+      size: SheetSize.hug,
       builder: (context) => _DateRangeSheet(
         chrome: chrome,
         presets: presets,
