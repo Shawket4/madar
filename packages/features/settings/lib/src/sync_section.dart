@@ -134,14 +134,19 @@ class _SyncSectionState extends ConsumerState<SyncSection> {
     final shown = capped
         ? waitingRows.sublist(0, _compactWaitingCap)
         : waitingRows;
-    // A waiter's view hides a teller's stranded sales: nothing they can do.
+    // A waiter's view hides a teller's stranded work: nothing they can do.
+    final heldRows = widget.waiterOnly ? const <OutboxItemView>[] : state.held;
     final blocked = widget.waiterOnly ? 0 : state.blocked;
     final clear = waitingRows.isEmpty && stuckRows.isEmpty && blocked == 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.lg,
       children: [
-        _HealthCard(pendingCount: waitingRows.length, clear: clear),
+        _HealthCard(
+          pendingCount: waitingRows.length,
+          clear: clear,
+          compact: widget.compact,
+        ),
         if (stuckRows.isNotEmpty) ...[
           MadarSectionHeader(
             text:
@@ -181,6 +186,19 @@ class _SyncSectionState extends ConsumerState<SyncSection> {
             text: bridge.tr(key: 'sync.blocked'),
             trailing: SyncFigure('$blocked'),
           ),
+          if (heldRows.isNotEmpty)
+            MadarCard(
+              flush: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final (index, item) in heldRows.indexed) ...[
+                    if (index > 0) const MadarHairline.row(),
+                    _WaitingItem(item: item),
+                  ],
+                ],
+              ),
+            ),
           const _BlockedCard(),
         ],
         if (waitingRows.isNotEmpty) ...[
@@ -221,10 +239,18 @@ class _SyncSectionState extends ConsumerState<SyncSection> {
 /// button: Sync now. When the queue is empty the row says so in one line —
 /// no illustration.
 class _HealthCard extends ConsumerWidget {
-  const _HealthCard({required this.pendingCount, required this.clear});
+  const _HealthCard({
+    required this.pendingCount,
+    required this.clear,
+    required this.compact,
+  });
 
   final int pendingCount;
   final bool clear;
+
+  /// Settings / Me render a compact strip; the full Sync screen has room for
+  /// the rebuild action and what it does.
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -238,7 +264,16 @@ class _HealthCard extends ConsumerWidget {
         ref.watch(realtimeConnectedProvider) && bridge.isRealtimeSubscribed();
     final online = status?.online ?? false;
     final authPaused = status?.authPaused ?? false;
-    final skew = bridge.clockSkewMinutes().abs();
+    // The device's own skew against the SERVER, and the largest difference a
+    // branch PEER's catch-up frame showed. Either one means a clock in this
+    // branch is wrong, and the peer one used to be invisible: a skewed tablet
+    // was simply dropped out of catch-up while every screen said it was fine.
+    final peerSkew = bridge.lanActive()
+        ? bridge.lanStatus().peerSkewMinutes.abs()
+        : 0;
+    final skew = bridge.clockSkewMinutes().abs() > peerSkew
+        ? bridge.clockSkewMinutes().abs()
+        : peerSkew;
     final lanPeers = bridge.lanActive() ? bridge.lanPeerCount() : 0;
     final String healthTitle;
     if (!online) {
@@ -295,6 +330,24 @@ class _HealthCard extends ConsumerWidget {
                 onTap: () => ref.read(reauthRequestProvider.notifier).request(),
               ),
             ),
+          // A repair is not a failure, but it is not nothing: a device that
+          // keeps having to be rebuilt from the server is a device with a
+          // problem, and healing in silence is what hid that.
+          if ((status?.repairedTypes ?? const []).isNotEmpty)
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                Space.lg,
+                0,
+                Space.lg,
+                Space.md,
+              ),
+              child: NoticeBanner(
+                text:
+                    '${bridge.tr(key: 'sync.repaired')} · '
+                    '${status!.repairedTypes.length}',
+                icon: 'shield',
+              ),
+            ),
           if (skew >= _skewBannerMinutes)
             Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(
@@ -341,6 +394,39 @@ class _HealthCard extends ConsumerWidget {
               onLongPress: () => unawaited(confirmFullSync(context, ref)),
             ),
           ),
+          // The same act, but FINDABLE. It was only ever a long press on Push
+          // — a gesture nobody discovers and nothing announces, so the one
+          // action that repairs a device that has drifted was effectively not
+          // there. On the full Sync screen it is a plain button with a line
+          // saying what it does; the long press stays for anyone used to it.
+          if (!compact)
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                Space.lg,
+                0,
+                Space.lg,
+                Space.lg,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: Space.xs,
+                children: [
+                  MadarButton(
+                    label: bridge.tr(key: 'sync.rebuild'),
+                    glyph: MadarGlyph.undo,
+                    variant: MadarButtonVariant.ghost,
+                    enabled: !pushing,
+                    onTap: () => unawaited(confirmFullSync(context, ref)),
+                  ),
+                  Text(
+                    bridge.tr(key: 'sync.rebuild_hint'),
+                    style: MadarType.bodySm.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -457,9 +543,11 @@ class _StuckItem extends ConsumerWidget {
   }
 }
 
-/// Sales stranded behind a dead `open_till`. The rows are ordinary queued
-/// sales; what makes them stuck is the dependency, which only the count
-/// knows. Recovery needs an open drawer to move them onto.
+/// Work held behind a refused action — a sale, a void, drawer money, a
+/// ticket, or the drawer's own CLOSE. What makes it held is the dependency,
+/// which the rows above cannot show for themselves, so this card names the way
+/// forward rather than leaving a queue that never drains. Behind a failed
+/// shift opening, recovery needs an open drawer to move the work onto.
 class _BlockedCard extends ConsumerWidget {
   const _BlockedCard();
 
@@ -470,26 +558,43 @@ class _BlockedCard extends ConsumerWidget {
     final hasTill = ref.watch(syncProvider.select((s) => s.hasOpenTill));
     final recovering = ref.watch(syncProvider.select((s) => s.recovering));
     final recovered = ref.watch(syncProvider.select((s) => s.recovered));
+    final blocksClose = ref.watch(
+      syncProvider.select((s) => s.heldBlocksClose),
+    );
+    final behindOpen = ref.watch(syncProvider.select((s) => s.heldBehindOpen));
     return MadarCard.column(
       children: [
         Text(
-          bridge.tr(key: 'sync.blocked_hint'),
+          bridge.tr(
+            key: behindOpen ? 'sync.blocked_open_hint' : 'sync.blocked_hint',
+          ),
           style: MadarType.bodySm.copyWith(color: colors.textSecondary),
         ),
-        MadarButton(
-          label: bridge.tr(key: 'sync.recover'),
-          variant: MadarButtonVariant.secondary,
-          glyph: MadarGlyph.undo,
-          enabled: hasTill,
-          tooltip: hasTill ? null : bridge.tr(key: 'sync.recover_need_shift'),
-          loading: recovering,
-          onTap: () => unawaited(ref.read(syncProvider.notifier).recover()),
-        ),
-        if (!hasTill)
+        if (blocksClose)
           Text(
-            bridge.tr(key: 'sync.recover_need_shift'),
-            style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+            bridge.tr(key: 'sync.blocked_close_warning'),
+            style: MadarType.bodySm.copyWith(color: colors.warning),
           ),
+        // Only a failed shift OPENING has a recovery of its own; anything else
+        // held is freed by retrying or discarding the refused row above, which
+        // the hint says. Offering "Recover stranded sales" there would be a
+        // button that cannot help.
+        if (behindOpen) ...[
+          MadarButton(
+            label: bridge.tr(key: 'sync.recover'),
+            variant: MadarButtonVariant.secondary,
+            glyph: MadarGlyph.undo,
+            enabled: hasTill,
+            tooltip: hasTill ? null : bridge.tr(key: 'sync.recover_need_shift'),
+            loading: recovering,
+            onTap: () => unawaited(ref.read(syncProvider.notifier).recover()),
+          ),
+          if (!hasTill)
+            Text(
+              bridge.tr(key: 'sync.recover_need_shift'),
+              style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+            ),
+        ],
         if (recovered != null)
           Row(
             spacing: Space.xs,

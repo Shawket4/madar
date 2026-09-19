@@ -175,6 +175,31 @@ fn version_of(key: &str, sent_at_ms: i64) -> i64 {
     if key.starts_with(LINE_KEY) { sent_at_ms } else { 0 }
 }
 
+/// The version to stamp on a line toggle this device is about to publish:
+/// never below one more than the highest version we already hold for that line.
+///
+/// Bump/unbump is last-writer-wins, and the writer's stamp used to be nothing
+/// but a clock reading. `lan_publish` already corrects it by the server skew,
+/// but a device that has never synced — or whose clock jumps BACKWARD between
+/// two taps — could still stamp a later tap below an earlier one, and the
+/// kitchen line would silently revert to the older state. Taking the max with
+/// what we have seen makes a device's own taps monotonic whatever its clock
+/// does, while staying directly comparable with the plain timestamps older
+/// peers send.
+pub(crate) fn next_line_version(conn: &Connection, key: &str, proposed: i64) -> i64 {
+    if !key.starts_with(LINE_KEY) {
+        return proposed;
+    }
+    let held: Option<i64> = conn
+        .query_row("SELECT ver FROM lan_log WHERE key=?1", [key], |r| r.get(0))
+        .optional()
+        .unwrap_or(None);
+    match held {
+        Some(v) if v >= proposed => v + 1,
+        _ => proposed,
+    }
+}
+
 /// What an event contributes to its bucket's digest (key AND version).
 fn digest_term(key_hash: i64, ver: i64) -> u64 {
     if ver == 0 {
@@ -818,6 +843,49 @@ pub(crate) fn bucket_counts(conn: &Connection, branch: &str) -> CoreResult<BTree
         *out.entry(bucket_of(h?)).or_insert(0) += 1;
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::*;
+
+    /// Bump/unbump is last-writer-wins on a timestamp, so a device whose clock
+    /// jumps BACKWARD between two taps used to have its later tap lose to its
+    /// own earlier one — the kitchen line silently reverted. A device's own
+    /// taps are monotonic now, whatever its clock does.
+    #[test]
+    fn a_devices_own_line_taps_never_go_backwards() {
+        let store = Store::open("").unwrap();
+        let key = format!("{LINE_KEY}line-1");
+        let entry = |ver: i64| LogEntry {
+            key: key.clone(),
+            topic: "kitchen".into(),
+            event_type: "kitchen.item_bumped".into(),
+            data: "{}".into(),
+            replay_op: None,
+            origin: "me".into(),
+            sent_at_ms: ver,
+        };
+        store
+            .with_conn(|c| {
+                // Nothing held yet: the proposed stamp stands.
+                assert_eq!(next_line_version(c, &key, 1_000), 1_000);
+                log_insert(c, "B", &entry(1_000), 1_000)?;
+                // The clock jumps back an hour; the NEXT tap must still win.
+                let v = next_line_version(c, &key, 1_000 - 3_600_000);
+                assert_eq!(v, 1_001, "one past what we hold, not the bad reading");
+                assert!(
+                    log_insert(c, "B", &entry(v), 2_000)?,
+                    "and it is accepted, so the line does not revert"
+                );
+                // A healthy clock is left alone.
+                assert_eq!(next_line_version(c, &key, 9_000), 9_000);
+                // A key that is not a line toggle is untouched.
+                assert_eq!(next_line_version(c, "create_order:abc", 5), 5);
+                Ok(())
+            })
+            .unwrap();
+    }
 }
 
 #[cfg(test)]

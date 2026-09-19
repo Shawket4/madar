@@ -84,6 +84,11 @@ fn en(key: &str) -> Option<&'static str> {
         "sync.pending_count" => "{count} waiting to send",
         "sync.full_confirm_title" => "Download everything again?",
         "sync.full_confirm_body" => "Unsent sales are kept.",
+        "sync.rebuild" => "Rebuild from server",
+        "sync.rebuild_hint" => {
+            "Replaces the menu, prices and settings on this device with the server's. Anything waiting to send is kept."
+        }
+        "sync.repaired" => "Repaired from the server",
         // login (teller)
         "login.welcome_back" => "Welcome back",
         "login.subtitle" => "Sign in to open your till",
@@ -1164,9 +1169,15 @@ fn en(key: &str) -> Option<&'static str> {
         "sync.waiting" => "Waiting",
         "sync.stuck" => "Stuck",
         "sync.needs_you" => "needs you",
-        "sync.blocked" => "Blocked",
+        "sync.blocked" => "Held up",
         "sync.blocked_hint" => {
-            "Sales stranded behind a failed shift opening. Open a shift, then recover them."
+            "These are waiting on an action the server refused. Retry that action above — if it will never go through, discard it and these will move."
+        }
+        "sync.blocked_open_hint" => {
+            "The shift opening failed, so everything on this drawer is stuck behind it — sales, drawer money, and the close. Open a shift, then recover them."
+        }
+        "sync.blocked_close_warning" => {
+            "The drawer cannot close until this is sorted: its close is waiting too."
         }
         "sync.recover" => "Recover stranded sales",
         "sync.recover_need_shift" => "Open a till first",
@@ -1421,6 +1432,9 @@ fn ar(key: &str) -> Option<&'static str> {
         "sync.pending_count" => "{count} بانتظار الإرسال",
         "sync.full_confirm_title" => "تنزيل كل البيانات من جديد؟",
         "sync.full_confirm_body" => "المبيعات غير المرسلة ستبقى محفوظة.",
+        "sync.rebuild" => "إعادة التحميل من السيرفر",
+        "sync.rebuild_hint" => "هيجيب المنيو والأسعار والإعدادات من السيرفر من الأول. أي حاجة لسه مستنية ترفع هتفضل زي ما هي.",
+        "sync.repaired" => "اتصلحت من السيرفر",
         "login.welcome_back" => "مرحبًا بعودتك",
         "login.subtitle" => "سجّل الدخول لفتح الخزينة",
         "login.name" => "الاسم",
@@ -2453,8 +2467,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "sync.waiting" => "بالانتظار",
         "sync.stuck" => "متعثر",
         "sync.needs_you" => "يحتاجك",
-        "sync.blocked" => "محجوز",
-        "sync.blocked_hint" => "توقفت هذه المبيعات بسبب فشل فتح الوردية. افتح وردية جديدة لاسترجاعها.",
+        "sync.blocked" => "متوقّفة",
+        "sync.blocked_hint" => "دي مستنية حاجة الخادم رفضها. جرّب تبعتها تاني من فوق، ولو مش هتعدي خالص إلغيها وهي هتمشي.",
+        "sync.blocked_open_hint" => "فتح الوردية ما نجحش، وكل اللي على الدرج واقف وراه — المبيعات وحركة الفلوس وقفل الوردية كمان. افتح وردية وبعدين استرجعهم.",
+        "sync.blocked_close_warning" => "الدرج مش هيقفل غير لما دي تتحل: قفل الوردية مستني معاهم.",
         "sync.recover" => "استرجاع المبيعات العالقة",
         "sync.recover_need_shift" => "افتح وردية أولاً",
         "sync.recovered" => "تم استرجاعها",

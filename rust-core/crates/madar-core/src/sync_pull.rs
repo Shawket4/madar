@@ -27,10 +27,26 @@ pub struct SyncStatusView {
     pub assets: crate::assets::AssetSyncView,
     pub online: bool,
     pub auth_paused: bool,
-    /// Ops waiting on a dead dependency (the sync center's "stuck" count).
+    /// Ops of ANY type held behind a dead root (the sync center's "held up"
+    /// count). Used to be create_order only, which hid a wedged drawer close.
     pub blocked: u32,
+    /// A `close_till`/`close_shift` is among them: the drawer cannot finish
+    /// until the root is retried or discarded, and the till-close screen says so
+    /// instead of spinning.
+    pub blocked_close: bool,
     /// How much the local data can be trusted right now (OFFLINE_B_DESIGN §6).
+    /// The WORSE of the two streams below, so it can never read "fresh" while
+    /// half the data the till sells from is behind.
     pub freshness: FreshnessView,
+    /// The catalog refresh on its own — menu, prices, payment methods,
+    /// discounts — so a screen can say WHICH half is behind.
+    pub catalog_freshness: FreshnessView,
+    /// What the checksum self-heal last rebuilt from the server, and when
+    /// (RFC3339). Empty until a repair has happened. A repair is not a failure,
+    /// but it is not nothing either: silently healing is how a device that
+    /// keeps diverging goes on looking healthy.
+    pub repaired_types: Vec<String>,
+    pub repaired_at: Option<String>,
 }
 
 /// Typed freshness of the replicated store for the session branch.
@@ -60,6 +76,20 @@ fn banner_for(state: &str, reason: Option<&str>) -> Option<String> {
     }
 }
 
+/// The `FreshnessView.reason` an error class maps to.
+fn reason_kind(k: &str) -> String {
+    match k {
+        "auth" => "auth_expired",
+        "forbidden" => "forbidden",
+        "decode" => "decode",
+        "offline" => "offline",
+        // Paced by the server (429): the next pass resumes in seconds, no banner.
+        "throttled" => "throttled",
+        _ => "server_error",
+    }
+    .to_string()
+}
+
 /// A pull older than this is stale even with no error since (§6).
 pub(crate) const FRESH_FOR_MS: i64 = 60_000;
 
@@ -81,9 +111,37 @@ fn stream_key(branch: &str) -> String {
     format!("branch:{branch}")
 }
 
+/// The catalog refresh is a SECOND stream, recorded apart from `/sync/pull`.
+/// It used to be recorded nowhere at all: a device whose pull was perfectly
+/// healthy but whose catalog refresh kept failing read "fresh" while selling
+/// from a menu, a price list and a payment-method list that were days old.
+fn catalog_stream_key(branch: &str) -> String {
+    format!("catalog:{branch}")
+}
+
+/// Record one catalog-refresh attempt for `branch`.
+pub(crate) fn record_catalog_outcome(
+    store: &Store,
+    branch: &str,
+    outcome: Result<(), &CoreError>,
+    now_ms: i64,
+) {
+    record_stream_outcome(store, &catalog_stream_key(branch), branch, outcome, now_ms);
+}
+
 /// Record one pull attempt's outcome for `branch` (never fails the caller).
 pub(crate) fn record_pull_outcome(store: &Store, branch: &str, outcome: Result<(), &CoreError>, now_ms: i64) {
-    let key = stream_key(branch);
+    record_stream_outcome(store, &stream_key(branch), branch, outcome, now_ms);
+}
+
+/// The shared body of [`record_pull_outcome`] / [`record_catalog_outcome`].
+fn record_stream_outcome(
+    store: &Store,
+    key: &str,
+    branch: &str,
+    outcome: Result<(), &CoreError>,
+    now_ms: i64,
+) {
     let _ = store.with_conn(|c| {
         match outcome {
             Ok(()) => c.execute(
@@ -107,40 +165,93 @@ pub(crate) fn record_pull_outcome(store: &Store, branch: &str, outcome: Result<(
     store.emit_changes([crate::changes::SYNC]);
 }
 
-/// Freshness for `branch` from its stream row. `realtime_live` = the SSE stream
-/// is connected, which keeps a quiet branch fresh between pulls.
+/// Freshness for `branch`: the WORSE of its two streams, `/sync/pull` and the
+/// catalog refresh. `realtime_live` = the SSE stream is connected, which keeps
+/// a quiet branch fresh between pulls.
+///
+/// It used to read the pull stream alone, so a device whose pull was healthy
+/// and whose catalog refresh had been failing for days reported "fresh" — and
+/// sold from a stale menu, stale prices and a stale payment-method list with
+/// nothing on screen suggesting otherwise. The catalog is half the data a till
+/// sells from; a view of freshness that cannot see it is not a view of
+/// freshness.
 pub(crate) fn freshness(store: &Store, branch: &str, realtime_live: bool, now_ms: i64) -> FreshnessView {
-    use rusqlite::OptionalExtension;
-    let row: Option<(Option<i64>, Option<String>)> = store
-        .with_conn(|c| {
-            Ok(c.query_row(
-                "SELECT last_ok_at, last_err_kind FROM sync_streams WHERE stream=?1",
-                [stream_key(branch)],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .optional()?)
-        })
-        .ok()
-        .flatten();
     let complete = store
         .kv_get(&format!("{K_LAST_FULL}{branch}"))
         .ok()
         .flatten()
         .is_some();
+    let pull = stream_freshness(store, &stream_key(branch), complete, realtime_live, now_ms);
+    worse_of(pull, catalog_freshness(store, branch, now_ms))
+}
+
+/// Freshness of the CATALOG stream alone, for a UI that wants to say which half
+/// is behind. A branch that has never run a catalog refresh is bootstrapping,
+/// exactly like one that has never pulled.
+pub(crate) fn catalog_freshness(store: &Store, branch: &str, _now_ms: i64) -> FreshnessView {
+    // Deliberately NOT judged by age, unlike the pull stream. Nothing refreshes
+    // the catalog on a beat — it happens when a till opens, when someone syncs,
+    // or when the menu changes — so "older than a minute" is the normal, healthy
+    // state of every device in the field and would mean permanent staleness.
+    // What is worth reporting is a refresh that is FAILING, or one that has
+    // never succeeded on a device that has tried: that is a till selling from a
+    // menu, prices and a payment-method list that stopped moving.
+    let (state, reason) = match stream_row(store, &catalog_stream_key(branch)) {
+        // Never attempted. On a feed-complete branch the changefeed carries the
+        // catalog and the refresh is a fallback, so this is not evidence of
+        // anything; the pull stream speaks for the device.
+        None => ("fresh", None),
+        Some((_, Some(kind))) => ("stale", Some(reason_kind(&kind))),
+        Some((Some(_), None)) => ("fresh", None),
+        Some((None, None)) => ("bootstrapping", Some("never_synced".to_string())),
+    };
+    FreshnessView {
+        banner: banner_for(state, reason.as_deref()),
+        state: state.into(),
+        reason,
+        age_secs: None,
+    }
+}
+
+/// `(last_ok_at, last_err_kind)` for one stream, or `None` when it has never
+/// been attempted at all.
+fn stream_row(store: &Store, key: &str) -> Option<(Option<i64>, Option<String>)> {
+    use rusqlite::OptionalExtension;
+    store
+        .with_conn(|c| {
+            Ok(c.query_row(
+                "SELECT last_ok_at, last_err_kind FROM sync_streams WHERE stream=?1",
+                [key],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?)
+        })
+        .ok()
+        .flatten()
+}
+
+/// Rank: `fresh` < `stale` < `bootstrapping`. The worse view wins, so a UI can
+/// never read "fresh" while half the data the till sells from is missing.
+fn worse_of(a: FreshnessView, b: FreshnessView) -> FreshnessView {
+    let rank = |v: &FreshnessView| match v.state.as_str() {
+        "fresh" => 0,
+        "stale" => 1,
+        _ => 2,
+    };
+    if rank(&b) > rank(&a) { b } else { a }
+}
+
+fn stream_freshness(
+    store: &Store,
+    key: &str,
+    complete: bool,
+    realtime_live: bool,
+    now_ms: i64,
+) -> FreshnessView {
+    let row = stream_row(store, key);
     let (last_ok, err_kind) = row.unwrap_or((None, None));
     let age_secs = last_ok.map(|t| ((now_ms - t).max(0) / 1000) as u64);
-    let reason_of = |k: &str| {
-        match k {
-            "auth" => "auth_expired",
-            "forbidden" => "forbidden",
-            "decode" => "decode",
-            "offline" => "offline",
-            // Paced by the server (429): the next pass resumes in seconds, no banner.
-            "throttled" => "throttled",
-            _ => "server_error",
-        }
-        .to_string()
-    };
+    let reason_of = reason_kind;
     let (state, reason) = if store.future_schema() {
         ("stale", Some("newer_build".to_string()))
     } else if !complete {
@@ -172,6 +283,10 @@ pub struct TillOpenSyncView {
     pub stale_reason: Option<String>,
     pub changes_applied: u32,
     pub pending_outbox: u32,
+    /// Ops of this device held behind a dead root right now.
+    pub blocked: u32,
+    /// One of them is the drawer's own close.
+    pub blocked_close: bool,
 }
 
 /// Mutable engine state kept on the core (phase, errors, the till-open strip).
@@ -181,6 +296,9 @@ pub(crate) struct SyncState {
     pub stale_reason: Option<String>,
     pub last_error: Option<String>,
     pub till_open: TillOpenSyncView,
+    /// Types the checksum self-heal last rebuilt from the server, and when.
+    pub repaired_types: Vec<String>,
+    pub repaired_at: Option<String>,
 }
 
 pub(crate) type SyncStateCell = Mutex<SyncState>;
@@ -836,8 +954,23 @@ pub(crate) fn rows_of_type(store: &Store, branch: &str, ty: &str) -> Vec<serde_j
 /// rather than a made-up success (which reset the offline evidence).
 #[derive(Default)]
 pub(crate) struct PullFlight {
+    /// `(the announcement generation the last COMPLETED pull covered, its
+    /// outcome)`.
     done: tokio::sync::Mutex<(u64, Option<Result<u32, CoreError>>)>,
-    started: std::sync::atomic::AtomicU64,
+    /// Bumped by [`Self::announce`] every time something says there is new work
+    /// to fetch — a realtime event, a `resync`, an acked op. A waiter may only
+    /// take an in-flight pull's result if that pull's request went out at or
+    /// after the announcement the waiter came for; otherwise the change was
+    /// announced too late to be in the response, and coalescing swallows it.
+    announced: std::sync::atomic::AtomicU64,
+}
+
+impl PullFlight {
+    /// Something new is on the server. Anything already in flight predates it.
+    pub(crate) fn announce(&self) {
+        self.announced
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
 }
 
 pub(crate) async fn single_flight<F, Fut>(flight: &PullFlight, f: F) -> Result<u32, CoreError>
@@ -846,14 +979,32 @@ where
     Fut: std::future::Future<Output = Result<u32, CoreError>>,
 {
     use std::sync::atomic::Ordering;
-    let seen = flight.started.load(Ordering::SeqCst);
-    let mut done = flight.done.lock().await;
-    if done.0 > seen {
-        // A pull finished while we waited: its outcome is ours.
-        return done.1.clone().unwrap_or(Ok(0));
-    }
+    // The announcement we came to fetch.
+    let want = flight.announced.load(Ordering::SeqCst);
+    // `try_lock` is how we tell "nobody is pulling" from "someone is pulling
+    // and we are waiting behind them". Only the second case may be coalesced —
+    // and only if that pull's request went out at or after `want`. The old code
+    // compared against a counter of COMPLETED pulls, read BEFORE the lock, so
+    // any pull that finished while we waited looked new enough to reuse,
+    // including one whose request had already gone out before our change was
+    // announced. That change was then never fetched, and the device sat on
+    // stale rows until something else happened to nudge it.
+    let mut done = match flight.done.try_lock() {
+        Ok(g) => g,
+        Err(_) => {
+            let g = flight.done.lock().await;
+            if g.0 >= want {
+                // The pull we waited on went out at or after `want`, so our
+                // change is in it: its outcome is ours.
+                return g.1.clone().unwrap_or(Ok(0));
+            }
+            g
+        }
+    };
+    // What this request covers is whatever had been announced when it went out.
+    let covers = flight.announced.load(Ordering::SeqCst);
     let res = f().await;
-    done.0 = flight.started.fetch_add(1, Ordering::SeqCst) + 1;
+    done.0 = covers;
     done.1 = Some(res.clone());
     res
 }
@@ -1038,9 +1189,28 @@ impl MadarCore {
                 let protected = protected_rows(&self.store);
                 applied += apply_page_with(&self.store, &branch, &fix, fix_raw.as_ref(), &protected, false, None, &mut |_| Ok(()))?;
                 let local = local_checksums(&self.store, &branch, &mismatched);
-                if !mismatched_types(&server_checksums(&fix), &local).is_empty() {
+                let healed = mismatched_types(&server_checksums(&fix), &local).is_empty();
+                if !healed {
                     stale = Some("checksum_mismatch".to_string());
                 }
+                // A repair is news: silent self-healing is how a device that
+                // keeps diverging looks healthy right up until it is not. The
+                // status records what was rebuilt and when, so the sync screen
+                // can say so and a pattern is visible instead of invisible.
+                {
+                    let mut st = self.sync_state.lock().unwrap_or_else(|e| e.into_inner());
+                    st.repaired_types = mismatched.clone();
+                    st.repaired_at = Some(chrono::Utc::now().to_rfc3339());
+                }
+                crate::obs::capture_bg_warning(
+                    "sync.checksum_repair",
+                    format!(
+                        "rebuilt {} from the server ({}){}",
+                        mismatched.len(),
+                        mismatched.join(","),
+                        if healed { "" } else { " — STILL mismatched" }
+                    ),
+                );
             }
             self.store
                 .kv_put(&format!("{K_LAST_OK}{branch}"), &chrono::Utc::now().to_rfc3339())?;
@@ -1099,6 +1269,20 @@ impl MadarCore {
         if let Ok(raw) = serde_json::to_string(&methods) {
             let _ = store.kv_put(crate::menu::K_PAYMENT_METHODS, &raw);
             self.invalidate_catalog_cache();
+        }
+
+        // Discounts, like every other mirror. The checksum self-heal validates
+        // the FEED's discount rows, but every consumer reads this kv mirror
+        // (cart.rs, discounts.rs, checkout.rs) — and nothing rebuilt it from
+        // the feed, so a preset DELETED on the server kept being offered on the
+        // till until a catalog refresh happened to succeed. The feed was right
+        // and the till was wrong, and the self-heal could not tell.
+        if feed_has_type(store, branch, "discount") {
+            let discounts = rows_of_type(store, branch, "discount");
+            if let Ok(raw) = serde_json::to_string(&discounts) {
+                let _ = store.kv_put(crate::menu::K_DISCOUNTS, &raw);
+                self.invalidate_catalog_cache();
+            }
         }
 
         let sections = rows_of_type(store, branch, "floor_section");
@@ -1267,6 +1451,7 @@ impl MadarCore {
         let online = self.current_session().map(|s| s.online).unwrap_or(false);
         let branch = self.sync_branch().unwrap_or_default();
         let kv = |k: &str| self.store.kv_get(&format!("{k}{branch}")).ok().flatten();
+        let blocked = self.store.blocked_by_dead_root().unwrap_or_default();
         SyncStatusView {
             phase: if st.phase.is_empty() {
                 "idle".into()
@@ -1283,11 +1468,21 @@ impl MadarCore {
             assets: self.asset_sync_view(),
             online,
             auth_paused: self.auth_paused.load(std::sync::atomic::Ordering::Relaxed) && online,
-            blocked: self.store.count_orders_blocked_by_dead_dep().unwrap_or(0),
+            blocked: blocked.len() as u32,
+            blocked_close: blocked
+                .iter()
+                .any(|(_, op)| matches!(op.as_str(), "close_till" | "close_shift")),
             freshness: freshness(
                 &self.store,
                 &branch,
                 self.realtime_live(),
+                chrono::Utc::now().timestamp_millis(),
+            ),
+            repaired_types: st.repaired_types.clone(),
+            repaired_at: st.repaired_at.clone(),
+            catalog_freshness: catalog_freshness(
+                &self.store,
+                &branch,
                 chrono::Utc::now().timestamp_millis(),
             ),
         }
@@ -1311,8 +1506,18 @@ impl MadarCore {
     /// animations were never re-fetched by it at all.
     pub async fn sync_full(&self) -> Result<SyncStatusView, CoreError> {
         let _ = self.push_and_refresh().await;
-        let _ = self.pull(true).await;
-        let _ = self.refresh_catalog_with(true).await;
+        // Both halves USED to be swallowed, so "download everything again"
+        // answered Ok with a green tick whatever happened — a manager could
+        // long-press Sync on a device that fetched nothing and be told it
+        // worked. A full sync promises the whole store; if either half of it
+        // did not happen, say so. The pull's error wins (it is the deeper
+        // failure) and the catalog's is reported when the pull was fine.
+        let pulled = self.pull(true).await;
+        let catalog = self.refresh_catalog_with(true).await;
+        if let Err(e) = pulled {
+            return Err(e);
+        }
+        catalog?;
         Ok(self.sync_status())
     }
 
@@ -1320,12 +1525,171 @@ impl MadarCore {
         let st = self.sync_state.lock().unwrap_or_else(|e| e.into_inner());
         let mut v = st.till_open.clone();
         v.pending_outbox = self.store.pending_count().unwrap_or(0);
+        let blocked = self.store.blocked_by_dead_root().unwrap_or_default();
+        v.blocked = blocked.len() as u32;
+        v.blocked_close = blocked
+            .iter()
+            .any(|(_, op)| matches!(op.as_str(), "close_till" | "close_shift"));
         v
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::store::Store;
+
+    /// `/sync/pull` healthy, catalog refresh failing: the device is NOT fresh.
+    /// It reported fresh while it sold from a menu, a price list and a
+    /// payment-method list that had stopped moving days before.
+    #[test]
+    fn a_failing_catalog_refresh_makes_the_device_stale_however_well_it_pulls() {
+        let store = Store::open("").unwrap();
+        let branch = "b1";
+        let now = 1_700_000_000_000i64;
+        store
+            .kv_put(&format!("{K_LAST_FULL}{branch}"), "2026-09-19T10:00:00Z")
+            .unwrap();
+
+        // Both streams healthy, moments ago → fresh.
+        record_pull_outcome(&store, branch, Ok(()), now);
+        record_catalog_outcome(&store, branch, Ok(()), now);
+        assert_eq!(freshness(&store, branch, false, now).state, "fresh");
+        assert_eq!(catalog_freshness(&store, branch, now).state, "fresh");
+
+        // The pull keeps working; the catalog refresh starts failing.
+        let err = CoreError::Server {
+            status: 500,
+            detail: "boom".into(),
+            code: String::new(),
+        };
+        record_catalog_outcome(&store, branch, Err(&err), now);
+        record_pull_outcome(&store, branch, Ok(()), now);
+        let f = freshness(&store, branch, false, now);
+        assert_eq!(
+            f.state, "stale",
+            "a healthy pull cannot vouch for a catalog that is not arriving"
+        );
+        assert_eq!(f.reason.as_deref(), Some("server_error"));
+        assert_eq!(catalog_freshness(&store, branch, now).state, "stale");
+
+        // …and a live realtime stream does not paper over it either.
+        assert_eq!(freshness(&store, branch, true, now).state, "stale");
+
+        // But AGE alone must not: nothing refreshes the catalog on a beat — it
+        // happens when a till opens, when someone syncs, or when the menu
+        // changes — so "older than a minute" is the normal, healthy state of
+        // every device in the field. Judging it by age made every device
+        // permanently stale (it wedged the real-backend backlog scenario,
+        // which waits for `fresh` after a drain).
+        record_catalog_outcome(&store, branch, Ok(()), now);
+        record_pull_outcome(&store, branch, Ok(()), now + 600_000);
+        assert_eq!(
+            freshness(&store, branch, false, now + 600_000).state,
+            "fresh",
+            "a catalog that succeeded ten minutes ago is not a problem"
+        );
+
+        // A branch that has never attempted one is not suspect either: the
+        // changefeed carries the catalog and the refresh is the fallback.
+        let fresh_store = Store::open("").unwrap();
+        fresh_store
+            .kv_put(&format!("{K_LAST_FULL}b2"), "2026-09-19T10:00:00Z")
+            .unwrap();
+        record_pull_outcome(&fresh_store, "b2", Ok(()), now);
+        assert_eq!(freshness(&fresh_store, "b2", false, now).state, "fresh");
+    }
+
+    /// Coalescing must never swallow an announced change: a change announced
+    /// AFTER the in-flight request went out cannot be in its response.
+    #[tokio::test]
+    async fn a_change_announced_after_the_request_went_out_is_not_coalesced_away() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        let flight = Arc::new(PullFlight::default());
+        let pulls = Arc::new(AtomicU32::new(0));
+        // Lets the test hold the first pull open while the second caller arrives.
+        let gate = Arc::new(tokio::sync::Notify::new());
+
+        let f1 = {
+            let (flight, pulls, gate) = (flight.clone(), pulls.clone(), gate.clone());
+            tokio::spawn(async move {
+                single_flight(&flight, || async {
+                    pulls.fetch_add(1, Ordering::SeqCst);
+                    gate.notified().await;
+                    Ok(0)
+                })
+                .await
+            })
+        };
+        // Wait until the first pull is genuinely in flight.
+        while pulls.load(Ordering::SeqCst) == 0 {
+            tokio::task::yield_now().await;
+        }
+
+        // NOW the change is announced — too late for the request in flight.
+        flight.announce();
+        let f2 = {
+            let (flight, pulls) = (flight.clone(), pulls.clone());
+            tokio::spawn(async move {
+                single_flight(&flight, || async {
+                    pulls.fetch_add(1, Ordering::SeqCst);
+                    Ok(0)
+                })
+                .await
+            })
+        };
+        tokio::task::yield_now().await;
+        gate.notify_one();
+        f1.await.unwrap().unwrap();
+        f2.await.unwrap().unwrap();
+
+        assert_eq!(
+            pulls.load(Ordering::SeqCst),
+            2,
+            "the second caller must pull for itself — the in-flight request was \
+             already sent when it arrived, so its change could not be in it"
+        );
+    }
+
+    /// The other half of the same rule: with NOTHING newly announced, a burst
+    /// of callers still costs exactly one request.
+    #[tokio::test]
+    async fn callers_with_nothing_newer_to_fetch_still_share_one_request() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        let flight = Arc::new(PullFlight::default());
+        let pulls = Arc::new(AtomicU32::new(0));
+        let gate = Arc::new(tokio::sync::Notify::new());
+
+        let mut tasks = Vec::new();
+        for i in 0..4 {
+            let (flight, pulls, gate) = (flight.clone(), pulls.clone(), gate.clone());
+            tasks.push(tokio::spawn(async move {
+                single_flight(&flight, || async {
+                    pulls.fetch_add(1, Ordering::SeqCst);
+                    if i == 0 {
+                        gate.notified().await;
+                    }
+                    Ok(0)
+                })
+                .await
+            }));
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+        gate.notify_one();
+        for t in tasks {
+            t.await.unwrap().unwrap();
+        }
+        assert_eq!(
+            pulls.load(Ordering::SeqCst),
+            1,
+            "a burst of nudges with nothing new announced is one request"
+        );
+    }
+
     #[test]
     fn a_teller_rows_limits_survive_the_servers_nulls() {
         let row = serde_json::json!({

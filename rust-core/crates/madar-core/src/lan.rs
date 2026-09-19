@@ -330,6 +330,19 @@ const BEACON_EVERY: Duration = Duration::from_millis(3_000);
 /// (robustness #4 — the fire reaches the cloud even if the originator dies first).
 pub trait LanInbound: Send + Sync {
     fn on_lan_message(&self, msg: &LanMessage);
+
+    /// Wall clock CORRECTED by the last-known server skew. Two devices that
+    /// have both synced agree on this even when their own clocks do not, so
+    /// catch-up freshness stops depending on any device's clock being right.
+    /// Defaults to the raw wall clock (a peer that has never synced).
+    fn corrected_now_ms(&self) -> i64 {
+        chrono::Utc::now().timestamp_millis()
+    }
+
+    /// A peer's catch-up frame arrived this far out of step with our corrected
+    /// clock. Surfaced to the person rather than silently dropping the frame.
+    fn note_peer_skew(&self, _device_id: &str, _skew_ms: i64) {}
+
     /// This device's catch-up digest (`lan_sync::SyncBody::Digest`), if any.
     fn lan_digest(&self) -> Option<serde_json::Value> {
         None
@@ -518,6 +531,10 @@ pub struct LanStatusView {
     pub mdns_active: bool,
     /// The host's native Bonjour/NSD noted a peer within the peer TTL.
     pub native_discovery_active: bool,
+    /// The largest clock difference seen against a branch peer, in MINUTES
+    /// (signed). One of the two clocks is wrong; the person is told so instead
+    /// of the device quietly falling out of catch-up.
+    pub peer_skew_minutes: i64,
 }
 
 /// What the relay did with inbound frames.
@@ -532,6 +549,11 @@ pub struct RelayStats {
     pub stale: u64,
     pub oversized: u64,
     pub sync_frames: u64,
+    /// Catch-up frames whose stamp was far out of step with our corrected
+    /// clock. They are still handled — this is a diagnosis, not a drop.
+    pub skewed: u64,
+    /// The largest such difference seen, signed (peer behind us = positive).
+    pub max_skew_ms: i64,
 }
 
 /// A running LAN relay: an embedded TCP server (accepts signed pushes → forwards +
@@ -1027,7 +1049,9 @@ fn sync_line(shared: &Arc<RelayShared>, to: Option<String>, body: serde_json::Va
         branch_id: shared.cfg.branch_id.clone(),
         from: shared.cfg.device_id.clone(),
         to,
-        sent_at_ms: now_ms(),
+        // Corrected, not raw: a tablet whose own clock is hours out but which
+        // knows its server skew still stamps a time its peers recognise.
+        sent_at_ms: shared.inbound.corrected_now_ms(),
         body,
     };
     let frame = sign_str(&shared.cfg.key, serde_json::to_string(&env).ok()?);
@@ -1173,9 +1197,22 @@ fn handle_sync(shared: &Arc<RelayShared>, payload: &str) -> Vec<String> {
     if env.from == shared.cfg.device_id || env.to.as_ref().is_some_and(|t| t != &shared.cfg.device_id) {
         return Vec::new();
     }
-    if (now_ms() - env.sent_at_ms).abs() > SYNC_MAX_AGE_MS {
-        shared.stats.lock().unwrap().stale += 1;
-        return Vec::new();
+    // A skewed catch-up frame is NOT dropped any more. It is signed with the
+    // branch key, addressed to us, and the exchange it starts is idempotent —
+    // so the only thing the old age check bought was a device with a wrong
+    // clock being cut out of catch-up while its live `MSG` frames kept
+    // arriving: it looked perfectly healthy and silently never caught up. The
+    // skew is recorded and surfaced instead, and the frame is handled.
+    let skew = shared.inbound.corrected_now_ms() - env.sent_at_ms;
+    if skew.abs() > SYNC_MAX_AGE_MS {
+        {
+            let mut st = shared.stats.lock().unwrap();
+            st.skewed += 1;
+            if skew.abs() > st.max_skew_ms.abs() {
+                st.max_skew_ms = skew;
+            }
+        }
+        shared.inbound.note_peer_skew(&env.from, skew);
     }
     {
         let mut st = shared.stats.lock().unwrap();
@@ -1737,6 +1774,68 @@ mod tests {
         fn on_lan_message(&self, msg: &LanMessage) {
             self.0.lock().unwrap().push(msg.clone());
         }
+    }
+
+    /// A peer whose catch-up frames arrive badly out of step, and a record of
+    /// every skew reported about it.
+    struct SkewRecorder {
+        digests: Mutex<u32>,
+        skews: Mutex<Vec<i64>>,
+    }
+    impl LanInbound for SkewRecorder {
+        fn on_lan_message(&self, _msg: &LanMessage) {}
+        fn lan_sync(&self, _body: &serde_json::Value) -> Vec<serde_json::Value> {
+            *self.digests.lock().unwrap() += 1;
+            Vec::new()
+        }
+        fn note_peer_skew(&self, _device_id: &str, skew_ms: i64) {
+            self.skews.lock().unwrap().push(skew_ms);
+        }
+    }
+
+    /// A tablet whose clock is hours out was cut out of CATCH-UP while its live
+    /// `MSG` frames kept arriving: it looked perfectly healthy on every screen
+    /// and silently never caught up on anything it had missed. A catch-up frame
+    /// is signed, branch-gated and idempotent, so the clock is no reason to
+    /// drop it — the skew is surfaced and the frame is handled.
+    #[tokio::test]
+    async fn a_clock_skewed_peer_still_catches_up_and_its_skew_is_surfaced() {
+        let inbound = Arc::new(SkewRecorder {
+            digests: Mutex::new(0),
+            skews: Mutex::new(Vec::new()),
+        });
+        let key = branch_key("00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff", "b1");
+        let relay = LanRelay::new(lan_cfg("me", key.clone()), inbound.clone());
+
+        // A peer three hours behind — far outside the old ten-minute window.
+        let stale = now_ms() - (3 * 60 * 60 * 1000);
+        let env = SyncEnvelope {
+            branch_id: "b1".into(),
+            from: "wonky-tablet".into(),
+            to: Some("me".into()),
+            sent_at_ms: stale,
+            body: serde_json::json!({"type": "digest"}),
+        };
+        let frame = sign_str(&key, serde_json::to_string(&env).unwrap());
+        relay
+            .deliver_line(&format!("SYNC {}", serde_json::to_string(&frame).unwrap()))
+            .await;
+
+        assert_eq!(
+            *inbound.digests.lock().unwrap(),
+            1,
+            "the catch-up frame is HANDLED, not silently dropped"
+        );
+        let skews = inbound.skews.lock().unwrap().clone();
+        assert_eq!(skews.len(), 1, "and the skew is reported: {skews:?}");
+        assert!(
+            skews[0] > 2 * 60 * 60 * 1000,
+            "with the real difference, so the person can be told: {skews:?}"
+        );
+        let stats = relay.stats();
+        assert_eq!(stats.skewed, 1);
+        assert_eq!(stats.stale, 0, "skew is a diagnosis, not a drop");
+        assert!(stats.max_skew_ms > 2 * 60 * 60 * 1000);
     }
     fn rec() -> Arc<Recorder> {
         Arc::new(Recorder(Mutex::new(Vec::new())))

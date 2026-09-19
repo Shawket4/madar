@@ -1948,6 +1948,25 @@ impl MadarCore {
     /// `rebase_delta_ms` then only corrects for CHANGES in the skew between
     /// enqueue and send. The stamped offset is recorded per row in
     /// `clock_offset_ms` (via `outbox_meta`), keeping the two halves consistent.
+    /// [`Self::corrected_now`] in epoch milliseconds — the clock the LAN relay
+    /// stamps catch-up frames with, so two synced devices agree even when one
+    /// of their own clocks does not.
+    pub(crate) fn corrected_now_ms(&self) -> i64 {
+        self.corrected_now().timestamp_millis()
+    }
+
+    /// A branch peer's catch-up frame was this far out of step with ours. One
+    /// of the two clocks is wrong, and the person is told: the frame is still
+    /// handled (see `lan::handle_sync`), but a device silently drifting out of
+    /// step with the rest of the branch is exactly what nobody could see.
+    pub(crate) fn note_peer_skew(&self, device_id: &str, skew_ms: i64) {
+        crate::obs::capture_bg_warning(
+            "lan.peer_clock_skew",
+            format!("peer {device_id} catch-up stamp is {}m out of step", skew_ms / 60_000),
+        );
+        self.store.emit_changes([crate::changes::SYNC]);
+    }
+
     fn corrected_now(&self) -> chrono::DateTime<chrono::Utc> {
         // `saturating_mul` + the ±48h skew clamp (net.rs) keep this from overflowing
         // even if a bogus `Date` header or a corrupt persisted skew slipped through.
@@ -2038,7 +2057,13 @@ enum SendOutcome {
 enum Idem {
     /// Not idempotent for our purposes: 409/404 are genuine rejections → dead.
     No,
-    /// Idempotent already-applied: 409/404 → treat as success.
+    /// Idempotent already-applied: a 409 means the server has this op already,
+    /// so it is success. A 404 is NOT: it means something the op needed is not
+    /// on the server, so the op never applied. Treating it as an ack destroyed
+    /// the work — most sharply for a `lan_mirror` backup, which exists to
+    /// survive exactly the failure that produces the 404, and for a
+    /// `close_till` whose till the server has not seen, which left the drawer
+    /// open server-side forever with nothing queued to close it.
     Yes,
     /// Void: 409 → already-voided (success); 404 → order never synced → dead.
     VoidIdem,
@@ -2070,7 +2095,13 @@ fn classify_send(err: CoreError, idem: Idem) -> SendOutcome {
         CoreError::Validation { detail, .. } => SendOutcome::Dead(detail),
         CoreError::Forbidden { action: detail, .. } => SendOutcome::Refused(detail),
         CoreError::Server { status, detail, .. } => match (status, idem) {
-            (409, Idem::Yes) | (409, Idem::VoidIdem) | (404, Idem::Yes) => SendOutcome::Acked(None),
+            (409, Idem::Yes) | (409, Idem::VoidIdem) => SendOutcome::Acked(None),
+            // A 404 is never an ack: the op did not apply. Dead-lettering keeps
+            // it — visible in the stuck list, retryable once whatever it
+            // depended on has landed — instead of dropping it silently.
+            (404, Idem::Yes) => SendOutcome::Dead(format!(
+                "the server does not have what this needs yet — {detail}"
+            )),
             // void 404 = the order never landed → don't silently swallow the void.
             (404, Idem::VoidIdem) => {
                 SendOutcome::Dead(format!("order not found on server — {detail}"))
@@ -2577,16 +2608,22 @@ impl MadarCore {
         listener: Box<dyn realtime::EventListener>,
         player: Box<dyn realtime::RealtimePlayer>,
     ) -> Result<(), CoreError> {
-        // Idempotent: the supervisor auto-reconnects, so a re-call (e.g. on
-        // connectivity-regain or a screen re-appearing) is a no-op. A fresh login
-        // starts clean — `unsubscribe_realtime` in signOut cleared the handle.
-        if self
-            .realtime
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .is_some()
+        // Idempotent WHILE A SUPERVISOR IS ALIVE: it auto-reconnects, so a
+        // re-call (connectivity-regain, a screen re-appearing) is a no-op. But a
+        // 401/403 makes the supervisor RETURN, and its handle stayed in the slot
+        // — so the guard kept answering "already running" and the device never
+        // saw another realtime event for the rest of the session, however many
+        // times it signed back in. A spent handle is cleared here so the
+        // re-subscribe actually re-subscribes.
         {
-            return Ok(());
+            let mut slot = self.realtime.lock().unwrap_or_else(|e| e.into_inner());
+            match slot.as_ref() {
+                Some(h) if h.is_finished() => {
+                    *slot = None;
+                }
+                Some(_) => return Ok(()),
+                None => {}
+            }
         }
         let session = self
             .current_session()
@@ -2811,6 +2848,19 @@ impl LanBridge {
 }
 
 impl lan::LanInbound for LanBridge {
+    fn corrected_now_ms(&self) -> i64 {
+        match self.core.upgrade() {
+            Some(core) => core.corrected_now_ms(),
+            None => chrono::Utc::now().timestamp_millis(),
+        }
+    }
+
+    fn note_peer_skew(&self, device_id: &str, skew_ms: i64) {
+        if let Some(core) = self.core.upgrade() {
+            core.note_peer_skew(device_id, skew_ms);
+        }
+    }
+
     fn on_lan_message(&self, msg: &lan::LanMessage) {
         let entry = lan_sync::LogEntry {
             key: lan_sync::event_key(&msg.msg_id, msg.replay_op.as_deref()),
@@ -2943,6 +2993,21 @@ fn mirror_replay_op(store: &store::Store, envelope_json: &str) {
         .or_else(|| env.get("order_id").and_then(|v| v.as_str()))
         .or_else(|| env.get("ticket_id").and_then(|v| v.as_str()))
         .unwrap_or(op);
+    // Carry the peer's TILL. Without it a mirrored backup sat outside the
+    // per-till FIFO entirely (`must_wait` keys on `till_id`), so a mirrored
+    // sale could be sent before the mirrored opening it belongs to — and the
+    // 404 that came back was read as an ack, destroying the very backup that
+    // existed to survive the peer's failure.
+    let till_id = env
+        .get("till_id")
+        .and_then(|v| v.as_str())
+        .or_else(|| {
+            env.get("request")
+                .and_then(|r| r.get("till_id"))
+                .and_then(|v| v.as_str())
+        })
+        .or_else(|| env.get("shift_id").and_then(|v| v.as_str()))
+        .map(|s| s.to_string());
     let mut backup = store::NewOutboxOp {
         id: format!("lanmirror:{op}:{handle}"),
         op_type: "lan_mirror".into(),
@@ -2952,7 +3017,7 @@ fn mirror_replay_op(store: &store::Store, envelope_json: &str) {
         depends_on_seq: None,
         user_id: teller_id.clone(),
         clock_offset_ms: None,
-        till_id: None,
+        till_id,
         ..Default::default()
     };
     // A peer's MONEY op also becomes the row it stands for on this device (the
@@ -3175,13 +3240,26 @@ impl MadarCore {
         data: String,
         replay_op: Option<String>,
     ) {
-        let at = self.corrected_now().timestamp_millis();
         let msg_id = uuid::Uuid::new_v4().to_string();
+        let key = lan_sync::event_key(&msg_id, replay_op.as_deref());
+        // A line toggle's stamp is also its VERSION, and the latest version
+        // wins — so it must never go backwards on this device, whatever its
+        // clock does.
+        let at = self
+            .store
+            .with_conn(|c| {
+                Ok(lan_sync::next_line_version(
+                    c,
+                    &key,
+                    self.corrected_now().timestamp_millis(),
+                ))
+            })
+            .unwrap_or_else(|_| self.corrected_now().timestamp_millis());
         // Logged whether or not the relay runs: a peer that joins later (or this
         // device's relay starting later) is offered it by catch-up.
         if let Ok(branch) = self.session_branch_id() {
             let entry = lan_sync::LogEntry {
-                key: lan_sync::event_key(&msg_id, replay_op.as_deref()),
+                key: key.clone(),
                 topic: topic.to_string(),
                 event_type: event_type.to_string(),
                 data: data.clone(),
@@ -3377,11 +3455,16 @@ impl MadarCore {
     pub fn lan_status(&self) -> lan::LanStatusView {
         let last_error = self.lan_last_error.lock().unwrap_or_else(|e| e.into_inner()).clone();
         match self.lan.lock().unwrap_or_else(|e| e.into_inner()).clone() {
-            None => lan::LanStatusView { last_error, ..Default::default() },
+            None => lan::LanStatusView {
+                last_error,
+                ..Default::default()
+            },
             Some(relay) => {
                 let d = relay.discovery();
                 let now = chrono::Utc::now().timestamp_millis();
+                let skew = relay.stats().max_skew_ms;
                 lan::LanStatusView {
+                    peer_skew_minutes: skew / 60_000,
                     running: true,
                     peer_count: relay.peer_count(),
                     manual_hub_count: relay.manual_hub_count(),
@@ -5299,6 +5382,11 @@ pub struct OutboxItemView {
     pub attempts: i64,
     pub last_error: Option<String>,
     pub event_at: String,
+    /// This op is HELD: its root dead-lettered (its own dependency, or the
+    /// dead `open_till` earlier in its till's queue). It is queued, not on its
+    /// way — the section must not show it as merely "waiting", because nothing
+    /// will move it until the root is retried or discarded.
+    pub blocked: bool,
 }
 
 
@@ -5308,11 +5396,18 @@ impl MadarCore {
     /// Queued + failed commands for the sync center (acked rows hidden), oldest
     /// first. Always succeeds offline.
     pub fn list_outbox(&self) -> Result<Vec<OutboxItemView>, CoreError> {
+        let blocked: std::collections::HashSet<String> = self
+            .store
+            .blocked_by_dead_root()?
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
         Ok(self
             .store
             .list_active()?
             .into_iter()
             .map(|i| OutboxItemView {
+                blocked: blocked.contains(&i.id),
                 id: i.id,
                 op_type: i.op_type,
                 status: i.status,
@@ -6019,6 +6114,23 @@ impl MadarCore {
     /// that was never bumped (a direct database edit, a missed bump) otherwise
     /// leaves the option sheet stale no matter how often anyone syncs.
     pub(crate) async fn refresh_catalog_with(&self, force: bool) -> Result<(), CoreError> {
+        let out = self.refresh_catalog_inner(force).await;
+        // The catalog is its own SYNC STREAM. Recording it is what lets
+        // `freshness()` tell the truth: a device whose `/sync/pull` is healthy
+        // but whose catalog refresh keeps failing is NOT fresh — it is selling
+        // from a menu, prices and a payment-method list that stopped moving.
+        if let Ok(branch) = self.session_branch_id() {
+            sync_pull::record_catalog_outcome(
+                &self.store,
+                &branch,
+                out.as_ref().map(|_| ()).map_err(|e| e),
+                now_ms(),
+            );
+        }
+        out
+    }
+
+    async fn refresh_catalog_inner(&self, force: bool) -> Result<(), CoreError> {
         use madar_api::apis::{bundles_api, discounts_api, menu_api, payment_methods_api};
         use madar_api::models::BundleStatus;
 
@@ -8853,9 +8965,15 @@ mod tests {
         assert!(dead(&classify_send(srv(409), Idem::No)));
         assert!(ack(&classify_send(srv(409), Idem::Yes)));
         assert!(ack(&classify_send(srv(409), Idem::VoidIdem)));
-        // 404: idempotent gone → ack; but a VOID 404 (order never landed) → dead.
-        assert!(ack(&classify_send(srv(404), Idem::Yes)));
+        // 404 is NEVER an ack. It says the server does not have something the
+        // op needed, which means the op did not apply — so acking it destroyed
+        // the work: a `lan_mirror` backup died on exactly the failure it exists
+        // to survive, and a `close_till` for a till the server had not seen
+        // left the drawer open server-side with nothing left to close it.
+        // Dead-lettering keeps it visible and retryable instead.
+        assert!(dead(&classify_send(srv(404), Idem::Yes)));
         assert!(dead(&classify_send(srv(404), Idem::VoidIdem)));
+        assert!(dead(&classify_send(srv(404), Idem::No)));
         // 429: paced, never dead, whatever the endpoint.
         for idem in [Idem::No, Idem::Yes, Idem::VoidIdem] {
             assert!(matches!(classify_send(srv(429), idem), SendOutcome::Throttled(_)));

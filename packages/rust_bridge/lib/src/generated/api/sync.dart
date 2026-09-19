@@ -123,6 +123,10 @@ class OutboxItemView {
   final String? lastError;
   final String eventAt;
 
+  /// Held behind a dead root: queued, but nothing will send it until that
+  /// root is retried or discarded.
+  final bool blocked;
+
   const OutboxItemView({
     required this.id,
     required this.opType,
@@ -130,6 +134,7 @@ class OutboxItemView {
     required this.attempts,
     this.lastError,
     required this.eventAt,
+    required this.blocked,
   });
 
   @override
@@ -139,7 +144,8 @@ class OutboxItemView {
       status.hashCode ^
       attempts.hashCode ^
       lastError.hashCode ^
-      eventAt.hashCode;
+      eventAt.hashCode ^
+      blocked.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -151,7 +157,8 @@ class OutboxItemView {
           status == other.status &&
           attempts == other.attempts &&
           lastError == other.lastError &&
-          eventAt == other.eventAt;
+          eventAt == other.eventAt &&
+          blocked == other.blocked;
 }
 
 /// How far a board's rows can be trusted.
@@ -199,10 +206,23 @@ class SyncStatusView {
   final AssetSyncView assets;
   final bool online;
   final bool authPaused;
+
+  /// Ops of ANY type held behind a dead root.
   final int blocked;
 
-  /// How far the local data can be trusted (`fresh` / `stale` / `bootstrapping`).
+  /// One of them is the drawer's own close.
+  final bool blockedClose;
+
+  /// How far the local data can be trusted (`fresh` / `stale` / `bootstrapping`)
+  /// — the worse of the pull stream and the catalog stream.
   final FreshnessView freshness;
+
+  /// The catalog refresh alone (menu, prices, payment methods, discounts).
+  final FreshnessView catalogFreshness;
+
+  /// What the checksum self-heal last rebuilt from the server, and when.
+  final List<String> repairedTypes;
+  final String? repairedAt;
 
   const SyncStatusView({
     required this.phase,
@@ -217,7 +237,11 @@ class SyncStatusView {
     required this.online,
     required this.authPaused,
     required this.blocked,
+    required this.blockedClose,
     required this.freshness,
+    required this.catalogFreshness,
+    required this.repairedTypes,
+    this.repairedAt,
   });
 
   @override
@@ -234,7 +258,11 @@ class SyncStatusView {
       online.hashCode ^
       authPaused.hashCode ^
       blocked.hashCode ^
-      freshness.hashCode;
+      blockedClose.hashCode ^
+      freshness.hashCode ^
+      catalogFreshness.hashCode ^
+      repairedTypes.hashCode ^
+      repairedAt.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -253,7 +281,11 @@ class SyncStatusView {
           online == other.online &&
           authPaused == other.authPaused &&
           blocked == other.blocked &&
-          freshness == other.freshness;
+          blockedClose == other.blockedClose &&
+          freshness == other.freshness &&
+          catalogFreshness == other.catalogFreshness &&
+          repairedTypes == other.repairedTypes &&
+          repairedAt == other.repairedAt;
 }
 
 class SyncedDeliveries {
@@ -356,6 +388,8 @@ class TillOpenSyncView {
   final String? staleReason;
   final int changesApplied;
   final int pendingOutbox;
+  final int blocked;
+  final bool blockedClose;
 
   const TillOpenSyncView({
     required this.state,
@@ -365,6 +399,8 @@ class TillOpenSyncView {
     this.staleReason,
     required this.changesApplied,
     required this.pendingOutbox,
+    required this.blocked,
+    required this.blockedClose,
   });
 
   @override
@@ -375,7 +411,9 @@ class TillOpenSyncView {
       finishedAt.hashCode ^
       staleReason.hashCode ^
       changesApplied.hashCode ^
-      pendingOutbox.hashCode;
+      pendingOutbox.hashCode ^
+      blocked.hashCode ^
+      blockedClose.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -388,7 +426,9 @@ class TillOpenSyncView {
           finishedAt == other.finishedAt &&
           staleReason == other.staleReason &&
           changesApplied == other.changesApplied &&
-          pendingOutbox == other.pendingOutbox;
+          pendingOutbox == other.pendingOutbox &&
+          blocked == other.blocked &&
+          blockedClose == other.blockedClose;
 }
 
 /// Display styles, mirroring Flutter's `formatting.dart` helpers + the receipt stamp.

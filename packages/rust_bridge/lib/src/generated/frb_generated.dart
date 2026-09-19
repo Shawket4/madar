@@ -13753,8 +13753,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   LanStatusView dco_decode_lan_status_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return LanStatusView(
       running: dco_decode_bool(arr[0]),
       peerCount: dco_decode_u_32(arr[1]),
@@ -13764,6 +13764,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       beaconActive: dco_decode_bool(arr[5]),
       mdnsActive: dco_decode_bool(arr[6]),
       nativeDiscoveryActive: dco_decode_bool(arr[7]),
+      peerSkewMinutes: dco_decode_i_64(arr[8]),
     );
   }
 
@@ -14968,8 +14969,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   OutboxItemView dco_decode_outbox_item_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return OutboxItemView(
       id: dco_decode_String(arr[0]),
       opType: dco_decode_String(arr[1]),
@@ -14977,6 +14978,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       attempts: dco_decode_i_64(arr[3]),
       lastError: dco_decode_opt_String(arr[4]),
       eventAt: dco_decode_String(arr[5]),
+      blocked: dco_decode_bool(arr[6]),
     );
   }
 
@@ -15452,8 +15454,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   SyncStatusView dco_decode_sync_status_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 13)
-      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
+    if (arr.length != 17)
+      throw Exception('unexpected arr length: expect 17 but see ${arr.length}');
     return SyncStatusView(
       phase: dco_decode_String(arr[0]),
       nextSeq: dco_decode_opt_box_autoadd_i_64(arr[1]),
@@ -15467,7 +15469,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       online: dco_decode_bool(arr[9]),
       authPaused: dco_decode_bool(arr[10]),
       blocked: dco_decode_u_32(arr[11]),
-      freshness: dco_decode_freshness_view(arr[12]),
+      blockedClose: dco_decode_bool(arr[12]),
+      freshness: dco_decode_freshness_view(arr[13]),
+      catalogFreshness: dco_decode_freshness_view(arr[14]),
+      repairedTypes: dco_decode_list_String(arr[15]),
+      repairedAt: dco_decode_opt_String(arr[16]),
     );
   }
 
@@ -15687,8 +15693,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   TillOpenSyncView dco_decode_till_open_sync_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return TillOpenSyncView(
       state: dco_decode_String(arr[0]),
       tillId: dco_decode_opt_String(arr[1]),
@@ -15697,6 +15703,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       staleReason: dco_decode_opt_String(arr[4]),
       changesApplied: dco_decode_u_32(arr[5]),
       pendingOutbox: dco_decode_u_32(arr[6]),
+      blocked: dco_decode_u_32(arr[7]),
+      blockedClose: dco_decode_bool(arr[8]),
     );
   }
 
@@ -17671,6 +17679,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_beaconActive = sse_decode_bool(deserializer);
     var var_mdnsActive = sse_decode_bool(deserializer);
     var var_nativeDiscoveryActive = sse_decode_bool(deserializer);
+    var var_peerSkewMinutes = sse_decode_i_64(deserializer);
     return LanStatusView(
       running: var_running,
       peerCount: var_peerCount,
@@ -17680,6 +17689,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       beaconActive: var_beaconActive,
       mdnsActive: var_mdnsActive,
       nativeDiscoveryActive: var_nativeDiscoveryActive,
+      peerSkewMinutes: var_peerSkewMinutes,
     );
   }
 
@@ -19716,6 +19726,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_attempts = sse_decode_i_64(deserializer);
     var var_lastError = sse_decode_opt_String(deserializer);
     var var_eventAt = sse_decode_String(deserializer);
+    var var_blocked = sse_decode_bool(deserializer);
     return OutboxItemView(
       id: var_id,
       opType: var_opType,
@@ -19723,6 +19734,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       attempts: var_attempts,
       lastError: var_lastError,
       eventAt: var_eventAt,
+      blocked: var_blocked,
     );
   }
 
@@ -20326,7 +20338,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_online = sse_decode_bool(deserializer);
     var var_authPaused = sse_decode_bool(deserializer);
     var var_blocked = sse_decode_u_32(deserializer);
+    var var_blockedClose = sse_decode_bool(deserializer);
     var var_freshness = sse_decode_freshness_view(deserializer);
+    var var_catalogFreshness = sse_decode_freshness_view(deserializer);
+    var var_repairedTypes = sse_decode_list_String(deserializer);
+    var var_repairedAt = sse_decode_opt_String(deserializer);
     return SyncStatusView(
       phase: var_phase,
       nextSeq: var_nextSeq,
@@ -20340,7 +20356,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       online: var_online,
       authPaused: var_authPaused,
       blocked: var_blocked,
+      blockedClose: var_blockedClose,
       freshness: var_freshness,
+      catalogFreshness: var_catalogFreshness,
+      repairedTypes: var_repairedTypes,
+      repairedAt: var_repairedAt,
     );
   }
 
@@ -20600,6 +20620,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_staleReason = sse_decode_opt_String(deserializer);
     var var_changesApplied = sse_decode_u_32(deserializer);
     var var_pendingOutbox = sse_decode_u_32(deserializer);
+    var var_blocked = sse_decode_u_32(deserializer);
+    var var_blockedClose = sse_decode_bool(deserializer);
     return TillOpenSyncView(
       state: var_state,
       tillId: var_tillId,
@@ -20608,6 +20630,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       staleReason: var_staleReason,
       changesApplied: var_changesApplied,
       pendingOutbox: var_pendingOutbox,
+      blocked: var_blocked,
+      blockedClose: var_blockedClose,
     );
   }
 
@@ -22301,6 +22325,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_bool(self.beaconActive, serializer);
     sse_encode_bool(self.mdnsActive, serializer);
     sse_encode_bool(self.nativeDiscoveryActive, serializer);
+    sse_encode_i_64(self.peerSkewMinutes, serializer);
   }
 
   @protected
@@ -24004,6 +24029,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_i_64(self.attempts, serializer);
     sse_encode_opt_String(self.lastError, serializer);
     sse_encode_String(self.eventAt, serializer);
+    sse_encode_bool(self.blocked, serializer);
   }
 
   @protected
@@ -24427,7 +24453,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_bool(self.online, serializer);
     sse_encode_bool(self.authPaused, serializer);
     sse_encode_u_32(self.blocked, serializer);
+    sse_encode_bool(self.blockedClose, serializer);
     sse_encode_freshness_view(self.freshness, serializer);
+    sse_encode_freshness_view(self.catalogFreshness, serializer);
+    sse_encode_list_String(self.repairedTypes, serializer);
+    sse_encode_opt_String(self.repairedAt, serializer);
   }
 
   @protected
@@ -24617,6 +24647,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_opt_String(self.staleReason, serializer);
     sse_encode_u_32(self.changesApplied, serializer);
     sse_encode_u_32(self.pendingOutbox, serializer);
+    sse_encode_u_32(self.blocked, serializer);
+    sse_encode_bool(self.blockedClose, serializer);
   }
 
   @protected

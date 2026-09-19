@@ -549,6 +549,59 @@ async fn permissions_addons_and_prep_minutes_arrive_with_the_feed() {
     assert!(addons[0].get("is_available").is_none() && addons[0].get("seq").is_none());
 }
 
+/// Discounts were DOUBLE-SOURCED: the checksum self-heal validated the feed's
+/// discount rows, but every consumer (the cart, the discount sheet, checkout)
+/// reads the kv mirror — and nothing rebuilt that mirror from the feed. So a
+/// preset deleted on the server kept being offered on the till, indefinitely,
+/// while the feed and the checksum both said everything was fine.
+#[tokio::test]
+async fn a_discount_deleted_on_the_server_stops_being_offered() {
+    let present = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let flag = present.clone();
+    let stub = Stub::start(move |r| {
+        if !r.path.starts_with("/sync/pull") {
+            return None;
+        }
+        let mut types: Vec<&str> = crate::sync_pull::REQUIRED_TYPES.to_vec();
+        types.push("discount");
+        let mut data = serde_json::Map::new();
+        for t in &types {
+            data.insert(t.to_string(), serde_json::json!([]));
+        }
+        let rows = if flag.load(std::sync::atomic::Ordering::SeqCst) {
+            serde_json::json!([{ "id": uid("staff"), "name": "Staff 20%", "kind": "percent",
+                                 "value": 20, "is_active": true, "seq": 5 }])
+        } else {
+            serde_json::json!([])
+        };
+        data.insert("discount".into(), rows);
+        Some(StubResponse::json(
+            200,
+            serde_json::json!({"full": true, "next": 9, "has_more": false,
+                "server_time": "2026-09-14T10:00:00Z", "types": types, "data": data,
+                "ledger_window": {"from": "2026-09-12T10:00:00Z"}}),
+        ))
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+
+    core.pull(true).await.unwrap();
+    let offered: Vec<serde_json::Value> =
+        serde_json::from_str(&core.store.kv_get(menu::K_DISCOUNTS).unwrap().unwrap()).unwrap();
+    assert_eq!(offered.len(), 1, "the feed's preset reaches the mirror");
+    assert_eq!(offered[0]["name"], "Staff 20%");
+
+    // The manager deletes it on the dashboard.
+    present.store(false, std::sync::atomic::Ordering::SeqCst);
+    core.pull(true).await.unwrap();
+    let offered: Vec<serde_json::Value> =
+        serde_json::from_str(&core.store.kv_get(menu::K_DISCOUNTS).unwrap().unwrap()).unwrap();
+    assert!(
+        offered.is_empty(),
+        "a deleted preset must stop being offered: {offered:?}"
+    );
+}
+
 /// The production parity guard: a quiescent, complete till whose figures differ
 /// from the server's report is logged.
 #[tokio::test]
