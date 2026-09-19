@@ -695,6 +695,16 @@ fn en(key: &str) -> Option<&'static str> {
         "metrics.offline_note" => "Offline: showing the last {days} days this device holds since {since}",
         "metrics.offline_nothing_held" => "Offline: this device holds no sales history yet",
         "metrics.items_missing" => "Top items leave out {count} sales not synced yet",
+
+        // The date-range picker (`design_system/date_range_picker.dart`). Not
+        // Metrics' own — the same control goes on other screens.
+        "period.title" => "Period",
+        "period.apply" => "Apply",
+        "period.pick_start" => "Pick the first day",
+        "period.pick_end" => "Pick the last day",
+        "period.range_picked" => "Period picked",
+        "period.previous_month" => "Previous month",
+        "period.next_month" => "Next month",
         "history.title" => "Orders",
         "nav.history" => "History",
         "history.empty" => "No orders this till yet.",
@@ -1991,6 +2001,15 @@ fn ar(key: &str) -> Option<&'static str> {
         "metrics.offline_note" => "من غير نت: بنعرض آخر {days} أيام محفوظة على الجهاز من {since}",
         "metrics.offline_nothing_held" => "من غير نت: الجهاز لسه مفيهوش سجل مبيعات",
         "metrics.items_missing" => "الأكثر مبيعًا مش شامل {count} مبيعات لسه ما اتزامنتش",
+
+        // The date-range picker (`design_system/date_range_picker.dart`).
+        "period.title" => "الفترة",
+        "period.apply" => "طبّق",
+        "period.pick_start" => "اختار أول يوم",
+        "period.pick_end" => "اختار آخر يوم",
+        "period.range_picked" => "الفترة اتحددت",
+        "period.previous_month" => "الشهر اللي فات",
+        "period.next_month" => "الشهر الجاي",
         "history.title" => "الطلبات",
         "nav.history" => "السجل",
         "history.empty" => "لا توجد طلبات في هذه الوردية بعد.",

@@ -476,6 +476,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// One customer from the till's list.
   CustomerView? customerById({required String id});
 
+  /// The chrome a date-range picker draws itself with: today in the branch
+  /// zone, the week start, and the month / weekday words in the till's
+  /// language. One cheap local read; always succeeds offline.
+  DatePickerChromeView datePickerChrome();
+
   /// SQLite path the host handed us (empty => in-memory).
   String dbPath();
 

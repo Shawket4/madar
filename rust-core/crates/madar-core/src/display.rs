@@ -158,6 +158,33 @@ pub(crate) const AR_MONTHS: [&str; 12] = [
     "ديسمبر",
 ];
 
+/// The Gregorian months in full, for a calendar header (`September 2026`).
+/// Arabic reuses [`AR_MONTHS`] — Egypt's transliterated months have no
+/// separate short form.
+pub(crate) const EN_MONTHS_LONG: [&str; 12] = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+];
+
+/// Weekday column headings for a calendar, Sunday first (chrono's
+/// `num_days_from_sunday`); a caller rotates them to [`crate::timefmt::WEEK_START`].
+pub(crate) const EN_WEEKDAYS_SHORT: [&str; 7] =
+    ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/// [`EN_WEEKDAYS_SHORT`] in the everyday Egyptian short form.
+pub(crate) const AR_WEEKDAYS_SHORT: [&str; 7] =
+    ["حد", "اتنين", "تلات", "أربع", "خميس", "جمعة", "سبت"];
+
 /// A clock time, 12-hour, in `locale`: `06:02 PM`, Arabic `06:02 م`. The hour
 /// is zero-padded, like `timefmt`'s `%I:%M %p` — every time of day the app
 /// shows reads the same shape. Figures stay Western; only the meridiem word
