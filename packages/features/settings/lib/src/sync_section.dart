@@ -264,7 +264,16 @@ class _HealthCard extends ConsumerWidget {
         ref.watch(realtimeConnectedProvider) && bridge.isRealtimeSubscribed();
     final online = status?.online ?? false;
     final authPaused = status?.authPaused ?? false;
-    final skew = bridge.clockSkewMinutes().abs();
+    // The device's own skew against the SERVER, and the largest difference a
+    // branch PEER's catch-up frame showed. Either one means a clock in this
+    // branch is wrong, and the peer one used to be invisible: a skewed tablet
+    // was simply dropped out of catch-up while every screen said it was fine.
+    final peerSkew = bridge.lanActive()
+        ? bridge.lanStatus().peerSkewMinutes.abs()
+        : 0;
+    final skew = bridge.clockSkewMinutes().abs() > peerSkew
+        ? bridge.clockSkewMinutes().abs()
+        : peerSkew;
     final lanPeers = bridge.lanActive() ? bridge.lanPeerCount() : 0;
     final String healthTitle;
     if (!online) {

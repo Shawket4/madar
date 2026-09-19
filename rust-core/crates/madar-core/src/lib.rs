@@ -1948,6 +1948,25 @@ impl MadarCore {
     /// `rebase_delta_ms` then only corrects for CHANGES in the skew between
     /// enqueue and send. The stamped offset is recorded per row in
     /// `clock_offset_ms` (via `outbox_meta`), keeping the two halves consistent.
+    /// [`Self::corrected_now`] in epoch milliseconds — the clock the LAN relay
+    /// stamps catch-up frames with, so two synced devices agree even when one
+    /// of their own clocks does not.
+    pub(crate) fn corrected_now_ms(&self) -> i64 {
+        self.corrected_now().timestamp_millis()
+    }
+
+    /// A branch peer's catch-up frame was this far out of step with ours. One
+    /// of the two clocks is wrong, and the person is told: the frame is still
+    /// handled (see `lan::handle_sync`), but a device silently drifting out of
+    /// step with the rest of the branch is exactly what nobody could see.
+    pub(crate) fn note_peer_skew(&self, device_id: &str, skew_ms: i64) {
+        crate::obs::capture_bg_warning(
+            "lan.peer_clock_skew",
+            format!("peer {device_id} catch-up stamp is {}m out of step", skew_ms / 60_000),
+        );
+        self.store.emit_changes([crate::changes::SYNC]);
+    }
+
     fn corrected_now(&self) -> chrono::DateTime<chrono::Utc> {
         // `saturating_mul` + the ±48h skew clamp (net.rs) keep this from overflowing
         // even if a bogus `Date` header or a corrupt persisted skew slipped through.
@@ -2829,6 +2848,19 @@ impl LanBridge {
 }
 
 impl lan::LanInbound for LanBridge {
+    fn corrected_now_ms(&self) -> i64 {
+        match self.core.upgrade() {
+            Some(core) => core.corrected_now_ms(),
+            None => chrono::Utc::now().timestamp_millis(),
+        }
+    }
+
+    fn note_peer_skew(&self, device_id: &str, skew_ms: i64) {
+        if let Some(core) = self.core.upgrade() {
+            core.note_peer_skew(device_id, skew_ms);
+        }
+    }
+
     fn on_lan_message(&self, msg: &lan::LanMessage) {
         let entry = lan_sync::LogEntry {
             key: lan_sync::event_key(&msg.msg_id, msg.replay_op.as_deref()),
@@ -3208,13 +3240,26 @@ impl MadarCore {
         data: String,
         replay_op: Option<String>,
     ) {
-        let at = self.corrected_now().timestamp_millis();
         let msg_id = uuid::Uuid::new_v4().to_string();
+        let key = lan_sync::event_key(&msg_id, replay_op.as_deref());
+        // A line toggle's stamp is also its VERSION, and the latest version
+        // wins — so it must never go backwards on this device, whatever its
+        // clock does.
+        let at = self
+            .store
+            .with_conn(|c| {
+                Ok(lan_sync::next_line_version(
+                    c,
+                    &key,
+                    self.corrected_now().timestamp_millis(),
+                ))
+            })
+            .unwrap_or_else(|_| self.corrected_now().timestamp_millis());
         // Logged whether or not the relay runs: a peer that joins later (or this
         // device's relay starting later) is offered it by catch-up.
         if let Ok(branch) = self.session_branch_id() {
             let entry = lan_sync::LogEntry {
-                key: lan_sync::event_key(&msg_id, replay_op.as_deref()),
+                key: key.clone(),
                 topic: topic.to_string(),
                 event_type: event_type.to_string(),
                 data: data.clone(),
@@ -3410,11 +3455,16 @@ impl MadarCore {
     pub fn lan_status(&self) -> lan::LanStatusView {
         let last_error = self.lan_last_error.lock().unwrap_or_else(|e| e.into_inner()).clone();
         match self.lan.lock().unwrap_or_else(|e| e.into_inner()).clone() {
-            None => lan::LanStatusView { last_error, ..Default::default() },
+            None => lan::LanStatusView {
+                last_error,
+                ..Default::default()
+            },
             Some(relay) => {
                 let d = relay.discovery();
                 let now = chrono::Utc::now().timestamp_millis();
+                let skew = relay.stats().max_skew_ms;
                 lan::LanStatusView {
+                    peer_skew_minutes: skew / 60_000,
                     running: true,
                     peer_count: relay.peer_count(),
                     manual_hub_count: relay.manual_hub_count(),

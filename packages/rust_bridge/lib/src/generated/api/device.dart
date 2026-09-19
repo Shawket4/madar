@@ -156,6 +156,9 @@ class LanStatusView {
   final bool mdnsActive;
   final bool nativeDiscoveryActive;
 
+  /// Largest clock difference seen against a branch peer, in signed minutes.
+  final PlatformInt64 peerSkewMinutes;
+
   const LanStatusView({
     required this.running,
     required this.peerCount,
@@ -165,6 +168,7 @@ class LanStatusView {
     required this.beaconActive,
     required this.mdnsActive,
     required this.nativeDiscoveryActive,
+    required this.peerSkewMinutes,
   });
 
   @override
@@ -176,7 +180,8 @@ class LanStatusView {
       tcpPort.hashCode ^
       beaconActive.hashCode ^
       mdnsActive.hashCode ^
-      nativeDiscoveryActive.hashCode;
+      nativeDiscoveryActive.hashCode ^
+      peerSkewMinutes.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -190,7 +195,8 @@ class LanStatusView {
           tcpPort == other.tcpPort &&
           beaconActive == other.beaconActive &&
           mdnsActive == other.mdnsActive &&
-          nativeDiscoveryActive == other.nativeDiscoveryActive;
+          nativeDiscoveryActive == other.nativeDiscoveryActive &&
+          peerSkewMinutes == other.peerSkewMinutes;
 }
 
 /// One reason reconfigure is blocked (a localized `label` with its live count).

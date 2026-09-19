@@ -777,6 +777,7 @@ class _FakeBridge implements MadarBridge {
     if (name == #lanActive) return true;
     if (name == #lanStatus) {
       return const LanStatusView(
+        peerSkewMinutes: 0,
         running: true,
         peerCount: 2,
         manualHubCount: 0,

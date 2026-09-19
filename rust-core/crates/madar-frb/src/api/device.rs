@@ -60,6 +60,8 @@ pub struct _LanStatusView {
     pub beacon_active: bool,
     pub mdns_active: bool,
     pub native_discovery_active: bool,
+    /// Largest clock difference seen against a branch peer, in signed minutes.
+    pub peer_skew_minutes: i64,
 }
 
 /// What the host advertises as `_madar._tcp` over native Bonjour/NSD (TXT keys

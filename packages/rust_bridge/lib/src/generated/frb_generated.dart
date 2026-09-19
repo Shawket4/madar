@@ -13699,8 +13699,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   LanStatusView dco_decode_lan_status_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return LanStatusView(
       running: dco_decode_bool(arr[0]),
       peerCount: dco_decode_u_32(arr[1]),
@@ -13710,6 +13710,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       beaconActive: dco_decode_bool(arr[5]),
       mdnsActive: dco_decode_bool(arr[6]),
       nativeDiscoveryActive: dco_decode_bool(arr[7]),
+      peerSkewMinutes: dco_decode_i_64(arr[8]),
     );
   }
 
@@ -17605,6 +17606,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_beaconActive = sse_decode_bool(deserializer);
     var var_mdnsActive = sse_decode_bool(deserializer);
     var var_nativeDiscoveryActive = sse_decode_bool(deserializer);
+    var var_peerSkewMinutes = sse_decode_i_64(deserializer);
     return LanStatusView(
       running: var_running,
       peerCount: var_peerCount,
@@ -17614,6 +17616,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       beaconActive: var_beaconActive,
       mdnsActive: var_mdnsActive,
       nativeDiscoveryActive: var_nativeDiscoveryActive,
+      peerSkewMinutes: var_peerSkewMinutes,
     );
   }
 
@@ -22236,6 +22239,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_bool(self.beaconActive, serializer);
     sse_encode_bool(self.mdnsActive, serializer);
     sse_encode_bool(self.nativeDiscoveryActive, serializer);
+    sse_encode_i_64(self.peerSkewMinutes, serializer);
   }
 
   @protected

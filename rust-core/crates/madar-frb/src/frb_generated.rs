@@ -15674,6 +15674,7 @@ const _: fn() = || {
         let _: bool = LanStatusView.beacon_active;
         let _: bool = LanStatusView.mdns_active;
         let _: bool = LanStatusView.native_discovery_active;
+        let _: i64 = LanStatusView.peer_skew_minutes;
     }
     {
         let LastTillWarningView = None::<crate::api::till::LastTillWarningView>.unwrap();
@@ -17975,6 +17976,7 @@ impl SseDecode for crate::api::device::LanStatusView {
         let mut var_beaconActive = <bool>::sse_decode(deserializer);
         let mut var_mdnsActive = <bool>::sse_decode(deserializer);
         let mut var_nativeDiscoveryActive = <bool>::sse_decode(deserializer);
+        let mut var_peerSkewMinutes = <i64>::sse_decode(deserializer);
         return crate::api::device::LanStatusView {
             running: var_running,
             peer_count: var_peerCount,
@@ -17984,6 +17986,7 @@ impl SseDecode for crate::api::device::LanStatusView {
             beacon_active: var_beaconActive,
             mdns_active: var_mdnsActive,
             native_discovery_active: var_nativeDiscoveryActive,
+            peer_skew_minutes: var_peerSkewMinutes,
         };
     }
 }
@@ -24455,6 +24458,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::device::LanStatusV
             self.0.beacon_active.into_into_dart().into_dart(),
             self.0.mdns_active.into_into_dart().into_dart(),
             self.0.native_discovery_active.into_into_dart().into_dart(),
+            self.0.peer_skew_minutes.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -27853,6 +27857,7 @@ impl SseEncode for crate::api::device::LanStatusView {
         <bool>::sse_encode(self.beacon_active, serializer);
         <bool>::sse_encode(self.mdns_active, serializer);
         <bool>::sse_encode(self.native_discovery_active, serializer);
+        <i64>::sse_encode(self.peer_skew_minutes, serializer);
     }
 }
 
