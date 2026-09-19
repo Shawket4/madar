@@ -11,12 +11,13 @@
 //! * teller A parks an order and leaves another cart in hand; the device goes
 //!   offline and A signs out; teller B unlocks with a PIN, offline;
 //! * B sees both of A's orders, marked as A's, and an empty cart in hand;
-//! * B, a teller without `orders.held.resume_others`, resumes A's parked
-//!   order with a branch manager's PIN approval on the till, opens a till and
-//!   settles it, all offline;
+//! * B, an ordinary teller holding nothing special, resumes A's parked order
+//!   with NO prompt and NO manager PIN (owner decision 2026-09-19: a held
+//!   order is shared state on the till), opens a till and settles it, all
+//!   offline;
 //! * back online, the replayed sale is B's (teller, drawer) and records A as
-//!   the person who started it, with the manager's approval verified and no
-//!   authorization flag.
+//!   the person who started it, and carries NO authorization flag — a resume
+//!   is not an act that needs a grant.
 //!
 //! And, the other way round: a teller whose OWN order is still parked when a
 //! manager uses the till in between resumes and settles it with no approval
@@ -102,14 +103,16 @@ async fn a_held_order_started_by_one_teller_is_settled_by_the_next_and_names_bot
     let regular = drafts.iter().find(|d| d.name == "Ali's regular").expect("the parked order").id.clone();
 
     let decision = core.decide_draft_act("resume".into(), regular.clone());
-    assert_eq!(decision.outcome, "needs_approval", "{decision:?}");
-    assert!(core.switch_to_draft(None, regular.clone(), None, None).is_err(), "not without a manager");
-    let approval = core
-        .approve_draft_act("5678".into(), "resume".into(), regular.clone())
-        .expect("the manager approves offline");
+    assert_eq!(decision.outcome, "allow", "someone else's order is not gated: {decision:?}");
+    // And there is no approval to mint for it any more, even with the
+    // manager's real PIN.
+    assert!(
+        core.approve_draft_act("5678".into(), "resume".into(), regular.clone()).is_err(),
+        "a resume asks for no approval"
+    );
     let resumed = core
-        .switch_to_draft_approved(None, regular.clone(), None, None, Some(approval.clone()))
-        .expect("resume");
+        .switch_to_draft(None, regular.clone(), None, None)
+        .expect("Badr resumes Ali's order with no manager anywhere near the till");
     assert_eq!(resumed.lines.iter().map(|l| l.qty).sum::<i64>(), 2);
 
     core.open_till(5_000, Some("queue scenario".into())).await.expect("open offline");
@@ -163,20 +166,13 @@ async fn a_held_order_started_by_one_teller_is_settled_by_the_next_and_names_bot
         (row.get(0), row.get(1), row.get(2));
     assert_eq!(teller, badr_id, "settled by Badr: his drawer");
     assert_eq!(started, Some(ali_id), "started by Ali");
-    let approved = fx
-        .db
-        .query_one("SELECT verified, approver_user_id FROM approvals WHERE id = $1", &[&uuid::Uuid::parse_str(&approval.id).unwrap()])
-        .await
-        .expect("the approval is on record");
-    assert!(approved.get::<_, bool>(0), "verified at replay");
-    assert_eq!(approved.get::<_, uuid::Uuid>(1), mona_id);
     let flags: i64 = fx
         .db
         .query_one("SELECT count(*) FROM authz_replay_flags WHERE author_id = $1", &[&badr_id])
         .await
         .unwrap()
         .get(0);
-    assert_eq!(flags, 0, "an approved resume is not flagged");
+    assert_eq!(flags, 0, "a resume is never flagged: it needs no grant");
 
     // Both names, as the order read joins them (GET /orders/{id} is
     // covered by the backend's replay test).

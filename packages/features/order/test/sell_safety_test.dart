@@ -93,6 +93,8 @@ class _Fake implements MadarBridge {
 
   /// The approval the last switch carried.
   ApprovalView? switchedWith;
+  int discards = 0;
+  ApprovalView? discardedWith;
   int fires = 0;
   int removes = 0;
   int adds = 0;
@@ -121,6 +123,11 @@ class _Fake implements MadarBridge {
       return Future<void>.value();
     }
     if (name == #decideDraftAct) return decision;
+    if (name == #discardDraft) {
+      discards += 1;
+      discardedWith = a[#approval] as ApprovalView?;
+      return Future<void>.value();
+    }
     if (name == #listDrafts) {
       return Future<List<DraftView>>.value(const [_draft]);
     }
@@ -239,7 +246,7 @@ void main() {
     const reason = "This isn't your sale — a manager must approve.";
     const approval = ApprovalView(
       id: 'ap-1',
-      capability: 'orders.held.resume_others',
+      capability: 'orders.void',
       approverId: 'm-1',
       approverName: 'Mona',
     );
@@ -250,8 +257,34 @@ void main() {
       tableTaken: false,
     );
 
+    test('resuming it asks nobody and carries no approval', () async {
+      // Owner decision 2026-09-19: a held order is shared state on the till,
+      // so the core answers "allow" whoever started it — a teller, another
+      // teller, or a manager — and the sheet never opens.
+      final bridge = _Fake()
+        ..decision = const ActDecisionView(outcome: 'allow', reason: '');
+      final c = _container(bridge);
+      final order = c.read(orderProvider.notifier);
+      await order.loadDrafts();
+      var asked = false;
+
+      final resumed = order.resumeDraft(
+        'd-1',
+        askManager: (_) async {
+          asked = true;
+          return approval;
+        },
+      );
+      bridge.switchGate.complete(landed);
+      await resumed;
+
+      expect(asked, isFalse, reason: 'no manager PIN sheet on a resume');
+      expect(bridge.switches, 1);
+      expect(bridge.switchedWith, isNull, reason: 'nothing to carry');
+    });
+
     test(
-      'waits for a manager when the core asks, and carries the approval',
+      'discarding it waits for a manager, and carries the approval',
       () async {
         final bridge = _Fake()
           ..decision = const ActDecisionView(
@@ -263,23 +296,21 @@ void main() {
         await order.loadDrafts();
         final asked = <String>[];
 
-        final resumed = order.resumeDraft(
+        await order.discardDraft(
           'd-1',
           askManager: (why) async {
             asked.add(why);
             return approval;
           },
         );
-        bridge.switchGate.complete(landed);
-        await resumed;
 
         expect(asked, [reason], reason: "the sheet shows the core's reason");
-        expect(bridge.switches, 1);
-        expect(bridge.switchedWith, approval);
+        expect(bridge.discards, 1);
+        expect(bridge.discardedWith, approval);
       },
     );
 
-    test('a dismissed manager sheet moves nothing', () async {
+    test('a dismissed manager sheet discards nothing', () async {
       final bridge = _Fake()
         ..decision = const ActDecisionView(
           outcome: 'needs_approval',
@@ -289,10 +320,9 @@ void main() {
       final order = c.read(orderProvider.notifier);
       await order.loadDrafts();
 
-      final out = await order.resumeDraft('d-1', askManager: (_) async => null);
+      await order.discardDraft('d-1', askManager: (_) async => null);
 
-      expect(out, isNull);
-      expect(bridge.switches, 0);
+      expect(bridge.discards, 0);
     });
 
     test('a refusal moves nothing and asks nobody', () async {

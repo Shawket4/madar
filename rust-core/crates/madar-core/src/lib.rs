@@ -4376,9 +4376,11 @@ impl MadarCore {
         self.switch_to_draft_approved(from_table_id, id, park_in_hand, park_at_target, None)
     }
 
-    /// [`Self::switch_to_draft`] carrying a manager's approval for resuming a
-    /// held order someone else started (`decide_draft_act("resume")`). Without
-    /// one, such a resume is refused when the person's grant asks for it.
+    /// [`Self::switch_to_draft`] carrying an optional manager approval.
+    /// Resuming a held order needs none since the 2026-09-19 owner decision
+    /// (`queue` rule 4): the parameter is kept so older Dart call sites and
+    /// queued payloads still compile and parse, and any approval passed is
+    /// simply dropped.
     pub fn switch_to_draft_approved(
         &self,
         from_table_id: Option<String>,
