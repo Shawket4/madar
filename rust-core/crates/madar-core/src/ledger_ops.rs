@@ -12,6 +12,7 @@ use std::time::Duration;
 
 use madar_api::apis::{orders_api, refunds_api, tills_api};
 
+use crate::approvals::ApprovalView;
 use crate::error::CoreError;
 use crate::ledger::views;
 use crate::{changes, net, orders, parity, till, MadarCore};
@@ -38,7 +39,7 @@ pub(crate) const FILL_EVERY_MS: i64 = 30_000;
 const K_FILL_ASKED: &str = "ledger:fill_asked:";
 
 impl MadarCore {
-    fn online(&self) -> bool {
+    pub(crate) fn online(&self) -> bool {
         self.current_session().map(|s| s.online).unwrap_or(false)
     }
 
@@ -90,6 +91,33 @@ impl MadarCore {
         });
     }
 
+    /// The server's report for a till, carrying a one-time manager-PIN unlock
+    /// when one is given.
+    ///
+    /// Since the server enforces the widened `till.cash_spot_check` (owner,
+    /// 2026-09-19), an OPEN till's figures are refused to a person without the
+    /// grant unless the request carries the unlock the manager just minted
+    /// here — the SAME approval the spot view is recorded with, verified
+    /// server-side exactly as `POST /tills/{id}/spot-views` verifies it. A
+    /// CLOSED till's finished report never needs one (owner decision 1), which
+    /// is why the background mirror and the parity guard pass `None` and are
+    /// unaffected for every till they legitimately hold.
+    pub(crate) async fn fetch_till_report(
+        &self,
+        till_id: &str,
+        unlock: Option<&ApprovalView>,
+    ) -> Result<madar_api::models::TillReportResponse, madar_api::apis::Error<tills_api::GetTillReportError>>
+    {
+        tills_api::get_till_report(
+            &self.api.config(),
+            tills_api::GetTillReportParams {
+                till_id: till_id.to_string(),
+                x_madar_approval: unlock.map(|a| crate::approvals::approval_wire(a).to_string()),
+            },
+        )
+        .await
+    }
+
     /// The fill itself: every page of the till's sales into rows, and the
     /// server's report stored for it. `true` when both arrived.
     pub(crate) async fn fill_till(&self, till_id: &str) -> bool {
@@ -110,8 +138,7 @@ impl MadarCore {
         } else {
             done = false;
         }
-        match tills_api::get_till_report(&self.api.config(), tills_api::GetTillReportParams { till_id: till_id.to_string() }).await
-        {
+        match self.fetch_till_report(till_id, None).await {
             Ok(report) => {
                 crate::timefmt::remember_payload_tz(&self.store, &Some(report.timezone.clone()));
                 if views::put_till_report(&self.store, till_id, &report).is_ok() {
@@ -465,9 +492,7 @@ impl MadarCore {
         if !ready(&self.store) {
             return Vec::new();
         }
-        let Ok(report) =
-            tills_api::get_till_report(&self.api.config(), tills_api::GetTillReportParams { till_id: till_id.to_string() }).await
-        else {
+        let Ok(report) = self.fetch_till_report(till_id, None).await else {
             return Vec::new();
         };
         let _ = views::put_till_report(&self.store, till_id, &report);

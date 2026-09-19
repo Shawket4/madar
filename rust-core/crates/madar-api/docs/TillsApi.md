@@ -54,7 +54,7 @@ Name | Type | Description  | Required | Notes
 
 ## close_preview
 
-> models::CloseTillPreview close_preview(till_id)
+> models::CloseTillPreview close_preview(till_id, x_madar_approval)
 
 
 ### Parameters
@@ -63,6 +63,7 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **till_id** | **uuid::Uuid** | Till ID | [required] |
+**x_madar_approval** | Option<**String**> | A one-time manager-PIN unlock (a `ReplayApproval` as JSON) for the expected figures before a close, when the caller does not hold `till.cash_spot_check`. Read from POS/KDS clients >= 0.7.11 only. |  |
 
 ### Return type
 
@@ -282,7 +283,7 @@ Name | Type | Description  | Required | Notes
 
 ## get_till_report
 
-> models::TillReportResponse get_till_report(till_id)
+> models::TillReportResponse get_till_report(till_id, x_madar_approval)
 
 
 ### Parameters
@@ -291,6 +292,7 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **till_id** | **uuid::Uuid** | Till ID | [required] |
+**x_madar_approval** | Option<**String**> | A one-time manager-PIN unlock (a `ReplayApproval` as JSON) for an OPEN till's figures, when the caller does not hold `till.cash_spot_check`. Read from POS/KDS clients >= 0.7.11 only; a closed till's report never needs it. |  |
 
 ### Return type
 

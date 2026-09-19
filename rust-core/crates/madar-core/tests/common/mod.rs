@@ -232,12 +232,30 @@ pub async fn signed_in(base: &str, db_path: &str, teller: &str, branch: &str) ->
 
 /// [`signed_in`] with a PIN other than the fixture's shared "1234".
 pub async fn signed_in_pin(base: &str, db_path: &str, teller: &str, branch: &str, pin: &str) -> Arc<MadarCore> {
+    signed_in_pin_as(base, db_path, teller, branch, pin, None).await
+}
+
+/// [`signed_in_pin`] reporting a particular app version in `X-Madar-Client`.
+///
+/// The server's till-figures gate only holds a `pos` build at or after
+/// 0.7.11 to the widened `till.cash_spot_check` (owner, 2026-09-19), so a
+/// scenario that means to exercise it must say which build it is. The default
+/// (`None`) keeps every other scenario on the harness's old version, which is
+/// also the honest old-client case.
+pub async fn signed_in_pin_as(
+    base: &str,
+    db_path: &str,
+    teller: &str,
+    branch: &str,
+    pin: &str,
+    app_version: Option<&str>,
+) -> Arc<MadarCore> {
     let core = MadarCore::new(MadarConfig {
         base_url: base.to_string(),
         environment: "dev".into(),
         db_path: db_path.to_string(),
         locale: "en".into(),
-        app_version: None,
+        app_version: app_version.map(str::to_string),
     })
     .expect("core");
     // Sign-in is keyed on the address by the server's limiter, which every
