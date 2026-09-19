@@ -26,6 +26,8 @@ pub struct AddCashMovementParams {
 pub struct ClosePreviewParams {
     /// Till ID
     pub till_id: String,
+    /// A one-time manager-PIN unlock (a `ReplayApproval` as JSON) for the expected figures before a close, when the caller does not hold `till.cash_spot_check`. Read from POS/KDS clients >= 0.7.11 only.
+    pub x_madar_approval: Option<String>,
 }
 
 /// struct for passing parameters to the method [`close_till`]
@@ -87,6 +89,8 @@ pub struct GetTillParams {
 pub struct GetTillReportParams {
     /// Till ID
     pub till_id: String,
+    /// A one-time manager-PIN unlock (a `ReplayApproval` as JSON) for an OPEN till's figures, when the caller does not hold `till.cash_spot_check`. Read from POS/KDS clients >= 0.7.11 only; a closed till's report never needs it.
+    pub x_madar_approval: Option<String>,
 }
 
 /// struct for passing parameters to the method [`legacy_list_till_entities`]
@@ -411,6 +415,9 @@ pub async fn close_preview(
 
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(param_value) = params.x_madar_approval {
+        req_builder = req_builder.header("X-Madar-Approval", param_value.to_string());
     }
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
@@ -790,6 +797,9 @@ pub async fn get_till_report(
 
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(param_value) = params.x_madar_approval {
+        req_builder = req_builder.header("X-Madar-Approval", param_value.to_string());
     }
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());

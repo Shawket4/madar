@@ -32,6 +32,7 @@ pub struct SetOverrideRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub limits: Option<Option<Box<models::LimitsView>>>,
+    /// Optional audit note. Never required: an absent or empty reason is accepted for every capability. Stored (trimmed) when it is sent.
     #[serde(
         rename = "reason",
         default,

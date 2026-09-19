@@ -207,6 +207,22 @@ impl MadarCore {
     /// look (queued, offline-capable); an approval, when needed, is used up.
     pub async fn cash_spot_view(&self, approval: Option<ApprovalView>) -> Result<CashSpotView, CoreError> {
         let preview = self.close_till_preview().await?;
+        // The server enforces the widened rule too (owner, 2026-09-19): an
+        // OPEN till's figures are refused to someone without the grant unless
+        // the unlock the manager just minted travels with the request. So when
+        // this look IS an unlock, ask for the report carrying it, and store
+        // what comes back — the manager's PIN then works online exactly as it
+        // does offline. A till this device holds completely computes its own
+        // report and never needed the server anyway; this is the shared or
+        // adopted till that does. Failure is not fatal: the local rows answer.
+        if let Some(a) = approval.as_ref().filter(|_| self.online()) {
+            if let Ok(r) = self.fetch_till_report(&preview.till.id, Some(a)).await {
+                crate::timefmt::remember_payload_tz(&self.store, &Some(r.timezone.clone()));
+                if crate::ledger::views::put_till_report(&self.store, &preview.till.id, &r).is_ok() {
+                    self.store.emit_changes([crate::changes::TILLS]);
+                }
+            }
+        }
         let report = self.till_report().await?;
         self.spot_unlock(approval.as_ref())?;
         let t = preview.till.clone();

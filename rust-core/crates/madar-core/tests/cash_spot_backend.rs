@@ -9,6 +9,9 @@
 //!   once (printed) when back online and the Z report lists it;
 //! * a teller without the grant gets a manager's one-time PIN for one look; the
 //!   server stores who unlocked it and records a verified approval;
+//! * a teller on a 0.7.11 build unlocks the live figures ONLINE with a
+//!   manager's PIN: the core carries the approval on `GET /tills/{id}/report`
+//!   (`X-Madar-Approval`) and the look completes, exactly as it does offline;
 //! * a teller without the grant closes BLIND with a short drawer; the till lands
 //!   in the owner's review queue (reconciliation disagreed). The widened rule
 //!   (owner 2026-09-19) rides along: no shift totals before the close, past
@@ -209,7 +212,10 @@ async fn a_blind_close_without_the_grant_flags_its_discrepancy() {
     assert!(!orders.is_empty());
     assert!(orders.iter().all(|o| o.total_minor > 0), "each sale keeps its own total");
     assert!(core.till_stats_checked(orders.clone()).is_err(), "no shift totals");
-    assert!(core.till_stats(orders).sales_minor > 0, "the past-orders header is untouched");
+    // Widened again 2026-09-19: the past-orders HEADER's aggregate is a till
+    // money figure and goes through the same gate; the sales and their own
+    // totals (asserted just above) are what decision 3 protects.
+    assert!(core.till_stats(orders).sales_minor > 0, "the plain sum still exists in the core");
 
     // What the drawer really holds, known only to the test.
     let expected = core.close_till_preview().await.expect("truth").expected_cash_minor;
@@ -252,4 +258,70 @@ async fn a_blind_close_without_the_grant_flags_its_discrepancy() {
         .unwrap();
     assert_eq!(row.get::<_, Option<String>>(0).as_deref(), Some("disagreed"), "in the review queue");
     assert_eq!(row.get::<_, Option<i32>>(1), Some(-700));
+}
+
+/// The unlock works ONLINE exactly as it does offline (owner, 2026-09-19).
+///
+/// Since the server enforces the widened rule for `pos` builds >= 0.7.11, this
+/// core reports that build. A blind teller is refused the live figures, a
+/// manager's one-time PIN opens them, and the approval the core carries on
+/// `GET /tills/{id}/report` is the same one the spot view is recorded with.
+#[tokio::test]
+#[ignore]
+async fn a_new_build_carries_the_unlock_online_and_the_look_completes() {
+    let fx = fixture(1).await;
+    let (teller_id, teller) = fx.tellers[0].clone();
+    let (mgr_id, mgr) = manager(&fx, "864215").await;
+    let db = temp_db("spot-online");
+    {
+        // The manager signs in once here, so the bundle carries their verifier.
+        let core = signed_in_pin_as(&fx.base, &db, &mgr, &fx.branch, "864215", Some("0.7.11")).await;
+        core.logout(false).ok();
+    }
+    let core = signed_in_pin_as(&fx.base, &db, &teller, &fx.branch, "1234", Some("0.7.11")).await;
+    core.refresh_connectivity().await;
+    core.refresh_catalog().await.expect("catalog");
+    core.sync_full().await.expect("snapshot");
+    assert!(core.sync_status().online, "this one runs ONLINE");
+
+    let till_id = core.open_till(5_000, None).await.expect("open").till.expect("till").id;
+    let cash = method(&core, true).expect("cash");
+    sell(&core, 1, &cash, 1_000_000).await;
+    settle(&core, 60).await;
+
+    assert!(!core.till_figures_visible(), "a teller counts blind by default");
+    assert!(core.cash_spot_view(None).await.is_err(), "no grant, no PIN, no figures");
+    assert!(core.till_report_checked().await.is_err(), "and no live report");
+
+    let approval = core.approve_cash_spot("864215".into()).expect("the manager's PIN");
+    let view = core.cash_spot_view(Some(approval)).await.expect("the unlocked look, online");
+    assert!(view.report.is_open, "the LIVE report");
+    assert!(view.expected_cash_minor > 0, "with its figures");
+    core.record_cash_spot_print(view.view_id.clone()).await.expect("and it prints");
+    drain(&core).await;
+
+    let till = uuid::Uuid::parse_str(&till_id).unwrap();
+    let row = fx
+        .db
+        .query_one(
+            "SELECT viewed_by, approved_by, printed FROM till_spot_views WHERE till_id = $1",
+            &[&till],
+        )
+        .await
+        .unwrap();
+    assert_eq!(row.get::<_, uuid::Uuid>(0), teller_id, "the person did not change");
+    assert_eq!(row.get::<_, Option<uuid::Uuid>>(1), Some(mgr_id), "whose PIN opened it");
+    assert!(row.get::<_, bool>(2), "printed");
+
+    // The approval the core carried is a verified one, not a flag.
+    let verified: bool = fx
+        .db
+        .query_one(
+            "SELECT bool_and(verified) FROM approvals WHERE subject_user_id = $1 AND approver_user_id = $2",
+            &[&teller_id, &mgr_id],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    assert!(verified);
 }
