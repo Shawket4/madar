@@ -666,19 +666,34 @@ impl Store {
 
 
 
-    /// Count create_order ops blocked because their `open_till` dependency
-    /// DEAD-lettered — the "stuck sales" the sync center surfaces (and the auto-heal
-    /// clears). They are neither sent (dependency dead) nor lost (still queued).
-    pub fn count_orders_blocked_by_dead_dep(&self) -> CoreResult<u32> {
-        let n: i64 = self.lock().query_row(
-            "SELECT COUNT(*) FROM outbox o \
-             WHERE o.op_type='create_order' AND o.status IN ('pending','inflight') \
-               AND o.depends_on_seq IS NOT NULL \
-               AND EXISTS (SELECT 1 FROM outbox d WHERE d.seq=o.depends_on_seq AND d.status='dead')",
-            [],
-            |r| r.get(0),
+    /// Every op held behind a DEAD root — queued, never sent, and not lost.
+    /// Returns `(client id, op_type)` oldest first.
+    ///
+    /// Two shapes of block, matching [`Self::must_wait`] exactly:
+    /// * its explicit dependency dead-lettered (an order onto its `open_till`);
+    /// * a dead `open_till`/`open_shift` sits EARLIER in its till's FIFO, which
+    ///   holds every later op of that till — `close_till` included.
+    ///
+    /// This used to count `create_order` only, so a wedged drawer close, a void,
+    /// a cash movement or a ticket was blocked and INVISIBLE: the till showed a
+    /// clean queue that never drained, and the close it was waiting on never
+    /// came. Any op that can be blocked is now reported.
+    pub fn blocked_by_dead_root(&self) -> CoreResult<Vec<(String, String)>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT o.id, o.op_type FROM outbox o \
+             WHERE o.status IN ('pending','inflight') AND ( \
+                 EXISTS (SELECT 1 FROM outbox d \
+                          WHERE d.seq=o.depends_on_seq AND d.status='dead') \
+              OR EXISTS (SELECT 1 FROM outbox e \
+                          WHERE e.till_id=o.till_id AND e.seq<o.seq AND e.status='dead' \
+                            AND e.op_type IN ('open_till','open_shift')) ) \
+             ORDER BY o.seq ASC",
         )?;
-        Ok(n as u32)
+        let rows = stmt
+            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
     }
 
 
@@ -2191,6 +2206,64 @@ mod tests {
         assert_eq!(s.live_seq_of("a").unwrap(), Some(a)); // dead counts (still a real row)
         s.mark_acked(a, Some("srv")).unwrap();
         assert_eq!(s.live_seq_of("a").unwrap(), None); // acked is NOT a live dep target
+    }
+
+    /// A dead `open_till` wedges its till's WHOLE queue — the close included —
+    /// and the sync center used to count only the stranded `create_order`s. The
+    /// teller then saw "2 sales held up" while a void, a cash movement and the
+    /// drawer's own close sat in the same jam, invisible: a till that could not
+    /// be closed and nothing on screen saying why.
+    #[test]
+    fn every_op_held_behind_a_dead_root_is_reported_not_just_sales() {
+        let s = Store::open("").unwrap();
+        let open = s
+            .enqueue(&op_with("t1:open", "open_till", Some("t1"), None))
+            .unwrap();
+        s.enqueue(&op_with("o1", "create_order", Some("t1"), Some(open)))
+            .unwrap();
+        s.enqueue(&op_with("v1", "void_order", Some("t1"), Some(open)))
+            .unwrap();
+        s.enqueue(&op_with("c1", "cash_movement", Some("t1"), None))
+            .unwrap();
+        s.enqueue(&op_with("t1:close", "close_till", Some("t1"), None))
+            .unwrap();
+        // A second till is untouched by t1's trouble.
+        s.enqueue(&op_with("o2", "create_order", Some("t2"), None))
+            .unwrap();
+
+        // Nothing is dead yet: nothing is HELD, only queued.
+        assert!(s.blocked_by_dead_root().unwrap().is_empty());
+
+        s.mark_dead(open, "409 till already open elsewhere").unwrap();
+        let held = s.blocked_by_dead_root().unwrap();
+        let ids: Vec<&str> = held.iter().map(|(id, _)| id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["o1", "v1", "c1", "t1:close"],
+            "every later op of the wedged till is held, in FIFO order: {held:?}"
+        );
+        assert!(
+            held.iter().any(|(_, op)| op == "close_till"),
+            "the drawer's own close is held — the till cannot finish: {held:?}"
+        );
+        assert!(
+            !ids.contains(&"o2"),
+            "another till's work is not held: {held:?}"
+        );
+
+        // A dead dependency alone (no dead open) still counts: an order onto a
+        // till whose open was acked but whose earlier order was refused.
+        let s2 = Store::open("").unwrap();
+        let root = s2
+            .enqueue(&op_with("root", "create_order", None, None))
+            .unwrap();
+        s2.enqueue(&op_with("child", "award_loyalty_points", None, Some(root)))
+            .unwrap();
+        s2.mark_dead(root, "422").unwrap();
+        assert_eq!(
+            s2.blocked_by_dead_root().unwrap(),
+            vec![("child".to_string(), "award_loyalty_points".to_string())]
+        );
     }
 
     // ════════════════════════════════════════════════════════════════════════

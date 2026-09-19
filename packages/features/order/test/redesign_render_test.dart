@@ -729,6 +729,7 @@ class _FakeBridge implements MadarBridge {
     if (name == #refreshConnectivity) return Future<bool>.value(true);
     if (name == #syncStatus) {
       return SyncStatusView(
+        blockedClose: false,
         pendingOutbox: 0,
         deadOutbox: 0,
         blocked: 0,

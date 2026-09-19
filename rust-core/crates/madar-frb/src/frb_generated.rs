@@ -15945,6 +15945,7 @@ const _: fn() = || {
         let _: i64 = OutboxItemView.attempts;
         let _: Option<String> = OutboxItemView.last_error;
         let _: String = OutboxItemView.event_at;
+        let _: bool = OutboxItemView.blocked;
     }
     {
         let PaymentMethodChoice = None::<crate::api::drawer::PaymentMethodChoice>.unwrap();
@@ -16223,6 +16224,7 @@ const _: fn() = || {
         let _: bool = SyncStatusView.online;
         let _: bool = SyncStatusView.auth_paused;
         let _: u32 = SyncStatusView.blocked;
+        let _: bool = SyncStatusView.blocked_close;
         let _: crate::api::sync::FreshnessView = SyncStatusView.freshness;
     }
     {
@@ -16303,6 +16305,8 @@ const _: fn() = || {
         let _: Option<String> = TillOpenSyncView.stale_reason;
         let _: u32 = TillOpenSyncView.changes_applied;
         let _: u32 = TillOpenSyncView.pending_outbox;
+        let _: u32 = TillOpenSyncView.blocked;
+        let _: bool = TillOpenSyncView.blocked_close;
     }
     {
         let TillRefundsView = None::<crate::api::orders::TillRefundsView>.unwrap();
@@ -20021,6 +20025,7 @@ impl SseDecode for crate::api::sync::OutboxItemView {
         let mut var_attempts = <i64>::sse_decode(deserializer);
         let mut var_lastError = <Option<String>>::sse_decode(deserializer);
         let mut var_eventAt = <String>::sse_decode(deserializer);
+        let mut var_blocked = <bool>::sse_decode(deserializer);
         return crate::api::sync::OutboxItemView {
             id: var_id,
             op_type: var_opType,
@@ -20028,6 +20033,7 @@ impl SseDecode for crate::api::sync::OutboxItemView {
             attempts: var_attempts,
             last_error: var_lastError,
             event_at: var_eventAt,
+            blocked: var_blocked,
         };
     }
 }
@@ -20671,6 +20677,7 @@ impl SseDecode for crate::api::sync::SyncStatusView {
         let mut var_online = <bool>::sse_decode(deserializer);
         let mut var_authPaused = <bool>::sse_decode(deserializer);
         let mut var_blocked = <u32>::sse_decode(deserializer);
+        let mut var_blockedClose = <bool>::sse_decode(deserializer);
         let mut var_freshness = <crate::api::sync::FreshnessView>::sse_decode(deserializer);
         return crate::api::sync::SyncStatusView {
             phase: var_phase,
@@ -20685,6 +20692,7 @@ impl SseDecode for crate::api::sync::SyncStatusView {
             online: var_online,
             auth_paused: var_authPaused,
             blocked: var_blocked,
+            blocked_close: var_blockedClose,
             freshness: var_freshness,
         };
     }
@@ -20968,6 +20976,8 @@ impl SseDecode for crate::api::sync::TillOpenSyncView {
         let mut var_staleReason = <Option<String>>::sse_decode(deserializer);
         let mut var_changesApplied = <u32>::sse_decode(deserializer);
         let mut var_pendingOutbox = <u32>::sse_decode(deserializer);
+        let mut var_blocked = <u32>::sse_decode(deserializer);
+        let mut var_blockedClose = <bool>::sse_decode(deserializer);
         return crate::api::sync::TillOpenSyncView {
             state: var_state,
             till_id: var_tillId,
@@ -20976,6 +20986,8 @@ impl SseDecode for crate::api::sync::TillOpenSyncView {
             stale_reason: var_staleReason,
             changes_applied: var_changesApplied,
             pending_outbox: var_pendingOutbox,
+            blocked: var_blocked,
+            blocked_close: var_blockedClose,
         };
     }
 }
@@ -25267,6 +25279,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::sync::OutboxItemVi
             self.0.attempts.into_into_dart().into_dart(),
             self.0.last_error.into_into_dart().into_dart(),
             self.0.event_at.into_into_dart().into_dart(),
+            self.0.blocked.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -26036,6 +26049,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::sync::SyncStatusVi
             self.0.online.into_into_dart().into_dart(),
             self.0.auth_paused.into_into_dart().into_dart(),
             self.0.blocked.into_into_dart().into_dart(),
+            self.0.blocked_close.into_into_dart().into_dart(),
             self.0.freshness.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -26395,6 +26409,8 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::sync::TillOpenSync
             self.0.stale_reason.into_into_dart().into_dart(),
             self.0.changes_applied.into_into_dart().into_dart(),
             self.0.pending_outbox.into_into_dart().into_dart(),
+            self.0.blocked.into_into_dart().into_dart(),
+            self.0.blocked_close.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -29292,6 +29308,7 @@ impl SseEncode for crate::api::sync::OutboxItemView {
         <i64>::sse_encode(self.attempts, serializer);
         <Option<String>>::sse_encode(self.last_error, serializer);
         <String>::sse_encode(self.event_at, serializer);
+        <bool>::sse_encode(self.blocked, serializer);
     }
 }
 
@@ -29686,6 +29703,7 @@ impl SseEncode for crate::api::sync::SyncStatusView {
         <bool>::sse_encode(self.online, serializer);
         <bool>::sse_encode(self.auth_paused, serializer);
         <u32>::sse_encode(self.blocked, serializer);
+        <bool>::sse_encode(self.blocked_close, serializer);
         <crate::api::sync::FreshnessView>::sse_encode(self.freshness, serializer);
     }
 }
@@ -29860,6 +29878,8 @@ impl SseEncode for crate::api::sync::TillOpenSyncView {
         <Option<String>>::sse_encode(self.stale_reason, serializer);
         <u32>::sse_encode(self.changes_applied, serializer);
         <u32>::sse_encode(self.pending_outbox, serializer);
+        <u32>::sse_encode(self.blocked, serializer);
+        <bool>::sse_encode(self.blocked_close, serializer);
     }
 }
 

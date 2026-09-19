@@ -1145,9 +1145,15 @@ fn en(key: &str) -> Option<&'static str> {
         "sync.waiting" => "Waiting",
         "sync.stuck" => "Stuck",
         "sync.needs_you" => "needs you",
-        "sync.blocked" => "Blocked",
+        "sync.blocked" => "Held up",
         "sync.blocked_hint" => {
-            "Sales stranded behind a failed shift opening. Open a shift, then recover them."
+            "These are waiting on an action the server refused. Retry that action above — if it will never go through, discard it and these will move."
+        }
+        "sync.blocked_open_hint" => {
+            "The shift opening failed, so everything on this drawer is stuck behind it — sales, drawer money, and the close. Open a shift, then recover them."
+        }
+        "sync.blocked_close_warning" => {
+            "The drawer cannot close until this is sorted: its close is waiting too."
         }
         "sync.recover" => "Recover stranded sales",
         "sync.recover_need_shift" => "Open a till first",
@@ -2418,8 +2424,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "sync.waiting" => "بالانتظار",
         "sync.stuck" => "متعثر",
         "sync.needs_you" => "يحتاجك",
-        "sync.blocked" => "محجوز",
-        "sync.blocked_hint" => "توقفت هذه المبيعات بسبب فشل فتح الوردية. افتح وردية جديدة لاسترجاعها.",
+        "sync.blocked" => "متوقّفة",
+        "sync.blocked_hint" => "دي مستنية حاجة الخادم رفضها. جرّب تبعتها تاني من فوق، ولو مش هتعدي خالص إلغيها وهي هتمشي.",
+        "sync.blocked_open_hint" => "فتح الوردية ما نجحش، وكل اللي على الدرج واقف وراه — المبيعات وحركة الفلوس وقفل الوردية كمان. افتح وردية وبعدين استرجعهم.",
+        "sync.blocked_close_warning" => "الدرج مش هيقفل غير لما دي تتحل: قفل الوردية مستني معاهم.",
         "sync.recover" => "استرجاع المبيعات العالقة",
         "sync.recover_need_shift" => "افتح وردية أولاً",
         "sync.recovered" => "تم استرجاعها",

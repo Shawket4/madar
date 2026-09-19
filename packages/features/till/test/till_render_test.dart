@@ -136,6 +136,8 @@ const _lastTill = LastTillWarningView(
 );
 
 const _syncDone = TillOpenSyncView(
+  blocked: 0,
+  blockedClose: false,
   state: 'done',
   tillId: 'sh-1',
   startedAt: '2026-09-12T15:02:00Z',
@@ -145,6 +147,8 @@ const _syncDone = TillOpenSyncView(
 );
 
 const _syncRunning = TillOpenSyncView(
+  blocked: 0,
+  blockedClose: false,
   state: 'running',
   tillId: 'sh-1',
   startedAt: '2026-09-12T15:02:00Z',
@@ -153,6 +157,8 @@ const _syncRunning = TillOpenSyncView(
 );
 
 const _syncStale = TillOpenSyncView(
+  blocked: 0,
+  blockedClose: false,
   state: 'stale',
   tillId: 'sh-1',
   startedAt: '2026-09-12T15:02:00Z',
@@ -511,6 +517,7 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #syncStatus) {
       return SyncStatusView(
+        blockedClose: false,
         pendingOutbox: online ? 0 : 3,
         deadOutbox: 0,
         blocked: 0,

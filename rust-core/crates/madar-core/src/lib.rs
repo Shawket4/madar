@@ -5299,6 +5299,11 @@ pub struct OutboxItemView {
     pub attempts: i64,
     pub last_error: Option<String>,
     pub event_at: String,
+    /// This op is HELD: its root dead-lettered (its own dependency, or the
+    /// dead `open_till` earlier in its till's queue). It is queued, not on its
+    /// way — the section must not show it as merely "waiting", because nothing
+    /// will move it until the root is retried or discarded.
+    pub blocked: bool,
 }
 
 
@@ -5308,11 +5313,18 @@ impl MadarCore {
     /// Queued + failed commands for the sync center (acked rows hidden), oldest
     /// first. Always succeeds offline.
     pub fn list_outbox(&self) -> Result<Vec<OutboxItemView>, CoreError> {
+        let blocked: std::collections::HashSet<String> = self
+            .store
+            .blocked_by_dead_root()?
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
         Ok(self
             .store
             .list_active()?
             .into_iter()
             .map(|i| OutboxItemView {
+                blocked: blocked.contains(&i.id),
                 id: i.id,
                 op_type: i.op_type,
                 status: i.status,

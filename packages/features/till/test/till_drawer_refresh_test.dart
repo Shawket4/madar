@@ -184,6 +184,7 @@ class _CoreBridge implements MadarBridge {
     if (name == #listTills) return Future<List<TillView>>.value(const []);
     if (name == #syncStatus) {
       return SyncStatusView(
+        blockedClose: false,
         pendingOutbox: 1,
         deadOutbox: 0,
         blocked: 0,

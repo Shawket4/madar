@@ -24,6 +24,9 @@ pub struct _OutboxItemView {
     pub attempts: i64,
     pub last_error: Option<String>,
     pub event_at: String,
+    /// Held behind a dead root: queued, but nothing will send it until that
+    /// root is retried or discarded.
+    pub blocked: bool,
 }
 
 /// Sync health (§10.3).
@@ -42,7 +45,10 @@ pub struct _SyncStatusView {
     pub assets: AssetSyncView,
     pub online: bool,
     pub auth_paused: bool,
+    /// Ops of ANY type held behind a dead root.
     pub blocked: u32,
+    /// One of them is the drawer's own close.
+    pub blocked_close: bool,
     /// How far the local data can be trusted (`fresh` / `stale` / `bootstrapping`).
     pub freshness: FreshnessView,
 }
@@ -80,6 +86,8 @@ pub struct _TillOpenSyncView {
     pub stale_reason: Option<String>,
     pub changes_applied: u32,
     pub pending_outbox: u32,
+    pub blocked: u32,
+    pub blocked_close: bool,
 }
 
 /// One diagnostic log line.

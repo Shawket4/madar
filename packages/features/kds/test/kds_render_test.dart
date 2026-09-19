@@ -306,6 +306,7 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #syncStatus) {
       return SyncStatusView(
+        blockedClose: false,
         pendingOutbox: outbox.where((o) => o.status != 'dead').length,
         deadOutbox: outbox.where((o) => o.status == 'dead').length,
         blocked: 0,
@@ -433,6 +434,7 @@ Future<void> _snap(WidgetTester tester, String name) async {
 }
 
 OutboxItemView _op(String id, String status, {String? error}) => OutboxItemView(
+  blocked: false,
   id: id,
   opType: 'bump_kitchen',
   status: status,

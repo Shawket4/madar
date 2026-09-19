@@ -27,8 +27,13 @@ pub struct SyncStatusView {
     pub assets: crate::assets::AssetSyncView,
     pub online: bool,
     pub auth_paused: bool,
-    /// Ops waiting on a dead dependency (the sync center's "stuck" count).
+    /// Ops of ANY type held behind a dead root (the sync center's "held up"
+    /// count). Used to be create_order only, which hid a wedged drawer close.
     pub blocked: u32,
+    /// A `close_till`/`close_shift` is among them: the drawer cannot finish
+    /// until the root is retried or discarded, and the till-close screen says so
+    /// instead of spinning.
+    pub blocked_close: bool,
     /// How much the local data can be trusted right now (OFFLINE_B_DESIGN §6).
     pub freshness: FreshnessView,
 }
@@ -172,6 +177,10 @@ pub struct TillOpenSyncView {
     pub stale_reason: Option<String>,
     pub changes_applied: u32,
     pub pending_outbox: u32,
+    /// Ops of this device held behind a dead root right now.
+    pub blocked: u32,
+    /// One of them is the drawer's own close.
+    pub blocked_close: bool,
 }
 
 /// Mutable engine state kept on the core (phase, errors, the till-open strip).
@@ -1267,6 +1276,7 @@ impl MadarCore {
         let online = self.current_session().map(|s| s.online).unwrap_or(false);
         let branch = self.sync_branch().unwrap_or_default();
         let kv = |k: &str| self.store.kv_get(&format!("{k}{branch}")).ok().flatten();
+        let blocked = self.store.blocked_by_dead_root().unwrap_or_default();
         SyncStatusView {
             phase: if st.phase.is_empty() {
                 "idle".into()
@@ -1283,7 +1293,10 @@ impl MadarCore {
             assets: self.asset_sync_view(),
             online,
             auth_paused: self.auth_paused.load(std::sync::atomic::Ordering::Relaxed) && online,
-            blocked: self.store.count_orders_blocked_by_dead_dep().unwrap_or(0),
+            blocked: blocked.len() as u32,
+            blocked_close: blocked
+                .iter()
+                .any(|(_, op)| matches!(op.as_str(), "close_till" | "close_shift")),
             freshness: freshness(
                 &self.store,
                 &branch,
@@ -1320,6 +1333,11 @@ impl MadarCore {
         let st = self.sync_state.lock().unwrap_or_else(|e| e.into_inner());
         let mut v = st.till_open.clone();
         v.pending_outbox = self.store.pending_count().unwrap_or(0);
+        let blocked = self.store.blocked_by_dead_root().unwrap_or_default();
+        v.blocked = blocked.len() as u32;
+        v.blocked_close = blocked
+            .iter()
+            .any(|(_, op)| matches!(op.as_str(), "close_till" | "close_shift"));
         v
     }
 }

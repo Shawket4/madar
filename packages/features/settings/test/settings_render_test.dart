@@ -121,6 +121,7 @@ const _config = DeviceConfigView(
 /// server refused, and one sale stranded behind a dead till opening.
 const _tellerOutbox = [
   OutboxItemView(
+    blocked: false,
     id: 'o1',
     opType: 'create_order',
     status: 'pending',
@@ -128,6 +129,7 @@ const _tellerOutbox = [
     eventAt: '2026-09-11T19:38:00Z',
   ),
   OutboxItemView(
+    blocked: false,
     id: 'o2',
     opType: 'cash_movement',
     status: 'inflight',
@@ -135,6 +137,7 @@ const _tellerOutbox = [
     eventAt: '2026-09-11T19:40:00Z',
   ),
   OutboxItemView(
+    blocked: false,
     id: 'o3',
     opType: 'settle_open_ticket',
     status: 'dead',
@@ -144,9 +147,50 @@ const _tellerOutbox = [
   ),
 ];
 
+/// The drawer that will not close: the shift opening was refused, so every
+/// later op of that till is HELD — a sale, the drawer money, and the close
+/// itself. The sync center used to count the sale alone, so the teller saw
+/// "1 blocked" and no hint that the drawer could not finish.
+const _wedgedTillOutbox = [
+  OutboxItemView(
+    blocked: false,
+    id: 'sh1:open',
+    opType: 'open_till',
+    status: 'dead',
+    attempts: 3,
+    lastError: 'That drawer is already open on another device',
+    eventAt: '2026-09-11T18:00:00Z',
+  ),
+  OutboxItemView(
+    blocked: true,
+    id: 'o9',
+    opType: 'create_order',
+    status: 'pending',
+    attempts: 0,
+    eventAt: '2026-09-11T18:20:00Z',
+  ),
+  OutboxItemView(
+    blocked: true,
+    id: 'c9',
+    opType: 'cash_movement',
+    status: 'pending',
+    attempts: 0,
+    eventAt: '2026-09-11T18:40:00Z',
+  ),
+  OutboxItemView(
+    blocked: true,
+    id: 'sh1:close',
+    opType: 'close_till',
+    status: 'pending',
+    attempts: 0,
+    eventAt: '2026-09-11T22:00:00Z',
+  ),
+];
+
 /// A waiter's queue: two rounds waiting and one the server refused.
 const _waiterOutbox = [
   OutboxItemView(
+    blocked: false,
     id: 'w1',
     opType: 'ticket_add_round',
     status: 'pending',
@@ -154,6 +198,7 @@ const _waiterOutbox = [
     eventAt: '2026-09-11T19:20:00Z',
   ),
   OutboxItemView(
+    blocked: false,
     id: 'w2',
     opType: 'open_ticket',
     status: 'pending',
@@ -161,6 +206,7 @@ const _waiterOutbox = [
     eventAt: '2026-09-11T18:47:00Z',
   ),
   OutboxItemView(
+    blocked: false,
     id: 'w3',
     opType: 'ticket_add_round',
     status: 'dead',
@@ -226,6 +272,7 @@ final _bills = <TicketView>[
 ];
 
 SyncStatusView _status() => SyncStatusView(
+  blockedClose: false,
   pendingOutbox: 2,
   deadOutbox: 1,
   blocked: 1,
@@ -615,6 +662,35 @@ void main() {
       bridge: _FakeBridge(),
       name: 'sync-phone',
     );
+    // A refused settle holds nothing, so there is no stranded-sales recovery
+    // to offer here — the row above is the whole story.
+    expect(find.text('Recover stranded sales'), findsNothing);
+  });
+
+  /// Everything held behind a dead shift opening is named, the drawer's own
+  /// close included, and the section says what to do about it.
+  testWidgets('sync when a dead shift opening wedged the drawer', (
+    tester,
+  ) async {
+    await _shoot(
+      tester,
+      size: _phone,
+      theme: MadarTheme.light(),
+      home: const SyncScreen(),
+      bridge: _FakeBridge(outbox: _wedgedTillOutbox),
+      name: 'sync-wedged-till',
+    );
+    expect(find.text('HELD UP'), findsOneWidget);
+    // The count is every held op, not the sale alone.
+    expect(find.text('3'), findsWidgets);
+    // Each one is named — including the close, which used to be invisible.
+    expect(find.text('Sale'), findsWidgets);
+    expect(find.text('Close till'), findsWidgets);
+    expect(
+      find.textContaining('its close is waiting'),
+      findsOneWidget,
+      reason: 'the drawer cannot finish, and the section says so',
+    );
     expect(find.text('Recover stranded sales'), findsOneWidget);
   });
 
@@ -627,6 +703,7 @@ void main() {
       bridge: _FakeBridge(
         outbox: const [],
         status: SyncStatusView(
+          blockedClose: false,
           pendingOutbox: 0,
           deadOutbox: 0,
           blocked: 0,
@@ -660,6 +737,7 @@ void main() {
         outbox: _waiterOutbox,
         tillOpen: false,
         status: SyncStatusView(
+          blockedClose: false,
           pendingOutbox: 2,
           deadOutbox: 1,
           blocked: 0,
@@ -697,6 +775,7 @@ void main() {
         outbox: _waiterOutbox,
         tillOpen: false,
         status: SyncStatusView(
+          blockedClose: false,
           pendingOutbox: 2,
           deadOutbox: 1,
           blocked: 0,

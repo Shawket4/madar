@@ -134,7 +134,8 @@ class _SyncSectionState extends ConsumerState<SyncSection> {
     final shown = capped
         ? waitingRows.sublist(0, _compactWaitingCap)
         : waitingRows;
-    // A waiter's view hides a teller's stranded sales: nothing they can do.
+    // A waiter's view hides a teller's stranded work: nothing they can do.
+    final heldRows = widget.waiterOnly ? const <OutboxItemView>[] : state.held;
     final blocked = widget.waiterOnly ? 0 : state.blocked;
     final clear = waitingRows.isEmpty && stuckRows.isEmpty && blocked == 0;
     return Column(
@@ -181,6 +182,19 @@ class _SyncSectionState extends ConsumerState<SyncSection> {
             text: bridge.tr(key: 'sync.blocked'),
             trailing: SyncFigure('$blocked'),
           ),
+          if (heldRows.isNotEmpty)
+            MadarCard(
+              flush: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final (index, item) in heldRows.indexed) ...[
+                    if (index > 0) const MadarHairline.row(),
+                    _WaitingItem(item: item),
+                  ],
+                ],
+              ),
+            ),
           const _BlockedCard(),
         ],
         if (waitingRows.isNotEmpty) ...[
@@ -457,9 +471,11 @@ class _StuckItem extends ConsumerWidget {
   }
 }
 
-/// Sales stranded behind a dead `open_till`. The rows are ordinary queued
-/// sales; what makes them stuck is the dependency, which only the count
-/// knows. Recovery needs an open drawer to move them onto.
+/// Work held behind a refused action — a sale, a void, drawer money, a
+/// ticket, or the drawer's own CLOSE. What makes it held is the dependency,
+/// which the rows above cannot show for themselves, so this card names the way
+/// forward rather than leaving a queue that never drains. Behind a failed
+/// shift opening, recovery needs an open drawer to move the work onto.
 class _BlockedCard extends ConsumerWidget {
   const _BlockedCard();
 
@@ -470,26 +486,43 @@ class _BlockedCard extends ConsumerWidget {
     final hasTill = ref.watch(syncProvider.select((s) => s.hasOpenTill));
     final recovering = ref.watch(syncProvider.select((s) => s.recovering));
     final recovered = ref.watch(syncProvider.select((s) => s.recovered));
+    final blocksClose = ref.watch(
+      syncProvider.select((s) => s.heldBlocksClose),
+    );
+    final behindOpen = ref.watch(syncProvider.select((s) => s.heldBehindOpen));
     return MadarCard.column(
       children: [
         Text(
-          bridge.tr(key: 'sync.blocked_hint'),
+          bridge.tr(
+            key: behindOpen ? 'sync.blocked_open_hint' : 'sync.blocked_hint',
+          ),
           style: MadarType.bodySm.copyWith(color: colors.textSecondary),
         ),
-        MadarButton(
-          label: bridge.tr(key: 'sync.recover'),
-          variant: MadarButtonVariant.secondary,
-          glyph: MadarGlyph.undo,
-          enabled: hasTill,
-          tooltip: hasTill ? null : bridge.tr(key: 'sync.recover_need_shift'),
-          loading: recovering,
-          onTap: () => unawaited(ref.read(syncProvider.notifier).recover()),
-        ),
-        if (!hasTill)
+        if (blocksClose)
           Text(
-            bridge.tr(key: 'sync.recover_need_shift'),
-            style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+            bridge.tr(key: 'sync.blocked_close_warning'),
+            style: MadarType.bodySm.copyWith(color: colors.warning),
           ),
+        // Only a failed shift OPENING has a recovery of its own; anything else
+        // held is freed by retrying or discarding the refused row above, which
+        // the hint says. Offering "Recover stranded sales" there would be a
+        // button that cannot help.
+        if (behindOpen) ...[
+          MadarButton(
+            label: bridge.tr(key: 'sync.recover'),
+            variant: MadarButtonVariant.secondary,
+            glyph: MadarGlyph.undo,
+            enabled: hasTill,
+            tooltip: hasTill ? null : bridge.tr(key: 'sync.recover_need_shift'),
+            loading: recovering,
+            onTap: () => unawaited(ref.read(syncProvider.notifier).recover()),
+          ),
+          if (!hasTill)
+            Text(
+              bridge.tr(key: 'sync.recover_need_shift'),
+              style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+            ),
+        ],
         if (recovered != null)
           Row(
             spacing: Space.xs,

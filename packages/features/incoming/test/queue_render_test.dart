@@ -480,6 +480,7 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #syncStatus) {
       return SyncStatusView(
+        blockedClose: false,
         online: true,
         pendingOutbox: 0,
         deadOutbox: 0,

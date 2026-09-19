@@ -512,6 +512,7 @@ OrderDetailView _detail(String id) => OrderDetailView(
 
 const _outbox = <OutboxItemView>[
   OutboxItemView(
+    blocked: false,
     id: 'ob-1',
     opType: 'ticket_add_round',
     status: 'pending',
@@ -519,6 +520,7 @@ const _outbox = <OutboxItemView>[
     eventAt: '2026-09-12T19:20:00Z',
   ),
   OutboxItemView(
+    blocked: false,
     id: 'ob-2',
     opType: 'open_ticket',
     status: 'pending',
@@ -742,6 +744,7 @@ class _FakeBridge implements MadarBridge {
     // ── connectivity, sync ─────────────────────────────────────────────────
     if (name == #syncStatus) {
       return SyncStatusView(
+        blockedClose: false,
         pendingOutbox: pending,
         deadOutbox: failed,
         blocked: 0,

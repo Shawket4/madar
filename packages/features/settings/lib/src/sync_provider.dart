@@ -48,16 +48,30 @@ class SyncState {
   List<OutboxItemView> get stuck =>
       outbox.where((item) => item.status == 'dead').toList(growable: false);
 
-  /// Rows still on their way: queued or mid-send.
-  List<OutboxItemView> get waiting =>
-      outbox.where((item) => item.status != 'dead').toList(growable: false);
+  /// Rows still on their way: queued or mid-send, and actually moving. A HELD
+  /// row is queued too but nothing will send it, so it must not sit here
+  /// looking like ordinary traffic — it gets its own section.
+  List<OutboxItemView> get waiting => outbox
+      .where((item) => item.status != 'dead' && !item.blocked)
+      .toList(growable: false);
+
+  /// Rows held behind a refused action: any op type, not just sales.
+  List<OutboxItemView> get held =>
+      outbox.where((item) => item.blocked).toList(growable: false);
+
+  /// One of the held rows is the drawer's own close — the till cannot finish.
+  bool get heldBlocksClose =>
+      held.any((i) => i.opType == 'close_till' || i.opType == 'close_shift');
+
+  /// The refused root is a shift opening, so recovery needs a fresh drawer.
+  bool get heldBehindOpen =>
+      stuck.any((i) => i.opType == 'open_till' || i.opType == 'open_shift');
 
   /// Whether any command is dead (shows Retry all).
   bool get hasFailed => stuck.isNotEmpty;
 
-  /// Sales stranded behind a dead `open_till` — the count the rows
-  /// themselves cannot show, so it gets its own section.
-  int get blocked => status?.blocked ?? 0;
+  /// Ops of any type held behind a refused action.
+  int get blocked => held.isNotEmpty ? held.length : (status?.blocked ?? 0);
 
   /// Nothing queued, nothing stuck, nothing stranded.
   bool get isClear => outbox.isEmpty && blocked == 0;
