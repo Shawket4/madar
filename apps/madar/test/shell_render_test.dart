@@ -544,7 +544,13 @@ class _FakeBridge implements MadarBridge {
     this.authPaused = false,
     this.clockSkew = 0,
     this.route,
+    this.lockReason = 'no_till',
   });
+
+  /// Why the core would lock this device when no till is open — `no_till`
+  /// (the ordinary start of the day) or a refusal it cannot satisfy
+  /// (`not_permitted`, `open_elsewhere`).
+  final String lockReason;
 
   /// `login` or `station`: a device before the shell (sign-in, a kitchen
   /// screen picking its station).
@@ -701,6 +707,32 @@ class _FakeBridge implements MadarBridge {
       );
     }
     // ── session, route, device ─────────────────────────────────────────────
+    // The core's ONE lock answer, in miniature: a cashier device with no
+    // open drawer is locked; waiters and the kitchen hold no drawer and are
+    // never locked (`till_lock()` in till_ops.rs).
+    if (name == #tillLock) {
+      final holdsDrawer = !_waiter && role != 'kitchen';
+      final locked = holdsDrawer && !tillOpen && route == null;
+      String word(String key) => (rtl ? _ar[key] : null) ?? _en[key] ?? key;
+      final titles = {
+        'no_till': 'till.lock_title',
+        'not_permitted': 'till.lock_not_permitted_title',
+        'open_elsewhere': 'till.lock_elsewhere_title',
+      };
+      final bodies = {
+        'no_till': 'till.lock_body',
+        'not_permitted': 'till.lock_not_permitted_body',
+        'open_elsewhere': 'till.lock_elsewhere_body',
+      };
+      return TillLockView(
+        locked: locked,
+        reason: locked ? lockReason : '',
+        title: locked ? word(titles[lockReason]!) : '',
+        body: locked ? word(bodies[lockReason]!) : '',
+        canOpen: locked && lockReason == 'no_till',
+        holdsDrawer: holdsDrawer,
+      );
+    }
     if (name == #appRoute && route == 'login') return const AppRoute.login();
     if (name == #appRoute && route == 'station') {
       return const AppRoute.deviceSetup();
@@ -1264,6 +1296,151 @@ void main() {
       findsOneWidget,
     );
     await _shot(tester, 'shell-teller-noshift-ipad-offline');
+  });
+
+  // ── The lock: no drawer, no shop ────────────────────────────────────────
+  //
+  // Owner decision 2026-09-19: a cashier device with no open till is walled
+  // to the open-till screen. Everything reachable while locked and everything
+  // hidden is pinned here, at the sizes the tills actually ship on, in both
+  // languages. The core decides `locked`; these tests prove the SHELL obeys.
+
+  /// Every rail tab key currently on screen.
+  Set<String> railKeys(WidgetTester tester) => tester
+      .widgetList<MadarRailTab>(find.byType(MadarRailTab))
+      .map((t) => t.tab.key ?? '')
+      .toSet();
+
+  const lockSizes = <String, Size>{
+    'ipad9': _ipad9,
+    'ipad9-portrait': _ipad9Portrait,
+    'tab8': _tab8,
+    'lenovo': _lenovo,
+  };
+
+  for (final MapEntry(key: label, value: size) in lockSizes.entries) {
+    for (final rtl in [false, true]) {
+      final tag = rtl ? '$label-ar' : label;
+      testWidgets('locked to the till, and only the till · $tag', (
+        tester,
+      ) async {
+        await _mount(
+          tester,
+          bridge: _FakeBridge(tillOpen: false, rtl: rtl),
+          size: size,
+        );
+        // The rail carries the Till alone: nothing sells, nothing browses.
+        expect(railKeys(tester), {
+          'till',
+        }, reason: 'locked: only the Till is on the rail');
+        for (final gone in ['sell', 'floor', 'queue', 'orders', 'bills']) {
+          expect(
+            find.byWidgetPredicate(
+              (w) => w is MadarRailTab && w.tab.key == gone,
+            ),
+            findsNothing,
+            reason: 'locked: $gone must not be reachable',
+          );
+        }
+        // And nothing from those screens is mounted behind the lock.
+        expect(find.byType(TakeawaySellScreen), findsNothing);
+        expect(find.byType(FloorScreen), findsNothing);
+        expect(find.byType(OrderHistoryScreen), findsNothing);
+
+        // What stays: the open-till screen with the core's own words, the
+        // manager-actions list, the sync pill and the person button.
+        expect(find.byType(OpenTillScreen), findsOneWidget);
+        expect(find.byKey(const ValueKey('till.lock_notice')), findsOneWidget);
+        expect(
+          find.text(coreWord('till.lock_title', arabic: rtl)),
+          findsOneWidget,
+          reason: 'the reason, in the language on screen',
+        );
+        expect(find.byType(ManagerActionsBanner), findsOneWidget);
+        expect(find.byType(MadarOutboxPill), findsOneWidget);
+        expect(find.byType(MadarAvatar), findsWidgets);
+
+        await _shot(tester, 'shell-locked-$tag');
+      });
+    }
+  }
+
+  testWidgets('locked: Settings, Sync and sign out are still reachable', (
+    tester,
+  ) async {
+    await _mount(tester, bridge: _FakeBridge(tillOpen: false), size: _lenovo);
+    // Sync, from the outbox pill — its own off-rail page, not a tab.
+    await tester.tap(find.byType(MadarOutboxPill));
+    await _settle(tester);
+    expect(find.byType(SyncScreen), findsOneWidget);
+
+    // Settings and Sign out, from the person button.
+    await tester.tap(find.byType(MadarAvatar).first);
+    await _settle(tester);
+    expect(find.text(coreWord('settings.title')), findsWidgets);
+    expect(find.text(coreWord('settings.sign_out')), findsOneWidget);
+    await tester.tap(find.text(coreWord('settings.title')).last);
+    await _settle(tester);
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    await _shot(tester, 'shell-locked-settings-lenovo');
+  });
+
+  testWidgets('opening a till unlocks the shell with no restart', (
+    tester,
+  ) async {
+    final container = await _mount(
+      tester,
+      bridge: _FakeBridge(tillOpen: false),
+      size: _lenovo,
+    );
+    expect(railKeys(tester), {'till'});
+    // The core's answer changes; the shell re-reads it on the same refresh
+    // every state-changing bridge call already makes.
+    container.updateOverrides([
+      bridgeProvider.overrideWithValue(_FakeBridge()),
+      themeChoiceProvider.overrideWith(ThemeChoiceNotifier.new),
+    ]);
+    container.read(shellProvider.notifier).refresh();
+    await _settle(tester);
+    expect(
+      railKeys(tester),
+      containsAll(<String>['sell', 'floor', 'queue', 'orders', 'till']),
+      reason: 'the shop is back the moment a drawer is open',
+    );
+  });
+
+  testWidgets('a refusal it cannot satisfy is the same screen, with the '
+      'reason and a way out', (tester) async {
+    await _mount(
+      tester,
+      bridge: _FakeBridge(tillOpen: false, lockReason: 'not_permitted'),
+      size: _lenovo,
+    );
+    expect(railKeys(tester), {'till'});
+    expect(find.byKey(const ValueKey('till.lock_notice')), findsOneWidget);
+    expect(
+      find.text(coreWord('till.lock_not_permitted_title')),
+      findsOneWidget,
+    );
+    // No counting field for someone who may never submit it — the way out
+    // is to let the right person in.
+    expect(find.byType(MadarAmountField), findsNothing);
+    expect(find.text(coreWord('till.switch_teller')), findsOneWidget);
+    await _shot(tester, 'shell-locked-not-permitted-lenovo');
+  });
+
+  testWidgets('a waiter and a kitchen device are never locked', (tester) async {
+    await _mount(
+      tester,
+      bridge: _FakeBridge(role: 'waiter', tillOpen: false),
+      size: _lenovo,
+    );
+    expect(
+      railKeys(tester),
+      containsAll(<String>['floor', 'bills', 'me']),
+      reason: 'a waiter holds no drawer — locking them stops table service',
+    );
+    expect(find.byType(OpenTillScreen), findsNothing);
   });
 
   // ── The status bar and the shared signal must never contradict ──────────

@@ -698,6 +698,34 @@ pub(crate) fn open_on_device(store: &Store) -> Vec<TillRecord> {
     out
 }
 
+// ── the device lock (owner decision 2026-09-19) ────────────────────────────
+
+/// Is this device walled to the open-till screen, and why?
+///
+/// ONE answer the shell reads — no screen decides this for itself. Computed
+/// entirely from local state (session, capabilities, the local till record and
+/// the synced till rows), so it is the same answer with or without a network.
+///
+/// `reason` is a stable key, never a sentence: `""` when unlocked, else
+/// `"no_till"`, `"not_permitted"` or `"open_elsewhere"`. `title`/`body` are
+/// the localized words for the locked screen — a reason and what to do next,
+/// never a dead end.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct TillLockView {
+    pub locked: bool,
+    pub reason: String,
+    pub title: String,
+    pub body: String,
+    /// This person may still open a till here (the form is worth showing).
+    pub can_open: bool,
+    /// This device holds a drawer at all — false for waiters and the kitchen,
+    /// who are never locked.
+    pub holds_drawer: bool,
+    /// Set when the refusal is a till open somewhere else.
+    pub elsewhere: Option<TillElsewhereView>,
+}
+
 // ── open: verification (contract §4.5) ─────────────────────────────────────
 
 /// Where the person's till is open, when it is not this device.

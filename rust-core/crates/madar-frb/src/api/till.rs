@@ -37,9 +37,23 @@ pub struct _ClosePreflightView {
 pub use madar_core::till::{
     BranchOpenTillView, CashMovementView, CloseTillMethodView, CloseTillOutcomeView,
     CloseTillPreviewView, LastTillWarningView, OpenBillsNoticeView, OpenTillOutcome,
-    ReconciliationInput, ReconciliationLineView, TillElsewhereView, TillReportCashLine,
-    TillReportPaymentLine, TillReportView, TillSummaryView,
+    ReconciliationInput, ReconciliationLineView, TillElsewhereView, TillLockView,
+    TillReportCashLine, TillReportPaymentLine, TillReportView, TillSummaryView,
 };
+
+/// Is this device walled to the open-till screen, and why? ONE answer the
+/// shell reads — no screen decides this for itself.
+#[frb(mirror(TillLockView))]
+pub struct _TillLockView {
+    pub locked: bool,
+    /// `""` | `"no_till"` | `"not_permitted"` | `"open_elsewhere"`.
+    pub reason: String,
+    pub title: String,
+    pub body: String,
+    pub can_open: bool,
+    pub holds_drawer: bool,
+    pub elsewhere: Option<TillElsewhereView>,
+}
 
 #[frb(mirror(CashMovementView))]
 pub struct _CashMovementView {
@@ -239,6 +253,13 @@ impl MadarBridge {
     // session / open
     pub fn current_till(&self) -> Result<Option<TillView>, MadarError> {
         self.inner.current_till().map_err(MadarError::from)
+    }
+
+    /// Whether the shell must wall this device to the open-till screen, with
+    /// the reason and what to do next. Sync + offline-safe.
+    #[frb(sync)]
+    pub fn till_lock(&self) -> TillLockView {
+        self.inner.till_lock()
     }
 
     pub async fn check_till_elsewhere(&self) -> Result<Option<TillElsewhereView>, MadarError> {

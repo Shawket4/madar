@@ -656,17 +656,29 @@ class _RoleShellState extends ConsumerState<RoleShell> {
 
   // ── build ──────────────────────────────────────────────────────────────────
 
-  List<_Tab> _tabsFor(ShellKind kind, {required bool hasFloor}) =>
-      switch (kind) {
-        ShellKind.waiter => [if (hasFloor) _Tab.floor, _Tab.bills, _Tab.me],
-        ShellKind.teller => [
-          _Tab.sell,
-          if (hasFloor) _Tab.floor,
-          _Tab.queue,
-          _Tab.orders,
-          _Tab.till,
-        ],
-      };
+  /// The rail's tabs. [locked] is the core's one answer (`till_lock()`): a
+  /// cashier device with no open drawer sells nothing, so the rail carries
+  /// the Till alone. Settings, sync, sign out and the manager-actions list
+  /// stay reachable — they are off the rail (the person button, the outbox
+  /// pill, the Till tab's own body), which is why they survive this.
+  ///
+  /// Waiters and kitchen devices hold no drawer and are never locked; the
+  /// core decides that, not this list.
+  List<_Tab> _tabsFor(
+    ShellKind kind, {
+    required bool hasFloor,
+    required bool locked,
+  }) => switch (kind) {
+    ShellKind.waiter => [if (hasFloor) _Tab.floor, _Tab.bills, _Tab.me],
+    ShellKind.teller when locked => [_Tab.till],
+    ShellKind.teller => [
+      _Tab.sell,
+      if (hasFloor) _Tab.floor,
+      _Tab.queue,
+      _Tab.orders,
+      _Tab.till,
+    ],
+  };
 
   /// Where the shell opens: the room for a waiter, the drawer for a teller
   /// with no till, the room where every sale goes on a table, else Sell.
@@ -725,12 +737,15 @@ class _RoleShellState extends ConsumerState<RoleShell> {
     final route = ref.watch(shellProvider.select((s) => s.route));
     final kind = ShellKind.of((c) => bridge.can(cap: c));
     final hasFloor = ref.watch(orderProvider.select((s) => s.hasFloor));
-    final tabs = _tabsFor(kind, hasFloor: hasFloor);
+    // The lock, decided in the core and read here ONCE: the shell asks no
+    // screen and no role what is reachable.
+    final locked = ref.watch(shellProvider.select((s) => s.locked));
+    final tabs = _tabsFor(kind, hasFloor: hasFloor, locked: locked);
     final home = _homeFor(
       kind,
       hasFloor: hasFloor,
       requireTable: session?.requireTableForOrders ?? false,
-      noTill: route is AppRoute_OpenTill,
+      noTill: locked || route is AppRoute_OpenTill,
     );
     // Every stack the shell keeps: the rail's tabs plus the teller's
     // off-rail Settings owner.

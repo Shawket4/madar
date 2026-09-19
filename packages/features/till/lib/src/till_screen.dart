@@ -116,21 +116,22 @@ class TillScreen extends ConsumerWidget {
               ],
             )
           : null;
+      // The manager-actions list stays reachable with NO drawer open: a
+      // refused op waiting on a manager is exactly the kind of thing that
+      // strands a device on this screen, and burying it until a till opens
+      // would make the lock a dead end.
       body = OpenTillScreen(
         embedded: true,
-        below: wasteRow == null && !isManager
-            ? null
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: Space.xl,
-                children: [
-                  ?wasteRow,
-                  if (isManager)
-                    DrawersCard(
-                      onSeeAll: () => _push(context, ref, _pastTills),
-                    ),
-                ],
-              ),
+        below: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.xl,
+          children: [
+            const ManagerActionsBanner(),
+            ?wasteRow,
+            if (isManager)
+              DrawersCard(onSeeAll: () => _push(context, ref, _pastTills)),
+          ],
+        ),
       );
     } else {
       width = MadarContentWidth.full;

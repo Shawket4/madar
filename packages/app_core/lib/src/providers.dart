@@ -67,34 +67,71 @@ class LocaleGeneration extends Notifier<int> {
   void bump() => state = state + 1;
 }
 
-/// The shell truth: the core-derived route + the session snapshot.
+/// The shell truth: the core-derived route + the session snapshot + whether
+/// this device is walled to the open-till screen.
 /// [ShellNotifier.refresh] is the old `onStateChanged` — call it after any
 /// bridge call that can move `app_route()` or the session.
 class ShellState {
-  const ShellState({required this.route, required this.session});
+  const ShellState({
+    required this.route,
+    required this.session,
+    required this.lock,
+  });
 
   final AppRoute route;
   final SessionSnapshot? session;
+
+  /// The core's ONE answer on the device lock (owner decision 2026-09-19):
+  /// a cashier device with no open drawer reaches nothing but the open-till
+  /// screen, Settings, sync, sign out and the manager-actions list. Waiters
+  /// and kitchen devices hold no drawer and are never locked.
+  final TillLockView lock;
+
+  /// Shorthand — the shell reads this, never a role or a route, to decide
+  /// which destinations exist.
+  bool get locked => lock.locked;
 }
 
 class ShellNotifier extends Notifier<ShellState> {
-  @override
-  ShellState build() {
-    final bridge = ref.watch(bridgeProvider);
+  /// Unlocked — what a shell that could not get an answer must assume.
+  ///
+  /// The lock decides what a whole shop can reach. Walling the counter
+  /// because a call did not come back would turn any bridge hiccup into a
+  /// closed till, so the failure direction is "open"; the core's own
+  /// `till_lock()` fails the same way (an unknown permission set shows the
+  /// form rather than claiming the cashier may not open a drawer).
+  static const _unlocked = TillLockView(
+    locked: false,
+    reason: '',
+    title: '',
+    body: '',
+    canOpen: true,
+    holdsDrawer: false,
+  );
+
+  ShellState _read(MadarBridge bridge) {
+    TillLockView lock;
+    try {
+      lock = bridge.tillLock();
+    } on Object catch (_) {
+      lock = _unlocked;
+    }
     return ShellState(
       route: bridge.appRoute(),
       session: bridge.currentSession(),
+      lock: lock,
     );
   }
 
-  /// Re-read route + session from the core; notifies only on change.
+  @override
+  ShellState build() => _read(ref.watch(bridgeProvider));
+
+  /// Re-read route + session + lock from the core; notifies only on change.
   void refresh() {
-    final bridge = ref.read(bridgeProvider);
-    final next = ShellState(
-      route: bridge.appRoute(),
-      session: bridge.currentSession(),
-    );
-    if (next.route != state.route || next.session != state.session) {
+    final next = _read(ref.read(bridgeProvider));
+    if (next.route != state.route ||
+        next.session != state.session ||
+        next.lock != state.lock) {
       state = next;
     }
     ref.read(realtimeArmerProvider)();

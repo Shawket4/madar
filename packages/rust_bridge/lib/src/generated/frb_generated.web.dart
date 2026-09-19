@@ -951,6 +951,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   TillElsewhereView dco_decode_till_elsewhere_view(dynamic raw);
 
   @protected
+  TillLockView dco_decode_till_lock_view(dynamic raw);
+
+  @protected
   TillOpenSyncView dco_decode_till_open_sync_view(dynamic raw);
 
   @protected
@@ -2186,6 +2189,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   TillElsewhereView sse_decode_till_elsewhere_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  TillLockView sse_decode_till_lock_view(SseDeserializer deserializer);
 
   @protected
   TillOpenSyncView sse_decode_till_open_sync_view(SseDeserializer deserializer);
@@ -3786,6 +3792,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
     TillElsewhereView self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_till_lock_view(TillLockView self, SseSerializer serializer);
 
   @protected
   void sse_encode_till_open_sync_view(

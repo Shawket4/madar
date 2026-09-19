@@ -163,14 +163,22 @@ class _OpenTillScreenState extends ConsumerState<OpenTillScreen> {
     // the teller is already in, and "Welcome back" under a header that says
     // Till is two screens talking at once.
     if (widget.embedded) {
+      // The core's ONE answer on the lock: why the device is walled here and
+      // what to do next. A refusal it cannot satisfy (no permission) drops
+      // the counting form — a field nobody may submit is a dead end.
+      final lock = ref.watch(shellProvider.select((s) => s.lock));
       return SingleChildScrollView(
         padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.xl,
           children: [
+            if (lock.locked) TillLockNotice(lock: lock),
             const _OpenNotices(),
-            _OpeningForm(reason: _reason),
+            if (lock.canOpen || !lock.locked)
+              _OpeningForm(reason: _reason)
+            else
+              const _SwitchPersonOnly(),
             ?widget.below,
           ],
         ),
@@ -261,6 +269,11 @@ class _FormColumn extends ConsumerWidget {
               ),
             ],
             const SizedBox(height: Space.xxl),
+            if (ref.watch(shellProvider.select((s) => s.lock)) case final lock
+                when lock.locked) ...[
+              TillLockNotice(lock: lock),
+              const SizedBox(height: Space.lg),
+            ],
             const _OpenNotices(),
             // ── Hero count field (the one thing the teller must do) ───────
             MadarCard.column(
@@ -470,6 +483,26 @@ class _OpenNotices extends ConsumerWidget {
           const TillSyncStrip(),
         ],
       ),
+    );
+  }
+}
+
+/// When the person may not open a till at all, the only way forward is to
+/// let the right person in. Never a dead end, never a bare error.
+class _SwitchPersonOnly extends ConsumerWidget {
+  const _SwitchPersonOnly();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.bridge;
+    return MadarCard.column(
+      children: [
+        MadarButton(
+          label: bridge.tr(key: 'till.switch_teller'),
+          glyph: MadarGlyph.signOut,
+          onTap: () => unawaited(ref.read(openTillProvider.notifier).signOut()),
+        ),
+      ],
     );
   }
 }
