@@ -559,9 +559,13 @@ class _MethodCheckFormState extends ConsumerState<_MethodCheckForm> {
                         ),
                       ),
                       Text(
-                        '${t('till.reconcile_system')} · '
-                        '${MadarFormat.ltr('${m.orderCount}')} '
-                        '${t('till.orders')}',
+                        // A blind count sees no figure and no count: the core
+                        // zeroes both without `till.cash_spot_check`.
+                        blind
+                            ? t('till.reconcile_system')
+                            : '${t('till.reconcile_system')} · '
+                                  '${MadarFormat.ltr('${m.orderCount}')} '
+                                  '${t('till.orders')}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: MadarType.bodySm.copyWith(

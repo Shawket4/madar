@@ -19,6 +19,7 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart' show ReceiptSheet;
 import 'package:feature_history/feature_history.dart' show OrdersTable;
+import 'package:feature_till/src/figures_hidden.dart';
 import 'package:feature_till/src/till_providers.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -82,7 +83,14 @@ class _TillReportSheetState extends ConsumerState<TillReportSheet> {
           ].join(' · ');
 
     final Widget body;
-    if (report == null && state.loadError != null) {
+    if (report == null && state.figuresHidden) {
+      // The till is open and its money is not this person's to see: the one
+      // hidden panel, never a half-filled report.
+      body = const Padding(
+        padding: EdgeInsetsDirectional.all(Space.xl),
+        child: FiguresHiddenPanel(),
+      );
+    } else if (report == null && state.loadError != null) {
       body = ErrorState(
         message: state.loadError!.of(bridge),
         retryLabel: t('history.retry'),

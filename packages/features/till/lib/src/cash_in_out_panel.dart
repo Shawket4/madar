@@ -203,7 +203,9 @@ class CashLedger extends ConsumerWidget {
       cashMovementsProvider.select((s) => s.loadError),
     );
     // The net is a sum for the header line, not a business figure — the
-    // report's cash in / out are the ones that count.
+    // report's cash in / out are the ones that count. It is still a drawer
+    // aggregate, so it goes with the rest without `till.cash_spot_check`.
+    final showNet = bridge.tillFiguresVisible();
     var net = 0;
     for (final m in movements) {
       net += m.amountMinor;
@@ -272,19 +274,22 @@ class CashLedger extends ConsumerWidget {
                   spacing: Space.sm,
                   children: [
                     Text(
-                      '${MadarFormat.ltr('${movements.length}')} · '
-                      '${t('cash.net')}',
+                      showNet
+                          ? '${MadarFormat.ltr('${movements.length}')} · '
+                                '${t('cash.net')}'
+                          : MadarFormat.ltr('${movements.length}'),
                       style: MadarType.bodySm.copyWith(
                         color: colors.textSecondary,
                       ),
                     ),
-                    MoneyText(
-                      net,
-                      currency: currency,
-                      signed: true,
-                      style: MadarType.num,
-                      color: net < 0 ? colors.danger : colors.success,
-                    ),
+                    if (showNet)
+                      MoneyText(
+                        net,
+                        currency: currency,
+                        signed: true,
+                        style: MadarType.num,
+                        color: net < 0 ? colors.danger : colors.success,
+                      ),
                     if (onSeeAll != null && movements.length > shown.length)
                       MadarButton(
                         label: t('chrome.see_all'),

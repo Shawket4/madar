@@ -22,6 +22,7 @@ import 'package:feature_till/src/cash_movements_screen.dart';
 import 'package:feature_till/src/cash_spot_screen.dart';
 import 'package:feature_till/src/close_till_screen.dart';
 import 'package:feature_till/src/drawers_card.dart';
+import 'package:feature_till/src/figures_hidden.dart';
 import 'package:feature_till/src/manager_actions.dart';
 import 'package:feature_till/src/open_till_screen.dart';
 import 'package:feature_till/src/till_history_screen.dart';
@@ -281,6 +282,25 @@ class _StatCards extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
+    // `till.cash_spot_check` is "may see this till's money figures": without
+    // it NO aggregate is shown here — not the sales total, not the tenders,
+    // not the drawer. One panel says so, and Cash spot still offers the PIN.
+    if (!bridge.tillFiguresVisible()) {
+      return FiguresHiddenPanel(
+        titleKey: 'till.this_shift',
+        action: MadarButton(
+          label: t('spot.button'),
+          glyph: MadarGlyph.wallet,
+          variant: MadarButtonVariant.secondary,
+          onTap: () => unawaited(
+            openCashSpot(
+              context,
+              ref,
+            ).then((_) => ref.read(tillProvider.notifier).refresh()),
+          ),
+        ),
+      );
+    }
     final currency = bridge.currentSession()?.currencyCode ?? '';
     final report = ref.watch(tillProvider.select((s) => s.report));
     final stats = ref.watch(tillProvider.select((s) => s.stats));
@@ -330,20 +350,7 @@ class _StatCards extends ConsumerWidget {
                   )
                 : null,
           );
-    // Without the grant the drawer is counted blind: no expected figure here.
-    final Widget cash = !bridge.tillFiguresVisible()
-        ? MadarCard.column(
-            children: [
-              Text(t('till.cash_in_till'), style: MadarType.title),
-              Text(
-                t('spot.blind'),
-                style: MadarType.bodySm.copyWith(
-                  color: context.madarColors.textSecondary,
-                ),
-              ),
-            ],
-          )
-        : report == null
+    final Widget cash = report == null
         ? const _StatSkeleton()
         : MadarStatCard(
             label: t('till.cash_in_till'),
@@ -416,9 +423,11 @@ class _Links extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
-    final orderCount = ref.watch(
-      tillProvider.select((s) => s.stats?.orderCount),
-    );
+    // The count of this shift's sales is a shift aggregate: hidden with the
+    // rest of the figures. The row still goes to the orders.
+    final orderCount = ref.bridge.tillFiguresVisible()
+        ? ref.watch(tillProvider.select((s) => s.stats?.orderCount))
+        : null;
     final movementCount = ref.watch(
       tillProvider.select((s) => s.movements.length),
     );
