@@ -7,6 +7,8 @@
 //! this in the core (chrono-tz) makes Swift + Kotlin render identically and handles
 //! DST correctly, instead of each host formatting in its own device-local zone.
 
+use serde::{Deserialize, Serialize};
+
 use crate::checkout::KEY_BRANCH_TZ;
 use crate::store::Store;
 
@@ -187,9 +189,102 @@ where
     dt.format(&pat).to_string()
 }
 
+
+// ── The date-range picker's chrome ───────────────────────────────────────────
+
+/// Everything a date-range picker needs to draw a branch-local calendar: what
+/// day it is IN THE BRANCH (the future-date guard), which weekday a week starts
+/// on, and the month / weekday words in the till's language.
+///
+/// The picker lays out its own grid — pure civil-date arithmetic, which is
+/// presentation — but every question that is not arithmetic (today, the week
+/// start, the words) is answered here, so the POS and the dashboard cut days
+/// the same way and a calendar cell never disagrees with the range label
+/// beside it.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DatePickerChromeView {
+    /// Today in the branch timezone, `YYYY-MM-DD`.
+    pub today: String,
+    /// The weekday a week starts on: 0 = Sunday … 6 = Saturday (see
+    /// [`WEEK_START`] — the owner's rule is Saturday).
+    pub week_start: i32,
+    /// The seven column headings, already rotated so index 0 is `week_start`.
+    pub weekdays: Vec<String>,
+    /// The twelve months in full, January first — the calendar's own header.
+    pub months: Vec<String>,
+    /// The twelve months as a DATE shows them ([`TimeStyle::DateShort`]), so a
+    /// day the picker labels reads exactly like the screen's range label.
+    pub months_short: Vec<String>,
+}
+
+/// [`crate::MadarCore::date_picker_chrome`] with the zone, the instant and the
+/// locale given — what the tests drive.
+pub(crate) fn date_picker_chrome_in(
+    tz: chrono_tz::Tz,
+    now: chrono::DateTime<chrono::Utc>,
+    locale: &str,
+) -> DatePickerChromeView {
+    use chrono::TimeZone;
+    let arabic = crate::i18n::is_arabic(locale);
+    let first = WEEK_START.num_days_from_sunday() as usize;
+    let weekdays = if arabic { crate::display::AR_WEEKDAYS_SHORT } else { crate::display::EN_WEEKDAYS_SHORT };
+    DatePickerChromeView {
+        today: now.with_timezone(&tz).date_naive().format("%Y-%m-%d").to_string(),
+        week_start: WEEK_START.num_days_from_sunday() as i32,
+        weekdays: (0..7).map(|i| weekdays[(first + i) % 7].to_string()).collect(),
+        months: if arabic {
+            crate::display::AR_MONTHS.iter().map(|m| m.to_string()).collect()
+        } else {
+            crate::display::EN_MONTHS_LONG.iter().map(|m| m.to_string()).collect()
+        },
+        months_short: (0..12u32)
+            .map(|m| {
+                let d = chrono::NaiveDate::from_ymd_opt(2024, m + 1, 1).expect("a first of the month");
+                strftime_in(&chrono::Utc.from_utc_datetime(&d.and_hms_opt(12, 0, 0).expect("noon")), "%b", locale)
+            })
+            .collect(),
+    }
+}
+
+impl crate::MadarCore {
+    /// The chrome a date-range picker draws itself with — see
+    /// [`DatePickerChromeView`]. One cheap local read; always succeeds offline.
+    pub fn date_picker_chrome(&self) -> DatePickerChromeView {
+        date_picker_chrome_in(branch_tz(&self.store), self.corrected_now(), &self.current_locale())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn date_picker_chrome_is_branch_local_and_starts_the_week_on_saturday() {
+        // 21:30 UTC on the 18th is already the 19th in Cairo (UTC+2) — the
+        // future-date guard must use the BRANCH's day, not the device's.
+        let now = chrono::DateTime::parse_from_rfc3339("2026-09-18T22:30:00+00:00")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let en = date_picker_chrome_in(chrono_tz::Africa::Cairo, now, "en");
+        assert_eq!(en.today, "2026-09-19");
+        assert_eq!(en.week_start, 6);
+        assert_eq!(en.weekdays, ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"]);
+        assert_eq!(en.months[8], "September");
+        assert_eq!(en.months_short[8], "Sep");
+
+        // Same instant in a zone a day behind.
+        let la = date_picker_chrome_in(chrono_tz::America::Los_Angeles, now, "en");
+        assert_eq!(la.today, "2026-09-18");
+
+        let ar = date_picker_chrome_in(chrono_tz::Africa::Cairo, now, "ar-EG");
+        assert_eq!(ar.weekdays[0], "سبت");
+        assert_eq!(ar.months[8], "سبتمبر");
+        // The day label the picker composes reads like the screen's range label.
+        assert_eq!(
+            format!("{} {}", ar.months_short[8], 17),
+            format_in(chrono_tz::Africa::Cairo, "2026-09-17T09:00:00+00:00", TimeStyle::DateShort, "ar-EG")
+        );
+    }
 
     #[test]
     fn formats_in_the_branch_timezone_not_utc() {

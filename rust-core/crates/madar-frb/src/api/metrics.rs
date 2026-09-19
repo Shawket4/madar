@@ -8,6 +8,22 @@ use crate::api::error::MadarError;
 pub use madar_core::metrics::{
     MetricsHourView, MetricsItemView, MetricsPresetView, MetricsTenderView, PosMetricsView,
 };
+pub use madar_core::timefmt::DatePickerChromeView;
+
+/// What a date-range picker draws itself with.
+#[frb(mirror(DatePickerChromeView))]
+pub struct _DatePickerChromeView {
+    /// Today in the BRANCH timezone, `YYYY-MM-DD` — the future-date guard.
+    pub today: String,
+    /// 0 = Sunday … 6 = Saturday. The owner's rule is Saturday.
+    pub week_start: i32,
+    /// Seven column headings, already rotated so index 0 is `week_start`.
+    pub weekdays: Vec<String>,
+    /// Twelve month names in full, January first.
+    pub months: Vec<String>,
+    /// Twelve month names as a date shows them (`Sep`).
+    pub months_short: Vec<String>,
+}
 
 /// A date preset chip.
 #[frb(mirror(MetricsPresetView))]
@@ -81,6 +97,14 @@ impl MadarBridge {
     #[frb(sync)]
     pub fn pos_metrics_presets(&self) -> Vec<MetricsPresetView> {
         self.inner.pos_metrics_presets()
+    }
+
+    /// The chrome a date-range picker draws itself with: today in the branch
+    /// zone, the week start, and the month / weekday words in the till's
+    /// language. One cheap local read; always succeeds offline.
+    #[frb(sync)]
+    pub fn date_picker_chrome(&self) -> DatePickerChromeView {
+        self.inner.date_picker_chrome()
     }
 
     /// The Metrics screen for a preset (`custom` takes two `YYYY-MM-DD` days).

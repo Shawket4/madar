@@ -139,3 +139,80 @@ bool? fakeCanInvocation(Invocation invocation, String? Function() role) {
   }
   return null;
 }
+
+// ── the date-range picker's chrome in fakes ────────────────────────────────
+
+/// The core's `date_picker_chrome` as a fake bridge should answer it: a fixed
+/// branch-local today, the owner's SATURDAY week start, and the same month
+/// and weekday words `timefmt.rs` / `display.rs` carry.
+///
+/// [today] is `YYYY-MM-DD`; the default is a Saturday, so a test that asks for
+/// "this week" gets a one-day week and the grid's first column is today's.
+DatePickerChromeView fakeDatePickerChrome({
+  bool arabic = false,
+  String today = '2026-09-19',
+}) => DatePickerChromeView(
+  today: today,
+  weekStart: 6,
+  weekdays: arabic
+      ? const ['سبت', 'حد', 'اتنين', 'تلات', 'أربع', 'خميس', 'جمعة']
+      : const ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+  months: arabic
+      ? const [
+          'يناير',
+          'فبراير',
+          'مارس',
+          'أبريل',
+          'مايو',
+          'يونيو',
+          'يوليو',
+          'أغسطس',
+          'سبتمبر',
+          'أكتوبر',
+          'نوفمبر',
+          'ديسمبر',
+        ]
+      : const [
+          'January',
+          'February',
+          'March',
+          'April',
+          'May',
+          'June',
+          'July',
+          'August',
+          'September',
+          'October',
+          'November',
+          'December',
+        ],
+  monthsShort: arabic
+      ? const [
+          'يناير',
+          'فبراير',
+          'مارس',
+          'أبريل',
+          'مايو',
+          'يونيو',
+          'يوليو',
+          'أغسطس',
+          'سبتمبر',
+          'أكتوبر',
+          'نوفمبر',
+          'ديسمبر',
+        ]
+      : const [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
+        ],
+);

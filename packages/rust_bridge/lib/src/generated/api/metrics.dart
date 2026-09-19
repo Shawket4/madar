@@ -6,6 +6,51 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+/// What a date-range picker draws itself with.
+class DatePickerChromeView {
+  /// Today in the BRANCH timezone, `YYYY-MM-DD` — the future-date guard.
+  final String today;
+
+  /// 0 = Sunday … 6 = Saturday. The owner's rule is Saturday.
+  final int weekStart;
+
+  /// Seven column headings, already rotated so index 0 is `week_start`.
+  final List<String> weekdays;
+
+  /// Twelve month names in full, January first.
+  final List<String> months;
+
+  /// Twelve month names as a date shows them (`Sep`).
+  final List<String> monthsShort;
+
+  const DatePickerChromeView({
+    required this.today,
+    required this.weekStart,
+    required this.weekdays,
+    required this.months,
+    required this.monthsShort,
+  });
+
+  @override
+  int get hashCode =>
+      today.hashCode ^
+      weekStart.hashCode ^
+      weekdays.hashCode ^
+      months.hashCode ^
+      monthsShort.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DatePickerChromeView &&
+          runtimeType == other.runtimeType &&
+          today == other.today &&
+          weekStart == other.weekStart &&
+          weekdays == other.weekdays &&
+          months == other.months &&
+          monthsShort == other.monthsShort;
+}
+
 /// One local hour.
 class MetricsHourView {
   final int hour;

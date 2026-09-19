@@ -12,6 +12,7 @@ export 'src/brand.dart';
 export 'src/chrome.dart';
 export 'src/controls.dart';
 export 'src/data_table.dart';
+export 'src/date_range_picker.dart';
 export 'src/drawer.dart';
 export 'src/focus.dart';
 export 'src/format.dart';
