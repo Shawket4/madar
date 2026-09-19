@@ -132,16 +132,38 @@ pub(crate) fn units_of(base: &str) -> Vec<String> {
     }
 }
 
+/// A waste whose worth is not a real, non-negative amount of money, so it must
+/// not be recorded at all. Stock is destroyed, never created: a negative
+/// quantity or unit cost is bad data, and letting it through would also make
+/// the total compare as under every `max_value` ceiling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct BadValue;
+
 /// `Σ qty × cost`, rounded once; partial when a line has no cost.
-/// Same figure as MadarRust `inventory::waste::value_of`.
-pub(crate) fn value_of(lines: &[(f64, Option<f64>)]) -> (Option<i64>, bool) {
-    let known: Vec<f64> = lines.iter().filter_map(|(q, c)| c.map(|c| q * c)).collect();
+/// Same figure as MadarRust `inventory::waste::value_of` — keep the two in
+/// step, including the `BadValue` rules.
+pub(crate) fn value_of(lines: &[(f64, Option<f64>)]) -> Result<(Option<i64>, bool), BadValue> {
+    let mut known: Vec<f64> = Vec::with_capacity(lines.len());
+    for (q, c) in lines {
+        if !q.is_finite() || *q < 0.0 {
+            return Err(BadValue);
+        }
+        if let Some(c) = c {
+            if !c.is_finite() || *c < 0.0 {
+                return Err(BadValue);
+            }
+            known.push(q * c);
+        }
+    }
     let partial = known.len() < lines.len();
     if known.is_empty() {
-        (None, partial)
-    } else {
-        (Some(known.iter().sum::<f64>().round() as i64), partial)
+        return Ok((None, partial));
     }
+    let total = known.iter().sum::<f64>().round();
+    if !total.is_finite() || total < 0.0 || total > i64::MAX as f64 {
+        return Err(BadValue);
+    }
+    Ok((Some(total as i64), partial))
 }
 
 /// The recipe lines a waste of `item` at `size` takes, merged by ingredient
@@ -291,7 +313,8 @@ impl MadarCore {
                 let base = row.get("unit").and_then(|v| v.as_str()).unwrap_or("pcs").to_string();
                 let qty = convert(input.quantity, &input.unit, &base)
                     .ok_or_else(|| invalid("unit", tr("waste.unit_mismatch")))?;
-                let (value_minor, value_partial) = value_of(&[(qty, cost_of(&input.subject_id))]);
+                let (value_minor, value_partial) = value_of(&[(qty, cost_of(&input.subject_id))])
+                    .map_err(|BadValue| invalid("quantity", tr("waste.bad_value")))?;
                 Ok(Planned {
                     lines: vec![WasteLineView { name: name.clone(), quantity: qty, unit: base }],
                     subject_name: name,
@@ -317,7 +340,8 @@ impl MadarCore {
                     .iter()
                     .map(|(id, _, _, q)| (q * input.quantity, cost_of(id)))
                     .collect();
-                let (value_minor, value_partial) = value_of(&priced);
+                let (value_minor, value_partial) =
+                    value_of(&priced).map_err(|BadValue| invalid("quantity", tr("waste.bad_value")))?;
                 Ok(Planned {
                     subject_name: item.name.clone(),
                     lines: recipe
@@ -332,10 +356,13 @@ impl MadarCore {
         }
     }
 
+    /// The value is REQUIRED here, so it goes through
+    /// `madar_authz::required_value` — the ONE rule the server also uses
+    /// (`MadarRust` `inventory::waste::limit_request`): a value nobody could
+    /// work out needs a manager rather than counting as zero, and a known
+    /// value is judged by its magnitude.
     fn waste_request(value_minor: Option<i64>) -> Request {
-        let mut r = Request::of(Cap::InventoryWasteRecord);
-        r.value = Some(value_minor.unwrap_or(0));
-        r
+        Request::of(Cap::InventoryWasteRecord).required_value(value_minor)
     }
 
     /// The waste's lines and value, and whether the person may record it.
@@ -389,7 +416,14 @@ impl MadarCore {
         let approval = match decision.outcome.as_str() {
             "allow" => None,
             "needs_approval" => match approval {
-                Some(a) if a.capability == CAP && a.value_minor.unwrap_or(0) >= p.value_minor.unwrap_or(0) => {
+                // Judged by the SAME rule as the cap (magnitude; unknown covers
+                // only unknown), so an approval can never stretch further here
+                // than it would have at the ceiling.
+                Some(a)
+                    if a.capability == CAP
+                        && madar_authz::required_value(a.value_minor)
+                            >= madar_authz::required_value(p.value_minor) =>
+                {
                     Some(a)
                 }
                 _ => {
@@ -523,9 +557,56 @@ mod tests {
     #[test]
     fn the_value_is_rounded_once_and_partial_without_a_cost() {
         // 18 g × 2 + 200 ml × 0.1, three times = 168 (a sub-piastre cost still counts).
-        assert_eq!(value_of(&[(54.0, Some(2.0)), (600.0, Some(0.1))]), (Some(168), false));
-        assert_eq!(value_of(&[(10.0, Some(0.333)), (5.0, None)]), (Some(3), true));
-        assert_eq!(value_of(&[(5.0, None)]), (None, true));
+        assert_eq!(value_of(&[(54.0, Some(2.0)), (600.0, Some(0.1))]), Ok((Some(168), false)));
+        assert_eq!(value_of(&[(10.0, Some(0.333)), (5.0, None)]), Ok((Some(3), true)));
+        assert_eq!(value_of(&[(5.0, None)]), Ok((None, true)));
+    }
+
+    #[test]
+    fn a_waste_that_is_not_a_real_amount_is_refused() {
+        // A negative unit cost is bad data. Before this was refused it made
+        // `value_minor` negative, and a negative figure compares as UNDER every
+        // `max_value` ceiling — a big waste recorded with no approval at all.
+        assert_eq!(value_of(&[(10.0, Some(-5.0))]), Err(BadValue));
+        // It must not be rescued by a positive line either.
+        assert_eq!(value_of(&[(10.0, Some(-5.0)), (10.0, Some(99.0))]), Err(BadValue));
+        assert_eq!(value_of(&[(-1.0, Some(5.0))]), Err(BadValue));
+        assert_eq!(value_of(&[(f64::NAN, Some(1.0))]), Err(BadValue));
+        assert_eq!(value_of(&[(1.0, Some(f64::INFINITY))]), Err(BadValue));
+        // Zero is a real amount, not a refusal.
+        assert_eq!(value_of(&[(10.0, Some(0.0))]), Ok((Some(0), false)));
+    }
+
+    #[test]
+    fn a_value_that_cannot_be_judged_needs_approval_and_the_cap_still_works() {
+        use madar_authz::{Decision, EffectiveSet, Limits};
+        // Someone allowed wastes up to 500_00 piastres.
+        let capped = |limit: Option<i64>| {
+            let mut eff = EffectiveSet::default();
+            eff.caps.insert(Cap::InventoryWasteRecord);
+            eff.limits.insert(
+                Cap::InventoryWasteRecord.id(),
+                Limits { max_value: limit, ..Limits::UNLIMITED },
+            );
+            eff
+        };
+        let eff = capped(Some(500_00));
+        let d = |v| madar_authz::decide(&eff, &MadarCore::waste_request(v));
+        // The cap still works normally.
+        assert_eq!(d(Some(400_00)), Decision::Allow, "under the cap is allowed");
+        assert!(matches!(d(Some(600_00)), Decision::NeedsApproval(_)), "over the cap asks");
+        // A value nobody could work out must never slip under the cap.
+        assert!(
+            matches!(d(None), Decision::NeedsApproval(_)),
+            "an amount that cannot be judged must require approval, never bypass it"
+        );
+        // A negative figure is judged by its magnitude, so it cannot bypass either.
+        assert!(matches!(d(Some(-600_00)), Decision::NeedsApproval(_)));
+        // Someone with no ceiling is still allowed: there is nothing to exceed.
+        assert_eq!(
+            madar_authz::decide(&capped(None), &MadarCore::waste_request(None)),
+            Decision::Allow
+        );
     }
 
     #[test]
