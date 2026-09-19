@@ -247,6 +247,7 @@ class _HealthCard extends ConsumerWidget {
 
   final int pendingCount;
   final bool clear;
+
   /// Settings / Me render a compact strip; the full Sync screen has room for
   /// the rebuild action and what it does.
   final bool compact;
