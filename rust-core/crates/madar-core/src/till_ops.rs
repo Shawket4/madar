@@ -7,7 +7,7 @@ use madar_api::models;
 
 use crate::error::CoreError;
 use crate::till::{self, TillRecord, TillView};
-use crate::{cash_i32, checkout, net, store, till_views, MadarCore};
+use crate::{cash_i32, checkout, device, net, store, till_views, MadarCore};
 
 struct SessionParts {
     branch_id: String,
@@ -104,6 +104,103 @@ impl MadarCore {
     /// This install's device id (`lan_device_id`, the `X-Madar-Device` header).
     pub fn device_id(&self) -> String {
         self.lan_device_id()
+    }
+
+    /// Is this device walled to the open-till screen? The ONE answer the shell
+    /// reads (owner decision 2026-09-19): a till device with no open drawer
+    /// sells nothing, shows nothing but the open-till screen, Settings, sync,
+    /// sign out and the manager-actions list.
+    ///
+    /// Sync and purely local — the device may be offline and must still know.
+    /// The carve-out is the same one `open_till`/`refresh_till` make: waiters
+    /// and kitchen devices hold no drawer, so they are never locked (locking
+    /// them would stop table service and the kitchen).
+    pub fn till_lock(&self) -> till::TillLockView {
+        let locale = self.current_locale();
+        let t = |k: &str| crate::i18n::tr(&locale, k);
+        let unlocked = |holds_drawer: bool| till::TillLockView {
+            locked: false,
+            holds_drawer,
+            ..Default::default()
+        };
+        // Signed out / unbound: login and device setup own those screens.
+        let session = match self.current_session() {
+            Some(s) => s,
+            None => return unlocked(false),
+        };
+        if !device::load(&self.store).configured() {
+            return unlocked(false);
+        }
+        let work_kind = self
+            .session
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|s| s.work_kind())
+            .unwrap_or("teller");
+        if work_kind == "waiter" || work_kind == "kitchen" {
+            return unlocked(false);
+        }
+        // This person's OWN open till on THIS device is the only thing that
+        // unlocks it — a stale till left by whoever worked here before does not.
+        if let Ok(Some(cur)) = till::current(&self.store) {
+            if cur.is_open && cur.teller_id == session.user_id {
+                return unlocked(true);
+            }
+        }
+        // "Not permitted" is only ever said when the permissions are actually
+        // KNOWN. An offline bundle sign-in carries a role and no permission
+        // rows yet; claiming the cashier may not open a drawer on that would
+        // wall the shop on a blank. Unknown → show the form and let
+        // `open_till`'s own refusal speak.
+        let permissions_known = self
+            .session
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|s| s.authz.is_some() || !s.permissions.is_empty())
+            .unwrap_or(false);
+        let can_open = !permissions_known || self.can(madar_authz::Cap::TillOpen.key().to_string());
+        if !can_open {
+            return till::TillLockView {
+                locked: true,
+                reason: "not_permitted".into(),
+                title: t("till.lock_not_permitted_title"),
+                body: format!(
+                    "{} {}",
+                    t("till.lock_not_permitted_body"),
+                    t("till.lock_switch_hint")
+                ),
+                can_open: false,
+                holds_drawer: true,
+                elsewhere: None,
+            };
+        }
+        // Open somewhere else, as far as the last pull and this device's own
+        // rows know. No network: the synced rows are already here.
+        let elsewhere = session.branch_id.as_deref().and_then(|b| {
+            till::elsewhere_from_rows(&till::branch_records(&self.store, b), &session.user_id, &self.lan_device_id())
+        });
+        if let Some(e) = elsewhere {
+            return till::TillLockView {
+                locked: true,
+                reason: "open_elsewhere".into(),
+                title: t("till.lock_elsewhere_title"),
+                body: t("till.lock_elsewhere_body"),
+                can_open: false,
+                holds_drawer: true,
+                elsewhere: Some(e),
+            };
+        }
+        till::TillLockView {
+            locked: true,
+            reason: "no_till".into(),
+            title: t("till.lock_title"),
+            body: t("till.lock_body"),
+            can_open: true,
+            holds_drawer: true,
+            elsewhere: None,
+        }
     }
 
     pub fn current_till(&self) -> Result<Option<TillView>, CoreError> {

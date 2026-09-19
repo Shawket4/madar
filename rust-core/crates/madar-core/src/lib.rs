@@ -11136,6 +11136,183 @@ mod lifecycle_tests {
         assert_eq!(core.app_route(), AppRoute::OpenTill);
     }
 
+    // ── the device lock (owner decision 2026-09-19) ────────────────────────
+
+    fn waiter_session(user_id: &str, branch: Option<&str>) -> session::SessionState {
+        let mut s = teller_session(user_id, branch);
+        s.snapshot.role = "waiter".into();
+        s.permissions = vec![session::PermissionEntry {
+            resource: "orders".into(),
+            action: "create".into(),
+            granted: true,
+        }];
+        s
+    }
+
+    /// A till device with no open drawer is LOCKED, and says so in words a
+    /// cashier can act on.
+    #[test]
+    fn till_lock_locks_a_till_device_with_no_open_till() {
+        let core = MadarCore::from_env().unwrap();
+        core.set_device_branch("b".into(), None).unwrap();
+        set_session(
+            &core,
+            Some(teller_session(&uuid::Uuid::new_v4().to_string(), Some("b"))),
+        );
+        let lock = core.till_lock();
+        assert!(lock.locked, "a till device with no drawer is locked");
+        assert_eq!(lock.reason, "no_till");
+        assert!(lock.can_open, "and the person may open one");
+        assert!(lock.holds_drawer);
+        assert!(!lock.title.is_empty() && !lock.body.is_empty(), "never a bare error");
+    }
+
+    /// Waiters and kitchen devices hold no drawer — locking them would stop
+    /// table service and the kitchen.
+    #[test]
+    fn till_lock_never_locks_waiter_or_kitchen_devices() {
+        for (kind, sess) in [
+            ("waiter", waiter_session(&uuid::Uuid::new_v4().to_string(), Some("b"))),
+            ("kitchen", kitchen_session(&uuid::Uuid::new_v4().to_string(), Some("b"))),
+        ] {
+            let core = MadarCore::from_env().unwrap();
+            core.set_device_branch("b".into(), None).unwrap();
+            set_session(&core, Some(sess));
+            let lock = core.till_lock();
+            assert!(!lock.locked, "{kind}: must never be locked");
+            assert!(!lock.holds_drawer, "{kind}: holds no drawer");
+        }
+    }
+
+    /// Signed out / unbound is login's and device setup's business, not ours.
+    #[test]
+    fn till_lock_is_off_before_anyone_signs_in() {
+        let core = MadarCore::from_env().unwrap();
+        assert!(!core.till_lock().locked, "unbound device");
+        core.set_device_branch("b".into(), None).unwrap();
+        assert!(!core.till_lock().locked, "signed out");
+    }
+
+    /// A stale till left by SOMEONE ELSE does not unlock this person's device.
+    #[test]
+    fn till_lock_ignores_a_foreign_tills_open_row() {
+        let core = MadarCore::from_env().unwrap();
+        core.set_device_branch("b".into(), None).unwrap();
+        let me = uuid::Uuid::new_v4();
+        set_session(&core, Some(teller_session(&me.to_string(), Some("b"))));
+        seed_shift(&core, uuid::Uuid::new_v4(), "open");
+        assert!(core.till_lock().locked);
+    }
+
+    /// Opening a till unlocks IMMEDIATELY — no restart, no server round trip.
+    #[tokio::test]
+    async fn till_lock_clears_the_moment_a_till_opens() {
+        for role in ["teller", "branch_manager", "org_admin"] {
+            let core = MadarCore::from_env().unwrap();
+            core.set_device_branch("b".into(), None).unwrap();
+            let mut sess = teller_session(&uuid::Uuid::new_v4().to_string(), Some("b"));
+            sess.snapshot.role = role.into();
+            sess.snapshot.online = false; // offline: the local ledger decides
+            set_session(&core, Some(sess));
+            assert!(core.till_lock().locked, "{role}: before");
+            core.open_till(50000, None).await.unwrap();
+            let lock = core.till_lock();
+            assert!(!lock.locked, "{role}: still locked after opening");
+            assert_eq!(lock.reason, "");
+            assert!(lock.holds_drawer);
+        }
+    }
+
+    /// A refusal is not a dead end: the SAME locked state carries the reason.
+    #[test]
+    fn till_lock_explains_a_refusal_it_cannot_satisfy() {
+        // 1. No permission to open a drawer at all.
+        let core = MadarCore::from_env().unwrap();
+        core.set_device_branch("b".into(), None).unwrap();
+        let mut sess = teller_session(&uuid::Uuid::new_v4().to_string(), Some("b"));
+        // Keeps `payments:create` (so this is still a till device) but loses
+        // the one that opens a drawer.
+        sess.permissions.retain(|p| p.resource != "tills");
+        set_session(&core, Some(sess));
+        let lock = core.till_lock();
+        assert!(lock.locked);
+        assert_eq!(lock.reason, "not_permitted");
+        assert!(!lock.can_open, "the form is pointless for them");
+        assert!(!lock.body.is_empty(), "with what to do next");
+
+        // 2. Their till is already open on another device.
+        let core = MadarCore::from_env().unwrap();
+        let branch = uuid::Uuid::new_v4().to_string();
+        core.set_device_branch(branch.clone(), None).unwrap();
+        let me = uuid::Uuid::new_v4().to_string();
+        set_session(&core, Some(teller_session(&me, Some(&branch))));
+        // `update_record` writes the row WITHOUT moving this device's slot —
+        // exactly how a pulled row from another device lands.
+        till::update_record(
+            &core.store,
+            &till::TillRecord {
+                id: uuid::Uuid::new_v4().to_string(),
+                branch_id: branch.clone(),
+                teller_id: me.clone(),
+                teller_name: "Sara".into(),
+                status: "open".into(),
+                opened_at: "2026-09-19T08:00:00Z".into(),
+                device_id: Some(uuid::Uuid::new_v4().to_string()),
+                device_code: Some("D-2".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let lock = core.till_lock();
+        assert!(lock.locked);
+        assert_eq!(lock.reason, "open_elsewhere");
+        assert!(!lock.can_open);
+        assert_eq!(lock.elsewhere.as_ref().and_then(|e| e.device_code.clone()), Some("D-2".into()));
+    }
+
+    /// The lock loses NOTHING: a parked cart and an unsynced outbox from the
+    /// previous shift are still there while the device is locked, and come
+    /// back the moment a till is open again.
+    #[tokio::test]
+    async fn held_orders_and_the_outbox_survive_the_locked_period() {
+        let core = signed_in_offline_core().await;
+        core.open_till(50000, None).await.unwrap();
+        assert!(!core.till_lock().locked, "a drawer is open");
+
+        cart::set_cart_payload(
+            &core.store,
+            None,
+            &serde_json::json!({
+                "lines": [{
+                    "key": "k1", "item_id": "00000000-0000-0000-0000-0000000000c1",
+                    "name": "Latte", "unit_price_minor": 5000, "qty": 1,
+                    "addons": [], "optionals": []
+                }]
+            }),
+        )
+        .unwrap();
+        core.hold_cart_on_table(None, "Table 5".into(), None, None, None).unwrap();
+        let drafts_before = core.list_drafts().unwrap().len();
+        let pending_before = core.store.pending().unwrap().len();
+        assert!(drafts_before > 0, "a parked order to survive");
+        assert!(pending_before > 0, "an unsent op to survive (the open itself)");
+
+        // The shift ends: the drawer is gone from this device.
+        till::clear(&core.store).unwrap();
+        let lock = core.till_lock();
+        assert!(lock.locked, "no drawer → locked");
+        assert_eq!(lock.reason, "no_till");
+        assert_eq!(core.list_drafts().unwrap().len(), drafts_before, "held orders untouched");
+        assert_eq!(core.store.pending().unwrap().len(), pending_before, "outbox untouched");
+        assert_eq!(core.store.dead_count().unwrap(), 0);
+
+        // And they reappear the moment a till is open again.
+        core.open_till(50000, None).await.unwrap();
+        assert!(!core.till_lock().locked);
+        assert_eq!(core.list_drafts().unwrap().len(), drafts_before);
+        assert_eq!(core.store.pending().unwrap().len(), pending_before + 1, "only the new open");
+    }
+
     #[test]
     fn route_open_shift_when_the_shift_is_closed() {
         let core = MadarCore::from_env().unwrap();
