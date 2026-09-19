@@ -27,6 +27,7 @@ export 'src/generated/api/orders.dart';
 export 'src/generated/api/printing.dart';
 export 'src/generated/api/realtime.dart';
 export 'src/generated/api/routes.dart';
+export 'src/generated/api/staff_pool.dart';
 export 'src/generated/api/sync.dart';
 export 'src/generated/api/tickets.dart';
 export 'src/generated/api/till.dart';

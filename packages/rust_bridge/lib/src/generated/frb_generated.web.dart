@@ -25,6 +25,7 @@ import 'api/orders.dart';
 import 'api/printing.dart';
 import 'api/realtime.dart';
 import 'api/routes.dart';
+import 'api/staff_pool.dart';
 import 'api/sync.dart';
 import 'api/tickets.dart';
 import 'api/till.dart';
@@ -189,6 +190,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   SessionSnapshot dco_decode_box_autoadd_session_snapshot(dynamic raw);
+
+  @protected
+  StaffDrinkInput dco_decode_box_autoadd_staff_drink_input(dynamic raw);
+
+  @protected
+  StaffDrinkRefusal dco_decode_box_autoadd_staff_drink_refusal(dynamic raw);
 
   @protected
   TicketBillView dco_decode_box_autoadd_ticket_bill_view(dynamic raw);
@@ -632,6 +639,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<SpotViewLineView> dco_decode_list_spot_view_line_view(dynamic raw);
 
   @protected
+  List<StaffDrinkLineView> dco_decode_list_staff_drink_line_view(dynamic raw);
+
+  @protected
   List<TableSittingView> dco_decode_list_table_sitting_view(dynamic raw);
 
   @protected
@@ -784,6 +794,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   SessionSnapshot? dco_decode_opt_box_autoadd_session_snapshot(dynamic raw);
 
   @protected
+  StaffDrinkRefusal? dco_decode_opt_box_autoadd_staff_drink_refusal(
+    dynamic raw,
+  );
+
+  @protected
   TicketBillView? dco_decode_opt_box_autoadd_ticket_bill_view(dynamic raw);
 
   @protected
@@ -904,6 +919,30 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   SpotViewLineView dco_decode_spot_view_line_view(dynamic raw);
+
+  @protected
+  StaffDrinkDecision dco_decode_staff_drink_decision(dynamic raw);
+
+  @protected
+  StaffDrinkInput dco_decode_staff_drink_input(dynamic raw);
+
+  @protected
+  StaffDrinkLineView dco_decode_staff_drink_line_view(dynamic raw);
+
+  @protected
+  StaffDrinkPreviewView dco_decode_staff_drink_preview_view(dynamic raw);
+
+  @protected
+  StaffDrinkRecordedView dco_decode_staff_drink_recorded_view(dynamic raw);
+
+  @protected
+  StaffDrinkRefusal dco_decode_staff_drink_refusal(dynamic raw);
+
+  @protected
+  StaffPoolDay dco_decode_staff_pool_day(dynamic raw);
+
+  @protected
+  StaffPoolTodayView dco_decode_staff_pool_today_view(dynamic raw);
 
   @protected
   SyncMeta dco_decode_sync_meta(dynamic raw);
@@ -1185,6 +1224,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   SessionSnapshot sse_decode_box_autoadd_session_snapshot(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StaffDrinkInput sse_decode_box_autoadd_staff_drink_input(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StaffDrinkRefusal sse_decode_box_autoadd_staff_drink_refusal(
     SseDeserializer deserializer,
   );
 
@@ -1786,6 +1835,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<StaffDrinkLineView> sse_decode_list_staff_drink_line_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<TableSittingView> sse_decode_list_table_sitting_view(
     SseDeserializer deserializer,
   );
@@ -1994,6 +2048,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  StaffDrinkRefusal? sse_decode_opt_box_autoadd_staff_drink_refusal(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TicketBillView? sse_decode_opt_box_autoadd_ticket_bill_view(
     SseDeserializer deserializer,
   );
@@ -2140,6 +2199,42 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   SpotViewLineView sse_decode_spot_view_line_view(SseDeserializer deserializer);
+
+  @protected
+  StaffDrinkDecision sse_decode_staff_drink_decision(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StaffDrinkInput sse_decode_staff_drink_input(SseDeserializer deserializer);
+
+  @protected
+  StaffDrinkLineView sse_decode_staff_drink_line_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StaffDrinkPreviewView sse_decode_staff_drink_preview_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StaffDrinkRecordedView sse_decode_staff_drink_recorded_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StaffDrinkRefusal sse_decode_staff_drink_refusal(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StaffPoolDay sse_decode_staff_pool_day(SseDeserializer deserializer);
+
+  @protected
+  StaffPoolTodayView sse_decode_staff_pool_today_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   SyncMeta sse_decode_sync_meta(SseDeserializer deserializer);
@@ -2482,6 +2577,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_box_autoadd_session_snapshot(
     SessionSnapshot self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_staff_drink_input(
+    StaffDrinkInput self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_staff_drink_refusal(
+    StaffDrinkRefusal self,
     SseSerializer serializer,
   );
 
@@ -3239,6 +3346,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_staff_drink_line_view(
+    List<StaffDrinkLineView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_table_sitting_view(
     List<TableSittingView> self,
     SseSerializer serializer,
@@ -3500,6 +3613,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_staff_drink_refusal(
+    StaffDrinkRefusal? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_ticket_bill_view(
     TicketBillView? self,
     SseSerializer serializer,
@@ -3715,6 +3834,51 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_spot_view_line_view(
     SpotViewLineView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_staff_drink_decision(
+    StaffDrinkDecision self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_staff_drink_input(
+    StaffDrinkInput self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_staff_drink_line_view(
+    StaffDrinkLineView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_staff_drink_preview_view(
+    StaffDrinkPreviewView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_staff_drink_recorded_view(
+    StaffDrinkRecordedView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_staff_drink_refusal(
+    StaffDrinkRefusal self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_staff_pool_day(StaffPoolDay self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_staff_pool_today_view(
+    StaffPoolTodayView self,
     SseSerializer serializer,
   );
 

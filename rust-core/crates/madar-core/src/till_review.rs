@@ -118,6 +118,7 @@ pub(crate) fn capability_for_op(op_type: &str, payload: &str) -> Option<&'static
         "void_order" | "void_ticket" | "void_ticket_line" => "orders.void",
         "refund_order" => "refunds.create",
         "record_waste" => "inventory.waste.record",
+        "record_staff_drink" => "orders.staff_drink.record",
         "spot_report_view" => "till.cash_spot_check",
         // A counter sale or a settled table bill is only ever refused live for
         // its discount; the kind of discount decides which cap.

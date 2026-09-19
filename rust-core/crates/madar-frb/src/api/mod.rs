@@ -16,6 +16,7 @@ pub mod orders;
 pub mod printing;
 pub mod realtime;
 pub mod routes;
+pub mod staff_pool;
 pub mod sync;
 pub mod tickets;
 pub mod drawer;

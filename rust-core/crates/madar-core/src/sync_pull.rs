@@ -447,7 +447,7 @@ pub(crate) const SYNCED_TYPES: &[&str] = &[
     "category", "menu_item", "bundle", "ingredient", "payment_method", "payment_availability",
     "discount", "branch_settings", "device", "teller", "floor_section", "floor_table",
     "table_occupancy", "table_transfer", "open_ticket", "kitchen_ticket", "delivery", "booking",
-    "till", "cash_movement", "order", "refund", "addon_item",
+    "till", "cash_movement", "order", "refund", "addon_item", "staff_drink",
 ];
 #[cfg(test)]
 pub(crate) const ALL_TYPES: &[&str] = SYNCED_TYPES;
@@ -563,7 +563,31 @@ fn upsert_row(
          ON CONFLICT(branch_id,type,id) DO UPDATE SET seq=excluded.seq, data=excluded.data, peer_seq=NULL",
     )?
     .execute(rusqlite::params![ty, id, branch, seq, data.to_string()])?;
+    mirror_local(tx, ty, id, Some(data))?;
     Ok(true)
+}
+
+/// A feed type that is ALSO kept in a typed local table gets written there in
+/// the same transaction. Only the staff drinks so far: the pool count has to be
+/// one query over `(branch, business_date)` whether the drink was rung here,
+/// heard from a peer or brought by the cloud, and that is a column, not a scan
+/// of every `sync_rows` blob.
+fn mirror_local(
+    tx: &rusqlite::Connection,
+    ty: &str,
+    id: &str,
+    data: Option<&serde_json::Value>,
+) -> CoreResult<()> {
+    if ty != crate::ledger::staff_drinks::WIRE {
+        return Ok(());
+    }
+    match data {
+        Some(v) => crate::ledger::staff_drinks::from_feed(tx, v)?,
+        None => {
+            crate::ledger::staff_drinks::forget(tx, id)?;
+        }
+    }
+    Ok(())
 }
 
 fn put_kv(tx: &rusqlite::Connection, k: &str, v: &str) -> CoreResult<()> {
@@ -736,6 +760,7 @@ pub(crate) fn apply_page_with(
                         "DELETE FROM sync_rows WHERE branch_id=?1 AND type=?2 AND id=?3",
                         rusqlite::params![branch, ty, id],
                     )?;
+                    mirror_local(tx, ty, &id, None)?;
                     // Gone as of this snapshot's horizon: a LAN peer still holding
                     // it at an older seq is told.
                     if let Some(h) = next {
@@ -797,6 +822,7 @@ pub(crate) fn apply_page_with(
                             "DELETE FROM sync_rows WHERE branch_id=?1 AND type=?2 AND id=?3",
                             rusqlite::params![branch, c.r#type, id],
                         )? as u32;
+                        mirror_local(tx, &c.r#type, &id, None)?;
                         if k > 0 {
                             touched.push(crate::changes::table_for_sync_type(&c.r#type));
                         }
