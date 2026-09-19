@@ -32,6 +32,8 @@ export 'src/order_providers.dart'
         orderProvider;
 export 'src/sell_screen.dart'
     show MenuGrid, OrderScreen, TableOrderScreen, TakeawaySellScreen;
+export 'src/staff_drink_sheet.dart'
+    show StaffDrinkSheet, StaffDrinkTile, showStaffDrinkSheet;
 export 'src/table_clear_prompt.dart'
     show listenForTableClear, showTableClearPrompt;
 export 'src/table_history_sheet.dart' show showTableHistory;

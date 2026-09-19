@@ -34,6 +34,7 @@ import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/floor_list.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/sell_open_till.dart';
+import 'package:feature_order/src/staff_drink_sheet.dart';
 import 'package:feature_order/src/teller_held_strip.dart';
 import 'package:feature_order/src/words.dart';
 import 'package:flutter/material.dart';
@@ -625,6 +626,9 @@ class _RoundLine extends ConsumerWidget {
       ],
     );
     final controls = <Widget>[
+      // The branch's staff pool: hidden unless the core says this line is on
+      // it and this person may act. See `staff_drink_sheet.dart`.
+      StaffDrinkTile(line: line, tableId: tableId),
       MadarStepper(
         value: line.qty,
         onChanged: (q) => unawaited(notifier.setQty(line.key, q)),
