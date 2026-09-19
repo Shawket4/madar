@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1668749789;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 422533479;
 
 // Section: executor
 
@@ -13901,6 +13901,53 @@ fn wire__crate__api__bridge__MadarBridge_till_figures_visible_impl(
         },
     )
 }
+fn wire__crate__api__bridge__MadarBridge_till_lock_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_till_lock",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok =
+                    Ok::<_, ()>(crate::api::bridge::MadarBridge::till_lock(&*api_that_guard))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__bridge__MadarBridge_till_report_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -16355,6 +16402,16 @@ const _: fn() = || {
         let _: Option<String> = TillElsewhereView.device_label;
         let _: String = TillElsewhereView.opened_at;
         let _: String = TillElsewhereView.source;
+    }
+    {
+        let TillLockView = None::<crate::api::till::TillLockView>.unwrap();
+        let _: bool = TillLockView.locked;
+        let _: String = TillLockView.reason;
+        let _: String = TillLockView.title;
+        let _: String = TillLockView.body;
+        let _: bool = TillLockView.can_open;
+        let _: bool = TillLockView.holds_drawer;
+        let _: Option<crate::api::till::TillElsewhereView> = TillLockView.elsewhere;
     }
     {
         let TillOpenSyncView = None::<crate::api::sync::TillOpenSyncView>.unwrap();
@@ -21052,6 +21109,29 @@ impl SseDecode for crate::api::till::TillElsewhereView {
     }
 }
 
+impl SseDecode for crate::api::till::TillLockView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_locked = <bool>::sse_decode(deserializer);
+        let mut var_reason = <String>::sse_decode(deserializer);
+        let mut var_title = <String>::sse_decode(deserializer);
+        let mut var_body = <String>::sse_decode(deserializer);
+        let mut var_canOpen = <bool>::sse_decode(deserializer);
+        let mut var_holdsDrawer = <bool>::sse_decode(deserializer);
+        let mut var_elsewhere =
+            <Option<crate::api::till::TillElsewhereView>>::sse_decode(deserializer);
+        return crate::api::till::TillLockView {
+            locked: var_locked,
+            reason: var_reason,
+            title: var_title,
+            body: var_body,
+            can_open: var_canOpen,
+            holds_drawer: var_holdsDrawer,
+            elsewhere: var_elsewhere,
+        };
+    }
+}
+
 impl SseDecode for crate::api::sync::TillOpenSyncView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -22475,73 +22555,73 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        251 => wire__crate__api__bridge__MadarBridge_till_report_impl(
+        252 => wire__crate__api__bridge__MadarBridge_till_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        252 => wire__crate__api__bridge__MadarBridge_till_report_for_impl(
+        253 => wire__crate__api__bridge__MadarBridge_till_report_for_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        253 => wire__crate__api__bridge__MadarBridge_till_report_synced_impl(
+        254 => wire__crate__api__bridge__MadarBridge_till_report_synced_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        254 => {
+        255 => {
             wire__crate__api__bridge__MadarBridge_till_stats_impl(port, ptr, rust_vec_len, data_len)
         }
-        255 => wire__crate__api__bridge__MadarBridge_till_stats_checked_impl(
+        256 => wire__crate__api__bridge__MadarBridge_till_stats_checked_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        258 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
+        259 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        259 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
+        260 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        261 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
+        262 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        263 => {
+        264 => {
             wire__crate__api__bridge__MadarBridge_void_order_impl(port, ptr, rust_vec_len, data_len)
         }
-        264 => wire__crate__api__bridge__MadarBridge_void_order_approved_impl(
+        265 => wire__crate__api__bridge__MadarBridge_void_order_approved_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        265 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
+        266 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        266 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
+        267 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        270 => wire__crate__api__bridge__MadarBridge_watch_tables_impl(
+        271 => wire__crate__api__bridge__MadarBridge_watch_tables_impl(
             port,
             ptr,
             rust_vec_len,
@@ -22797,28 +22877,29 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        256 => {
+        251 => wire__crate__api__bridge__MadarBridge_till_lock_impl(ptr, rust_vec_len, data_len),
+        257 => {
             wire__crate__api__bridge__MadarBridge_toggle_reward_impl(ptr, rust_vec_len, data_len)
         }
-        257 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
-        260 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
+        258 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
+        261 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        262 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
-        267 => wire__crate__api__bridge__MadarBridge_waste_ingredients_impl(
+        263 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
+        268 => wire__crate__api__bridge__MadarBridge_waste_ingredients_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        268 => wire__crate__api__bridge__MadarBridge_waste_items_impl(ptr, rust_vec_len, data_len),
-        269 => {
+        269 => wire__crate__api__bridge__MadarBridge_waste_items_impl(ptr, rust_vec_len, data_len),
+        270 => {
             wire__crate__api__bridge__MadarBridge_waste_reasons_impl(ptr, rust_vec_len, data_len)
         }
-        271 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
-        272 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
-        273 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
+        272 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
+        273 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
+        274 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -26518,6 +26599,32 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::TillElsewher
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::TillLockView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.locked.into_into_dart().into_dart(),
+            self.0.reason.into_into_dart().into_dart(),
+            self.0.title.into_into_dart().into_dart(),
+            self.0.body.into_into_dart().into_dart(),
+            self.0.can_open.into_into_dart().into_dart(),
+            self.0.holds_drawer.into_into_dart().into_dart(),
+            self.0.elsewhere.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::TillLockView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::TillLockView>>
+    for crate::api::till::TillLockView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::TillLockView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::sync::TillOpenSyncView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -29999,6 +30106,19 @@ impl SseEncode for crate::api::till::TillElsewhereView {
         <Option<String>>::sse_encode(self.device_label, serializer);
         <String>::sse_encode(self.opened_at, serializer);
         <String>::sse_encode(self.source, serializer);
+    }
+}
+
+impl SseEncode for crate::api::till::TillLockView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.locked, serializer);
+        <String>::sse_encode(self.reason, serializer);
+        <String>::sse_encode(self.title, serializer);
+        <String>::sse_encode(self.body, serializer);
+        <bool>::sse_encode(self.can_open, serializer);
+        <bool>::sse_encode(self.holds_drawer, serializer);
+        <Option<crate::api::till::TillElsewhereView>>::sse_encode(self.elsewhere, serializer);
     }
 }
 
