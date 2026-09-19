@@ -2577,16 +2577,22 @@ impl MadarCore {
         listener: Box<dyn realtime::EventListener>,
         player: Box<dyn realtime::RealtimePlayer>,
     ) -> Result<(), CoreError> {
-        // Idempotent: the supervisor auto-reconnects, so a re-call (e.g. on
-        // connectivity-regain or a screen re-appearing) is a no-op. A fresh login
-        // starts clean — `unsubscribe_realtime` in signOut cleared the handle.
-        if self
-            .realtime
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .is_some()
+        // Idempotent WHILE A SUPERVISOR IS ALIVE: it auto-reconnects, so a
+        // re-call (connectivity-regain, a screen re-appearing) is a no-op. But a
+        // 401/403 makes the supervisor RETURN, and its handle stayed in the slot
+        // — so the guard kept answering "already running" and the device never
+        // saw another realtime event for the rest of the session, however many
+        // times it signed back in. A spent handle is cleared here so the
+        // re-subscribe actually re-subscribes.
         {
-            return Ok(());
+            let mut slot = self.realtime.lock().unwrap_or_else(|e| e.into_inner());
+            match slot.as_ref() {
+                Some(h) if h.is_finished() => {
+                    *slot = None;
+                }
+                Some(_) => return Ok(()),
+                None => {}
+            }
         }
         let session = self
             .current_session()
