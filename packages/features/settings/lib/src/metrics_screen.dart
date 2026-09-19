@@ -31,7 +31,7 @@ class MetricsState {
   /// The preset key (`today` … `custom`).
   final String preset;
 
-  /// The custom window's days, as typed (`YYYY-MM-DD`).
+  /// The custom window's days, as picked (`YYYY-MM-DD`).
   final String customFrom;
   final String customTo;
 
@@ -48,15 +48,12 @@ class MetricsNotifier extends Notifier<MetricsState> {
   @override
   MetricsState build() => const MetricsState();
 
-  /// Pick the custom window without asking yet: the days are typed first.
-  void chooseCustom() {
-    state = MetricsState(
-      preset: 'custom',
-      customFrom: state.customFrom,
-      customTo: state.customTo,
-      view: state.view,
-    );
-  }
+  /// Ask for the window a person settled on in the date-range picker.
+  Future<void> apply(MadarDateWindow window) => load(
+    preset: window.preset,
+    customFrom: window.from ?? '',
+    customTo: window.to ?? '',
+  );
 
   /// Ask for [preset] (for `custom`, the two typed days).
   Future<void> load({
@@ -116,22 +113,12 @@ class MetricsScreen extends ConsumerStatefulWidget {
 }
 
 class _MetricsScreenState extends ConsumerState<MetricsScreen> {
-  final _from = TextEditingController();
-  final _to = TextEditingController();
-
   @override
   void initState() {
     super.initState();
     unawaited(
       Future.microtask(() => ref.read(metricsProvider.notifier).load()),
     );
-  }
-
-  @override
-  void dispose() {
-    _from.dispose();
-    _to.dispose();
-    super.dispose();
   }
 
   @override
@@ -143,57 +130,41 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen> {
     final notifier = ref.read(metricsProvider.notifier);
     final view = s.view;
 
+    final chrome = bridge.datePickerChrome();
+
     final body = <Widget>[
-      Wrap(
-        spacing: Space.sm,
-        runSpacing: Space.sm,
-        children: [
-          for (final p in bridge.posMetricsPresets())
-            MadarChip(
-              label: p.label,
-              selected: s.preset == p.key,
-              onTap: () => p.key == 'custom'
-                  ? notifier.chooseCustom()
-                  : unawaited(notifier.load(preset: p.key)),
-            ),
-        ],
-      ),
-      if (s.preset == 'custom') ...[
-        const SizedBox(height: Space.md),
-        Row(
-          children: [
-            Expanded(
-              child: MadarField(
-                controller: _from,
-                placeholder: '${t('metrics.custom_from')} (YYYY-MM-DD)',
-                kind: MadarFieldKind.date,
-                glyph: MadarGlyph.calendar,
-              ),
-            ),
-            const SizedBox(width: Space.sm),
-            Expanded(
-              child: MadarField(
-                controller: _to,
-                placeholder: '${t('metrics.custom_to')} (YYYY-MM-DD)',
-                kind: MadarFieldKind.date,
-                glyph: MadarGlyph.calendar,
-              ),
-            ),
-            const SizedBox(width: Space.sm),
-            MadarButton(
-              label: t('metrics.show'),
-              size: MadarButtonSize.compact,
-              onTap: () => unawaited(
-                notifier.load(
-                  preset: 'custom',
-                  customFrom: _from.text,
-                  customTo: _to.text,
-                ),
-              ),
-            ),
-          ],
+      // ONE control for the window, like the dashboard's period filter: the
+      // presets and the calendar live in the same sheet, so picking a custom
+      // range is one gesture instead of two date fields and a Show button.
+      MadarDateRangePicker(
+        chrome: MadarCalendarChrome(
+          today: chrome.today,
+          weekStart: chrome.weekStart,
+          weekdays: chrome.weekdays,
+          months: chrome.months,
+          monthsShort: chrome.monthsShort,
         ),
-      ],
+        presets: [
+          for (final p in bridge.posMetricsPresets())
+            MadarDatePreset(p.key, p.label),
+        ],
+        value: s.preset == 'custom'
+            ? MadarDateWindow.custom(s.customFrom, s.customTo)
+            : MadarDateWindow.preset(s.preset),
+        labels: MadarDateRangeLabels(
+          title: t('period.title'),
+          from: t('metrics.custom_from'),
+          to: t('metrics.custom_to'),
+          apply: t('period.apply'),
+          custom: t('metrics.preset.custom'),
+          pickStart: t('period.pick_start'),
+          pickEnd: t('period.pick_end'),
+          rangePicked: t('period.range_picked'),
+          previousMonth: t('period.previous_month'),
+          nextMonth: t('period.next_month'),
+        ),
+        onChanged: (w) => unawaited(notifier.apply(w)),
+      ),
       const SizedBox(height: Space.lg),
       if (s.error case final error?) ...[
         NoticeBanner(text: error.of(bridge), tone: ChipTone.danger),

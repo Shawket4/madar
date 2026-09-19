@@ -290,6 +290,9 @@ class _FakeBridge implements MadarBridge {
         locale: lang,
       );
     }
+    if (name == #datePickerChrome) {
+      return fakeDatePickerChrome(arabic: lang == 'ar');
+    }
     if (name == #posMetricsPresets) {
       return [
         for (final k in [

@@ -306,6 +306,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CustomerView dco_decode_customer_view(dynamic raw);
 
   @protected
+  DatePickerChromeView dco_decode_date_picker_chrome_view(dynamic raw);
+
+  @protected
   DeliveryFinalizeView dco_decode_delivery_finalize_view(dynamic raw);
 
   @protected
@@ -1326,6 +1329,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CustomerView sse_decode_customer_view(SseDeserializer deserializer);
+
+  @protected
+  DatePickerChromeView sse_decode_date_picker_chrome_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   DeliveryFinalizeView sse_decode_delivery_finalize_view(
@@ -2651,6 +2659,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_customer_view(CustomerView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_date_picker_chrome_view(
+    DatePickerChromeView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_delivery_finalize_view(
