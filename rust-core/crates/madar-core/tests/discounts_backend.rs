@@ -243,7 +243,7 @@ async fn a_table_bill_needs_a_manager_over_the_cap_and_a_dead_preset_still_lands
     core.cart_add(None, item.id.clone(), item.name.clone(), item.base_price_minor)
         .expect("add");
     let fired = core
-        .fire_ticket(None, Some("table 9".into()), None, None, None)
+        .fire_ticket(None, Some("table 9".into()), None, None, None, None)
         .await
         .expect("fire");
     settle(&core, 60).await;
@@ -266,6 +266,7 @@ async fn a_table_bill_needs_a_manager_over_the_cap_and_a_dead_preset_still_lands
             cash.clone(), Some(10_000_000), None, None,
             None, Some("fixed".into()), Some(800.0),
             None, vec![], vec![], false, None,
+            None,
         )
         .await;
     assert!(refused.is_err(), "over the cap, no approval, no settle");
@@ -281,6 +282,7 @@ async fn a_table_bill_needs_a_manager_over_the_cap_and_a_dead_preset_still_lands
         cash.clone(), Some(10_000_000), None, None,
         None, Some("fixed".into()), Some(800.0),
         None, vec![], vec![], false, Some(approval.clone()),
+        None,
     )
     .await
     .expect("the approved bill settles");

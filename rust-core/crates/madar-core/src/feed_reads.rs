@@ -123,7 +123,7 @@ impl MadarCore {
             out.push(crate::queued_ticket_view(&cmd, &item.event_at, None, &names, policy.as_ref()));
         }
         self.overlay_rounds(server, &pending, &mut out);
-        Ok(out)
+        Ok(self.with_ticket_customers(out))
     }
 
     /// Rounds still on their way — this device's own queued rounds and a peer's
@@ -224,7 +224,8 @@ impl MadarCore {
             .filter_map(|v| serde_json::from_value::<madar_api::models::OpenTicketView>(v).ok())
             .find(|v| v.id.to_string() == ticket_id)
         {
-            return Ok(tickets::to_view_with(&v, false, &tickets::pending_line_voids(&self.store)?, self.service_charge_taxable()));
+            let view = tickets::to_view_with(&v, false, &tickets::pending_line_voids(&self.store)?, self.service_charge_taxable());
+            return Ok(self.with_ticket_customers(vec![view]).remove(0));
         }
         // A bill still on its way (this device's or a LAN peer's queued fire).
         if let Some(v) = self.list_open_tickets().await?.into_iter().find(|t| t.id == ticket_id) {
@@ -238,7 +239,8 @@ impl MadarCore {
         use madar_api::apis::open_tickets_api as ot;
         let config = self.api.config();
         let v = crate::ledger_ops::within(ot::get_open_ticket(&config, ot::GetOpenTicketParams { id: ticket_id })).await?;
-        Ok(tickets::to_view_with(&v, false, &tickets::pending_line_voids(&self.store)?, self.service_charge_taxable()))
+        let view = tickets::to_view_with(&v, false, &tickets::pending_line_voids(&self.store)?, self.service_charge_taxable());
+        Ok(self.with_ticket_customers(vec![view]).remove(0))
     }
 
     /// The kitchen board: open kitchen tickets (for a station: those with work

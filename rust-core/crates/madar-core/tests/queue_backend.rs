@@ -404,7 +404,7 @@ async fn a_table_bill_is_shared_between_devices_and_people() {
     a.sync_full().await.expect("snapshot");
     let item = a.list_menu_items().unwrap().into_iter().find(|i| i.base_price_minor > 0).unwrap();
     a.cart_add(None, item.id.clone(), item.name.clone(), item.base_price_minor).unwrap();
-    let ticket = a.fire_ticket(None, Some("Table 4".into()), None, Some(2), None).await.expect("fire").ticket_id;
+    let ticket = a.fire_ticket(None, Some("Table 4".into()), None, Some(2), None, None).await.expect("fire").ticket_id;
     settle(&a, 120).await;
     a.cart_add(Some("t4-local".into()), item.id.clone(), item.name.clone(), item.base_price_minor).unwrap();
     a.logout(false).unwrap();
@@ -430,7 +430,7 @@ async fn a_table_bill_is_shared_between_devices_and_people() {
     b.add_ticket_round(None, bill.id.clone()).await.expect("a round on someone else's table");
     settle(&b, 120).await;
     let cash = method(&b, true).expect("cash");
-    b.settle_ticket(bill.id.clone(), till, cash, Some(1_000_000), None, None, None, None, None, None, vec![], vec![], false, None)
+    b.settle_ticket(bill.id.clone(), till, cash, Some(1_000_000), None, None, None, None, None, None, vec![], vec![], false, None, None)
         .await
         .expect("settle someone else's table");
     settle(&b, 180).await;

@@ -155,7 +155,7 @@ async fn takeaway(core: &MadarCore, n: &BTreeMap<String, String>, discount: &str
 
 async fn priced_bill(fx: &Fixture, core: &MadarCore) -> String {
     add_items(core, None, 2);
-    let fired = core.fire_ticket(None, None, None, Some(2), None).await.expect("fire");
+    let fired = core.fire_ticket(None, None, None, Some(2), None, None).await.expect("fire");
     settle(core, 120).await;
     let key = uuid::Uuid::parse_str(&fired.ticket_id).unwrap();
     let server_id: uuid::Uuid = fx
@@ -195,7 +195,7 @@ async fn settle_split(core: &MadarCore, n: &BTreeMap<String, String>, ticket: &s
     short[0].amount_minor -= 1;
     assert!(core
         .settle_ticket(ticket.into(), till.into(), methods[0].clone(), None, None, None, None,
-            Some("percentage".into()), Some(0.10), None, vec![], short, true, None)
+            Some("percentage".into()), Some(0.10), None, vec![], short, true, None, None)
         .await
         .is_err());
     core.settle_ticket(
@@ -212,6 +212,7 @@ async fn settle_split(core: &MadarCore, n: &BTreeMap<String, String>, ticket: &s
         vec![],
         splits.clone(),
         true,
+        None,
         None,
     )
     .await
