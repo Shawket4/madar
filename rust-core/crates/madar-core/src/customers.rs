@@ -606,7 +606,7 @@ impl MadarCore {
             return;
         }
         if let Err(e) = self.queue_attach(ticket_id, Some(mine)) {
-            crate::obs::capture_bg_warning("customers.reconcile_settle", &e.to_string());
+            crate::obs::capture_bg_warning("customers.reconcile_settle", e.to_string());
         }
     }
 

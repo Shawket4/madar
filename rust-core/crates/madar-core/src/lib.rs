@@ -8601,7 +8601,7 @@ impl MadarCore {
         // (no customer there means "the bill's own"), so it follows it.
         if bill_customer == customers::BillCustomer::Removed {
             if let Err(e) = self.queue_attach(&ticket_id, None) {
-                obs::capture_bg_warning("customers.settle_removed", &e.to_string());
+                obs::capture_bg_warning("customers.settle_removed", e.to_string());
             }
         }
         // A settle's receipt prints from the paid order the server returns, so
