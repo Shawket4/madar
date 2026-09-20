@@ -9,6 +9,13 @@ analyzer:
     # Generated FRB bindings are vendored under lib/src/generated and excluded.
     invalid_annotation_target: ignore
   exclude:
+    # The rescue app is a standalone emergency tool with its own pub resolution
+    # (it needs permission_handler, which the workspace does not). It is not a
+    # workspace member, so the root analyzer cannot resolve it — and a tool that
+    # is built about once a year must never be able to break the monorepo's
+    # gates. It carries its own analysis_options and is analysed from its own
+    # directory. See apps/rescue/README.md.
+    - 'apps/rescue/**'
     - '**/*.g.dart'
     - '**/*.freezed.dart'
     - '**/src/generated/**'
