@@ -1486,6 +1486,35 @@ impl MadarCore {
                     Idem::Yes,
                 )
             }
+            "attach_customer" => {
+                let cmd: serde_json::Value = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
+                };
+                // Queued against a sale by its key on this device (a client key,
+                // or the ticket a settle was keyed by); the op waited behind
+                // that sale, so by now its row knows the server's id.
+                let key = cmd.get("order_id").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+                let order_id = self
+                    .store
+                    .with_conn(|c| {
+                        use rusqlite::OptionalExtension;
+                        Ok(c.query_row(
+                            "SELECT server_id FROM ledger_orders WHERE okey=?1 AND server_id IS NOT NULL",
+                            [&key],
+                            |r| r.get::<_, String>(0),
+                        )
+                        .optional()?)
+                    })
+                    .ok()
+                    .flatten()
+                    .unwrap_or(key);
+                (
+                    // The attach is a plain overwrite server-side, so a re-flush is safe.
+                    serde_json::json!({ "op": "attach_customer", "teller_id": teller_id, "order_id": order_id, "customer_id": cmd.get("customer_id") }),
+                    Idem::Yes,
+                )
+            }
             "record_waste" => match waste::replay_envelope(&item.payload, &teller_id, delta) {
                 Ok(env) => (env, Idem::No),
                 Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
@@ -6567,6 +6596,12 @@ impl MadarCore {
                 field: "shift".into(),
                 detail: "no open shift".into(),
             })?;
+
+        // One person per sale: the member spending a balance and the customer
+        // it is for are never two people (see `one_person`).
+        let mut input = input;
+        (input.customer_id, input.loyalty_customer_id) =
+            self.one_person(input.customer_id.take(), input.loyalty_customer_id.take());
 
         // Rewards give away goods against a balance any till can spend: refused
         // offline, and re-checked against the server's current card first.

@@ -1729,6 +1729,201 @@ async fn a_customer_added_offline_rides_ahead_of_the_sale_that_names_it() {
     }
 }
 
+/// Grants for the customer tests (unknown grants hide customers entirely).
+#[cfg(test)]
+fn grant_customers(core: &crate::MadarCore, extra: &[&str]) {
+    if let Some(sess) = core.session.write().unwrap().as_mut() {
+        let mut caps: Vec<String> = ["orders.create", "payments.create", "till.open"].map(String::from).to_vec();
+        caps.extend(extra.iter().map(|c| c.to_string()));
+        sess.authz = Some(crate::session::AuthzGrants { capabilities: caps, ..Default::default() });
+    }
+}
+
+#[cfg(test)]
+fn seed_customer(core: &crate::MadarCore, row: serde_json::Value) {
+    core.store
+        .with_conn(|c| {
+            c.execute(
+                "INSERT INTO sync_rows(type,id,branch_id,seq,data) VALUES('customer',?1,?2,5,?3)",
+                rusqlite::params![row["id"].as_str().unwrap(), testkit::BRANCH, row.to_string()],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+}
+
+#[cfg(test)]
+fn sale_input(customer_id: Option<&str>, loyalty_customer_id: Option<&str>) -> crate::checkout::CheckoutInput {
+    crate::checkout::CheckoutInput {
+        payment_method_id: CASH.into(),
+        amount_tendered_minor: 1_000,
+        tip_minor: 0,
+        tip_payment_method_id: None,
+        customer_name: None,
+        notes: None,
+        splits: vec![],
+        loyalty_customer_id: loyalty_customer_id.map(String::from),
+        dine_in: false,
+        customer_id: customer_id.map(String::from),
+        loyalty_redemptions: vec![],
+    }
+}
+
+/// One person per sale. The member decides who the customer is, and their id
+/// goes out as `customer_id` only when this till's list holds that row — a
+/// server that predates the shared key may know the member under an id
+/// `customers` has never heard of.
+#[tokio::test]
+async fn a_sale_never_names_two_people() {
+    const MEMBER: &str = "00000000-0000-0000-0000-0000000000a1"; // shared key: a customer row too
+    const LINKED_MEMBER: &str = "00000000-0000-0000-0000-0000000000b1"; // old server: named by a row
+    const LINKED_ROW: &str = "00000000-0000-0000-0000-0000000000b2";
+    const STRANGER: &str = "00000000-0000-0000-0000-0000000000c1"; // a member this till has no row for
+    const SOMEONE_ELSE: &str = "00000000-0000-0000-0000-0000000000d1";
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    core.open_till(0, None).await.unwrap();
+    grant_customers(&core, &["customers.attach"]);
+    seed_customer(&core, serde_json::json!({"id": MEMBER, "name": "Mona", "is_member": true, "loyalty_customer_id": MEMBER}));
+    seed_customer(&core, serde_json::json!({"id": LINKED_ROW, "name": "Omar", "loyalty_customer_id": LINKED_MEMBER}));
+    seed_customer(&core, serde_json::json!({"id": SOMEONE_ELSE, "name": "Sara"}));
+
+    assert_eq!(core.customer_for_member(MEMBER.into()).unwrap().unwrap().id, MEMBER);
+    assert_eq!(core.customer_for_member(LINKED_MEMBER.into()).unwrap().unwrap().id, LINKED_ROW);
+    assert!(core.customer_for_member(STRANGER.into()).unwrap().is_none());
+
+    // (customer in, member in) → (customer out, member out)
+    for (customer, member, want_customer, want_member) in [
+        (None, Some(MEMBER), Some(MEMBER), Some(MEMBER)),
+        (Some(MEMBER), Some(MEMBER), Some(MEMBER), Some(MEMBER)),
+        (None, Some(LINKED_MEMBER), Some(LINKED_ROW), Some(LINKED_MEMBER)),
+        (None, Some(STRANGER), None, Some(STRANGER)),
+        // Two people: the one whose balance is being spent stands.
+        (Some(SOMEONE_ELSE), Some(MEMBER), Some(MEMBER), Some(MEMBER)),
+        (Some(SOMEONE_ELSE), Some(STRANGER), None, Some(STRANGER)),
+        // Nothing redeemed: the customer alone, as before.
+        (Some(SOMEONE_ELSE), None, Some(SOMEONE_ELSE), None),
+        (None, None, None, None),
+    ] {
+        core.cart_add(None, uuid::Uuid::new_v4().to_string(), "Latte".into(), 1_000).unwrap();
+        let receipt = core.checkout(None, sale_input(customer, member)).await.expect("a sale is never refused over its customer");
+        let ops = core.store.list_active().unwrap();
+        let sale = ops.iter().find(|o| o.id == receipt.local_order_id.clone()).expect("queued");
+        let request = &serde_json::from_str::<serde_json::Value>(&sale.payload).unwrap()["request"];
+        let got = |k: &str| request.get(k).and_then(|v| v.as_str()).map(str::to_string);
+        assert_eq!(got("customer_id").as_deref(), want_customer, "customer for ({customer:?}, {member:?})");
+        assert_eq!(got("loyalty_customer_id").as_deref(), want_member, "member for ({customer:?}, {member:?})");
+        // The sale's own row says who it is for, before any sync.
+        let shown = core.order_customer(receipt.local_order_id.clone()).unwrap().map(|c| c.id);
+        assert_eq!(shown.as_deref(), want_customer);
+    }
+}
+
+/// Attaching a customer to a sale already rung: queued behind the sale when
+/// that has not synced, one op per sale with the latest choice, shown at once.
+#[tokio::test]
+async fn a_customer_is_attached_to_a_rung_sale_offline() {
+    const MONA: &str = "00000000-0000-0000-0000-0000000000a1";
+    const OMAR: &str = "00000000-0000-0000-0000-0000000000a2";
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    core.open_till(0, None).await.unwrap();
+    seed_customer(&core, serde_json::json!({"id": MONA, "name": "Mona"}));
+    seed_customer(&core, serde_json::json!({"id": OMAR, "name": "Omar"}));
+    core.cart_add(None, uuid::Uuid::new_v4().to_string(), "Latte".into(), 1_000).unwrap();
+    grant_customers(&core, &[]);
+    let okey = core.checkout(None, sale_input(None, None)).await.unwrap().local_order_id;
+
+    assert!(
+        matches!(core.attach_customer(okey.clone(), Some(MONA.into())), Err(crate::error::CoreError::Forbidden { .. })),
+        "gated on customers.attach"
+    );
+    grant_customers(&core, &["customers.attach"]);
+    assert!(core.attach_customer(okey.clone(), Some(MONA.into())).unwrap(), "queued");
+    assert!(core.attach_customer(okey.clone(), Some(OMAR.into())).unwrap(), "chosen again");
+
+    let ops = core.store.list_active().unwrap();
+    let sale = ops.iter().find(|o| o.id == okey).unwrap();
+    let attaches: Vec<_> = ops.iter().filter(|o| o.op_type == "attach_customer").collect();
+    assert_eq!(attaches.len(), 1, "one op per sale");
+    assert_eq!(attaches[0].id, format!("attach:{okey}"));
+    assert_eq!(attaches[0].idempotency_key, format!("attach:{okey}"));
+    assert_eq!(attaches[0].depends_on_seq, Some(sale.seq), "behind the sale it names");
+    let payload: serde_json::Value = serde_json::from_str(&attaches[0].payload).unwrap();
+    assert_eq!((payload["order_id"].as_str(), payload["customer_id"].as_str()), (Some(okey.as_str()), Some(OMAR)), "the latest choice");
+    assert_eq!(core.order_customer(okey.clone()).unwrap().unwrap().name, "Omar");
+
+    // Taking the customer off is the same op with nobody in it.
+    core.attach_customer(okey.clone(), None).unwrap();
+    assert!(core.order_customer(okey.clone()).unwrap().is_none());
+    let ops = core.store.list_active().unwrap();
+    let attach = ops.iter().find(|o| o.op_type == "attach_customer").unwrap();
+    assert!(serde_json::from_str::<serde_json::Value>(&attach.payload).unwrap()["customer_id"].is_null());
+
+    // A customer added on this till and not yet synced goes first too.
+    grant_customers(&core, &["customers.attach", "customers.create"]);
+    let hana = core.create_customer("Hana".into(), None).unwrap();
+    core.attach_customer(okey.clone(), Some(hana.id.clone())).unwrap();
+    let ops = core.store.list_active().unwrap();
+    let create = ops.iter().find(|o| o.op_type == "create_customer").unwrap();
+    let attach = ops.iter().find(|o| o.op_type == "attach_customer").unwrap();
+    assert_eq!(attach.depends_on_seq, Some(create.seq.max(sale.seq)));
+}
+
+/// A bill settled offline with a customer: the attach waits for the settle and
+/// names the ORDER the server made of it — the till only ever knew the ticket.
+#[tokio::test]
+async fn a_customer_on_a_bill_settled_offline_reaches_the_servers_order() {
+    const SERVER_ORDER: &str = "00000000-0000-0000-0000-00000000a11d";
+    const MONA: &str = "00000000-0000-0000-0000-0000000000a1";
+    let up = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let link = up.clone();
+    let stub = Stub::start(move |r| {
+        if !link.load(Ordering::SeqCst) {
+            return Some(StubResponse::hangup());
+        }
+        if !r.path.starts_with("/sync/replay") {
+            return None;
+        }
+        Some(match r.json()["op"].as_str().unwrap_or("") {
+            "settle_open_ticket" => StubResponse::json(200, serde_json::json!({"id": SERVER_ORDER})),
+            _ => StubResponse::json(200, serde_json::json!({"id": uuid::Uuid::new_v4().to_string()})),
+        })
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    seed_methods(&core);
+    let till = core.open_till(1_000, None).await.unwrap().till.unwrap();
+    grant_customers(&core, &["customers.attach", "tickets.settle", "orders.settle"]);
+    seed_customer(&core, serde_json::json!({"id": MONA, "name": "Mona"}));
+    core.cart_add(None, uuid::Uuid::new_v4().to_string(), "Latte".into(), 500).unwrap();
+    let fired = core.fire_ticket(None, Some("walk-in".into()), None, None, None).await.unwrap();
+    core.settle_ticket(fired.ticket_id.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None)
+        .await
+        .expect("settled offline");
+    assert!(core.attach_customer(fired.ticket_id.clone(), Some(MONA.into())).unwrap());
+    let ops = core.store.list_active().unwrap();
+    let settle = ops.iter().find(|o| o.op_type == "settle_open_ticket").unwrap();
+    let attach = ops.iter().find(|o| o.op_type == "attach_customer").unwrap();
+    assert_eq!(attach.depends_on_seq, Some(settle.seq));
+    assert_eq!(core.order_customer(fired.ticket_id.clone()).unwrap().unwrap().name, "Mona");
+
+    up.store(true, Ordering::SeqCst);
+    core.set_online(true);
+    for _ in 0..8 {
+        let _ = core.store.clear_network_backoff();
+        let _ = core.drain_outbox().await;
+    }
+    let replayed: Vec<_> = stub.requests("/sync/replay").into_iter().map(|r| r.json()).collect();
+    let at = |op: &str| replayed.iter().position(|e| e["op"] == op);
+    let attach = &replayed[at("attach_customer").expect("the attach was sent")];
+    assert!(at("settle_open_ticket").unwrap() < at("attach_customer").unwrap(), "after the settle");
+    assert_eq!((attach["order_id"].as_str(), attach["customer_id"].as_str()), (Some(SERVER_ORDER), Some(MONA)));
+    assert_eq!(core.sync_status().dead_outbox, 0);
+    // The server's order row has not come down yet; the choice still shows.
+    assert_eq!(core.order_customer(SERVER_ORDER.into()).unwrap().map(|c| c.name).as_deref(), Some("Mona"));
+}
+
 /// Queue rule 8: a close with nothing parked warns about nothing.
 #[tokio::test]
 async fn a_close_with_nothing_held_has_no_warning() {

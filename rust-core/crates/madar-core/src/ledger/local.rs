@@ -96,6 +96,7 @@ pub(crate) fn order_json(cmd: &CheckoutCommand, okey: &str, who: &Ringer<'_>, me
         "payment_method": r.payment_method,
         "payment_legs": legs,
         "customer_name": flat(&r.customer_name),
+        "customer_id": flat(&r.customer_id),
         "notes": flat(&r.notes),
         "price_flagged": false,
         "created_at": flat(&r.created_at).map(|d| d.to_rfc3339()),

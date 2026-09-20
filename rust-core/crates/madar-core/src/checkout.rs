@@ -333,15 +333,18 @@ pub struct CheckoutInput {
     pub splits: Vec<CheckoutSplit>,
     /// The member spending a balance on this sale, when rewards are applied.
     /// Earning is a separate, later act — a sale that redeems nothing leaves
-    /// this empty.
+    /// this empty. The SAME person as `customer_id`: the core makes the pair
+    /// agree before anything is queued (`MadarCore::one_person`), and the wire
+    /// carries both until the server drops this one for the shared key.
     pub loyalty_customer_id: Option<String>,
     /// Where the drink is going: `true` when the customer is drinking in, so
     /// no cup, lid or straw comes off stock. Defaults to false — a pickup —
     /// which is what every build before this did. It is NOT the order type:
     /// the service charge stays tied to a table, so this never moves a total.
     pub dine_in: bool,
-    /// A manual customer attached to the sale (phase 6). The server keeps it
-    /// only when the teller holds `customers.attach`; it never refuses a sale.
+    /// The customer the sale is for — picked from the list, or the loyalty
+    /// member who was scanned (one person, one id). The server keeps it only
+    /// when the teller holds `customers.attach`; it never refuses a sale.
     pub customer_id: Option<String>,
     /// Rewards covering lines of the cart: which line, and how many of its
     /// units. The server prices them; the till only says which.
