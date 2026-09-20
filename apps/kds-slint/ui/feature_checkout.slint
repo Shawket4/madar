@@ -224,6 +224,9 @@ export global CheckoutState {
     in property <bool> placing;
     in property <bool> can-place;
     in-out property <string> customer-text;
+    // The core's matches for what is typed (name or phone); the picked one is
+    // active. Empty hides the row. Reuses the discount chip's data shape.
+    in property <[DiscountChipData]> customer-matches;
     in-out property <string> notes-text;
 
     // ── confirmation / receipt paper ────────────────────────────────────────
@@ -252,6 +255,8 @@ export global CheckoutState {
     callback tip-method(string /* id */);
     callback pick-discount(string /* id, "" = none */);
     callback fire-terminal(string /* customer */, string /* notes */);
+    callback customer-edited(string /* text */);
+    callback pick-customer(string /* id; the active one again = unpick */);
     callback closed();          // drawer close / sheet dismissed
     callback reprint();         // confirmation reprint (kickDrawer: false)
     callback new-order();       // confirmation terminal — pops the sheet
@@ -339,6 +344,7 @@ component CheckoutTextField {
     in property <string> placeholder;
     in property <image> icon;
     in-out property <string> text <=> input.text;
+    callback edited(string);
 
     preferred-height: M.input-height;
     min-height: M.input-height;
@@ -362,6 +368,7 @@ component CheckoutTextField {
                 single-line: true;
                 color: T.text-primary;
                 font-size: 14px; font-weight: 500;
+                edited => { root.edited(self.text); }
             }
         }
         if input.text == "": Text {
@@ -998,6 +1005,16 @@ export component CheckoutDrawer {
                         placeholder: CheckoutState.tr-customer-hint;
                         icon: Icons.person;
                         text <=> CheckoutState.customer-text;
+                        edited(text) => { CheckoutState.customer-edited(text); }
+                    }
+                    if CheckoutState.customer-matches.length > 0: HorizontalLayout {
+                        alignment: start;
+                        spacing: Sp.sm;
+                        for c in CheckoutState.customer-matches: DiscountChip {
+                            label: c.label;
+                            active: c.active;
+                            tap => { CheckoutState.pick-customer(c.id); }
+                        }
                     }
                     CheckoutTextField {
                         placeholder: CheckoutState.tr-notes-hint;
