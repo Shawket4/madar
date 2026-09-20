@@ -109,6 +109,17 @@ class BootNotifier extends AsyncNotifier<BootData> {
       OrientationController.instance.restoreTabletThresholdInches(
         vault.tabletThresholdInches,
       );
+      // Persisted orientation-mode override (follow-device / portrait /
+      // landscape) — same wiring shape as the flip. The Android activity
+      // already applied this same persisted value natively before Flutter
+      // started (see MainActivity.kt); this just keeps the controller (and
+      // SystemChrome) in sync for the rest of the session.
+      OrientationController.instance.modePersister = ({required mode}) {
+        vault.orientationMode = mode.name;
+      };
+      OrientationController.instance.restoreMode(
+        OrientationMode.parse(vault.orientationMode),
+      );
       return BootData(core: core, vault: vault);
     } on Object catch (e) {
       final bridge = core?.bridge;

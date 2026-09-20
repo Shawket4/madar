@@ -43,6 +43,18 @@ class HostVault {
     unawaited(_prefs.setBool('madar.landscape_right', value));
   }
 
+  /// Orientation lock: 'device' (default — follow device class), 'portrait'
+  /// or 'landscape'. Stored as a plain string (not an index) so the Android
+  /// side can read it without knowing this enum's Dart layout — see
+  /// `MainActivity.kt`, which reads the SAME `flutter.madar.orientation_mode`
+  /// key out of the `FlutterSharedPreferences` file directly, before Flutter
+  /// ever starts, to pick the launch orientation with no rotate flash.
+  String get orientationMode =>
+      _prefs.getString('madar.orientation_mode') ?? 'device';
+  set orientationMode(String value) {
+    unawaited(_prefs.setString('madar.orientation_mode', value));
+  }
+
   /// Tablet-vs-phone diagonal-inch cutoff for the orientation lock —
   /// user-adjustable in Settings for devices whose reported density
   /// misclassifies them (see [OrientationController]).

@@ -577,10 +577,14 @@ class _DiagnosticsSheet extends ConsumerWidget {
             MadarSummaryLine(label: t('settings.pending'), value: '$pending'),
           ],
         ),
-        // Tablets lock to ONE landscape; this flips between the two. Phones
-        // are portrait-locked, so the flip is hidden there.
+        // Follow the device class (default), or force one orientation — the
+        // explicit choice persists and wins over the device-class guess.
+        // Tablets/an explicit landscape lock get the flip between the two
+        // landscape sides; a portrait lock (or a phone under "device") hides
+        // it.
         MadarCard.column(
           children: [
+            const _OrientationModeSegment(),
             if (OrientationController.instance.canFlip)
               const _OrientationFlip(),
             const _TabletThreshold(),
@@ -628,6 +632,52 @@ class _DiagnosticsSheet extends ConsumerWidget {
   }
 }
 
+/// Follow-device / Portrait / Landscape — the explicit override. Rebuilds on
+/// every controller change so it reflects a live device-class re-evaluation
+/// too (e.g. the tablet-threshold stepper below it).
+class _OrientationModeSegment extends ConsumerWidget {
+  const _OrientationModeSegment();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.bridge;
+    return ListenableBuilder(
+      listenable: OrientationController.instance,
+      builder: (context, _) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.sm,
+          children: [
+            Text(
+              bridge.tr(key: 'settings.orientation'),
+              style: MadarType.body.copyWith(color: colors.textSecondary),
+            ),
+            MadarSegmented<OrientationMode>(
+              items: [
+                MadarSegmentItem(
+                  OrientationMode.device,
+                  bridge.tr(key: 'settings.orientation_follow'),
+                ),
+                MadarSegmentItem(
+                  OrientationMode.portrait,
+                  bridge.tr(key: 'settings.orientation_portrait'),
+                ),
+                MadarSegmentItem(
+                  OrientationMode.landscape,
+                  bridge.tr(key: 'settings.orientation_landscape'),
+                ),
+              ],
+              value: OrientationController.instance.mode,
+              onChanged: OrientationController.instance.setMode,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 /// Flips the locked landscape orientation on tablets.
 class _OrientationFlip extends ConsumerWidget {
   const _OrientationFlip();
@@ -643,7 +693,7 @@ class _OrientationFlip extends ConsumerWidget {
           children: [
             Expanded(
               child: Text(
-                bridge.tr(key: 'settings.orientation'),
+                bridge.tr(key: 'settings.flip_screen_hint'),
                 style: MadarType.body.copyWith(color: colors.textSecondary),
               ),
             ),

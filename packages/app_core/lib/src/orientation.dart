@@ -4,13 +4,38 @@ import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+/// The three states of the orientation preference. An explicit lock always
+/// wins over the device-class default; [device] is that default (tablet →
+/// landscape, phone → portrait — see [OrientationController.setDeviceClass]).
+enum OrientationMode {
+  device,
+  portrait,
+  landscape;
+
+  /// Parses a persisted string, defaulting to [device] for anything else
+  /// (including a value written by an older build that never had this key).
+  static OrientationMode parse(String value) => switch (value) {
+    'portrait' => OrientationMode.portrait,
+    'landscape' => OrientationMode.landscape,
+    _ => OrientationMode.device,
+  };
+}
+
 /// Device-class-aware screen-orientation lock.
 ///
 /// Tablets/desktop lock to ONE landscape at a time — never auto-rotating —
 /// and the user flips between the two with a button. Phones lock to normal
-/// portrait with no flip. App-global platform state, so it's a singleton
-/// (it must be the same instance across the app's separate provider
-/// containers — see the ready-scope split in main.dart).
+/// portrait with no flip. That's the [OrientationMode.device] default; a
+/// person can override it to always-portrait or always-landscape from
+/// Settings, and the override persists and wins over the device-class guess.
+///
+/// App-global platform state, so it's a singleton (it must be the same
+/// instance across the app's separate provider containers — see the
+/// ready-scope split in main.dart). The ANDROID side re-derives this same
+/// decision natively (`MainActivity.onCreate`, before `super.onCreate`) from
+/// the same persisted prefs, so the activity launches directly in the right
+/// orientation — this controller's job from then on is only to keep it in
+/// sync with a live in-app change (a mode switch, a threshold edit, a flip).
 class OrientationController extends ChangeNotifier {
   OrientationController._();
 
@@ -34,15 +59,30 @@ class OrientationController extends ChangeNotifier {
   bool _isTablet = true;
   bool _landscapeRight = true;
   bool _applied = false;
+  OrientationMode _mode = OrientationMode.device;
 
   /// Tablet/desktop → landscape with a flip; phone → portrait, no flip.
+  /// This is the DEVICE-CLASS guess — [effectiveLandscape] is what's
+  /// actually applied once [mode] is factored in.
   bool get isTablet => _isTablet;
 
-  /// Which of the two landscape locks is active (tablet only).
+  /// Which of the two landscape locks is active when landscape applies.
   bool get landscapeRight => _landscapeRight;
 
-  /// The flip is only meaningful on a tablet (phones are portrait-locked).
-  bool get canFlip => _isTablet;
+  /// The explicit override, if any — wins over the device-class guess.
+  OrientationMode get mode => _mode;
+
+  /// What's actually locked right now: the explicit mode if set, else the
+  /// device-class guess.
+  bool get effectiveLandscape => switch (_mode) {
+    OrientationMode.landscape => true,
+    OrientationMode.portrait => false,
+    OrientationMode.device => _isTablet,
+  };
+
+  /// The flip (choosing which of the two landscape sides) is only
+  /// meaningful while landscape actually applies.
+  bool get canFlip => effectiveLandscape;
 
   /// Current tablet cutoff, in diagonal inches.
   double get tabletThresholdInches => _tabletThresholdInches;
@@ -56,6 +96,12 @@ class OrientationController extends ChangeNotifier {
   /// [persister]. Called after each [setTabletThresholdInches]; never on
   /// [restoreTabletThresholdInches] (no persist echo).
   void Function({required double tabletThresholdInches})? thresholdPersister;
+
+  /// Host hook that persists the mode override — wired at boot like
+  /// [persister]. Called after each [setMode]; never on [restoreMode] (no
+  /// persist echo). The Android native side reads the SAME persisted value
+  /// directly (no Dart round trip) so the very first frame already matches.
+  void Function({required OrientationMode mode})? modePersister;
 
   /// Diagonal screen size in inches, assuming the 160dp/inch baseline.
   static double diagonalInches(Size size) {
@@ -116,26 +162,48 @@ class OrientationController extends ChangeNotifier {
   void restoreFlip({required bool landscapeRight}) {
     if (_landscapeRight == landscapeRight) return;
     _landscapeRight = landscapeRight;
-    if (_isTablet) _apply();
+    if (effectiveLandscape) _apply();
     scheduleMicrotask(notifyListeners);
   }
 
-  /// Toggle between the two landscape locks (tablet only). No-op on phones.
+  /// Toggle between the two landscape locks. No-op unless landscape is
+  /// actually in effect (device-class tablet, or an explicit landscape
+  /// lock).
   void flip() {
-    if (!_isTablet) return;
+    if (!canFlip) return;
     _landscapeRight = !_landscapeRight;
     _apply();
     persister?.call(landscapeRight: _landscapeRight);
     notifyListeners();
   }
 
+  /// Explicit override: follow the device class, or force one orientation.
+  /// Wins over [setDeviceClass] from the moment it's set, and persists.
+  void setMode(OrientationMode mode) {
+    if (_mode == mode) return;
+    _mode = mode;
+    _apply();
+    modePersister?.call(mode: mode);
+    notifyListeners();
+  }
+
+  /// Seed the persisted mode at boot — same shape as [restoreFlip]. No
+  /// persist echo.
+  void restoreMode(OrientationMode mode) {
+    if (_mode == mode) return;
+    _mode = mode;
+    _apply();
+    scheduleMicrotask(notifyListeners);
+  }
+
   void _apply() {
     _applied = true;
-    // Tablets stay landscape but accept either side, so the device can be
-    // rotated end-for-end without fighting the lock. The persisted flip only
-    // decides which side is listed first (the preferred one at apply time).
+    // Landscape (device-class or explicit) accepts either side, so the
+    // device can be rotated end-for-end without fighting the lock. The
+    // persisted flip only decides which side is listed first (the preferred
+    // one at apply time).
     final orientations = <DeviceOrientation>[
-      if (!_isTablet)
+      if (!effectiveLandscape)
         DeviceOrientation.portraitUp
       else ...[
         if (_landscapeRight)
