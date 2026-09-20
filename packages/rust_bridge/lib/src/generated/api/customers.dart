@@ -6,6 +6,50 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+/// A saved address on the customer card.
+class CustomerAddressView {
+  final String id;
+
+  /// "Home", "Work" — what the customer called it, when they did.
+  final String? label;
+
+  /// The address on one line.
+  final String line;
+
+  /// What the driver was told, when anything.
+  final String? notes;
+
+  /// How many orders went there; the list is most-used first.
+  final int useCount;
+
+  const CustomerAddressView({
+    required this.id,
+    this.label,
+    required this.line,
+    this.notes,
+    required this.useCount,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      label.hashCode ^
+      line.hashCode ^
+      notes.hashCode ^
+      useCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CustomerAddressView &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          label == other.label &&
+          line == other.line &&
+          notes == other.notes &&
+          useCount == other.useCount;
+}
+
 /// A customer as the till shows it.
 class CustomerView {
   final String id;

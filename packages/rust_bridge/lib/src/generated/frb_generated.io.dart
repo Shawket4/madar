@@ -310,6 +310,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   ComputedRecipeLineView dco_decode_computed_recipe_line_view(dynamic raw);
 
   @protected
+  CustomerAddressView dco_decode_customer_address_view(dynamic raw);
+
+  @protected
   CustomerView dco_decode_customer_view(dynamic raw);
 
   @protected
@@ -479,6 +482,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<ComputedRecipeLineView> dco_decode_list_computed_recipe_line_view(
     dynamic raw,
   );
+
+  @protected
+  List<CustomerAddressView> dco_decode_list_customer_address_view(dynamic raw);
 
   @protected
   List<CustomerView> dco_decode_list_customer_view(dynamic raw);
@@ -1380,6 +1386,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  CustomerAddressView sse_decode_customer_address_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CustomerView sse_decode_customer_view(SseDeserializer deserializer);
 
   @protected
@@ -1593,6 +1604,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<ComputedRecipeLineView> sse_decode_list_computed_recipe_line_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<CustomerAddressView> sse_decode_list_customer_address_view(
     SseDeserializer deserializer,
   );
 
@@ -2771,6 +2787,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_customer_address_view(
+    CustomerAddressView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_customer_view(CustomerView self, SseSerializer serializer);
 
   @protected
@@ -3043,6 +3065,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_computed_recipe_line_view(
     List<ComputedRecipeLineView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_customer_address_view(
+    List<CustomerAddressView> self,
     SseSerializer serializer,
   );
 

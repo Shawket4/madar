@@ -485,6 +485,13 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   Future<TillView?> currentTill();
 
+  /// A customer's saved addresses, most used first. ONLINE, and only when a
+  /// person opens the card; needs `customers.addresses.view`. Offline it
+  /// fails with a worded error the card shows in place of the list.
+  Future<List<CustomerAddressView>> customerAddresses({
+    required String customerId,
+  });
+
   /// One customer from the till's list.
   CustomerView? customerById({required String id});
 
@@ -622,6 +629,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? notes,
     int? guestCount,
     String? bookingId,
+    String? customerId,
   });
 
   /// The branch floor (sections + tables + held-order occupancy) from the
@@ -1270,6 +1278,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   void setLocale({required String locale});
 
+  /// Choose the customer an OPEN bill is for (or take them off with `None`).
+  /// Kept on the device, carried by the bill's settle, and by its fire while
+  /// that is still queued. Needs `customers.attach`.
+  void setTicketCustomer({required String ticketId, String? customerId});
+
   /// SETTLE an open ticket into a paid order in the cashier's shift (a till
   /// action). Offline-first: the order is materialized server-side at replay,
   /// deduped on the ticket id. Returns true when still queued (offline). The
@@ -1292,6 +1305,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<CheckoutSplit> splits,
     required bool waiveService,
     ApprovalView? discountApproval,
+    String? customerId,
   });
 
   /// One-call sign-in: online first, offline PIN unlock fallback.
