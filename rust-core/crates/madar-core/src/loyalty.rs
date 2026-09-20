@@ -330,6 +330,26 @@ pub fn balance_label_key(mode: &str) -> &'static str {
 /// sale settles (the earn rate, the cap, the clawback rule). None of it is the
 /// till's to apply, and mirroring it here would only give a stale device a
 /// second opinion about a number the server already computed.
+///
+/// That includes per-item stamps (`stamp_per_line_item` and the shop's list of
+/// collecting items, added 2026-09). It was worth writing down why the till
+/// gets neither, because it looks at first like something the device ought to
+/// know: the count now depends on the CART, which the till is holding.
+///
+/// It does not need to. An award is a request, not a calculation — the till
+/// sends who, and the server answers with what the sale was worth, reading the
+/// order's own lines out of its own tables. Offline that request is queued and
+/// answered on drain, off the same rows, so an offline till and the one beside
+/// it reach the same number without the offline one ever computing it. Nothing
+/// on this screen previews a stamp count before the server replies, so there is
+/// no figure here that could disagree.
+///
+/// Mirroring it would buy nothing and cost the one thing that matters: a device
+/// whose catalogue was a day stale would quietly promise a different number
+/// from the one the customer's card is about to receive. `covered_minor` is
+/// mirrored (and pinned by `loyalty_reward_vectors.json`) because a REDEMPTION
+/// changes what is owed on a screen the customer is reading before any server
+/// sees it. Earning changes nothing until the server says so.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoyaltyProgrammeView {
