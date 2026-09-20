@@ -292,6 +292,7 @@ DeliveryOrderView _online({
     createdAt: at,
     extraPrepMinutes: 0,
     isTerminal: false,
+    contactOverride: false,
   );
 }
 

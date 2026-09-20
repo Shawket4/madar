@@ -1,5 +1,6 @@
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/feature_checkout.dart' show LinkedCustomerRow;
 import 'package:feature_incoming/src/widgets.dart' show ticketTone;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -100,6 +101,9 @@ class TicketDetailsSheet extends ConsumerWidget {
                 _ContextChip(icon: icon, label: label),
             ],
           ),
+        // The customer the bill is for, when one is known on this till.
+        if (ticket.customerId case final customerId?)
+          LinkedCustomerRow(customerId: customerId),
         // Line items card — the real ticket lines. Voided lines strike.
         OrderLinesCard(lines: ticket.lines, currency: currency, tr: tr),
         // Totals — the server's priced bill, line by line, ending on the
@@ -184,6 +188,16 @@ class DeliveryDetailsSheet extends ConsumerWidget {
           totalMinor: o.totalMinor,
           currency: currency,
         ),
+        // Whose order it is. The hero above stays the SNAPSHOT — the name and
+        // number the driver calls and the receipt prints; when the order was
+        // placed for someone else, this row says by whom.
+        if (o.customerId case final customerId?)
+          LinkedCustomerRow(
+            customerId: customerId,
+            orderedFor: o.contactOverride
+                ? '${o.customerName} · ${MadarFormat.ltr(o.customerPhone)}'
+                : null,
+          ),
         // Address + payment context (only the rows that carry data).
         if ((address != null && address.isNotEmpty) ||
             (paymentHint != null && paymentHint.isNotEmpty))

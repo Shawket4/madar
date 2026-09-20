@@ -27,6 +27,7 @@ DeliveryOrderView _order(String id, String status) => DeliveryOrderView(
   createdAt: '2026-09-10T19:00:00Z',
   extraPrepMinutes: 0,
   isTerminal: status == 'cancelled' || status == 'rejected',
+  contactOverride: false,
 );
 
 TicketView _ticket(String id, String status, String at) => TicketView(
