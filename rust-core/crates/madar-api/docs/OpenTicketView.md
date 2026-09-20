@@ -7,6 +7,7 @@ Name | Type | Description | Notes
 **bill** | Option<[**models::TicketBill**](TicketBill.md)> | The bill as the SERVER prices it — see [`TicketBill`]. This is the figure the till shows and the drawer collects, because it is the figure the settle will book; `subtotal` above is only its first line. | [optional]
 **booking_id** | Option<**uuid::Uuid**> | The booking this ticket seated, if the party had one. | [optional]
 **branch_id** | **uuid::Uuid** |  | 
+**customer_id** | Option<**uuid::Uuid**> | The customer this bill belongs to, when one is known (design §2.5): a table-QR guest who gave a phone, the party's booking, or one the waiter attached. `customer_name` is the free-text snapshot and may be set without it. Settling carries it onto the sale. | [optional]
 **customer_name** | Option<**String**> |  | [optional]
 **discount_id** | Option<**uuid::Uuid**> | The discount the waiter put on the bill at fire time, if any. Shown so the cashier can SEE what a settle will inherit — and clear it with an explicit `discount_type: \"none\"` rather than have it applied silently. | [optional]
 **discount_type** | Option<**String**> |  | [optional]

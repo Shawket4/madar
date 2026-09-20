@@ -20,11 +20,12 @@ Name | Type | Description | Notes
 **org_id** | **uuid::Uuid** |  | 
 **updated_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **addon_slots** | [**Vec<models::AddonSlot>**](AddonSlot.md) |  | 
+**all_sizes** | Option<[**Vec<models::ItemSize>**](ItemSize.md)> | Every size row, INCLUDING the synthetic `one_size` one. Additive: this is where price actually lives, and it is what the dashboard's size editor and new POS builds read. An item always has at least one entry. | [optional]
 **allowed_addon_ids** | **Vec<uuid::Uuid>** | Explicit per-item addon allowlist. Empty = no restriction (use org catalog). | 
 **optional_fields** | [**Vec<models::OptionalField>**](OptionalField.md) |  | 
 **recipe_steps** | Option<[**Vec<models::RecipeStep>**](RecipeStep.md)> | How the item is made, in order. Each preset step carries its animation's address and fingerprint, so a device downloads only what its own menu uses and never the whole library. | [optional]
 **recipes** | [**Vec<models::MenuItemRecipe>**](MenuItemRecipe.md) |  | 
-**sizes** | [**Vec<models::ItemSize>**](ItemSize.md) |  | 
+**sizes** | [**Vec<models::ItemSize>**](ItemSize.md) | LEGACY SHAPE — unchanged for clients at or below v0.7.11: the synthetic `one_size` row that now carries a single-price item's price is hidden here, so an old till still sees a size-less item exactly as it did. | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

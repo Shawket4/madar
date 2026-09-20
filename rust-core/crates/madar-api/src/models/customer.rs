@@ -13,10 +13,27 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Customer {
+    #[serde(
+        rename = "birth_day",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub birth_day: Option<Option<i32>>,
+    #[serde(
+        rename = "birth_month",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub birth_month: Option<Option<i32>>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// A live loyalty membership exists for this customer (same id).
+    #[serde(rename = "is_member", skip_serializing_if = "Option::is_none")]
+    pub is_member: Option<bool>,
     #[serde(
         rename = "last_order_at",
         default,
@@ -24,6 +41,15 @@ pub struct Customer {
         skip_serializing_if = "Option::is_none"
     )]
     pub last_order_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// `en` or `ar`; null when never asked.
+    #[serde(
+        rename = "locale",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub locale: Option<Option<String>>,
+    /// DEPRECATED, kept for one release: a loyalty membership now shares the customer's id, so this is `id` when `is_member` and null otherwise.
     #[serde(
         rename = "loyalty_customer_id",
         default,
@@ -31,6 +57,8 @@ pub struct Customer {
         skip_serializing_if = "Option::is_none"
     )]
     pub loyalty_customer_id: Option<Option<uuid::Uuid>>,
+    #[serde(rename = "marketing_opt_out", skip_serializing_if = "Option::is_none")]
+    pub marketing_opt_out: Option<bool>,
     #[serde(rename = "name")]
     pub name: String,
     #[serde(
@@ -49,11 +77,30 @@ pub struct Customer {
         skip_serializing_if = "Option::is_none"
     )]
     pub phone: Option<Option<String>>,
+    /// Null when not a member.
+    #[serde(
+        rename = "points_balance",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub points_balance: Option<Option<i32>>,
+    /// Where the customer first came from: `pos`, `online`, `loyalty`, `booking`, `table_qr`, `aggregator` or `dashboard`.
+    #[serde(rename = "source", skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
     /// Sum of completed sales, minor units.
     #[serde(rename = "total_spent")]
     pub total_spent: i64,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
+    /// Null when not a member.
+    #[serde(
+        rename = "visits_balance",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub visits_balance: Option<Option<i32>>,
 }
 
 impl Customer {
@@ -66,16 +113,24 @@ impl Customer {
         updated_at: chrono::DateTime<chrono::FixedOffset>,
     ) -> Customer {
         Customer {
+            birth_day: None,
+            birth_month: None,
             created_at,
             id,
+            is_member: None,
             last_order_at: None,
+            locale: None,
             loyalty_customer_id: None,
+            marketing_opt_out: None,
             name,
             notes: None,
             orders_count,
             phone: None,
+            points_balance: None,
+            source: None,
             total_spent,
             updated_at,
+            visits_balance: None,
         }
     }
 }

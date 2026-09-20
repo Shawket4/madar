@@ -98,6 +98,7 @@ Class | Method | HTTP request | Description
 *CustomersApi* | [**create_customer**](docs/CustomersApi.md#create_customer) | **POST** /customers | 
 *CustomersApi* | [**erase_customer**](docs/CustomersApi.md#erase_customer) | **POST** /customers/{id}/erase | 
 *CustomersApi* | [**get_customer**](docs/CustomersApi.md#get_customer) | **GET** /customers/{id} | 
+*CustomersApi* | [**list_customer_addresses**](docs/CustomersApi.md#list_customer_addresses) | **GET** /customers/{id}/addresses | 
 *CustomersApi* | [**list_customers**](docs/CustomersApi.md#list_customers) | **GET** /customers | 
 *CustomersApi* | [**merge_customer**](docs/CustomersApi.md#merge_customer) | **POST** /customers/{id}/merge | 
 *CustomersApi* | [**update_customer**](docs/CustomersApi.md#update_customer) | **PATCH** /customers/{id} | 
@@ -196,11 +197,12 @@ Class | Method | HTTP request | Description
 *KitchenApi* | [**set_routing_mode**](docs/KitchenApi.md#set_routing_mode) | **PUT** /kitchen/routing-mode | 
 *KitchenApi* | [**unbump**](docs/KitchenApi.md#unbump) | **POST** /kitchen/items/{item_id}/unbump | 
 *KitchenApi* | [**update_station**](docs/KitchenApi.md#update_station) | **PATCH** /kitchen/stations/{id} | 
-*LoyaltyApi* | [**delete_loyalty_member**](docs/LoyaltyApi.md#delete_loyalty_member) | **DELETE** /loyalty/members/{id} | Forget a member. **Admin only.**
+*LoyaltyApi* | [**delete_loyalty_member**](docs/LoyaltyApi.md#delete_loyalty_member) | **DELETE** /loyalty/members/{id} | Leave the programme: the card ends, the customer stays (design §2.8).
 *LoyaltyApi* | [**delete_loyalty_settings**](docs/LoyaltyApi.md#delete_loyalty_settings) | **DELETE** /loyalty/settings | 
 *LoyaltyApi* | [**get_loyalty_analytics**](docs/LoyaltyApi.md#get_loyalty_analytics) | **GET** /loyalty/analytics | 
 *LoyaltyApi* | [**get_loyalty_behavior**](docs/LoyaltyApi.md#get_loyalty_behavior) | **GET** /loyalty/behavior | 
 *LoyaltyApi* | [**get_loyalty_campaign_effectiveness**](docs/LoyaltyApi.md#get_loyalty_campaign_effectiveness) | **GET** /loyalty/campaign-effectiveness | 
+*LoyaltyApi* | [**get_loyalty_earning_items**](docs/LoyaltyApi.md#get_loyalty_earning_items) | **GET** /loyalty/earning-items | 
 *LoyaltyApi* | [**get_loyalty_google_object**](docs/LoyaltyApi.md#get_loyalty_google_object) | **GET** /loyalty/members/{id}/google-object | What Google is actually holding for one member's card. **Super admin only.**
 *LoyaltyApi* | [**get_loyalty_liability_trend**](docs/LoyaltyApi.md#get_loyalty_liability_trend) | **GET** /loyalty/liability-trend | 
 *LoyaltyApi* | [**get_loyalty_member**](docs/LoyaltyApi.md#get_loyalty_member) | **GET** /loyalty/members/{id} | 
@@ -212,6 +214,7 @@ Class | Method | HTTP request | Description
 *LoyaltyApi* | [**loyalty_award**](docs/LoyaltyApi.md#loyalty_award) | **POST** /loyalty/award | The live route. Tellers press the button; the permission is the same `update` the redeem action needs.
 *LoyaltyApi* | [**loyalty_lookup**](docs/LoyaltyApi.md#loyalty_lookup) | **POST** /loyalty/lookup | Identify the member in front of the till.
 *LoyaltyApi* | [**preview_loyalty_birthday_message**](docs/LoyaltyApi.md#preview_loyalty_birthday_message) | **POST** /loyalty/birthday-preview | Render the greeting for settings that have NOT been saved yet.
+*LoyaltyApi* | [**put_loyalty_earning_items**](docs/LoyaltyApi.md#put_loyalty_earning_items) | **PUT** /loyalty/earning-items | 
 *LoyaltyApi* | [**put_loyalty_reward_items**](docs/LoyaltyApi.md#put_loyalty_reward_items) | **PUT** /loyalty/reward-items | 
 *LoyaltyApi* | [**put_loyalty_settings**](docs/LoyaltyApi.md#put_loyalty_settings) | **PUT** /loyalty/settings | 
 *LoyaltyApi* | [**refresh_loyalty_google_pass**](docs/LoyaltyApi.md#refresh_loyalty_google_pass) | **POST** /loyalty/members/{id}/google-refresh | Provision this member's Google card and report every word of it. **Super admin only.**
@@ -308,6 +311,9 @@ Class | Method | HTTP request | Description
 *OpenTicketsApi* | [**settle_open_ticket**](docs/OpenTicketsApi.md#settle_open_ticket) | **POST** /open-tickets/{id}/settle | 
 *OpenTicketsApi* | [**void_open_ticket**](docs/OpenTicketsApi.md#void_open_ticket) | **POST** /open-tickets/{id}/void | 
 *OpenTicketsApi* | [**void_ticket_line**](docs/OpenTicketsApi.md#void_ticket_line) | **POST** /open-tickets/{id}/items/{item_id}/void | 
+*OrderNowApi* | [**order_now_combine**](docs/OrderNowApi.md#order_now_combine) | **POST** /public/order-now/{token}/combine | 
+*OrderNowApi* | [**order_now_context**](docs/OrderNowApi.md#order_now_context) | **GET** /public/order-now/{token} | 
+*OrderNowApi* | [**order_now_replace_identity**](docs/OrderNowApi.md#order_now_replace_identity) | **POST** /public/order-now/{token}/replace-identity | 
 *OrdersApi* | [**create_order**](docs/OrdersApi.md#create_order) | **POST** /orders | 
 *OrdersApi* | [**export_orders**](docs/OrdersApi.md#export_orders) | **GET** /orders/export | 
 *OrdersApi* | [**get_order**](docs/OrdersApi.md#get_order) | **GET** /orders/{order_id} | 
@@ -515,6 +521,12 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**update_leave_type**](docs/StaffApi.md#update_leave_type) | **PATCH** /staff/leave/types/{id} | 
 *StaffApi* | [**update_work_shift**](docs/StaffApi.md#update_work_shift) | **PATCH** /staff/work-shifts/{id} | 
 *StaffApi* | [**waive_deduction**](docs/StaffApi.md#waive_deduction) | **PATCH** /staff/payroll/deductions/{id}/waive | 
+*StaffPoolApi* | [**delete_staff_pool_settings**](docs/StaffPoolApi.md#delete_staff_pool_settings) | **DELETE** /staff-pool/settings | 
+*StaffPoolApi* | [**get_staff_pool_settings**](docs/StaffPoolApi.md#get_staff_pool_settings) | **GET** /staff-pool/settings | 
+*StaffPoolApi* | [**get_staff_pool_today**](docs/StaffPoolApi.md#get_staff_pool_today) | **GET** /staff-pool/today | 
+*StaffPoolApi* | [**list_staff_drinks**](docs/StaffPoolApi.md#list_staff_drinks) | **GET** /staff-pool/drinks | The staff drinks of a branch over a range of business days, newest first.
+*StaffPoolApi* | [**put_staff_pool_settings**](docs/StaffPoolApi.md#put_staff_pool_settings) | **PUT** /staff-pool/settings | 
+*StaffPoolApi* | [**record_staff_drink**](docs/StaffPoolApi.md#record_staff_drink) | **POST** /staff-pool/drinks | 
 *StocktakesApi* | [**cancel_stocktake**](docs/StocktakesApi.md#cancel_stocktake) | **POST** /stocktakes/{id}/cancel | 
 *StocktakesApi* | [**create_stocktake**](docs/StocktakesApi.md#create_stocktake) | **POST** /stocktakes/branches/{branch_id} | 
 *StocktakesApi* | [**finalize_stocktake**](docs/StocktakesApi.md#finalize_stocktake) | **POST** /stocktakes/{id}/finalize | 
@@ -736,6 +748,7 @@ Class | Method | HTTP request | Description
  - [CredentialSummary](docs/CredentialSummary.md)
  - [CredentialWithSecret](docs/CredentialWithSecret.md)
  - [Customer](docs/Customer.md)
+ - [CustomerAddress](docs/CustomerAddress.md)
  - [CustomerDetail](docs/CustomerDetail.md)
  - [CustomerOrder](docs/CustomerOrder.md)
  - [DatasetInfo](docs/DatasetInfo.md)
@@ -766,6 +779,8 @@ Class | Method | HTTP request | Description
  - [Discount](docs/Discount.md)
  - [DiscountAuditEntry](docs/DiscountAuditEntry.md)
  - [DrinkRecipe](docs/DrinkRecipe.md)
+ - [EarningItem](docs/EarningItem.md)
+ - [EarningItemList](docs/EarningItemList.md)
  - [Employee](docs/Employee.md)
  - [ErrorBody](docs/ErrorBody.md)
  - [ExplainStep](docs/ExplainStep.md)
@@ -883,6 +898,10 @@ Class | Method | HTTP request | Description
  - [OrderItemFull](docs/OrderItemFull.md)
  - [OrderItemInput](docs/OrderItemInput.md)
  - [OrderItemOptional](docs/OrderItemOptional.md)
+ - [OrderNowAddress](docs/OrderNowAddress.md)
+ - [OrderNowBranch](docs/OrderNowBranch.md)
+ - [OrderNowContext](docs/OrderNowContext.md)
+ - [OrderNowFull](docs/OrderNowFull.md)
  - [OrderNumberRange](docs/OrderNumberRange.md)
  - [OrderPayment](docs/OrderPayment.md)
  - [OrderRefunds](docs/OrderRefunds.md)
@@ -986,6 +1005,7 @@ Class | Method | HTTP request | Description
  - [PutAllowedAddonsRequest](docs/PutAllowedAddonsRequest.md)
  - [PutAttendanceSettingsRequest](docs/PutAttendanceSettingsRequest.md)
  - [PutBalanceRequest](docs/PutBalanceRequest.md)
+ - [PutEarningItems](docs/PutEarningItems.md)
  - [PutEmployeeRequest](docs/PutEmployeeRequest.md)
  - [PutItemOptionsRequest](docs/PutItemOptionsRequest.md)
  - [PutModifierGroupsRequest](docs/PutModifierGroupsRequest.md)
@@ -1017,6 +1037,7 @@ Class | Method | HTTP request | Description
  - [RecipeStepInput](docs/RecipeStepInput.md)
  - [RecipeStepPreset](docs/RecipeStepPreset.md)
  - [ReconciliationInput](docs/ReconciliationInput.md)
+ - [RecordStaffDrinkRequest](docs/RecordStaffDrinkRequest.md)
  - [RecordWasteRequest](docs/RecordWasteRequest.md)
  - [Refund](docs/Refund.md)
  - [RefundFull](docs/RefundFull.md)
@@ -1033,6 +1054,8 @@ Class | Method | HTTP request | Description
  - [ReorderCategoriesRequest](docs/ReorderCategoriesRequest.md)
  - [ReorderLine](docs/ReorderLine.md)
  - [ReorderSuggestion](docs/ReorderSuggestion.md)
+ - [ReplaceIdentityRequest](docs/ReplaceIdentityRequest.md)
+ - [ReplaceIdentityResponse](docs/ReplaceIdentityResponse.md)
  - [ReplayApproval](docs/ReplayApproval.md)
  - [ReplayFlag](docs/ReplayFlag.md)
  - [RepricingReport](docs/RepricingReport.md)
@@ -1082,6 +1105,9 @@ Class | Method | HTTP request | Description
  - [SpotViewApproval](docs/SpotViewApproval.md)
  - [SpotViewRequest](docs/SpotViewRequest.md)
  - [StaffDocument](docs/StaffDocument.md)
+ - [StaffDrink](docs/StaffDrink.md)
+ - [StaffPoolSettings](docs/StaffPoolSettings.md)
+ - [StaffPoolToday](docs/StaffPoolToday.md)
  - [StaffRequest](docs/StaffRequest.md)
  - [StationRoutes](docs/StationRoutes.md)
  - [StatusInput](docs/StatusInput.md)

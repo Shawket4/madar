@@ -24,6 +24,14 @@ pub struct DeliveryOrderInput {
     pub branch_id: uuid::Uuid,
     #[serde(rename = "channel")]
     pub channel: String,
+    /// A one-time order to a different phone, at a branch that requires OTP: the device token proving THAT phone.
+    #[serde(
+        rename = "contact_device_token",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub contact_device_token: Option<Option<String>>,
     #[serde(
         rename = "customer_lat",
         default,
@@ -49,7 +57,7 @@ pub struct DeliveryOrderInput {
         skip_serializing_if = "Option::is_none"
     )]
     pub delivery_notes: Option<Option<String>>,
-    /// Device-trust token from OTP verify (proves the phone).
+    /// Device-trust token from OTP verify (proves the phone). With `member_token` it must prove the CUSTOMER's phone, not the typed one.
     #[serde(rename = "device_token")]
     pub device_token: String,
     #[serde(
@@ -59,6 +67,14 @@ pub struct DeliveryOrderInput {
         skip_serializing_if = "Option::is_none"
     )]
     pub floor: Option<Option<String>>,
+    /// What a typed name/phone that differs from the customer's MEANS: `\"one_time\"` (ordering for someone else: the order's snapshot carries the typed contact, the profile is untouched) or `\"update_name\"` (correct the stored name). A different PHONE with no choice is refused with 409 `IDENTITY_CHOICE_REQUIRED` (`kind: \"phone\"`); a different name alone defaults to one-time. Ignored without `member_token`.
+    #[serde(
+        rename = "identity_change",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub identity_change: Option<Option<String>>,
     #[serde(rename = "items")]
     pub items: Vec<models::CartLineInput>,
     #[serde(
@@ -68,6 +84,14 @@ pub struct DeliveryOrderInput {
         skip_serializing_if = "Option::is_none"
     )]
     pub landmark: Option<Option<String>>,
+    /// Ordering from a loyalty card (\"order now\"): the order belongs to the card's customer whatever name and phone are typed. The server compares the typed contact with the customer's and classifies the difference — see `identity_change`.
+    #[serde(
+        rename = "member_token",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub member_token: Option<Option<String>>,
     /// \"cash\" | \"card\" — a hint the teller can change at finalize.
     #[serde(rename = "payment_method_hint")]
     pub payment_method_hint: String,
@@ -78,6 +102,14 @@ pub struct DeliveryOrderInput {
         skip_serializing_if = "Option::is_none"
     )]
     pub place_name: Option<Option<String>>,
+    /// Keep the address on the customer's profile. Defaults to yes for an ordinary order and to NO for a one-time order for someone else.
+    #[serde(
+        rename = "save_address",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub save_address: Option<Option<bool>>,
     #[serde(
         rename = "unit_number",
         default,
@@ -101,6 +133,7 @@ impl DeliveryOrderInput {
             address_line: None,
             branch_id,
             channel,
+            contact_device_token: None,
             customer_lat: None,
             customer_lng: None,
             customer_name,
@@ -108,10 +141,13 @@ impl DeliveryOrderInput {
             delivery_notes: None,
             device_token,
             floor: None,
+            identity_change: None,
             items,
             landmark: None,
+            member_token: None,
             payment_method_hint,
             place_name: None,
+            save_address: None,
             unit_number: None,
         }
     }

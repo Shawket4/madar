@@ -52,6 +52,14 @@ pub struct BookingView {
         skip_serializing_if = "Option::is_none"
     )]
     pub created_by: Option<Option<uuid::Uuid>>,
+    /// The customer who booked (design §2.5); `guest_name` / `guest_phone` beside it are the snapshot of what was typed. `None` for a booking from before customers existed whose phone is not a valid number.
+    #[serde(
+        rename = "customer_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub customer_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "ends_at")]
     pub ends_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "guest_name")]
@@ -159,6 +167,7 @@ impl BookingView {
             completed_at: None,
             created_at,
             created_by: None,
+            customer_id: None,
             ends_at,
             guest_name,
             guest_phone,

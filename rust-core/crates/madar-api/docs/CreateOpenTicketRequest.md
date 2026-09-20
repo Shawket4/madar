@@ -6,6 +6,7 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **booking_id** | Option<**uuid::Uuid**> | The booking this party arrived under: the ticket links to it and the booking moves to `seated` in the same transaction. | [optional]
 **branch_id** | **uuid::Uuid** |  | 
+**customer_id** | Option<**uuid::Uuid**> | The customer this bill is for, when the waiter picked one. Honoured when the actor holds `customers.attach`; a merged id resolves and an unknown one is ignored — a bill is never refused over its customer. Absent, a bill opened for a booking takes the booking's customer. | [optional]
 **customer_name** | Option<**String**> |  | [optional]
 **discount_id** | Option<**uuid::Uuid**> | Optional discount the waiter applied at order time (overridable at settle). | [optional]
 **discount_type** | Option<**String**> |  | [optional]

@@ -12,6 +12,7 @@ Name | Type | Description | Notes
 **mode** | **String** |  | 
 **name** | **String** |  | 
 **next_reward_cost** | **i32** |  | 
+**order_now_url** | Option<**String**> | \"Order now\": the ordering page, opened knowing who this is. Present only when public ordering is configured and the shop takes online orders — render the primary button when it is there, nothing when it is not. | [optional]
 **passes** | [**models::PassLinks**](PassLinks.md) |  | 
 **points_to_next_reward** | **i32** |  | 
 **progress_to_next** | **i32** | Progress towards the next one, after the earned ones are set aside. | 

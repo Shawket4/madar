@@ -29,6 +29,7 @@ pub struct CreateCustomerRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub id: Option<Option<uuid::Uuid>>,
+    /// DEPRECATED and ignored: a membership shares the customer's id, so there is nothing to link. Accepted so deployed tills keep working.
     #[serde(
         rename = "loyalty_customer_id",
         default,
@@ -52,6 +53,14 @@ pub struct CreateCustomerRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub phone: Option<Option<String>>,
+    /// Where the customer came from. Defaults to `pos` when a branch is named (a till) and `dashboard` otherwise.
+    #[serde(
+        rename = "source",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub source: Option<Option<String>>,
 }
 
 impl CreateCustomerRequest {
@@ -63,6 +72,7 @@ impl CreateCustomerRequest {
             name,
             notes: None,
             phone: None,
+            source: None,
         }
     }
 }

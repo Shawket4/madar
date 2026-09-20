@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DeliveryOrder {
+    /// The saved address it was sent to, when it was saved.
+    #[serde(
+        rename = "address_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub address_id: Option<Option<uuid::Uuid>>,
     #[serde(
         rename = "address_line",
         default,
@@ -55,8 +63,19 @@ pub struct DeliveryOrder {
         skip_serializing_if = "Option::is_none"
     )]
     pub confirmed_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// \"Ordered by X for Y\": the snapshot phone is not the customer's own.
+    #[serde(rename = "contact_override", skip_serializing_if = "Option::is_none")]
+    pub contact_override: Option<bool>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
+    /// The customer this order belongs to (design §2.5). `customer_name` and `customer_phone` beside it are the SNAPSHOT — what was typed, what the driver calls — and stay as they were whatever happens to the customer. `None` for an order from before customers existed whose phone is not a valid number.
+    #[serde(
+        rename = "customer_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub customer_id: Option<Option<uuid::Uuid>>,
     #[serde(
         rename = "customer_lat",
         default,
@@ -288,6 +307,7 @@ impl DeliveryOrder {
         updated_at: chrono::DateTime<chrono::FixedOffset>,
     ) -> DeliveryOrder {
         DeliveryOrder {
+            address_id: None,
             address_line: None,
             branch_id,
             cancel_reason: None,
@@ -296,7 +316,9 @@ impl DeliveryOrder {
             cart,
             channel,
             confirmed_at: None,
+            contact_override: None,
             created_at,
+            customer_id: None,
             customer_lat: None,
             customer_lng: None,
             customer_name,

@@ -8,6 +8,7 @@ Name | Type | Description | Notes
 **branch_id** | **uuid::Uuid** |  | 
 **change_given** | Option<**i32**> |  | [optional]
 **created_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
+**customer_id** | Option<**uuid::Uuid**> | The customer this sale belongs to (design §2.5) — the same id the sync feed's order row carries. `customer_name` beside it is the snapshot of what was typed or printed; this is who it was. A soft reference: `None` for a walk-in, and it may name a customer since merged (resolve through `GET /customers/{id}`) or erased. | [optional]
 **customer_name** | Option<**String**> |  | [optional]
 **delivery_channel** | Option<**String**> | Delivery channel (\"in_mall\" | \"outside\") of the linked delivery order, surfaced on the list so clients can flag + segment delivery orders without a per-order detail fetch. `null` for dine-in orders. | [optional]
 **delivery_fee** | **i32** | Delivery charge in piastres, shown separately from the item subtotal. Always 0 for dine-in orders; for delivery orders `total_amount == subtotal + tax_amount + delivery_fee` (minus discount). | 
