@@ -135,6 +135,19 @@ class _Fake implements MadarBridge {
   /// Every `attachCustomer(orderId, customerId)` the session made, in order.
   final attached = <(String, String?)>[];
 
+  /// The customers this till's list holds, as `customerById` answers.
+  final customers = <String, CustomerView>{};
+
+  /// Every `setTicketCustomer(ticketId, customerId)`, in order: what the core
+  /// keeps for an open bill.
+  final billCustomers = <(String, String?)>[];
+
+  /// Who the last settle named, and whether one happened.
+  String? settledCustomer;
+
+  /// The online orders finalized, by id.
+  final finalized = <String>[];
+
   /// What the last loyalty read was asked for.
   String? refreshedMember;
 
@@ -237,6 +250,7 @@ class _Fake implements MadarBridge {
     }
     if (name == #settleTicket) {
       settledSplits = a[#splits] as List<CheckoutSplit>;
+      settledCustomer = a[#customerId] as String?;
       return Future<String?>.value(); // queued offline
     }
     if (name == #splitRestHere) {
@@ -294,6 +308,24 @@ class _Fake implements MadarBridge {
       return Future<LoyaltyScanView>.value(_scan(refreshedMember!));
     }
     if (name == #customerForMember) return memberRows[a[#memberId]];
+    if (name == #customerById) return customers[a[#id]];
+    if (name == #setTicketCustomer) {
+      billCustomers.add((a[#ticketId] as String, a[#customerId] as String?));
+      return null;
+    }
+    // The receipt of a sale finalized a moment ago: not held here yet. The
+    // charge stands without it (a reprint from history).
+    if (name == #orderReceiptView) {
+      return Future<ReceiptView>.error(
+        const MadarError.offline(detail: 'not on this device yet'),
+      );
+    }
+    if (name == #deliveryFinalize) {
+      finalized.add(a[#id] as String);
+      return Future<DeliveryFinalizeView>.value(
+        const DeliveryFinalizeView(orderId: 'o-900', warnings: []),
+      );
+    }
     if (name == #attachCustomer) {
       attached.add((a[#orderId] as String, a[#customerId] as String?));
       return true;
@@ -349,6 +381,41 @@ const _hana = CustomerView(
   name: 'Hana',
   pending: false,
   isMember: false,
+);
+
+DeliveryOrderView _onlineFor(String? customerId) => DeliveryOrderView(
+  id: 'd-118',
+  orderRef: '#D-118',
+  channel: 'outside',
+  status: 'ready',
+  customerName: 'Nour Hassan',
+  customerPhone: '0122 333 4455',
+  subtotalMinor: 15000,
+  discountMinor: 0,
+  deliveryFeeMinor: 2500,
+  totalMinor: 17500,
+  itemCount: 3,
+  lines: const [],
+  createdAt: '2026-09-10T19:40:00Z',
+  extraPrepMinutes: 0,
+  isTerminal: false,
+  customerId: customerId,
+  contactOverride: false,
+);
+
+/// [_ticket], already for someone.
+TicketView _billFor(String customerId) => TicketView(
+  id: _ticket.id,
+  ticketRef: _ticket.ticketRef,
+  tableId: _ticket.tableId,
+  status: _ticket.status,
+  ready: _ticket.ready,
+  customerId: customerId,
+  subtotalMinor: _ticket.subtotalMinor,
+  bill: _ticket.bill,
+  openedAt: _ticket.openedAt,
+  queuedOffline: _ticket.queuedOffline,
+  lines: _ticket.lines,
 );
 
 Future<(ProviderContainer, CheckoutNotifier)> _session_(
@@ -480,7 +547,11 @@ void main() {
     expect(s.customer?.id, 'm-1');
   });
 
-  testWidgets("a bill's customer follows the settle as its own op", (
+  // Wave 2: the settle itself says who the bill is for. The pick is kept in
+  // the core the moment it is made (it survives the drawer closing, and the
+  // app), and NO attach follows the settle — two ops naming the customer is
+  // how they could come to disagree.
+  testWidgets("a bill's customer is kept at once and rides the settle", (
     tester,
   ) async {
     final bridge = _Fake();
@@ -489,13 +560,121 @@ void main() {
       bridge,
       const ChargeTarget.bill(_ticket, tableLabel: 'T1'),
     );
-    session
-      ..attachCustomer(_hana)
-      ..selectMethod('card');
+    session.attachCustomer(_hana);
+    expect(bridge.billCustomers, [('tk-1', 'c-1')]);
+    session.selectMethod('card');
     await session.charge();
     expect(bridge.settledSplits, isNotNull);
-    // Queued offline: no order id yet, so the ticket is the key.
-    expect(bridge.attached, [('tk-1', 'c-1')]);
+    expect(bridge.settledCustomer, 'c-1');
+    expect(bridge.attached, isEmpty);
+  });
+
+  testWidgets('a bill opens with the customer it already has', (tester) async {
+    final bridge = _Fake()..customers['c-1'] = _hana;
+    final (c, session) = await _session_(
+      tester,
+      bridge,
+      ChargeTarget.bill(_billFor('c-1'), tableLabel: 'T1'),
+    );
+    expect(c.read(checkoutProvider).customer?.id, 'c-1');
+    expect(bridge.billCustomers, isEmpty, reason: 'reading is not choosing');
+    // Taken off: the core is told, and the settle names nobody.
+    session.clearCustomer();
+    expect(bridge.billCustomers, [('tk-1', null)]);
+    session.selectMethod('card');
+    await session.charge();
+    expect(bridge.settledCustomer, isNull);
+    expect(bridge.attached, isEmpty);
+  });
+
+  // An online order arrives with its customer linked, and finalize carries
+  // them onto the sale by itself. Only a CHANGE made on the sheet follows the
+  // finalize, as the attach (or the removal) queued behind the sale.
+  group('an online order finalized', () {
+    testWidgets('with its own customer untouched: no attach', (tester) async {
+      final bridge = _Fake()..customers['c-1'] = _hana;
+      final (c, session) = await _session_(
+        tester,
+        bridge,
+        ChargeTarget.online(_onlineFor('c-1')),
+      );
+      expect(c.read(checkoutProvider).customer?.id, 'c-1');
+      session.selectMethod('card');
+      await session.charge();
+      expect(bridge.finalized, ['d-118']);
+      expect(bridge.attached, isEmpty);
+      expect(bridge.billCustomers, isEmpty, reason: 'not a bill');
+    });
+
+    testWidgets('a customer this till does not hold is left alone', (
+      tester,
+    ) async {
+      final bridge = _Fake();
+      final (c, session) = await _session_(
+        tester,
+        bridge,
+        ChargeTarget.online(_onlineFor('c-unknown')),
+      );
+      expect(c.read(checkoutProvider).customer, isNull);
+      session.selectMethod('card');
+      await session.charge();
+      expect(bridge.finalized, ['d-118']);
+      expect(
+        bridge.attached,
+        isEmpty,
+        reason: 'not shown is not removed: the server still has them',
+      );
+    });
+
+    testWidgets('a customer picked on the sheet is attached to the new sale', (
+      tester,
+    ) async {
+      final bridge = _Fake();
+      final (_, session) = await _session_(
+        tester,
+        bridge,
+        ChargeTarget.online(_onlineFor(null)),
+      );
+      session
+        ..attachCustomer(_hana)
+        ..selectMethod('card');
+      await session.charge();
+      // By the ORDER finalize made, not by the delivery order's id.
+      expect(bridge.attached, [('o-900', 'c-1')]);
+    });
+
+    testWidgets('picking the customer it already has attaches nothing', (
+      tester,
+    ) async {
+      final bridge = _Fake()..customers['c-1'] = _hana;
+      final (_, session) = await _session_(
+        tester,
+        bridge,
+        ChargeTarget.online(_onlineFor('c-1')),
+      );
+      session
+        ..clearCustomer()
+        ..attachCustomer(_hana)
+        ..selectMethod('card');
+      await session.charge();
+      expect(bridge.attached, isEmpty);
+    });
+
+    testWidgets('taking its customer off removes them after the sale', (
+      tester,
+    ) async {
+      final bridge = _Fake()..customers['c-1'] = _hana;
+      final (_, session) = await _session_(
+        tester,
+        bridge,
+        ChargeTarget.online(_onlineFor('c-1')),
+      );
+      session
+        ..clearCustomer()
+        ..selectMethod('card');
+      await session.charge();
+      expect(bridge.attached, [('o-900', null)]);
+    });
   });
 
   testWidgets('a bill with no customer queues no attach', (tester) async {
