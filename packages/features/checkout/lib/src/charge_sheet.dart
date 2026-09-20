@@ -6,6 +6,7 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/src/charge_strings.dart';
 import 'package:feature_checkout/src/charge_target.dart';
 import 'package:feature_checkout/src/checkout_provider.dart';
+import 'package:feature_checkout/src/customer_card.dart';
 import 'package:feature_checkout/src/customer_sheet.dart';
 import 'package:feature_checkout/src/discount_sheet.dart';
 import 'package:feature_checkout/src/done_card.dart';
@@ -959,7 +960,10 @@ class _QuietRows extends StatelessWidget {
               : customer.isMember
               ? '${customer.name} · ${bridge.tr(key: 'customers.member')}'
               : customer.name,
-          onTap: customer == null ? onCustomer : null,
+          // Nobody yet: pick one. Somebody: their card.
+          onTap: customer == null
+              ? onCustomer
+              : () => unawaited(showCustomerCard(context, customer)),
           trailing: customer == null
               ? null
               : MadarGlyphTile(

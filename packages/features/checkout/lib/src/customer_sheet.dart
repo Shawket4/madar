@@ -1,6 +1,7 @@
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/src/checkout_provider.dart';
+import 'package:feature_checkout/src/customer_card.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -159,7 +160,9 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
                   customer: c,
                   pendingLabel: t('customers.pending'),
                   memberLabel: t('customers.member'),
+                  cardLabel: t('customers.view_card'),
                   onTap: () => _pick(c),
+                  onCard: () => showCustomerCard(context, c),
                 ),
             if (canCreate)
               MadarButton(
@@ -213,13 +216,19 @@ class _CustomerTile extends StatelessWidget {
     required this.customer,
     required this.pendingLabel,
     required this.memberLabel,
+    required this.cardLabel,
     required this.onTap,
+    required this.onCard,
   });
 
   final CustomerView customer;
   final String pendingLabel;
   final String memberLabel;
+  final String cardLabel;
   final VoidCallback onTap;
+
+  /// Opens the customer card without picking them.
+  final VoidCallback onCard;
 
   @override
   Widget build(BuildContext context) {
@@ -235,38 +244,53 @@ class _CustomerTile extends StatelessWidget {
       label: customer.isMember
           ? '${customer.name}, $memberLabel'
           : customer.name,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsetsDirectional.symmetric(vertical: Space.sm),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                spacing: Space.sm,
-                children: [
-                  Flexible(
-                    child: Text(
-                      customer.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: MadarType.body.copyWith(
-                        color: colors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
+      child: Row(
+        spacing: Space.sm,
+        children: [
+          Expanded(child: _body(colors, sub)),
+          // The card, without picking them: who is this, where do they live.
+          MadarGlyphTile(
+            glyph: MadarGlyph.user,
+            semanticLabel: '$cardLabel: ${customer.name}',
+            onTap: onCard,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _body(MadarColors colors, String sub) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.symmetric(vertical: Space.sm),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              spacing: Space.sm,
+              children: [
+                Flexible(
+                  child: Text(
+                    customer.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MadarType.body.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  if (customer.isMember) MadarTag(label: memberLabel),
-                ],
-              ),
-              if (sub.isNotEmpty)
-                Text(
-                  sub,
-                  style: MadarType.bodySm.copyWith(color: colors.textMuted),
                 ),
-            ],
-          ),
+                if (customer.isMember) MadarTag(label: memberLabel),
+              ],
+            ),
+            if (sub.isNotEmpty)
+              Text(
+                sub,
+                style: MadarType.bodySm.copyWith(color: colors.textMuted),
+              ),
+          ],
         ),
       ),
     );

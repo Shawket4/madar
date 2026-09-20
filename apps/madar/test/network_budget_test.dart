@@ -30,6 +30,8 @@ const _networkCapable = <Symbol>{
   #searchOrders,
   #loyaltyLookup,
   #loyaltyLookupPhone,
+  // Saved addresses: asked when a PERSON opens the customer card.
+  #customerAddresses,
   #tableHistory,
   #deliveryOrderDetail,
   #deliverySetAccepting,

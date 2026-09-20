@@ -260,6 +260,7 @@ const _online = DeliveryOrderView(
   createdAt: '2026-09-10T19:40:00Z',
   extraPrepMinutes: 0,
   isTerminal: false,
+  contactOverride: false,
 );
 
 ReceiptView _receipt({required bool queued, int? number}) => ReceiptView(
