@@ -36,6 +36,7 @@ pub mod catstyle;
 /// Checkout — assemble an order from the cart + place it via the outbox.
 pub mod checkout;
 pub mod customers;
+pub mod phone;
 pub mod waste;
 /// "N actions need a manager": the till's refused + flagged acts and the one
 /// manager PIN that clears the batch.

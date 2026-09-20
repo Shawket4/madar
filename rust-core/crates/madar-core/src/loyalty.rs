@@ -272,15 +272,19 @@ pub fn classify_scan_input(raw: &str) -> LoyaltyScanInput {
         return LoyaltyScanInput::token(s.to_string());
     }
 
-    // A phone: digits once the punctuation people type is removed. The range
-    // matches the server's `normalize_phone`, so a number this accepts is a
-    // number the lookup can actually use.
-    let digits: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
-    let only_phone_chars = s
-        .chars()
-        .all(|c| c.is_ascii_digit() || matches!(c, '+' | ' ' | '-' | '(' | ')'));
-    if only_phone_chars && (10..=15).contains(&digits.len()) {
-        return LoyaltyScanInput::phone(s.to_string());
+    // A phone: digits once the punctuation people type is removed — Arabic
+    // numerals too. It leaves here in the ONE canonical form (`crate::phone`),
+    // the form the server keys members and customers by, so `0100…`, `+20 100…`
+    // and `٠١٠٠…` all look the same person up.
+    let folded = crate::phone::digits(s);
+    let only_phone_chars = s.chars().all(|c| {
+        c.is_ascii_digit()
+            || matches!(c, '+' | ' ' | '-' | '(' | ')' | '\u{0660}'..='\u{0669}' | '\u{06F0}'..='\u{06F9}')
+    });
+    if only_phone_chars && (10..=15).contains(&folded.len()) {
+        if let Some(canonical) = crate::phone::canonical(s) {
+            return LoyaltyScanInput::phone(canonical);
+        }
     }
 
     LoyaltyScanInput::partial()
@@ -853,6 +857,10 @@ mod tests {
     fn a_phone_number_is_recognised_however_it_is_punctuated() {
         for raw in ["01000000001", "+20 100 000 0001", "0100-000-0001"] {
             assert_eq!(classify_scan_input(raw).kind, "phone", "{raw}");
+        }
+        // …and leaves in the one canonical form, however it was typed.
+        for raw in ["01000000001", "+20 100 000 0001", "(010) 0000-0001", "٠١٠٠٠٠٠٠٠٠١", "201000000001"] {
+            assert_eq!(classify_scan_input(raw).value, "201000000001", "{raw}");
         }
         // Too short to route an OTP to is not a phone number yet.
         assert_eq!(classify_scan_input("0100").kind, "partial");
