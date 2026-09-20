@@ -895,6 +895,57 @@ mod version_tests {
 }
 
 #[cfg(test)]
+mod customer_tests {
+    use super::*;
+
+    /// `customer` was missing from the synced types, so a peer's customer rows
+    /// were refused as `UnknownType`: a LAN-only till could never find a
+    /// customer another till had, and a tombstone for one was ignored.
+    #[test]
+    fn a_customer_row_survives_the_trip_between_two_tills() {
+        let (served, caught_up) = (Store::open("").unwrap(), Store::open("").unwrap());
+        let mona = serde_json::json!({"id": "c-1", "name": "Mona Adel", "phone": "01001234567", "phone_key": "01001234567"});
+        served
+            .with_conn(|c| {
+                c.execute(
+                    "INSERT INTO sync_rows (branch_id, type, id, seq, data) VALUES ('B', 'customer', 'c-1', 7, ?1)",
+                    [mona.to_string()],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let (rows, _, _, _) = served.with_conn(|c| rows_page(c, "B", 0, 100)).unwrap();
+        assert_eq!(rows.iter().map(|r| r.ty.as_str()).collect::<Vec<_>>(), vec!["customer"]);
+
+        caught_up
+            .with_conn(|c| {
+                for r in &rows {
+                    assert_eq!(apply_peer_row(c, "B", r)?, Ok(()));
+                }
+                Ok(())
+            })
+            .unwrap();
+        let held = crate::sync_pull::rows_of_type(&caught_up, "B", "customer");
+        assert_eq!(held, vec![mona]);
+        // …and it is FOUND there, by the phone typed the other way round.
+        assert_eq!(crate::customers::search_rows(&held, "+20 100 123 4567").len(), 1);
+
+        // The customer erased (or merged away) upstream leaves the peer too.
+        let gone = Tombstone { ty: "customer".into(), id: "c-1".into(), seq: 9 };
+        assert!(caught_up.with_conn(|c| apply_peer_tombstone(c, "B", &gone)).unwrap());
+        assert!(crate::sync_pull::rows_of_type(&caught_up, "B", "customer").is_empty());
+    }
+
+    /// The customer list is an addition to the contract: a snapshot from a
+    /// server that predates it is still complete, so a till still opens.
+    #[test]
+    fn a_till_never_waits_on_the_customer_list() {
+        assert!(crate::sync_pull::SYNCED_TYPES.contains(&"customer"));
+        assert!(!crate::sync_pull::REQUIRED_TYPES.contains(&"customer"));
+    }
+}
+
+#[cfg(test)]
 mod authz_tests {
     use super::*;
 

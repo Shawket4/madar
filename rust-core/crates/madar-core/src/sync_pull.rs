@@ -447,13 +447,14 @@ pub(crate) const SYNCED_TYPES: &[&str] = &[
     "category", "menu_item", "bundle", "ingredient", "payment_method", "payment_availability",
     "discount", "branch_settings", "device", "teller", "floor_section", "floor_table",
     "table_occupancy", "table_transfer", "open_ticket", "kitchen_ticket", "delivery", "booking",
-    "till", "cash_movement", "order", "refund", "addon_item", "staff_drink",
+    "till", "cash_movement", "order", "refund", "addon_item", "staff_drink", "customer",
 ];
 #[cfg(test)]
 pub(crate) const ALL_TYPES: &[&str] = SYNCED_TYPES;
 /// The types a snapshot must list to count as COMPLETE (and move the cursor):
-/// the contract's original set. A type added later (`addon_item`) is applied
-/// when a server sends it, but a server that predates it still completes.
+/// the contract's original set. A type added later (`addon_item`, `customer`)
+/// is applied when a server sends it, but a server that predates it still
+/// completes — a till never waits on the customer list to open.
 pub(crate) const REQUIRED_TYPES: &[&str] = &[
     "category", "menu_item", "bundle", "ingredient", "payment_method", "payment_availability",
     "discount", "branch_settings", "device", "teller", "floor_section", "floor_table",
