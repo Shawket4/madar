@@ -16,10 +16,23 @@ class CustomerView {
 
   /// Masked for someone who may not see the phone, e.g. `•••• 4567`.
   final String? phoneHint;
+
+  /// The id their loyalty lives under, when they are a member (`id` itself
+  /// under the shared key). `Some` means "offer their loyalty".
   final String? loyaltyCustomerId;
 
   /// Added on this till and not yet confirmed by the server.
   final bool pending;
+
+  /// A loyalty member.
+  final bool isMember;
+
+  /// The balance the feed last carried, in words ("120 points"). A hint for
+  /// the picker; spending goes through a live lookup.
+  final String? balanceLabel;
+
+  /// Where the customer first came from (`pos`, `online`, `loyalty`, …).
+  final String? source;
 
   const CustomerView({
     required this.id,
@@ -28,6 +41,9 @@ class CustomerView {
     this.phoneHint,
     this.loyaltyCustomerId,
     required this.pending,
+    required this.isMember,
+    this.balanceLabel,
+    this.source,
   });
 
   @override
@@ -37,7 +53,10 @@ class CustomerView {
       phone.hashCode ^
       phoneHint.hashCode ^
       loyaltyCustomerId.hashCode ^
-      pending.hashCode;
+      pending.hashCode ^
+      isMember.hashCode ^
+      balanceLabel.hashCode ^
+      source.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -49,5 +68,8 @@ class CustomerView {
           phone == other.phone &&
           phoneHint == other.phoneHint &&
           loyaltyCustomerId == other.loyaltyCustomerId &&
-          pending == other.pending;
+          pending == other.pending &&
+          isMember == other.isMember &&
+          balanceLabel == other.balanceLabel &&
+          source == other.source;
 }
