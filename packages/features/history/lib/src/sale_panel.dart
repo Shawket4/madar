@@ -197,6 +197,7 @@ class SalePanel extends ConsumerWidget {
                     bridge: bridge,
                   ),
                 ),
+                _SaleCustomer(key: ValueKey(o.id), order: o),
                 // What has already gone back, before anything is offered
                 // about giving more back.
                 if (refunds != null && refunds.refundedMinor > 0)
@@ -214,6 +215,83 @@ class SalePanel extends ConsumerWidget {
   static String? _mods(OrderDetailLineView line) {
     final mods = <String>[?line.sizeLabel, ...line.addons, ...line.optionals];
     return mods.isEmpty ? null : mods.join(' · ');
+  }
+}
+
+/// Who the sale was for, and the way to say so after the fact: pick a
+/// customer for a sale already rung, or take them off. Local and offline —
+/// the core queues the change behind the sale and answers at once.
+class _SaleCustomer extends ConsumerStatefulWidget {
+  const _SaleCustomer({required this.order, super.key});
+
+  final OrderSummaryView order;
+
+  @override
+  ConsumerState<_SaleCustomer> createState() => _SaleCustomerState();
+}
+
+class _SaleCustomerState extends ConsumerState<_SaleCustomer> {
+  CustomerView? _read(MadarBridge bridge) {
+    try {
+      return bridge.orderCustomer(orderId: widget.order.id);
+    } on MadarError {
+      return null;
+    }
+  }
+
+  void _set(CustomerView? customer) {
+    final bridge = ref.read(bridgeProvider);
+    final notifier = ref.read(historyProvider.notifier);
+    try {
+      bridge.attachCustomer(orderId: widget.order.id, customerId: customer?.id);
+      if (customer != null) {
+        notifier.showToast(
+          bridge.tr(key: 'customers.attached'),
+          tone: ChipTone.success,
+        );
+      }
+    } on MadarError catch (e) {
+      notifier.surfaceError(e);
+    }
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bridge = ref.bridge;
+    final customer = _read(bridge);
+    final may = bridge.can(cap: Cap.customersAttach);
+    if (customer == null && !may) return const SizedBox.shrink();
+    final phone = customer?.phone ?? customer?.phoneHint;
+    return MadarListRow.nav(
+      title: bridge.tr(key: 'customers.attach'),
+      valueText: customer == null
+          ? bridge.tr(key: 'customers.search_hint')
+          : customer.isMember
+          ? '${customer.name} · ${bridge.tr(key: 'customers.member')}'
+          : customer.name,
+      meta: phone == null ? null : MadarFormat.ltr(phone),
+      onTap: !may || customer != null
+          ? null
+          : () => unawaited(
+              showMadarSheet<void>(
+                context,
+                size: SheetSize.hug,
+                maxWidth: Responsive.sheetCompactMaxWidth,
+                builder: (_) => CustomerSheet(
+                  title: bridge.tr(key: 'customers.history_title'),
+                  onPicked: _set,
+                ),
+              ),
+            ),
+      trailing: may && customer != null
+          ? MadarGlyphTile(
+              glyph: MadarGlyph.close,
+              semanticLabel: bridge.tr(key: 'customers.remove'),
+              onTap: () => _set(null),
+            )
+          : null,
+    );
   }
 }
 

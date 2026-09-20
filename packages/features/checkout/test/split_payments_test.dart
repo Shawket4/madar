@@ -129,6 +129,15 @@ class _Fake implements MadarBridge {
   CheckoutInput? checkedOut;
   List<CheckoutSplit>? settledSplits;
 
+  /// The customer row this till holds for a member id, as the core answers.
+  final memberRows = <String, CustomerView>{};
+
+  /// Every `attachCustomer(orderId, customerId)` the session made, in order.
+  final attached = <(String, String?)>[];
+
+  /// What the last loyalty read was asked for.
+  String? refreshedMember;
+
   int get _cartTotal => cartDiscounted ? 9000 : 10000;
 
   @override
@@ -277,9 +286,70 @@ class _Fake implements MadarBridge {
       );
     }
     if (name == #cashQuickTenders) return const <CashQuickTenderView>[];
+    if (name == #loyaltyLookup) {
+      return Future<LoyaltyScanView>.value(_scan('m-1'));
+    }
+    if (name == #loyaltyRefresh) {
+      refreshedMember = a[#customerId] as String;
+      return Future<LoyaltyScanView>.value(_scan(refreshedMember!));
+    }
+    if (name == #customerForMember) return memberRows[a[#memberId]];
+    if (name == #attachCustomer) {
+      attached.add((a[#orderId] as String, a[#customerId] as String?));
+      return true;
+    }
+    if (name == #rewardBoard) {
+      return const RewardBoardView(
+        lines: [],
+        picks: [],
+        cost: 0,
+        balanceAfter: 120,
+        unitsClaimed: 0,
+        coveredMinor: 0,
+      );
+    }
+    if (name == #rewardRedemptions) return const <CheckoutRedemption>[];
     return null;
   }
 }
+
+LoyaltyScanView _scan(String memberId) => LoyaltyScanView(
+  member: LoyaltyMemberView(
+    id: memberId,
+    name: 'Mona',
+    phone: '201001234567',
+    mode: 'points',
+    balance: 120,
+    nextRewardCost: 100,
+    rewardsReady: 1,
+    progressToNext: 20,
+    pointsToNextReward: 80,
+    canRedeem: true,
+    progressLabel: '',
+    balanceLabel: '120 points',
+  ),
+  rewards: const [],
+  recent: const [],
+  anyItem: false,
+  anyItemCost: 0,
+);
+
+const _mona = CustomerView(
+  id: 'm-1',
+  name: 'Mona',
+  phoneHint: '•••• 4567',
+  loyaltyCustomerId: 'm-1',
+  pending: false,
+  isMember: true,
+  balanceLabel: '120 points',
+);
+
+const _hana = CustomerView(
+  id: 'c-1',
+  name: 'Hana',
+  pending: false,
+  isMember: false,
+);
 
 Future<(ProviderContainer, CheckoutNotifier)> _session_(
   WidgetTester tester,
@@ -322,6 +392,7 @@ void main() {
       name: 'Hana',
       phoneHint: '•••• 4444',
       pending: true,
+      isMember: false,
     );
     session.attachCustomer(hana);
     expect(c.read(checkoutProvider).customer?.id, 'c-1');
@@ -332,6 +403,111 @@ void main() {
 
     session.clearCustomer();
     expect(c.read(checkoutProvider).customer, isNull);
+  });
+
+  testWidgets('a scan attaches the member AS the customer: one person', (
+    tester,
+  ) async {
+    final bridge = _Fake()..memberRows['m-1'] = _mona;
+    final (c, session) = await _session_(
+      tester,
+      bridge,
+      const ChargeTarget.cart(),
+    );
+    // Somebody else was picked first; the member decides who the sale is for.
+    session.attachCustomer(_hana);
+    expect(await session.scanLoyalty(token: 'tok'), isTrue);
+    var s = c.read(checkoutProvider);
+    expect(s.loyaltyMember?.id, 'm-1');
+    expect(s.customer?.id, 'm-1');
+
+    session.selectMethod('card');
+    await session.charge();
+    expect(bridge.checkedOut!.customerId, 'm-1');
+
+    // Picking a different customer takes the member off with them.
+    await session.start(const ChargeTarget.cart());
+    await session.scanLoyalty(token: 'tok');
+    session.attachCustomer(_hana);
+    s = c.read(checkoutProvider);
+    expect(s.customer?.id, 'c-1');
+    expect(s.loyaltyMember, isNull);
+
+    // Removing either removes the person.
+    await session.scanLoyalty(token: 'tok');
+    session.clearCustomer();
+    s = c.read(checkoutProvider);
+    expect(s.customer, isNull);
+    expect(s.loyaltyMember, isNull);
+    await session.scanLoyalty(token: 'tok');
+    session.clearLoyalty();
+    expect(c.read(checkoutProvider).customer, isNull);
+  });
+
+  testWidgets(
+    'a member unknown to this till drops a customer who is not them',
+    (tester) async {
+      final bridge = _Fake();
+      final (c, session) = await _session_(
+        tester,
+        bridge,
+        const ChargeTarget.cart(),
+      );
+      session.attachCustomer(_hana);
+      await session.scanLoyalty(token: 'tok');
+      final s = c.read(checkoutProvider);
+      expect(s.loyaltyMember?.id, 'm-1');
+      expect(s.customer, isNull);
+    },
+  );
+
+  testWidgets("a picked member's rewards open with no second scan", (
+    tester,
+  ) async {
+    final bridge = _Fake()..memberRows['m-1'] = _mona;
+    final (c, session) = await _session_(
+      tester,
+      bridge,
+      const ChargeTarget.cart(),
+    );
+    session.attachCustomer(_hana);
+    expect(await session.useCustomerLoyalty(), isFalse);
+    session.attachCustomer(_mona);
+    expect(await session.useCustomerLoyalty(), isTrue);
+    expect(bridge.refreshedMember, 'm-1');
+    final s = c.read(checkoutProvider);
+    expect(s.loyaltyMember?.id, 'm-1');
+    expect(s.customer?.id, 'm-1');
+  });
+
+  testWidgets("a bill's customer follows the settle as its own op", (
+    tester,
+  ) async {
+    final bridge = _Fake();
+    final (_, session) = await _session_(
+      tester,
+      bridge,
+      const ChargeTarget.bill(_ticket, tableLabel: 'T1'),
+    );
+    session
+      ..attachCustomer(_hana)
+      ..selectMethod('card');
+    await session.charge();
+    expect(bridge.settledSplits, isNotNull);
+    // Queued offline: no order id yet, so the ticket is the key.
+    expect(bridge.attached, [('tk-1', 'c-1')]);
+  });
+
+  testWidgets('a bill with no customer queues no attach', (tester) async {
+    final bridge = _Fake();
+    final (_, session) = await _session_(
+      tester,
+      bridge,
+      const ChargeTarget.bill(_ticket, tableLabel: 'T1'),
+    );
+    session.selectMethod('card');
+    await session.charge();
+    expect(bridge.attached, isEmpty);
   });
 
   testWidgets('a 2-way cart split follows a discount applied after it', (

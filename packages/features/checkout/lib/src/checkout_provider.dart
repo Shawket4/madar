@@ -882,19 +882,43 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// disconnected tills could each honour the last reward and neither could be
   /// undone, because the coffee is gone. Earning has no such problem and works
   /// offline, which is why only this half insists.
-  Future<bool> scanLoyalty({String? token, String? phone}) async {
+  Future<bool> scanLoyalty({String? token, String? phone}) => _attachMember(
+    (bridge) => bridge.loyaltyLookup(token: token, phone: phone),
+  );
+
+  /// "Use their rewards": the customer already picked is a member, so their
+  /// card is read by id and nobody scans anything a second time.
+  Future<bool> useCustomerLoyalty() {
+    final c = state.customer;
+    final memberId = c?.loyaltyCustomerId;
+    if (c == null || memberId == null) return Future.value(false);
+    return _attachMember(
+      (bridge) => bridge.loyaltyRefresh(customerId: memberId),
+    );
+  }
+
+  /// A sale names ONE person. The member decides who: the core answers with
+  /// the customer row that is them (or null when this till does not hold
+  /// one), and a customer picked earlier who is somebody else is dropped.
+  Future<bool> _attachMember(
+    Future<LoyaltyScanView> Function(MadarBridge bridge) read,
+  ) async {
     if (state.loyaltyBusy) return false;
     final bridge = _bridge;
     final session = _session;
     _update((s) => s.copyWith(loyaltyBusy: true, loyaltyError: null));
     try {
-      final scan = await bridge.loyaltyLookup(token: token, phone: phone);
+      final scan = await read(bridge);
       if (!_live || session != _session) return false;
+      final person = _tryCore(
+        () => bridge.customerForMember(memberId: scan.member.id),
+      );
       _update(
         (s) => s.copyWith(
           loyaltyScan: scan,
           rewardPicks: const [],
           loyaltyError: null,
+          customer: person,
         ),
       );
       MadarHaptics.success();
@@ -952,18 +976,35 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     }
   }
 
-  /// Attach a manual customer to this counter sale.
-  void attachCustomer(CustomerView customer) =>
-      _update((s) => s.copyWith(customer: customer));
+  /// Attach a customer to this sale. A member already attached who is
+  /// somebody else goes, and their rewards with them: one person per sale.
+  void attachCustomer(CustomerView customer) => _update((s) {
+    final memberId = s.loyaltyMember?.id;
+    final same =
+        memberId == null ||
+        customer.id == memberId ||
+        customer.loyaltyCustomerId == memberId;
+    return same
+        ? s.copyWith(customer: customer)
+        : s.copyWith(
+            customer: customer,
+            loyaltyScan: null,
+            rewardPicks: const [],
+            loyaltyError: null,
+          );
+  });
 
-  void clearCustomer() => _update((s) => s.copyWith(customer: null));
+  /// Take the person off the sale — the customer AND the member, which are
+  /// the same person. Either row's remove lands here.
+  void clearCustomer() => clearLoyalty();
 
-  /// Drop the member and every reward with them.
+  /// Drop the member and every reward with them, and the customer they are.
   void clearLoyalty() => _update(
     (s) => s.copyWith(
       loyaltyScan: null,
       rewardPicks: const [],
       loyaltyError: null,
+      customer: null,
     ),
   );
 
@@ -1386,6 +1427,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       splits: s.splitMode ? s.splitLegs : const [],
       discountApproval: s.billDiscountApproval,
     );
+    // The server's order when it answered; the ticket while still queued.
+    _attachAfterCharge(s, orderId ?? ticket.id);
     ReceiptView? receipt;
     if (orderId != null) {
       // Best-effort: the money is taken; a receipt that cannot be fetched is
@@ -1425,6 +1468,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       id: order.id,
       paymentMethodId: method,
     );
+    _attachAfterCharge(s, res.orderId);
     final receipt = await _quiet(
       () => bridge.orderReceiptView(orderId: res.orderId),
     );
@@ -1440,6 +1484,18 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       orderId: res.orderId,
       orderNumber: receipt?.orderNumber,
       loyaltyOffered: s.loyaltyOffered,
+    );
+  }
+
+  /// A bill's settle and an online order's finalize carry no customer, so the
+  /// person chosen on the sheet follows the charge as its own queued op (the
+  /// core chains it behind the settle). The money has landed by now: a failed
+  /// attach is never a failed charge, and history can attach them again.
+  void _attachAfterCharge(CheckoutState s, String orderKey) {
+    final customer = s.customer;
+    if (customer == null) return;
+    _tryCore(
+      () => _bridge.attachCustomer(orderId: orderKey, customerId: customer.id),
     );
   }
 
