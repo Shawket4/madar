@@ -227,6 +227,16 @@ const _receipt1042 = ReceiptView(
   taxRate: 0.14,
 );
 
+const _mona = CustomerView(
+  id: 'c-mona',
+  name: 'Mona Adel',
+  phoneHint: '•••• 4567',
+  loyaltyCustomerId: 'c-mona',
+  pending: false,
+  isMember: true,
+  balanceLabel: '120 points',
+);
+
 /// A bridge that answers what Orders asks, from fixtures. [online] false is
 /// a till with no network; [arabic] mirrors the screen.
 class _FakeBridge implements MadarBridge {
@@ -245,6 +255,13 @@ class _FakeBridge implements MadarBridge {
 
   /// The one sale with refunds on it has had ALL of its money given back.
   final bool fullyRefunded;
+
+  /// Who each sale is for, as the core's `orderCustomer` answers it: what
+  /// `attachCustomer` last wrote for that sale, by the id the screen passed.
+  final Map<String, CustomerView> orderCustomers = {};
+
+  /// Every `attachCustomer` call, in order: (order id, customer id or null).
+  final List<(String, String?)> attaches = [];
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -497,6 +514,21 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #refreshConnectivity) return Future<bool>.value(online);
     if (name == #pendingOutboxCount) return Future<int>.value(0);
+    if (name == #orderCustomer) {
+      return orderCustomers[invocation.namedArguments[#orderId] as String];
+    }
+    if (name == #searchCustomers) return const [_mona];
+    if (name == #attachCustomer) {
+      final id = invocation.namedArguments[#orderId] as String;
+      final customer = invocation.namedArguments[#customerId] as String?;
+      attaches.add((id, customer));
+      if (customer == null) {
+        orderCustomers.remove(id);
+      } else {
+        orderCustomers[id] = _mona;
+      }
+      return true; // still queued
+    }
     return null;
   }
 }
@@ -697,6 +729,54 @@ void main() {
     );
     expect(refund.enabled, isFalse);
     expect(find.text('Already refunded in full.'), findsWidgets);
+  });
+
+  // A sale already rung gets its customer after the fact: the row picks one
+  // through the customer sheet, the core is told which SALE and which
+  // CUSTOMER, the row then reads the core's answer back, and the close tile
+  // takes them off again.
+  testWidgets('a rung sale: attach a customer, then take them off', (
+    tester,
+  ) async {
+    final bridge = _FakeBridge();
+    await _shoot(
+      tester,
+      screen: const OrderHistoryScreen(),
+      bridge: bridge,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'ipad-attach-customer',
+      then: (t) => _open(t, 1042),
+    );
+    // Nobody on the sale yet: the row offers the search.
+    expect(find.text('Name or phone'), findsOneWidget);
+    // The row sits under the sale's lines, below the fold of the panel.
+    await tester.ensureVisible(find.text('Name or phone'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Name or phone'));
+    await tester.pumpAndSettle();
+    expect(find.text('Customer for this order'), findsOneWidget);
+    await tester.tap(find.text('Mona Adel'));
+    await tester.pumpAndSettle();
+
+    expect(bridge.attaches, hasLength(1));
+    final (orderId, customerId) = bridge.attaches.single;
+    expect(customerId, 'c-mona');
+    expect(
+      orderId,
+      _tillOrders.firstWhere((o) => o.orderNumber == 1042).id,
+      reason: 'the sale that is open, by the id the core knows it by',
+    );
+    // The row is the core's answer, not the sheet's pick echoed back.
+    expect(find.text('Mona Adel · Member'), findsOneWidget);
+    expect(find.text('Name or phone'), findsNothing);
+
+    await tester.ensureVisible(find.bySemanticsLabel('Remove customer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('Remove customer'));
+    await tester.pumpAndSettle();
+    expect(bridge.attaches.last, (orderId, null));
+    expect(find.text('Name or phone'), findsOneWidget);
   });
 
   testWidgets('the void sheet: reason chips, one danger button', (

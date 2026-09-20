@@ -271,7 +271,10 @@ class _SaleCustomerState extends ConsumerState<_SaleCustomer> {
           ? '${customer.name} · ${bridge.tr(key: 'customers.member')}'
           : customer.name,
       meta: phone == null ? null : MadarFormat.ltr(phone),
-      onTap: !may || customer != null
+      // Somebody is on the sale: the row opens their card. Nobody: it picks.
+      onTap: customer != null
+          ? () => unawaited(showCustomerCard(context, customer))
+          : !may
           ? null
           : () => unawaited(
               showMadarSheet<void>(
