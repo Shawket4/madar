@@ -9,6 +9,9 @@
 /// A raw string longer than this is not a phone number, whatever it holds.
 const MAX_RAW_CHARS: usize = 32;
 
+/// An Egyptian mobile in canonical form: `20` + `1x` + eight digits.
+const EG_MOBILE_LEN: usize = 12;
+
 /// ASCII value of an Arabic-Indic (U+0660–0669) or Extended Arabic-Indic
 /// (U+06F0–06F9) digit; any other char is returned untouched.
 fn ascii_digit(c: char) -> char {
@@ -30,7 +33,8 @@ pub fn digits(raw: &str) -> String {
 /// In order: a leading `00` is stripped; a number already starting `20` is
 /// kept; a leading `0` becomes `20`; exactly ten digits starting `1` (a bare
 /// Egyptian mobile) gets `20` in front; anything else is left as typed. The
-/// result must be 10–15 digits.
+/// result must be 10–15 digits, and one starting `2010`, `2011`, `2012` or
+/// `2015` (an Egyptian mobile) must be exactly 12.
 pub fn canonical(raw: &str) -> Option<String> {
     if raw.chars().count() > MAX_RAW_CHARS {
         return None;
@@ -47,7 +51,13 @@ pub fn canonical(raw: &str) -> Option<String> {
     } else {
         d
     };
-    (10..=15).contains(&out.len()).then_some(out)
+    if !(10..=15).contains(&out.len()) {
+        return None;
+    }
+    // The Egyptian mobile guard: a truncated or over-long mobile is the
+    // commonest typo. Landlines (`2013…`, `202…`) are untouched.
+    let mobile = ["2010", "2011", "2012", "2015"].iter().any(|p| out.starts_with(p));
+    (!mobile || out.len() == EG_MOBILE_LEN).then_some(out)
 }
 
 #[cfg(test)]
@@ -55,16 +65,6 @@ mod tests {
     use super::*;
 
     const VECTORS: &str = include_str!("../phone_vectors.json");
-
-    /// Inputs the shared file lists as INVALID that the rule it documents
-    /// accepts. The file is shared verbatim and is not ours to edit; when it
-    /// (or the rule) is corrected this list must become empty, and the test
-    /// below fails until it does.
-    ///
-    /// `010012345`: nine digits → leading `0` becomes `20` → `2010012345`, ten
-    /// digits, inside [10,15]. The backend's `delivery::normalize_phone`, which
-    /// the rule was lifted from, accepts it too.
-    const RULE_CONTRADICTS_VECTOR: &[&str] = &["010012345"];
 
     fn vectors() -> serde_json::Value {
         serde_json::from_str(VECTORS).expect("phone_vectors.json parses")
@@ -89,10 +89,6 @@ mod tests {
         let invalid = v["invalid"].as_array().expect("invalid[]");
         assert!(!invalid.is_empty());
         for raw in invalid.iter().map(|r| r.as_str().unwrap()) {
-            if RULE_CONTRADICTS_VECTOR.contains(&raw) {
-                assert!(canonical(raw).is_some(), "{raw:?} no longer contradicts the rule: drop it from the list");
-                continue;
-            }
             assert_eq!(canonical(raw), None, "{raw:?}");
         }
     }
