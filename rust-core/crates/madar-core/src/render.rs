@@ -891,6 +891,16 @@ impl Renderer {
         if let Some(reward) = &line.reward_label {
             self.indented_w(&format!("★ {reward}"), RS_SMALL, Weight::BOLD, 16);
         }
+        // A staff drink: normal price above, the pool's comp as a line
+        // discount here (already off the subtotal).
+        if let Some(staff) = &line.staff_label {
+            self.row(
+                &format!("  ★ {staff}"),
+                &format!("-{}", money(line.staff_comp_minor, cur)),
+                RS_SMALL,
+                Weight::BOLD,
+            );
+        }
         if line.is_bundle {
             for c in &line.components {
                 self.indented_w(
@@ -1103,6 +1113,8 @@ mod tests {
                 line_total_minor: 12000,
                 is_bundle: false,
                 reward_label: None,
+                staff_label: None,
+                staff_comp_minor: 0,
                 addons: vec![ReceiptModifierView {
                     name: "Extra cheese".into(),
                     price_minor: 500,
@@ -1138,6 +1150,7 @@ mod tests {
             queued_offline: false,
             created_at: "2026-06-24T18:30:00+03:00".into(),
             loyalty_notice: None,
+            staff_notice: None,
             payments: vec![],
         }
     }

@@ -55,6 +55,12 @@ pub struct OrderItemFull {
     pub reward_units: Option<i32>,
     #[serde(rename = "size_label", skip_serializing_if = "Option::is_none")]
     pub size_label: Option<String>,
+    /// A staff drink: what the branch's pool comped on this line, in minor units, size part and required-choice part together. ALREADY taken off `line_total` (the size part) and the add-ons' `line_total` (their part): print it as a line discount, never subtract it again. 0 on a paid line.
+    #[serde(rename = "staff_comp_minor", skip_serializing_if = "Option::is_none")]
+    pub staff_comp_minor: Option<i32>,
+    /// The `staff_drinks` row this line is (`GET /staff-pool/drinks`).
+    #[serde(rename = "staff_drink_id", skip_serializing_if = "Option::is_none")]
+    pub staff_drink_id: Option<uuid::Uuid>,
     /// Recipe-only cost per unit in piastres (incl. swaps). `null` ⟺ unknown or bundle line.
     #[serde(rename = "unit_cost", skip_serializing_if = "Option::is_none")]
     pub unit_cost: Option<i64>,
@@ -100,6 +106,8 @@ impl OrderItemFull {
             reward_covered: None,
             reward_units: None,
             size_label: None,
+            staff_comp_minor: None,
+            staff_drink_id: None,
             unit_cost: None,
             unit_price,
             addons,

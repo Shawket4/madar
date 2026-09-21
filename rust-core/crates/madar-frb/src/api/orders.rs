@@ -119,6 +119,10 @@ pub struct _ReceiptLineView {
     /// A bundle/combo line — its breakdown is in `components`, not `addons`.
     pub is_bundle: bool,
     pub reward_label: Option<String>,
+    /// "Staff drink" when the pool comped this line: it shows at its NORMAL
+    /// price, then this label as a line discount of `staff_comp_minor`.
+    pub staff_label: Option<String>,
+    pub staff_comp_minor: i64,
     pub addons: Vec<ReceiptModifierView>,
     pub optionals: Vec<ReceiptModifierView>,
     pub components: Vec<ReceiptComponentView>,
@@ -181,6 +185,9 @@ pub struct _ReceiptView {
     pub payments: Vec<ReceiptPaymentView>,
     /// A sale whose rewards the server recorded without points, said for the teller.
     pub loyalty_notice: Option<String>,
+    /// After a sale with staff drinks: how the pool stands, or that this server
+    /// does not support free staff drinks yet. For the done card; never printed.
+    pub staff_notice: Option<String>,
 }
 
 /// One tender on a split receipt.

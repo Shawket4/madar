@@ -137,6 +137,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CartMeta dco_decode_box_autoadd_cart_meta(dynamic raw);
 
   @protected
+  CartStaffDrinkView dco_decode_box_autoadd_cart_staff_drink_view(dynamic raw);
+
+  @protected
+  CartStaffSummary dco_decode_box_autoadd_cart_staff_summary(dynamic raw);
+
+  @protected
   CheckoutInput dco_decode_box_autoadd_checkout_input(dynamic raw);
 
   @protected
@@ -259,6 +265,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CartOptionalView dco_decode_cart_optional_view(dynamic raw);
+
+  @protected
+  CartStaffDrinkView dco_decode_cart_staff_drink_view(dynamic raw);
+
+  @protected
+  CartStaffSummary dco_decode_cart_staff_summary(dynamic raw);
 
   @protected
   CartTotals dco_decode_cart_totals(dynamic raw);
@@ -761,6 +773,14 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
 
   @protected
+  CartStaffDrinkView? dco_decode_opt_box_autoadd_cart_staff_drink_view(
+    dynamic raw,
+  );
+
+  @protected
+  CartStaffSummary? dco_decode_opt_box_autoadd_cart_staff_summary(dynamic raw);
+
+  @protected
   CheckoutSplit? dco_decode_opt_box_autoadd_checkout_split(dynamic raw);
 
   @protected
@@ -1161,6 +1181,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CartMeta sse_decode_box_autoadd_cart_meta(SseDeserializer deserializer);
 
   @protected
+  CartStaffDrinkView sse_decode_box_autoadd_cart_staff_drink_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CartStaffSummary sse_decode_box_autoadd_cart_staff_summary(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CheckoutInput sse_decode_box_autoadd_checkout_input(
     SseDeserializer deserializer,
   );
@@ -1319,6 +1349,14 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CartOptionalView sse_decode_cart_optional_view(SseDeserializer deserializer);
+
+  @protected
+  CartStaffDrinkView sse_decode_cart_staff_drink_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CartStaffSummary sse_decode_cart_staff_summary(SseDeserializer deserializer);
 
   @protected
   CartTotals sse_decode_cart_totals(SseDeserializer deserializer);
@@ -2015,6 +2053,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
+  CartStaffDrinkView? sse_decode_opt_box_autoadd_cart_staff_drink_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CartStaffSummary? sse_decode_opt_box_autoadd_cart_staff_summary(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CheckoutSplit? sse_decode_opt_box_autoadd_checkout_split(
     SseDeserializer deserializer,
   );
@@ -2501,6 +2549,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_cart_staff_drink_view(
+    CartStaffDrinkView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_cart_staff_summary(
+    CartStaffSummary self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_checkout_input(
     CheckoutInput self,
     SseSerializer serializer,
@@ -2704,6 +2764,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_cart_optional_view(
     CartOptionalView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cart_staff_drink_view(
+    CartStaffDrinkView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cart_staff_summary(
+    CartStaffSummary self,
     SseSerializer serializer,
   );
 
@@ -3579,6 +3651,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_cart_staff_drink_view(
+    CartStaffDrinkView? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_cart_staff_summary(
+    CartStaffSummary? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_checkout_split(

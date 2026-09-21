@@ -577,6 +577,8 @@ docs/SpotViewRequest.md
 docs/StaffApi.md
 docs/StaffDocument.md
 docs/StaffDrink.md
+docs/StaffDrinkLine.md
+docs/StaffDrinksSummary.md
 docs/StaffPoolApi.md
 docs/StaffPoolSettings.md
 docs/StaffPoolToday.md
@@ -1287,6 +1289,8 @@ src/models/spot_view_approval.rs
 src/models/spot_view_request.rs
 src/models/staff_document.rs
 src/models/staff_drink.rs
+src/models/staff_drink_line.rs
+src/models/staff_drinks_summary.rs
 src/models/staff_pool_settings.rs
 src/models/staff_pool_today.rs
 src/models/staff_request.rs

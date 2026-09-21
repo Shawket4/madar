@@ -125,6 +125,7 @@ pub struct _RewardLineInput {
     pub qty: i32,
     pub line_total_minor: i64,
     pub is_bundle: bool,
+    pub is_staff_drink: bool,
 }
 
 #[frb(mirror(RewardPick))]

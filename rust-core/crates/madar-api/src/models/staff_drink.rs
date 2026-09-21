@@ -20,6 +20,22 @@ pub struct StaffDrink {
     pub branch_id: uuid::Uuid,
     #[serde(rename = "business_date")]
     pub business_date: chrono::NaiveDate,
+    /// What the pool comped on the sale's line, minor units, as the SERVER prices it. `null` on a record-only drink (no priced line behind it).
+    #[serde(
+        rename = "comp_minor",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub comp_minor: Option<Option<i32>>,
+    /// What the TILL said the comp was, on a replayed sale. Differs from `comp_minor` exactly when `orders.staff_drink.record:comp_mismatch` was flagged.
+    #[serde(
+        rename = "comp_minor_reported",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub comp_minor_reported: Option<Option<i32>>,
     #[serde(
         rename = "cost_minor",
         default,
@@ -27,6 +43,14 @@ pub struct StaffDrink {
         skip_serializing_if = "Option::is_none"
     )]
     pub cost_minor: Option<Option<i32>>,
+    /// What that line was still charged: a bigger size, extras, pricier picks.
+    #[serde(
+        rename = "extras_minor",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub extras_minor: Option<Option<i32>>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(rename = "item_name")]
@@ -94,7 +118,10 @@ impl StaffDrink {
             allowance_at_record,
             branch_id,
             business_date,
+            comp_minor: None,
+            comp_minor_reported: None,
             cost_minor: None,
+            extras_minor: None,
             id,
             item_name,
             menu_item_id: None,

@@ -408,6 +408,7 @@ class RewardLineInput {
   final int qty;
   final PlatformInt64 lineTotalMinor;
   final bool isBundle;
+  final bool isStaffDrink;
 
   const RewardLineInput({
     required this.name,
@@ -417,6 +418,7 @@ class RewardLineInput {
     required this.qty,
     required this.lineTotalMinor,
     required this.isBundle,
+    required this.isStaffDrink,
   });
 
   @override
@@ -427,7 +429,8 @@ class RewardLineInput {
       menuItemId.hashCode ^
       qty.hashCode ^
       lineTotalMinor.hashCode ^
-      isBundle.hashCode;
+      isBundle.hashCode ^
+      isStaffDrink.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -440,7 +443,8 @@ class RewardLineInput {
           menuItemId == other.menuItemId &&
           qty == other.qty &&
           lineTotalMinor == other.lineTotalMinor &&
-          isBundle == other.isBundle;
+          isBundle == other.isBundle &&
+          isStaffDrink == other.isStaffDrink;
 }
 
 class RewardLineState {

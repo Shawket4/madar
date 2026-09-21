@@ -100,6 +100,9 @@ pub mod till;
 pub mod staff;
 /// The branch's daily staff drinks pool — the allowance, the required note,
 /// and the overspend mark. Shared with the backend by `staff_pool_vectors.json`.
+/// What a staff drink is given for free — the comp rule, shared with the
+/// backend by `staff_comp_vectors.json`.
+pub mod staff_comp;
 pub mod staff_drink;
 pub mod staff_pool;
 /// Local store — SQLite mirror + durable outbox + id_map + sync cursors (PLAN §8).
@@ -114,6 +117,8 @@ mod branch_reads;
 mod testkit;
 #[cfg(test)]
 mod offline_b_tests;
+#[cfg(test)]
+mod staff_comp_tests;
 pub(crate) mod schema;
 pub(crate) mod integrity;
 pub mod synced;
@@ -1931,6 +1936,10 @@ impl MadarCore {
                                 checkout::bump_order_base(&self.store, sid, n);
                             }
                             self.note_loyalty_refusal(&item.id, &obj);
+                            // Its staff drinks adopt the server's comp — or, from
+                            // a server that predates them, fall back to the
+                            // record-only op.
+                            self.staff_drinks_acked(item, obj);
                             SendOutcome::Acked(Some(id.to_string()))
                         }
                         None => SendOutcome::Offline,
@@ -4213,6 +4222,21 @@ impl MadarCore {
             ),
         }
     }
+    /// The lines after a change, with every staff-drink mark re-decided first:
+    /// a new size, add-on or quantity recomputes the comp, and a line that
+    /// stopped being eligible loses its mark (`take_staff_drink_notices` says
+    /// why). Free when nothing is marked.
+    fn lines_with_staff_marks_settled(
+        &self,
+        table_id: Option<&str>,
+        lines: Vec<cart::CartLineView>,
+    ) -> Result<Vec<cart::CartLineView>, CoreError> {
+        if lines.iter().all(|l| l.staff_drink.is_none()) {
+            return Ok(lines);
+        }
+        self.refresh_staff_marks(table_id);
+        cart::lines(&self.store, table_id)
+    }
     /// Add a CONFIGURED line (size + addons + optionals + notes). The core
     /// resolves the charged prices from the cached catalog (size unit price;
     /// addon swap-delta vs additive; optional prices) and merges identical
@@ -4283,7 +4307,8 @@ impl MadarCore {
             qty,
             notes,
         );
-        cart::replace_resolved(&self.store, table_id.as_deref(), &line_key, line)
+        let lines = cart::replace_resolved(&self.store, table_id.as_deref(), &line_key, line)?;
+        self.lines_with_staff_marks_settled(table_id.as_deref(), lines)
     }
     /// What a configured line would cost — the item sheet's figures, priced by
     /// the same resolver the add uses. Adds nothing.
@@ -4455,7 +4480,8 @@ impl MadarCore {
         item_id: String,
         qty: i64,
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
-        cart::set_qty(&self.store, table_id.as_deref(), &item_id, qty)
+        let lines = cart::set_qty(&self.store, table_id.as_deref(), &item_id, qty)?;
+        self.lines_with_staff_marks_settled(table_id.as_deref(), lines)
     }
     /// Remove a line entirely (stashed for undo — see `cart_restore_removed`).
     pub fn cart_remove(
@@ -4471,7 +4497,8 @@ impl MadarCore {
         &self,
         table_id: Option<String>,
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
-        cart::restore_last_removed(&self.store, table_id.as_deref())
+        let lines = cart::restore_last_removed(&self.store, table_id.as_deref())?;
+        self.lines_with_staff_marks_settled(table_id.as_deref(), lines)
     }
     /// Empty one context's cart + meta (other contexts are untouched).
     pub fn cart_clear(&self, table_id: Option<String>) -> Result<(), CoreError> {
@@ -4637,6 +4664,9 @@ impl MadarCore {
         let now = self.corrected_now().to_rfc3339();
         let payload = held::claim_local(&self.store, &id, &device, &now)?;
         let lines = cart::set_cart_payload(&self.store, target, &payload)?;
+        // A parked counter cart resumed at a TABLE loses its staff drinks; at
+        // the counter they are re-priced from today's catalogue.
+        let lines = self.lines_with_staff_marks_settled(target, lines)?;
         let mut meta = cart::meta(&self.store, target)?;
         meta.name = draft.name.clone();
         meta.draft_id = Some(id.clone());
@@ -4663,6 +4693,12 @@ impl MadarCore {
         table_id: Option<String>,
     ) -> Result<bool, CoreError> {
         let branch = self.session_branch_id()?;
+        // Parked ONTO A TABLE the cart becomes that table's bill, and a bill
+        // never carries a staff drink: the marks go, and the teller is told.
+        if table_id.is_some() {
+            let dropped = cart::strip_staff_marks(&self.store, ctx, cart::StaffMarkDrop::TableBill)?;
+            self.note_staff_drops(ctx, dropped);
+        }
         let payload = cart::cart_payload(&self.store, ctx)?;
         if payload
             .get("lines")
@@ -4729,6 +4765,7 @@ impl MadarCore {
         let draft = held::get(&self.store, &id)?;
         let payload = held::claim_local(&self.store, &id, &device, &now)?;
         let lines = cart::set_cart_payload(&self.store, table_id.as_deref(), &payload)?;
+        let lines = self.lines_with_staff_marks_settled(table_id.as_deref(), lines)?;
         if let Some(d) = draft {
             self.adopt_draft_owner(table_id.as_deref(), &d, None)?;
         }
@@ -5553,6 +5590,14 @@ impl MadarCore {
                 }
                 if ty == ledger::spot::T_SPOT {
                     tx.execute("DELETE FROM ledger_spot_views WHERE id=?1 AND origin='local'", [&key])?;
+                }
+                if ty == ledger::T_ORDER {
+                    // The sale never reached the server, so neither did the
+                    // staff drinks it carried: they stop counting too.
+                    tx.execute(
+                        "DELETE FROM ledger_staff_drinks WHERE origin='local' AND json_extract(raw,'$.order_id')=?1",
+                        [&key],
+                    )?;
                 }
                 if ty == ledger::staff_drinks::T_STAFF_DRINK {
                     // A drink nobody will ever send is a drink the branch never
@@ -6657,6 +6702,13 @@ impl MadarCore {
                 .chain(input.splits.iter().map(|s| s.payment_method_id.as_str()))
                 .chain(input.tip_payment_method_id.as_deref()),
         )?;
+        // Staff drinks, re-decided on the catalogue and the pool's list as they
+        // stand NOW. A mark that had to go changes the total the teller was
+        // shown, so the charge stops and says why; the cart is already right
+        // and the next tap rings it. Nothing is lost.
+        if let Some(why) = self.refresh_staff_marks(table_id.as_deref()).into_iter().next() {
+            return Err(CoreError::Validation { field: "staff_drink".into(), detail: why });
+        }
         let now = self.corrected_now().to_rfc3339();
         let prepared = checkout::prepare(
             &self.store,
@@ -6670,6 +6722,9 @@ impl MadarCore {
         )?;
 
         let mut prepared = prepared;
+        // Each staff line against the pool, in order; their ledger rows ride
+        // the sale's transaction below.
+        let (staff_rows, staff_pool_after) = self.settle_staff_lines(&mut prepared, &shift.id)?;
         // The discount, re-decided on the sale's REAL figures (the cart may have
         // grown since it was applied): allowed, covered by the manager approval
         // kept with the cart, or refused before anything is committed.
@@ -6707,6 +6762,17 @@ impl MadarCore {
         prepared.command.started_by = started_by;
         if resume_approval.is_some() {
             prepared.command.approval = resume_approval;
+        }
+        // The manager approval that unlocked a staff drink rides the same one
+        // slot, when nothing above needed it (the server flags a pooled line
+        // whose author lacks the act and brought no approval — it never
+        // refuses a replayed sale over it).
+        if prepared.command.approval.is_none() {
+            prepared.command.approval = prepared
+                .staff_lines
+                .iter()
+                .find_map(|s| s.approval.as_ref())
+                .map(approvals::approval_wire);
         }
         let dev = self.lan_device_id();
         let code = checkout::device_code_or_default(&self.store);
@@ -6768,11 +6834,25 @@ impl MadarCore {
         ledger::local::stash_receipt(&mut row, &prepared.receipt);
         self.store.with_tx_touch(|tx, touched| {
             ledger::local::commit_order(tx, &op, &row)?;
+            // The pool entries land WITH the sale: counted the instant it is
+            // rung, offline or not, and never for a cart that was abandoned.
+            for drink in &staff_rows {
+                ledger::staff_drinks::upsert(tx, drink, "local")?;
+            }
             touched.extend(changes::tables_for_op("create_order"));
+            if !staff_rows.is_empty() {
+                touched.extend(changes::tables_for_op(ledger::staff_drinks::T_STAFF_DRINK));
+            }
             Ok(())
         })?;
         // The sale is committed locally; the cart is now spent.
         cart::clear(&self.store, table_id.as_deref())?;
+        // The counter's other till must not spend the same drink: the peers
+        // hear each one now. No replay op of its own — the drink rides the
+        // ORDER's envelope, which the LAN already carries.
+        for drink in &staff_rows {
+            self.lan_publish("orders", "staff_drink.recorded", drink.to_string(), None).await;
+        }
 
         // Sent in the background: the sale is committed locally, so the
         // receipt returns now (queued) and the ack folds in when it lands.
@@ -6782,7 +6862,12 @@ impl MadarCore {
         let mut receipt = prepared.receipt;
         receipt.queued_offline = still_pending;
         receipt.teller_name = Some(teller_name).filter(|s| !s.trim().is_empty());
-        receipt.loyalty_notice = self.loyalty_refusal(order_id);
+        receipt.loyalty_notice = self.loyalty_refusal(order_id.clone());
+        // How the pool stands after this sale's staff drinks — or, when the
+        // answer already came from a server that cannot price them, that.
+        receipt.staff_notice = self
+            .staff_old_server_notice(order_id)
+            .or_else(|| staff_pool_after.as_ref().map(|p| self.staff_done_label(p)));
         Ok(receipt)
     }
 
@@ -7373,14 +7458,19 @@ impl MadarCore {
         &self,
         order_id: &str,
     ) -> Result<checkout::ReceiptView, CoreError> {
+        let old_server = self.staff_old_server_notice(order_id.to_string());
         if let Some(full) = ledger::views::order_full(&self.store, order_id)? {
-            return Ok(orders::order_to_receipt(&full, &self.current_locale()));
+            let mut r = orders::order_to_receipt(&full, &self.current_locale());
+            r.staff_notice = old_server;
+            return Ok(r);
         }
         if let Some(receipt) = ledger::local::queued_receipt(&self.store, order_id)? {
             return Ok(receipt);
         }
         let o = self.order_full_for(order_id).await?;
-        Ok(orders::order_to_receipt(&o, &self.current_locale()))
+        let mut r = orders::order_to_receipt(&o, &self.current_locale());
+        r.staff_notice = old_server;
+        Ok(r)
     }
 
     /// Search the branch's orders ACROSS shifts (history lookup) with optional
@@ -8040,6 +8130,9 @@ impl MadarCore {
             field: "branch_id".into(),
             detail: "bad branch id".into(),
         })?;
+        // A ticket never carries a staff drink (the server refuses the fire):
+        // whatever was marked rings in full, and the teller is told.
+        self.drop_staff_marks_for_bill(table_id.clone());
         let lines = cart::lines(&self.store, table_id.as_deref())?;
         if lines.is_empty() {
             return Err(CoreError::Validation {
@@ -8149,6 +8242,7 @@ impl MadarCore {
         table_id: Option<String>,
         ticket_id: String,
     ) -> Result<tickets::TicketFiredView, CoreError> {
+        self.drop_staff_marks_for_bill(table_id.clone());
         let lines = cart::lines(&self.store, table_id.as_deref())?;
         if lines.is_empty() {
             return Err(CoreError::Validation {
@@ -10416,6 +10510,7 @@ mod lifecycle_tests {
             qty: 1,
             line_total_minor: 1000,
             is_bundle: false,
+            is_staff_drink: false,
         }];
         let asked = vec![checkout::CheckoutRedemption {
             item_index: 0,

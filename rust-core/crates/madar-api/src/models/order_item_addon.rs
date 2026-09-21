@@ -35,6 +35,9 @@ pub struct OrderItemAddon {
     pub order_item_id: uuid::Uuid,
     #[serde(rename = "quantity")]
     pub quantity: i32,
+    /// The part of a staff drink's comp this pick absorbed (whole line), already taken off `line_total`. 0 everywhere else.
+    #[serde(rename = "staff_comp_minor", skip_serializing_if = "Option::is_none")]
+    pub staff_comp_minor: Option<i32>,
     #[serde(rename = "unit_price")]
     pub unit_price: i32,
 }
@@ -59,6 +62,7 @@ impl OrderItemAddon {
             name_translations,
             order_item_id,
             quantity,
+            staff_comp_minor: None,
             unit_price,
         }
     }

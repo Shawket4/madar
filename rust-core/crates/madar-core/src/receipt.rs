@@ -226,6 +226,15 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
         if let Some(reward) = &l.reward_label {
             out.push(Line::plain(format!("  * {reward}")));
         }
+        // A staff drink: the line above is its NORMAL price; the pool's comp
+        // is a line discount under it (already off the subtotal below).
+        if let Some(staff) = &l.staff_label {
+            out.push(Line::plain(row(
+                &format!("  * {staff}"),
+                &format!("-{}", money(l.staff_comp_minor, cur)),
+                w,
+            )));
+        }
         if l.is_bundle {
             for c in &l.components {
                 let cname = match &c.size_label {
@@ -1041,10 +1050,29 @@ mod tests {
             line_total_minor: total,
             is_bundle: false,
             reward_label: None,
+            staff_label: None,
+            staff_comp_minor: 0,
             addons: vec![],
             optionals: vec![],
             components: vec![],
         }
+    }
+
+    /// A staff drink prints at its NORMAL price, then the pool's comp as a
+    /// line discount under it — the contract's receipt rule.
+    #[test]
+    fn a_staff_drink_prints_its_normal_price_then_the_comp_as_a_line_discount() {
+        let mut r = cash_receipt();
+        let mut l = line("Latte", 1, 11000);
+        l.staff_label = Some("Staff drink".into());
+        l.staff_comp_minor = 6500;
+        r.lines = vec![l, line("Cake", 1, 4000)];
+        let text: Vec<String> = layout(&r, &ctx()).into_iter().map(|l| l.text).collect();
+        let at = text.iter().position(|t| t.contains("Latte")).expect("the line");
+        assert!(text[at].contains("110.00"), "{}", text[at]);
+        assert!(text[at + 1].contains("* Staff drink") && text[at + 1].contains("-EGP 65.00") || text[at + 1].contains("-65.00"), "{}", text[at + 1]);
+        // A paid line grows no such row.
+        assert_eq!(text.iter().filter(|t| t.contains("Staff drink")).count(), 1);
     }
 
     fn cash_receipt() -> ReceiptView {
@@ -1083,6 +1111,7 @@ mod tests {
             queued_offline: false,
             created_at: "2026-06-20T10:00:00Z".into(),
             loyalty_notice: None,
+            staff_notice: None,
             payments: vec![],
         }
     }
@@ -2826,6 +2855,7 @@ mod kitchen_chit_tests {
             bundle_id: None,
             bundle_components: vec![],
             kitchen_note: None,
+            staff_drink: None,
         }
     }
 

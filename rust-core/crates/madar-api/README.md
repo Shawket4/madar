@@ -529,6 +529,7 @@ Class | Method | HTTP request | Description
 *StaffPoolApi* | [**list_staff_drinks**](docs/StaffPoolApi.md#list_staff_drinks) | **GET** /staff-pool/drinks | The staff drinks of a branch over a range of business days, newest first.
 *StaffPoolApi* | [**put_staff_pool_settings**](docs/StaffPoolApi.md#put_staff_pool_settings) | **PUT** /staff-pool/settings | 
 *StaffPoolApi* | [**record_staff_drink**](docs/StaffPoolApi.md#record_staff_drink) | **POST** /staff-pool/drinks | 
+*StaffPoolApi* | [**summarize_staff_drinks**](docs/StaffPoolApi.md#summarize_staff_drinks) | **GET** /staff-pool/drinks/summary | Totals for the same range and filter as `GET /staff-pool/drinks`.
 *StocktakesApi* | [**cancel_stocktake**](docs/StocktakesApi.md#cancel_stocktake) | **POST** /stocktakes/{id}/cancel | 
 *StocktakesApi* | [**create_stocktake**](docs/StocktakesApi.md#create_stocktake) | **POST** /stocktakes/branches/{branch_id} | 
 *StocktakesApi* | [**finalize_stocktake**](docs/StocktakesApi.md#finalize_stocktake) | **POST** /stocktakes/{id}/finalize | 
@@ -1108,6 +1109,8 @@ Class | Method | HTTP request | Description
  - [SpotViewRequest](docs/SpotViewRequest.md)
  - [StaffDocument](docs/StaffDocument.md)
  - [StaffDrink](docs/StaffDrink.md)
+ - [StaffDrinkLine](docs/StaffDrinkLine.md)
+ - [StaffDrinksSummary](docs/StaffDrinksSummary.md)
  - [StaffPoolSettings](docs/StaffPoolSettings.md)
  - [StaffPoolToday](docs/StaffPoolToday.md)
  - [StaffRequest](docs/StaffRequest.md)

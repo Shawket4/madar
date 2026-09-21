@@ -360,6 +360,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required PlatformInt64 qty,
   });
 
+  /// The cart's staff drinks as the Charge sheet states them. Local.
+  CartStaffSummary? cartStaffSummary({String? tableId});
+
   /// Table ids whose cart currently holds unsent lines.
   Future<List<String>> cartTableContexts();
 
@@ -614,6 +617,17 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Discard a single DEAD command (the teller gives up on it). Returns true
   /// if a dead command with that id was removed.
   Future<bool> discardOutboxItem({required String id});
+
+  /// The cart is becoming a table's bill (aimed at a table or a ticket): its
+  /// staff-drink marks go. Returns the reasons, already worded.
+  List<String> dropStaffMarksForBill({String? tableId});
+
+  /// Change a marked line's note (still required).
+  Future<List<CartLineView>> editStaffDrinkNote({
+    String? tableId,
+    required String lineKey,
+    required String note,
+  });
 
   /// Environment name (`prod` | `staging` | `dev`).
   String environment();
@@ -892,6 +906,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The branch's programme: whether one runs, what it collects, its name.
   /// Cached, so an offline till still knows whether to draw the control.
   Future<LoyaltyProgrammeView> loyaltySettings();
+
+  /// MARK a counter-cart line as a staff drink (note REQUIRED). Nothing is
+  /// spent: the pool entry is written when the order is charged. Returns the
+  /// cart's lines — the marked line has a new key.
+  Future<List<CartLineView>> markStaffDrink({
+    String? tableId,
+    required String lineKey,
+    required String note,
+    ApprovalView? approval,
+  });
 
   /// Reflect a status the server will derive anyway (dirty after checkout,
   /// free after a void or move) in the local canvas. Queues nothing.
@@ -1332,6 +1356,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Today's drinks, oldest first.
   List<StaffDrinkLineView> staffDrinksToday();
 
+  /// The sentence for a sale answered by a server that does not support free
+  /// staff drinks yet; `None` otherwise.
+  String? staffOldServerNotice({required String orderId});
+
   /// The branch's pool for its business day. Local; no network.
   StaffPoolTodayView staffPoolToday();
 
@@ -1395,6 +1423,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// with last week's numbers.
   Future<TableHistoryView> tableHistory({required String tableId});
 
+  /// Why marks left their lines since the last ask, each already a sentence
+  /// in the till's language. Re-checks the cart first. Local; no network.
+  List<String> takeStaffDrinkNotices({String? tableId});
+
   /// Price the tender in hand: the bar's total (tip included, split or not),
   /// the cash due, change / short, and what a split still has to allocate.
   TenderSummaryView tenderSummary({
@@ -1455,6 +1487,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String name,
     required String pin,
     required String branchId,
+  });
+
+  /// Take the mark off: the line rings at its normal price again.
+  Future<List<CartLineView>> unmarkStaffDrink({
+    String? tableId,
+    required String lineKey,
   });
 
   /// Give a table back without a sale: they left before ordering, or the

@@ -373,6 +373,15 @@ class _LineBlock extends StatelessWidget {
             right: money(line.lineTotalMinor),
             bold: true,
           ),
+        // A staff drink: the line above is its NORMAL price; the pool's comp
+        // is a line discount under it (already off the subtotal), exactly as
+        // the printed receipt has it. The label and the figure are the core's.
+        if (line.staffLabel case final staff?)
+          _MoneyRow(
+            key: const ValueKey('receipt-staff-comp'),
+            left: '  ★ $staff',
+            right: '-${money(line.staffCompMinor)}',
+          ),
       ],
     );
   }
@@ -471,6 +480,7 @@ class _MoneyRow extends StatelessWidget {
     required this.right,
     this.bold = false,
     this.faint = false,
+    super.key,
   });
 
   final String left;

@@ -21,6 +21,8 @@ Name | Type | Description | Notes
 **reward_covered** | Option<**i32**> | Minor units the reward took off this line (0 for a paid line). | [optional]
 **reward_units** | Option<**i32**> | How many of `quantity` the reward covered. | [optional]
 **size_label** | Option<**String**> |  | [optional]
+**staff_comp_minor** | Option<**i32**> | A staff drink: what the branch's pool comped on this line, in minor units, size part and required-choice part together. ALREADY taken off `line_total` (the size part) and the add-ons' `line_total` (their part): print it as a line discount, never subtract it again. 0 on a paid line. | [optional]
+**staff_drink_id** | Option<**uuid::Uuid**> | The `staff_drinks` row this line is (`GET /staff-pool/drinks`). | [optional]
 **unit_cost** | Option<**i64**> | Recipe-only cost per unit in piastres (incl. swaps). `null` ⟺ unknown or bundle line. | [optional]
 **unit_price** | **i32** |  | 
 **addons** | [**Vec<models::OrderItemAddon>**](OrderItemAddon.md) |  | 

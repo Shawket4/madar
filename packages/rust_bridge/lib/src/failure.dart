@@ -69,6 +69,8 @@ const Map<String, String> coreDetailKeys = {
   'payment method not available here': 'err.payment_method_unavailable',
   'scan a card or type a phone number': 'err.scan_or_phone',
   'a reward can only be redeemed online': 'loyalty.reward_offline',
+  // A line is a staff drink OR a reward, never both (the server refuses it).
+  'a staff drink cannot also be taken as a reward': 'staff_pool.not_a_reward',
   'no order to add points to': 'err.no_order_points',
   'table is taken': 'err.table_taken',
   'both tables are empty': 'err.move_both_empty',

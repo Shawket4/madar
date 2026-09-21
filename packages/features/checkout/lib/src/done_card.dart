@@ -94,6 +94,12 @@ class _DoneCardState extends ConsumerState<DoneCard> {
   // the sale synced. Local state so a sync tick can flip it live.
   late bool _queued = widget.outcome.queued;
   late ReceiptView? _receipt = widget.outcome.receipt;
+
+  /// The pool line the core worded when the sale was rung ("3 left today").
+  /// The synced record does not carry it, so it is kept across the re-read —
+  /// unless the server turned out not to support staff drinks, which the
+  /// re-read says instead.
+  late String? _staffNotice = widget.outcome.receipt?.staffNotice;
   bool _syncChecking = false;
   ProviderSubscription<int>? _syncSub;
 
@@ -167,6 +173,7 @@ class _DoneCardState extends ConsumerState<DoneCard> {
       setState(() {
         _queued = false;
         _receipt = r;
+        _staffNotice = r.staffNotice ?? _staffNotice;
       });
       _syncSub?.close();
       _syncSub = null;
@@ -322,6 +329,9 @@ class _DoneCardState extends ConsumerState<DoneCard> {
         // card was spent elsewhere first). The sale stands; the teller hears it.
         if (_receipt?.loyaltyNotice case final notice?)
           TextSpan(text: '\n$notice'),
+        // A sale that carried staff drinks: how many are left today (or that
+        // it went over) — or, plainly, that this server could not price them.
+        if (_staffNotice case final notice?) TextSpan(text: '\n$notice'),
       ],
     );
 
