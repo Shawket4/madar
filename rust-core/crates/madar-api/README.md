@@ -99,6 +99,7 @@ Class | Method | HTTP request | Description
 *CustomersApi* | [**erase_customer**](docs/CustomersApi.md#erase_customer) | **POST** /customers/{id}/erase | 
 *CustomersApi* | [**get_customer**](docs/CustomersApi.md#get_customer) | **GET** /customers/{id} | 
 *CustomersApi* | [**list_customer_addresses**](docs/CustomersApi.md#list_customer_addresses) | **GET** /customers/{id}/addresses | 
+*CustomersApi* | [**list_customer_bookings**](docs/CustomersApi.md#list_customer_bookings) | **GET** /customers/{id}/bookings | A customer's bookings, newest first. A merged id answers for its survivor, and bookings made under any id merged into it are included.
 *CustomersApi* | [**list_customers**](docs/CustomersApi.md#list_customers) | **GET** /customers | 
 *CustomersApi* | [**merge_customer**](docs/CustomersApi.md#merge_customer) | **POST** /customers/{id}/merge | 
 *CustomersApi* | [**update_customer**](docs/CustomersApi.md#update_customer) | **PATCH** /customers/{id} | 
@@ -232,7 +233,6 @@ Class | Method | HTTP request | Description
 *MenuApi* | [**create_base**](docs/MenuApi.md#create_base) | **POST** /recipe-bases | 
 *MenuApi* | [**create_category**](docs/MenuApi.md#create_category) | **POST** /categories | 
 *MenuApi* | [**create_group**](docs/MenuApi.md#create_group) | **POST** /modifier-groups | 
-*MenuApi* | [**create_linked_copy**](docs/MenuApi.md#create_linked_copy) | **POST** /menu-items/{id}/linked-copy | 
 *MenuApi* | [**create_menu_item**](docs/MenuApi.md#create_menu_item) | **POST** /menu-items | 
 *MenuApi* | [**create_option**](docs/MenuApi.md#create_option) | **POST** /modifier-groups/{gid}/options | 
 *MenuApi* | [**create_optional_field**](docs/MenuApi.md#create_optional_field) | **POST** /menu-items/{id}/optionals | 
@@ -308,6 +308,7 @@ Class | Method | HTTP request | Description
 *OpenTicketsApi* | [**public_table**](docs/OpenTicketsApi.md#public_table) | **GET** /public/tables/{id} | 
 *OpenTicketsApi* | [**public_table_menu**](docs/OpenTicketsApi.md#public_table_menu) | **GET** /public/tables/{id}/menu | The menu at this table.
 *OpenTicketsApi* | [**public_table_order**](docs/OpenTicketsApi.md#public_table_order) | **POST** /public/table-orders | Send this table's order to the kitchen.
+*OpenTicketsApi* | [**set_ticket_customer**](docs/OpenTicketsApi.md#set_ticket_customer) | **PUT** /open-tickets/{id}/customer | Set or clear the customer on an open bill (the dashboard / online path; a till queues `set_ticket_customer` through `/sync/replay` instead).
 *OpenTicketsApi* | [**settle_open_ticket**](docs/OpenTicketsApi.md#settle_open_ticket) | **POST** /open-tickets/{id}/settle | 
 *OpenTicketsApi* | [**void_open_ticket**](docs/OpenTicketsApi.md#void_open_ticket) | **POST** /open-tickets/{id}/void | 
 *OpenTicketsApi* | [**void_ticket_line**](docs/OpenTicketsApi.md#void_ticket_line) | **POST** /open-tickets/{id}/items/{item_id}/void | 
@@ -411,6 +412,7 @@ Class | Method | HTTP request | Description
 *ReportsApi* | [**branch_stock**](docs/ReportsApi.md#branch_stock) | **GET** /reports/branches/{branch_id}/stock | 
 *ReportsApi* | [**branch_supplier_spend**](docs/ReportsApi.md#branch_supplier_spend) | **GET** /reports/branches/{branch_id}/supplier-spend | 
 *ReportsApi* | [**branch_teller_stats**](docs/ReportsApi.md#branch_teller_stats) | **GET** /reports/branches/{branch_id}/tellers | 
+*ReportsApi* | [**branch_till_sessions**](docs/ReportsApi.md#branch_till_sessions) | **GET** /reports/branches/{branch_id}/tills | 
 *ReportsApi* | [**branch_waiter_stats**](docs/ReportsApi.md#branch_waiter_stats) | **GET** /reports/branches/{branch_id}/waiters | 
 *ReportsApi* | [**branch_waste_report**](docs/ReportsApi.md#branch_waste_report) | **GET** /reports/branches/{branch_id}/waste-report | 
 *ReportsApi* | [**deduction_overrides_audit**](docs/ReportsApi.md#deduction_overrides_audit) | **GET** /reports/orgs/{org_id}/deduction-overrides-audit | 
@@ -720,7 +722,6 @@ Class | Method | HTTP request | Description
  - [CreateFloorTransferRequest](docs/CreateFloorTransferRequest.md)
  - [CreateGroupRequest](docs/CreateGroupRequest.md)
  - [CreateIngredientCategoryRequest](docs/CreateIngredientCategoryRequest.md)
- - [CreateLinkedCopyRequest](docs/CreateLinkedCopyRequest.md)
  - [CreateMarketingLinkRequest](docs/CreateMarketingLinkRequest.md)
  - [CreateMenuItemRequest](docs/CreateMenuItemRequest.md)
  - [CreateOpenTicketRequest](docs/CreateOpenTicketRequest.md)
@@ -837,7 +838,6 @@ Class | Method | HTTP request | Description
  - [LiabilityTrend](docs/LiabilityTrend.md)
  - [LiabilityTrendPoint](docs/LiabilityTrendPoint.md)
  - [LimitsView](docs/LimitsView.md)
- - [LinkedCopyResult](docs/LinkedCopyResult.md)
  - [LintIssue](docs/LintIssue.md)
  - [LintSeverity](docs/LintSeverity.md)
  - [LoginRequest](docs/LoginRequest.md)
@@ -1086,6 +1086,8 @@ Class | Method | HTTP request | Description
  - [SetOverrideRequest](docs/SetOverrideRequest.md)
  - [SetParRequest](docs/SetParRequest.md)
  - [SetRoutingModeRequest](docs/SetRoutingModeRequest.md)
+ - [SetTicketCustomerRequest](docs/SetTicketCustomerRequest.md)
+ - [SetTicketCustomerResponse](docs/SetTicketCustomerResponse.md)
  - [SettleOpenTicketRequest](docs/SettleOpenTicketRequest.md)
  - [Shift](docs/Shift.md)
  - [ShiftPreFill](docs/ShiftPreFill.md)
@@ -1146,6 +1148,7 @@ Class | Method | HTTP request | Description
  - [TillRefunds](docs/TillRefunds.md)
  - [TillReportFigures](docs/TillReportFigures.md)
  - [TillReportResponse](docs/TillReportResponse.md)
+ - [TillSessionRow](docs/TillSessionRow.md)
  - [TillSpotView](docs/TillSpotView.md)
  - [TillStatus](docs/TillStatus.md)
  - [TillVerification](docs/TillVerification.md)

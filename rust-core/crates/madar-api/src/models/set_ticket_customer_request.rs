@@ -12,28 +12,19 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CreateLinkedCopyRequest {
-    /// Menu category of the copy; `null` keeps the source's category.
+pub struct SetTicketCustomerRequest {
+    /// The customer this bill is for; `null` (or absent) takes the customer off.
     #[serde(
-        rename = "category_id",
+        rename = "customer_id",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub category_id: Option<Option<uuid::Uuid>>,
-    #[serde(rename = "name")]
-    pub name: String,
-    /// Price in piastres for every size of the copy (0 for a staff drink).
-    #[serde(rename = "price")]
-    pub price: i32,
+    pub customer_id: Option<Option<uuid::Uuid>>,
 }
 
-impl CreateLinkedCopyRequest {
-    pub fn new(name: String, price: i32) -> CreateLinkedCopyRequest {
-        CreateLinkedCopyRequest {
-            category_id: None,
-            name,
-            price,
-        }
+impl SetTicketCustomerRequest {
+    pub fn new() -> SetTicketCustomerRequest {
+        SetTicketCustomerRequest { customer_id: None }
     }
 }

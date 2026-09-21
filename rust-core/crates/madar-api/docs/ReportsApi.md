@@ -24,6 +24,7 @@ Method | HTTP request | Description
 [**branch_stock**](ReportsApi.md#branch_stock) | **GET** /reports/branches/{branch_id}/stock | 
 [**branch_supplier_spend**](ReportsApi.md#branch_supplier_spend) | **GET** /reports/branches/{branch_id}/supplier-spend | 
 [**branch_teller_stats**](ReportsApi.md#branch_teller_stats) | **GET** /reports/branches/{branch_id}/tellers | 
+[**branch_till_sessions**](ReportsApi.md#branch_till_sessions) | **GET** /reports/branches/{branch_id}/tills | 
 [**branch_waiter_stats**](ReportsApi.md#branch_waiter_stats) | **GET** /reports/branches/{branch_id}/waiters | 
 [**branch_waste_report**](ReportsApi.md#branch_waste_report) | **GET** /reports/branches/{branch_id}/waste-report | 
 [**deduction_overrides_audit**](ReportsApi.md#deduction_overrides_audit) | **GET** /reports/orgs/{org_id}/deduction-overrides-audit | 
@@ -649,6 +650,36 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::TellerStats>**](TellerStats.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## branch_till_sessions
+
+> Vec<models::TillSessionRow> branch_till_sessions(branch_id, from, to)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**branch_id** | **uuid::Uuid** |  | [required] |
+**from** | Option<**chrono::DateTime<chrono::FixedOffset>**> | Sessions OPENED at or after this instant. |  |
+**to** | Option<**chrono::DateTime<chrono::FixedOffset>**> | Sessions OPENED at or before this instant. |  |
+
+### Return type
+
+[**Vec<models::TillSessionRow>**](TillSessionRow.md)
 
 ### Authorization
 
