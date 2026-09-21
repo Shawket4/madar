@@ -100,6 +100,9 @@ pub mod till;
 pub mod staff;
 /// The branch's daily staff drinks pool — the allowance, the required note,
 /// and the overspend mark. Shared with the backend by `staff_pool_vectors.json`.
+/// What a staff drink is given for free — the comp rule, shared with the
+/// backend by `staff_comp_vectors.json`.
+pub mod staff_comp;
 pub mod staff_drink;
 pub mod staff_pool;
 /// Local store — SQLite mirror + durable outbox + id_map + sync cursors (PLAN §8).
