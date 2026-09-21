@@ -16,6 +16,7 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_order/src/floor_list.dart';
+import 'package:feature_order/src/order_customer_row.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/sell_screen.dart';
 import 'package:feature_order/src/table_history_sheet.dart';
@@ -342,9 +343,8 @@ class _BillScreenState extends ConsumerState<BillScreen> {
         '${ticket.guestCount} ${bridge.tr(key: 'tables.guests')}',
       if (ticket.waiterName?.trim().isNotEmpty ?? false) ticket.waiterName!,
       ?seatedFor,
-      if (tableLabel != null &&
-          (ticket.customerName?.trim().isNotEmpty ?? false))
-        ticket.customerName!,
+      // The linked customer (and their member badge), else the typed name.
+      ?billCustomerLabel(bridge, ticket, nameIsTitle: tableLabel == null),
     ].join(' · ');
     final rounds = groupBillByRound(ticket.lines);
     final ready = ticket.ready;
@@ -447,6 +447,14 @@ class _BillScreenState extends ConsumerState<BillScreen> {
         ),
       ],
     ];
+    // Who the bill is for: their card, or — for someone who may attach one —
+    // the picker. A bill still in the outbox takes the choice on its fire.
+    final customerRow = OrderCustomerRow(
+      customerId: ticket.customerId,
+      onChanged: (c) => unawaited(
+        ref.read(orderProvider.notifier).setBillCustomer(ticket.id, c),
+      ),
+    );
     // The bill as the SERVER prices it — the figure the drawer collects.
     final totals = _BillTotals(
       bill: ticket.bill,
@@ -503,7 +511,7 @@ class _BillScreenState extends ConsumerState<BillScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       spacing: Space.md,
-                      children: [totals, ?charge, addRound],
+                      children: [customerRow, totals, ?charge, addRound],
                     ),
                   ),
                 ),
@@ -519,6 +527,8 @@ class _BillScreenState extends ConsumerState<BillScreen> {
                   children: [
                     ...roundsColumn,
                     const SizedBox(height: Space.xl),
+                    customerRow,
+                    const SizedBox(height: Space.md),
                     totals,
                   ],
                 ),

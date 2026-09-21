@@ -749,7 +749,11 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     _customerTouched = false;
     if (_live) state = _priced(CheckoutState(target: target));
     return switch (target) {
-      CartChargeTarget(:final tableId) => _startCart(_session, tableId),
+      CartChargeTarget(:final tableId, :final customerId) => _startCart(
+        _session,
+        tableId,
+        customerId,
+      ),
       BillChargeTarget(:final ticket) => _startBill(_session, ticket),
       OnlineChargeTarget(:final order) => _startOnline(_session, order),
     };
@@ -759,7 +763,11 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// discount, the org logo, the live cart totals as the summary, and the
   /// lines in the order the server indexes them (a reward names a line by
   /// its position, so this list and the wire order must be the same list).
-  Future<void> _startCart(int session, String? tableId) async {
+  Future<void> _startCart(
+    int session,
+    String? tableId,
+    String? pickedId,
+  ) async {
     final bridge = _bridge;
     final till = _loadTill(session);
     final methods = await _loadMethods(session);
@@ -777,9 +785,15 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     final redeemable =
         _tryCore(() => bridge.cartRewardLines(tableId: tableId)) ??
         const <RewardLineInput>[];
+    // The customer picked on the cart, from the till's own list.
+    final picked = pickedId == null
+        ? null
+        : _tryCore(() => bridge.customerById(id: pickedId));
     _updateFor(
       session,
       (s) => _withSession(s, bridge).copyWith(
+        // Never over a pick made while this was loading.
+        customer: _customerTouched ? s.customer : picked,
         paymentMethods: methods,
         discounts: discounts,
         loyaltyProgramme: programme,

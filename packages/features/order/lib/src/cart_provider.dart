@@ -18,6 +18,7 @@ CartMeta cartMetaWith(
   Object? guestName = _unset,
   Object? startedAt = _unset,
   Object? covers = _unset,
+  Object? customerId = _unset,
 }) => CartMeta(
   name: name ?? m.name,
   draftId: identical(draftId, _unset) ? m.draftId : draftId as String?,
@@ -28,6 +29,9 @@ CartMeta cartMetaWith(
   guestName: identical(guestName, _unset) ? m.guestName : guestName as String?,
   startedAt: identical(startedAt, _unset) ? m.startedAt : startedAt as String?,
   covers: identical(covers, _unset) ? m.covers : covers as int?,
+  customerId: identical(customerId, _unset)
+      ? m.customerId
+      : customerId as String?,
 );
 
 /// One context's cart: its lines, totals, identity (the core's persisted
@@ -220,9 +224,16 @@ class CartNotifier extends Notifier<CartState> {
       if (lines.isEmpty &&
           (meta.name.isNotEmpty ||
               meta.draftId != null ||
+              meta.customerId != null ||
               meta.startedAt != null)) {
         await updateMeta(
-          (m) => cartMetaWith(m, name: '', draftId: null, startedAt: null),
+          (m) => cartMetaWith(
+            m,
+            name: '',
+            draftId: null,
+            startedAt: null,
+            customerId: null,
+          ),
         );
       } else if (lines.isNotEmpty && meta.startedAt == null) {
         await updateMeta((m) => cartMetaWith(m, startedAt: nowIso()));
@@ -340,6 +351,14 @@ class CartNotifier extends Notifier<CartState> {
   Future<void> setName(String? name) =>
       updateMeta((m) => cartMetaWith(m, name: name?.trim() ?? ''));
 
+  /// The customer this order is for (null takes them off). Picking one fills
+  /// the order's name — the snapshot the bill and the receipt carry — while a
+  /// typed name stays free text and never makes a customer.
+  Future<void> setCustomer(CustomerView? customer) => updateMeta(
+    (m) =>
+        cartMetaWith(m, name: customer?.name.trim(), customerId: customer?.id),
+  );
+
   /// Pick (or clear) the bill this cart's next round goes on.
   void selectTicket(String? id) => state = state.copyWith(activeTicketId: id);
 
@@ -433,6 +452,8 @@ class CartNotifier extends Notifier<CartState> {
           guestCount: guestCount ?? _order.coversOn(arg) ?? state.meta.covers,
           // The booking this order seats, if "Seat this party" was tapped.
           bookingId: state.meta.bookingId,
+          // The customer picked for this order, if one was.
+          customerId: state.meta.customerId,
         );
         _order._dropPendingCovers(arg);
         _order.showToast(

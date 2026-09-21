@@ -311,7 +311,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     final settledDraftId = cart.draftId;
     final outcome = await showCharge(
       context,
-      ChargeTarget.cart(tableId: _tableId),
+      ChargeTarget.cart(
+        tableId: _tableId,
+        customerId: ref.read(cartProvider(_tableId)).meta.customerId,
+      ),
       // "Not printed — no printer ›" on the Done card lands on the printer
       // sheet, not on a dead end.
       onPrinterSettings: () => unawaited(showPrinterSheet(context)),

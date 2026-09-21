@@ -4,6 +4,7 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_history/feature_history.dart' show askManager;
 import 'package:feature_order/src/held_orders_strip.dart';
+import 'package:feature_order/src/order_customer_row.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/sell_screen.dart' show TableOrderScreen;
 import 'package:feature_order/src/tables_screen.dart' show showTablePickerSheet;
@@ -294,6 +295,20 @@ Future<void> editLiveOrderName(
             controller: controller,
             placeholder: bridge.tr(key: 'order.rename_hint'),
             icon: 'pencil',
+          ),
+          // A real customer, for someone who may attach one: picking fills
+          // the name; a typed name stays a name and makes no customer.
+          const SizedBox(height: Space.md),
+          Consumer(
+            builder: (context, sheetRef, _) => OrderCustomerRow(
+              customerId: sheetRef.watch(
+                cartProvider(tableId).select((c) => c.meta.customerId),
+              ),
+              onChanged: (c) {
+                if (c != null) controller.text = c.name;
+                unawaited(notifier.setCustomer(c));
+              },
+            ),
           ),
           if (hasFloor) ...[
             const SizedBox(height: Space.md),

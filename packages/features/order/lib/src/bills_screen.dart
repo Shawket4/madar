@@ -14,6 +14,7 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/bill_screen.dart';
 import 'package:feature_order/src/floor_list.dart';
+import 'package:feature_order/src/order_customer_row.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/sell_screen.dart';
 import 'package:feature_order/src/words.dart';
@@ -69,6 +70,8 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
   Future<void> _newBill() async {
     final bridge = ref.read(bridgeProvider);
     final controller = TextEditingController();
+    // A real customer picked for the bill; the typed name stays a name.
+    CustomerView? customer;
     final name = await showMadarSheet<String>(
       context,
       size: SheetSize.hug,
@@ -94,6 +97,15 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
               autofocus: true,
               onSubmitted: (v) => Navigator.of(sheetContext).maybePop(v),
             ),
+            StatefulBuilder(
+              builder: (context, setSheet) => OrderCustomerRow(
+                customerId: customer?.id,
+                onChanged: (c) => setSheet(() {
+                  customer = c;
+                  if (c != null) controller.text = c.name;
+                }),
+              ),
+            ),
             MadarButton(
               label: bridge.tr(key: 'setup.continue'),
               onTap: () => Navigator.of(sheetContext).maybePop(controller.text),
@@ -104,7 +116,7 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
     );
     controller.dispose();
     if (name == null || !mounted) return;
-    await _notifier.startNewBill(name);
+    await _notifier.startNewBill(name, customer: customer);
     if (!mounted) return;
     await MadarPages.push<void>(
       context,
@@ -256,8 +268,8 @@ class _BillRow extends StatelessWidget {
         ?age,
         if (rounds > 0) '${bridge.tr(key: 'tables.round')} $rounds',
         if (t.waiterName?.trim().isNotEmpty ?? false) t.waiterName!,
-        if (tableLabel != null && (t.customerName?.trim().isNotEmpty ?? false))
-          t.customerName!,
+        // The linked customer (and their member badge), else the typed name.
+        ?billCustomerLabel(bridge, t, nameIsTitle: tableLabel == null),
       ].join(' · '),
       // What the party owes, as the server priced it — not the lines alone.
       minor: total > 0 ? total : null,
