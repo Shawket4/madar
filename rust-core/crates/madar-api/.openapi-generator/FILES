@@ -161,6 +161,7 @@ docs/CreateFloorTableRequest.md
 docs/CreateFloorTransferRequest.md
 docs/CreateGroupRequest.md
 docs/CreateIngredientCategoryRequest.md
+docs/CreateLinkedCopyRequest.md
 docs/CreateMarketingLinkRequest.md
 docs/CreateMenuItemRequest.md
 docs/CreateOpenTicketRequest.md
@@ -288,6 +289,7 @@ docs/LegacyTill.md
 docs/LiabilityTrend.md
 docs/LiabilityTrendPoint.md
 docs/LimitsView.md
+docs/LinkedCopyResult.md
 docs/LintIssue.md
 docs/LintSeverity.md
 docs/LoginRequest.md
@@ -577,6 +579,8 @@ docs/SpotViewRequest.md
 docs/StaffApi.md
 docs/StaffDocument.md
 docs/StaffDrink.md
+docs/StaffDrinkLine.md
+docs/StaffDrinksSummary.md
 docs/StaffPoolApi.md
 docs/StaffPoolSettings.md
 docs/StaffPoolToday.md
@@ -900,6 +904,7 @@ src/models/create_floor_table_request.rs
 src/models/create_floor_transfer_request.rs
 src/models/create_group_request.rs
 src/models/create_ingredient_category_request.rs
+src/models/create_linked_copy_request.rs
 src/models/create_marketing_link_request.rs
 src/models/create_menu_item_request.rs
 src/models/create_open_ticket_request.rs
@@ -1016,6 +1021,7 @@ src/models/legacy_till.rs
 src/models/liability_trend.rs
 src/models/liability_trend_point.rs
 src/models/limits_view.rs
+src/models/linked_copy_result.rs
 src/models/lint_issue.rs
 src/models/lint_severity.rs
 src/models/login_request.rs
@@ -1287,6 +1293,8 @@ src/models/spot_view_approval.rs
 src/models/spot_view_request.rs
 src/models/staff_document.rs
 src/models/staff_drink.rs
+src/models/staff_drink_line.rs
+src/models/staff_drinks_summary.rs
 src/models/staff_pool_settings.rs
 src/models/staff_pool_today.rs
 src/models/staff_request.rs

@@ -56,6 +56,14 @@ pub struct CreateGroupParams {
     pub create_group_request: models::CreateGroupRequest,
 }
 
+/// struct for passing parameters to the method [`create_linked_copy`]
+#[derive(Clone, Debug)]
+pub struct CreateLinkedCopyParams {
+    /// Source menu item ID
+    pub id: String,
+    pub create_linked_copy_request: models::CreateLinkedCopyRequest,
+}
+
 /// struct for passing parameters to the method [`create_menu_item`]
 #[derive(Clone, Debug)]
 pub struct CreateMenuItemParams {
@@ -642,6 +650,19 @@ pub enum CreateCategoryError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CreateGroupError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`create_linked_copy`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CreateLinkedCopyError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1816,6 +1837,56 @@ pub async fn create_group(
     } else {
         let content = resp.text().await?;
         let entity: Option<CreateGroupError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn create_linked_copy(
+    configuration: &configuration::Configuration,
+    params: CreateLinkedCopyParams,
+) -> Result<models::LinkedCopyResult, Error<CreateLinkedCopyError>> {
+    let uri_str = format!(
+        "{}/menu-items/{id}/linked-copy",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.create_linked_copy_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::LinkedCopyResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::LinkedCopyResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<CreateLinkedCopyError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

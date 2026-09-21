@@ -233,6 +233,7 @@ Class | Method | HTTP request | Description
 *MenuApi* | [**create_base**](docs/MenuApi.md#create_base) | **POST** /recipe-bases | 
 *MenuApi* | [**create_category**](docs/MenuApi.md#create_category) | **POST** /categories | 
 *MenuApi* | [**create_group**](docs/MenuApi.md#create_group) | **POST** /modifier-groups | 
+*MenuApi* | [**create_linked_copy**](docs/MenuApi.md#create_linked_copy) | **POST** /menu-items/{id}/linked-copy | 
 *MenuApi* | [**create_menu_item**](docs/MenuApi.md#create_menu_item) | **POST** /menu-items | 
 *MenuApi* | [**create_option**](docs/MenuApi.md#create_option) | **POST** /modifier-groups/{gid}/options | 
 *MenuApi* | [**create_optional_field**](docs/MenuApi.md#create_optional_field) | **POST** /menu-items/{id}/optionals | 
@@ -529,6 +530,7 @@ Class | Method | HTTP request | Description
 *StaffPoolApi* | [**list_staff_drinks**](docs/StaffPoolApi.md#list_staff_drinks) | **GET** /staff-pool/drinks | The staff drinks of a branch over a range of business days, newest first.
 *StaffPoolApi* | [**put_staff_pool_settings**](docs/StaffPoolApi.md#put_staff_pool_settings) | **PUT** /staff-pool/settings | 
 *StaffPoolApi* | [**record_staff_drink**](docs/StaffPoolApi.md#record_staff_drink) | **POST** /staff-pool/drinks | 
+*StaffPoolApi* | [**summarize_staff_drinks**](docs/StaffPoolApi.md#summarize_staff_drinks) | **GET** /staff-pool/drinks/summary | Totals for the same range and filter as `GET /staff-pool/drinks`.
 *StocktakesApi* | [**cancel_stocktake**](docs/StocktakesApi.md#cancel_stocktake) | **POST** /stocktakes/{id}/cancel | 
 *StocktakesApi* | [**create_stocktake**](docs/StocktakesApi.md#create_stocktake) | **POST** /stocktakes/branches/{branch_id} | 
 *StocktakesApi* | [**finalize_stocktake**](docs/StocktakesApi.md#finalize_stocktake) | **POST** /stocktakes/{id}/finalize | 
@@ -722,6 +724,7 @@ Class | Method | HTTP request | Description
  - [CreateFloorTransferRequest](docs/CreateFloorTransferRequest.md)
  - [CreateGroupRequest](docs/CreateGroupRequest.md)
  - [CreateIngredientCategoryRequest](docs/CreateIngredientCategoryRequest.md)
+ - [CreateLinkedCopyRequest](docs/CreateLinkedCopyRequest.md)
  - [CreateMarketingLinkRequest](docs/CreateMarketingLinkRequest.md)
  - [CreateMenuItemRequest](docs/CreateMenuItemRequest.md)
  - [CreateOpenTicketRequest](docs/CreateOpenTicketRequest.md)
@@ -838,6 +841,7 @@ Class | Method | HTTP request | Description
  - [LiabilityTrend](docs/LiabilityTrend.md)
  - [LiabilityTrendPoint](docs/LiabilityTrendPoint.md)
  - [LimitsView](docs/LimitsView.md)
+ - [LinkedCopyResult](docs/LinkedCopyResult.md)
  - [LintIssue](docs/LintIssue.md)
  - [LintSeverity](docs/LintSeverity.md)
  - [LoginRequest](docs/LoginRequest.md)
@@ -1108,6 +1112,8 @@ Class | Method | HTTP request | Description
  - [SpotViewRequest](docs/SpotViewRequest.md)
  - [StaffDocument](docs/StaffDocument.md)
  - [StaffDrink](docs/StaffDrink.md)
+ - [StaffDrinkLine](docs/StaffDrinkLine.md)
+ - [StaffDrinksSummary](docs/StaffDrinksSummary.md)
  - [StaffPoolSettings](docs/StaffPoolSettings.md)
  - [StaffPoolToday](docs/StaffPoolToday.md)
  - [StaffRequest](docs/StaffRequest.md)
