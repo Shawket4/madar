@@ -233,7 +233,6 @@ Class | Method | HTTP request | Description
 *MenuApi* | [**create_base**](docs/MenuApi.md#create_base) | **POST** /recipe-bases | 
 *MenuApi* | [**create_category**](docs/MenuApi.md#create_category) | **POST** /categories | 
 *MenuApi* | [**create_group**](docs/MenuApi.md#create_group) | **POST** /modifier-groups | 
-*MenuApi* | [**create_linked_copy**](docs/MenuApi.md#create_linked_copy) | **POST** /menu-items/{id}/linked-copy | 
 *MenuApi* | [**create_menu_item**](docs/MenuApi.md#create_menu_item) | **POST** /menu-items | 
 *MenuApi* | [**create_option**](docs/MenuApi.md#create_option) | **POST** /modifier-groups/{gid}/options | 
 *MenuApi* | [**create_optional_field**](docs/MenuApi.md#create_optional_field) | **POST** /menu-items/{id}/optionals | 
@@ -724,7 +723,6 @@ Class | Method | HTTP request | Description
  - [CreateFloorTransferRequest](docs/CreateFloorTransferRequest.md)
  - [CreateGroupRequest](docs/CreateGroupRequest.md)
  - [CreateIngredientCategoryRequest](docs/CreateIngredientCategoryRequest.md)
- - [CreateLinkedCopyRequest](docs/CreateLinkedCopyRequest.md)
  - [CreateMarketingLinkRequest](docs/CreateMarketingLinkRequest.md)
  - [CreateMenuItemRequest](docs/CreateMenuItemRequest.md)
  - [CreateOpenTicketRequest](docs/CreateOpenTicketRequest.md)
@@ -841,7 +839,6 @@ Class | Method | HTTP request | Description
  - [LiabilityTrend](docs/LiabilityTrend.md)
  - [LiabilityTrendPoint](docs/LiabilityTrendPoint.md)
  - [LimitsView](docs/LimitsView.md)
- - [LinkedCopyResult](docs/LinkedCopyResult.md)
  - [LintIssue](docs/LintIssue.md)
  - [LintSeverity](docs/LintSeverity.md)
  - [LoginRequest](docs/LoginRequest.md)
