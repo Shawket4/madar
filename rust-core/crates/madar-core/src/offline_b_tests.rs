@@ -2101,6 +2101,258 @@ async fn a_customer_taken_off_a_bill_is_removed_after_its_settle() {
     assert!(core.order_customer(hers).unwrap().is_none());
 }
 
+#[cfg(test)]
+fn open_bill(id: &str, customer: Option<Option<&str>>) -> serde_json::Value {
+    let mut v = serde_json::json!({"id": id, "branch_id": testkit::BRANCH, "status": "open", "subtotal": 800,
+        "opened_at": "2026-09-13T09:00:00Z", "opened_by": testkit::TELLER, "items": [],
+        "bill": {"subtotal": 800, "discount_amount": 0, "service_charge_amount": 0, "tax_amount": 0, "total": 800,
+                 "tax_rate": 0.0, "service_charge_rate": 0.0, "tax_inclusive": false}});
+    // `None` is a server that predates the field; `Some(None)` names nobody.
+    if let Some(c) = customer {
+        v["customer_id"] = serde_json::json!(c);
+    }
+    v
+}
+
+#[cfg(test)]
+fn pull_bill(core: &crate::MadarCore, seq: i64, bill: serde_json::Value) {
+    let resp = madar_api::models::PullResponse {
+        next: Some(Some(seq)),
+        changes: Some(vec![madar_api::models::PullChange {
+            seq,
+            r#type: "open_ticket".into(),
+            id: uuid::Uuid::parse_str(bill["id"].as_str().unwrap()).unwrap(),
+            op: "upsert".into(),
+            data: bill,
+        }]),
+        ..Default::default()
+    };
+    crate::sync_pull::apply_page(&core.store, testkit::BRANCH, &resp, &crate::sync_pull::protected_rows(&core.store), true).unwrap();
+}
+
+#[cfg(test)]
+async fn drain(core: &crate::MadarCore) {
+    for _ in 0..8 {
+        let _ = core.store.clear_network_backoff();
+        let _ = core.drain_outbox().await;
+    }
+}
+
+/// A customer picked on a bill that is ALREADY open is sent at once, so the
+/// other tills show them before the settle. After the server's answer the
+/// feed decides (another till's later pick wins here too), and the settle
+/// that follows neither re-sends the choice nor attaches it a second time.
+#[tokio::test]
+async fn a_customer_picked_on_an_open_bill_reaches_the_other_tills() {
+    const MONA: &str = "00000000-0000-0000-0000-0000000000a1";
+    const OMAR: &str = "00000000-0000-0000-0000-0000000000a2";
+    let stub = Stub::start(move |r| {
+        if !r.path.starts_with("/sync/replay") {
+            return None;
+        }
+        let env = r.json();
+        Some(match env["op"].as_str().unwrap_or("") {
+            "set_ticket_customer" => StubResponse::json(200, serde_json::json!({"id": env["ticket_id"], "customer_id": env["customer_id"]})),
+            "settle_open_ticket" => StubResponse::json(200, serde_json::json!({"id": uuid::Uuid::new_v4().to_string(), "customer_id": OMAR})),
+            _ => StubResponse::json(200, serde_json::json!({"id": uuid::Uuid::new_v4().to_string()})),
+        })
+    })
+    .await;
+    let a = testkit::online_core(&stub.base, "").await;
+    seed_methods(&a);
+    let till = a.open_till(1_000, None).await.unwrap().till.unwrap();
+    seed_customer(&a, serde_json::json!({"id": MONA, "name": "Mona"}));
+    seed_customer(&a, serde_json::json!({"id": OMAR, "name": "Omar"}));
+    let ticket = uid("bill-open");
+    seed_rows(&a, &[("open_ticket", open_bill(&ticket, Some(None)))]);
+
+    grant_customers(&a, &["tickets.settle", "orders.settle"]);
+    assert!(matches!(a.set_ticket_customer(ticket.clone(), Some(MONA.into())), Err(crate::error::CoreError::Forbidden { .. })));
+    grant_customers(&a, &["customers.attach", "tickets.settle", "orders.settle"]);
+    a.set_ticket_customer(ticket.clone(), Some(MONA.into())).unwrap();
+    assert_eq!(a.get_ticket(ticket.clone()).await.unwrap().customer_id.as_deref(), Some(MONA), "shown at once");
+    drain(&a).await;
+    let sent: Vec<_> = stub.requests("/sync/replay").into_iter().map(|r| r.json()).filter(|e| e["op"] == "set_ticket_customer").collect();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(
+        sent[0],
+        serde_json::json!({"op": "set_ticket_customer", "teller_id": testkit::TELLER, "ticket_id": ticket, "customer_id": MONA}),
+        "the wire shape, beside attach_customer's"
+    );
+    assert_eq!(a.sync_status().pending_outbox, 0);
+    // Answered, and the feed has not caught up: the choice still shows.
+    assert_eq!(a.get_ticket(ticket.clone()).await.unwrap().customer_id.as_deref(), Some(MONA));
+
+    // A second device learns it from the pull alone.
+    let b = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_rows(&b, &[("open_ticket", open_bill(&ticket, Some(None)))]);
+    pull_bill(&b, 7, open_bill(&ticket, Some(Some(MONA))));
+    let seen = b.list_open_tickets().await.unwrap();
+    assert_eq!(seen.iter().find(|t| t.id == ticket).unwrap().customer_id.as_deref(), Some(MONA));
+
+    // The other till picks someone else: acknowledged here, the server wins.
+    pull_bill(&a, 9, open_bill(&ticket, Some(Some(OMAR))));
+    assert_eq!(a.get_ticket(ticket.clone()).await.unwrap().customer_id.as_deref(), Some(OMAR));
+    assert_eq!(a.ticket_customer_choice(&ticket), None);
+
+    // The settle says nothing of its own — the bill's customer is the server's
+    // — and nothing is sent or attached beside it.
+    a.settle_ticket(ticket.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None)
+        .await
+        .expect("settled");
+    drain(&a).await;
+    let replayed: Vec<_> = stub.requests("/sync/replay").into_iter().map(|r| r.json()).collect();
+    let of = |op: &str| replayed.iter().filter(|e| e["op"] == op).count();
+    assert_eq!((of("set_ticket_customer"), of("attach_customer"), of("settle_open_ticket")), (1, 0, 1));
+    assert_eq!(a.sync_status().dead_outbox, 0);
+}
+
+/// Picked offline and changed: ONE op, with the last choice, behind a customer
+/// added here. A settle queued before it ever left carries the choice itself,
+/// so the op is withdrawn. On a bill whose fire is still queued the fire
+/// carries it, and the choice follows the bill to the server's id.
+#[tokio::test]
+async fn a_bills_customer_changed_offline_is_sent_once_with_the_last_choice() {
+    const SERVER_TICKET: &str = "00000000-0000-0000-0000-00000000f00d";
+    const MONA: &str = "00000000-0000-0000-0000-0000000000a1";
+    const OMAR: &str = "00000000-0000-0000-0000-0000000000a2";
+    let up = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let link = up.clone();
+    let stub = Stub::start(move |r| {
+        if !link.load(Ordering::SeqCst) {
+            return Some(StubResponse::hangup());
+        }
+        if !r.path.starts_with("/sync/replay") {
+            return None;
+        }
+        Some(match r.json()["op"].as_str().unwrap_or("") {
+            "fire_open_ticket" => StubResponse::json(200, serde_json::json!({"id": SERVER_TICKET, "status": "open"})),
+            _ => StubResponse::json(200, serde_json::json!({"id": uuid::Uuid::new_v4().to_string()})),
+        })
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    seed_methods(&core);
+    let till = core.open_till(1_000, None).await.unwrap().till.unwrap();
+    grant_customers(&core, &["customers.attach", "customers.create", "tickets.settle", "orders.settle"]);
+    seed_customer(&core, serde_json::json!({"id": MONA, "name": "Mona"}));
+    seed_customer(&core, serde_json::json!({"id": OMAR, "name": "Omar"}));
+    let (first, second) = (uid("bill-one"), uid("bill-two"));
+    seed_rows(&core, &[("open_ticket", open_bill(&first, Some(None))), ("open_ticket", open_bill(&second, Some(None)))]);
+
+    core.set_ticket_customer(first.clone(), Some(OMAR.into())).unwrap();
+    core.set_ticket_customer(first.clone(), Some(MONA.into())).unwrap();
+    let hana = core.create_customer("Hana".into(), None).unwrap();
+    core.set_ticket_customer(first.clone(), Some(hana.id.clone())).unwrap();
+    let ops = core.store.list_active().unwrap();
+    let choices: Vec<_> = ops.iter().filter(|o| o.op_type == "set_ticket_customer").collect();
+    assert_eq!(choices.len(), 1, "one op per bill");
+    assert_eq!(choices[0].id, format!("ticket-customer:{first}"));
+    assert_eq!(choices[0].idempotency_key, format!("ticket-customer:{first}"));
+    let create = ops.iter().find(|o| o.op_type == "create_customer").unwrap();
+    assert_eq!(choices[0].depends_on_seq, Some(create.seq), "behind the customer it names");
+
+    // Picked and then taken off a bill that names nobody: nothing to send.
+    core.set_ticket_customer(second.clone(), Some(OMAR.into())).unwrap();
+    core.set_ticket_customer(second.clone(), None).unwrap();
+    assert!(core.store.list_active().unwrap().iter().all(|o| o.id != format!("ticket-customer:{second}")));
+    // Picked, then settled before it left: the settle carries it, the op goes.
+    core.set_ticket_customer(second.clone(), Some(OMAR.into())).unwrap();
+    core.settle_ticket(second.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None)
+        .await
+        .expect("settled offline");
+    assert!(core.store.list_active().unwrap().iter().all(|o| o.id != format!("ticket-customer:{second}")));
+
+    // A bill fired here and not yet sent: its fire carries the choice.
+    core.cart_add(None, uuid::Uuid::new_v4().to_string(), "Latte".into(), 500).unwrap();
+    let fired = core.fire_ticket(None, None, None, None, None, None).await.unwrap();
+    core.set_ticket_customer(fired.ticket_id.clone(), Some(MONA.into())).unwrap();
+    assert!(core.store.list_active().unwrap().iter().all(|o| o.id != format!("ticket-customer:{}", fired.ticket_id)));
+
+    up.store(true, Ordering::SeqCst);
+    core.set_online(true);
+    drain(&core).await;
+    let replayed: Vec<_> = stub.requests("/sync/replay").into_iter().map(|r| r.json()).collect();
+    let sent: Vec<_> = replayed.iter().filter(|e| e["op"] == "set_ticket_customer").collect();
+    assert_eq!(sent.len(), 1, "one op, the last choice");
+    assert_eq!((sent[0]["ticket_id"].as_str(), sent[0]["customer_id"].as_str()), (Some(first.as_str()), Some(hana.id.as_str())));
+    let at = |op: &str| replayed.iter().position(|e| e["op"] == op).unwrap();
+    assert!(at("create_customer") < at("set_ticket_customer"));
+    let settle = replayed.iter().find(|e| e["op"] == "settle_open_ticket").unwrap();
+    assert_eq!(settle["request"]["customer_id"], OMAR);
+    assert_eq!(replayed.iter().find(|e| e["op"] == "fire_open_ticket").unwrap()["request"]["customer_id"], MONA);
+    assert_eq!(core.ticket_customer_choice(&fired.ticket_id), None);
+    assert_eq!(core.ticket_customer_choice(SERVER_TICKET), Some(Some(MONA.into())), "the choice follows the bill to the server's id");
+    assert_eq!((core.sync_status().dead_outbox, core.sync_status().pending_outbox), (0, 0));
+
+    // Changed again on the bill the server now has: sent under ITS id.
+    core.set_ticket_customer(fired.ticket_id.clone(), Some(OMAR.into())).unwrap();
+    drain(&core).await;
+    let last = stub.requests("/sync/replay").into_iter().map(|r| r.json()).filter(|e| e["op"] == "set_ticket_customer").last().unwrap();
+    assert_eq!((last["ticket_id"].as_str(), last["customer_id"].as_str()), (Some(SERVER_TICKET), Some(OMAR)));
+}
+
+/// New core, OLD server: it does not know the op and refuses it. The op is
+/// dropped quietly — no stuck row, nothing behind it held — the bill keeps
+/// showing the choice, and the settle carries the customer as it always did.
+#[tokio::test]
+async fn an_older_server_refusing_the_bills_customer_loses_nothing() {
+    const MONA: &str = "00000000-0000-0000-0000-0000000000a1";
+    let up = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let link = up.clone();
+    let stub = Stub::start(move |r| {
+        if !link.load(Ordering::SeqCst) {
+            return Some(StubResponse::hangup());
+        }
+        if !r.path.starts_with("/sync/replay") {
+            return None;
+        }
+        Some(match r.json()["op"].as_str().unwrap_or("") {
+            "set_ticket_customer" => StubResponse::text(
+                400,
+                r#"{"error":"Bad request: Json deserialize error: unknown variant `set_ticket_customer`, expected one of `open_till`, `create_order`"}"#,
+            ),
+            _ => StubResponse::json(200, serde_json::json!({"id": uuid::Uuid::new_v4().to_string()})),
+        })
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    seed_methods(&core);
+    let till = core.open_till(1_000, None).await.unwrap().till.unwrap();
+    grant_customers(&core, &["customers.attach", "tickets.settle", "orders.settle"]);
+    seed_customer(&core, serde_json::json!({"id": MONA, "name": "Mona"}));
+    let ticket = uid("bill-old-server");
+    seed_rows(&core, &[("open_ticket", open_bill(&ticket, None))]);
+
+    core.set_ticket_customer(ticket.clone(), Some(MONA.into())).unwrap();
+    let sale = ring(&core, 1_000, CASH, 1_000).await.local_order_id;
+    up.store(true, Ordering::SeqCst);
+    core.set_online(true);
+    drain(&core).await;
+    let replayed: Vec<_> = stub.requests("/sync/replay").into_iter().map(|r| r.json()).collect();
+    assert_eq!(replayed.iter().filter(|e| e["op"] == "set_ticket_customer").count(), 1, "asked once, never retried");
+    assert!(replayed.iter().any(|e| e["op"] == "create_order"), "the sale queued behind it went out");
+    assert_eq!((core.sync_status().dead_outbox, core.sync_status().pending_outbox), (0, 0), "dropped, not stuck");
+    assert!(core.store.list_active().unwrap().iter().all(|o| o.id != sale && o.op_type != "set_ticket_customer"));
+
+    // The older server's row never names a customer: the choice stands…
+    pull_bill(&core, 12, open_bill(&ticket, None));
+    assert_eq!(core.get_ticket(ticket.clone()).await.unwrap().customer_id.as_deref(), Some(MONA));
+    // … and rides the settle.
+    core.settle_ticket(ticket.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None)
+        .await
+        .expect("settled");
+    let ops = core.store.list_active().unwrap();
+    let settle = ops.iter().find(|o| o.op_type == "settle_open_ticket");
+    let sent_settle = stub.requests("/sync/replay").into_iter().map(|r| r.json()).find(|e| e["op"] == "settle_open_ticket");
+    let request = match (settle, sent_settle) {
+        (Some(op), _) => serde_json::from_str::<serde_json::Value>(&op.payload).unwrap()["request"].clone(),
+        (None, Some(env)) => env["request"].clone(),
+        _ => panic!("the settle is neither queued nor sent"),
+    };
+    assert_eq!(request["customer_id"], MONA);
+}
+
 /// Queue rule 8: a close with nothing parked warns about nothing.
 #[tokio::test]
 async fn a_close_with_nothing_held_has_no_warning() {

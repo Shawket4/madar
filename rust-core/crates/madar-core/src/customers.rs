@@ -21,6 +21,8 @@ const ORDER_CUSTOMER_KV: &str = "order_customer:";
 /// kv prefix: the customer this device chose for an OPEN bill, by ticket id.
 /// `{"customer_id": null}` is a choice too: the teller took the customer off.
 const TICKET_CUSTOMER_KV: &str = "ticket_customer:";
+/// The queued choice for a bill the server already has: one op per bill.
+pub(crate) const TICKET_CUSTOMER_OP: &str = "ticket-customer:";
 
 /// Who a settle says the bill is for.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -51,6 +53,52 @@ pub struct CustomerAddressView {
 fn kv_choice(raw: Option<String>) -> Option<Option<String>> {
     raw.and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
         .map(|v| v.get("customer_id").and_then(|c| c.as_str()).map(str::to_string))
+}
+
+/// Inside a pull's transaction, after bills changed: the server wins once it
+/// has heard this device. A choice still on its way (a queued op) stands; one
+/// the server answered stands until the feed shows the bill at or past that
+/// answer; a bill from a server that predates `customer_id` keeps the choice,
+/// which then rides the settle; a bill settled or voided elsewhere forgets it.
+pub(crate) fn feed_settles_ticket_customers(tx: &rusqlite::Connection, branch: &str) -> Result<(), CoreError> {
+    use rusqlite::OptionalExtension;
+    let choices: Vec<(String, String)> = {
+        let mut stmt = tx.prepare("SELECT k, v FROM kv WHERE k LIKE ?1 || '%'")?;
+        let rows = stmt.query_map([TICKET_CUSTOMER_KV], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        rows.collect::<Result<_, _>>()?
+    };
+    for (k, v) in choices {
+        let Some(ticket) = k.strip_prefix(TICKET_CUSTOMER_KV) else { continue };
+        let row: Option<(i64, String)> = tx
+            .query_row(
+                "SELECT seq, data FROM sync_rows WHERE branch_id=?1 AND type='open_ticket' AND id=?2",
+                rusqlite::params![branch, ticket],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?;
+        let Some((seq, data)) = row else { continue };
+        let Ok(data) = serde_json::from_str::<serde_json::Value>(&data) else { continue };
+        let closed = matches!(data.get("status").and_then(|s| s.as_str()), Some("settled" | "voided"));
+        if !closed {
+            if data.get("customer_id").is_none() {
+                continue;
+            }
+            let waiting: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM outbox WHERE (id=?1 OR id LIKE ?1 || ':%') AND status IN ('pending','inflight','dead'))",
+                [format!("{TICKET_CUSTOMER_OP}{ticket}")],
+                |r| r.get(0),
+            )?;
+            let sent_seq = serde_json::from_str::<serde_json::Value>(&v)
+                .ok()
+                .and_then(|v| v.get("sent_seq").and_then(|s| s.as_i64()))
+                .unwrap_or(0);
+            if waiting || seq < sent_seq {
+                continue;
+            }
+        }
+        tx.execute("DELETE FROM kv WHERE k=?1", [&k])?;
+    }
+    Ok(())
 }
 
 /// A customer as the till shows it.
@@ -471,7 +519,23 @@ impl MadarCore {
             .iter()
             .find(|v| v.id.to_string() == ticket_id)
             .is_some_and(|v| v.customer_id.flatten().is_none());
+        // Behind the bill's own fire (in flight, or dead and waiting for a
+        // retry) and behind a customer added here whom the server has not met.
+        let (user_id, clock_offset_ms) = self.outbox_meta();
+        let op_id = format!("{TICKET_CUSTOMER_OP}{ticket_id}");
+        let op = crate::store::NewOutboxOp {
+            id: op_id.clone(),
+            op_type: "set_ticket_customer".into(),
+            idempotency_key: op_id,
+            payload: serde_json::json!({ "ticket_id": ticket_id, "customer_id": customer_id }).to_string(),
+            event_at: now.clone(),
+            depends_on_seq: [self.store.live_seq_of(&ticket_id)?, customer_gate].into_iter().flatten().max(),
+            user_id,
+            clock_offset_ms,
+            ..Default::default()
+        };
         self.store.with_tx_touch(|tx, touched| {
+            let mut fire_carries = false;
             tx.execute(
                 "INSERT INTO kv(k, v, updated_at) VALUES(?1, ?2, ?3)
                  ON CONFLICT(k) DO UPDATE SET v=excluded.v, updated_at=excluded.updated_at",
@@ -506,17 +570,97 @@ impl MadarCore {
                             rusqlite::params![seq, cmd.to_string(), dep],
                         )?;
                         names_nobody = true;
+                        fire_carries = true;
                     }
+                }
+            }
+            // The server already has the bill: the choice is sent now, so every
+            // other till shows it before the settle. One op per bill — a choice
+            // still waiting is replaced, one in flight is followed.
+            let waiting_choice = "id=?1 OR id LIKE ?1 || ':%'";
+            if fire_carries {
+                tx.execute(&format!("DELETE FROM outbox WHERE ({waiting_choice}) AND status IN ('pending','dead')"), [&op.id])?;
+            } else {
+                tx.execute(&format!("DELETE FROM outbox WHERE ({waiting_choice}) AND status='acked'"), [&op.id])?;
+                let inflight: Option<i64> = {
+                    use rusqlite::OptionalExtension;
+                    tx.query_row(
+                        &format!("SELECT MAX(seq) FROM outbox WHERE ({waiting_choice}) AND status='inflight'"),
+                        [&op.id],
+                        |r| r.get::<_, Option<i64>>(0),
+                    )
+                    .optional()?
+                    .flatten()
+                };
+                if let Some(seq) = inflight {
+                    tx.execute(&format!("DELETE FROM outbox WHERE ({waiting_choice}) AND status IN ('pending','dead')"), [&op.id])?;
+                    let id = format!("{}:{}", op.id, uuid::Uuid::new_v4());
+                    crate::store::enqueue_on(tx, &crate::store::NewOutboxOp {
+                        id: id.clone(),
+                        idempotency_key: id,
+                        depends_on_seq: Some(op.depends_on_seq.map_or(seq, |d| d.max(seq))),
+                        ..op.clone()
+                    })?;
+                } else if customer_id.is_none() && names_nobody {
+                    // Nobody there and nobody chosen: a choice never sent is just dropped.
+                    tx.execute(&format!("DELETE FROM outbox WHERE ({waiting_choice}) AND status IN ('pending','dead')"), [&op.id])?;
+                } else {
+                    crate::store::enqueue_on(tx, &op)?;
+                    tx.execute(
+                        "UPDATE outbox SET payload=?2, event_at=?3, depends_on_seq=?4, status='pending',
+                                attempts=0, next_attempt_at=0, last_error=NULL
+                          WHERE id=?1 AND status IN ('pending','dead')",
+                        rusqlite::params![op.id, op.payload, op.event_at, op.depends_on_seq],
+                    )?;
                 }
             }
             // "Removed" is kept only where there may be someone to remove.
             if customer_id.is_none() && names_nobody {
                 tx.execute("DELETE FROM kv WHERE k=?1", [format!("{TICKET_CUSTOMER_KV}{ticket_id}")])?;
             }
-            touched.extend(crate::changes::tables_for_op("open_ticket"));
+            touched.extend(crate::changes::tables_for_op("set_ticket_customer"));
             Ok(())
         })?;
+        self.send_in_background(Vec::new());
         Ok(())
+    }
+
+    /// The fire was answered: the bill is the server's now, under the server's
+    /// id. This device's choice follows it there, marked as sent (the fire
+    /// carried it) — a server that ignored it still gets it with the settle.
+    pub(crate) fn rekey_ticket_customer(&self, fired_as: &str, server_id: &str, horizon: Option<i64>) {
+        let from = format!("{TICKET_CUSTOMER_KV}{fired_as}");
+        let Some(choice) = kv_choice(self.store.kv_get(&from).ok().flatten()) else { return };
+        let moved = self.store.with_tx(|tx| {
+            tx.execute("DELETE FROM kv WHERE k=?1", [&from])?;
+            tx.execute(
+                "INSERT INTO kv(k, v, updated_at) VALUES(?1, ?2, ?3)
+                 ON CONFLICT(k) DO UPDATE SET v=excluded.v, updated_at=excluded.updated_at",
+                rusqlite::params![
+                    format!("{TICKET_CUSTOMER_KV}{server_id}"),
+                    serde_json::json!({ "customer_id": choice, "sent_seq": horizon.unwrap_or(0) }).to_string(),
+                    chrono::Utc::now().to_rfc3339()
+                ],
+            )?;
+            Ok(())
+        });
+        if let Err(e) = moved {
+            crate::obs::capture_bg_warning("customers.rekey_ticket_customer", e.to_string());
+        }
+    }
+
+    /// A queued choice was answered. From the answer's horizon on, the bill's
+    /// row in the feed is the truth; until that row arrives the choice stands.
+    pub(crate) fn note_ticket_customer_sent(&self, payload: &str, horizon: Option<i64>) {
+        let Ok(cmd) = serde_json::from_str::<serde_json::Value>(payload) else { return };
+        let Some(ticket) = cmd.get("ticket_id").and_then(|t| t.as_str()) else { return };
+        let key = format!("{TICKET_CUSTOMER_KV}{ticket}");
+        let Some(choice) = kv_choice(self.store.kv_get(&key).ok().flatten()) else { return };
+        // A later choice is already waiting: that one speaks for the bill.
+        if choice.as_deref() != cmd.get("customer_id").and_then(|c| c.as_str()) {
+            return;
+        }
+        let _ = self.store.kv_put(&key, &serde_json::json!({ "customer_id": choice, "sent_seq": horizon.unwrap_or(0) }).to_string());
     }
 
     /// This device's own choice for an open bill: `None` when it never spoke,
@@ -587,6 +731,14 @@ impl MadarCore {
             )?;
         }
         tx.execute("DELETE FROM kv WHERE k=?1", [format!("{TICKET_CUSTOMER_KV}{ticket_id}")])?;
+        // The settle speaks for the bill now: a choice still waiting to be
+        // sent ahead of it would only say the same thing twice.
+        if *who != BillCustomer::Unsaid {
+            tx.execute(
+                "DELETE FROM outbox WHERE (id=?1 OR id LIKE ?1 || ':%') AND status IN ('pending','dead')",
+                [format!("{TICKET_CUSTOMER_OP}{ticket_id}")],
+            )?;
+        }
         Ok(())
     }
 

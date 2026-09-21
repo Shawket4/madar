@@ -84,6 +84,8 @@ pub fn tables_for_op(op_type: &str) -> Vec<&'static str> {
         "record_staff_drink" => &[ORDERS][..],
         // The history row and the sale's detail show who it is for.
         "attach_customer" => &[ORDERS][..],
+        // The bill's header and the bills list show who it is for.
+        "set_ticket_customer" => &[OPEN_TICKETS][..],
         "settle_open_ticket" => &[OPEN_TICKETS, ORDERS, TILLS, FLOOR][..],
         "open_ticket" | "ticket_add_round" | "void_ticket" | "void_ticket_line" => {
             &[OPEN_TICKETS, FLOOR, KITCHEN][..]

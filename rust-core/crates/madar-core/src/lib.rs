@@ -1168,6 +1168,17 @@ impl MadarCore {
                     })?;
                     acked_any = true;
                 }
+                // A bill's customer sent ahead of its settle is a courtesy to
+                // the other tills: a server that does not know the op (or will
+                // not take it) loses nothing, because the settle carries the
+                // customer anyway. Dropped quietly — never a stuck row, never
+                // in the way of what is queued behind it.
+                SendOutcome::Dead(err) | SendOutcome::Refused(err) if item.op_type == "set_ticket_customer" => {
+                    self.store.mark_dead(item.seq, &err)?;
+                    self.store.discard_dead(&item.id)?;
+                    self.store.emit_changes(changes::tables_for_op(&item.op_type));
+                    self.push_diag("info", format!("the bill's customer waits for the settle: {err}"));
+                }
                 // Permanent rejection — surface in the stuck list, never silently drop.
                 SendOutcome::Dead(err) => {
                     self.store.mark_dead(item.seq, &err)?;
@@ -1512,6 +1523,21 @@ impl MadarCore {
                 (
                     // The attach is a plain overwrite server-side, so a re-flush is safe.
                     serde_json::json!({ "op": "attach_customer", "teller_id": teller_id, "order_id": order_id, "customer_id": cmd.get("customer_id") }),
+                    Idem::Yes,
+                )
+            }
+            // The customer on a bill that is still open, so the other tills
+            // show them before the settle. The op waited behind the bill's
+            // fire, so the bill's key resolves to the server's id by now.
+            "set_ticket_customer" => {
+                let cmd: serde_json::Value = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
+                };
+                let key = cmd.get("ticket_id").and_then(|v| v.as_str()).unwrap_or_default();
+                (
+                    // Last write wins server-side, so a re-flush is safe.
+                    serde_json::json!({ "op": "set_ticket_customer", "teller_id": teller_id, "ticket_id": self.server_ticket_id(key), "customer_id": cmd.get("customer_id") }),
                     Idem::Yes,
                 )
             }
@@ -1929,6 +1955,7 @@ impl MadarCore {
                                 // before the fire landed names the real one.
                                 if item.op_type == "open_ticket" {
                                     let _ = self.store.id_map_put("open_ticket", &item.id, id);
+                                    self.rekey_ticket_customer(&item.id, id, *seq_out);
                                 }
                                 if item.op_type == "settle_open_ticket" {
                                     let _ = self.store.id_map_put("order", &item.id, id);
@@ -1941,6 +1968,12 @@ impl MadarCore {
                             }
                             None => SendOutcome::Offline,
                         }
+                    }
+                    // The server has the choice: from its horizon on, the
+                    // bill's row in the feed decides who it is for.
+                    "set_ticket_customer" => {
+                        self.note_ticket_customer_sent(&item.payload, *seq_out);
+                        SendOutcome::Acked(None)
                     }
                     _ => SendOutcome::Acked(None),
                 }

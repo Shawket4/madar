@@ -1202,6 +1202,7 @@ fn en(key: &str) -> Option<&'static str> {
         "sync.op_award_loyalty_points" => "Loyalty points",
         "sync.op_create_customer" => "New customer",
         "sync.op_attach_customer" => "Customer on a sale",
+        "sync.op_set_ticket_customer" => "Customer on an open bill",
         "sync.op_record_waste" => "Waste",
         // ── staff drinks pool ────────────────────────────────────────────
         "staff_pool.action" => "Staff drink",
@@ -2533,6 +2534,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "sync.op_award_loyalty_points" => "نقاط الولاء",
         "sync.op_create_customer" => "عميل جديد",
         "sync.op_attach_customer" => "عميل على طلب",
+        "sync.op_set_ticket_customer" => "عميل على فاتورة مفتوحة",
         "sync.op_record_waste" => "تالف",
         // ── staff drinks pool ────────────────────────────────────────────
         "staff_pool.action" => "مشروب موظفين",

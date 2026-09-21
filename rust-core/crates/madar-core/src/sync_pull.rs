@@ -841,6 +841,9 @@ pub(crate) fn apply_page_with(
                 }
             }
         }
+        if touched.contains(&crate::changes::OPEN_TICKETS) {
+            crate::customers::feed_settles_ticket_customers(tx, branch)?;
+        }
         Ok(n)
     })
 }
