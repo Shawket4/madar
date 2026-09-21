@@ -15988,6 +15988,7 @@ const _: fn() = || {
         let _: Option<String> = CartMeta.guest_name;
         let _: Option<String> = CartMeta.started_at;
         let _: Option<i32> = CartMeta.covers;
+        let _: Option<String> = CartMeta.customer_id;
     }
     {
         let CartOptionalView = None::<crate::api::cart::CartOptionalView>.unwrap();
@@ -17864,6 +17865,7 @@ impl SseDecode for crate::api::cart::CartMeta {
         let mut var_guestName = <Option<String>>::sse_decode(deserializer);
         let mut var_startedAt = <Option<String>>::sse_decode(deserializer);
         let mut var_covers = <Option<i32>>::sse_decode(deserializer);
+        let mut var_customerId = <Option<String>>::sse_decode(deserializer);
         return crate::api::cart::CartMeta {
             name: var_name,
             draft_id: var_draftId,
@@ -17872,6 +17874,7 @@ impl SseDecode for crate::api::cart::CartMeta {
             guest_name: var_guestName,
             started_at: var_startedAt,
             covers: var_covers,
+            customer_id: var_customerId,
         };
     }
 }
@@ -24490,6 +24493,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::cart::CartMeta> {
             self.0.guest_name.into_into_dart().into_dart(),
             self.0.started_at.into_into_dart().into_dart(),
             self.0.covers.into_into_dart().into_dart(),
+            self.0.customer_id.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -28703,6 +28707,7 @@ impl SseEncode for crate::api::cart::CartMeta {
         <Option<String>>::sse_encode(self.guest_name, serializer);
         <Option<String>>::sse_encode(self.started_at, serializer);
         <Option<i32>>::sse_encode(self.covers, serializer);
+        <Option<String>>::sse_encode(self.customer_id, serializer);
     }
 }
 

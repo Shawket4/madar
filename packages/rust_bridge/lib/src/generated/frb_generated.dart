@@ -13569,8 +13569,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   CartMeta dco_decode_cart_meta(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return CartMeta(
       name: dco_decode_String(arr[0]),
       draftId: dco_decode_opt_String(arr[1]),
@@ -13579,6 +13579,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       guestName: dco_decode_opt_String(arr[4]),
       startedAt: dco_decode_opt_String(arr[5]),
       covers: dco_decode_opt_box_autoadd_i_32(arr[6]),
+      customerId: dco_decode_opt_String(arr[7]),
     );
   }
 
@@ -17521,6 +17522,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_guestName = sse_decode_opt_String(deserializer);
     var var_startedAt = sse_decode_opt_String(deserializer);
     var var_covers = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_customerId = sse_decode_opt_String(deserializer);
     return CartMeta(
       name: var_name,
       draftId: var_draftId,
@@ -17529,6 +17531,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       guestName: var_guestName,
       startedAt: var_startedAt,
       covers: var_covers,
+      customerId: var_customerId,
     );
   }
 
@@ -22730,6 +22733,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_opt_String(self.guestName, serializer);
     sse_encode_opt_String(self.startedAt, serializer);
     sse_encode_opt_box_autoadd_i_32(self.covers, serializer);
+    sse_encode_opt_String(self.customerId, serializer);
   }
 
   @protected
