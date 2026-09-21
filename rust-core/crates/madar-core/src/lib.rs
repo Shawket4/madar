@@ -8060,6 +8060,10 @@ impl MadarCore {
         let booking_uuid = booking_id
             .as_deref()
             .and_then(|s| uuid::Uuid::parse_str(s).ok());
+        // The caller's pick, else the one kept with the cart.
+        let customer_id = customer_id
+            .filter(|c| !c.trim().is_empty())
+            .or(cart::meta(&self.store, table_id.as_deref())?.customer_id);
         let customer_uuid = customer_id
             .as_deref()
             .filter(|_| self.can("customers.attach".into()))

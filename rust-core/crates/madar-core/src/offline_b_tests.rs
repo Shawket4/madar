@@ -2263,9 +2263,13 @@ async fn a_bills_customer_changed_offline_is_sent_once_with_the_last_choice() {
         .expect("settled offline");
     assert!(core.store.list_active().unwrap().iter().all(|o| o.id != format!("ticket-customer:{second}")));
 
-    // A bill fired here and not yet sent: its fire carries the choice.
+    // A bill fired here and not yet sent: its fire carries the choice — first
+    // the one kept with the cart, then the one made on the bill.
     core.cart_add(None, uuid::Uuid::new_v4().to_string(), "Latte".into(), 500).unwrap();
-    let fired = core.fire_ticket(None, None, None, None, None, None).await.unwrap();
+    crate::cart::set_meta(&core.store, None, &crate::cart::CartMeta { name: "Omar".into(), customer_id: Some(OMAR.into()), ..Default::default() }).unwrap();
+    let fired = core.fire_ticket(None, Some("Omar".into()), None, None, None, None).await.unwrap();
+    let fire = core.store.list_active().unwrap().into_iter().find(|o| o.id == fired.ticket_id).unwrap();
+    assert_eq!(serde_json::from_str::<serde_json::Value>(&fire.payload).unwrap()["request"]["customer_id"], OMAR, "the cart's customer");
     core.set_ticket_customer(fired.ticket_id.clone(), Some(MONA.into())).unwrap();
     assert!(core.store.list_active().unwrap().iter().all(|o| o.id != format!("ticket-customer:{}", fired.ticket_id)));
 

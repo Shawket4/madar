@@ -268,6 +268,10 @@ pub struct CartMeta {
     pub started_at: Option<String>,
     #[serde(default)]
     pub covers: Option<i32>,
+    /// The customer picked for this order before it is rung or fired. The
+    /// name stays the free-text snapshot: typing one never makes a customer.
+    #[serde(default)]
+    pub customer_id: Option<String>,
 }
 
 /// Drop the retired global-context key (idempotent; called on core open).
@@ -2316,6 +2320,7 @@ mod tests {
                 guest_name: Some("Sara".into()),
                 started_at: Some("2026-09-13T10:00:00Z".into()),
                 covers: Some(4),
+                customer_id: Some("c1".into()),
             };
             set_meta(&s, Some("t1"), &m).unwrap();
             set_meta(
