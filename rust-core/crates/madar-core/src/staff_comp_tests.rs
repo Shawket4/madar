@@ -716,3 +716,50 @@ fn a_feed_row_with_or_without_the_comp_fields_reads_the_same_drink() {
     })
     .unwrap();
 }
+
+// ── the manager's approval ──────────────────────────────────────────────────
+
+#[tokio::test]
+async fn a_teller_without_the_act_marks_with_a_managers_approval_and_it_rides_the_sale() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed(&core, 5);
+    // Grants loaded, the staff-drink act not among them — but it is one this
+    // person may ask a manager for (the capability carries `approval = true`).
+    if let Some(sess) = core.session.write().unwrap().as_mut() {
+        let caps = ["orders.create", "payments.create", "till.open"].map(String::from).to_vec();
+        sess.authz = Some(crate::session::AuthzGrants {
+            capabilities: caps,
+            ask_manager: vec![crate::staff_drink::CAP_STAFF_DRINK.into()],
+            ..Default::default()
+        });
+    }
+    assert_eq!(core.staff_drink_access().outcome, "needs_approval", "never a wall: a manager can unlock it");
+    let key = add_latte(&core, "Small", &[SYRUP_VANILLA], 1);
+    assert!(matches!(
+        core.mark_staff_drink(None, key.clone(), "for Sara".into(), None),
+        Err(crate::CoreError::Forbidden { .. })
+    ));
+    let wrong = crate::approvals::ApprovalView {
+        id: "00000000-0000-0000-0000-00000000ab01".into(),
+        capability: "orders.void".into(),
+        approver_id: "00000000-0000-0000-0000-0000000000cc".into(),
+        approver_name: "Mona".into(),
+        amount_minor: None,
+        value_minor: None,
+        percent_bps: None,
+    };
+    assert!(core.mark_staff_drink(None, key.clone(), "for Sara".into(), Some(wrong.clone())).is_err(), "an approval for another act unlocks nothing");
+    assert!(marked(&core).is_empty());
+
+    let ok = crate::approvals::ApprovalView { capability: crate::staff_drink::CAP_STAFF_DRINK.into(), ..wrong };
+    core.mark_staff_drink(None, key, "for Sara".into(), Some(ok.clone())).unwrap();
+    assert_eq!(marked(&core).len(), 1);
+
+    // The approval is kept WITH the line and rides the sale's envelope.
+    core.open_till(0, None).await.unwrap();
+    core.checkout(None, pay(0)).await.unwrap();
+    let op = core.store.pending().unwrap().into_iter().find(|i| i.op_type == "create_order").unwrap();
+    let (env, _) = core.replay_envelope(&op).map_err(|_| "envelope").unwrap();
+    assert_eq!(env["approval"]["id"], ok.id);
+    assert_eq!(env["approval"]["capability"], crate::staff_drink::CAP_STAFF_DRINK);
+}

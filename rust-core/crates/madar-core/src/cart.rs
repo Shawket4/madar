@@ -1738,8 +1738,23 @@ pub(crate) fn mark_staff(
         });
     }
     l.staff_drink = Some(mark);
+    let new_key = signature(l);
     save(store, ctx, &lines)?;
+    rekey_kitchen_note(store, ctx, line_key, &new_key)?;
     Ok(view(&lines))
+}
+
+/// A mark changes its line's key; the cook's note on that line follows it.
+fn rekey_kitchen_note(store: &Store, ctx: Ctx<'_>, old: &str, new: &str) -> CoreResult<()> {
+    if old == new {
+        return Ok(());
+    }
+    let mut map = kitchen_notes_map(store, ctx)?;
+    if let Some(note) = map.remove(old) {
+        map.entry(new.to_string()).or_insert(note);
+        save_kitchen_notes_map(store, ctx, &map)?;
+    }
+    Ok(())
 }
 
 /// Change the note of a marked line. `false` when the line is not marked.
@@ -1766,6 +1781,7 @@ pub(crate) fn unmark_staff(store: &Store, ctx: Ctx<'_>, line_key: &str) -> CoreR
         let mut l = lines.remove(at);
         l.staff_drink = None;
         let sig = signature(&l);
+        rekey_kitchen_note(store, ctx, line_key, &sig)?;
         match lines.iter_mut().find(|x| signature(x) == sig) {
             Some(x) => x.qty += l.qty,
             None => lines.insert(at.min(lines.len()), l),
