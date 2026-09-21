@@ -5,6 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **closed_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> | When the bill was settled or voided; `None` while it is still open. | [optional]
+**customer_id** | Option<**uuid::Uuid**> | The customer the sitting belongs to, when one is known: the sale's once settled (a settle may name one the bill never had), else the bill's. Read through the merge chain, so it is always a live customer. | [optional]
 **customer_name** | Option<**String**> |  | [optional]
 **guest_count** | Option<**i32**> |  | [optional]
 **minutes** | **i64** | Minutes from `seated_at` to the close, or to now while still open. | 

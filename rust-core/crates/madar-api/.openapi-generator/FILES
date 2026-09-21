@@ -161,7 +161,6 @@ docs/CreateFloorTableRequest.md
 docs/CreateFloorTransferRequest.md
 docs/CreateGroupRequest.md
 docs/CreateIngredientCategoryRequest.md
-docs/CreateLinkedCopyRequest.md
 docs/CreateMarketingLinkRequest.md
 docs/CreateMenuItemRequest.md
 docs/CreateOpenTicketRequest.md
@@ -289,7 +288,6 @@ docs/LegacyTill.md
 docs/LiabilityTrend.md
 docs/LiabilityTrendPoint.md
 docs/LimitsView.md
-docs/LinkedCopyResult.md
 docs/LintIssue.md
 docs/LintSeverity.md
 docs/LoginRequest.md
@@ -555,6 +553,8 @@ docs/SetGrantRequest.md
 docs/SetOverrideRequest.md
 docs/SetParRequest.md
 docs/SetRoutingModeRequest.md
+docs/SetTicketCustomerRequest.md
+docs/SetTicketCustomerResponse.md
 docs/SettleOpenTicketRequest.md
 docs/Shift.md
 docs/ShiftPreFill.md
@@ -620,6 +620,7 @@ docs/TillReconciliationLine.md
 docs/TillRefunds.md
 docs/TillReportFigures.md
 docs/TillReportResponse.md
+docs/TillSessionRow.md
 docs/TillSpotView.md
 docs/TillStatus.md
 docs/TillVerification.md
@@ -899,7 +900,6 @@ src/models/create_floor_table_request.rs
 src/models/create_floor_transfer_request.rs
 src/models/create_group_request.rs
 src/models/create_ingredient_category_request.rs
-src/models/create_linked_copy_request.rs
 src/models/create_marketing_link_request.rs
 src/models/create_menu_item_request.rs
 src/models/create_open_ticket_request.rs
@@ -1016,7 +1016,6 @@ src/models/legacy_till.rs
 src/models/liability_trend.rs
 src/models/liability_trend_point.rs
 src/models/limits_view.rs
-src/models/linked_copy_result.rs
 src/models/lint_issue.rs
 src/models/lint_severity.rs
 src/models/login_request.rs
@@ -1266,6 +1265,8 @@ src/models/set_grant_request.rs
 src/models/set_override_request.rs
 src/models/set_par_request.rs
 src/models/set_routing_mode_request.rs
+src/models/set_ticket_customer_request.rs
+src/models/set_ticket_customer_response.rs
 src/models/settle_open_ticket_request.rs
 src/models/shift.rs
 src/models/shift_pre_fill.rs
@@ -1326,6 +1327,7 @@ src/models/till_reconciliation_line.rs
 src/models/till_refunds.rs
 src/models/till_report_figures.rs
 src/models/till_report_response.rs
+src/models/till_session_row.rs
 src/models/till_spot_view.rs
 src/models/till_status.rs
 src/models/till_verification.rs

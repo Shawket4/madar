@@ -22,6 +22,14 @@ pub struct TableSitting {
         skip_serializing_if = "Option::is_none"
     )]
     pub closed_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// The customer the sitting belongs to, when one is known: the sale's once settled (a settle may name one the bill never had), else the bill's. Read through the merge chain, so it is always a live customer.
+    #[serde(
+        rename = "customer_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub customer_id: Option<Option<uuid::Uuid>>,
     #[serde(
         rename = "customer_name",
         default,
@@ -92,6 +100,7 @@ impl TableSitting {
     ) -> TableSitting {
         TableSitting {
             closed_at: None,
+            customer_id: None,
             customer_name: None,
             guest_count: None,
             minutes,

@@ -8,6 +8,7 @@ Method | HTTP request | Description
 [**erase_customer**](CustomersApi.md#erase_customer) | **POST** /customers/{id}/erase | 
 [**get_customer**](CustomersApi.md#get_customer) | **GET** /customers/{id} | 
 [**list_customer_addresses**](CustomersApi.md#list_customer_addresses) | **GET** /customers/{id}/addresses | 
+[**list_customer_bookings**](CustomersApi.md#list_customer_bookings) | **GET** /customers/{id}/bookings | A customer's bookings, newest first. A merged id answers for its survivor, and bookings made under any id merged into it are included.
 [**list_customers**](CustomersApi.md#list_customers) | **GET** /customers | 
 [**merge_customer**](CustomersApi.md#merge_customer) | **POST** /customers/{id}/merge | 
 [**update_customer**](CustomersApi.md#update_customer) | **PATCH** /customers/{id} | 
@@ -113,6 +114,36 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::CustomerAddress>**](CustomerAddress.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## list_customer_bookings
+
+> Vec<models::BookingView> list_customer_bookings(id, limit, offset)
+A customer's bookings, newest first. A merged id answers for its survivor, and bookings made under any id merged into it are included.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Customer ID (a merged id resolves) | [required] |
+**limit** | Option<**i64**> | Default 50, at most 200. |  |
+**offset** | Option<**i64**> |  |  |
+
+### Return type
+
+[**Vec<models::BookingView>**](BookingView.md)
 
 ### Authorization
 
