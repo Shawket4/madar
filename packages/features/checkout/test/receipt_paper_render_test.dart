@@ -63,7 +63,25 @@ const _lines = [
   ),
 ];
 
+/// A staff drink (Large latte + a shot): normal price 11000, the pool comps
+/// 6500, the rest is charged. The label is the core's word, in the language.
+List<ReceiptLineView> _staffLines({required bool arabic}) => [
+  ReceiptLineView(
+    name: 'Latte',
+    qty: 1,
+    sizeLabel: 'L',
+    lineTotalMinor: 11000,
+    isBundle: false,
+    staffLabel: coreWord('staff_pool.badge', arabic: arabic),
+    staffCompMinor: 6500,
+    addons: const [ReceiptModifierView(name: 'Extra shot', priceMinor: 1500)],
+    optionals: const [],
+    components: const [],
+  ),
+];
+
 ReceiptView _r({
+  List<ReceiptLineView>? lines,
   List<ReceiptPaymentView> payments = const [],
   String label = 'Cash',
   bool cash = true,
@@ -86,7 +104,7 @@ ReceiptView _r({
   localOrderId: '8f2a4c1e-x',
   orderNumber: 1042,
   isVoided: voided,
-  lines: _lines,
+  lines: lines ?? _lines,
   paymentLabel: label,
   subtotalMinor: subtotal,
   discountMinor: discount,
@@ -147,6 +165,8 @@ final _cases = <String, ReceiptView>{
   'void': _r(voided: true),
   // Two devices shared a code offline: the server's ~suffix stays on.
   'device': _r(display: '36B-12~AB12'),
+  // A staff drink: see [_staffLines]. (Rebuilt per language in the loop.)
+  'staff': _r(subtotal: 4500, total: 4500, tendered: 5000, change: 500),
 };
 
 Future<void> _fonts() async {
@@ -193,7 +213,15 @@ void main() {
                         padding: const EdgeInsets.all(Space.lg),
                         child: Center(
                           child: ReceiptPaper(
-                            receipt: receipt,
+                            receipt: name == 'staff'
+                                ? _r(
+                                    lines: _staffLines(arabic: rtl),
+                                    subtotal: 4500,
+                                    total: 4500,
+                                    tendered: 5000,
+                                    change: 500,
+                                  )
+                                : receipt,
                             storeName: 'Rue Zamalek',
                             currency: 'EGP',
                           ),
@@ -238,6 +266,25 @@ void main() {
               expect(find.text(w('order.service_charge')), findsNothing);
             case 'void':
               expect(find.textContaining(w('receipt.voided')), findsOneWidget);
+            case 'staff':
+              // The line at its NORMAL price, then the comp as a line
+              // discount under it — one row, the core's word and figure.
+              final row = find.byKey(const ValueKey('receipt-staff-comp'));
+              expect(row, findsOneWidget);
+              expect(
+                find.descendant(
+                  of: row,
+                  matching: find.textContaining(w('staff_pool.badge')),
+                ),
+                findsOneWidget,
+              );
+              expect(
+                find.descendant(
+                  of: row,
+                  matching: find.textContaining('65.00'),
+                ),
+                findsOneWidget,
+              );
             case 'device':
               expect(find.textContaining('#36B-12~AB12'), findsOneWidget);
               expect(find.textContaining('#1042'), findsNothing);
