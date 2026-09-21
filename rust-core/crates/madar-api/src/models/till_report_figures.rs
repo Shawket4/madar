@@ -80,6 +80,14 @@ pub struct TillReportFigures {
     /// Who viewed (and printed) the cash spot report of this till, oldest first. Additive.
     #[serde(rename = "spot_views", skip_serializing_if = "Option::is_none")]
     pub spot_views: Option<Vec<models::TillSpotView>>,
+    /// Staff drinks put on the branch's pool during this till, and how many of them were past the day's allowance. The Z report shows what the shop gave its own people; the money is zero, so neither figure enters any total. Additive — an older tablet simply does not read them.
+    #[serde(rename = "staff_drinks_count", skip_serializing_if = "Option::is_none")]
+    pub staff_drinks_count: Option<i64>,
+    #[serde(
+        rename = "staff_drinks_overspent_count",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub staff_drinks_overspent_count: Option<i64>,
     /// `branches.standard_float`.
     #[serde(
         rename = "standard_float",
@@ -160,6 +168,8 @@ impl TillReportFigures {
             service_charge_waived_amount: None,
             service_charge_waived_count: None,
             spot_views: None,
+            staff_drinks_count: None,
+            staff_drinks_overspent_count: None,
             standard_float: None,
             suggested_safe_drop: None,
             timezone: None,

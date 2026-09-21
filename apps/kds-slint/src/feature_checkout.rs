@@ -10,6 +10,7 @@
 
 use madar_core::{
     checkout::{CheckoutInput, CheckoutSplit, ReceiptView},
+    customers::CustomerView,
     error::CoreError,
     menu::{DiscountView, PaymentMethodView},
     receipt::PrinterBrand,
@@ -160,6 +161,11 @@ struct Session {
     /// settle drawer hides both (checkout_drawer.dart constructor flags).
     show_discount_picker: bool,
     show_customer_fields: bool,
+    /// The core's matches for what is typed in the customer field.
+    customer_matches: Vec<CustomerView>,
+    /// The customer picked from them: the sale carries their id. Typing
+    /// anything else afterwards unpicks them (the text is then only a name).
+    customer: Option<CustomerView>,
 }
 
 impl Session {
@@ -399,6 +405,19 @@ fn render(feature: &Arc<CheckoutFeature>) {
         g.set_discount_chips(ModelRc::new(VecModel::from(chips)));
         g.set_show_discount_picker(s.show_discount_picker);
         g.set_show_customer_fields(s.show_customer_fields);
+        let picked = s.customer.as_ref().map(|c| c.id.as_str());
+        let matches: Vec<DiscountChipData> = s
+            .customer
+            .iter()
+            .chain(s.customer_matches.iter().filter(|c| Some(c.id.as_str()) != picked))
+            .take(CUSTOMER_MATCHES)
+            .map(|c| DiscountChipData {
+                id: c.id.clone().into(),
+                label: customer_label(c, &feature.core).into(),
+                active: Some(c.id.as_str()) == picked,
+            })
+            .collect();
+        g.set_customer_matches(ModelRc::new(VecModel::from(matches)));
 
         // Terminal gate (the Dart canPlace switch).
         let placing = s.is_placing;
@@ -536,6 +555,57 @@ fn set_discount(feature: &Arc<CheckoutFeature>, id: Option<String>) {
     });
 }
 
+/// How many matches the tender shows under the customer field.
+const CUSTOMER_MATCHES: usize = 4;
+
+/// "Name · phone · Member" — the phone as the core lets this person see it.
+fn customer_label(c: &CustomerView, core: &MadarCore) -> String {
+    let mut parts = vec![c.name.clone()];
+    if let Some(p) = c.phone.as_ref().or(c.phone_hint.as_ref()) {
+        parts.push(p.clone());
+    }
+    if c.is_member {
+        parts.push(core.tr("customers.member".into()));
+    }
+    parts.join(" · ")
+}
+
+/// The customer field was typed in: search the synced list (local, offline).
+/// Text that is no longer the picked customer's name unpicks them.
+fn customer_edited(feature: &Arc<CheckoutFeature>, text: String) {
+    {
+        let mut s = feature.session.lock().unwrap();
+        let q = text.trim();
+        if s.customer.as_ref().is_some_and(|c| c.name != q) {
+            s.customer = None;
+        }
+        s.customer_matches = if q.is_empty() || !feature.core.can("customers.attach".into()) {
+            Vec::new()
+        } else {
+            feature.core.search_customers(q.to_string()).unwrap_or_default()
+        };
+    }
+    render(feature);
+}
+
+/// Pick a match (or tap the picked one again to take them off).
+fn pick_customer(feature: &Arc<CheckoutFeature>, id: String) {
+    let name = {
+        let mut s = feature.session.lock().unwrap();
+        if s.customer.as_ref().is_some_and(|c| c.id == id) {
+            s.customer = None;
+            None
+        } else {
+            s.customer = s.customer_matches.iter().find(|c| c.id == id).cloned();
+            s.customer.as_ref().map(|c| c.name.clone())
+        }
+    };
+    if let Some(name) = name {
+        on_ui(feature, move |ui, _| ui.global::<CheckoutState>().set_customer_text(name.into()));
+    }
+    render(feature);
+}
+
 /// Place the cart as an order via the core (online or queued offline). On
 /// success the core has emptied the cart; the receipt flips the sheet to
 /// the confirmation. Mirrors the natives' placeOrder split/tendered mapping:
@@ -578,7 +648,12 @@ fn place_order(feature: &Arc<CheckoutFeature>, customer: String, notes: String) 
                 amount_tendered_minor: if splits.is_empty() && is_cash { s.tendered_minor } else { 0 },
                 tip_minor: s.tip_minor,
                 tip_payment_method_id: s.tip_method_id.clone(),
-                customer_name: blank(&customer),
+                // The picked customer's id, with their name as the snapshot;
+                // otherwise whatever was typed is only a name on the order.
+                customer_id: s.customer.as_ref().map(|c| c.id.clone()),
+                customer_name: s.customer.as_ref().map(|c| c.name.clone()).or_else(|| blank(&customer)),
+                // The kitchen stand-in rings counter sales: takeaway packaging.
+                dine_in: false,
                 notes: blank(&notes),
                 splits,
                 // Rewards are redeemed at the Flutter till; this stand-in has none.
@@ -1079,6 +1154,10 @@ pub fn wire(ui: &AppWindow, feature: &Arc<CheckoutFeature>) {
         });
     }
     {
+        let f = feature.clone();
+        g.on_customer_edited(move |text| customer_edited(&f, text.to_string()));
+        let f = feature.clone();
+        g.on_pick_customer(move |id| pick_customer(&f, id.to_string()));
         let f = feature.clone();
         g.on_fire_terminal(move |customer, notes| {
             place_order(&f, customer.to_string(), notes.to_string());

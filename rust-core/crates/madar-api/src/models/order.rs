@@ -31,6 +31,14 @@ pub struct Order {
     pub change_given: Option<Option<i32>>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
+    /// The customer this sale belongs to (design §2.5) — the same id the sync feed's order row carries. `customer_name` beside it is the snapshot of what was typed or printed; this is who it was. A soft reference: `None` for a walk-in, and it may name a customer since merged (resolve through `GET /customers/{id}`) or erased.
+    #[serde(
+        rename = "customer_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub customer_id: Option<Option<uuid::Uuid>>,
     #[serde(
         rename = "customer_name",
         default,
@@ -433,6 +441,7 @@ impl Order {
             branch_id,
             change_given: None,
             created_at,
+            customer_id: None,
             customer_name: None,
             delivery_channel: None,
             delivery_fee,

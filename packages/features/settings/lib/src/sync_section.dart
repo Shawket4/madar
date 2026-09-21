@@ -42,6 +42,8 @@ String outboxOpLabel(MadarBridge bridge, String op) {
     'void_ticket' => 'sync.op_void_ticket',
     'settle_open_ticket' => 'sync.op_settle_open_ticket',
     'award_loyalty_points' => 'sync.op_award_loyalty_points',
+    'attach_customer' => 'sync.op_attach_customer',
+    'set_ticket_customer' => 'sync.op_set_ticket_customer',
     'lan_mirror' => 'sync.op_lan_mirror',
     _ => null,
   };

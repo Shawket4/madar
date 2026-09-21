@@ -6,6 +6,7 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/src/charge_strings.dart';
 import 'package:feature_checkout/src/charge_target.dart';
 import 'package:feature_checkout/src/checkout_provider.dart';
+import 'package:feature_checkout/src/customer_card.dart';
 import 'package:feature_checkout/src/customer_sheet.dart';
 import 'package:feature_checkout/src/discount_sheet.dart';
 import 'package:feature_checkout/src/done_card.dart';
@@ -300,7 +301,9 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
     // the close tile, not system back, not the tablet's scrim.
     final paying = block == ChargeBlock.charging;
 
-    final quiet = s.takesTender
+    // An online order takes no tender, but it still has a person: its quiet
+    // rows are the customer row alone.
+    final quiet = s.takesTender || bridge.can(cap: Cap.customersAttach)
         ? _QuietRows(
             state: s,
             tr: tr,
@@ -323,10 +326,27 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
                 context,
                 size: SheetSize.hug,
                 maxWidth: Responsive.sheetCompactMaxWidth,
-                builder: (_) => const CustomerSheet(),
+                // An online order already names a phone: search starts there.
+                builder: (_) => CustomerSheet(
+                  initialQuery: switch (s.target) {
+                    OnlineChargeTarget(:final order) => order.customerPhone,
+                    _ => null,
+                  },
+                ),
               ),
             ),
-            onRemoveCustomer: notifier.clearCustomer,
+            // The customer and the member are one person: taking them off a
+            // sale with a member on it asks first, as the member's row does.
+            onRemoveCustomer: s.loyaltyMember == null
+                ? notifier.clearCustomer
+                : () => unawaited(
+                    _confirmRemoveMember(
+                      context,
+                      bridge,
+                      notifier.clearLoyalty,
+                    ),
+                  ),
+            onUseLoyalty: () => unawaited(notifier.useCustomerLoyalty()),
             onToggleReward: notifier.toggleReward,
             onOpenTip: notifier.openTip,
             onCloseTip: notifier.closeTip,
@@ -835,6 +855,7 @@ class _QuietRows extends StatelessWidget {
     required this.onRemoveMember,
     required this.onCustomer,
     required this.onRemoveCustomer,
+    required this.onUseLoyalty,
     required this.onToggleReward,
     required this.onOpenTip,
     required this.onCloseTip,
@@ -852,6 +873,7 @@ class _QuietRows extends StatelessWidget {
   final VoidCallback onRemoveMember;
   final VoidCallback onCustomer;
   final VoidCallback onRemoveCustomer;
+  final VoidCallback onUseLoyalty;
   final ValueChanged<int> onToggleReward;
   final VoidCallback onOpenTip;
   final VoidCallback onCloseTip;
@@ -925,17 +947,23 @@ class _QuietRows extends StatelessWidget {
       );
     }
 
-    // Customer — a counter sale only (a bill's settle carries no customer
-    // yet), and only for someone who may attach one. Works offline.
-    if (s.isCart && bridge.can(cap: Cap.customersAttach)) {
+    // Customer — every target, for someone who may attach one. Works
+    // offline: a bill or an online order gets them as an op queued behind
+    // the charge.
+    if (bridge.can(cap: Cap.customersAttach)) {
       final customer = s.customer;
       rows.add(
         _QuietRow(
           label: bridge.tr(key: 'customers.attach'),
           value: customer == null
               ? bridge.tr(key: 'customers.search_hint')
+              : customer.isMember
+              ? '${customer.name} · ${bridge.tr(key: 'customers.member')}'
               : customer.name,
-          onTap: customer == null ? onCustomer : null,
+          // Nobody yet: pick one. Somebody: their card.
+          onTap: customer == null
+              ? onCustomer
+              : () => unawaited(showCustomerCard(context, customer)),
           trailing: customer == null
               ? null
               : MadarGlyphTile(
@@ -943,6 +971,27 @@ class _QuietRows extends StatelessWidget {
                   semanticLabel: bridge.tr(key: 'customers.remove'),
                   onTap: onRemoveCustomer,
                 ),
+        ),
+      );
+    }
+
+    // An online order is finalized with a method and nothing else.
+    if (!s.takesTender) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: rows,
+      );
+    }
+
+    // The customer picked is a member: their rewards are one tap away, with
+    // no card to scan a second time.
+    if (s.loyaltyOffered &&
+        member == null &&
+        s.customer?.loyaltyCustomerId != null) {
+      rows.add(
+        _LinkRow(
+          label: bridge.tr(key: 'customers.use_loyalty'),
+          onTap: onUseLoyalty,
         ),
       );
     }

@@ -29,6 +29,7 @@ DeliveryOrderView _order(String status) => DeliveryOrderView(
   createdAt: '2026-09-13T10:00:00Z',
   extraPrepMinutes: 0,
   isTerminal: false,
+  contactOverride: false,
 );
 
 class _Fake implements MadarBridge {

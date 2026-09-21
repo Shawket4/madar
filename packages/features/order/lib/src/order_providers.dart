@@ -930,9 +930,16 @@ class OrderNotifier extends Notifier<OrderState> {
   /// A table-less bill for a branch with no floor: the waiter's "+ New bill",
   /// which asks only for a name. The cart is the counter's; the name rides on
   /// the first round as the ticket's customer.
-  Future<void> startNewBill(String? guestName) async {
+  /// [customer] is a real customer picked for it; a typed name makes none.
+  Future<void> startNewBill(String? guestName, {CustomerView? customer}) async {
     final cart = cartOf(null)..selectTicket(null);
-    await cart.setName(guestName);
+    await cart.updateMeta(
+      (m) => cartMetaWith(
+        m,
+        name: guestName?.trim() ?? '',
+        customerId: customer?.id,
+      ),
+    );
   }
 
   /// Give a seated table back without a sale — they left before ordering, or
@@ -1287,6 +1294,19 @@ class OrderNotifier extends Notifier<OrderState> {
   }
 
   // ── waiter (dine-in tickets) ───────────────────────────────────────────────
+
+  /// Who an OPEN bill is for (null takes them off). The core keeps the choice,
+  /// shows it at once and sends it to the other tills; the settle carries it.
+  Future<void> setBillCustomer(String ticketId, CustomerView? customer) async {
+    try {
+      _bridge.setTicketCustomer(ticketId: ticketId, customerId: customer?.id);
+    } on MadarError catch (e) {
+      _fail(e);
+      return;
+    }
+    await loadOpenTickets();
+  }
+
   Future<void> loadOpenTickets() async {
     final tickets = await _quiet(_bridge.listOpenTickets);
     if (tickets == null) return;

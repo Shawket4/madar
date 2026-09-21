@@ -538,6 +538,10 @@ fn settle_ticket(
                 Vec::new(), // one method, no split legs
                 false,      // service charge stands — the waiver is the Flutter till's
                 None,       // no manager approval: this stand-in applies no discount
+                // Nobody is picked on this stand-in: the core sends the choice
+                // a till made for the bill, else the server carries the bill's
+                // own customer onto the sale.
+                None,
             )
             .await;
         match result {

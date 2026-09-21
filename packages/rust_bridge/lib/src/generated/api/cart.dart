@@ -217,6 +217,7 @@ class CartMeta {
   final String? guestName;
   final String? startedAt;
   final int? covers;
+  final String? customerId;
 
   const CartMeta({
     required this.name,
@@ -226,6 +227,7 @@ class CartMeta {
     this.guestName,
     this.startedAt,
     this.covers,
+    this.customerId,
   });
 
   @override
@@ -236,7 +238,8 @@ class CartMeta {
       tableLabel.hashCode ^
       guestName.hashCode ^
       startedAt.hashCode ^
-      covers.hashCode;
+      covers.hashCode ^
+      customerId.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -249,7 +252,8 @@ class CartMeta {
           tableLabel == other.tableLabel &&
           guestName == other.guestName &&
           startedAt == other.startedAt &&
-          covers == other.covers;
+          covers == other.covers &&
+          customerId == other.customerId;
 }
 
 class CartOptionalView {

@@ -79,6 +79,13 @@ class DeliveryOrderView {
   /// `true` once the order reached a terminal state (delivered/cancelled/rejected).
   final bool isTerminal;
 
+  /// The customer the order belongs to, when linked. Name and phone above
+  /// stay the SNAPSHOT (what the driver calls, what the receipt prints).
+  final String? customerId;
+
+  /// "Ordered by X for Y": the snapshot contact is not the customer's own.
+  final bool contactOverride;
+
   const DeliveryOrderView({
     required this.id,
     this.orderRef,
@@ -102,6 +109,8 @@ class DeliveryOrderView {
     required this.extraPrepMinutes,
     this.promisedReadyAt,
     required this.isTerminal,
+    this.customerId,
+    required this.contactOverride,
   });
 
   @override
@@ -127,7 +136,9 @@ class DeliveryOrderView {
       readyAt.hashCode ^
       extraPrepMinutes.hashCode ^
       promisedReadyAt.hashCode ^
-      isTerminal.hashCode;
+      isTerminal.hashCode ^
+      customerId.hashCode ^
+      contactOverride.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -155,7 +166,9 @@ class DeliveryOrderView {
           readyAt == other.readyAt &&
           extraPrepMinutes == other.extraPrepMinutes &&
           promisedReadyAt == other.promisedReadyAt &&
-          isTerminal == other.isTerminal;
+          isTerminal == other.isTerminal &&
+          customerId == other.customerId &&
+          contactOverride == other.contactOverride;
 }
 
 /// The branch's delivery configuration + the POS-owned accepting overrides.

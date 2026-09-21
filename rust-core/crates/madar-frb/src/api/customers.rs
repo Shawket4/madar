@@ -5,7 +5,7 @@ use flutter_rust_bridge::frb;
 use crate::api::bridge::MadarBridge;
 use crate::api::error::MadarError;
 
-pub use madar_core::customers::CustomerView;
+pub use madar_core::customers::{CustomerAddressView, CustomerView};
 
 /// A customer as the till shows it.
 #[frb(mirror(CustomerView))]
@@ -16,12 +16,50 @@ pub struct _CustomerView {
     pub phone: Option<String>,
     /// Masked for someone who may not see the phone, e.g. `•••• 4567`.
     pub phone_hint: Option<String>,
+    /// The id their loyalty lives under, when they are a member (`id` itself
+    /// under the shared key). `Some` means "offer their loyalty".
     pub loyalty_customer_id: Option<String>,
     /// Added on this till and not yet confirmed by the server.
     pub pending: bool,
+    /// A loyalty member.
+    pub is_member: bool,
+    /// The balance the feed last carried, in words ("120 points"). A hint for
+    /// the picker; spending goes through a live lookup.
+    pub balance_label: Option<String>,
+    /// Where the customer first came from (`pos`, `online`, `loyalty`, …).
+    pub source: Option<String>,
+}
+
+/// A saved address on the customer card.
+#[frb(mirror(CustomerAddressView))]
+pub struct _CustomerAddressView {
+    pub id: String,
+    /// "Home", "Work" — what the customer called it, when they did.
+    pub label: Option<String>,
+    /// The address on one line.
+    pub line: String,
+    /// What the driver was told, when anything.
+    pub notes: Option<String>,
+    /// How many orders went there; the list is most-used first.
+    pub use_count: i32,
 }
 
 impl MadarBridge {
+    /// Choose the customer an OPEN bill is for (or take them off with `None`).
+    /// Kept on the device, carried by the bill's settle, and by its fire while
+    /// that is still queued. Needs `customers.attach`.
+    #[frb(sync)]
+    pub fn set_ticket_customer(&self, ticket_id: String, customer_id: Option<String>) -> Result<(), MadarError> {
+        self.inner.set_ticket_customer(ticket_id, customer_id).map_err(MadarError::from)
+    }
+
+    /// A customer's saved addresses, most used first. ONLINE, and only when a
+    /// person opens the card; needs `customers.addresses.view`. Offline it
+    /// fails with a worded error the card shows in place of the list.
+    pub async fn customer_addresses(&self, customer_id: String) -> Result<Vec<CustomerAddressView>, MadarError> {
+        self.inner.customer_addresses(customer_id).await.map_err(MadarError::from)
+    }
+
     /// Customers matching a name or phone digits, best first. Offline.
     #[frb(sync)]
     pub fn search_customers(&self, query: String) -> Result<Vec<CustomerView>, MadarError> {
@@ -42,5 +80,27 @@ impl MadarBridge {
         phone: Option<String>,
     ) -> Result<CustomerView, MadarError> {
         self.inner.create_customer(name, phone).map_err(MadarError::from)
+    }
+
+    /// The customer a scanned loyalty member IS, from the till's list — so a
+    /// scan attaches the person, not just a balance. `None` when the list does
+    /// not hold them.
+    #[frb(sync)]
+    pub fn customer_for_member(&self, member_id: String) -> Result<Option<CustomerView>, MadarError> {
+        self.inner.customer_for_member(member_id).map_err(MadarError::from)
+    }
+
+    /// Attach a customer to a sale already rung (a settled bill by its ticket
+    /// id, a finalized online order, a sale in the history), or take them off
+    /// with `None`. Offline: queued behind the sale. True while still queued.
+    #[frb(sync)]
+    pub fn attach_customer(&self, order_id: String, customer_id: Option<String>) -> Result<bool, MadarError> {
+        self.inner.attach_customer(order_id, customer_id).map_err(MadarError::from)
+    }
+
+    /// The customer on a rung sale, by any of its ids. Offline.
+    #[frb(sync)]
+    pub fn order_customer(&self, order_id: String) -> Result<Option<CustomerView>, MadarError> {
+        self.inner.order_customer(order_id).map_err(MadarError::from)
     }
 }

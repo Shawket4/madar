@@ -49,6 +49,9 @@ pub struct MenuItemFull {
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "addon_slots")]
     pub addon_slots: Vec<models::AddonSlot>,
+    /// Every size row, INCLUDING the synthetic `one_size` one. Additive: this is where price actually lives, and it is what the dashboard's size editor and new POS builds read. An item always has at least one entry.
+    #[serde(rename = "all_sizes", skip_serializing_if = "Option::is_none")]
+    pub all_sizes: Option<Vec<models::ItemSize>>,
     /// Explicit per-item addon allowlist. Empty = no restriction (use org catalog).
     #[serde(rename = "allowed_addon_ids")]
     pub allowed_addon_ids: Vec<uuid::Uuid>,
@@ -59,6 +62,7 @@ pub struct MenuItemFull {
     pub recipe_steps: Option<Vec<models::RecipeStep>>,
     #[serde(rename = "recipes")]
     pub recipes: Vec<models::MenuItemRecipe>,
+    /// LEGACY SHAPE — unchanged for clients at or below v0.7.11: the synthetic `one_size` row that now carries a single-price item's price is hidden here, so an old till still sees a size-less item exactly as it did.
     #[serde(rename = "sizes")]
     pub sizes: Vec<models::ItemSize>,
 }
@@ -97,6 +101,7 @@ impl MenuItemFull {
             org_id,
             updated_at,
             addon_slots,
+            all_sizes: None,
             allowed_addon_ids,
             optional_fields,
             recipe_steps: None,

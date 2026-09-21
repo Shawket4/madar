@@ -26,6 +26,14 @@ pub struct OpenTicketView {
     pub booking_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
+    /// The customer this bill belongs to, when one is known (design §2.5): a table-QR guest who gave a phone, the party's booking, or one the waiter attached. `customer_name` is the free-text snapshot and may be set without it. Settling carries it onto the sale.
+    #[serde(
+        rename = "customer_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub customer_id: Option<Option<uuid::Uuid>>,
     #[serde(
         rename = "customer_name",
         default,
@@ -174,6 +182,7 @@ impl OpenTicketView {
             bill: None,
             booking_id: None,
             branch_id,
+            customer_id: None,
             customer_name: None,
             discount_id: None,
             discount_type: None,

@@ -33,6 +33,14 @@ pub struct CardView {
     pub name: String,
     #[serde(rename = "next_reward_cost")]
     pub next_reward_cost: i32,
+    /// \"Order now\": the ordering page, opened knowing who this is. Present only when public ordering is configured and the shop takes online orders — render the primary button when it is there, nothing when it is not.
+    #[serde(
+        rename = "order_now_url",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub order_now_url: Option<Option<String>>,
     #[serde(rename = "passes")]
     pub passes: Box<models::PassLinks>,
     #[serde(rename = "points_to_next_reward")]
@@ -73,6 +81,7 @@ impl CardView {
             mode,
             name,
             next_reward_cost,
+            order_now_url: None,
             passes: Box::new(passes),
             points_to_next_reward,
             progress_to_next,

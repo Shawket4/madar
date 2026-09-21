@@ -157,6 +157,25 @@ pub(crate) fn fold(conn: &Connection, item: &OutboxItem, body: Option<&Value>, m
             }
             touched.extend([c::REFUNDS, c::ORDERS, c::TILLS]);
         }
+        ("attach_customer", Some(b)) if b.get("customer_id").is_some() => {
+            // The server answered with who the sale is for now. The sale's row
+            // says so at once, rather than showing the settle's own customer
+            // until the next pull brings the order down again.
+            let okey = match key {
+                Some(k) => super::order_key_for(conn, &k)?.or(Some(k)),
+                None => None,
+            };
+            if let Some(okey) = okey {
+                if !super::is_protected(conn, T_ORDER, &okey)? {
+                    if let Some(p) = stored(conn, T_ORDER, &okey)? {
+                        let mut raw = p.raw.clone();
+                        raw["customer_id"] = b["customer_id"].clone();
+                        write_row(conn, T_ORDER, &okey, &raw, Origin::Ack, None)?;
+                    }
+                }
+            }
+            touched.push(c::ORDERS);
+        }
         ("cash_movement", Some(b)) if s(b, "id").is_some() => {
             let key = key.or_else(|| super::key_of(T_CASH, b)).unwrap_or_default();
             let prev = stored(conn, T_CASH, &key)?;

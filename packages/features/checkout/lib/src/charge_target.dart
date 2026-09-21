@@ -16,8 +16,14 @@ sealed class ChargeTarget {
   ///
   /// [tableId] names WHICH cart: null is takeaway, an id is that table's own
   /// cart. There is no active cart in the core; every call says which.
-  const factory ChargeTarget.cart({String? tableId, String? label}) =
-      CartChargeTarget;
+  ///
+  /// [customerId] is the customer already picked on the cart, if one was:
+  /// the drawer opens with them on the sale.
+  const factory ChargeTarget.cart({
+    String? tableId,
+    String? label,
+    String? customerId,
+  }) = CartChargeTarget;
 
   /// A table's bill (an open ticket). `settleTicket()` — tip, discount,
   /// rewards by line id, a service charge waiver, and split legs.
@@ -31,7 +37,7 @@ sealed class ChargeTarget {
 }
 
 class CartChargeTarget extends ChargeTarget {
-  const CartChargeTarget({this.tableId, this.label});
+  const CartChargeTarget({this.tableId, this.label, this.customerId});
 
   /// The cart being charged (null = takeaway).
   final String? tableId;
@@ -39,6 +45,9 @@ class CartChargeTarget extends ChargeTarget {
   /// What the header calls the sale, already localised ("Takeaway"). Null
   /// falls back to the feature's own word.
   final String? label;
+
+  /// The customer picked on the cart before Charge, if one was.
+  final String? customerId;
 }
 
 class BillChargeTarget extends ChargeTarget {

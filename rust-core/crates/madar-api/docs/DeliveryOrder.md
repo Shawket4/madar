@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**address_id** | Option<**uuid::Uuid**> | The saved address it was sent to, when it was saved. | [optional]
 **address_line** | Option<**String**> |  | [optional]
 **branch_id** | **uuid::Uuid** |  | 
 **cancel_reason** | Option<**String**> |  | [optional]
@@ -12,7 +13,9 @@ Name | Type | Description | Notes
 **cart** | **serde_json::Value** | The frozen priced line snapshot the POS renders before finalize. | 
 **channel** | **String** |  | 
 **confirmed_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
+**contact_override** | Option<**bool**> | \"Ordered by X for Y\": the snapshot phone is not the customer's own. | [optional]
 **created_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
+**customer_id** | Option<**uuid::Uuid**> | The customer this order belongs to (design §2.5). `customer_name` and `customer_phone` beside it are the SNAPSHOT — what was typed, what the driver calls — and stay as they were whatever happens to the customer. `None` for an order from before customers existed whose phone is not a valid number. | [optional]
 **customer_lat** | Option<**f64**> |  | [optional]
 **customer_lng** | Option<**f64**> |  | [optional]
 **customer_name** | **String** |  | 

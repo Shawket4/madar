@@ -16,6 +16,90 @@ use crate::MadarCore;
 
 const TYPE: &str = "customer";
 const MAX_RESULTS: usize = 50;
+/// kv prefix: the customer this device attached to a rung sale, by order key.
+const ORDER_CUSTOMER_KV: &str = "order_customer:";
+/// kv prefix: the customer this device chose for an OPEN bill, by ticket id.
+/// `{"customer_id": null}` is a choice too: the teller took the customer off.
+const TICKET_CUSTOMER_KV: &str = "ticket_customer:";
+/// The queued choice for a bill the server already has: one op per bill.
+pub(crate) const TICKET_CUSTOMER_OP: &str = "ticket-customer:";
+
+/// Who a settle says the bill is for.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum BillCustomer {
+    /// Nobody spoke: the server carries the bill's own customer onto the sale.
+    Unsaid,
+    /// This customer, sent on the settle itself.
+    Chosen(uuid::Uuid),
+    /// The teller took the customer off a bill that had one.
+    Removed,
+}
+
+/// A saved address on the customer card.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CustomerAddressView {
+    pub id: String,
+    /// "Home", "Work" — what the customer called it, when they did.
+    pub label: Option<String>,
+    /// The address on one line, built from the parts the customer gave.
+    pub line: String,
+    /// What the driver was told ("ring twice"), when anything.
+    pub notes: Option<String>,
+    /// How many orders went there; the list is most-used first.
+    pub use_count: i32,
+}
+
+fn kv_choice(raw: Option<String>) -> Option<Option<String>> {
+    raw.and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .map(|v| v.get("customer_id").and_then(|c| c.as_str()).map(str::to_string))
+}
+
+/// Inside a pull's transaction, after bills changed: the server wins once it
+/// has heard this device. A choice still on its way (a queued op) stands; one
+/// the server answered stands until the feed shows the bill at or past that
+/// answer; a bill from a server that predates `customer_id` keeps the choice,
+/// which then rides the settle; a bill settled or voided elsewhere forgets it.
+pub(crate) fn feed_settles_ticket_customers(tx: &rusqlite::Connection, branch: &str) -> Result<(), CoreError> {
+    use rusqlite::OptionalExtension;
+    let choices: Vec<(String, String)> = {
+        let mut stmt = tx.prepare("SELECT k, v FROM kv WHERE k LIKE ?1 || '%'")?;
+        let rows = stmt.query_map([TICKET_CUSTOMER_KV], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        rows.collect::<Result<_, _>>()?
+    };
+    for (k, v) in choices {
+        let Some(ticket) = k.strip_prefix(TICKET_CUSTOMER_KV) else { continue };
+        let row: Option<(i64, String)> = tx
+            .query_row(
+                "SELECT seq, data FROM sync_rows WHERE branch_id=?1 AND type='open_ticket' AND id=?2",
+                rusqlite::params![branch, ticket],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?;
+        let Some((seq, data)) = row else { continue };
+        let Ok(data) = serde_json::from_str::<serde_json::Value>(&data) else { continue };
+        let closed = matches!(data.get("status").and_then(|s| s.as_str()), Some("settled" | "voided"));
+        if !closed {
+            if data.get("customer_id").is_none() {
+                continue;
+            }
+            let waiting: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM outbox WHERE (id=?1 OR id LIKE ?1 || ':%') AND status IN ('pending','inflight','dead'))",
+                [format!("{TICKET_CUSTOMER_OP}{ticket}")],
+                |r| r.get(0),
+            )?;
+            let sent_seq = serde_json::from_str::<serde_json::Value>(&v)
+                .ok()
+                .and_then(|v| v.get("sent_seq").and_then(|s| s.as_i64()))
+                .unwrap_or(0);
+            if waiting || seq < sent_seq {
+                continue;
+            }
+        }
+        tx.execute("DELETE FROM kv WHERE k=?1", [&k])?;
+    }
+    Ok(())
+}
 
 /// A customer as the till shows it.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
@@ -27,42 +111,116 @@ pub struct CustomerView {
     pub phone: Option<String>,
     /// Masked for someone who may not see it, e.g. `•••• 4567`.
     pub phone_hint: Option<String>,
+    /// The id their loyalty balance lives under, when they are a member. Under
+    /// the shared key this IS `id`; a server that predates it may still name a
+    /// different one. Either way: `Some` means "offer their loyalty".
     pub loyalty_customer_id: Option<String>,
     /// Added on this till and not yet confirmed by the server.
     pub pending: bool,
+    /// A loyalty member. A server that predates the flag says it by sending
+    /// `loyalty_customer_id` alone.
+    pub is_member: bool,
+    /// The balance as the feed last carried it, in words ("120 points").
+    /// `None` for a non-member and for a server that does not send balances.
+    /// A hint for the picker only — spending goes through a live lookup.
+    pub balance_label: Option<String>,
+    /// Where the customer first came from (`pos`, `online`, `loyalty`, …).
+    pub source: Option<String>,
 }
 
-/// Digits only, a leading Egyptian country code folded to `0`. Mirrors the
-/// server's `customers_phone_key`.
+/// The canonical key a phone is matched by (see [`crate::phone`]).
 pub(crate) fn phone_key(phone: &str) -> Option<String> {
-    let d: String = phone.chars().filter(|c| c.is_ascii_digit()).collect();
-    if d.is_empty() {
-        None
-    } else if let Some(rest) = d.strip_prefix("0020") {
-        Some(format!("0{rest}"))
-    } else if d.len() == 12 && d.starts_with("20") {
-        Some(format!("0{}", &d[2..]))
-    } else {
-        Some(d)
+    crate::phone::canonical(phone)
+}
+
+/// The key a ROW is matched by. Derived from its `phone` rather than trusted
+/// from its stored `phone_key`: a server that predates the canonical form still
+/// sends the local `01…` key, and both must meet a query in the same form.
+fn row_key(row: &serde_json::Value) -> Option<String> {
+    let s = |k: &str| row.get(k).and_then(|v| v.as_str());
+    s("phone")
+        .and_then(phone_key)
+        .or_else(|| s("phone_key").and_then(phone_key))
+        // Not a number the rule accepts: still findable by the digits it has.
+        .or_else(|| s("phone_key").or(s("phone")).map(crate::phone::digits).filter(|d| !d.is_empty()))
+}
+
+/// The customer the SERVER's copy of a sale names: `None` when the row does
+/// not say (a server that predates the field, or a local row), `Some(None)`
+/// when it says nobody. The id is read through the typed model. The model
+/// cannot tell "nobody" from "not said" (one `Option`), and that difference is
+/// exactly a server that predates the field — so only THAT is asked of the raw
+/// row, as is a row the model cannot decode (a sale rung here, not yet synced).
+fn server_customer(row: &serde_json::Value) -> Option<Option<String>> {
+    match crate::ledger::views::decode_order_full(row).and_then(|full| full.customer_id) {
+        Some(id) => Some(Some(id.to_string())),
+        None => row.get("customer_id").map(|c| c.as_str().map(str::to_string)),
+    }
+}
+
+/// One saved address in words: the place, then the unit and floor inside it,
+/// then the street line and the landmark — whichever of them were given.
+fn address_view(a: &madar_api::models::CustomerAddress) -> CustomerAddressView {
+    let part = |o: &Option<Option<String>>| o.clone().flatten().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+    let line = [&a.place_name, &a.unit_number, &a.floor, &a.address_line, &a.landmark]
+        .into_iter()
+        .filter_map(part)
+        .collect::<Vec<_>>()
+        .join(" · ");
+    CustomerAddressView {
+        id: a.id.to_string(),
+        label: part(&a.label),
+        line,
+        notes: part(&a.delivery_notes),
+        use_count: a.use_count,
     }
 }
 
 fn hint(phone: &str) -> Option<String> {
-    let d: String = phone.chars().filter(|c| c.is_ascii_digit()).collect();
+    let d = crate::phone::digits(phone);
     (d.len() >= 4).then(|| format!("•••• {}", &d[d.len() - 4..]))
 }
 
-fn view(row: &serde_json::Value, may_see_phone: bool, pending: bool) -> Option<CustomerView> {
+/// The id a row's loyalty lives under: the one it names, else its own when the
+/// server flags it a member (the shared key).
+fn member_id(row: &serde_json::Value) -> Option<String> {
+    let s = |k: &str| row.get(k).and_then(|v| v.as_str()).map(str::to_string);
+    s("loyalty_customer_id").or_else(|| {
+        row.get("is_member").and_then(|v| v.as_bool()).unwrap_or(false).then(|| s("id")).flatten()
+    })
+}
+
+/// `mode` is the branch's programme (`points` / `visits`): which of the two
+/// balances the row carries is the one this shop's customers count.
+fn view(row: &serde_json::Value, may_see_phone: bool, pending: bool, mode: &str, locale: &str) -> Option<CustomerView> {
     let s = |k: &str| row.get(k).and_then(|v| v.as_str()).map(str::to_string);
     let phone = s("phone").filter(|p| !p.trim().is_empty());
+    let loyalty_customer_id = member_id(row);
+    let balance = row
+        .get(if mode == "visits" { "visits_balance" } else { "points_balance" })
+        .and_then(|v| v.as_i64());
     Some(CustomerView {
         id: s("id")?,
         name: s("name")?,
         phone_hint: phone.as_deref().and_then(hint),
         phone: phone.filter(|_| may_see_phone),
-        loyalty_customer_id: s("loyalty_customer_id"),
+        is_member: loyalty_customer_id.is_some(),
+        balance_label: balance
+            .filter(|_| loyalty_customer_id.is_some())
+            .map(|b| format!("{b} {}", crate::loyalty::balance_label(mode, locale))),
+        loyalty_customer_id,
         pending,
+        source: s("source"),
     })
+}
+
+/// The row a loyalty member is: their own id first (the shared key), else the
+/// row that names them.
+fn member_row<'a>(rows: &'a [serde_json::Value], member_id: &str) -> Option<&'a serde_json::Value> {
+    let s = |r: &'a serde_json::Value, k: &str| r.get(k).and_then(|v| v.as_str());
+    rows.iter()
+        .find(|r| s(r, "id") == Some(member_id))
+        .or_else(|| rows.iter().find(|r| s(r, "loyalty_customer_id") == Some(member_id)))
 }
 
 /// Rank rows for a query: phone digits match by key; text by name prefix, then
@@ -72,7 +230,10 @@ pub(crate) fn search_rows(
     query: &str,
 ) -> Vec<serde_json::Value> {
     let q = query.trim().to_lowercase();
-    let digits: String = q.chars().filter(|c| c.is_ascii_digit()).collect();
+    let digits = crate::phone::digits(&q);
+    // A part of a number typed the international way (`0020…`) sits in the key
+    // without its `00`.
+    let part = digits.strip_prefix("00").unwrap_or(&digits).to_string();
     let phone_query = digits.len() >= 3 && digits.len() * 2 >= q.chars().filter(|c| !c.is_whitespace()).count();
     let key_q = phone_key(&q);
     let mut hits: Vec<(u8, String, serde_json::Value)> = rows
@@ -83,14 +244,13 @@ pub(crate) fn search_rows(
             let rank = if q.is_empty() {
                 3
             } else if phone_query {
-                let key = r
-                    .get("phone_key")
-                    .and_then(|v| v.as_str())
-                    .map(str::to_string)
-                    .or_else(|| r.get("phone").and_then(|v| v.as_str()).and_then(phone_key))?;
+                let key = row_key(r)?;
+                // A whole number meets the key in canonical form. A part of one
+                // (the last four, or a local `010…` still being typed) is found
+                // inside it: `0` + national is always inside `20` + national.
                 match &key_q {
                     Some(k) if key == *k => 0,
-                    Some(k) if key.ends_with(k.as_str()) || key.contains(&digits) => 1,
+                    _ if key.contains(&part) => 1,
                     _ => return None,
                 }
             } else if lname.starts_with(&q) {
@@ -135,6 +295,24 @@ impl MadarCore {
         }
     }
 
+    /// What every projection of a row needs: may the phone be shown, which ids
+    /// are still queued, and the programme + language a balance is worded in.
+    fn view_of(&self) -> impl Fn(&serde_json::Value) -> Option<CustomerView> {
+        let see = self.can("customers.view".into());
+        let pending = self.pending_customer_ids();
+        let locale = self.current_locale();
+        let mode = self
+            .branch_field::<serde_json::Value>(crate::branch_reads::F_LOYALTY)
+            .ok()
+            .and_then(|f| f.value())
+            .map(|v| crate::loyalty::settings_from_value(Some(&v)).mode)
+            .unwrap_or_default();
+        move |r| {
+            let id = r.get("id").and_then(|v| v.as_str()).unwrap_or_default();
+            view(r, see, pending.contains(id), &mode, &locale)
+        }
+    }
+
     /// Customers matching `query` (name, or phone digits), best first. Needs
     /// `customers.attach` or `customers.view`.
     pub fn search_customers(&self, query: String) -> Result<Vec<CustomerView>, CoreError> {
@@ -142,27 +320,478 @@ impl MadarCore {
             self.require_cap("customers.view")?;
         }
         let branch = self.session_branch_id()?;
-        let see = self.can("customers.view".into());
-        let pending = self.pending_customer_ids();
-        Ok(search_rows(&self.customer_rows(&branch), &query)
-            .iter()
-            .filter_map(|r| {
-                let id = r.get("id").and_then(|v| v.as_str()).unwrap_or_default();
-                view(r, see, pending.contains(id))
-            })
-            .collect())
+        let view = self.view_of();
+        Ok(search_rows(&self.customer_rows(&branch), &query).iter().filter_map(view).collect())
     }
 
     /// One customer from the local list (an attached sale shows its name).
     pub fn customer_by_id(&self, id: String) -> Result<Option<CustomerView>, CoreError> {
         let branch = self.session_branch_id()?;
-        let see = self.can("customers.view".into());
-        let pending = self.pending_customer_ids();
         Ok(self
             .customer_rows(&branch)
             .iter()
             .find(|r| r.get("id").and_then(|v| v.as_str()) == Some(id.as_str()))
-            .and_then(|r| view(r, see, pending.contains(&id))))
+            .and_then(self.view_of()))
+    }
+
+    /// The customer a loyalty member IS, from the local list: the row under the
+    /// member's own id (the shared key), else the row a server that predates it
+    /// linked to the member. `None` when this till holds neither — the member
+    /// is then known to the sale by their loyalty id alone.
+    pub fn customer_for_member(&self, member_id: String) -> Result<Option<CustomerView>, CoreError> {
+        let branch = self.session_branch_id()?;
+        Ok(member_row(&self.customer_rows(&branch), &member_id).and_then(self.view_of()))
+    }
+
+    /// The ONE person a sale names, as the pair the wire still carries.
+    ///
+    /// `loyalty_customer_id` is the member whose balance the sale spends (only
+    /// ever sent with redemptions); `customer_id` is who bought it. They must
+    /// never name two people, so the member decides: the customer becomes the
+    /// member's own row. A server that predates the shared key may hold the
+    /// member under an id `customers` has never heard of, so the member's id is
+    /// sent as `customer_id` ONLY when the local list has that row; failing
+    /// that the row linked to the member; failing that, nobody — the sale goes
+    /// out with the loyalty id alone, as it always has. Never an error: a sale
+    /// is not refused over who bought it.
+    pub(crate) fn one_person(
+        &self,
+        customer_id: Option<String>,
+        loyalty_customer_id: Option<String>,
+    ) -> (Option<String>, Option<String>) {
+        let Some(member) = loyalty_customer_id.filter(|m| !m.trim().is_empty()) else {
+            return (customer_id, None);
+        };
+        let rows = self.session_branch_id().map(|b| self.customer_rows(&b)).unwrap_or_default();
+        let resolved = member_row(&rows, &member)
+            .and_then(|r| r.get("id").and_then(|v| v.as_str()).map(str::to_string));
+        if customer_id.is_some() && customer_id != resolved {
+            crate::obs::capture_bg_warning("customers.one_person", "a sale named a customer who is not its member; the member stands");
+        }
+        (resolved, Some(member))
+    }
+
+    /// Attach a customer to a sale that is already rung — a settled bill, a
+    /// finalized online order, a sale in the history — or, with no
+    /// `customer_id`, take the customer off it. Needs `customers.attach`.
+    ///
+    /// Offline-first: the choice shows at once and reaches the server through
+    /// the queue (`attach_customer`), behind the sale itself when that sale —
+    /// or the customer — has not synced yet. `order_id` is whatever names the
+    /// sale here: its server id, its client key, or the ticket it settled.
+    /// One op per sale: choosing again before it is sent replaces the choice.
+    /// Returns true while the attach is still queued.
+    pub fn attach_customer(&self, order_id: String, customer_id: Option<String>) -> Result<bool, CoreError> {
+        self.require_cap("customers.attach")?;
+        let order_id = order_id.trim().to_string();
+        if order_id.is_empty() {
+            return Err(CoreError::Validation { field: "order_id".into(), detail: "no order to attach to".into() });
+        }
+        let customer_id = customer_id.map(|c| c.trim().to_string()).filter(|c| !c.is_empty());
+        // The sale's own key on this device, when it holds the row.
+        let okey = self.order_key_of(&order_id)?.unwrap_or_else(|| order_id.clone());
+        self.queue_attach(&okey, customer_id)
+    }
+
+    /// Queue the attach for the sale keyed `okey` (no permission asked: the
+    /// callers have). One op per sale; the latest choice replaces a waiting one.
+    pub(crate) fn queue_attach(&self, okey: &str, customer_id: Option<String>) -> Result<bool, CoreError> {
+        let okey = okey.to_string();
+        let op_id = format!("attach:{okey}");
+        // Behind the sale's own create (a counter sale is queued under its key,
+        // a settle under `<ticket>:settle`) and behind the customer's, whichever
+        // was queued last: FIFO means its ack implies the others.
+        let mut gates = vec![self.store.live_seq_of(&okey)?, self.store.live_seq_of(&format!("{okey}:settle"))?];
+        if let Some(c) = &customer_id {
+            gates.push(self.store.live_seq_of(&format!("customer:{c}"))?);
+        }
+        let (user_id, clock_offset_ms) = self.outbox_meta();
+        let op = crate::store::NewOutboxOp {
+            id: op_id.clone(),
+            op_type: "attach_customer".into(),
+            idempotency_key: op_id.clone(),
+            payload: serde_json::json!({ "order_id": okey, "customer_id": customer_id }).to_string(),
+            event_at: self.corrected_now().to_rfc3339(),
+            depends_on_seq: gates.into_iter().flatten().max(),
+            user_id,
+            clock_offset_ms,
+            entity_type: Some("order_customer".into()),
+            entity_id: Some(okey.clone()),
+            ..Default::default()
+        };
+        self.store.with_tx_touch(|tx, touched| {
+            // An attach this sale already SENT is history: the new choice is a
+            // new op under the same key. One still waiting is simply replaced
+            // (the latest choice wins); one in flight is left to land and the
+            // new choice follows it.
+            tx.execute("DELETE FROM outbox WHERE id=?1 AND status='acked'", [&op_id])?;
+            let inflight: Option<i64> = {
+                use rusqlite::OptionalExtension;
+                tx.query_row("SELECT seq FROM outbox WHERE id=?1 AND status='inflight'", [&op_id], |r| r.get(0)).optional()?
+            };
+            match inflight {
+                Some(seq) => {
+                    let id = format!("{op_id}:{}", uuid::Uuid::new_v4());
+                    crate::store::enqueue_on(tx, &crate::store::NewOutboxOp {
+                        id: id.clone(),
+                        idempotency_key: id,
+                        depends_on_seq: Some(op.depends_on_seq.map_or(seq, |d| d.max(seq))),
+                        ..op.clone()
+                    })?;
+                }
+                None => {
+                    crate::store::enqueue_on(tx, &op)?;
+                    tx.execute(
+                        "UPDATE outbox SET payload=?2, event_at=?3, depends_on_seq=?4, status='pending',
+                                attempts=0, next_attempt_at=0, last_error=NULL
+                          WHERE id=?1 AND status IN ('pending','dead')",
+                        rusqlite::params![op_id, op.payload, op.event_at, op.depends_on_seq],
+                    )?;
+                }
+            }
+            // What this device shows for the sale until the server's row says it.
+            tx.execute(
+                "INSERT INTO kv(k, v, updated_at) VALUES(?1, ?2, ?3)
+                 ON CONFLICT(k) DO UPDATE SET v=excluded.v, updated_at=excluded.updated_at",
+                rusqlite::params![
+                    format!("{ORDER_CUSTOMER_KV}{okey}"),
+                    serde_json::json!({ "customer_id": customer_id }).to_string(),
+                    op.event_at
+                ],
+            )?;
+            touched.extend(crate::changes::tables_for_op("attach_customer"));
+            Ok(())
+        })?;
+        self.send_in_background(Vec::new());
+        Ok(self.store.live_seq_of(&op_id)?.is_some())
+    }
+
+    /// The customer on a rung sale, by any of its ids. This device's own choice
+    /// stands while it is queued, and after that wherever the server's row does
+    /// not carry `customer_id` at all (a server that predates it).
+    pub fn order_customer(&self, order_id: String) -> Result<Option<CustomerView>, CoreError> {
+        let okey = self.order_key_of(&order_id)?.unwrap_or_else(|| order_id.clone());
+        let chosen = kv_choice(self.store.kv_get(&format!("{ORDER_CUSTOMER_KV}{okey}"))?);
+        // Still on its way: an attach, or the settle that carries the choice.
+        let queued = self.store.live_seq_of(&format!("attach:{okey}"))?.is_some()
+            || self.store.live_seq_of(&format!("{okey}:settle"))?.is_some();
+        let synced: Option<Option<String>> = self.store.with_conn(|c| {
+            use rusqlite::OptionalExtension;
+            let raw: Option<String> = c
+                .query_row("SELECT raw FROM ledger_orders WHERE okey=?1", [&okey], |r| r.get(0))
+                .optional()?;
+            Ok(raw.and_then(|r| serde_json::from_str::<serde_json::Value>(&r).ok()).and_then(|v| server_customer(&v)))
+        })?;
+        let id = match (queued, chosen, synced) {
+            (true, Some(mine), _) => mine,
+            (_, _, Some(server)) => server,
+            (_, mine, None) => mine.flatten(),
+        };
+        match id {
+            Some(id) => self.customer_by_id(id),
+            None => Ok(None),
+        }
+    }
+
+    /// Choose the customer an OPEN bill is for — or, with no `customer_id`,
+    /// take them off it. Needs `customers.attach`.
+    ///
+    /// The choice is kept on this device (it survives a restart and shows on
+    /// the bill at once) and rides the bill's settle. A fire still waiting in
+    /// the queue takes it along, so the server's bill — and every other till —
+    /// knows the customer from the first round.
+    pub fn set_ticket_customer(&self, ticket_id: String, customer_id: Option<String>) -> Result<(), CoreError> {
+        self.require_cap("customers.attach")?;
+        let ticket_id = ticket_id.trim().to_string();
+        if ticket_id.is_empty() {
+            return Err(CoreError::Validation { field: "ticket_id".into(), detail: "no bill to attach to".into() });
+        }
+        let customer_id = customer_id.map(|c| c.trim().to_string()).filter(|c| !c.is_empty());
+        let customer_gate = match &customer_id {
+            Some(c) => self.store.live_seq_of(&format!("customer:{c}"))?,
+            None => None,
+        };
+        let now = self.corrected_now().to_rfc3339();
+        // The server's bill is known to name nobody: taking the customer off
+        // is then just forgetting this device's choice, not an act to send.
+        let server_names_nobody = self
+            .bill_source()
+            .iter()
+            .find(|v| v.id.to_string() == ticket_id)
+            .is_some_and(|v| v.customer_id.flatten().is_none());
+        // Behind the bill's own fire (in flight, or dead and waiting for a
+        // retry) and behind a customer added here whom the server has not met.
+        let (user_id, clock_offset_ms) = self.outbox_meta();
+        let op_id = format!("{TICKET_CUSTOMER_OP}{ticket_id}");
+        let op = crate::store::NewOutboxOp {
+            id: op_id.clone(),
+            op_type: "set_ticket_customer".into(),
+            idempotency_key: op_id,
+            payload: serde_json::json!({ "ticket_id": ticket_id, "customer_id": customer_id }).to_string(),
+            event_at: now.clone(),
+            depends_on_seq: [self.store.live_seq_of(&ticket_id)?, customer_gate].into_iter().flatten().max(),
+            user_id,
+            clock_offset_ms,
+            ..Default::default()
+        };
+        self.store.with_tx_touch(|tx, touched| {
+            let mut fire_carries = false;
+            tx.execute(
+                "INSERT INTO kv(k, v, updated_at) VALUES(?1, ?2, ?3)
+                 ON CONFLICT(k) DO UPDATE SET v=excluded.v, updated_at=excluded.updated_at",
+                rusqlite::params![
+                    format!("{TICKET_CUSTOMER_KV}{ticket_id}"),
+                    serde_json::json!({ "customer_id": customer_id }).to_string(),
+                    now
+                ],
+            )?;
+            let mut names_nobody = server_names_nobody;
+            // The fire has not left yet: it carries the choice itself.
+            let waiting: Option<(i64, String, Option<i64>)> = {
+                use rusqlite::OptionalExtension;
+                tx.query_row(
+                    "SELECT seq, payload, depends_on_seq FROM outbox
+                      WHERE id=?1 AND op_type='open_ticket' AND status IN ('pending','dead')",
+                    [&ticket_id],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .optional()?
+            };
+            if let Some((seq, payload, dep)) = waiting {
+                if let Ok(mut cmd) = serde_json::from_str::<serde_json::Value>(&payload) {
+                    if let Some(req) = cmd.get_mut("request").and_then(|r| r.as_object_mut()) {
+                        match &customer_id {
+                            Some(c) => req.insert("customer_id".into(), serde_json::json!(c)),
+                            None => req.remove("customer_id"),
+                        };
+                        let dep = [dep, customer_gate].into_iter().flatten().max();
+                        tx.execute(
+                            "UPDATE outbox SET payload=?2, depends_on_seq=?3 WHERE seq=?1",
+                            rusqlite::params![seq, cmd.to_string(), dep],
+                        )?;
+                        names_nobody = true;
+                        fire_carries = true;
+                    }
+                }
+            }
+            // The server already has the bill: the choice is sent now, so every
+            // other till shows it before the settle. One op per bill — a choice
+            // still waiting is replaced, one in flight is followed.
+            let waiting_choice = "id=?1 OR id LIKE ?1 || ':%'";
+            if fire_carries {
+                tx.execute(&format!("DELETE FROM outbox WHERE ({waiting_choice}) AND status IN ('pending','dead')"), [&op.id])?;
+            } else {
+                tx.execute(&format!("DELETE FROM outbox WHERE ({waiting_choice}) AND status='acked'"), [&op.id])?;
+                let inflight: Option<i64> = {
+                    use rusqlite::OptionalExtension;
+                    tx.query_row(
+                        &format!("SELECT MAX(seq) FROM outbox WHERE ({waiting_choice}) AND status='inflight'"),
+                        [&op.id],
+                        |r| r.get::<_, Option<i64>>(0),
+                    )
+                    .optional()?
+                    .flatten()
+                };
+                if let Some(seq) = inflight {
+                    tx.execute(&format!("DELETE FROM outbox WHERE ({waiting_choice}) AND status IN ('pending','dead')"), [&op.id])?;
+                    let id = format!("{}:{}", op.id, uuid::Uuid::new_v4());
+                    crate::store::enqueue_on(tx, &crate::store::NewOutboxOp {
+                        id: id.clone(),
+                        idempotency_key: id,
+                        depends_on_seq: Some(op.depends_on_seq.map_or(seq, |d| d.max(seq))),
+                        ..op.clone()
+                    })?;
+                } else if customer_id.is_none() && names_nobody {
+                    // Nobody there and nobody chosen: a choice never sent is just dropped.
+                    tx.execute(&format!("DELETE FROM outbox WHERE ({waiting_choice}) AND status IN ('pending','dead')"), [&op.id])?;
+                } else {
+                    crate::store::enqueue_on(tx, &op)?;
+                    tx.execute(
+                        "UPDATE outbox SET payload=?2, event_at=?3, depends_on_seq=?4, status='pending',
+                                attempts=0, next_attempt_at=0, last_error=NULL
+                          WHERE id=?1 AND status IN ('pending','dead')",
+                        rusqlite::params![op.id, op.payload, op.event_at, op.depends_on_seq],
+                    )?;
+                }
+            }
+            // "Removed" is kept only where there may be someone to remove.
+            if customer_id.is_none() && names_nobody {
+                tx.execute("DELETE FROM kv WHERE k=?1", [format!("{TICKET_CUSTOMER_KV}{ticket_id}")])?;
+            }
+            touched.extend(crate::changes::tables_for_op("set_ticket_customer"));
+            Ok(())
+        })?;
+        self.send_in_background(Vec::new());
+        Ok(())
+    }
+
+    /// The fire was answered: the bill is the server's now, under the server's
+    /// id. This device's choice follows it there, marked as sent (the fire
+    /// carried it) — a server that ignored it still gets it with the settle.
+    pub(crate) fn rekey_ticket_customer(&self, fired_as: &str, server_id: &str, horizon: Option<i64>) {
+        let from = format!("{TICKET_CUSTOMER_KV}{fired_as}");
+        let Some(choice) = kv_choice(self.store.kv_get(&from).ok().flatten()) else { return };
+        let moved = self.store.with_tx(|tx| {
+            tx.execute("DELETE FROM kv WHERE k=?1", [&from])?;
+            tx.execute(
+                "INSERT INTO kv(k, v, updated_at) VALUES(?1, ?2, ?3)
+                 ON CONFLICT(k) DO UPDATE SET v=excluded.v, updated_at=excluded.updated_at",
+                rusqlite::params![
+                    format!("{TICKET_CUSTOMER_KV}{server_id}"),
+                    serde_json::json!({ "customer_id": choice, "sent_seq": horizon.unwrap_or(0) }).to_string(),
+                    chrono::Utc::now().to_rfc3339()
+                ],
+            )?;
+            Ok(())
+        });
+        if let Err(e) = moved {
+            crate::obs::capture_bg_warning("customers.rekey_ticket_customer", e.to_string());
+        }
+    }
+
+    /// A queued choice was answered. From the answer's horizon on, the bill's
+    /// row in the feed is the truth; until that row arrives the choice stands.
+    pub(crate) fn note_ticket_customer_sent(&self, payload: &str, horizon: Option<i64>) {
+        let Ok(cmd) = serde_json::from_str::<serde_json::Value>(payload) else { return };
+        let Some(ticket) = cmd.get("ticket_id").and_then(|t| t.as_str()) else { return };
+        let key = format!("{TICKET_CUSTOMER_KV}{ticket}");
+        let Some(choice) = kv_choice(self.store.kv_get(&key).ok().flatten()) else { return };
+        // A later choice is already waiting: that one speaks for the bill.
+        if choice.as_deref() != cmd.get("customer_id").and_then(|c| c.as_str()) {
+            return;
+        }
+        let _ = self.store.kv_put(&key, &serde_json::json!({ "customer_id": choice, "sent_seq": horizon.unwrap_or(0) }).to_string());
+    }
+
+    /// This device's own choice for an open bill: `None` when it never spoke,
+    /// `Some(None)` when it took the customer off.
+    pub(crate) fn ticket_customer_choice(&self, ticket_id: &str) -> Option<Option<String>> {
+        kv_choice(self.store.kv_get(&format!("{TICKET_CUSTOMER_KV}{ticket_id}")).ok().flatten())
+    }
+
+    /// Bills as this device shows them: its own choice of customer stands over
+    /// the server's until the settle carries it there.
+    pub(crate) fn with_ticket_customers(&self, mut bills: Vec<crate::tickets::TicketView>) -> Vec<crate::tickets::TicketView> {
+        let choices: std::collections::HashMap<String, Option<String>> = self
+            .store
+            .kv_list_prefix(TICKET_CUSTOMER_KV)
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|(k, v)| Some((k.strip_prefix(TICKET_CUSTOMER_KV)?.to_string(), kv_choice(Some(v))?)))
+            .collect();
+        for bill in &mut bills {
+            if let Some(choice) = choices.get(&bill.id) {
+                bill.customer_id = choice.clone();
+            }
+        }
+        bills
+    }
+
+    /// Who a settle names. `explicit` is the caller's pick; without one, this
+    /// device's standing choice for the bill. Anyone without
+    /// `customers.attach` says nothing — the server would ignore it.
+    pub(crate) fn settle_customer(&self, ticket_id: &str, explicit: Option<String>) -> BillCustomer {
+        if !self.can("customers.attach".into()) {
+            return BillCustomer::Unsaid;
+        }
+        let explicit = explicit.map(|c| c.trim().to_string()).filter(|c| !c.is_empty());
+        let choice = match explicit {
+            Some(c) => Some(Some(c)),
+            None => self.ticket_customer_choice(ticket_id),
+        };
+        match choice {
+            Some(Some(c)) => uuid::Uuid::parse_str(&c).map(BillCustomer::Chosen).unwrap_or(BillCustomer::Unsaid),
+            Some(None) => BillCustomer::Removed,
+            _ => BillCustomer::Unsaid,
+        }
+    }
+
+    /// Inside the settle's own transaction: what this device shows for the
+    /// sale from now on, and the open bill's choice is spent.
+    pub(crate) fn record_settled_customer(
+        tx: &rusqlite::Transaction<'_>,
+        ticket_id: &str,
+        who: &BillCustomer,
+        at: &str,
+    ) -> Result<(), CoreError> {
+        let id = match who {
+            BillCustomer::Unsaid => None,
+            BillCustomer::Chosen(c) => Some(Some(c.to_string())),
+            BillCustomer::Removed => Some(None),
+        };
+        if let Some(id) = id {
+            tx.execute(
+                "INSERT INTO kv(k, v, updated_at) VALUES(?1, ?2, ?3)
+                 ON CONFLICT(k) DO UPDATE SET v=excluded.v, updated_at=excluded.updated_at",
+                rusqlite::params![
+                    format!("{ORDER_CUSTOMER_KV}{ticket_id}"),
+                    serde_json::json!({ "customer_id": id }).to_string(),
+                    at
+                ],
+            )?;
+        }
+        tx.execute("DELETE FROM kv WHERE k=?1", [format!("{TICKET_CUSTOMER_KV}{ticket_id}")])?;
+        // The settle speaks for the bill now: a choice still waiting to be
+        // sent ahead of it would only say the same thing twice.
+        if *who != BillCustomer::Unsaid {
+            tx.execute(
+                "DELETE FROM outbox WHERE (id=?1 OR id LIKE ?1 || ':%') AND status IN ('pending','dead')",
+                [format!("{TICKET_CUSTOMER_OP}{ticket_id}")],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// A settle was answered. The settle carried the customer, so normally
+    /// there is nothing to do. A server that predates `customer_id` on a
+    /// settle ignored it and answers with no customer: the choice then follows
+    /// as the queued attach it always was. Never twice — an attach already
+    /// waiting (a later choice) is left alone, and it lands after the settle.
+    pub(crate) fn reconcile_settled_customer(&self, ticket_id: &str, answer: &serde_json::Value) {
+        let Some(Some(mine)) = kv_choice(self.store.kv_get(&format!("{ORDER_CUSTOMER_KV}{ticket_id}")).ok().flatten()) else {
+            return;
+        };
+        if answer.get("customer_id").and_then(|c| c.as_str()).is_some() {
+            return; // the server spoke (a merged id may read differently; it is the same person)
+        }
+        if self.store.live_seq_of(&format!("attach:{ticket_id}")).ok().flatten().is_some() {
+            return;
+        }
+        if let Err(e) = self.queue_attach(ticket_id, Some(mine)) {
+            crate::obs::capture_bg_warning("customers.reconcile_settle", e.to_string());
+        }
+    }
+
+    /// A customer's saved addresses, most used first. Online by nature — a
+    /// person opened the card — so it goes through the read timeout and fails
+    /// offline with a clear error the card words as "not available offline".
+    /// Needs `customers.addresses.view`.
+    pub async fn customer_addresses(&self, customer_id: String) -> Result<Vec<CustomerAddressView>, CoreError> {
+        self.require_cap("customers.addresses.view")?;
+        if !self.current_session().map(|s| s.online).unwrap_or(false) {
+            return Err(CoreError::Offline { detail: crate::i18n::tr(&self.current_locale(), "customers.addresses_offline") });
+        }
+        use madar_api::apis::customers_api as api;
+        let config = self.api.config();
+        let rows = crate::ledger_ops::within(api::list_customer_addresses(
+            &config,
+            api::ListCustomerAddressesParams { id: customer_id },
+        ))
+        .await?;
+        Ok(rows.iter().map(address_view).collect())
+    }
+
+    /// A sale's key in the local ledger, from its key or its server id.
+    fn order_key_of(&self, order_id: &str) -> Result<Option<String>, CoreError> {
+        self.store.with_conn(|c| {
+            use rusqlite::OptionalExtension;
+            Ok(c.query_row(
+                "SELECT okey FROM ledger_orders WHERE okey=?1 OR server_id=?1 LIMIT 1",
+                [order_id],
+                |r| r.get(0),
+            )
+            .optional()?)
+        })
     }
 
     /// Add a customer on the till. Works offline: the customer is usable at
@@ -180,9 +809,16 @@ impl MadarCore {
                 detail: crate::i18n::tr(&self.current_locale(), "customers.name_required"),
             });
         }
-        let phone = phone
-            .map(|p| p.trim().chars().take(40).collect::<String>())
-            .filter(|p| phone_key(p).is_some());
+        // Sent as typed (the server keeps it for display and canonicalises its
+        // own key). A number the shared rule refuses is said so here, where it
+        // can be retyped, rather than silently dropped.
+        let phone = phone.map(|p| p.trim().to_string()).filter(|p| !p.is_empty());
+        if phone.as_deref().is_some_and(|p| phone_key(p).is_none()) {
+            return Err(CoreError::Validation {
+                field: "phone".into(),
+                detail: crate::i18n::tr(&self.current_locale(), "customers.phone_invalid"),
+            });
+        }
         let branch = self.session_branch_id()?;
         let id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
@@ -220,7 +856,7 @@ impl MadarCore {
             Ok(())
         })?;
         self.send_in_background(Vec::new());
-        Ok(view(&row, self.can("customers.view".into()), true).expect("row has id and name"))
+        Ok(self.view_of()(&row).expect("row has id and name"))
     }
 }
 
@@ -252,9 +888,69 @@ mod tests {
 
     #[test]
     fn the_phone_is_hidden_without_view_but_hinted() {
-        let v = view(&rows()[0], false, false).unwrap();
+        let v = view(&rows()[0], false, false, "points", "en").unwrap();
         assert_eq!(v.phone, None);
         assert_eq!(v.phone_hint.as_deref(), Some("•••• 4567"));
-        assert_eq!(view(&rows()[0], true, false).unwrap().phone.as_deref(), Some("+20 100 123 4567"));
+        assert_eq!(view(&rows()[0], true, false, "points", "en").unwrap().phone.as_deref(), Some("+20 100 123 4567"));
+    }
+
+    /// One query meets every shape a row's key has had: the old server's local
+    /// `01…`, the canonical `20…`, and a row with no stored key at all.
+    #[test]
+    fn a_phone_is_found_whichever_form_the_server_keyed_it_by() {
+        let rows = vec![
+            json!({"id": "old", "name": "A", "phone": "0100 123 4567", "phone_key": "01001234567"}),
+            json!({"id": "new", "name": "B", "phone": "201112223333", "phone_key": "201112223333"}),
+            json!({"id": "bare", "name": "C", "phone": "+20 122 333 4444"}),
+            // The phone is hidden upstream but the key is not: still found.
+            json!({"id": "keyonly", "name": "D", "phone": null, "phone_key": "01555555555"}),
+        ];
+        for (q, id) in [
+            ("01001234567", "old"), ("+201001234567", "old"), ("00201001234567", "old"), ("٠١٠٠١٢٣٤٥٦٧", "old"),
+            ("01112223333", "new"), ("201112223333", "new"), ("1112223333", "new"),
+            ("01223334444", "bare"), ("01555555555", "keyonly"), ("+201555555555", "keyonly"),
+        ] {
+            assert_eq!(ids(search_rows(&rows, q)), vec![id], "{q}");
+        }
+        // Still being typed, the local way and the international way.
+        assert_eq!(ids(search_rows(&rows, "0100123")), vec!["old"]);
+        assert_eq!(ids(search_rows(&rows, "+20111")), vec!["new"]);
+        assert_eq!(ids(search_rows(&rows, "0020111")), vec!["new"]);
+        assert_eq!(phone_key("0100 123 4567").as_deref(), Some("201001234567"));
+    }
+
+    #[test]
+    fn a_member_is_told_by_either_server() {
+        // A server that predates the shared key: a separate member id, no flag.
+        let old = json!({"id": "c1", "name": "Mona", "loyalty_customer_id": "m9"});
+        let v = view(&old, true, false, "points", "en").unwrap();
+        assert!(v.is_member);
+        assert_eq!(v.loyalty_customer_id.as_deref(), Some("m9"));
+        assert_eq!((v.balance_label, v.source), (None, None));
+        // The shared key: the member IS the customer, with a balance in the feed.
+        let new = json!({"id": "c2", "name": "Omar", "is_member": true, "loyalty_customer_id": "c2",
+                         "points_balance": 120, "visits_balance": 4, "source": "loyalty"});
+        let v = view(&new, true, false, "points", "en").unwrap();
+        assert_eq!(v.loyalty_customer_id.as_deref(), Some("c2"));
+        assert_eq!(v.balance_label.as_deref(), Some("120 points"));
+        assert_eq!(v.source.as_deref(), Some("loyalty"));
+        assert_eq!(view(&new, true, false, "visits", "ar").unwrap().balance_label.as_deref(), Some("4 طلبات"));
+        // The flag alone is enough; a non-member shows no balance even if one rides along.
+        let flagged = json!({"id": "c3", "name": "Sara", "is_member": true});
+        assert_eq!(view(&flagged, true, false, "points", "en").unwrap().loyalty_customer_id.as_deref(), Some("c3"));
+        let plain = json!({"id": "c4", "name": "Ali", "is_member": false, "points_balance": 0});
+        let v = view(&plain, true, false, "points", "en").unwrap();
+        assert!(!v.is_member && v.balance_label.is_none() && v.loyalty_customer_id.is_none());
+    }
+
+    #[test]
+    fn a_member_is_their_own_row_first_then_the_row_that_names_them() {
+        let rows = vec![
+            json!({"id": "c1", "name": "Linked", "loyalty_customer_id": "m1"}),
+            json!({"id": "m1", "name": "Shared key"}),
+        ];
+        assert_eq!(member_row(&rows, "m1").unwrap()["id"], "m1");
+        assert_eq!(member_row(&rows[..1], "m1").unwrap()["id"], "c1");
+        assert!(member_row(&rows, "m2").is_none());
     }
 }

@@ -1,17 +1,35 @@
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/src/checkout_provider.dart';
+import 'package:feature_checkout/src/customer_card.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// Pick (or add) the manual customer a counter sale is for.
+/// Pick (or add) the customer a sale is for.
+///
+/// By default the pick lands on the open charge; [onPicked] takes it instead
+/// (the order history attaches it to a sale already rung).
 ///
 /// Works offline: the list is the synced one, and a customer added here is
 /// usable at once and reaches the server through the queue. The phone shows
 /// only for `customers.view`; anyone else sees its last four digits.
 class CustomerSheet extends ConsumerStatefulWidget {
-  const CustomerSheet({super.key});
+  const CustomerSheet({
+    this.initialQuery,
+    this.onPicked,
+    this.title,
+    super.key,
+  });
+
+  /// The sheet's heading; the sale's own by default.
+  final String? title;
+
+  /// What the search starts with — an online order's phone.
+  final String? initialQuery;
+
+  /// Where the pick goes instead of the open charge.
+  final ValueChanged<CustomerView>? onPicked;
 
   @override
   ConsumerState<CustomerSheet> createState() => _CustomerSheetState();
@@ -31,7 +49,8 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
   @override
   void initState() {
     super.initState();
-    _search('');
+    _query.text = widget.initialQuery?.trim() ?? '';
+    _search(_query.text);
   }
 
   @override
@@ -53,7 +72,12 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
   }
 
   void _pick(CustomerView c) {
-    ref.read(checkoutProvider.notifier).attachCustomer(c);
+    final onPicked = widget.onPicked;
+    if (onPicked != null) {
+      onPicked(c);
+    } else {
+      ref.read(checkoutProvider.notifier).attachCustomer(c);
+    }
     MadarSheet.close<void>(context);
   }
 
@@ -104,7 +128,7 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
         spacing: Space.md,
         children: [
           Text(
-            t('customers.sheet_title'),
+            widget.title ?? t('customers.sheet_title'),
             style: MadarType.h3.copyWith(
               fontWeight: FontWeight.w700,
               color: colors.textPrimary,
@@ -135,7 +159,10 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
                 _CustomerTile(
                   customer: c,
                   pendingLabel: t('customers.pending'),
+                  memberLabel: t('customers.member'),
+                  cardLabel: t('customers.view_card'),
                   onTap: () => _pick(c),
+                  onCard: () => showCustomerCard(context, c),
                 ),
             if (canCreate)
               MadarButton(
@@ -188,12 +215,20 @@ class _CustomerTile extends StatelessWidget {
   const _CustomerTile({
     required this.customer,
     required this.pendingLabel,
+    required this.memberLabel,
+    required this.cardLabel,
     required this.onTap,
+    required this.onCard,
   });
 
   final CustomerView customer;
   final String pendingLabel;
+  final String memberLabel;
+  final String cardLabel;
   final VoidCallback onTap;
+
+  /// Opens the customer card without picking them.
+  final VoidCallback onCard;
 
   @override
   Widget build(BuildContext context) {
@@ -201,33 +236,61 @@ class _CustomerTile extends StatelessWidget {
     final phone = customer.phone ?? customer.phoneHint;
     final sub = [
       if (phone != null) MadarFormat.ltr(phone),
+      if (customer.balanceLabel != null) customer.balanceLabel!,
       if (customer.pending) pendingLabel,
     ].join(' · ');
     return Semantics(
       button: true,
-      label: customer.name,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsetsDirectional.symmetric(vertical: Space.sm),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                customer.name,
-                style: MadarType.body.copyWith(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              if (sub.isNotEmpty)
-                Text(
-                  sub,
-                  style: MadarType.bodySm.copyWith(color: colors.textMuted),
-                ),
-            ],
+      label: customer.isMember
+          ? '${customer.name}, $memberLabel'
+          : customer.name,
+      child: Row(
+        spacing: Space.sm,
+        children: [
+          Expanded(child: _body(colors, sub)),
+          // The card, without picking them: who is this, where do they live.
+          MadarGlyphTile(
+            glyph: MadarGlyph.user,
+            semanticLabel: '$cardLabel: ${customer.name}',
+            onTap: onCard,
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _body(MadarColors colors, String sub) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.symmetric(vertical: Space.sm),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              spacing: Space.sm,
+              children: [
+                Flexible(
+                  child: Text(
+                    customer.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MadarType.body.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (customer.isMember) MadarTag(label: memberLabel),
+              ],
+            ),
+            if (sub.isNotEmpty)
+              Text(
+                sub,
+                style: MadarType.bodySm.copyWith(color: colors.textMuted),
+              ),
+          ],
         ),
       ),
     );

@@ -204,7 +204,7 @@ async fn settle(core: &MadarCore, max_secs: u64) {
 async fn priced_bill(fx: &Fixture, core: &MadarCore) -> (String, String) {
     let till = core.open_till(0, Some("pricing e2e".into())).await.expect("open").till.expect("till").id;
     add_items(core, 2);
-    let fired = core.fire_ticket(None, None, None, Some(2), None).await.expect("fire");
+    let fired = core.fire_ticket(None, None, None, Some(2), None, None).await.expect("fire");
     settle(core, 120).await;
     // The fire's id is the client's idempotency key; the server's ticket id is
     // what every later call names.
@@ -311,6 +311,7 @@ async fn settle_bill(
         vec![],
         splits,
         waive,
+        None,
         None,
     )
     .await

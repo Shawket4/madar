@@ -4,11 +4,12 @@ All URIs are relative to *http://localhost:8080*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
-[**delete_loyalty_member**](LoyaltyApi.md#delete_loyalty_member) | **DELETE** /loyalty/members/{id} | Forget a member. **Admin only.**
+[**delete_loyalty_member**](LoyaltyApi.md#delete_loyalty_member) | **DELETE** /loyalty/members/{id} | Leave the programme: the card ends, the customer stays (design §2.8).
 [**delete_loyalty_settings**](LoyaltyApi.md#delete_loyalty_settings) | **DELETE** /loyalty/settings | 
 [**get_loyalty_analytics**](LoyaltyApi.md#get_loyalty_analytics) | **GET** /loyalty/analytics | 
 [**get_loyalty_behavior**](LoyaltyApi.md#get_loyalty_behavior) | **GET** /loyalty/behavior | 
 [**get_loyalty_campaign_effectiveness**](LoyaltyApi.md#get_loyalty_campaign_effectiveness) | **GET** /loyalty/campaign-effectiveness | 
+[**get_loyalty_earning_items**](LoyaltyApi.md#get_loyalty_earning_items) | **GET** /loyalty/earning-items | 
 [**get_loyalty_google_object**](LoyaltyApi.md#get_loyalty_google_object) | **GET** /loyalty/members/{id}/google-object | What Google is actually holding for one member's card. **Super admin only.**
 [**get_loyalty_liability_trend**](LoyaltyApi.md#get_loyalty_liability_trend) | **GET** /loyalty/liability-trend | 
 [**get_loyalty_member**](LoyaltyApi.md#get_loyalty_member) | **GET** /loyalty/members/{id} | 
@@ -20,6 +21,7 @@ Method | HTTP request | Description
 [**loyalty_award**](LoyaltyApi.md#loyalty_award) | **POST** /loyalty/award | The live route. Tellers press the button; the permission is the same `update` the redeem action needs.
 [**loyalty_lookup**](LoyaltyApi.md#loyalty_lookup) | **POST** /loyalty/lookup | Identify the member in front of the till.
 [**preview_loyalty_birthday_message**](LoyaltyApi.md#preview_loyalty_birthday_message) | **POST** /loyalty/birthday-preview | Render the greeting for settings that have NOT been saved yet.
+[**put_loyalty_earning_items**](LoyaltyApi.md#put_loyalty_earning_items) | **PUT** /loyalty/earning-items | 
 [**put_loyalty_reward_items**](LoyaltyApi.md#put_loyalty_reward_items) | **PUT** /loyalty/reward-items | 
 [**put_loyalty_settings**](LoyaltyApi.md#put_loyalty_settings) | **PUT** /loyalty/settings | 
 [**refresh_loyalty_google_pass**](LoyaltyApi.md#refresh_loyalty_google_pass) | **POST** /loyalty/members/{id}/google-refresh | Provision this member's Google card and report every word of it. **Super admin only.**
@@ -29,16 +31,16 @@ Method | HTTP request | Description
 ## delete_loyalty_member
 
 > delete_loyalty_member(id)
-Forget a member. **Admin only.**
+Leave the programme: the card ends, the customer stays (design §2.8).
 
-A void corrects a sale; this corrects a membership — someone asked the shop to stop holding their details, or an admin is clearing a test signup. The person is scrubbed and the books are kept: see [`model::forget`] for exactly what goes and what stays, and why the ledger is not the member's data.  204 twice in a row: forgetting someone already forgotten is not a failure, and telling the caller \"no such member\" would confirm that a phone number used to be one.
+This used to FORGET the person — it was written when the loyalty row was the only record of them. A membership is now a card under the customer's id, so ending it touches nothing but the card: the customer, their orders, their addresses and their bookings stay, and they can join again. Erasing a person's data is `POST /customers/{id}/erase`, which also ends the card. See [`model::leave`] for exactly what goes.  204 twice in a row: a card that is already gone is not a failure.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**id** | **uuid::Uuid** | Member ID | [required] |
+**id** | **uuid::Uuid** | Member ID (= customer id) | [required] |
 
 ### Return type
 
@@ -161,6 +163,34 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::CampaignEffectiveness**](CampaignEffectiveness.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## get_loyalty_earning_items
+
+> models::EarningItemList get_loyalty_earning_items(branch_id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**branch_id** | Option<**uuid::Uuid**> | Omit for the org-wide default; supply a branch for its override. |  |
+
+### Return type
+
+[**models::EarningItemList**](EarningItemList.md)
 
 ### Authorization
 
@@ -486,6 +516,34 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::BirthdayPreview**](BirthdayPreview.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## put_loyalty_earning_items
+
+> models::EarningItemList put_loyalty_earning_items(put_earning_items)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**put_earning_items** | [**PutEarningItems**](PutEarningItems.md) |  | [required] |
+
+### Return type
+
+[**models::EarningItemList**](EarningItemList.md)
 
 ### Authorization
 

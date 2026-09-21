@@ -61,6 +61,14 @@ pub struct DeliveryOrderView {
     pub promised_ready_at: Option<String>,
     /// `true` once the order reached a terminal state (delivered/cancelled/rejected).
     pub is_terminal: bool,
+    /// The customer the order belongs to, when the server links one. The name
+    /// and phone above stay the SNAPSHOT — what was typed, what the driver
+    /// calls, what the receipt prints — whoever this is.
+    #[serde(default)]
+    pub customer_id: Option<String>,
+    /// "Ordered by X for Y": the snapshot contact is not the customer's own.
+    #[serde(default)]
+    pub contact_override: bool,
 }
 
 /// The branch's delivery configuration + the POS-owned accepting overrides.
@@ -135,6 +143,8 @@ pub(crate) fn order_view(
             ),
         },
         is_terminal: matches!(o.status.as_str(), "delivered" | "cancelled" | "rejected"),
+        customer_id: o.customer_id.flatten().map(|u| u.to_string()),
+        contact_override: o.contact_override.unwrap_or(false),
     }
 }
 
@@ -403,6 +413,25 @@ mod tests {
     }
 
     // ---- order_view: projection ----------------------------------------
+
+    /// The linked customer and the "for someone else" flag are additive: an
+    /// older server sends neither, and the snapshot contact never changes.
+    #[test]
+    fn order_view_carries_the_linked_customer_beside_the_snapshot() {
+        let mut o = order("received", "outside", cart_with_lines(1));
+        let old = order_view(&o, "en", 0);
+        assert_eq!((old.customer_id.clone(), old.contact_override), (None, false));
+        o.customer_id = Some(Some(uid(7)));
+        o.contact_override = Some(true);
+        let v = order_view(&o, "en", 0);
+        assert_eq!(v.customer_id, Some(uid(7).to_string()));
+        assert!(v.contact_override);
+        assert_eq!((v.customer_name.as_str(), v.customer_phone.as_str()), ("Carol", "01000000000"));
+        // A view cached before the fields existed still reads.
+        let mut cached = serde_json::to_value(&old).unwrap();
+        cached.as_object_mut().unwrap().retain(|k, _| k != "customer_id" && k != "contact_override");
+        assert_eq!(serde_json::from_value::<DeliveryOrderView>(cached).unwrap(), old);
+    }
 
     #[test]
     fn order_view_maps_core_fields() {

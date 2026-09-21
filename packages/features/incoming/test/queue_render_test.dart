@@ -92,6 +92,7 @@ DeliveryOrderView _order({
     promisedReadyAt: promisedReadyAt,
     readyAt: readyAt,
     isTerminal: false,
+    contactOverride: false,
   );
 }
 

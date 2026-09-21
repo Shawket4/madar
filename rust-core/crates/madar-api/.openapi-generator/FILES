@@ -189,6 +189,7 @@ docs/CreateWasteRequest.md
 docs/CredentialSummary.md
 docs/CredentialWithSecret.md
 docs/Customer.md
+docs/CustomerAddress.md
 docs/CustomerDetail.md
 docs/CustomerOrder.md
 docs/CustomersApi.md
@@ -224,6 +225,8 @@ docs/Discount.md
 docs/DiscountAuditEntry.md
 docs/DiscountsApi.md
 docs/DrinkRecipe.md
+docs/EarningItem.md
+docs/EarningItemList.md
 docs/Employee.md
 docs/ErrorBody.md
 docs/ExplainStep.md
@@ -352,6 +355,11 @@ docs/OrderItemAddon.md
 docs/OrderItemFull.md
 docs/OrderItemInput.md
 docs/OrderItemOptional.md
+docs/OrderNowAddress.md
+docs/OrderNowApi.md
+docs/OrderNowBranch.md
+docs/OrderNowContext.md
+docs/OrderNowFull.md
 docs/OrderNumberRange.md
 docs/OrderPayment.md
 docs/OrderRefunds.md
@@ -460,6 +468,7 @@ docs/PurchasingApi.md
 docs/PutAllowedAddonsRequest.md
 docs/PutAttendanceSettingsRequest.md
 docs/PutBalanceRequest.md
+docs/PutEarningItems.md
 docs/PutEmployeeRequest.md
 docs/PutItemOptionsRequest.md
 docs/PutModifierGroupsRequest.md
@@ -494,6 +503,7 @@ docs/RecipeStepInput.md
 docs/RecipeStepPreset.md
 docs/RecipesApi.md
 docs/ReconciliationInput.md
+docs/RecordStaffDrinkRequest.md
 docs/RecordWasteRequest.md
 docs/Refund.md
 docs/RefundFull.md
@@ -511,6 +521,8 @@ docs/RenameRoleRequest.md
 docs/ReorderCategoriesRequest.md
 docs/ReorderLine.md
 docs/ReorderSuggestion.md
+docs/ReplaceIdentityRequest.md
+docs/ReplaceIdentityResponse.md
 docs/ReplayApproval.md
 docs/ReplayFlag.md
 docs/ReportsApi.md
@@ -564,6 +576,10 @@ docs/SpotViewApproval.md
 docs/SpotViewRequest.md
 docs/StaffApi.md
 docs/StaffDocument.md
+docs/StaffDrink.md
+docs/StaffPoolApi.md
+docs/StaffPoolSettings.md
+docs/StaffPoolToday.md
 docs/StaffRequest.md
 docs/StationRoutes.md
 docs/StatusInput.md
@@ -712,6 +728,7 @@ src/apis/menu_api.rs
 src/apis/metrics_api.rs
 src/apis/mod.rs
 src/apis/open_tickets_api.rs
+src/apis/order_now_api.rs
 src/apis/orders_api.rs
 src/apis/orgs_api.rs
 src/apis/payment_methods_api.rs
@@ -725,6 +742,7 @@ src/apis/reports_api.rs
 src/apis/reservations_api.rs
 src/apis/shifts_api.rs
 src/apis/staff_api.rs
+src/apis/staff_pool_api.rs
 src/apis/stocktakes_api.rs
 src/apis/sync_api.rs
 src/apis/tills_api.rs
@@ -909,6 +927,7 @@ src/models/create_waste_request.rs
 src/models/credential_summary.rs
 src/models/credential_with_secret.rs
 src/models/customer.rs
+src/models/customer_address.rs
 src/models/customer_detail.rs
 src/models/customer_order.rs
 src/models/dataset_info.rs
@@ -939,6 +958,8 @@ src/models/discipline_row.rs
 src/models/discount.rs
 src/models/discount_audit_entry.rs
 src/models/drink_recipe.rs
+src/models/earning_item.rs
+src/models/earning_item_list.rs
 src/models/employee.rs
 src/models/error_body.rs
 src/models/explain_step.rs
@@ -1057,6 +1078,10 @@ src/models/order_item_addon.rs
 src/models/order_item_full.rs
 src/models/order_item_input.rs
 src/models/order_item_optional.rs
+src/models/order_now_address.rs
+src/models/order_now_branch.rs
+src/models/order_now_context.rs
+src/models/order_now_full.rs
 src/models/order_number_range.rs
 src/models/order_payment.rs
 src/models/order_refunds.rs
@@ -1160,6 +1185,7 @@ src/models/purchase_order_line.rs
 src/models/put_allowed_addons_request.rs
 src/models/put_attendance_settings_request.rs
 src/models/put_balance_request.rs
+src/models/put_earning_items.rs
 src/models/put_employee_request.rs
 src/models/put_item_options_request.rs
 src/models/put_modifier_groups_request.rs
@@ -1191,6 +1217,7 @@ src/models/recipe_step.rs
 src/models/recipe_step_input.rs
 src/models/recipe_step_preset.rs
 src/models/reconciliation_input.rs
+src/models/record_staff_drink_request.rs
 src/models/record_waste_request.rs
 src/models/refund.rs
 src/models/refund_full.rs
@@ -1207,6 +1234,8 @@ src/models/rename_role_request.rs
 src/models/reorder_categories_request.rs
 src/models/reorder_line.rs
 src/models/reorder_suggestion.rs
+src/models/replace_identity_request.rs
+src/models/replace_identity_response.rs
 src/models/replay_approval.rs
 src/models/replay_flag.rs
 src/models/repricing_report.rs
@@ -1256,6 +1285,9 @@ src/models/sort.rs
 src/models/spot_view_approval.rs
 src/models/spot_view_request.rs
 src/models/staff_document.rs
+src/models/staff_drink.rs
+src/models/staff_pool_settings.rs
+src/models/staff_pool_today.rs
 src/models/staff_request.rs
 src/models/station_routes.rs
 src/models/status_input.rs

@@ -28,6 +28,14 @@ pub struct SettleOpenTicketRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub change_given: Option<Option<i32>>,
+    /// The customer this sale belongs to, when the cashier attached one at settle. Same rules as `customer_id` on an order (needs `customers.attach`; merged ids resolve; unknown ids are ignored). Absent, the sale takes the bill's own customer, if it has one.
+    #[serde(
+        rename = "customer_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub customer_id: Option<Option<uuid::Uuid>>,
     /// What the till actually took off this bill, in minor units — the figure the drawer charged. Additive; absent, the server computes it as before. This is also what a replayed bill keeps when its preset has since been switched off: the money as rung, never recomputed from a dead rule.
     #[serde(
         rename = "discount_amount",
@@ -167,6 +175,7 @@ impl SettleOpenTicketRequest {
         SettleOpenTicketRequest {
             amount_tendered: None,
             change_given: None,
+            customer_id: None,
             discount_amount: None,
             discount_applied_by: None,
             discount_approval_id: None,

@@ -179,6 +179,9 @@ class TicketView {
   final bool ready;
   final String? customerName;
 
+  /// The customer the bill is for: this device's choice, else the server's.
+  final String? customerId;
+
   /// The WAITER who opened this ticket (`open_tickets.opened_by` → user name),
   /// so the teller can see who took the table. `null` if the name is unknown.
   final String? waiterName;
@@ -202,6 +205,7 @@ class TicketView {
     required this.status,
     required this.ready,
     this.customerName,
+    this.customerId,
     this.waiterName,
     this.guestCount,
     required this.subtotalMinor,
@@ -220,6 +224,7 @@ class TicketView {
       status.hashCode ^
       ready.hashCode ^
       customerName.hashCode ^
+      customerId.hashCode ^
       waiterName.hashCode ^
       guestCount.hashCode ^
       subtotalMinor.hashCode ^
@@ -240,6 +245,7 @@ class TicketView {
           status == other.status &&
           ready == other.ready &&
           customerName == other.customerName &&
+          customerId == other.customerId &&
           waiterName == other.waiterName &&
           guestCount == other.guestCount &&
           subtotalMinor == other.subtotalMinor &&

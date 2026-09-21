@@ -31,6 +31,8 @@ pub struct _TicketView {
     /// The kitchen has plated every round — the floor's "ready" state.
     pub ready: bool,
     pub customer_name: Option<String>,
+    /// The customer the bill is for: this device's choice, else the server's.
+    pub customer_id: Option<String>,
     /// The WAITER who opened this ticket (`open_tickets.opened_by` → user name),
     /// so the teller can see who took the table. `null` if the name is unknown.
     pub waiter_name: Option<String>,
@@ -101,9 +103,11 @@ impl MadarBridge {
         notes: Option<String>,
         guest_count: Option<i32>,
         booking_id: Option<String>,
+        // The customer the bill is for, when one was chosen before round 1.
+        customer_id: Option<String>,
     ) -> Result<TicketFiredView, MadarError> {
         self.inner
-            .fire_ticket(table_id, customer_name, notes, guest_count, booking_id)
+            .fire_ticket(table_id, customer_name, notes, guest_count, booking_id, customer_id)
             .await
             .map_err(MadarError::from)
     }
@@ -191,6 +195,9 @@ impl MadarBridge {
         // `approve_bill_discount` mints it; the core refuses the settle without
         // it, and the server verifies it again at replay.
         discount_approval: Option<crate::api::approvals::ApprovalView>,
+        // Who the bill is for; rides the settle. `None` falls back to the
+        // choice `set_ticket_customer` holds, then to the bill's own customer.
+        customer_id: Option<String>,
     ) -> Result<Option<String>, MadarError> {
         self.inner
             .settle_ticket(
@@ -208,6 +215,7 @@ impl MadarBridge {
                 splits,
                 waive_service,
                 discount_approval,
+                customer_id,
             )
             .await
             .map_err(MadarError::from)

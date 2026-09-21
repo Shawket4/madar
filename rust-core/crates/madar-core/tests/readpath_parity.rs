@@ -289,7 +289,7 @@ async fn fire(core: &MadarCore, qty: usize) -> String {
     for _ in 0..qty {
         core.cart_add(None, item.id.clone(), item.name.clone(), item.base_price_minor).unwrap();
     }
-    core.fire_ticket(None, Some("parity".into()), None, Some(2), None).await.expect("fire").ticket_id
+    core.fire_ticket(None, Some("parity".into()), None, Some(2), None, None).await.expect("fire").ticket_id
 }
 
 async fn converge(core: &MadarCore) {

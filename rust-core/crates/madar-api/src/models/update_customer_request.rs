@@ -13,7 +13,15 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UpdateCustomerRequest {
-    /// Absent = unchanged.
+    /// `en` or `ar`. Absent = unchanged.
+    #[serde(
+        rename = "locale",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub locale: Option<Option<String>>,
+    /// DEPRECATED and ignored (see `CreateCustomerRequest`).
     #[serde(
         rename = "loyalty_customer_id",
         default,
@@ -21,6 +29,14 @@ pub struct UpdateCustomerRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub loyalty_customer_id: Option<Option<uuid::Uuid>>,
+    /// Absent = unchanged.
+    #[serde(
+        rename = "marketing_opt_out",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub marketing_opt_out: Option<Option<bool>>,
     #[serde(
         rename = "name",
         default,
@@ -44,7 +60,7 @@ pub struct UpdateCustomerRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub phone: Option<Option<String>>,
-    /// `true` unlinks the loyalty member.
+    /// DEPRECATED and ignored: leaving the programme is `DELETE /loyalty/members/{id}`.
     #[serde(rename = "unlink_loyalty", skip_serializing_if = "Option::is_none")]
     pub unlink_loyalty: Option<bool>,
 }
@@ -52,7 +68,9 @@ pub struct UpdateCustomerRequest {
 impl UpdateCustomerRequest {
     pub fn new() -> UpdateCustomerRequest {
         UpdateCustomerRequest {
+            locale: None,
             loyalty_customer_id: None,
+            marketing_opt_out: None,
             name: None,
             notes: None,
             phone: None,

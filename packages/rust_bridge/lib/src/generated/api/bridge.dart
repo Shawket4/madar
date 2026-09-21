@@ -127,6 +127,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// table is taken (interactive path — the teller picks another).
   Future<void> assignDraftTable({required String id, String? tableId});
 
+  /// Attach a customer to a sale already rung (a settled bill by its ticket
+  /// id, a finalized online order, a sale in the history), or take them off
+  /// with `None`. Offline: queued behind the sale. True while still queued.
+  bool attachCustomer({required String orderId, String? customerId});
+
   /// One manager PIN for the whole batch. The signed-in person does not
   /// change. An empty `ids` means everything in the list.
   Future<BatchAuthorizeView> authorizeManagerActions({
@@ -480,8 +485,20 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   Future<TillView?> currentTill();
 
+  /// A customer's saved addresses, most used first. ONLINE, and only when a
+  /// person opens the card; needs `customers.addresses.view`. Offline it
+  /// fails with a worded error the card shows in place of the list.
+  Future<List<CustomerAddressView>> customerAddresses({
+    required String customerId,
+  });
+
   /// One customer from the till's list.
   CustomerView? customerById({required String id});
+
+  /// The customer a scanned loyalty member IS, from the till's list — so a
+  /// scan attaches the person, not just a balance. `None` when the list does
+  /// not hold them.
+  CustomerView? customerForMember({required String memberId});
 
   /// The chrome a date-range picker draws itself with: today in the branch
   /// zone, the week start, and the month / weekday words in the till's
@@ -612,6 +629,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? notes,
     int? guestCount,
     String? bookingId,
+    String? customerId,
   });
 
   /// The branch floor (sections + tables + held-order occupancy) from the
@@ -898,6 +916,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required PlatformInt64 openingCashMinor,
     String? openingReason,
   });
+
+  /// The customer on a rung sale, by any of its ids. Offline.
+  CustomerView? orderCustomer({required String orderId});
 
   /// Fetch a synced order's full detail (lines + modifiers) — the expanded
   /// history row. Offline-durable for any order seen online (cached).
@@ -1257,6 +1278,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   void setLocale({required String locale});
 
+  /// Choose the customer an OPEN bill is for (or take them off with `None`).
+  /// Kept on the device, carried by the bill's settle, and by its fire while
+  /// that is still queued. Needs `customers.attach`.
+  void setTicketCustomer({required String ticketId, String? customerId});
+
   /// SETTLE an open ticket into a paid order in the cashier's shift (a till
   /// action). Offline-first: the order is materialized server-side at replay,
   /// deduped on the ticket id. Returns true when still queued (offline). The
@@ -1279,6 +1305,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<CheckoutSplit> splits,
     required bool waiveService,
     ApprovalView? discountApproval,
+    String? customerId,
   });
 
   /// One-call sign-in: online first, offline PIN unlock fallback.

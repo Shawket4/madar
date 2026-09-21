@@ -47,6 +47,11 @@ pub struct _DeliveryOrderView {
     pub promised_ready_at: Option<String>,
     /// `true` once the order reached a terminal state (delivered/cancelled/rejected).
     pub is_terminal: bool,
+    /// The customer the order belongs to, when linked. Name and phone above
+    /// stay the SNAPSHOT (what the driver calls, what the receipt prints).
+    pub customer_id: Option<String>,
+    /// "Ordered by X for Y": the snapshot contact is not the customer's own.
+    pub contact_override: bool,
 }
 
 /// The branch's delivery configuration + the POS-owned accepting overrides.

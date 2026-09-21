@@ -11,6 +11,7 @@ Name | Type | Description | Notes
 **completed_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **created_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **created_by** | Option<**uuid::Uuid**> |  | [optional]
+**customer_id** | Option<**uuid::Uuid**> | The customer who booked (design §2.5); `guest_name` / `guest_phone` beside it are the snapshot of what was typed. `None` for a booking from before customers existed whose phone is not a valid number. | [optional]
 **ends_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **guest_name** | **String** |  | 
 **guest_phone** | **String** |  | 

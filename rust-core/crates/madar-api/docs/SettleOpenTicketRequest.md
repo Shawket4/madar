@@ -6,6 +6,7 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **amount_tendered** | Option<**i32**> |  | [optional]
 **change_given** | Option<**i32**> | What the till handed back. Recorded as the drawer saw it, like a counter sale's; absent, it is derived from `amount_tendered` and the server's total. | [optional]
+**customer_id** | Option<**uuid::Uuid**> | The customer this sale belongs to, when the cashier attached one at settle. Same rules as `customer_id` on an order (needs `customers.attach`; merged ids resolve; unknown ids are ignored). Absent, the sale takes the bill's own customer, if it has one. | [optional]
 **discount_amount** | Option<**i32**> | What the till actually took off this bill, in minor units — the figure the drawer charged. Additive; absent, the server computes it as before. This is also what a replayed bill keeps when its preset has since been switched off: the money as rung, never recomputed from a dead rule. | [optional]
 **discount_applied_by** | Option<**uuid::Uuid**> | Who put the discount on the bill. Read on replay (live, it is the cashier holding the token). Additive. | [optional]
 **discount_approval_id** | Option<**uuid::Uuid**> | The manager approval that let the bill's discount past the cashier's cap, verified at replay like a counter sale's. Additive. | [optional]

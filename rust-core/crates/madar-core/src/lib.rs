@@ -36,6 +36,7 @@ pub mod catstyle;
 /// Checkout — assemble an order from the cart + place it via the outbox.
 pub mod checkout;
 pub mod customers;
+pub mod phone;
 pub mod waste;
 /// "N actions need a manager": the till's refused + flagged acts and the one
 /// manager PIN that clears the batch.
@@ -1167,6 +1168,17 @@ impl MadarCore {
                     })?;
                     acked_any = true;
                 }
+                // A bill's customer sent ahead of its settle is a courtesy to
+                // the other tills: a server that does not know the op (or will
+                // not take it) loses nothing, because the settle carries the
+                // customer anyway. Dropped quietly — never a stuck row, never
+                // in the way of what is queued behind it.
+                SendOutcome::Dead(err) | SendOutcome::Refused(err) if item.op_type == "set_ticket_customer" => {
+                    self.store.mark_dead(item.seq, &err)?;
+                    self.store.discard_dead(&item.id)?;
+                    self.store.emit_changes(changes::tables_for_op(&item.op_type));
+                    self.push_diag("info", format!("the bill's customer waits for the settle: {err}"));
+                }
                 // Permanent rejection — surface in the stuck list, never silently drop.
                 SendOutcome::Dead(err) => {
                     self.store.mark_dead(item.seq, &err)?;
@@ -1482,6 +1494,50 @@ impl MadarCore {
                 };
                 (
                     serde_json::json!({ "op": "create_customer", "teller_id": teller_id, "request": request }),
+                    Idem::Yes,
+                )
+            }
+            "attach_customer" => {
+                let cmd: serde_json::Value = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
+                };
+                // Queued against a sale by its key on this device (a client key,
+                // or the ticket a settle was keyed by); the op waited behind
+                // that sale, so by now its row knows the server's id.
+                let key = cmd.get("order_id").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+                let order_id = self
+                    .store
+                    .with_conn(|c| {
+                        use rusqlite::OptionalExtension;
+                        Ok(c.query_row(
+                            "SELECT server_id FROM ledger_orders WHERE okey=?1 AND server_id IS NOT NULL",
+                            [&key],
+                            |r| r.get::<_, String>(0),
+                        )
+                        .optional()?)
+                    })
+                    .ok()
+                    .flatten()
+                    .unwrap_or(key);
+                (
+                    // The attach is a plain overwrite server-side, so a re-flush is safe.
+                    serde_json::json!({ "op": "attach_customer", "teller_id": teller_id, "order_id": order_id, "customer_id": cmd.get("customer_id") }),
+                    Idem::Yes,
+                )
+            }
+            // The customer on a bill that is still open, so the other tills
+            // show them before the settle. The op waited behind the bill's
+            // fire, so the bill's key resolves to the server's id by now.
+            "set_ticket_customer" => {
+                let cmd: serde_json::Value = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
+                };
+                let key = cmd.get("ticket_id").and_then(|v| v.as_str()).unwrap_or_default();
+                (
+                    // Last write wins server-side, so a re-flush is safe.
+                    serde_json::json!({ "op": "set_ticket_customer", "teller_id": teller_id, "ticket_id": self.server_ticket_id(key), "customer_id": cmd.get("customer_id") }),
                     Idem::Yes,
                 )
             }
@@ -1899,15 +1955,25 @@ impl MadarCore {
                                 // before the fire landed names the real one.
                                 if item.op_type == "open_ticket" {
                                     let _ = self.store.id_map_put("open_ticket", &item.id, id);
+                                    self.rekey_ticket_customer(&item.id, id, *seq_out);
                                 }
                                 if item.op_type == "settle_open_ticket" {
                                     let _ = self.store.id_map_put("order", &item.id, id);
                                     self.note_loyalty_refusal(&item.id, &obj);
+                                    if let Some(ticket) = item.entity_id.as_deref() {
+                                        self.reconcile_settled_customer(ticket, &obj);
+                                    }
                                 }
                                 SendOutcome::Acked(Some(id.to_string()))
                             }
                             None => SendOutcome::Offline,
                         }
+                    }
+                    // The server has the choice: from its horizon on, the
+                    // bill's row in the feed decides who it is for.
+                    "set_ticket_customer" => {
+                        self.note_ticket_customer_sent(&item.payload, *seq_out);
+                        SendOutcome::Acked(None)
                     }
                     _ => SendOutcome::Acked(None),
                 }
@@ -2296,6 +2362,7 @@ pub(crate) fn queued_ticket_view(
         status: "queued".into(),
         ready: false,
         customer_name: cmd.request.customer_name.clone().flatten(),
+        customer_id: cmd.request.customer_id.flatten().map(|u| u.to_string()),
         waiter_name,
         guest_count: cmd.request.guest_count.flatten(),
         subtotal_minor,
@@ -6567,6 +6634,12 @@ impl MadarCore {
                 detail: "no open shift".into(),
             })?;
 
+        // One person per sale: the member spending a balance and the customer
+        // it is for are never two people (see `one_person`).
+        let mut input = input;
+        (input.customer_id, input.loyalty_customer_id) =
+            self.one_person(input.customer_id.take(), input.loyalty_customer_id.take());
+
         // Rewards give away goods against a balance any till can spend: refused
         // offline, and re-checked against the server's current card first.
         if !input.loyalty_redemptions.is_empty() {
@@ -7957,6 +8030,10 @@ impl MadarCore {
         notes: Option<String>,
         guest_count: Option<i32>,
         booking_id: Option<String>,
+        // The customer the bill is for, when one was chosen before the first
+        // round. Sent only by someone holding `customers.attach` (the server
+        // ignores it from anyone else); never a reason to refuse a fire.
+        customer_id: Option<String>,
     ) -> Result<tickets::TicketFiredView, CoreError> {
         let branch_id = self.session_branch_id()?;
         let branch_uuid = uuid::Uuid::parse_str(&branch_id).map_err(|_| CoreError::Validation {
@@ -7983,6 +8060,14 @@ impl MadarCore {
         let booking_uuid = booking_id
             .as_deref()
             .and_then(|s| uuid::Uuid::parse_str(s).ok());
+        // The caller's pick, else the one kept with the cart.
+        let customer_id = customer_id
+            .filter(|c| !c.trim().is_empty())
+            .or(cart::meta(&self.store, table_id.as_deref())?.customer_id);
+        let customer_uuid = customer_id
+            .as_deref()
+            .filter(|_| self.can("customers.attach".into()))
+            .and_then(|s| uuid::Uuid::parse_str(s.trim()).ok());
         let request = tickets::build_fire_request(
             branch_uuid,
             items,
@@ -7993,6 +8078,7 @@ impl MadarCore {
             notes,
             guest_count,
             booking_uuid,
+            customer_uuid,
         );
         // The booked party sat down: reflect it locally before the server does.
         if let Some(bid) = booking_id.as_deref() {
@@ -8011,7 +8097,12 @@ impl MadarCore {
             idempotency_key: ticket_id.to_string(),
             payload: serde_json::to_string(&cmd)?,
             event_at: self.corrected_now().to_rfc3339(),
-            depends_on_seq: None, // a ticket floats free of any shift/till
+            // A ticket floats free of any shift/till; it waits only for a
+            // customer added on this till whom the server has not heard of yet.
+            depends_on_seq: match customer_uuid {
+                Some(c) => self.store.live_seq_of(&format!("customer:{c}"))?,
+                None => None,
+            },
             user_id,
             clock_offset_ms,
             till_id: None, // the waiter holds no shift
@@ -8255,6 +8346,11 @@ impl MadarCore {
         // BEFORE settling, exactly as the cart does, and it rides to the server
         // on the queued settle where it is verified again.
         discount_approval: Option<crate::approvals::ApprovalView>,
+        // Who the bill is for. Without one, the choice this device holds for
+        // the bill (`set_ticket_customer`); without that either, the server
+        // carries the bill's own customer onto the sale. It rides the settle
+        // itself — a queued `attach_customer` is only for a choice made later.
+        customer_id: Option<String>,
     ) -> Result<Option<String>, CoreError> {
         if waive_service && !self.can_waive_service_charge() {
             return Err(CoreError::Validation {
@@ -8345,6 +8441,20 @@ impl MadarCore {
             .as_deref()
             .and_then(|s| uuid::Uuid::parse_str(s).ok())
             .map(Some);
+        // One person per sale, here too: a member spending their balance IS
+        // the customer, whoever else was picked.
+        let bill_customer = match request.loyalty_customer_id.flatten() {
+            Some(member) => match self.one_person(customer_id, Some(member.to_string())).0 {
+                Some(c) => self.settle_customer(&ticket_id, Some(c)),
+                // A member this till holds no row for: the server attaches
+                // them from the loyalty id, as it always has.
+                None => customers::BillCustomer::Unsaid,
+            },
+            None => self.settle_customer(&ticket_id, customer_id),
+        };
+        if let customers::BillCustomer::Chosen(c) = &bill_customer {
+            request.customer_id = Some(Some(*c));
+        }
         // Each leg's method id resolved to the raw NAME the backend validates,
         // the same way the cart's legs are resolved — a leg whose method no
         // longer exists is dropped rather than sent as a name nothing matches,
@@ -8501,6 +8611,12 @@ impl MadarCore {
             depends_on_seq: [
                 self.store.live_seq_of(&ticket_id)?,
                 self.store.live_seq_of(&till_id)?,
+                // … and a customer added on this till must reach the server
+                // before the settle that names them.
+                match &bill_customer {
+                    customers::BillCustomer::Chosen(c) => self.store.live_seq_of(&format!("customer:{c}"))?,
+                    _ => None,
+                },
             ]
             .into_iter()
             .flatten()
@@ -8514,9 +8630,17 @@ impl MadarCore {
         };
         self.store.with_tx_touch(|tx, touched| {
             ledger::local::commit_order(tx, &settle_op, &settle_row)?;
+            Self::record_settled_customer(tx, &ticket_id, &bill_customer, &settle_op.event_at)?;
             touched.extend(changes::tables_for_op("settle_open_ticket"));
             Ok(())
         })?;
+        // Taking the customer OFF a bill that had one cannot ride the settle
+        // (no customer there means "the bill's own"), so it follows it.
+        if bill_customer == customers::BillCustomer::Removed {
+            if let Err(e) = self.queue_attach(&ticket_id, None) {
+                obs::capture_bg_warning("customers.settle_removed", e.to_string());
+            }
+        }
         // A settle's receipt prints from the paid order the server returns, so
         // wait for it briefly when the device is online. Offline (or a slow
         // link) never holds the teller: it stays queued and sends in the
@@ -10326,6 +10450,7 @@ mod lifecycle_tests {
                 vec![],
                 false,
                 None,
+                None,
             )
             .await;
         assert!(settle.is_err());
@@ -10746,7 +10871,7 @@ mod lifecycle_tests {
             .unwrap();
         core.cart_add(Some(t2c.clone()), "b".into(), "Mocha".into(), 4000)
             .unwrap();
-        core.fire_ticket(Some(t1.clone()), None, None, None, None)
+        core.fire_ticket(Some(t1.clone()), None, None, None, None, None)
             .await
             .unwrap();
         assert!(core.cart_lines(Some(t1.clone())).unwrap().is_empty());

@@ -94,6 +94,10 @@ pub struct TicketView {
     /// kitchen for.
     pub ready: bool,
     pub customer_name: Option<String>,
+    /// The customer the bill is for, when one is known: this device's own
+    /// choice first, else the one the server's row (or the queued fire) names.
+    /// `customer_name` stays the free-text snapshot beside it.
+    pub customer_id: Option<String>,
     /// The WAITER who opened this ticket (`open_tickets.opened_by` → user name),
     /// so the teller can see who took the table. `null` if the name is unknown.
     pub waiter_name: Option<String>,
@@ -207,6 +211,7 @@ pub(crate) fn build_fire_request(
     notes: Option<String>,
     guest_count: Option<i32>,
     booking_id: Option<uuid::Uuid>,
+    customer_id: Option<uuid::Uuid>,
 ) -> models::CreateOpenTicketRequest {
     let mut r = models::CreateOpenTicketRequest::new(branch_id, items);
     r.idempotency_key = Some(Some(ticket_id));
@@ -217,6 +222,9 @@ pub(crate) fn build_fire_request(
     r.customer_name = customer_name.filter(|s| !s.trim().is_empty()).map(Some);
     r.notes = notes.filter(|s| !s.trim().is_empty()).map(Some);
     r.guest_count = guest_count.map(Some);
+    // Left off the wire entirely when nobody was chosen: a server that
+    // predates the field never sees it.
+    r.customer_id = customer_id.map(Some);
     r
 }
 
@@ -285,6 +293,7 @@ pub(crate) fn to_view_with(
         status: v.status.clone(),
         ready: v.ready.unwrap_or(false) && v.status == "open",
         customer_name: flat(&v.customer_name),
+        customer_id: flat(&v.customer_id).map(|u| u.to_string()),
         waiter_name: flat(&v.opened_by_name).filter(|s| !s.is_empty()),
         guest_count: flat(&v.guest_count),
         subtotal_minor: subtotal,
@@ -517,6 +526,7 @@ mod tests {
             None,
             Some(2),
             None,
+            None,
         );
         assert!(r.items.is_empty(), "seating orders nothing");
         assert_eq!(
@@ -543,6 +553,7 @@ mod tests {
             Some("\t".into()),
             None,
             None,
+            None,
         );
         assert!(r.customer_name.flatten().is_none());
         assert!(r.notes.flatten().is_none());
@@ -565,7 +576,9 @@ mod tests {
             Some("extra hot".into()),
             Some(4),
             Some(tid),
+            Some(rid),
         );
+        assert_eq!(r.customer_id, Some(Some(rid)), "the chosen customer rides the fire");
         assert_eq!(r.branch_id, bid);
         assert_eq!(
             r.booking_id,
@@ -697,6 +710,7 @@ mod tests {
             opened_by: uuid::Uuid::new_v4(),
             opened_by_name: Some(Some("Sara".into())),
             customer_name: None,
+            customer_id: None,
             notes: None,
             guest_count: Some(Some(2)),
             subtotal,
@@ -833,6 +847,7 @@ mod tests {
             opened_by: uuid::Uuid::new_v4(),
             opened_by_name: Some(Some("Sara".into())),
             customer_name: None,
+            customer_id: None,
             notes: None,
             guest_count: Some(Some(2)),
             subtotal: 2000,

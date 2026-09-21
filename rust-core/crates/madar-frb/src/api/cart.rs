@@ -175,6 +175,7 @@ pub struct _CartMeta {
     pub guest_name: Option<String>,
     pub started_at: Option<String>,
     pub covers: Option<i32>,
+    pub customer_id: Option<String>,
 }
 
 #[frb(mirror(DraftSwitchView))]

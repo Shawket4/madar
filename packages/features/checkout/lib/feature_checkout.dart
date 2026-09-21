@@ -34,6 +34,8 @@ export 'src/checkout_provider.dart'
         CheckoutState,
         CheckoutSummary,
         checkoutProvider;
+export 'src/customer_card.dart'
+    show CustomerCardSheet, LinkedCustomerRow, showCustomerCard;
 export 'src/customer_sheet.dart' show CustomerSheet;
 export 'src/discount_sheet.dart' show cartDiscountLabel, showCartDiscountSheet;
 export 'src/done_card.dart' show DoneCard, DoneCardResult, showDoneCard;

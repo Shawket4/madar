@@ -7,6 +7,7 @@ Method | HTTP request | Description
 [**create_customer**](CustomersApi.md#create_customer) | **POST** /customers | 
 [**erase_customer**](CustomersApi.md#erase_customer) | **POST** /customers/{id}/erase | 
 [**get_customer**](CustomersApi.md#get_customer) | **GET** /customers/{id} | 
+[**list_customer_addresses**](CustomersApi.md#list_customer_addresses) | **GET** /customers/{id}/addresses | 
 [**list_customers**](CustomersApi.md#list_customers) | **GET** /customers | 
 [**merge_customer**](CustomersApi.md#merge_customer) | **POST** /customers/{id}/merge | 
 [**update_customer**](CustomersApi.md#update_customer) | **PATCH** /customers/{id} | 
@@ -97,9 +98,37 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## list_customer_addresses
+
+> Vec<models::CustomerAddress> list_customer_addresses(id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Customer id (a merged id resolves) | [required] |
+
+### Return type
+
+[**Vec<models::CustomerAddress>**](CustomerAddress.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## list_customers
 
-> Vec<models::Customer> list_customers(q, limit, offset)
+> Vec<models::Customer> list_customers(q, member, source, limit, offset)
 
 
 ### Parameters
@@ -108,6 +137,8 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **q** | Option<**String**> | Matches name (contains) or phone (digits). |  |
+**member** | Option<**bool**> | `true` = loyalty members only, `false` = non-members only. |  |
+**source** | Option<**String**> | Only customers that first came from this source (`pos`, `online`, `loyalty`, `booking`, `table_qr`, `aggregator`, `dashboard`). |  |
 **limit** | Option<**i64**> | Default 100, at most 500. |  |
 **offset** | Option<**i64**> |  |  |
 

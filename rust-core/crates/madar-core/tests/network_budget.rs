@@ -304,7 +304,7 @@ async fn an_offline_cold_start_reads_and_acts() {
     core.record_cash_movement(1_500, "float".into(), Some("pay_in".into()), None).await.expect("cash movement");
     let item = core.list_menu_items().unwrap().into_iter().find(|i| i.base_price_minor > 0).unwrap();
     core.cart_add(None, item.id.clone(), item.name.clone(), item.base_price_minor).unwrap();
-    let fired = core.fire_ticket(None, Some("walk-in".into()), None, None, None).await.expect("fire queues");
+    let fired = core.fire_ticket(None, Some("walk-in".into()), None, None, None, None).await.expect("fire queues");
     let settled = core
         .settle_ticket(
             fired.ticket_id.clone(),
@@ -320,6 +320,7 @@ async fn an_offline_cold_start_reads_and_acts() {
             vec![],
             vec![],
             false,
+            None,
             None,
         )
         .await;

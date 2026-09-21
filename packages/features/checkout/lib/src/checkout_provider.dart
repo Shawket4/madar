@@ -734,6 +734,10 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
 
   // ── session starters ─────────────────────────────────────────────────────
 
+  /// The teller changed who the sale is for in THIS session. An online order
+  /// arrives with its customer already linked; only a change is sent after it.
+  bool _customerTouched = false;
+
   /// Start a FRESH session for [target]. Everything the previous sale picked
   /// is dropped here: the provider can outlive a sheet (the Done card, a
   /// charge still landing), and `start` used to layer the new session over
@@ -742,9 +746,14 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     _session += 1;
     _inFlight = null;
     _typedLegs.clear();
+    _customerTouched = false;
     if (_live) state = _priced(CheckoutState(target: target));
     return switch (target) {
-      CartChargeTarget(:final tableId) => _startCart(_session, tableId),
+      CartChargeTarget(:final tableId, :final customerId) => _startCart(
+        _session,
+        tableId,
+        customerId,
+      ),
       BillChargeTarget(:final ticket) => _startBill(_session, ticket),
       OnlineChargeTarget(:final order) => _startOnline(_session, order),
     };
@@ -754,7 +763,11 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// discount, the org logo, the live cart totals as the summary, and the
   /// lines in the order the server indexes them (a reward names a line by
   /// its position, so this list and the wire order must be the same list).
-  Future<void> _startCart(int session, String? tableId) async {
+  Future<void> _startCart(
+    int session,
+    String? tableId,
+    String? pickedId,
+  ) async {
     final bridge = _bridge;
     final till = _loadTill(session);
     final methods = await _loadMethods(session);
@@ -772,9 +785,15 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     final redeemable =
         _tryCore(() => bridge.cartRewardLines(tableId: tableId)) ??
         const <RewardLineInput>[];
+    // The customer picked on the cart, from the till's own list.
+    final picked = pickedId == null
+        ? null
+        : _tryCore(() => bridge.customerById(id: pickedId));
     _updateFor(
       session,
       (s) => _withSession(s, bridge).copyWith(
+        // Never over a pick made while this was loading.
+        customer: _customerTouched ? s.customer : picked,
         paymentMethods: methods,
         discounts: discounts,
         loyaltyProgramme: programme,
@@ -807,6 +826,9 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
             )
           : _summaryOfBill(bill),
       ticketId: ticket.id,
+      // Who the bill is already for: this device's choice, or the one the
+      // server's bill names (a booking, a table-QR guest, another till).
+      customerId: ticket.customerId,
       loadDiscounts: true,
       // The wording under the hero reads the BILL's frozen policy, not the
       // session's: a branch that changed a setting mid-service must not have
@@ -826,6 +848,9 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
           deliveryFeeMinor: order.deliveryFeeMinor,
           totalMinor: order.totalMinor,
         ),
+        // The customer the server linked the order to; finalize carries them
+        // onto the sale by itself.
+        customerId: order.customerId,
       );
 
   /// A session over a FIXED [summary] — loads the payment methods (and, for
@@ -837,10 +862,16 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     /// The bill whose live lines rewards may cover. Dine-in is an open ticket
     /// now, so without these a table order could never redeem.
     String? ticketId,
+    String? customerId,
     bool loadDiscounts = false,
     TicketBillView? billPolicy,
   }) async {
     final bridge = _bridge;
+    // From the till's own list; a customer it does not hold is simply not
+    // shown — the server still has them on the bill.
+    final linked = customerId == null
+        ? null
+        : _tryCore(() => bridge.customerById(id: customerId));
     final till = _loadTill(session);
     final methods = await _loadMethods(session);
     final discounts = loadDiscounts
@@ -868,6 +899,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         summary: summary,
         baseSummary: summary,
         rewardLines: redeemable,
+        // Never over a pick made while this was loading.
+        customer: _customerTouched ? s.customer : linked,
         loaded: true,
       ),
     );
@@ -882,19 +915,43 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// disconnected tills could each honour the last reward and neither could be
   /// undone, because the coffee is gone. Earning has no such problem and works
   /// offline, which is why only this half insists.
-  Future<bool> scanLoyalty({String? token, String? phone}) async {
+  Future<bool> scanLoyalty({String? token, String? phone}) => _attachMember(
+    (bridge) => bridge.loyaltyLookup(token: token, phone: phone),
+  );
+
+  /// "Use their rewards": the customer already picked is a member, so their
+  /// card is read by id and nobody scans anything a second time.
+  Future<bool> useCustomerLoyalty() {
+    final c = state.customer;
+    final memberId = c?.loyaltyCustomerId;
+    if (c == null || memberId == null) return Future.value(false);
+    return _attachMember(
+      (bridge) => bridge.loyaltyRefresh(customerId: memberId),
+    );
+  }
+
+  /// A sale names ONE person. The member decides who: the core answers with
+  /// the customer row that is them (or null when this till does not hold
+  /// one), and a customer picked earlier who is somebody else is dropped.
+  Future<bool> _attachMember(
+    Future<LoyaltyScanView> Function(MadarBridge bridge) read,
+  ) async {
     if (state.loyaltyBusy) return false;
     final bridge = _bridge;
     final session = _session;
     _update((s) => s.copyWith(loyaltyBusy: true, loyaltyError: null));
     try {
-      final scan = await bridge.loyaltyLookup(token: token, phone: phone);
+      final scan = await read(bridge);
       if (!_live || session != _session) return false;
+      final person = _tryCore(
+        () => bridge.customerForMember(memberId: scan.member.id),
+      );
       _update(
         (s) => s.copyWith(
           loyaltyScan: scan,
           rewardPicks: const [],
           loyaltyError: null,
+          customer: person,
         ),
       );
       MadarHaptics.success();
@@ -952,20 +1009,59 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     }
   }
 
-  /// Attach a manual customer to this counter sale.
-  void attachCustomer(CustomerView customer) =>
-      _update((s) => s.copyWith(customer: customer));
+  /// Attach a customer to this sale. A member already attached who is
+  /// somebody else goes, and their rewards with them: one person per sale.
+  void attachCustomer(CustomerView customer) {
+    _update((s) {
+      final memberId = s.loyaltyMember?.id;
+      final same =
+          memberId == null ||
+          customer.id == memberId ||
+          customer.loyaltyCustomerId == memberId;
+      return same
+          ? s.copyWith(customer: customer)
+          : s.copyWith(
+              customer: customer,
+              loyaltyScan: null,
+              rewardPicks: const [],
+              loyaltyError: null,
+            );
+    });
+    _rememberBillCustomer(customer.id);
+  }
 
-  void clearCustomer() => _update((s) => s.copyWith(customer: null));
+  /// A table's bill keeps its customer in the core from the moment they are
+  /// picked: closing the drawer, or the app, does not lose them, and the
+  /// settle carries them. A cart and an online order have nothing to keep.
+  void _rememberBillCustomer(String? customerId) {
+    _customerTouched = true;
+    if (state.target case BillChargeTarget(:final ticket)) {
+      _tryCore(
+        () => _bridge.setTicketCustomer(
+          ticketId: ticket.id,
+          customerId: customerId,
+        ),
+      );
+    }
+  }
 
-  /// Drop the member and every reward with them.
-  void clearLoyalty() => _update(
-    (s) => s.copyWith(
-      loyaltyScan: null,
-      rewardPicks: const [],
-      loyaltyError: null,
-    ),
-  );
+  /// Take the person off the sale — the customer AND the member, which are
+  /// the same person. Either row's remove lands here.
+  void clearCustomer() => clearLoyalty();
+
+  /// Drop the member and every reward with them, and the customer they are.
+  void clearLoyalty() {
+    final had = state.customer != null;
+    _update(
+      (s) => s.copyWith(
+        loyaltyScan: null,
+        rewardPicks: const [],
+        loyaltyError: null,
+        customer: null,
+      ),
+    );
+    if (had) _rememberBillCustomer(null);
+  }
 
   // ── tender picks (the drawer's collection state) ─────────────────────────
 
@@ -1385,6 +1481,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       // are dropped by `toggleSplit`; this is the second lock on that door.
       splits: s.splitMode ? s.splitLegs : const [],
       discountApproval: s.billDiscountApproval,
+      // The settle itself says who the bill is for — no attach follows it.
+      customerId: s.customer?.id,
     );
     ReceiptView? receipt;
     if (orderId != null) {
@@ -1425,6 +1523,16 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       id: order.id,
       paymentMethodId: method,
     );
+    // Finalize carries the order's own customer. Only a CHANGE made on the
+    // sheet follows it, as an attach (or a removal) queued behind the sale.
+    if (_customerTouched && s.customer?.id != order.customerId) {
+      _tryCore(
+        () => bridge.attachCustomer(
+          orderId: res.orderId,
+          customerId: s.customer?.id,
+        ),
+      );
+    }
     final receipt = await _quiet(
       () => bridge.orderReceiptView(orderId: res.orderId),
     );

@@ -6,6 +6,50 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+/// A saved address on the customer card.
+class CustomerAddressView {
+  final String id;
+
+  /// "Home", "Work" — what the customer called it, when they did.
+  final String? label;
+
+  /// The address on one line.
+  final String line;
+
+  /// What the driver was told, when anything.
+  final String? notes;
+
+  /// How many orders went there; the list is most-used first.
+  final int useCount;
+
+  const CustomerAddressView({
+    required this.id,
+    this.label,
+    required this.line,
+    this.notes,
+    required this.useCount,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      label.hashCode ^
+      line.hashCode ^
+      notes.hashCode ^
+      useCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CustomerAddressView &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          label == other.label &&
+          line == other.line &&
+          notes == other.notes &&
+          useCount == other.useCount;
+}
+
 /// A customer as the till shows it.
 class CustomerView {
   final String id;
@@ -16,10 +60,23 @@ class CustomerView {
 
   /// Masked for someone who may not see the phone, e.g. `•••• 4567`.
   final String? phoneHint;
+
+  /// The id their loyalty lives under, when they are a member (`id` itself
+  /// under the shared key). `Some` means "offer their loyalty".
   final String? loyaltyCustomerId;
 
   /// Added on this till and not yet confirmed by the server.
   final bool pending;
+
+  /// A loyalty member.
+  final bool isMember;
+
+  /// The balance the feed last carried, in words ("120 points"). A hint for
+  /// the picker; spending goes through a live lookup.
+  final String? balanceLabel;
+
+  /// Where the customer first came from (`pos`, `online`, `loyalty`, …).
+  final String? source;
 
   const CustomerView({
     required this.id,
@@ -28,6 +85,9 @@ class CustomerView {
     this.phoneHint,
     this.loyaltyCustomerId,
     required this.pending,
+    required this.isMember,
+    this.balanceLabel,
+    this.source,
   });
 
   @override
@@ -37,7 +97,10 @@ class CustomerView {
       phone.hashCode ^
       phoneHint.hashCode ^
       loyaltyCustomerId.hashCode ^
-      pending.hashCode;
+      pending.hashCode ^
+      isMember.hashCode ^
+      balanceLabel.hashCode ^
+      source.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -49,5 +112,8 @@ class CustomerView {
           phone == other.phone &&
           phoneHint == other.phoneHint &&
           loyaltyCustomerId == other.loyaltyCustomerId &&
-          pending == other.pending;
+          pending == other.pending &&
+          isMember == other.isMember &&
+          balanceLabel == other.balanceLabel &&
+          source == other.source;
 }
