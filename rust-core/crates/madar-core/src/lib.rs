@@ -1939,7 +1939,7 @@ impl MadarCore {
                             // Its staff drinks adopt the server's comp — or, from
                             // a server that predates them, fall back to the
                             // record-only op.
-                            self.staff_drinks_acked(item, &obj);
+                            self.staff_drinks_acked(item, obj);
                             SendOutcome::Acked(Some(id.to_string()))
                         }
                         None => SendOutcome::Offline,

@@ -628,13 +628,6 @@ pub(crate) fn prepare(
         })
         .collect();
     let staff_at = |i: usize| staff_lines.iter().find(|s| s.item_index == i);
-    if let Some(both) = staff_lines.iter().find(|s| reward_units.contains_key(&s.item_index)) {
-        return Err(CoreError::Validation {
-            field: "loyalty".into(),
-            detail: format!("{}: {STAFF_DRINK_NOT_A_REWARD}", both.item_name),
-        });
-    }
-
     // The wire wants the raw `name` column (the backend validates against it),
     // NOT the localized label — resolve from the cached payment-method catalog.
     let raw =

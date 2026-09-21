@@ -1672,6 +1672,27 @@ pub(crate) struct StaffMarkedLine {
     pub comp_minor: i64,
 }
 
+/// The cart's staff drinks in one figure — what the Charge sheet states beside
+/// the subtotal: how many units are on the pool, what the pool comps, and what
+/// those lines still pay.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CartStaffSummary {
+    pub units: i64,
+    pub comp_minor: i64,
+    pub charged_minor: i64,
+}
+
+/// `None` when nothing in the context is marked.
+pub(crate) fn staff_summary(store: &Store, ctx: Ctx<'_>) -> CoreResult<Option<CartStaffSummary>> {
+    let marked = staff_marked(store, ctx)?;
+    Ok((!marked.is_empty()).then(|| CartStaffSummary {
+        units: marked.iter().map(|m| m.qty).sum(),
+        comp_minor: marked.iter().map(|m| m.comp_minor).sum(),
+        charged_minor: marked.iter().map(|m| m.line_total_minor - m.comp_minor).sum(),
+    }))
+}
+
 /// Every marked line of the context, in cart order.
 pub(crate) fn staff_marked(store: &Store, ctx: Ctx<'_>) -> CoreResult<Vec<StaffMarkedLine>> {
     Ok(load(store, ctx)?

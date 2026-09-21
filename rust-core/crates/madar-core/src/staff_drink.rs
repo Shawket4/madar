@@ -583,7 +583,7 @@ impl MadarCore {
         drop(_guard);
         // Priced at once, by the rule, from the catalogue.
         self.refresh_staff_marks(None);
-        Ok(crate::cart::lines(&self.store, None)?)
+        crate::cart::lines(&self.store, None)
     }
 
     /// Change a marked line's note. A blank note is refused: the note is the
@@ -602,7 +602,7 @@ impl MadarCore {
         }
         let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
         crate::cart::set_staff_note(&self.store, table_id.as_deref(), &line_key, &note)?;
-        Ok(crate::cart::lines(&self.store, table_id.as_deref())?)
+        crate::cart::lines(&self.store, table_id.as_deref())
     }
 
     /// Take the mark off: the line rings at its normal price again.
@@ -612,7 +612,7 @@ impl MadarCore {
         line_key: String,
     ) -> Result<Vec<crate::cart::CartLineView>, CoreError> {
         let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
-        Ok(crate::cart::unmark_staff(&self.store, table_id.as_deref(), &line_key)?)
+        crate::cart::unmark_staff(&self.store, table_id.as_deref(), &line_key)
     }
 
     /// The cart is about to become (part of) a table's BILL — a round is being
@@ -624,6 +624,12 @@ impl MadarCore {
         let dropped = crate::cart::strip_staff_marks(&self.store, ctx, crate::cart::StaffMarkDrop::TableBill)
             .unwrap_or_default();
         self.note_staff_drops(ctx, dropped)
+    }
+
+    /// The cart's staff drinks as the Charge sheet states them: the comp as a
+    /// discount, and what those lines still pay. `None` without one. Local.
+    pub fn cart_staff_summary(&self, table_id: Option<String>) -> Option<crate::cart::CartStaffSummary> {
+        crate::cart::staff_summary(&self.store, table_id.as_deref()).ok().flatten()
     }
 
     /// Decide each staff line of a prepared sale against the pool, in cart
