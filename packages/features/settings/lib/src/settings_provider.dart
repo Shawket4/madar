@@ -341,6 +341,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
           qty: 1,
           lineTotalMinor: 0,
           isBundle: false,
+          staffCompMinor: 0,
           addons: [],
           optionals: [],
           components: [],
