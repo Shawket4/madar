@@ -1,0 +1,342 @@
+import 'package:design_system/design_system.dart';
+import 'package:feature_dawam_requests/src/requests_tab.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:staff_core/staff_core.dart';
+
+enum _Filter { all, time, shifts, money }
+
+_Filter _filterOf(ReqKind k) => switch (k) {
+  ReqKind.leave ||
+  ReqKind.lateArrival ||
+  ReqKind.earlyDeparture ||
+  ReqKind.excuse ||
+  ReqKind.mission ||
+  ReqKind.correction => _Filter.time,
+  ReqKind.cover ||
+  ReqKind.swap ||
+  ReqKind.openShift ||
+  ReqKind.overtime => _Filter.shifts,
+  ReqKind.salaryAdvance => _Filter.money,
+};
+
+/// Approvals: one queue for requests, corrections, advances, covers, swaps,
+/// open-shift claims, overtime, and — for the owner — adjustments over a
+/// manager's limit. Needs a connection and says so (APP-8).
+class ApprovalsTab extends ConsumerStatefulWidget {
+  const ApprovalsTab({super.key});
+
+  @override
+  ConsumerState<ApprovalsTab> createState() => _ApprovalsTabState();
+}
+
+class _ApprovalsTabState extends ConsumerState<ApprovalsTab> {
+  _Filter _filter = _Filter.all;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = ref.watch(dawamProvider);
+    final reqs = store.inbox;
+    final adjs = store.adjInbox;
+    int count(_Filter f) => f == _Filter.all
+        ? reqs.length + adjs.length
+        : reqs.where((r) => _filterOf(r.kind) == f).length +
+              (f == _Filter.money ? adjs.length : 0);
+    final cards = <Widget>[
+      for (final r in reqs)
+        if (_filter == _Filter.all || _filterOf(r.kind) == _filter)
+          _ReqCard(r, key: ValueKey(r.id)),
+      if (_filter == _Filter.all || _filter == _Filter.money)
+        for (final a in adjs) _AdjCard(a, key: ValueKey(a.id)),
+    ];
+    return DawamPage(
+      width: MadarContentWidth.full,
+      children: [
+        const OfflineNotice(),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            spacing: Space.sm,
+            children: [
+              for (final (f, label) in [
+                (_Filter.all, tr('staff.filter_all')),
+                (_Filter.time, tr('staff.filter_time_off')),
+                (_Filter.shifts, tr('staff.filter_shifts')),
+                (_Filter.money, tr('staff.filter_money')),
+              ])
+                MadarChip(
+                  label: label,
+                  count: count(f),
+                  selected: _filter == f,
+                  onTap: () => setState(() => _filter = f),
+                ),
+            ],
+          ),
+        ),
+        if (cards.isEmpty)
+          MadarCard(
+            child: EmptyState(
+              icon: 'checkmark.circle',
+              title: tr('staff.all_caught_up'),
+            ),
+          )
+        else
+          LayoutBuilder(
+            builder: (context, box) {
+              final cols = box.maxWidth >= 840 ? 2 : 1;
+              final w = (box.maxWidth - Space.lg * (cols - 1)) / cols;
+              return Wrap(
+                spacing: Space.lg,
+                runSpacing: Space.lg,
+                children: [for (final c in cards) SizedBox(width: w, child: c)],
+              );
+            },
+          ),
+      ],
+    );
+  }
+}
+
+class _Who extends StatelessWidget {
+  const _Who(this.e, this.what, this.at, {this.flag});
+
+  final Emp e;
+  final String what;
+  final DateTime at;
+  final MadarStatus? flag;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    spacing: Space.md,
+    children: [
+      personAvatar(e),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(name(e), style: MadarType.title),
+            Text(
+              '$what · ${dayMonth(at)} ${hm(at)}',
+              style: MadarType.bodySm.copyWith(
+                color: context.madarColors.textSecondary,
+              ),
+            ),
+            if (flag != null) ...[
+              const SizedBox(height: Space.xs),
+              MadarStatusPill(flag!),
+            ],
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _Decide extends ConsumerWidget {
+  const _Decide({required this.yes, required this.no, this.yesLabel});
+
+  final VoidCallback yes;
+  final VoidCallback no;
+  final String? yesLabel;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final offline = ref.watch(dawamProvider.select((d) => d.offline));
+    return Row(
+      spacing: Space.sm,
+      children: [
+        Expanded(
+          child: MadarButton(
+            label: tr('staff.decline'),
+            size: MadarButtonSize.compact,
+            variant: MadarButtonVariant.secondary,
+            enabled: !offline,
+            tooltip: tr('staff.needs_a_connection'),
+            onTap: () => attempt(ref, no, ok: tr('staff.declined')),
+          ),
+        ),
+        Expanded(
+          child: MadarButton(
+            label: yesLabel ?? tr('staff.approve'),
+            size: MadarButtonSize.compact,
+            glyph: MadarGlyph.check,
+            enabled: !offline,
+            tooltip: tr('staff.needs_a_connection'),
+            onTap: () => attempt(ref, yes, ok: tr('staff.approved')),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AdjCard extends ConsumerWidget {
+  const _AdjCard(this.a, {super.key});
+
+  final Adj a;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final store = ref.watch(dawamProvider);
+    final e = store.emp(a.emp);
+    return MadarCard.column(
+      children: [
+        _Who(
+          e,
+          a.bonus
+              ? tr('staff.bonus_over_the_limit')
+              : tr('staff.deduction_over_the_limit'),
+          a.at,
+        ),
+        MadarSummaryLine(
+          label: a.reason,
+          minor: a.bonus ? a.value(e) : -a.value(e),
+          currency: 'EGP',
+          signed: true,
+          tone: a.bonus ? null : MadarTone.danger,
+          emphasis: true,
+        ),
+        Text(
+          tr('staff.by_name', {'name': name(store.emp(a.by))}),
+          style: MadarType.bodySm.copyWith(
+            color: context.madarColors.textMuted,
+          ),
+        ),
+        _Decide(
+          yes: () => store.decideAdj(a, yes: true),
+          no: () => store.decideAdj(a, yes: false),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReqCard extends ConsumerStatefulWidget {
+  const _ReqCard(this.r, {super.key});
+
+  final Req r;
+
+  @override
+  ConsumerState<_ReqCard> createState() => _ReqCardState();
+}
+
+class _ReqCardState extends ConsumerState<_ReqCard> {
+  // Leave defaults to paid; an excuse to the org rule, unpaid (RQ-7).
+  late bool _paid = widget.r.kind == ReqKind.leave;
+  late int _inst = widget.r.installments;
+  late final _amount = TextEditingController(
+    text: (widget.r.amount / 100).toStringAsFixed(0),
+  );
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = ref.watch(dawamProvider);
+    final r = widget.r;
+    final e = store.emp(r.emp);
+    final c = context.madarColors;
+    Shift sh(String id) => store.shifts.firstWhere((s) => s.id == id);
+    final detail = switch (r.kind) {
+      ReqKind.swap => tr('staff.s_s_both_agreed', {
+        'name': name(store.emp(sh(r.shift!).emp!)),
+        'date': dayLabel(sh(r.shift!).date),
+        'name2': name(e),
+        'date2': dayLabel(sh(r.shift2!).date),
+      }),
+      ReqKind.openShift =>
+        '${dayLabel(sh(r.shift!).date)} · ${tplName(sh(r.shift!).template)}'
+            ' · ${shiftWindow(sh(r.shift!))}',
+      ReqKind.cover => tr('staff.covered_s_from_paid_at_s', {
+        'name': name(store.emp(sh(r.shift!).emp!)),
+        'shift': tplName(sh(r.shift!).template),
+        'time': hm(sh(r.shift!).inAt!),
+        'name2': name(e),
+      }),
+      ReqKind.overtime => tr('staff.past_the_shift_end', {
+        'date': dayLabel(r.from!),
+        'duration': mins(r.minutes),
+      }),
+      ReqKind.salaryAdvance => tr('staff.outstanding_cap', {
+        'amount': egp(store.outstandingAdvances(r.emp)),
+        'amount2': egp(store.advanceCap(r.emp)),
+      }),
+      _ => reqWhen(r),
+    };
+    return MadarCard.column(
+      children: [
+        _Who(
+          e,
+          kindLabel(r.kind),
+          r.created,
+          flag: r.toOwner
+              ? MadarStatus(
+                  tr('staff.a_manager_s_own_request'),
+                  tone: MadarTone.accent,
+                )
+              : null,
+        ),
+        Text(detail, style: MadarType.body),
+        if (r.note.isNotEmpty)
+          Text(
+            '“${r.note}”',
+            style: MadarType.bodySm.copyWith(color: c.textSecondary),
+          ),
+        if (r.kind == ReqKind.leave || r.kind == ReqKind.excuse)
+          MadarSegmented<bool>(
+            items: [
+              MadarSegmentItem(true, tr('staff.leave_paid')),
+              MadarSegmentItem(false, tr('staff.unpaid')),
+            ],
+            value: _paid,
+            onChanged: (v) => setState(() => _paid = v),
+          ),
+        if (r.kind == ReqKind.salaryAdvance) ...[
+          MadarField(
+            controller: _amount,
+            placeholder: tr('staff.amount_egp'),
+            kind: MadarFieldKind.decimal,
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _inst == 1
+                      ? tr('staff.in_full_next_payslip')
+                      : tr('staff.installments_count', {'inst': _inst}),
+                  style: MadarType.body,
+                ),
+              ),
+              MadarStepper(
+                value: _inst,
+                min: 1,
+                max: 6,
+                onChanged: (v) => setState(() => _inst = v),
+              ),
+            ],
+          ),
+        ],
+        _Decide(
+          yes: () => store.decide(
+            r,
+            approve: true,
+            paid: _paid,
+            amount: r.kind == ReqKind.salaryAdvance ? readMoney(_amount) : null,
+            installments: _inst,
+          ),
+          no: () => store.decide(r, approve: false),
+          yesLabel: r.kind == ReqKind.cover ? tr('staff.confirm_cover') : null,
+        ),
+        if (r.kind == ReqKind.cover)
+          Text(
+            tr('staff.declining_pays_nothing_the_absent_owner'),
+            style: MadarType.bodySm.copyWith(color: c.textMuted),
+          ),
+      ],
+    );
+  }
+}

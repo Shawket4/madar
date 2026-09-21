@@ -270,13 +270,8 @@ class LanguageSegment extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final locale = ref.watch(localeProvider.select((s) => s.locale));
-    return MadarSegmented<String>(
-      items: const [
-        MadarSegmentItem('en', 'English'),
-        MadarSegmentItem('ar', 'العربية'),
-      ],
-      value: locale.startsWith('ar') ? 'ar' : 'en',
+    return MadarLanguagePicker(
+      value: ref.watch(localeProvider.select((s) => s.locale)),
       onChanged: ref.read(localeProvider.notifier).set,
     );
   }
@@ -291,26 +286,14 @@ class ThemeSegment extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
-    final choice = ref.watch(themeChoiceProvider);
     // Light · Dark · Auto — the third cell follows the device and, because
     // the choice is persisted by name, still does after a relaunch.
-    return MadarSegmented<ThemeChoice>(
-      items: [
-        MadarSegmentItem(
-          ThemeChoice.light,
-          bridge.tr(key: 'settings.theme_light'),
-        ),
-        MadarSegmentItem(
-          ThemeChoice.dark,
-          bridge.tr(key: 'settings.theme_dark'),
-        ),
-        MadarSegmentItem(
-          ThemeChoice.system,
-          bridge.tr(key: 'settings.theme_system'),
-        ),
-      ],
-      value: choice,
+    return MadarThemePicker(
+      value: ref.watch(themeChoiceProvider),
       onChanged: ref.read(themeChoiceProvider.notifier).set,
+      light: bridge.tr(key: 'settings.theme_light'),
+      dark: bridge.tr(key: 'settings.theme_dark'),
+      system: bridge.tr(key: 'settings.theme_system'),
     );
   }
 }

@@ -1,17 +1,36 @@
-# madar_staff
+# Dawam by Madar — staff app
 
-A new Flutter project.
+The employee and manager app for every workflow in the Dawam Target Spec,
+Arabic first, built the way the POS is:
 
-## Getting Started
+| Piece | Where | Like the POS's |
+|---|---|---|
+| App shell: boot, theme, tabs, inbox, settings | `apps/staff` | `apps/madar` |
+| Spine: core handle, locale / theme / toast providers, `tr`, shared Dawam widgets | `packages/staff_core` | `packages/app_core` |
+| Sign-in | `packages/features/dawam_auth` | `feature_auth` |
+| Home (clock-in) + Timesheet | `packages/features/dawam_clock` | |
+| Shifts + Schedule on a calendar (kalender) | `packages/features/dawam_schedule` | |
+| Requests + Approvals | `packages/features/dawam_requests` | |
+| Team, flags, punch for someone | `packages/features/dawam_team` | |
+| Pay, payslips, advances, payroll run | `packages/features/dawam_pay` | |
 
-This project is a starting point for a Flutter application.
+- **Words** come from madar-core like every Madar app:
+  `rust-core/crates/madar-core/src/i18n.rs` (`staff.*`, plus the shared
+  `settings.*` / `common.*`), read through this app's own bindings,
+  `rust_bridge_staff`. `{placeholders}` are filled by `tr()` in staff_core.
+- **Look** is `design_system` only: the shell scaffold, rows, stat cards,
+  summary lines, sheets, the shared `MadarBrandPanel`, `MadarThemePicker`,
+  `MadarLanguagePicker`, and the `series` palette for people's colours.
+- **Theme** is the POS's `ThemeChoice` (light · dark · system), persisted under
+  the POS's keys (`madar.theme`, `madar.locale`).
+- **Workflows** run on the in-memory `DawamStore` (staff_core) until the staff
+  API is wired through the core; screens only reach it via `dawamProvider`.
 
-A few resources to get you started if this is your first Flutter project:
+    flutter run                      # builds the Rust core via Cargokit
+    flutter test                     # workflows + every screen, AR/EN, phone/tablet
+    flutter test test/screens_test.dart --dart-define=MADAR_RENDER=true   # PNGs → build/shots
+    cd ../../packages/staff_core && flutter test                         # the money path
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Demo: pick a demo account on sign-in (code 123456). Profile → Demo controls
+moves the clock, the geofence, "Always" location, battery and connection, and
+simulates what the 15-minute pings would catch.

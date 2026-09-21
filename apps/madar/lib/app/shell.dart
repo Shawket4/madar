@@ -34,11 +34,7 @@ class MadarShell extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: MadarTheme.light(),
       darkTheme: MadarTheme.dark(),
-      themeMode: switch (choice) {
-        ThemeChoice.light => ThemeMode.light,
-        ThemeChoice.dark => ThemeMode.dark,
-        ThemeChoice.system => ThemeMode.system,
-      },
+      themeMode: choice.mode,
       // Material's built-in words (the text-selection menu, tooltips) follow
       // the core's language too; only the languages the core speaks.
       locale: Locale(lang == 'ar' ? 'ar' : 'en'),

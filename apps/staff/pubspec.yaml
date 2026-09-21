@@ -1,5 +1,5 @@
 name: madar_staff
-description: "Madar staff app — the employee's own attendance, leave and payslips. A thin Riverpod UI over the shared madar-core (via the staff FRB bindings)."
+description: "Dawam by Madar — the staff app shell: boot, theme, tabs. Features live in packages/features/dawam_*, the spine in packages/staff_core."
 publish_to: 'none'
 version: 1.0.0+1
 resolution: workspace
@@ -8,33 +8,29 @@ environment:
   sdk: ^3.11.0
 
 dependencies:
+  design_system: ^0.1.0
+  feature_dawam_auth: ^0.1.0
+  feature_dawam_clock: ^0.1.0
+  feature_dawam_pay: ^0.1.0
+  feature_dawam_requests: ^0.1.0
+  feature_dawam_schedule: ^0.1.0
+  feature_dawam_team: ^0.1.0
   flutter:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  cupertino_icons: ^1.0.8
-
-  # The staff app's OWN bindings binary — not the POS `rust_bridge` and not
-  # `rust_bridge_dashboard`. This is the binary that lands on every employee's
-  # personal phone, so it carries neither the POS nor the admin surface.
-  rust_bridge_staff: ^0.1.0
-  design_system: ^0.1.0
-
-  # State (house pattern: hand-written Notifier/AsyncNotifier).
   flutter_riverpod: ^3.3.2
-  go_router: ^18.0.1
   intl: ^0.20.2
-  path_provider: ^2.1.0
-  # Platform glue ONLY: acquires coordinates and hands them to the core. The
-  # SERVER decides whether they fall inside the branch's geofence.
-  geolocator: ^14.0.0
+  path_provider: ^2.1.5
+  # The staff app's OWN bindings binary — not the POS `rust_bridge`: this
+  # lands on every employee's personal phone.
+  rust_bridge_staff: ^0.1.0
+  shared_preferences: ^2.5.3
+  staff_core: ^0.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/i18n/

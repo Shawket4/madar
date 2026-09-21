@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:design_system/design_system.dart' show ThemeChoice;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
@@ -209,24 +210,6 @@ class DarkModeNotifier extends Notifier<bool> {
 final darkModeProvider = NotifierProvider<DarkModeNotifier, bool>(
   DarkModeNotifier.new,
 );
-
-/// The theme a person chose: light, dark, or the device's own setting.
-/// Persisted through the host hook like the locale, so "Auto" survives a
-/// relaunch instead of quietly becoming light. The boolean
-/// [darkModeProvider] stays for the surfaces that still read it.
-enum ThemeChoice {
-  light,
-  dark,
-  system;
-
-  /// The persisted name back to a choice; anything unknown is light, the
-  /// default the till has always booted with.
-  static ThemeChoice parse(String? name) => switch (name) {
-    'dark' => ThemeChoice.dark,
-    'system' => ThemeChoice.system,
-    _ => ThemeChoice.light,
-  };
-}
 
 class ThemeChoiceNotifier extends Notifier<ThemeChoice> {
   ThemeChoiceNotifier({this.initial = ThemeChoice.light});

@@ -2,21 +2,28 @@ PODS:
   - Flutter (1.0.0)
   - rust_bridge_staff (0.1.0):
     - Flutter
+  - shared_preferences_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
   - rust_bridge_staff (from `.symlinks/plugins/rust_bridge_staff/ios`)
+  - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
 
 EXTERNAL SOURCES:
   Flutter:
     :path: Flutter
   rust_bridge_staff:
     :path: ".symlinks/plugins/rust_bridge_staff/ios"
+  shared_preferences_foundation:
+    :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
 
 SPEC CHECKSUMS:
-  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
   rust_bridge_staff: 753d2d5d9ab15217eecd2c118a87bafbf283db7c
+  shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
 
-PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
+PODFILE CHECKSUM: bafc34f26dd3c81a66ace4d765c99bce8d400231
 
 COCOAPODS: 1.16.2

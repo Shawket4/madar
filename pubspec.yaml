@@ -14,6 +14,13 @@ workspace:
   - packages/rust_bridge
   - packages/rust_bridge_dashboard
   - packages/rust_bridge_staff
+  - packages/staff_core
+  - packages/features/dawam_auth
+  - packages/features/dawam_clock
+  - packages/features/dawam_schedule
+  - packages/features/dawam_requests
+  - packages/features/dawam_team
+  - packages/features/dawam_pay
   - packages/features/auth
   - packages/features/checkout
   - packages/features/history
