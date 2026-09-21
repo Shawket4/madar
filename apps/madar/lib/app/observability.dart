@@ -355,6 +355,10 @@ const piiKeyDenylist = <String>[
   'building',
   'apartment',
   'landmark',
+  // A delivery's door and what the customer wrote for the driver. `floor` is
+  // in the exact list — as a substring it would eat `floor_plan`.
+  'unit_number',
+  'delivery_notes',
   'postcode',
   'zipcode',
   'latitude',
@@ -428,6 +432,7 @@ const piiKeyExact = <String>[
   'cvc',
   'gps',
   'pwd',
+  'floor',
 ];
 
 /// Checked **before** the denylist. Keys whose value is a machine describing
