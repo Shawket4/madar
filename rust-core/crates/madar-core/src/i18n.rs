@@ -527,6 +527,8 @@ fn en(key: &str) -> Option<&'static str> {
         // The payslip PDF prints in the language picked on the button,
         // whatever the app's language (PAY-10).
         "staff.pdf_payslip" => "Payslip",
+        "staff.line_actions_hint" => "Waive or delete this line",
+        "staff.shift_progress" => "How far into the shift",
         "staff.sign_in_no_person" => "That code didn't sign anyone in. Ask your manager to check your number.",
         "staff.pdf_period" => "Period",
         "staff.pdf_net_pay" => "Net pay",
@@ -2483,6 +2485,8 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.everyone_is_paid_this_month_is" => "الكل قبض. الشهر ده نهائي؛ أي تصحيح بيروح الشهر الجاي كبند جديد.",
         "staff.paid_how" => "اتقبض إزاي؟",
         "staff.pdf_payslip" => "قسيمة المرتب",
+        "staff.line_actions_hint" => "إلغاء البند ده أو مسحه",
+        "staff.shift_progress" => "وصلت فين في الوردية",
         "staff.sign_in_no_person" => "الكود ده مدخّلش حد. اطلب من مديرك يراجع رقمك.",
         "staff.pdf_period" => "الفترة",
         "staff.pdf_net_pay" => "الصافي",

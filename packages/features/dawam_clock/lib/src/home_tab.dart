@@ -253,6 +253,7 @@ class ShiftCard extends ConsumerWidget {
             borderRadius: BorderRadius.circular(Radii.pill),
             child: LinearProgressIndicator(
               value: progress,
+              semanticsLabel: tr('staff.shift_progress'),
               minHeight: 8,
               color: c.brand,
               backgroundColor: c.surfaceAlt,
