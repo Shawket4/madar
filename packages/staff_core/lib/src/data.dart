@@ -107,6 +107,8 @@ class Tpl implements Bilingual {
     this.end, {
     this.grace = 10,
     this.window = 30,
+    this.days = const {1, 2, 3, 4, 5, 6, 7},
+    this.dayTimes = const {},
   });
   final String id;
   final String branch;
@@ -118,6 +120,18 @@ class Tpl implements Bilingual {
   final int end; // minutes of the day; end < start crosses midnight
   final int grace;
   final int window;
+
+  /// ISO weekdays (Mon = 1 … Sun = 7) the block may be rostered on, as the
+  /// server says: the board offers it only on those.
+  final Set<int> days;
+
+  /// The server's own times on some weekdays: ISO weekday → (start, end).
+  final Map<int, (int, int)> dayTimes;
+
+  bool validOn(DateTime d) => days.contains(d.weekday);
+
+  /// The block's times on [d]: that weekday's own, else its default.
+  (int, int) timesOn(DateTime d) => dayTimes[d.weekday] ?? (start, end);
   int get length {
     final l = (end - start) % 1440;
     return l == 0 ? 1440 : l;
@@ -168,6 +182,20 @@ class Shift {
   final DateTime date; // the day it STARTS (SC-10)
   bool published = false;
   bool changed = false;
+
+  /// The server's EFFECTIVE times (minutes of the day): this assignment's
+  /// own, else the block's for that weekday, else its default.
+  int? start;
+  int? end;
+
+  /// Ends the next day; still the day it starts (SC-10).
+  bool nextDay = false;
+
+  /// This assignment has its own from/to.
+  bool edited = false;
+
+  /// The date holds its own set of shifts, not the usual pattern.
+  bool ownDay = false;
   String? coverBy;
   DateTime? inAt;
   DateTime? outAt;
@@ -190,8 +218,14 @@ class Shift {
   // A shift can point at a template the snapshot didn't bring (deactivated,
   // or another branch's): show it as an unnamed all-day shift, never crash.
   Tpl get template => tplIndex[tpl] ?? Tpl(tpl, '', '—', '—', 0, 0);
-  DateTime get startAt => date.add(Duration(minutes: template.start));
-  DateTime get endAt => startAt.add(Duration(minutes: template.length));
+  DateTime get startAt => date.add(Duration(minutes: start ?? template.start));
+  DateTime get endAt {
+    final s = start ?? template.start;
+    final e = end ?? template.end;
+    final l = (e - s) % 1440;
+    return startAt.add(Duration(minutes: l == 0 ? 1440 : l));
+  }
+
   bool get covered => coverBy != null;
 }
 
@@ -520,6 +554,16 @@ class DawamStore extends ChangeNotifier {
   /// Coverage needs per branch (SC-13), as the server sent them.
   Map<String, J> coverage = const {};
 
+  /// `emp|yyyy-mm-dd` of the dates that hold their own set (a date change):
+  /// those can go back to the usual pattern.
+  Set<String> ownDays = const {};
+
+  /// `emp|yyyy-mm-dd` of the dates changed to a day off.
+  Set<String> daysOff = const {};
+
+  bool isOwnDay(String emp, DateTime d) => ownDays.contains('$emp|${_d(d)}');
+  bool isDayOff(String emp, DateTime d) => daysOff.contains('$emp|${_d(d)}');
+
   // ── the picture ──
   Duration _skew = Duration.zero;
   DateTime get now => DateTime.now().add(_skew);
@@ -641,6 +685,12 @@ class DawamStore extends ChangeNotifier {
     coverage = ((v['coverage'] as J?) ?? const {}).map(
       (k, x) => MapEntry(k, x is J ? x : const <String, dynamic>{}),
     );
+    ownDays = ((v['own_days'] as List<dynamic>?) ?? const [])
+        .cast<String>()
+        .toSet();
+    daysOff = ((v['days_off'] as List<dynamic>?) ?? const [])
+        .cast<String>()
+        .toSet();
 
     for (final b in _list(v['branches'])) {
       final name = b['name'] as String;
@@ -662,6 +712,13 @@ class DawamStore extends ChangeNotifier {
         _int(t['end']),
         grace: _int(t['grace']),
         window: _int(t['window']),
+        days: t['days'] == null
+            ? const {1, 2, 3, 4, 5, 6, 7}
+            : (t['days'] as List<dynamic>).cast<int>().toSet(),
+        dayTimes: {
+          for (final x in _list(t['day_times']))
+            _int(x['day']): (_int(x['start']), _int(x['end'])),
+        },
       );
     }
     for (final p in _list(v['people'])) {
@@ -696,6 +753,11 @@ class DawamStore extends ChangeNotifier {
             )
             ..published = s['published'] == true
             ..changed = s['changed'] == true
+            ..start = s['start'] as int?
+            ..end = s['end'] as int?
+            ..nextDay = s['next_day'] == true
+            ..edited = s['edited'] == true
+            ..ownDay = s['own_day'] == true
             ..coverBy = s['cover_by'] as String?
             ..inAt = _at(s['in_at'])
             ..outAt = _at(s['out_at'])
@@ -1274,6 +1336,49 @@ class DawamStore extends ChangeNotifier {
       });
   Future<void> setDay(String emp, DateTime d, String? tpl, String branch) =>
       _act({'action': 'set_day', 'emp': emp, 'date': _d(d), 'tpl': tpl});
+
+  /// Every block [emp] works on [d] (a split day); empty = a day off.
+  Future<void> setShifts(String emp, DateTime d, List<String> tpls) => _act({
+    'action': 'set_shifts',
+    'emp': emp,
+    'date': _d(d),
+    'blocks': [
+      for (final t in tpls) {'tpl': t},
+    ],
+  });
+
+  /// One more block on the date; the rest of the day stays.
+  Future<void> addBlock(String emp, DateTime d, String tpl) =>
+      _act({'action': 'add_block', 'emp': emp, 'date': _d(d), 'tpl': tpl});
+
+  /// Take this shift off its date; the rest of the day stays.
+  Future<void> removeBlock(Shift s) =>
+      _act({'action': 'remove_block', 'shift': s.id});
+
+  /// Back to the usual pattern for that date.
+  Future<void> resetDay(String emp, DateTime d) =>
+      _act({'action': 'reset_day', 'emp': emp, 'date': _d(d)});
+
+  /// This one shift's own from/to (minutes of the day); both null = back to
+  /// the block's. An end at or before the start is the next day.
+  Future<void> setTimes(Shift s, int? start, int? end) => _act({
+    'action': 'set_times',
+    'shift': s.id,
+    'start': ?start,
+    'end': ?end,
+  });
+
+  /// Give this shift to a colleague; both keep the rest of their day.
+  Future<void> giveShift(Shift s, String to) =>
+      _act({'action': 'give_shift', 'shift': s.id, 'to': to});
+
+  /// Take an open shift back.
+  Future<void> cancelOpen(Shift s) =>
+      _act({'action': 'cancel_open', 'shift': s.id});
+
+  /// Ask a colleague to swap: [mine] is MY shift, [theirs] the colleague's.
+  Future<void> askSwap(Shift mine, Shift theirs) =>
+      _act({'action': 'ask_swap', 'mine': mine.id, 'theirs': theirs.id});
   Future<void> moveShift(Shift s, DateTime day, String tpl) =>
       _act({'action': 'move_shift', 'shift': s.id, 'day': _d(day), 'tpl': tpl});
   Future<void> assign(Shift s, String? emp) =>
@@ -1296,8 +1401,20 @@ class DawamStore extends ChangeNotifier {
       _act({'action': 'set_coverage', 'branch': branch, 'needs': needs});
   Future<void> decideHoliday(Holiday h, String d) =>
       _act({'action': 'decide_holiday', 'date': _d(h.date), 'decision': d});
-  Future<void> setPrefs(String emp, String? time, Set<int> cant) =>
-      _act({'action': 'set_prefs', 'time': time, 'cant': cant.toList()});
+
+  /// My preferences, or a manager's override of [emp]'s (logged, SC-12).
+  Future<void> setPrefs(
+    String emp,
+    String? time,
+    Set<int> cant, {
+    String? note,
+  }) => _act({
+    'action': 'set_prefs',
+    'emp': emp,
+    'time': time,
+    'cant': cant.toList(),
+    'note': ?note,
+  });
   Future<void> readAll() => _act({'action': 'read_all'});
   Future<void> approvePayroll() => _act({'action': 'approve_payroll'});
   Future<void> reopenPayroll() => _act({'action': 'reopen_payroll'});

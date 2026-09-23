@@ -173,7 +173,10 @@ class _ShiftCalendarState extends State<ShiftCalendar> {
 
   void _sync() {
     final sig = widget.shifts
-        .map((s) => '${s.id}${s.emp}${s.tpl}${s.date}${s.changed}')
+        .map(
+          (s) =>
+              '${s.id}${s.emp}${s.tpl}${s.date}${s.changed}${s.start}${s.end}',
+        )
         .join();
     if (sig == _signature) return;
     _signature = sig;

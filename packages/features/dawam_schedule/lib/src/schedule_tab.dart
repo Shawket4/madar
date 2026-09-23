@@ -69,11 +69,23 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
         '${h < 12 ? tr('staff.am') : tr('staff.pm')}';
   }
 
-  /// A template's hours; tighter on a phone's narrow column (Arabic's
-  /// ص and م are short enough to keep the spaces).
-  String _window(Tpl? t, {bool tight = false}) => t == null
-      ? ''
-      : '${_clock(t.start)}${tight ? '–' : ' – '}${_clock(t.end)}';
+  /// A shift's own hours as the server resolved them (the assignment's,
+  /// else the block's for that weekday); "+1" when it ends the next day.
+  /// Tighter on a phone's narrow column (Arabic's ص and م are short
+  /// enough to keep the spaces).
+  String _hours(Shift s, {bool tight = false}) {
+    final t = s.template;
+    final a = s.start ?? t.start;
+    final z = s.end ?? t.end;
+    return '${_clock(a)}${tight ? '–' : ' – '}${_clock(z)}'
+        '${s.nextDay ? ' +1' : ''}';
+  }
+
+  /// A block's hours on [d]: that weekday's own, else its default.
+  String _blockHours(Tpl t, DateTime d) {
+    final (a, z) = t.timesOn(d);
+    return '${hmMin(a)} – ${hmMin(z)}${z <= a ? ' +1' : ''}';
+  }
 
   /// The most people the coverage grid asks for at once on [d]'s weekday;
   /// null when the branch has no grid (typed or derived) for it.
@@ -134,11 +146,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
       (byCell['${s.emp}|${dateOnly(s.date)}'] ??= []).add(s);
     }
     for (final l in byCell.values) {
-      l.sort(
-        (a, b) => (store.tpls[a.tpl]?.start ?? 0).compareTo(
-          store.tpls[b.tpl]?.start ?? 0,
-        ),
-      );
+      l.sort((a, b) => a.startAt.compareTo(b.startAt));
     }
     final swaps = {
       for (final r in store.reqs)
@@ -160,13 +168,15 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
             final t? => tplName(t),
             null => '',
           },
-          window: _window(store.tpls[s.tpl], tight: phone && !isAr),
+          window: _hours(s, tight: phone && !isAr),
           color: s.emp == null ? c.warning : tplColor(s.tpl),
           leave: s.leave,
           half: s.halfLeave,
           changed: s.changed,
           swap: swaps.contains(s.id),
           claimed: claims.contains(s.id),
+          edited: s.edited,
+          nextDay: s.nextDay,
         ),
     ];
 
@@ -180,12 +190,12 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
     int minutesOf(String emp) {
       var m = 0;
       for (final s in week) {
-        final t = store.tpls[s.tpl];
-        if (s.emp != emp || t == null) continue;
+        if (s.emp != emp || store.tpls[s.tpl] == null) continue;
+        final length = s.endAt.difference(s.startAt).inMinutes;
         if (s.leave == null) {
-          m += t.length;
+          m += length;
         } else if (s.halfLeave) {
-          m += t.length ~/ 2;
+          m += length ~/ 2;
         }
       }
       return m;
@@ -467,6 +477,9 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
     }
   }
 
+  /// One shift tapped: change THIS block (the rest of a split day stays),
+  /// its own times, give it away, take it off, or put the date back on the
+  /// usual pattern (SC-5, SC-11). An open shift can be taken back (SC-9).
   Future<void> _edit(Shift s) => showDawamSheet<void>(
     context,
     title: _who(_store, s.emp),
@@ -477,7 +490,11 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
           ? const <(String, Map<String, Object>)>[]
           : store.warnings(e.id, weekStart(s.date));
       final tpl = store.tpls[s.tpl];
-      final tpls = store.tpls.values.where((t) => t.branch == branch);
+      // Only the blocks worked on this weekday, at this day's times.
+      final tpls = store.tpls.values
+          .where((t) => t.branch == branch && t.validOn(s.date))
+          .toList();
+      void close() => Navigator.of(ctx).maybePop();
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.md,
@@ -487,10 +504,18 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
             children: [
               MadarSummaryLine(label: tr('staff.day'), value: dayLabel(s.date)),
               if (tpl != null)
-                MadarSummaryLine(
-                  label: tplName(tpl),
-                  value: '${hmMin(tpl.start)} – ${hmMin(tpl.end)}',
-                ),
+                MadarSummaryLine(label: tplName(tpl), value: _hours(s)),
+            ],
+          ),
+          Wrap(
+            spacing: Space.sm,
+            runSpacing: Space.sm,
+            children: [
+              if (s.edited)
+                MadarTag(label: tr('staff.edited'), tone: MadarTone.accent),
+              if (s.nextDay) MadarTag(label: tr('staff.ends_next_day')),
+              if (s.changed)
+                MadarTag(label: tr('staff.changed'), tone: MadarTone.warning),
             ],
           ),
           if (e != null && e.cantWork.contains(s.date.weekday))
@@ -505,6 +530,21 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
             tr('staff.changes_this_date_only_the_standing'),
             style: MadarType.bodySm.copyWith(color: ctx.madarColors.textMuted),
           ),
+          if (e == null)
+            MadarListRow.nav(
+              glyph: MadarGlyph.close,
+              title: tr('staff.cancel_open_shift'),
+              onTap: () {
+                unawaited(
+                  attempt(
+                    ref,
+                    () => store.cancelOpen(s),
+                    ok: tr('staff.day_saved'),
+                  ),
+                );
+                close();
+              },
+            ),
           if (e != null)
             DawamSection(
               tr('staff.shift'),
@@ -512,51 +552,98 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                 for (final t in tpls)
                   MadarListRow.pick(
                     title: tplName(t),
-                    meta: '${hmMin(t.start)} – ${hmMin(t.end)}',
+                    meta: _blockHours(t, s.date),
                     selected: t.id == s.tpl,
                     onTap: () {
-                      unawaited(store.setDay(e.id, s.date, t.id, branch));
-                      Navigator.of(ctx).maybePop();
+                      if (t.id != s.tpl) {
+                        unawaited(store.moveShift(s, dateOnly(s.date), t.id));
+                      }
+                      close();
                     },
                   ),
+                MadarListRow.nav(
+                  glyph: MadarGlyph.clock,
+                  title: tr('staff.change_times'),
+                  onTap: () async {
+                    final a = await pickTime(ctx, s.start ?? s.template.start);
+                    if (a == null || !ctx.mounted) return;
+                    final z = await pickTime(ctx, s.end ?? s.template.end);
+                    if (z == null || !ctx.mounted) return;
+                    final ok = await attempt(
+                      ref,
+                      () => store.setTimes(s, a, z),
+                      ok: tr('staff.times_saved'),
+                    );
+                    if (ok && ctx.mounted) close();
+                  },
+                ),
+                if (s.edited)
+                  MadarListRow.nav(
+                    glyph: MadarGlyph.refresh,
+                    title: tr('staff.block_times'),
+                    onTap: () {
+                      unawaited(store.setTimes(s, null, null));
+                      close();
+                    },
+                  ),
+                MadarListRow.nav(
+                  glyph: MadarGlyph.minus,
+                  title: tr('staff.remove_this_shift'),
+                  onTap: () {
+                    unawaited(store.removeBlock(s));
+                    close();
+                  },
+                ),
                 MadarListRow.nav(
                   glyph: MadarGlyph.close,
                   title: tr('staff.day_off'),
                   onTap: () {
                     unawaited(store.setDay(e.id, s.date, null, branch));
-                    Navigator.of(ctx).maybePop();
+                    close();
                   },
                 ),
+                if (s.ownDay || store.isOwnDay(e.id, s.date))
+                  MadarListRow.nav(
+                    glyph: MadarGlyph.calendar,
+                    title: tr('staff.back_to_pattern'),
+                    onTap: () {
+                      unawaited(store.resetDay(e.id, s.date));
+                      close();
+                    },
+                  ),
               ],
             ),
-          DawamSection(
-            tr('staff.give_to'),
-            children: [
-              for (final p in _staff(store, branch).where((p) => p.id != s.emp))
-                MadarListRow.nav(
-                  title: name(p),
-                  meta: p.cantWork.contains(s.date.weekday)
-                      ? tr('staff.said_they_can_t_work_s', {
-                          'name': firstName(p),
-                          'day': weekday(s.date.weekday),
-                        })
-                      : null,
-                  onTap: () {
-                    unawaited(store.assign(s, p.id));
-                    Navigator.of(ctx).maybePop();
-                  },
-                ),
-              if (s.emp != null)
+          if (e != null)
+            DawamSection(
+              tr('staff.give_to'),
+              children: [
+                for (final p in _staff(
+                  store,
+                  branch,
+                ).where((p) => p.id != s.emp))
+                  MadarListRow.nav(
+                    title: name(p),
+                    meta: p.cantWork.contains(s.date.weekday)
+                        ? tr('staff.said_they_can_t_work_s', {
+                            'name': firstName(p),
+                            'day': weekday(s.date.weekday),
+                          })
+                        : null,
+                    onTap: () {
+                      unawaited(store.giveShift(s, p.id));
+                      close();
+                    },
+                  ),
                 MadarListRow.nav(
                   glyph: MadarGlyph.plus,
                   title: tr('staff.open_shift_anyone_claims'),
                   onTap: () {
                     unawaited(store.assign(s, null));
-                    Navigator.of(ctx).maybePop();
+                    close();
                   },
                 ),
-            ],
-          ),
+              ],
+            ),
         ],
       );
     },
@@ -567,8 +654,12 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
   Future<void> _add(String? emp, DateTime at) async {
     final d = dateOnly(at);
     final branch = _branch(_store);
-    final tpls = _store.tpls.values.where((t) => t.branch == branch).toList()
-      ..sort((a, b) => a.start.compareTo(b.start));
+    // Only the blocks worked on this weekday, at this day's times.
+    final tpls =
+        _store.tpls.values
+            .where((t) => t.branch == branch && t.validOn(d))
+            .toList()
+          ..sort((a, b) => a.timesOn(d).$1.compareTo(b.timesOn(d).$1));
     final first = tpls.firstOrNull;
     if (first == null) {
       ref
@@ -586,13 +677,32 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.md,
           children: [
+            // A day off by a date change: say so, and offer the pattern back.
+            if (emp != null && store.isDayOff(emp, d)) ...[
+              Wrap(
+                children: [
+                  MadarTag(
+                    label: '${tr('staff.day_off')} · ${tr('staff.changed')}',
+                    tone: MadarTone.warning,
+                  ),
+                ],
+              ),
+              MadarListRow.nav(
+                glyph: MadarGlyph.calendar,
+                title: tr('staff.back_to_pattern'),
+                onTap: () {
+                  unawaited(store.resetDay(emp, d));
+                  Navigator.of(ctx).maybePop();
+                },
+              ),
+            ],
             DawamSection(
               tr('staff.shift'),
               children: [
                 for (final t in tpls)
                   MadarListRow.pick(
                     title: tplName(t),
-                    meta: '${hmMin(t.start)} – ${hmMin(t.end)}',
+                    meta: _blockHours(t, d),
                     selected: t.id == tpl,
                     onTap: () => setS(() => tpl = t.id),
                   ),
@@ -630,7 +740,8 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                 if (id == null) {
                   unawaited(store.postOpen(branch, d, tpl));
                 } else {
-                  unawaited(store.setDay(id, d, tpl, branch));
+                  // Beside whatever else they work that day (a split day).
+                  unawaited(store.addBlock(id, d, tpl));
                 }
                 Navigator.of(ctx).maybePop();
               },
