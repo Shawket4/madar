@@ -471,16 +471,45 @@ class _ShiftCalendarState extends State<ShiftCalendar> {
     KalenderDateTimeRange r,
   ) {
     final s = (e as ShiftEvent).shift;
+    final title = widget.titleOf(s);
+    final window = '${hm(s.startAt)} – ${hm(s.endAt)}';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: MadarListRow.bill(
-        title: widget.titleOf(s),
-        meta: '${hm(s.startAt)} – ${hm(s.endAt)} · ${tplName(s.template)}',
+        title: title,
+        // The shift's name only when the title doesn't carry it already:
+        // the times come first and must fit a phone (E2E S4).
+        meta: title.contains(tplName(s.template))
+            ? window
+            : '$window · ${tplName(s.template)}',
         railColor: widget.colorOf(s),
-        status: s.changed
-            ? MadarStatus(tr('staff.changed'), tone: MadarTone.warning)
-            : null,
+        // A glyph, not the wide pill: on a phone the pill left the times
+        // as "08:00 – 16:…" (E2E S4). It still says "Changed" (SC-4).
+        trailing: s.changed ? const _Changed() : null,
         onTap: widget.onTapShift == null ? null : () => widget.onTapShift!(s),
+      ),
+    );
+  }
+}
+
+/// "Changed" on a list row, in a shift's width: the warning glyph, with the
+/// word for a screen reader and on long-press.
+class _Changed extends StatelessWidget {
+  const _Changed();
+
+  @override
+  Widget build(BuildContext context) {
+    final word = tr('staff.changed');
+    return Tooltip(
+      message: word,
+      excludeFromSemantics: true,
+      child: Semantics(
+        label: word,
+        child: MadarGlyphIcon(
+          MadarGlyph.alertTriangle,
+          color: MadarTone.warning.color(context.madarColors),
+          size: IconSize.md,
+        ),
       ),
     );
   }
