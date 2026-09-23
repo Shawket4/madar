@@ -21,6 +21,14 @@ pub struct CreateStaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub attendance_record_id: Option<Option<uuid::Uuid>>,
+    /// Admin-only. Omitted on `/staff/me/_*`, where it is always the caller.
+    #[serde(
+        rename = "employee_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub employee_id: Option<Option<uuid::Uuid>>,
     #[serde(
         rename = "end_date",
         default,
@@ -82,20 +90,13 @@ pub struct CreateStaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub to_time: Option<Option<String>>,
-    /// Admin-only. Omitted on `/staff/me/_*`, where it is always the caller.
-    #[serde(
-        rename = "user_id",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub user_id: Option<Option<uuid::Uuid>>,
 }
 
 impl CreateStaffRequest {
     pub fn new(kind: String, on_date: chrono::NaiveDate) -> CreateStaffRequest {
         CreateStaffRequest {
             attendance_record_id: None,
+            employee_id: None,
             end_date: None,
             from_time: None,
             is_half_day: None,
@@ -106,7 +107,6 @@ impl CreateStaffRequest {
             reason: None,
             title: None,
             to_time: None,
-            user_id: None,
         }
     }
 }

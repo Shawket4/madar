@@ -63,7 +63,10 @@
   "can_manage": true,
   "can_payroll": false,
   "caps": [
-    "hr.schedule.publish"
+    "hr.attendance.read",
+    "hr.schedule.publish",
+    "hr.schedule.read",
+    "hr.staff.read"
   ],
   "charge_phone": false,
   "coverable": [],
@@ -83,7 +86,7 @@
       "via": "cash"
     }
   ],
-  "fetched_at": 1790154041764,
+  "fetched_at": 1790166041071,
   "flags": [
     {
       "at": "2026-09-23T17:10:00+03:00",

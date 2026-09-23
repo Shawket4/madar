@@ -12,13 +12,13 @@ Name | Type | Description | Notes
 **breakdown** | Option<**serde_json::Value**> | Line-by-line, so a preview can name each deduction rather than showing a lump sum nobody can argue with. | 
 **carry_out_piastres** | **i64** | Deductions beyond what was earned: the payslip stops at zero and this carries into the next one as a debt (PAY-12). | 
 **deductions_piastres** | **i64** |  | 
+**employee_id** | **uuid::Uuid** |  | 
 **late_minutes** | **i64** |  | 
 **leave_days** | **f64** |  | 
 **name** | **String** |  | 
 **net_piastres** | **i64** |  | 
 **overtime_minutes** | **i64** |  | 
 **overtime_piastres** | **i64** |  | 
-**user_id** | **uuid::Uuid** |  | 
 **worked_days** | **f64** |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

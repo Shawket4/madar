@@ -313,6 +313,7 @@ docs/LegacyTill.md
 docs/LiabilityTrend.md
 docs/LiabilityTrendPoint.md
 docs/LimitsView.md
+docs/LinkableUser.md
 docs/LintIssue.md
 docs/LintSeverity.md
 docs/LoginRequest.md
@@ -399,6 +400,7 @@ docs/Org.md
 docs/OrgComparisonReport.md
 docs/OrgIngredient.md
 docs/OrgInventorySettings.md
+docs/OrgModules.md
 docs/OrgPaymentMethod.md
 docs/OrgTemplate.md
 docs/OrgsApi.md
@@ -642,6 +644,7 @@ docs/StaffPoolSettings.md
 docs/StaffPoolToday.md
 docs/StaffRequest.md
 docs/StaffSession.md
+docs/StaffTokenRefresh.md
 docs/StationRoutes.md
 docs/StatusInput.md
 docs/StockMovement.md
@@ -1110,6 +1113,7 @@ src/models/legacy_till.rs
 src/models/liability_trend.rs
 src/models/liability_trend_point.rs
 src/models/limits_view.rs
+src/models/linkable_user.rs
 src/models/lint_issue.rs
 src/models/lint_severity.rs
 src/models/login_request.rs
@@ -1190,6 +1194,7 @@ src/models/org.rs
 src/models/org_comparison_report.rs
 src/models/org_ingredient.rs
 src/models/org_inventory_settings.rs
+src/models/org_modules.rs
 src/models/org_payment_method.rs
 src/models/org_template.rs
 src/models/otp_request_input.rs
@@ -1418,6 +1423,7 @@ src/models/staff_pool_settings.rs
 src/models/staff_pool_today.rs
 src/models/staff_request.rs
 src/models/staff_session.rs
+src/models/staff_token_refresh.rs
 src/models/station_routes.rs
 src/models/status_input.rs
 src/models/stock_movement.rs

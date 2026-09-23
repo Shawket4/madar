@@ -25,6 +25,13 @@ pub struct StaffOtpVerifyParams {
     pub staff_otp_verify: models::StaffOtpVerify,
 }
 
+/// struct for passing parameters to the method [`staff_token_refresh`]
+#[derive(Clone, Debug)]
+pub struct StaffTokenRefreshParams {
+    /// The device token from sign-in
+    pub x_staff_device: String,
+}
+
 /// struct for typed errors of method [`staff_otp_request`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -42,6 +49,19 @@ pub enum StaffOtpRequestError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum StaffOtpVerifyError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`staff_token_refresh`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum StaffTokenRefreshError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -129,6 +149,49 @@ pub async fn staff_otp_verify(
     } else {
         let content = resp.text().await?;
         let entity: Option<StaffOtpVerifyError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn staff_token_refresh(
+    configuration: &configuration::Configuration,
+    params: StaffTokenRefreshParams,
+) -> Result<models::StaffTokenRefresh, Error<StaffTokenRefreshError>> {
+    let uri_str = format!("{}/auth/staff/refresh", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    req_builder = req_builder.header("X-Staff-Device", params.x_staff_device.to_string());
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::StaffTokenRefresh`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::StaffTokenRefresh`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<StaffTokenRefreshError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

@@ -409,7 +409,7 @@ pub use madar_core::till_dawam::{BranchPersonView, TillPunchView};
 /// Someone at this branch, for the expense-advance picker.
 #[frb(mirror(BranchPersonView))]
 pub struct _BranchPersonView {
-    pub user_id: String,
+    pub employee_id: String,
     pub name: String,
 }
 

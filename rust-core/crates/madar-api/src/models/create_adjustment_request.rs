@@ -23,6 +23,8 @@ pub struct CreateAdjustmentRequest {
     pub amount_piastres: Option<Option<i64>>,
     #[serde(rename = "effective_date")]
     pub effective_date: chrono::NaiveDate,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     #[serde(
         rename = "percent_of_base",
         default,
@@ -32,22 +34,20 @@ pub struct CreateAdjustmentRequest {
     pub percent_of_base: Option<Option<f64>>,
     #[serde(rename = "reason")]
     pub reason: String,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
 }
 
 impl CreateAdjustmentRequest {
     pub fn new(
         effective_date: chrono::NaiveDate,
+        employee_id: uuid::Uuid,
         reason: String,
-        user_id: uuid::Uuid,
     ) -> CreateAdjustmentRequest {
         CreateAdjustmentRequest {
             amount_piastres: None,
             effective_date,
+            employee_id,
             percent_of_base: None,
             reason,
-            user_id,
         }
     }
 }

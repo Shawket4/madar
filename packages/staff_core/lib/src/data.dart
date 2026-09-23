@@ -976,7 +976,7 @@ class DawamStore extends ChangeNotifier {
           ),
       ];
     }
-    pendingUser = v['user_id'] as String?;
+    pendingUser = v['employee_id'] as String?;
     return null;
   }
 

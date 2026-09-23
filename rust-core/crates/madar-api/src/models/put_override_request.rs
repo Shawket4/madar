@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PutOverrideRequest {
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     #[serde(rename = "on_date")]
     pub on_date: chrono::NaiveDate,
     #[serde(
@@ -22,8 +24,6 @@ pub struct PutOverrideRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub reason: Option<Option<String>>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
     /// Omit (or send null) to mark the date an explicit day off.
     #[serde(
         rename = "work_shift_id",
@@ -35,11 +35,11 @@ pub struct PutOverrideRequest {
 }
 
 impl PutOverrideRequest {
-    pub fn new(on_date: chrono::NaiveDate, user_id: uuid::Uuid) -> PutOverrideRequest {
+    pub fn new(employee_id: uuid::Uuid, on_date: chrono::NaiveDate) -> PutOverrideRequest {
         PutOverrideRequest {
+            employee_id,
             on_date,
             reason: None,
-            user_id,
             work_shift_id: None,
         }
     }

@@ -15,6 +15,14 @@ use serde::{Deserialize, Serialize};
 pub struct CreateAdvanceRequest {
     #[serde(rename = "amount_piastres")]
     pub amount_piastres: i64,
+    /// Admin-only; omitted on `/staff/me/_*`.
+    #[serde(
+        rename = "employee_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub employee_id: Option<Option<uuid::Uuid>>,
     /// Defaults to 1 — repaid in full from the next payslip.
     #[serde(
         rename = "installments",
@@ -30,23 +38,15 @@ pub struct CreateAdvanceRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub reason: Option<Option<String>>,
-    /// Admin-only; omitted on `/staff/me/_*`.
-    #[serde(
-        rename = "user_id",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub user_id: Option<Option<uuid::Uuid>>,
 }
 
 impl CreateAdvanceRequest {
     pub fn new(amount_piastres: i64) -> CreateAdvanceRequest {
         CreateAdvanceRequest {
             amount_piastres,
+            employee_id: None,
             installments: None,
             reason: None,
-            user_id: None,
         }
     }
 }

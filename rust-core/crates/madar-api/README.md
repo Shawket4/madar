@@ -326,6 +326,7 @@ Class | Method | HTTP request | Description
 *OrgsApi* | [**delete_org**](docs/OrgsApi.md#delete_org) | **DELETE** /orgs/{id} | 
 *OrgsApi* | [**get_onboarding**](docs/OrgsApi.md#get_onboarding) | **GET** /orgs/{id}/onboarding | 
 *OrgsApi* | [**get_org**](docs/OrgsApi.md#get_org) | **GET** /orgs/{id} | 
+*OrgsApi* | [**get_org_modules**](docs/OrgsApi.md#get_org_modules) | **GET** /orgs/{id}/modules | The org's modules, for anyone who works there: the dashboard routes by the server's answer (PS-3), and a branch manager cannot read the org itself (`orgs:read` is the owner's). Switching them is `PATCH /orgs/{id}`, a super admin's alone (SA-1).
 *OrgsApi* | [**list_orgs**](docs/OrgsApi.md#list_orgs) | **GET** /orgs | 
 *OrgsApi* | [**list_templates**](docs/OrgsApi.md#list_templates) | **GET** /orgs/templates | 
 *OrgsApi* | [**offline_auth_bundle**](docs/OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
@@ -460,7 +461,7 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**answer_swap**](docs/StaffApi.md#answer_swap) | **PATCH** /staff/me/swaps/{id} | The colleague agrees or declines.
 *StaffApi* | [**ask_swap**](docs/StaffApi.md#ask_swap) | **POST** /staff/me/swaps | Ask a colleague to swap: they agree first, then the manager (SC-8).
 *StaffApi* | [**attendance_summary**](docs/StaffApi.md#attendance_summary) | **GET** /staff/attendance/summary | 
-*StaffApi* | [**branch_people**](docs/StaffApi.md#branch_people) | **GET** /staff/branches/{branch_id}/people | Active staff at a branch, names only: what a till shows to tag a pay-out as someone's expense advance (AV-8). Anyone who works the branch may read it; nothing about pay is in it.
+*StaffApi* | [**branch_people**](docs/StaffApi.md#branch_people) | **GET** /staff/branches/{branch_id}/people | Active employees at a branch, names only: what a till shows to tag a pay-out as someone's expense advance (AV-8). Anyone who works the branch may read it; nothing about pay is in it.
 *StaffApi* | [**check_in**](docs/StaffApi.md#check_in) | **POST** /staff/me/check-in | 
 *StaffApi* | [**check_out**](docs/StaffApi.md#check_out) | **POST** /staff/me/check-out | 
 *StaffApi* | [**claim_open_shift**](docs/StaffApi.md#claim_open_shift) | **POST** /staff/open-shifts/{id}/claim | Claim an open shift; the manager approves the claim (SC-9).
@@ -471,8 +472,8 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**create_bonus**](docs/StaffApi.md#create_bonus) | **POST** /staff/payroll/bonuses | 
 *StaffApi* | [**create_deduction**](docs/StaffApi.md#create_deduction) | **POST** /staff/payroll/deductions | 
 *StaffApi* | [**create_department**](docs/StaffApi.md#create_department) | **POST** /staff/departments | 
-*StaffApi* | [**create_document**](docs/StaffApi.md#create_document) | **POST** /staff/employees/{user_id}/documents | 
-*StaffApi* | [**create_employee**](docs/StaffApi.md#create_employee) | **POST** /staff/employees | Add a Dawam employee: a user who signs in with a WhatsApp code, so no password or till PIN (a manager can give them a PIN later to work a till). Used by the Add Employee form and the spreadsheet import (DSH-7).
+*StaffApi* | [**create_document**](docs/StaffApi.md#create_document) | **POST** /staff/employees/{employee_id}/documents | 
+*StaffApi* | [**create_employee**](docs/StaffApi.md#create_employee) | **POST** /staff/employees | Add an employee: linked to an existing user, or without one (with or without the staff app). Used by the Employees page, the set-up wizard and the spreadsheet import (DSH-7). Never creates a login.
 *StaffApi* | [**create_leave_type**](docs/StaffApi.md#create_leave_type) | **POST** /staff/leave/types | 
 *StaffApi* | [**create_manual_record**](docs/StaffApi.md#create_manual_record) | **POST** /staff/attendance | 
 *StaffApi* | [**create_my_advance**](docs/StaffApi.md#create_my_advance) | **POST** /staff/me/advances | 
@@ -495,7 +496,7 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**delete_deduction**](docs/StaffApi.md#delete_deduction) | **DELETE** /staff/payroll/deductions/{id} | 
 *StaffApi* | [**delete_department**](docs/StaffApi.md#delete_department) | **DELETE** /staff/departments/{id} | 
 *StaffApi* | [**delete_document**](docs/StaffApi.md#delete_document) | **DELETE** /staff/documents/{id} | 
-*StaffApi* | [**delete_employee**](docs/StaffApi.md#delete_employee) | **DELETE** /staff/employees/{user_id} | 
+*StaffApi* | [**delete_employee**](docs/StaffApi.md#delete_employee) | **DELETE** /staff/employees/{employee_id} | 
 *StaffApi* | [**delete_leave_type**](docs/StaffApi.md#delete_leave_type) | **DELETE** /staff/leave/types/{id} | 
 *StaffApi* | [**delete_override**](docs/StaffApi.md#delete_override) | **DELETE** /staff/schedules/overrides/{id} | 
 *StaffApi* | [**delete_period**](docs/StaffApi.md#delete_period) | **DELETE** /staff/payroll/periods/{id} | 
@@ -507,9 +508,10 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**generate_period**](docs/StaffApi.md#generate_period) | **POST** /staff/payroll/periods/{id}/generate | 
 *StaffApi* | [**get_attendance_settings**](docs/StaffApi.md#get_attendance_settings) | **GET** /staff/attendance/settings | 
 *StaffApi* | [**get_coverage**](docs/StaffApi.md#get_coverage) | **GET** /staff/roster/coverage | 
-*StaffApi* | [**get_employee**](docs/StaffApi.md#get_employee) | **GET** /staff/employees/{user_id} | 
+*StaffApi* | [**get_employee**](docs/StaffApi.md#get_employee) | **GET** /staff/employees/{employee_id} | 
 *StaffApi* | [**get_scheduled_day**](docs/StaffApi.md#get_scheduled_day) | **GET** /staff/schedules/day | 
 *StaffApi* | [**labour_vs_sales**](docs/StaffApi.md#labour_vs_sales) | **GET** /staff/reports/labour-vs-sales | Labour cost vs sales, per branch and day. Only when POS is on (DSH-4).
+*StaffApi* | [**linkable_users**](docs/StaffApi.md#linkable_users) | **GET** /staff/employees/linkable | The org's users who are not employees yet: the \"make this user an employee\" picker.
 *StaffApi* | [**list_adjustments**](docs/StaffApi.md#list_adjustments) | **GET** /staff/adjustments | 
 *StaffApi* | [**list_advances**](docs/StaffApi.md#list_advances) | **GET** /staff/payroll/advances | 
 *StaffApi* | [**list_assignments**](docs/StaffApi.md#list_assignments) | **GET** /staff/schedules | 
@@ -519,7 +521,7 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**list_bonuses**](docs/StaffApi.md#list_bonuses) | **GET** /staff/payroll/bonuses | 
 *StaffApi* | [**list_deductions**](docs/StaffApi.md#list_deductions) | **GET** /staff/payroll/deductions | 
 *StaffApi* | [**list_departments**](docs/StaffApi.md#list_departments) | **GET** /staff/departments | 
-*StaffApi* | [**list_documents**](docs/StaffApi.md#list_documents) | **GET** /staff/employees/{user_id}/documents | 
+*StaffApi* | [**list_documents**](docs/StaffApi.md#list_documents) | **GET** /staff/employees/{employee_id}/documents | 
 *StaffApi* | [**list_employees**](docs/StaffApi.md#list_employees) | **GET** /staff/employees | 
 *StaffApi* | [**list_expense_advances**](docs/StaffApi.md#list_expense_advances) | **GET** /staff/expense-advances | 
 *StaffApi* | [**list_leave_types**](docs/StaffApi.md#list_leave_types) | **GET** /staff/leave/types | 
@@ -530,7 +532,7 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**list_swaps**](docs/StaffApi.md#list_swaps) | **GET** /staff/swaps | 
 *StaffApi* | [**list_work_shifts**](docs/StaffApi.md#list_work_shifts) | **GET** /staff/work-shifts | 
 *StaffApi* | [**log_expense_advance**](docs/StaffApi.md#log_expense_advance) | **POST** /staff/expense-advances | 
-*StaffApi* | [**mark_paid**](docs/StaffApi.md#mark_paid) | **PATCH** /staff/payroll/periods/{id}/payslips/{user_id}/paid | Mark one payslip paid; the period is paid once everyone is (PAY-7).
+*StaffApi* | [**mark_paid**](docs/StaffApi.md#mark_paid) | **PATCH** /staff/payroll/periods/{id}/payslips/{employee_id}/paid | Mark one payslip paid; the period is paid once everyone is (PAY-7).
 *StaffApi* | [**my_adjustments**](docs/StaffApi.md#my_adjustments) | **GET** /staff/me/adjustments | 
 *StaffApi* | [**my_advances**](docs/StaffApi.md#my_advances) | **GET** /staff/me/advances | 
 *StaffApi* | [**my_attendance**](docs/StaffApi.md#my_attendance) | **GET** /staff/me/attendance | 
@@ -556,16 +558,16 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**put_attendance_settings**](docs/StaffApi.md#put_attendance_settings) | **PUT** /staff/attendance/settings | 
 *StaffApi* | [**put_balance**](docs/StaffApi.md#put_balance) | **PUT** /staff/leave/balances | 
 *StaffApi* | [**put_coverage**](docs/StaffApi.md#put_coverage) | **PUT** /staff/roster/coverage | 
-*StaffApi* | [**put_employee**](docs/StaffApi.md#put_employee) | **PUT** /staff/employees/{user_id} | 
+*StaffApi* | [**put_employee**](docs/StaffApi.md#put_employee) | **PUT** /staff/employees/{employee_id} | 
 *StaffApi* | [**put_override**](docs/StaffApi.md#put_override) | **PUT** /staff/schedules/overrides | 
 *StaffApi* | [**put_preferences**](docs/StaffApi.md#put_preferences) | **PUT** /staff/me/preferences | Preferred times and days I can't work; managers see them (SC-12).
 *StaffApi* | [**read_notifications**](docs/StaffApi.md#read_notifications) | **POST** /staff/me/notifications/read | 
 *StaffApi* | [**resolve_flag**](docs/StaffApi.md#resolve_flag) | **PATCH** /staff/flags/{id} | Handle a flag. Nothing is ever charged automatically (CL-6).
 *StaffApi* | [**review_advance**](docs/StaffApi.md#review_advance) | **PATCH** /staff/advances/{id}/review | Decide an advance within the cap: the approver's limit is a % of the employee's salary (AV-4, AV-5).
-*StaffApi* | [**revoke_device**](docs/StaffApi.md#revoke_device) | **DELETE** /staff/employees/{user_id}/device | Sign a person's phone out now (RO-4).
+*StaffApi* | [**revoke_device**](docs/StaffApi.md#revoke_device) | **DELETE** /staff/employees/{employee_id}/device | Sign a person's phone out now (RO-4): the device, every staff token minted for it, and its pushes.
 *StaffApi* | [**roster**](docs/StaffApi.md#roster) | **GET** /staff/roster | The manager's roster for one branch (SC-7, RO-6).
 *StaffApi* | [**set_period_status**](docs/StaffApi.md#set_period_status) | **PATCH** /staff/payroll/periods/{id}/status | 
-*StaffApi* | [**set_staff_push_token**](docs/StaffApi.md#set_staff_push_token) | **PUT** /staff/me/push-token | `PUT /staff/me/push-token` — kept for old app builds; registers through the same `push_devices` table as `PUT /push/token` (app = `\"dawam\"`).
+*StaffApi* | [**set_staff_push_token**](docs/StaffApi.md#set_staff_push_token) | **PUT** /staff/me/push-token | `PUT /staff/me/push-token` — the staff app registers its phone for the employee through the same `push_devices` table as `PUT /push/token` (app = `\"dawam\"`).
 *StaffApi* | [**stop_adjustment**](docs/StaffApi.md#stop_adjustment) | **POST** /staff/adjustments/{kind}/{id}/stop | Stop a monthly line from the next period on; past payslips keep it (AD-3).
 *StaffApi* | [**suggestions**](docs/StaffApi.md#suggestions) | **GET** /staff/roster/suggestions | 
 *StaffApi* | [**team_presence**](docs/StaffApi.md#team_presence) | **GET** /staff/team/presence | Who is in, late, absent or on leave right now.
@@ -576,6 +578,7 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**waive_deduction**](docs/StaffApi.md#waive_deduction) | **PATCH** /staff/payroll/deductions/{id}/waive | 
 *StaffAuthApi* | [**staff_otp_request**](docs/StaffAuthApi.md#staff_otp_request) | **POST** /auth/staff/otp/request | 
 *StaffAuthApi* | [**staff_otp_verify**](docs/StaffAuthApi.md#staff_otp_verify) | **POST** /auth/staff/otp/verify | 
+*StaffAuthApi* | [**staff_token_refresh**](docs/StaffAuthApi.md#staff_token_refresh) | **POST** /auth/staff/refresh | A fresh staff token for the phone that sends its device token in `X-Staff-Device` (RO-3). The device is the refresh credential: once it is revoked (a new phone, a new number, the employee deactivated) this answers 401 `DEVICE_REVOKED` and the app signs out. The same checks as every `/staff/_*` call: the employee is active with app access, the business is active and has Dawam on.
 *StaffPoolApi* | [**delete_staff_pool_settings**](docs/StaffPoolApi.md#delete_staff_pool_settings) | **DELETE** /staff-pool/settings | 
 *StaffPoolApi* | [**get_staff_pool_settings**](docs/StaffPoolApi.md#get_staff_pool_settings) | **GET** /staff-pool/settings | 
 *StaffPoolApi* | [**get_staff_pool_today**](docs/StaffPoolApi.md#get_staff_pool_today) | **GET** /staff-pool/today | 
@@ -917,6 +920,7 @@ Class | Method | HTTP request | Description
  - [LiabilityTrend](docs/LiabilityTrend.md)
  - [LiabilityTrendPoint](docs/LiabilityTrendPoint.md)
  - [LimitsView](docs/LimitsView.md)
+ - [LinkableUser](docs/LinkableUser.md)
  - [LintIssue](docs/LintIssue.md)
  - [LintSeverity](docs/LintSeverity.md)
  - [LoginRequest](docs/LoginRequest.md)
@@ -996,6 +1000,7 @@ Class | Method | HTTP request | Description
  - [OrgComparisonReport](docs/OrgComparisonReport.md)
  - [OrgIngredient](docs/OrgIngredient.md)
  - [OrgInventorySettings](docs/OrgInventorySettings.md)
+ - [OrgModules](docs/OrgModules.md)
  - [OrgPaymentMethod](docs/OrgPaymentMethod.md)
  - [OrgTemplate](docs/OrgTemplate.md)
  - [OtpRequestInput](docs/OtpRequestInput.md)
@@ -1224,6 +1229,7 @@ Class | Method | HTTP request | Description
  - [StaffPoolToday](docs/StaffPoolToday.md)
  - [StaffRequest](docs/StaffRequest.md)
  - [StaffSession](docs/StaffSession.md)
+ - [StaffTokenRefresh](docs/StaffTokenRefresh.md)
  - [StationRoutes](docs/StationRoutes.md)
  - [StatusInput](docs/StatusInput.md)
  - [StockMovement](docs/StockMovement.md)

@@ -31,6 +31,8 @@ pub struct ManualRecordRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub check_out_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     #[serde(
         rename = "notes",
         default,
@@ -49,8 +51,6 @@ pub struct ManualRecordRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub status: Option<Option<String>>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
     #[serde(
         rename = "work_shift_id",
         default,
@@ -64,18 +64,18 @@ impl ManualRecordRequest {
     pub fn new(
         branch_id: uuid::Uuid,
         business_date: chrono::NaiveDate,
+        employee_id: uuid::Uuid,
         reason: String,
-        user_id: uuid::Uuid,
     ) -> ManualRecordRequest {
         ManualRecordRequest {
             branch_id,
             business_date,
             check_in_at: None,
             check_out_at: None,
+            employee_id,
             notes: None,
             reason,
             status: None,
-            user_id,
             work_shift_id: None,
         }
     }

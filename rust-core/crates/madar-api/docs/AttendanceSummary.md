@@ -5,6 +5,8 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **absent_days** | **i64** |  | 
+**employee_id** | **uuid::Uuid** |  | 
+**employee_name** | **String** |  | 
 **half_days** | **i64** |  | 
 **late_days** | **i64** |  | 
 **leave_days** | **i64** |  | 
@@ -12,8 +14,6 @@ Name | Type | Description | Notes
 **total_late_minutes** | **i64** |  | 
 **total_overtime_minutes** | **i64** |  | 
 **total_worked_minutes** | **i64** |  | 
-**user_id** | **uuid::Uuid** |  | 
-**user_name** | **String** |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

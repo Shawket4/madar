@@ -17,16 +17,16 @@ pub struct CoverableShift {
     pub branch_id: uuid::Uuid,
     #[serde(rename = "business_date")]
     pub business_date: chrono::NaiveDate,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(rename = "employee_name")]
+    pub employee_name: String,
     #[serde(rename = "scheduled_end_at")]
     pub scheduled_end_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "scheduled_start_at")]
     pub scheduled_start_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "shift_name")]
     pub shift_name: String,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
-    #[serde(rename = "user_name")]
-    pub user_name: String,
     #[serde(rename = "work_shift_id")]
     pub work_shift_id: uuid::Uuid,
 }
@@ -35,21 +35,21 @@ impl CoverableShift {
     pub fn new(
         branch_id: uuid::Uuid,
         business_date: chrono::NaiveDate,
+        employee_id: uuid::Uuid,
+        employee_name: String,
         scheduled_end_at: chrono::DateTime<chrono::FixedOffset>,
         scheduled_start_at: chrono::DateTime<chrono::FixedOffset>,
         shift_name: String,
-        user_id: uuid::Uuid,
-        user_name: String,
         work_shift_id: uuid::Uuid,
     ) -> CoverableShift {
         CoverableShift {
             branch_id,
             business_date,
+            employee_id,
+            employee_name,
             scheduled_end_at,
             scheduled_start_at,
             shift_name,
-            user_id,
-            user_name,
             work_shift_id,
         }
     }

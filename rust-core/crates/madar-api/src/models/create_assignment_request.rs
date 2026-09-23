@@ -35,19 +35,19 @@ pub struct CreateAssignmentRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub effective_to: Option<Option<chrono::NaiveDate>>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     #[serde(rename = "work_shift_id")]
     pub work_shift_id: uuid::Uuid,
 }
 
 impl CreateAssignmentRequest {
-    pub fn new(user_id: uuid::Uuid, work_shift_id: uuid::Uuid) -> CreateAssignmentRequest {
+    pub fn new(employee_id: uuid::Uuid, work_shift_id: uuid::Uuid) -> CreateAssignmentRequest {
         CreateAssignmentRequest {
             day_of_week: None,
             effective_from: None,
             effective_to: None,
-            user_id,
+            employee_id,
             work_shift_id,
         }
     }

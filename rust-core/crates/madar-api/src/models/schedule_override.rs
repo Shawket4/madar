@@ -22,6 +22,8 @@ pub struct ScheduleOverride {
         skip_serializing_if = "Option::is_none"
     )]
     pub created_by: Option<Option<uuid::Uuid>>,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(rename = "on_date")]
@@ -35,8 +37,6 @@ pub struct ScheduleOverride {
         skip_serializing_if = "Option::is_none"
     )]
     pub reason: Option<Option<String>>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
     /// `None` = an explicit day off.
     #[serde(
         rename = "work_shift_id",
@@ -57,19 +57,19 @@ pub struct ScheduleOverride {
 impl ScheduleOverride {
     pub fn new(
         created_at: chrono::DateTime<chrono::FixedOffset>,
+        employee_id: uuid::Uuid,
         id: uuid::Uuid,
         on_date: chrono::NaiveDate,
         org_id: uuid::Uuid,
-        user_id: uuid::Uuid,
     ) -> ScheduleOverride {
         ScheduleOverride {
             created_at,
             created_by: None,
+            employee_id,
             id,
             on_date,
             org_id,
             reason: None,
-            user_id,
             work_shift_id: None,
             work_shift_name: None,
         }

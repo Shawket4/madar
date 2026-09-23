@@ -44,6 +44,15 @@ pub struct StaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub decision_note: Option<Option<String>>,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(
+        rename = "employee_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub employee_name: Option<Option<String>>,
     /// Set for `leave` and `mission`; the span's last day.
     #[serde(
         rename = "end_date",
@@ -126,20 +135,12 @@ pub struct StaffRequest {
     pub to_time: Option<Option<String>>,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
-    #[serde(
-        rename = "user_name",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub user_name: Option<Option<String>>,
 }
 
 impl StaffRequest {
     pub fn new(
         created_at: chrono::DateTime<chrono::FixedOffset>,
+        employee_id: uuid::Uuid,
         id: uuid::Uuid,
         is_half_day: bool,
         kind: String,
@@ -147,7 +148,6 @@ impl StaffRequest {
         org_id: uuid::Uuid,
         status: String,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
-        user_id: uuid::Uuid,
     ) -> StaffRequest {
         StaffRequest {
             attendance_record_id: None,
@@ -155,6 +155,8 @@ impl StaffRequest {
             decided_at: None,
             decided_by: None,
             decision_note: None,
+            employee_id,
+            employee_name: None,
             end_date: None,
             from_time: None,
             id,
@@ -171,8 +173,6 @@ impl StaffRequest {
             title: None,
             to_time: None,
             updated_at,
-            user_id,
-            user_name: None,
         }
     }
 }

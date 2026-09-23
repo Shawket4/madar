@@ -31,6 +31,10 @@ pub struct Adjustment {
     pub created_by: Option<Option<uuid::Uuid>>,
     #[serde(rename = "effective_date")]
     pub effective_date: chrono::NaiveDate,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(rename = "employee_name")]
+    pub employee_name: String,
     #[serde(
         rename = "ends_on",
         default,
@@ -59,30 +63,28 @@ pub struct Adjustment {
     /// `pending` (waits for the owner) · `approved` · `rejected`
     #[serde(rename = "status")]
     pub status: String,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
-    #[serde(rename = "user_name")]
-    pub user_name: String,
 }
 
 impl Adjustment {
     pub fn new(
         created_at: chrono::DateTime<chrono::FixedOffset>,
         effective_date: chrono::NaiveDate,
+        employee_id: uuid::Uuid,
+        employee_name: String,
         id: uuid::Uuid,
         kind: String,
         reason: String,
         recurring: bool,
         source: String,
         status: String,
-        user_id: uuid::Uuid,
-        user_name: String,
     ) -> Adjustment {
         Adjustment {
             amount_piastres: None,
             created_at,
             created_by: None,
             effective_date,
+            employee_id,
+            employee_name,
             ends_on: None,
             id,
             kind,
@@ -91,8 +93,6 @@ impl Adjustment {
             recurring,
             source,
             status,
-            user_id,
-            user_name,
         }
     }
 }

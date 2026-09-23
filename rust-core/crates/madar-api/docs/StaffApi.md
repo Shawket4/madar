@@ -8,7 +8,7 @@ Method | HTTP request | Description
 [**answer_swap**](StaffApi.md#answer_swap) | **PATCH** /staff/me/swaps/{id} | The colleague agrees or declines.
 [**ask_swap**](StaffApi.md#ask_swap) | **POST** /staff/me/swaps | Ask a colleague to swap: they agree first, then the manager (SC-8).
 [**attendance_summary**](StaffApi.md#attendance_summary) | **GET** /staff/attendance/summary | 
-[**branch_people**](StaffApi.md#branch_people) | **GET** /staff/branches/{branch_id}/people | Active staff at a branch, names only: what a till shows to tag a pay-out as someone's expense advance (AV-8). Anyone who works the branch may read it; nothing about pay is in it.
+[**branch_people**](StaffApi.md#branch_people) | **GET** /staff/branches/{branch_id}/people | Active employees at a branch, names only: what a till shows to tag a pay-out as someone's expense advance (AV-8). Anyone who works the branch may read it; nothing about pay is in it.
 [**check_in**](StaffApi.md#check_in) | **POST** /staff/me/check-in | 
 [**check_out**](StaffApi.md#check_out) | **POST** /staff/me/check-out | 
 [**claim_open_shift**](StaffApi.md#claim_open_shift) | **POST** /staff/open-shifts/{id}/claim | Claim an open shift; the manager approves the claim (SC-9).
@@ -19,8 +19,8 @@ Method | HTTP request | Description
 [**create_bonus**](StaffApi.md#create_bonus) | **POST** /staff/payroll/bonuses | 
 [**create_deduction**](StaffApi.md#create_deduction) | **POST** /staff/payroll/deductions | 
 [**create_department**](StaffApi.md#create_department) | **POST** /staff/departments | 
-[**create_document**](StaffApi.md#create_document) | **POST** /staff/employees/{user_id}/documents | 
-[**create_employee**](StaffApi.md#create_employee) | **POST** /staff/employees | Add a Dawam employee: a user who signs in with a WhatsApp code, so no password or till PIN (a manager can give them a PIN later to work a till). Used by the Add Employee form and the spreadsheet import (DSH-7).
+[**create_document**](StaffApi.md#create_document) | **POST** /staff/employees/{employee_id}/documents | 
+[**create_employee**](StaffApi.md#create_employee) | **POST** /staff/employees | Add an employee: linked to an existing user, or without one (with or without the staff app). Used by the Employees page, the set-up wizard and the spreadsheet import (DSH-7). Never creates a login.
 [**create_leave_type**](StaffApi.md#create_leave_type) | **POST** /staff/leave/types | 
 [**create_manual_record**](StaffApi.md#create_manual_record) | **POST** /staff/attendance | 
 [**create_my_advance**](StaffApi.md#create_my_advance) | **POST** /staff/me/advances | 
@@ -43,7 +43,7 @@ Method | HTTP request | Description
 [**delete_deduction**](StaffApi.md#delete_deduction) | **DELETE** /staff/payroll/deductions/{id} | 
 [**delete_department**](StaffApi.md#delete_department) | **DELETE** /staff/departments/{id} | 
 [**delete_document**](StaffApi.md#delete_document) | **DELETE** /staff/documents/{id} | 
-[**delete_employee**](StaffApi.md#delete_employee) | **DELETE** /staff/employees/{user_id} | 
+[**delete_employee**](StaffApi.md#delete_employee) | **DELETE** /staff/employees/{employee_id} | 
 [**delete_leave_type**](StaffApi.md#delete_leave_type) | **DELETE** /staff/leave/types/{id} | 
 [**delete_override**](StaffApi.md#delete_override) | **DELETE** /staff/schedules/overrides/{id} | 
 [**delete_period**](StaffApi.md#delete_period) | **DELETE** /staff/payroll/periods/{id} | 
@@ -55,9 +55,10 @@ Method | HTTP request | Description
 [**generate_period**](StaffApi.md#generate_period) | **POST** /staff/payroll/periods/{id}/generate | 
 [**get_attendance_settings**](StaffApi.md#get_attendance_settings) | **GET** /staff/attendance/settings | 
 [**get_coverage**](StaffApi.md#get_coverage) | **GET** /staff/roster/coverage | 
-[**get_employee**](StaffApi.md#get_employee) | **GET** /staff/employees/{user_id} | 
+[**get_employee**](StaffApi.md#get_employee) | **GET** /staff/employees/{employee_id} | 
 [**get_scheduled_day**](StaffApi.md#get_scheduled_day) | **GET** /staff/schedules/day | 
 [**labour_vs_sales**](StaffApi.md#labour_vs_sales) | **GET** /staff/reports/labour-vs-sales | Labour cost vs sales, per branch and day. Only when POS is on (DSH-4).
+[**linkable_users**](StaffApi.md#linkable_users) | **GET** /staff/employees/linkable | The org's users who are not employees yet: the \"make this user an employee\" picker.
 [**list_adjustments**](StaffApi.md#list_adjustments) | **GET** /staff/adjustments | 
 [**list_advances**](StaffApi.md#list_advances) | **GET** /staff/payroll/advances | 
 [**list_assignments**](StaffApi.md#list_assignments) | **GET** /staff/schedules | 
@@ -67,7 +68,7 @@ Method | HTTP request | Description
 [**list_bonuses**](StaffApi.md#list_bonuses) | **GET** /staff/payroll/bonuses | 
 [**list_deductions**](StaffApi.md#list_deductions) | **GET** /staff/payroll/deductions | 
 [**list_departments**](StaffApi.md#list_departments) | **GET** /staff/departments | 
-[**list_documents**](StaffApi.md#list_documents) | **GET** /staff/employees/{user_id}/documents | 
+[**list_documents**](StaffApi.md#list_documents) | **GET** /staff/employees/{employee_id}/documents | 
 [**list_employees**](StaffApi.md#list_employees) | **GET** /staff/employees | 
 [**list_expense_advances**](StaffApi.md#list_expense_advances) | **GET** /staff/expense-advances | 
 [**list_leave_types**](StaffApi.md#list_leave_types) | **GET** /staff/leave/types | 
@@ -78,7 +79,7 @@ Method | HTTP request | Description
 [**list_swaps**](StaffApi.md#list_swaps) | **GET** /staff/swaps | 
 [**list_work_shifts**](StaffApi.md#list_work_shifts) | **GET** /staff/work-shifts | 
 [**log_expense_advance**](StaffApi.md#log_expense_advance) | **POST** /staff/expense-advances | 
-[**mark_paid**](StaffApi.md#mark_paid) | **PATCH** /staff/payroll/periods/{id}/payslips/{user_id}/paid | Mark one payslip paid; the period is paid once everyone is (PAY-7).
+[**mark_paid**](StaffApi.md#mark_paid) | **PATCH** /staff/payroll/periods/{id}/payslips/{employee_id}/paid | Mark one payslip paid; the period is paid once everyone is (PAY-7).
 [**my_adjustments**](StaffApi.md#my_adjustments) | **GET** /staff/me/adjustments | 
 [**my_advances**](StaffApi.md#my_advances) | **GET** /staff/me/advances | 
 [**my_attendance**](StaffApi.md#my_attendance) | **GET** /staff/me/attendance | 
@@ -104,16 +105,16 @@ Method | HTTP request | Description
 [**put_attendance_settings**](StaffApi.md#put_attendance_settings) | **PUT** /staff/attendance/settings | 
 [**put_balance**](StaffApi.md#put_balance) | **PUT** /staff/leave/balances | 
 [**put_coverage**](StaffApi.md#put_coverage) | **PUT** /staff/roster/coverage | 
-[**put_employee**](StaffApi.md#put_employee) | **PUT** /staff/employees/{user_id} | 
+[**put_employee**](StaffApi.md#put_employee) | **PUT** /staff/employees/{employee_id} | 
 [**put_override**](StaffApi.md#put_override) | **PUT** /staff/schedules/overrides | 
 [**put_preferences**](StaffApi.md#put_preferences) | **PUT** /staff/me/preferences | Preferred times and days I can't work; managers see them (SC-12).
 [**read_notifications**](StaffApi.md#read_notifications) | **POST** /staff/me/notifications/read | 
 [**resolve_flag**](StaffApi.md#resolve_flag) | **PATCH** /staff/flags/{id} | Handle a flag. Nothing is ever charged automatically (CL-6).
 [**review_advance**](StaffApi.md#review_advance) | **PATCH** /staff/advances/{id}/review | Decide an advance within the cap: the approver's limit is a % of the employee's salary (AV-4, AV-5).
-[**revoke_device**](StaffApi.md#revoke_device) | **DELETE** /staff/employees/{user_id}/device | Sign a person's phone out now (RO-4).
+[**revoke_device**](StaffApi.md#revoke_device) | **DELETE** /staff/employees/{employee_id}/device | Sign a person's phone out now (RO-4): the device, every staff token minted for it, and its pushes.
 [**roster**](StaffApi.md#roster) | **GET** /staff/roster | The manager's roster for one branch (SC-7, RO-6).
 [**set_period_status**](StaffApi.md#set_period_status) | **PATCH** /staff/payroll/periods/{id}/status | 
-[**set_staff_push_token**](StaffApi.md#set_staff_push_token) | **PUT** /staff/me/push-token | `PUT /staff/me/push-token` — kept for old app builds; registers through the same `push_devices` table as `PUT /push/token` (app = `\"dawam\"`).
+[**set_staff_push_token**](StaffApi.md#set_staff_push_token) | **PUT** /staff/me/push-token | `PUT /staff/me/push-token` — the staff app registers its phone for the employee through the same `push_devices` table as `PUT /push/token` (app = `\"dawam\"`).
 [**stop_adjustment**](StaffApi.md#stop_adjustment) | **POST** /staff/adjustments/{kind}/{id}/stop | Stop a monthly line from the next period on; past payslips keep it (AD-3).
 [**suggestions**](StaffApi.md#suggestions) | **GET** /staff/roster/suggestions | 
 [**team_presence**](StaffApi.md#team_presence) | **GET** /staff/team/presence | Who is in, late, absent or on leave right now.
@@ -214,7 +215,7 @@ Name | Type | Description  | Required | Notes
 
 ## attendance_summary
 
-> Vec<models::AttendanceSummary> attendance_summary(from, to, branch_id, user_id, status)
+> Vec<models::AttendanceSummary> attendance_summary(from, to, branch_id, employee_id, status)
 
 
 ### Parameters
@@ -225,7 +226,7 @@ Name | Type | Description  | Required | Notes
 **from** | **chrono::NaiveDate** |  | [required] |
 **to** | **chrono::NaiveDate** |  | [required] |
 **branch_id** | Option<**uuid::Uuid**> |  |  |
-**user_id** | Option<**uuid::Uuid**> |  |  |
+**employee_id** | Option<**uuid::Uuid**> |  |  |
 **status** | Option<**String**> |  |  |
 
 ### Return type
@@ -247,7 +248,7 @@ Name | Type | Description  | Required | Notes
 ## branch_people
 
 > Vec<models::BranchPerson> branch_people(branch_id)
-Active staff at a branch, names only: what a till shows to tag a pay-out as someone's expense advance (AV-8). Anyone who works the branch may read it; nothing about pay is in it.
+Active employees at a branch, names only: what a till shows to tag a pay-out as someone's expense advance (AV-8). Anyone who works the branch may read it; nothing about pay is in it.
 
 ### Parameters
 
@@ -555,7 +556,7 @@ Name | Type | Description  | Required | Notes
 
 ## create_document
 
-> models::StaffDocument create_document(user_id, create_document_request)
+> models::StaffDocument create_document(employee_id, create_document_request)
 
 
 ### Parameters
@@ -563,7 +564,7 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | **uuid::Uuid** | The employee's user ID | [required] |
+**employee_id** | **uuid::Uuid** | The employee's id | [required] |
 **create_document_request** | [**CreateDocumentRequest**](CreateDocumentRequest.md) |  | [required] |
 
 ### Return type
@@ -585,7 +586,7 @@ Name | Type | Description  | Required | Notes
 ## create_employee
 
 > models::Employee create_employee(create_employee_request)
-Add a Dawam employee: a user who signs in with a WhatsApp code, so no password or till PIN (a manager can give them a PIN later to work a till). Used by the Add Employee form and the spreadsheet import (DSH-7).
+Add an employee: linked to an existing user, or without one (with or without the staff app). Used by the Employees page, the set-up wizard and the spreadsheet import (DSH-7). Never creates a login.
 
 ### Parameters
 
@@ -1234,7 +1235,7 @@ Name | Type | Description  | Required | Notes
 
 ## delete_employee
 
-> delete_employee(user_id)
+> delete_employee(employee_id)
 
 
 ### Parameters
@@ -1242,7 +1243,7 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | **uuid::Uuid** | The employee's user ID | [required] |
+**employee_id** | **uuid::Uuid** | The employee's id | [required] |
 
 ### Return type
 
@@ -1574,7 +1575,7 @@ Name | Type | Description  | Required | Notes
 
 ## get_employee
 
-> models::Employee get_employee(user_id)
+> models::Employee get_employee(employee_id)
 
 
 ### Parameters
@@ -1582,7 +1583,7 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | **uuid::Uuid** | The employee's user ID | [required] |
+**employee_id** | **uuid::Uuid** | The employee's id | [required] |
 
 ### Return type
 
@@ -1602,7 +1603,7 @@ Name | Type | Description  | Required | Notes
 
 ## get_scheduled_day
 
-> Vec<models::ResolvedShift> get_scheduled_day(user_id, date, branch_id)
+> Vec<models::ResolvedShift> get_scheduled_day(employee_id, date, branch_id)
 
 
 ### Parameters
@@ -1610,7 +1611,7 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | **uuid::Uuid** |  | [required] |
+**employee_id** | **uuid::Uuid** |  | [required] |
 **date** | **chrono::NaiveDate** |  | [required] |
 **branch_id** | Option<**uuid::Uuid**> | Which branch's timezone the day is measured in. Defaults to the employee's only branch assignment when they have exactly one. |  |
 
@@ -1660,9 +1661,34 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## linkable_users
+
+> Vec<models::LinkableUser> linkable_users()
+The org's users who are not employees yet: the \"make this user an employee\" picker.
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**Vec<models::LinkableUser>**](LinkableUser.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## list_adjustments
 
-> Vec<models::Adjustment> list_adjustments(user_id, status)
+> Vec<models::Adjustment> list_adjustments(employee_id, status)
 
 
 ### Parameters
@@ -1670,7 +1696,7 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | Option<**uuid::Uuid**> |  |  |
+**employee_id** | Option<**uuid::Uuid**> |  |  |
 **status** | Option<**String**> |  |  |
 
 ### Return type
@@ -1691,7 +1717,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_advances
 
-> Vec<models::SalaryAdvance> list_advances(user_id, from, to)
+> Vec<models::SalaryAdvance> list_advances(employee_id, from, to)
 
 
 ### Parameters
@@ -1699,7 +1725,7 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | Option<**uuid::Uuid**> |  |  |
+**employee_id** | Option<**uuid::Uuid**> |  |  |
 **from** | Option<**chrono::NaiveDate**> |  |  |
 **to** | Option<**chrono::NaiveDate**> |  |  |
 
@@ -1721,7 +1747,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_assignments
 
-> Vec<models::ScheduleAssignment> list_assignments(user_id)
+> Vec<models::ScheduleAssignment> list_assignments(employee_id)
 
 
 ### Parameters
@@ -1729,7 +1755,7 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | Option<**uuid::Uuid**> | Omit for the WHOLE org's roster — what a schedule grid needs, and the only way to draw one without a request per employee. |  |
+**employee_id** | Option<**uuid::Uuid**> | Omit for the WHOLE org's roster — what a schedule grid needs, and the only way to draw one without a request per employee. |  |
 
 ### Return type
 
@@ -1749,7 +1775,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_attendance
 
-> Vec<models::AttendanceRecord> list_attendance(from, to, branch_id, user_id, status)
+> Vec<models::AttendanceRecord> list_attendance(from, to, branch_id, employee_id, status)
 
 
 ### Parameters
@@ -1760,7 +1786,7 @@ Name | Type | Description  | Required | Notes
 **from** | **chrono::NaiveDate** |  | [required] |
 **to** | **chrono::NaiveDate** |  | [required] |
 **branch_id** | Option<**uuid::Uuid**> |  |  |
-**user_id** | Option<**uuid::Uuid**> |  |  |
+**employee_id** | Option<**uuid::Uuid**> |  |  |
 **status** | Option<**String**> |  |  |
 
 ### Return type
@@ -1810,7 +1836,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_balances
 
-> Vec<models::LeaveBalance> list_balances(user_id, year)
+> Vec<models::LeaveBalance> list_balances(employee_id, year)
 
 
 ### Parameters
@@ -1818,7 +1844,7 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | Option<**uuid::Uuid**> |  |  |
+**employee_id** | Option<**uuid::Uuid**> |  |  |
 **year** | Option<**i32**> | Defaults to the current calendar year. |  |
 
 ### Return type
@@ -1839,7 +1865,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_bonuses
 
-> Vec<models::PayrollAdjustment> list_bonuses(user_id, from, to)
+> Vec<models::PayrollAdjustment> list_bonuses(employee_id, from, to)
 
 
 ### Parameters
@@ -1847,7 +1873,7 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | Option<**uuid::Uuid**> |  |  |
+**employee_id** | Option<**uuid::Uuid**> |  |  |
 **from** | Option<**chrono::NaiveDate**> |  |  |
 **to** | Option<**chrono::NaiveDate**> |  |  |
 
@@ -1869,7 +1895,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_deductions
 
-> Vec<models::PayrollAdjustment> list_deductions(user_id, from, to)
+> Vec<models::PayrollAdjustment> list_deductions(employee_id, from, to)
 
 
 ### Parameters
@@ -1877,7 +1903,7 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | Option<**uuid::Uuid**> |  |  |
+**employee_id** | Option<**uuid::Uuid**> |  |  |
 **from** | Option<**chrono::NaiveDate**> |  |  |
 **to** | Option<**chrono::NaiveDate**> |  |  |
 
@@ -1924,7 +1950,7 @@ This endpoint does not need any parameter.
 
 ## list_documents
 
-> Vec<models::StaffDocument> list_documents(user_id)
+> Vec<models::StaffDocument> list_documents(employee_id)
 
 
 ### Parameters
@@ -1932,7 +1958,7 @@ This endpoint does not need any parameter.
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | **uuid::Uuid** | The employee's user ID | [required] |
+**employee_id** | **uuid::Uuid** | The employee's id | [required] |
 
 ### Return type
 
@@ -1952,7 +1978,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_employees
 
-> Vec<models::Employee> list_employees(department_id, employment_status, search)
+> Vec<models::Employee> list_employees(department_id, employment_status, search, branch_id, kind)
 
 
 ### Parameters
@@ -1963,6 +1989,8 @@ Name | Type | Description  | Required | Notes
 **department_id** | Option<**uuid::Uuid**> |  |  |
 **employment_status** | Option<**String**> | `active` | `suspended` | `terminated`. Omitted = every status. |  |
 **search** | Option<**String**> | Case-insensitive substring over name, employee code, and job title. |  |
+**branch_id** | Option<**uuid::Uuid**> | Only the people of this branch. |  |
+**kind** | Option<**String**> | `linked` · `app` · `manual`. |  |
 
 ### Return type
 
@@ -1982,7 +2010,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_expense_advances
 
-> Vec<models::ExpenseAdvance> list_expense_advances(user_id)
+> Vec<models::ExpenseAdvance> list_expense_advances(employee_id)
 
 
 ### Parameters
@@ -1990,7 +2018,7 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | Option<**uuid::Uuid**> |  |  |
+**employee_id** | Option<**uuid::Uuid**> |  |  |
 
 ### Return type
 
@@ -2117,7 +2145,7 @@ This endpoint does not need any parameter.
 
 ## list_requests
 
-> Vec<models::StaffRequest> list_requests(user_id, kind, status, from, to)
+> Vec<models::StaffRequest> list_requests(employee_id, kind, status, from, to)
 
 
 ### Parameters
@@ -2125,7 +2153,7 @@ This endpoint does not need any parameter.
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | Option<**uuid::Uuid**> |  |  |
+**employee_id** | Option<**uuid::Uuid**> |  |  |
 **kind** | Option<**String**> |  |  |
 **status** | Option<**String**> |  |  |
 **from** | Option<**chrono::NaiveDate**> |  |  |
@@ -2230,7 +2258,7 @@ Name | Type | Description  | Required | Notes
 
 ## mark_paid
 
-> models::Payslip mark_paid(id, user_id, mark_paid)
+> models::Payslip mark_paid(id, employee_id, mark_paid)
 Mark one payslip paid; the period is paid once everyone is (PAY-7).
 
 ### Parameters
@@ -2239,7 +2267,7 @@ Mark one payslip paid; the period is paid once everyone is (PAY-7).
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **id** | **uuid::Uuid** |  | [required] |
-**user_id** | **uuid::Uuid** |  | [required] |
+**employee_id** | **uuid::Uuid** |  | [required] |
 **mark_paid** | [**MarkPaid**](MarkPaid.md) |  | [required] |
 
 ### Return type
@@ -2439,7 +2467,7 @@ This endpoint does not need any parameter.
 
 ## my_leave_balances
 
-> Vec<models::LeaveBalance> my_leave_balances(user_id, year)
+> Vec<models::LeaveBalance> my_leave_balances(employee_id, year)
 
 
 ### Parameters
@@ -2447,7 +2475,7 @@ This endpoint does not need any parameter.
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | Option<**uuid::Uuid**> |  |  |
+**employee_id** | Option<**uuid::Uuid**> |  |  |
 **year** | Option<**i32**> | Defaults to the current calendar year. |  |
 
 ### Return type
@@ -2939,7 +2967,7 @@ Name | Type | Description  | Required | Notes
 
 ## put_employee
 
-> models::Employee put_employee(user_id, put_employee_request)
+> models::Employee put_employee(employee_id, put_employee_request)
 
 
 ### Parameters
@@ -2947,7 +2975,7 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | **uuid::Uuid** | The employee's user ID | [required] |
+**employee_id** | **uuid::Uuid** | The employee's id | [required] |
 **put_employee_request** | [**PutEmployeeRequest**](PutEmployeeRequest.md) |  | [required] |
 
 ### Return type
@@ -3110,15 +3138,15 @@ Name | Type | Description  | Required | Notes
 
 ## revoke_device
 
-> revoke_device(user_id)
-Sign a person's phone out now (RO-4).
+> revoke_device(employee_id)
+Sign a person's phone out now (RO-4): the device, every staff token minted for it, and its pushes.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**user_id** | **uuid::Uuid** |  | [required] |
+**employee_id** | **uuid::Uuid** |  | [required] |
 
 ### Return type
 
@@ -3198,7 +3226,7 @@ Name | Type | Description  | Required | Notes
 ## set_staff_push_token
 
 > set_staff_push_token(push_token)
-`PUT /staff/me/push-token` — kept for old app builds; registers through the same `push_devices` table as `PUT /push/token` (app = `\"dawam\"`).
+`PUT /staff/me/push-token` — the staff app registers its phone for the employee through the same `push_devices` table as `PUT /push/token` (app = `\"dawam\"`).
 
 ### Parameters
 

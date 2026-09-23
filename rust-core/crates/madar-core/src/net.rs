@@ -52,6 +52,11 @@ pub struct ApiClient {
     /// The Dawam staff app's phone binding (`X-Staff-Device`), sent on every
     /// call once an OTP sign-in hands one out.
     staff_device: RwLock<Option<String>>,
+    /// When the staff token runs out (epoch ms), so a call refreshes it first.
+    staff_expires_ms: RwLock<Option<i64>>,
+    /// One `/auth/staff/refresh` at a time: parallel calls that all hit
+    /// `TOKEN_EXPIRED` share the first one's new token.
+    staff_refresh: tokio::sync::Mutex<()>,
     http: RwLock<reqwest::Client>,
     /// A SECOND client for long-lived SSE streams (the realtime bus). Identical TLS
     /// to `http`, but built WITHOUT the 20s total `timeout` — that timeout would
@@ -97,6 +102,8 @@ impl ApiClient {
             app_version: app_version.map(str::to_string),
             device_id: RwLock::new(device_id),
             staff_device: RwLock::new(None),
+            staff_expires_ms: RwLock::new(None),
+            staff_refresh: tokio::sync::Mutex::new(()),
             http: RwLock::new(http),
             stream_http: RwLock::new(stream_http),
             bearer: Arc::new(RwLock::new(None)),
@@ -155,6 +162,60 @@ impl ApiClient {
         self.rebuild_clients()
     }
 
+    /// When the staff token expires (RFC 3339, from sign-in or a refresh).
+    pub(crate) fn set_staff_expiry(&self, expires_at: Option<&str>) {
+        let ms = expires_at
+            .and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok())
+            .map(|t| t.timestamp_millis());
+        *self.staff_expires_ms.write().unwrap_or_else(|e| e.into_inner()) = ms;
+    }
+
+    pub(crate) fn is_staff(&self) -> bool {
+        self.staff_device.read().unwrap_or_else(|e| e.into_inner()).is_some()
+    }
+
+    fn staff_token_due(&self) -> bool {
+        let at = *self.staff_expires_ms.read().unwrap_or_else(|e| e.into_inner());
+        self.is_staff() && at.is_some_and(|at| chrono::Utc::now().timestamp_millis() + STAFF_REFRESH_EARLY_MS >= at)
+    }
+
+    /// A fresh staff token for this phone (`POST /auth/staff/refresh`; the
+    /// device token rides in `X-Staff-Device`). `stale` is the bearer the
+    /// caller saw refused: if another call already replaced it, that token is
+    /// used and no second refresh goes out. A revoked phone answers 401
+    /// `DEVICE_REVOKED` (→ `Unauthenticated`).
+    pub(crate) async fn refresh_staff(&self, stale: Option<&str>) -> CoreResult<()> {
+        let _one = self.staff_refresh.lock().await;
+        if self.bearer().as_deref() != stale && !self.staff_token_due() {
+            return Ok(());
+        }
+        let url = format!("{}/auth/staff/refresh", self.base_url);
+        let resp = self.http().post(&url).send().await.map_err(|e| classify_reqwest(&e))?;
+        self.observe_clock(&resp);
+        let status = resp.status();
+        let text = resp.text().await.map_err(|e| classify_reqwest(&e))?;
+        if !status.is_success() {
+            return Err(status_to_error(status.as_u16(), &text));
+        }
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
+        let Some(token) = v["token"].as_str() else {
+            return Err(CoreError::Transient { detail: "refresh: no token".into() });
+        };
+        self.set_bearer(Some(token.to_string()));
+        self.set_staff_expiry(v["expires_at"].as_str());
+        Ok(())
+    }
+
+    /// The live bearer token.
+    pub(crate) fn bearer(&self) -> Option<String> {
+        self.bearer.read().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// The staff token's expiry as epoch ms, if known.
+    pub(crate) fn staff_expires_ms(&self) -> Option<i64> {
+        *self.staff_expires_ms.read().unwrap_or_else(|e| e.into_inner())
+    }
+
     fn rebuild_clients(&self) -> CoreResult<()> {
         let device = self.device_id.read().unwrap_or_else(|e| e.into_inner()).clone();
         let staff = self.staff_device.read().unwrap_or_else(|e| e.into_inner()).clone();
@@ -171,7 +232,32 @@ impl ApiClient {
 
     /// Authenticated raw call of any method with an optional JSON body,
     /// returning the response text on 2xx (status → `CoreError` otherwise).
+    /// With a staff token (Dawam), one that is about to run out is refreshed
+    /// first, and a 401 `TOKEN_EXPIRED` refreshes it and retries once.
     pub async fn send_json(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<&serde_json::Value>,
+    ) -> CoreResult<String> {
+        if self.staff_token_due() {
+            match self.refresh_staff(self.bearer().as_deref()).await {
+                Err(e @ CoreError::Unauthenticated { .. }) => return Err(e),
+                // Anything else: the call itself says what is wrong.
+                _ => {}
+            }
+        }
+        let sent = self.bearer();
+        match self.send_json_once(method.clone(), path, body).await {
+            Err(CoreError::Unauthenticated { detail }) if self.is_staff() && detail == TOKEN_EXPIRED => {
+                self.refresh_staff(sent.as_deref()).await?;
+                self.send_json_once(method, path, body).await
+            }
+            r => r,
+        }
+    }
+
+    async fn send_json_once(
         &self,
         method: reqwest::Method,
         path: &str,
@@ -610,6 +696,25 @@ fn extract_error_code(body: &str) -> Option<String> {
         .map(str::to_string)
 }
 
+/// A staff token this close to its expiry is refreshed before the call.
+const STAFF_REFRESH_EARLY_MS: i64 = 60_000;
+
+/// 401: the staff token ran out; the phone refreshes it.
+pub(crate) const TOKEN_EXPIRED: &str = "TOKEN_EXPIRED";
+/// 401: this phone was signed out (a new phone, a new number, deactivated).
+pub(crate) const DEVICE_REVOKED: &str = "DEVICE_REVOKED";
+
+/// The staff principal's coded refusals. A 401 one becomes
+/// `Unauthenticated { detail: code }`, a 403 one `Forbidden { resource: code }`.
+pub(crate) const STAFF_CODES: &[&str] = &[
+    TOKEN_EXPIRED,
+    DEVICE_REVOKED,
+    "DAWAM_OFF",
+    "EMPLOYEE_INACTIVE",
+    "MANAGER_ACCOUNT_NEEDED",
+    "STAFF_APP_ONLY",
+];
+
 /// Map an HTTP status + raw body to a `CoreError` variant.
 pub(crate) fn status_to_error(status: u16, body: &str) -> CoreError {
     if extract_error_code(body).as_deref() == Some("PAYMENT_METHOD_UNAVAILABLE") {
@@ -635,6 +740,14 @@ pub(crate) fn status_to_error(status: u16, body: &str) -> CoreError {
     // HTML, a redirect stub, or an empty body. `extract_error_message` is `Some`
     // only for our envelope, so it doubles as a "this came from our backend" probe.
     let backend_envelope = extract_error_message(body);
+    // The Dawam staff principal's refusals: the code is what the core branches
+    // on (refresh, sign out) and words for the person (`MadarCore::staff_error`).
+    if let Some(code) = extract_error_code(body).filter(|c| STAFF_CODES.contains(&c.as_str())) {
+        return match status {
+            401 => CoreError::Unauthenticated { detail: code },
+            _ => CoreError::Forbidden { resource: code, action: backend_envelope.unwrap_or_default() },
+        };
+    }
     let message = backend_envelope
         .clone()
         .unwrap_or_else(|| reason(status).to_string());

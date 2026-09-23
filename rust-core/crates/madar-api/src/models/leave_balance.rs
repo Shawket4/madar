@@ -15,6 +15,8 @@ use serde::{Deserialize, Serialize};
 pub struct LeaveBalance {
     #[serde(rename = "carried_over_days")]
     pub carried_over_days: f64,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     #[serde(rename = "entitled_days")]
     pub entitled_days: f64,
     #[serde(rename = "id")]
@@ -35,8 +37,6 @@ pub struct LeaveBalance {
     pub remaining_days: f64,
     #[serde(rename = "used_days")]
     pub used_days: f64,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
     #[serde(rename = "year")]
     pub year: i32,
 }
@@ -44,17 +44,18 @@ pub struct LeaveBalance {
 impl LeaveBalance {
     pub fn new(
         carried_over_days: f64,
+        employee_id: uuid::Uuid,
         entitled_days: f64,
         id: uuid::Uuid,
         leave_type_id: uuid::Uuid,
         org_id: uuid::Uuid,
         remaining_days: f64,
         used_days: f64,
-        user_id: uuid::Uuid,
         year: i32,
     ) -> LeaveBalance {
         LeaveBalance {
             carried_over_days,
+            employee_id,
             entitled_days,
             id,
             leave_type_id,
@@ -62,7 +63,6 @@ impl LeaveBalance {
             org_id,
             remaining_days,
             used_days,
-            user_id,
             year,
         }
     }

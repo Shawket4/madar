@@ -611,7 +611,7 @@ struct Row {
 
 impl Row {
     fn new(id: impl Into<String>, data: &Value) -> Self {
-        Row { id: id.into(), user_id: so(data, "user_id"), branch_id: so(data, "branch_id"), on_date: None, status: so(data, "status"), data: data.clone() }
+        Row { id: id.into(), user_id: so(data, "employee_id"), branch_id: so(data, "branch_id"), on_date: None, status: so(data, "status"), data: data.clone() }
     }
     fn date(mut self, d: Option<String>) -> Self {
         self.on_date = d;
@@ -672,7 +672,7 @@ impl MadarCore {
     /// One server call, remembering the server's time for offline punches.
     async fn dawam_srv(&self, method: &str, path: &str, body: Option<Value>) -> Result<Value, CoreError> {
         let m = reqwest::Method::from_bytes(method.as_bytes()).map_err(|_| CoreError::Internal { detail: "method".into() })?;
-        match self.api.send_json(m, path, body.as_ref()).await {
+        match self.staff_send(m, path, body.as_ref()).await {
             Ok(text) => {
                 self.note_connectivity(true);
                 let a = Anchor { server_ms: self.corrected_now_ms(), boot_ms: boot_ms(), wall_ms: wall_ms() };
@@ -707,14 +707,14 @@ impl MadarCore {
         let me = self.dawam_me()?;
         let ctx = self.dawam_srv("GET", "/staff/me/context", None).await?;
         let role = role_of(&s(&ctx, "role"));
-        let manager = role != "employee";
+        let manager = manages(role, &ctx);
         let all: Vec<String> = arr(&ctx, "branches").iter().map(|b| s(b, "id")).collect();
         let mine: Vec<String> = if role == "owner" {
             all.clone()
         } else {
             arr(&ctx, "people")
                 .iter()
-                .find(|p| s(p, "user_id") == me)
+                .find(|p| s(p, "employee_id") == me)
                 .map(|p| arr(p, "branch_ids").iter().filter_map(Value::as_str).map(str::to_string).collect())
                 .unwrap_or_default()
         };
@@ -778,7 +778,7 @@ impl MadarCore {
             m.put("dawam_work_shifts", Row::new(s(w, "id"), w));
         }
         for p in arr(&ctx, "people") {
-            m.put("dawam_people", Row::new(s(p, "user_id"), p));
+            m.put("dawam_people", Row::new(s(p, "employee_id"), p));
         }
         let mut published: Vec<String> = Vec::new();
         let mut warnings: Vec<Value> = Vec::new();
@@ -786,7 +786,7 @@ impl MadarCore {
         let roster = |m: &mut Mirror, rows: &[Value]| {
             for r in rows {
                 if let Some(d) = date(r, "date") {
-                    let id = shift_id(&s(r, "user_id"), d, &s(r, "work_shift_id"));
+                    let id = shift_id(&s(r, "employee_id"), d, &s(r, "work_shift_id"));
                     m.put("dawam_roster", Row::new(id, r).date(Some(d.to_string())));
                 }
             }
@@ -862,7 +862,7 @@ impl MadarCore {
         }
         for c in list("/staff/me/coverable") {
             if let Some(d) = date(&c, "business_date") {
-                m.put("dawam_coverable", Row::new(shift_id(&s(&c, "user_id"), d, &s(&c, "work_shift_id")), &c));
+                m.put("dawam_coverable", Row::new(shift_id(&s(&c, "employee_id"), d, &s(&c, "work_shift_id")), &c));
             }
         }
         for b in &mine {
@@ -880,13 +880,13 @@ impl MadarCore {
             let p = &cur["period"];
             m.put("dawam_periods", Row::new(s(p, "id"), p).date(so(p, "start_date")));
             for c in arr(&cur, "preview") {
-                m.put("dawam_preview", Row::new(s(c, "user_id"), c));
+                m.put("dawam_preview", Row::new(s(c, "employee_id"), c));
             }
             for sl in arr(&cur, "payslips") {
                 let mut sl = sl.clone();
                 sl["period_start"] = p["start_date"].clone();
                 sl["period_end"] = p["end_date"].clone();
-                m.put("dawam_payslips", Row::new(format!("{}|{}", s(p, "start_date"), s(&sl, "user_id")), &sl));
+                m.put("dawam_payslips", Row::new(format!("{}|{}", s(p, "start_date"), s(&sl, "employee_id")), &sl));
             }
             for h in arr(&cur, "history") {
                 m.put("dawam_periods", Row::new(s(h, "id"), h).date(so(h, "start_date")));
@@ -895,13 +895,13 @@ impl MadarCore {
                         let mut sl = sl.clone();
                         sl["period_start"] = h["start_date"].clone();
                         sl["period_end"] = h["end_date"].clone();
-                        m.put("dawam_payslips", Row::new(format!("{}|{}", s(h, "start_date"), s(&sl, "user_id")), &sl));
+                        m.put("dawam_payslips", Row::new(format!("{}|{}", s(h, "start_date"), s(&sl, "employee_id")), &sl));
                     }
                 }
             }
         }
         for sl in list("/staff/me/payslips") {
-            m.put("dawam_payslips", Row::new(format!("{}|{}", s(&sl, "period_start"), s(&sl, "user_id")), &sl));
+            m.put("dawam_payslips", Row::new(format!("{}|{}", s(&sl, "period_start"), s(&sl, "employee_id")), &sl));
         }
         m.meta = vec![
             ("context", ctx),
@@ -1085,14 +1085,14 @@ impl MadarCore {
             Act::Cover { shift, fix } => {
                 let (user, _, tpl) = parts(&shift);
                 let mut body = fix_body(&fix);
-                body["user_id"] = json!(user);
+                body["employee_id"] = json!(user);
                 body["work_shift_id"] = json!(tpl);
                 body["shift"] = json!(shift);
                 self.dawam_enqueue("dawam_cover", "/staff/me/cover", body, gps(&fix).as_deref())
             }
             Act::PunchFor { shift, reason } => {
                 let (user, ..) = parts(&shift);
-                self.dawam_enqueue("dawam_punch_for", "/staff/attendance/punch", json!({ "user_id": user, "reason": reason, "shift": shift }), None)
+                self.dawam_enqueue("dawam_punch_for", "/staff/attendance/punch", json!({ "employee_id": user, "reason": reason, "shift": shift }), None)
             }
             _ => Ok(()),
         }
@@ -1103,7 +1103,7 @@ impl MadarCore {
         let snap = self.dawam_build()?;
         let period_id = snap.period.id.clone().unwrap_or_default();
         let day = |emp: &str, d: &str, tpl: Option<&str>| {
-            json!({ "user_id": emp, "on_date": d, "work_shift_id": tpl })
+            json!({ "employee_id": emp, "on_date": d, "work_shift_id": tpl })
         };
         match act {
             Act::File { kind, from, to, half, time, time2, note, amount, installments, shift, shift2, peer } => {
@@ -1177,7 +1177,7 @@ impl MadarCore {
                 self.dawam_srv("PATCH", &format!("/staff/flags/{flag}"), Some(body)).await?;
             }
             Act::AddAdjustment { emp, bonus, amount, reason, pct, recurring } => {
-                let mut body = json!({ "user_id": emp, "kind": if bonus { "bonus" } else { "deduction" }, "reason": reason, "recurring": recurring });
+                let mut body = json!({ "employee_id": emp, "kind": if bonus { "bonus" } else { "deduction" }, "reason": reason, "recurring": recurring });
                 match pct {
                     Some(p) => body["percent_of_base"] = json!(p),
                     None => body["amount_piastres"] = json!(amount),
@@ -1203,11 +1203,11 @@ impl MadarCore {
                 }
             }
             Act::RecordAdvance { emp, amount, installments } => {
-                let a = self.dawam_srv("POST", "/staff/payroll/advances", Some(json!({ "user_id": emp, "amount_piastres": amount, "installments": installments }))).await?;
+                let a = self.dawam_srv("POST", "/staff/payroll/advances", Some(json!({ "employee_id": emp, "amount_piastres": amount, "installments": installments }))).await?;
                 self.dawam_srv("PATCH", &format!("/staff/advances/{}/review", s(&a, "id")), Some(json!({ "approve": true }))).await?;
             }
             Act::LogExpense { emp, amount, purpose, via } => {
-                self.dawam_srv("POST", "/staff/expense-advances", Some(json!({ "user_id": emp, "amount_piastres": amount, "purpose": purpose, "via": via }))).await?;
+                self.dawam_srv("POST", "/staff/expense-advances", Some(json!({ "employee_id": emp, "amount_piastres": amount, "purpose": purpose, "via": via }))).await?;
             }
             Act::SetDay { emp, date: d, tpl } => {
                 self.dawam_srv("PUT", "/staff/schedules/overrides", Some(day(&emp, &d, tpl.as_deref()))).await?;
@@ -1282,7 +1282,7 @@ impl MadarCore {
             .with_conn(|c| read_table(c, "dawam_attendance"))
             .ok()?
             .into_iter()
-            .find(|r| (so(r, "covered_user_id").unwrap_or_else(|| s(r, "user_id"))) == user && s(r, "business_date") == d && s(r, "work_shift_id") == tpl)
+            .find(|r| (so(r, "covered_employee_id").unwrap_or_else(|| s(r, "employee_id"))) == user && s(r, "business_date") == d && s(r, "work_shift_id") == tpl)
             .map(|r| s(&r, "id"))
     }
 
@@ -1327,7 +1327,7 @@ impl MadarCore {
             online,
             queued: queued.len() as u32,
             stuck,
-            can_manage: role != "employee",
+            can_manage: manages(&role, &ctx),
             can_payroll: role == "owner" || caps.iter().any(|c| c == "hr.payroll.run"),
             caps,
             fetched_at,
@@ -1353,7 +1353,7 @@ impl MadarCore {
         }
         for p in rows("dawam_people") {
             out.people.push(PersonV {
-                id: s(p, "user_id"),
+                id: s(p, "employee_id"),
                 name: s(p, "name"),
                 phone: s(p, "phone"),
                 role: role_of(&s(p, "role")).into(),
@@ -1369,6 +1369,11 @@ impl MadarCore {
                 cant_work: arr(p, "cant_work_days").iter().filter_map(Value::as_i64).map(|d| if d == 0 { 7 } else { d }).collect(),
             });
         }
+        // Actors (who decided, who handed over) are server users; a manager acts
+        // through the employee linked to that user, so show them as that person.
+        let linked: HashMap<String, String> =
+            rows("dawam_people").iter().filter_map(|p| Some((so(p, "user_id")?, s(p, "employee_id")))).collect();
+        let actor = |u: Option<String>| u.map(|u| linked.get(&u).cloned().unwrap_or(u));
         if let Some(p) = out.people.iter_mut().find(|p| p.id == me) {
             p.role = out.role.clone();
             if let Some(t) = so(&me_roster, "pref_time") {
@@ -1411,13 +1416,13 @@ impl MadarCore {
         for r in rows("dawam_roster") {
             let (Some(d), id) = (date(r, "date"), s(r, "work_shift_id")) else { continue };
             let Some(tp) = tpl(&id) else { continue };
-            let sid = shift_id(&s(r, "user_id"), d, &id);
+            let sid = shift_id(&s(r, "employee_id"), d, &id);
             if shifts.iter().any(|x| x.id == sid) {
                 continue;
             }
             shifts.push(ShiftV {
                 id: sid,
-                emp: so(r, "user_id"),
+                emp: so(r, "employee_id"),
                 tpl: id,
                 date: d.to_string(),
                 published: is_pub(&tp.branch, d),
@@ -1441,8 +1446,8 @@ impl MadarCore {
             let Some(d) = date(r, "business_date") else { continue };
             let wid = s(r, "work_shift_id");
             let Some(tp) = tpl(&wid) else { continue };
-            let user = s(r, "user_id");
-            let covered = so(r, "covered_user_id");
+            let user = s(r, "employee_id");
+            let covered = so(r, "covered_employee_id");
             let owner = covered.clone().unwrap_or_else(|| user.clone());
             let sid = shift_id(&owner, d, &wid);
             let branch = tp.branch.clone();
@@ -1525,7 +1530,7 @@ impl MadarCore {
         let manager_ids: HashSet<String> = out.people.iter().filter(|p| p.role == "manager").map(|p| p.id.clone()).collect();
         for q in rows("dawam_requests") {
             let Some(kind) = kind_of_server(&s(q, "kind")) else { continue };
-            let user = s(q, "user_id");
+            let user = s(q, "employee_id");
             let rec = so(q, "attendance_record_id");
             let r = ReqV {
                 id: format!("q|{}", s(q, "id")),
@@ -1544,7 +1549,7 @@ impl MadarCore {
                 paid: q.get("is_paid").and_then(Value::as_bool),
                 shift: rec.and_then(|rid| record_of.iter().find(|(_, v)| **v == rid).map(|(k, _)| k.clone())),
                 to_owner: manager_ids.contains(&user),
-                decided_by: so(q, "decided_by"),
+                decided_by: actor(so(q, "decided_by")),
                 decision_note: so(q, "decision_note"),
                 installments: 1,
                 ..Default::default()
@@ -1595,7 +1600,7 @@ impl MadarCore {
         let mut advance_collected: HashMap<String, i64> = HashMap::new();
         for a in rows("dawam_advances") {
             let status = s(a, "status");
-            let user = s(a, "user_id");
+            let user = s(a, "employee_id");
             let amount = i(a, "amount_piastres");
             if matches!(status.as_str(), "pending" | "rejected" | "cancelled") {
                 out.requests.push(ReqV {
@@ -1622,7 +1627,7 @@ impl MadarCore {
                 amount,
                 installments: i(a, "installments").max(1),
                 date: so(a, "decided_at").unwrap_or_else(|| s(a, "created_at")),
-                by: s(a, "decided_by"),
+                by: actor(so(a, "decided_by")).unwrap_or_default(),
                 collected,
             });
         }
@@ -1655,7 +1660,7 @@ impl MadarCore {
             }
         }
         out.active_shift = active_of(&shifts).map(|ix| shifts[ix].id.clone());
-        let coverable_ids: HashSet<String> = rows("dawam_coverable").iter().filter_map(|c| date(c, "business_date").map(|d| shift_id(&s(c, "user_id"), d, &s(c, "work_shift_id")))).collect();
+        let coverable_ids: HashSet<String> = rows("dawam_coverable").iter().filter_map(|c| date(c, "business_date").map(|d| shift_id(&s(c, "employee_id"), d, &s(c, "work_shift_id")))).collect();
         if out.active_shift.is_none() {
             out.coverable = shifts.iter().filter(|x| coverable_ids.contains(&x.id) && x.in_at.is_none() && x.cover_by.is_none()).map(|x| x.id.clone()).collect();
         }
@@ -1672,7 +1677,7 @@ impl MadarCore {
             out.flags.push(FlagV {
                 id: s(fl, "id"),
                 kind: s(fl, "kind"),
-                emp: s(fl, "user_id"),
+                emp: s(fl, "employee_id"),
                 shift,
                 at: s(fl, "detected_at"),
                 minutes_away: i(fl, "minutes_away"),
@@ -1691,16 +1696,16 @@ impl MadarCore {
                 _ => "active",
             };
             let pct = a.get("percent_of_base").filter(|x| !x.is_null()).map(|_| f(a, "percent_of_base"));
-            let salary = out.people.iter().find(|p| p.id == s(a, "user_id")).map_or(0, |p| p.salary);
+            let salary = out.people.iter().find(|p| p.id == s(a, "employee_id")).map_or(0, |p| p.salary);
             out.adjustments.push(AdjV {
                 id: format!("a|{}|{}", s(a, "kind"), s(a, "id")),
-                emp: s(a, "user_id"),
+                emp: s(a, "employee_id"),
                 bonus: s(a, "kind") == "bonus",
                 amount: i(a, "amount_piastres"),
                 value: pct.map_or(i(a, "amount_piastres"), |p| (salary as f64 * p / 100.0).round() as i64),
                 pct,
                 reason: s(a, "reason"),
-                by: s(a, "created_by"),
+                by: actor(so(a, "created_by")).unwrap_or_default(),
                 at: s(a, "created_at"),
                 period: s(a, "effective_date"),
                 recurring: b(a, "recurring"),
@@ -1713,12 +1718,12 @@ impl MadarCore {
         for x in rows("dawam_expenses") {
             out.expenses.push(ExpenseV {
                 id: s(x, "id"),
-                emp: s(x, "user_id"),
+                emp: s(x, "employee_id"),
                 amount: i(x, "amount_piastres"),
                 date: s(x, "given_on"),
                 branch: so(x, "branch_id").unwrap_or_else(|| first_branch.clone()),
                 purpose: s(x, "purpose"),
-                by: s(x, "handed_by"),
+                by: actor(so(x, "handed_by")).unwrap_or_default(),
                 via: s(x, "via"),
             });
         }
@@ -1769,14 +1774,14 @@ impl MadarCore {
             out.slips.push(slip_of(c, &out.period, i(c, "base_piastres"), false));
         }
         if let Some(sl) = estimate.get("slip").filter(|x| x.is_object()) {
-            if !out.slips.iter().any(|x| x.emp == s(sl, "user_id")) {
+            if !out.slips.iter().any(|x| x.emp == s(sl, "employee_id")) {
                 out.slips.push(slip_of(sl, &out.period, i(sl, "base_piastres"), false));
             }
         }
         for sl in rows("dawam_payslips") {
             let start = s(sl, "period_start");
             let base = i(sl, "net_piastres") - i(sl, "overtime_piastres") - i(sl, "bonuses_piastres") + i(sl, "deductions_piastres") + i(sl, "advance_installment_piastres");
-            let user = s(sl, "user_id");
+            let user = s(sl, "employee_id");
             let method = so(sl, "paid_method");
             let target = if start == out.period.start {
                 if !current.is_object() {
@@ -1803,10 +1808,10 @@ impl MadarCore {
             let args: BTreeMap<String, String> = g["reason_args"].as_object().into_iter().flatten().map(|(k, v)| (k.clone(), v.as_str().map_or_else(|| v.to_string(), str::to_string))).collect();
             let why = fill(&i18n::tr(&locale, &s(g, "reason_key")), &args);
             let d = date(g, "date").unwrap_or(today);
-            let from = so(g, "from_user_id");
+            let from = so(g, "from_employee_id");
             let text = match &from {
-                None => format!("{} → {} · {why}", s(g, "user_name"), s(g, "shift_name")),
-                Some(_) => format!("{} ↔ {} · {why}", s(g, "user_name"), s(g, "from_user_name")),
+                None => format!("{} → {} · {why}", s(g, "employee_name"), s(g, "shift_name")),
+                Some(_) => format!("{} ↔ {} · {why}", s(g, "employee_name"), s(g, "from_employee_name")),
             };
             out.suggestions.push(SuggestionV {
                 id: s(g, "id"),
@@ -1815,7 +1820,7 @@ impl MadarCore {
                 text,
                 confidence: i(g, "confidence"),
                 shift: from.map(|u| shift_id(&u, d, &s(g, "work_shift_id"))),
-                emp: s(g, "user_id"),
+                emp: s(g, "employee_id"),
                 tpl: s(g, "work_shift_id"),
                 by_default: b(g, "by_default"),
             });
@@ -1897,6 +1902,12 @@ fn group(n: i64) -> String {
 }
 
 /// An inbox line in the phone's language (the server sends a key and args).
+/// The manager side opens on what the server lets them read (PM-4): a
+/// manager's role with no `hr.*` read capability gets the employee's app.
+fn manages(role: &str, ctx: &Value) -> bool {
+    role != "employee" && arr(ctx, "caps").iter().filter_map(Value::as_str).any(|c| c.starts_with("hr.") && c.ends_with(".read"))
+}
+
 fn notice_text(locale: &str, key: &str, args: &Value) -> String {
     let ar = i18n::is_arabic(locale);
     let mut filled = BTreeMap::new();
@@ -1971,7 +1982,7 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
         collected.insert(s(a, "id"), take);
         lines.push(LineV { key: format!("adv|{}", s(a, "id")), en: "Advance installment".into(), ar: "قسط سلفة".into(), amount: -take, rule: false, manual: None, waived: false });
     }
-    SlipV { emp: s(s_, "user_id"), start: p.start.clone(), end: p.end.clone(), lines, net: i(s_, "net_piastres"), carry_out: i(s_, "carry_out_piastres"), collected, frozen }
+    SlipV { emp: s(s_, "employee_id"), start: p.start.clone(), end: p.end.clone(), lines, net: i(s_, "net_piastres"), carry_out: i(s_, "carry_out_piastres"), collected, frozen }
 }
 
 /// At or under this on shift, the phone says charge (CL-12, the server's figure).
@@ -1989,7 +2000,7 @@ fn labour_warnings(rows: &[Value]) -> BTreeMap<String, Vec<(String, Value)>> {
         };
         let key = format!("staff.warn_{}", s(w, "kind"));
         let args = json!({ "date": d.to_string(), "hours": hours(i(w, "limit_minutes")), "worked": hours(i(w, "minutes")) });
-        let entry = out.entry(format!("{}|{}", s(w, "user_id"), week_start(d))).or_default();
+        let entry = out.entry(format!("{}|{}", s(w, "employee_id"), week_start(d))).or_default();
         if !entry.iter().any(|(k, a)| *k == key && *a == args) {
             entry.push((key, args));
         }
@@ -2031,9 +2042,9 @@ mod tests {
     #[test]
     fn labour_warnings_come_from_the_server_keyed_by_week() {
         let rows = vec![
-            json!({ "user_id": "u", "date": "2026-09-20", "kind": "rest", "minutes": 480, "limit_minutes": 720 }),
-            json!({ "user_id": "u", "date": "2026-09-19", "kind": "week_hours", "minutes": 3000, "limit_minutes": 2880 }),
-            json!({ "user_id": "u", "date": "2026-09-21", "kind": "day_hours", "minutes": 540, "limit_minutes": 450 }),
+            json!({ "employee_id": "u", "date": "2026-09-20", "kind": "rest", "minutes": 480, "limit_minutes": 720 }),
+            json!({ "employee_id": "u", "date": "2026-09-19", "kind": "week_hours", "minutes": 3000, "limit_minutes": 2880 }),
+            json!({ "employee_id": "u", "date": "2026-09-21", "kind": "day_hours", "minutes": 540, "limit_minutes": 450 }),
         ];
         let w = labour_warnings(&rows);
         let week = &w["u|2026-09-19"];
@@ -2046,7 +2057,7 @@ mod tests {
     fn a_payslip_reads_the_servers_lines() {
         let p = PeriodV { start: "2026-08-26".into(), end: "2026-09-25".into(), status: "open".into(), ..Default::default() };
         let c = json!({
-            "user_id": "u", "net_piastres": 842_000, "carry_out_piastres": 0,
+            "employee_id": "u", "net_piastres": 842_000, "carry_out_piastres": 0,
             "overtime_piastres": 0, "overtime_minutes": 0,
             "breakdown": {
                 "paid_days": 31, "window_days": 31,
@@ -2093,12 +2104,12 @@ mod tests {
                                    "latitude": 30.0609, "longitude": 31.2197, "timezone": "Africa/Cairo" }],
                     "work_shifts": [{ "id": "w1", "name": "Morning", "branch_id": BRANCH,
                                       "start_time": start, "end_time": end, "grace_minutes": 10 }],
-                    "people": [{ "user_id": TELLER, "name": "Sara", "role": "employee", "branch_ids": [BRANCH],
+                    "people": [{ "employee_id": TELLER, "name": "Sara", "role": "employee", "branch_ids": [BRANCH],
                                  "base_salary_piastres": 900000, "pay_method": "cash", "cant_work_days": [] }],
                     "settings": { "period_start_day": 26, "advance_cap_percent": "50" },
                 })),
                 "/staff/me/roster" => StubResponse::json(200, json!({
-                    "shifts": [{ "user_id": TELLER, "date": today, "work_shift_id": "w1" }],
+                    "shifts": [{ "employee_id": TELLER, "date": today, "work_shift_id": "w1" }],
                     "team": [], "open_shifts": [], "swaps": [], "unpublished_weeks": [],
                 })),
                 "/staff/me/check-in" => StubResponse::json(201, json!({ "id": "r1" })),
@@ -2142,6 +2153,43 @@ mod tests {
         assert!(seen[1].json()["offline"].is_object());
     }
 
+    /// A punch queued while the staff token lapsed is sent after a refresh,
+    /// not parked waiting for a sign-in that never comes.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_queued_punch_refreshes_the_token_and_replays_rather_than_parks() {
+        use crate::staff::session_tests::{later, session, signed_in, EMP, ORG};
+        use crate::testkit::{Stub, StubResponse};
+
+        let exp = later();
+        let stub = Stub::start(move |r| {
+            let bearer = r.header("authorization").unwrap_or_default();
+            let path = r.path.split('?').next().unwrap_or_default();
+            Some(match path {
+                "/auth/staff/otp/verify" => StubResponse::json(200, session(&exp)),
+                "/auth/staff/refresh" => StubResponse::json(200, json!({ "token": "t2", "expires_at": later(), "employee_id": EMP, "org_id": ORG })),
+                "/health" => StubResponse::text(200, "ok"),
+                _ if bearer == "Bearer t1" => StubResponse::json(401, json!({ "error": "expired", "code": "TOKEN_EXPIRED" })),
+                "/staff/me/context" => StubResponse::json(200, json!({
+                    "employee_id": EMP, "name": "Sara", "role": "employee", "org_name": "Nile", "caps": [],
+                    "branches": [], "work_shifts": [], "settings": {},
+                    "people": [{ "employee_id": EMP, "name": "Sara", "role": "employee", "branch_ids": [] }],
+                })),
+                "/staff/me/pings" => StubResponse::json(200, json!({ "inside": true })),
+                p if p.ends_with("estimate") => StubResponse::json(200, json!({})),
+                _ => StubResponse::json(200, json!([])),
+            })
+        })
+        .await;
+        let core = signed_in(&stub).await;
+        core.dawam_enqueue("dawam_ping", "/staff/me/pings", json!({ "latitude": 30.0, "longitude": 31.0 }), None).unwrap();
+        let snap: Value = serde_json::from_str(&core.dawam_sync().await.unwrap()).unwrap();
+        assert_eq!(snap["queued"], 0, "sent, not parked");
+        assert_eq!(snap["me"], EMP, "me is the employee");
+        assert!(!core.sync_status().auth_paused);
+        let pings: Vec<_> = stub.requests("/staff/me/pings").iter().map(|r| r.header("authorization")).collect();
+        assert_eq!(pings, [Some("Bearer t1".into()), Some("Bearer t2".into())], "refused, refreshed, replayed");
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn a_late_arrival_keeps_its_time_in_to_time_both_ways() {
         use crate::testkit::{online_core, Stub, StubResponse, BRANCH, TELLER};
@@ -2155,11 +2203,11 @@ mod tests {
                     "role": "employee", "org_name": "Nile Café", "caps": [],
                     "branches": [{ "id": BRANCH, "name": "Zamalek", "timezone": "Africa/Cairo" }],
                     "work_shifts": [], "settings": { "period_start_day": 26 },
-                    "people": [{ "user_id": TELLER, "name": "Sara", "role": "employee", "branch_ids": [BRANCH] }],
+                    "people": [{ "employee_id": TELLER, "name": "Sara", "role": "employee", "branch_ids": [BRANCH] }],
                 })),
                 // As the server stores it: the arrival in `to_time`, no `from_time`.
                 ("GET", "/staff/me/requests") => StubResponse::json(200, json!([{
-                    "id": "q1", "kind": "late_arrival", "user_id": TELLER, "status": "pending",
+                    "id": "q1", "kind": "late_arrival", "employee_id": TELLER, "status": "pending",
                     "on_date": day, "from_time": null, "to_time": "09:30:00", "is_half_day": false,
                     "reason": "Exam", "created_at": "2026-09-22T08:00:00Z",
                 }])),

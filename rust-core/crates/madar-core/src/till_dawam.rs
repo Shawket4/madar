@@ -13,7 +13,10 @@ const K_BRANCH_PEOPLE: &str = "till_dawam.branch_people";
 /// Someone at this branch, for the pay-out's "who took it" picker.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct BranchPersonView {
-    pub user_id: String,
+    /// An employee id: what the pay-out's `expense_advance_to` carries.
+    /// (`user_id` reads a list cached before employees had their own id.)
+    #[serde(alias = "user_id")]
+    pub employee_id: String,
     pub name: String,
 }
 
@@ -92,7 +95,7 @@ mod tests {
     async fn a_pin_punch_goes_to_the_server_and_comes_back_worded() {
         let stub = Stub::start(|r| {
             (r.path == "/staff/attendance/till-punch").then(|| {
-                StubResponse::json(200, json!({ "user_id": "u", "name": "Amal", "punched": "in",
+                StubResponse::json(200, json!({ "employee_id": "e", "name": "Amal", "punched": "in",
                     "record": { "check_in_at": "2026-09-22T07:02:00Z" } }))
             })
         })
@@ -109,12 +112,13 @@ mod tests {
     async fn branch_people_are_kept_for_offline() {
         let stub = Stub::start(|r| {
             r.path.starts_with("/staff/branches/").then(|| {
-                StubResponse::json(200, json!([{ "user_id": "u1", "name": "Amal" }]))
+                StubResponse::json(200, json!([{ "employee_id": "e1", "name": "Amal" }]))
             })
         })
         .await;
         let core = testkit::online_core(&stub.base, "").await;
-        assert_eq!(core.branch_people().await.unwrap()[0].name, "Amal");
+        let people = core.branch_people().await.unwrap();
+        assert_eq!((people[0].employee_id.as_str(), people[0].name.as_str()), ("e1", "Amal"));
         let offline = Stub::start(|_| Some(StubResponse::hangup())).await;
         let core2 = testkit::online_core(&offline.base, "").await;
         core2.store.kv_put(super::K_BRANCH_PEOPLE, r#"[{"user_id":"u1","name":"Amal"}]"#).unwrap();

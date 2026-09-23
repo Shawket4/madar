@@ -11,6 +11,8 @@ Name | Type | Description | Notes
 **breakdown** | Option<**serde_json::Value**> |  | 
 **carry_out_piastres** | **i64** | What deductions exceeded pay by; carried into the next payslip (PAY-12). | 
 **deductions_piastres** | **i64** |  | 
+**employee_id** | **uuid::Uuid** |  | 
+**employee_name** | Option<**String**> |  | [optional]
 **generated_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **id** | **uuid::Uuid** |  | 
 **late_minutes** | **i32** |  | 
@@ -25,8 +27,6 @@ Name | Type | Description | Notes
 **period_end** | Option<**chrono::NaiveDate**> |  | [optional]
 **period_name** | Option<**String**> | The period this covers, denormalised. A payslip identified only by its generation timestamp is unreadable — two months run on the same day would be indistinguishable to the employee looking at them. | [optional]
 **period_start** | Option<**chrono::NaiveDate**> |  | [optional]
-**user_id** | **uuid::Uuid** |  | 
-**user_name** | Option<**String**> |  | [optional]
 **worked_days** | **f64** |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

@@ -20,28 +20,28 @@ pub struct PutBalanceRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub carried_over_days: Option<Option<f64>>,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     #[serde(rename = "entitled_days")]
     pub entitled_days: f64,
     #[serde(rename = "leave_type_id")]
     pub leave_type_id: uuid::Uuid,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
     #[serde(rename = "year")]
     pub year: i32,
 }
 
 impl PutBalanceRequest {
     pub fn new(
+        employee_id: uuid::Uuid,
         entitled_days: f64,
         leave_type_id: uuid::Uuid,
-        user_id: uuid::Uuid,
         year: i32,
     ) -> PutBalanceRequest {
         PutBalanceRequest {
             carried_over_days: None,
+            employee_id,
             entitled_days,
             leave_type_id,
-            user_id,
             year,
         }
     }

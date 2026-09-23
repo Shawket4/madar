@@ -40,7 +40,7 @@ pub struct AttendanceSummaryParams {
     pub from: chrono::NaiveDate,
     pub to: chrono::NaiveDate,
     pub branch_id: Option<String>,
-    pub user_id: Option<String>,
+    pub employee_id: Option<String>,
     pub status: Option<String>,
 }
 
@@ -115,8 +115,8 @@ pub struct CreateDepartmentParams {
 /// struct for passing parameters to the method [`create_document`]
 #[derive(Clone, Debug)]
 pub struct CreateDocumentParams {
-    /// The employee's user ID
-    pub user_id: String,
+    /// The employee's id
+    pub employee_id: String,
     pub create_document_request: models::CreateDocumentRequest,
 }
 
@@ -271,8 +271,8 @@ pub struct DeleteDocumentParams {
 /// struct for passing parameters to the method [`delete_employee`]
 #[derive(Clone, Debug)]
 pub struct DeleteEmployeeParams {
-    /// The employee's user ID
-    pub user_id: String,
+    /// The employee's id
+    pub employee_id: String,
 }
 
 /// struct for passing parameters to the method [`delete_leave_type`]
@@ -355,14 +355,14 @@ pub struct GetCoverageParams {
 /// struct for passing parameters to the method [`get_employee`]
 #[derive(Clone, Debug)]
 pub struct GetEmployeeParams {
-    /// The employee's user ID
-    pub user_id: String,
+    /// The employee's id
+    pub employee_id: String,
 }
 
 /// struct for passing parameters to the method [`get_scheduled_day`]
 #[derive(Clone, Debug)]
 pub struct GetScheduledDayParams {
-    pub user_id: String,
+    pub employee_id: String,
     pub date: chrono::NaiveDate,
     /// Which branch's timezone the day is measured in. Defaults to the employee's only branch assignment when they have exactly one.
     pub branch_id: Option<String>,
@@ -379,14 +379,14 @@ pub struct LabourVsSalesParams {
 /// struct for passing parameters to the method [`list_adjustments`]
 #[derive(Clone, Debug)]
 pub struct ListAdjustmentsParams {
-    pub user_id: Option<String>,
+    pub employee_id: Option<String>,
     pub status: Option<String>,
 }
 
 /// struct for passing parameters to the method [`list_advances`]
 #[derive(Clone, Debug)]
 pub struct ListAdvancesParams {
-    pub user_id: Option<String>,
+    pub employee_id: Option<String>,
     pub from: Option<chrono::NaiveDate>,
     pub to: Option<chrono::NaiveDate>,
 }
@@ -395,7 +395,7 @@ pub struct ListAdvancesParams {
 #[derive(Clone, Debug)]
 pub struct ListAssignmentsParams {
     /// Omit for the WHOLE org's roster — what a schedule grid needs, and the only way to draw one without a request per employee.
-    pub user_id: Option<String>,
+    pub employee_id: Option<String>,
 }
 
 /// struct for passing parameters to the method [`list_attendance`]
@@ -404,7 +404,7 @@ pub struct ListAttendanceParams {
     pub from: chrono::NaiveDate,
     pub to: chrono::NaiveDate,
     pub branch_id: Option<String>,
-    pub user_id: Option<String>,
+    pub employee_id: Option<String>,
     pub status: Option<String>,
 }
 
@@ -419,7 +419,7 @@ pub struct ListAttendanceFlagsParams {
 /// struct for passing parameters to the method [`list_balances`]
 #[derive(Clone, Debug)]
 pub struct ListBalancesParams {
-    pub user_id: Option<String>,
+    pub employee_id: Option<String>,
     /// Defaults to the current calendar year.
     pub year: Option<i32>,
 }
@@ -427,7 +427,7 @@ pub struct ListBalancesParams {
 /// struct for passing parameters to the method [`list_bonuses`]
 #[derive(Clone, Debug)]
 pub struct ListBonusesParams {
-    pub user_id: Option<String>,
+    pub employee_id: Option<String>,
     pub from: Option<chrono::NaiveDate>,
     pub to: Option<chrono::NaiveDate>,
 }
@@ -435,7 +435,7 @@ pub struct ListBonusesParams {
 /// struct for passing parameters to the method [`list_deductions`]
 #[derive(Clone, Debug)]
 pub struct ListDeductionsParams {
-    pub user_id: Option<String>,
+    pub employee_id: Option<String>,
     pub from: Option<chrono::NaiveDate>,
     pub to: Option<chrono::NaiveDate>,
 }
@@ -443,8 +443,8 @@ pub struct ListDeductionsParams {
 /// struct for passing parameters to the method [`list_documents`]
 #[derive(Clone, Debug)]
 pub struct ListDocumentsParams {
-    /// The employee's user ID
-    pub user_id: String,
+    /// The employee's id
+    pub employee_id: String,
 }
 
 /// struct for passing parameters to the method [`list_employees`]
@@ -455,12 +455,16 @@ pub struct ListEmployeesParams {
     pub employment_status: Option<String>,
     /// Case-insensitive substring over name, employee code, and job title.
     pub search: Option<String>,
+    /// Only the people of this branch.
+    pub branch_id: Option<String>,
+    /// `linked` · `app` · `manual`.
+    pub kind: Option<String>,
 }
 
 /// struct for passing parameters to the method [`list_expense_advances`]
 #[derive(Clone, Debug)]
 pub struct ListExpenseAdvancesParams {
-    pub user_id: Option<String>,
+    pub employee_id: Option<String>,
 }
 
 /// struct for passing parameters to the method [`list_open_shifts`]
@@ -480,7 +484,7 @@ pub struct ListPayslipsParams {
 /// struct for passing parameters to the method [`list_requests`]
 #[derive(Clone, Debug)]
 pub struct ListRequestsParams {
-    pub user_id: Option<String>,
+    pub employee_id: Option<String>,
     pub kind: Option<String>,
     pub status: Option<String>,
     pub from: Option<chrono::NaiveDate>,
@@ -503,7 +507,7 @@ pub struct LogExpenseAdvanceParams {
 #[derive(Clone, Debug)]
 pub struct MarkPaidParams {
     pub id: String,
-    pub user_id: String,
+    pub employee_id: String,
     pub mark_paid: models::MarkPaid,
 }
 
@@ -517,7 +521,7 @@ pub struct MyAttendanceParams {
 /// struct for passing parameters to the method [`my_leave_balances`]
 #[derive(Clone, Debug)]
 pub struct MyLeaveBalancesParams {
-    pub user_id: Option<String>,
+    pub employee_id: Option<String>,
     /// Defaults to the current calendar year.
     pub year: Option<i32>,
 }
@@ -610,8 +614,8 @@ pub struct PutCoverageParams {
 /// struct for passing parameters to the method [`put_employee`]
 #[derive(Clone, Debug)]
 pub struct PutEmployeeParams {
-    /// The employee's user ID
-    pub user_id: String,
+    /// The employee's id
+    pub employee_id: String,
     pub put_employee_request: models::PutEmployeeRequest,
 }
 
@@ -650,7 +654,7 @@ pub struct ReviewAdvanceParams {
 /// struct for passing parameters to the method [`revoke_device`]
 #[derive(Clone, Debug)]
 pub struct RevokeDeviceParams {
-    pub user_id: String,
+    pub employee_id: String,
 }
 
 /// struct for passing parameters to the method [`roster`]
@@ -1427,6 +1431,19 @@ pub enum GetScheduledDayError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LabourVsSalesError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`linkable_users`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LinkableUsersError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -2424,8 +2441,8 @@ pub async fn attendance_summary(
     if let Some(ref param_value) = params.branch_id {
         req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = params.user_id {
-        req_builder = req_builder.query(&[("user_id", &param_value.to_string())]);
+    if let Some(ref param_value) = params.employee_id {
+        req_builder = req_builder.query(&[("employee_id", &param_value.to_string())]);
     }
     if let Some(ref param_value) = params.status {
         req_builder = req_builder.query(&[("status", &param_value.to_string())]);
@@ -2985,9 +3002,9 @@ pub async fn create_document(
     params: CreateDocumentParams,
 ) -> Result<models::StaffDocument, Error<CreateDocumentError>> {
     let uri_str = format!(
-        "{}/staff/employees/{user_id}/documents",
+        "{}/staff/employees/{employee_id}/documents",
         configuration.base_path,
-        user_id = crate::apis::urlencode(params.user_id)
+        employee_id = crate::apis::urlencode(params.employee_id)
     );
     let mut req_builder = configuration
         .client
@@ -4050,9 +4067,9 @@ pub async fn delete_employee(
     params: DeleteEmployeeParams,
 ) -> Result<(), Error<DeleteEmployeeError>> {
     let uri_str = format!(
-        "{}/staff/employees/{user_id}",
+        "{}/staff/employees/{employee_id}",
         configuration.base_path,
-        user_id = crate::apis::urlencode(params.user_id)
+        employee_id = crate::apis::urlencode(params.employee_id)
     );
     let mut req_builder = configuration
         .client
@@ -4546,9 +4563,9 @@ pub async fn get_employee(
     params: GetEmployeeParams,
 ) -> Result<models::Employee, Error<GetEmployeeError>> {
     let uri_str = format!(
-        "{}/staff/employees/{user_id}",
+        "{}/staff/employees/{employee_id}",
         configuration.base_path,
-        user_id = crate::apis::urlencode(params.user_id)
+        employee_id = crate::apis::urlencode(params.employee_id)
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
@@ -4595,7 +4612,7 @@ pub async fn get_scheduled_day(
     let uri_str = format!("{}/staff/schedules/day", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    req_builder = req_builder.query(&[("user_id", &params.user_id.to_string())]);
+    req_builder = req_builder.query(&[("employee_id", &params.employee_id.to_string())]);
     req_builder = req_builder.query(&[("date", &params.date.to_string())]);
     if let Some(ref param_value) = params.branch_id {
         req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
@@ -4684,6 +4701,48 @@ pub async fn labour_vs_sales(
     }
 }
 
+pub async fn linkable_users(
+    configuration: &configuration::Configuration,
+) -> Result<Vec<models::LinkableUser>, Error<LinkableUsersError>> {
+    let uri_str = format!("{}/staff/employees/linkable", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::LinkableUser&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::LinkableUser&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<LinkableUsersError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn list_adjustments(
     configuration: &configuration::Configuration,
     params: ListAdjustmentsParams,
@@ -4691,8 +4750,8 @@ pub async fn list_adjustments(
     let uri_str = format!("{}/staff/adjustments", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = params.user_id {
-        req_builder = req_builder.query(&[("user_id", &param_value.to_string())]);
+    if let Some(ref param_value) = params.employee_id {
+        req_builder = req_builder.query(&[("employee_id", &param_value.to_string())]);
     }
     if let Some(ref param_value) = params.status {
         req_builder = req_builder.query(&[("status", &param_value.to_string())]);
@@ -4740,8 +4799,8 @@ pub async fn list_advances(
     let uri_str = format!("{}/staff/payroll/advances", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = params.user_id {
-        req_builder = req_builder.query(&[("user_id", &param_value.to_string())]);
+    if let Some(ref param_value) = params.employee_id {
+        req_builder = req_builder.query(&[("employee_id", &param_value.to_string())]);
     }
     if let Some(ref param_value) = params.from {
         req_builder = req_builder.query(&[("from", &param_value.to_string())]);
@@ -4792,8 +4851,8 @@ pub async fn list_assignments(
     let uri_str = format!("{}/staff/schedules", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = params.user_id {
-        req_builder = req_builder.query(&[("user_id", &param_value.to_string())]);
+    if let Some(ref param_value) = params.employee_id {
+        req_builder = req_builder.query(&[("employee_id", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -4843,8 +4902,8 @@ pub async fn list_attendance(
     if let Some(ref param_value) = params.branch_id {
         req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = params.user_id {
-        req_builder = req_builder.query(&[("user_id", &param_value.to_string())]);
+    if let Some(ref param_value) = params.employee_id {
+        req_builder = req_builder.query(&[("employee_id", &param_value.to_string())]);
     }
     if let Some(ref param_value) = params.status {
         req_builder = req_builder.query(&[("status", &param_value.to_string())]);
@@ -4941,8 +5000,8 @@ pub async fn list_balances(
     let uri_str = format!("{}/staff/leave/balances", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = params.user_id {
-        req_builder = req_builder.query(&[("user_id", &param_value.to_string())]);
+    if let Some(ref param_value) = params.employee_id {
+        req_builder = req_builder.query(&[("employee_id", &param_value.to_string())]);
     }
     if let Some(ref param_value) = params.year {
         req_builder = req_builder.query(&[("year", &param_value.to_string())]);
@@ -4990,8 +5049,8 @@ pub async fn list_bonuses(
     let uri_str = format!("{}/staff/payroll/bonuses", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = params.user_id {
-        req_builder = req_builder.query(&[("user_id", &param_value.to_string())]);
+    if let Some(ref param_value) = params.employee_id {
+        req_builder = req_builder.query(&[("employee_id", &param_value.to_string())]);
     }
     if let Some(ref param_value) = params.from {
         req_builder = req_builder.query(&[("from", &param_value.to_string())]);
@@ -5042,8 +5101,8 @@ pub async fn list_deductions(
     let uri_str = format!("{}/staff/payroll/deductions", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = params.user_id {
-        req_builder = req_builder.query(&[("user_id", &param_value.to_string())]);
+    if let Some(ref param_value) = params.employee_id {
+        req_builder = req_builder.query(&[("employee_id", &param_value.to_string())]);
     }
     if let Some(ref param_value) = params.from {
         req_builder = req_builder.query(&[("from", &param_value.to_string())]);
@@ -5134,9 +5193,9 @@ pub async fn list_documents(
     params: ListDocumentsParams,
 ) -> Result<Vec<models::StaffDocument>, Error<ListDocumentsError>> {
     let uri_str = format!(
-        "{}/staff/employees/{user_id}/documents",
+        "{}/staff/employees/{employee_id}/documents",
         configuration.base_path,
-        user_id = crate::apis::urlencode(params.user_id)
+        employee_id = crate::apis::urlencode(params.employee_id)
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
@@ -5192,6 +5251,12 @@ pub async fn list_employees(
     if let Some(ref param_value) = params.search {
         req_builder = req_builder.query(&[("search", &param_value.to_string())]);
     }
+    if let Some(ref param_value) = params.branch_id {
+        req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.kind {
+        req_builder = req_builder.query(&[("kind", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -5235,8 +5300,8 @@ pub async fn list_expense_advances(
     let uri_str = format!("{}/staff/expense-advances", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = params.user_id {
-        req_builder = req_builder.query(&[("user_id", &param_value.to_string())]);
+    if let Some(ref param_value) = params.employee_id {
+        req_builder = req_builder.query(&[("employee_id", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -5457,8 +5522,8 @@ pub async fn list_requests(
     let uri_str = format!("{}/staff/requests", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = params.user_id {
-        req_builder = req_builder.query(&[("user_id", &param_value.to_string())]);
+    if let Some(ref param_value) = params.employee_id {
+        req_builder = req_builder.query(&[("employee_id", &param_value.to_string())]);
     }
     if let Some(ref param_value) = params.kind {
         req_builder = req_builder.query(&[("kind", &param_value.to_string())]);
@@ -5647,10 +5712,10 @@ pub async fn mark_paid(
     params: MarkPaidParams,
 ) -> Result<models::Payslip, Error<MarkPaidError>> {
     let uri_str = format!(
-        "{}/staff/payroll/periods/{id}/payslips/{user_id}/paid",
+        "{}/staff/payroll/periods/{id}/payslips/{employee_id}/paid",
         configuration.base_path,
         id = crate::apis::urlencode(params.id),
-        user_id = crate::apis::urlencode(params.user_id)
+        employee_id = crate::apis::urlencode(params.employee_id)
     );
     let mut req_builder = configuration
         .client
@@ -5997,8 +6062,8 @@ pub async fn my_leave_balances(
     let uri_str = format!("{}/staff/me/leave-balances", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = params.user_id {
-        req_builder = req_builder.query(&[("user_id", &param_value.to_string())]);
+    if let Some(ref param_value) = params.employee_id {
+        req_builder = req_builder.query(&[("employee_id", &param_value.to_string())]);
     }
     if let Some(ref param_value) = params.year {
         req_builder = req_builder.query(&[("year", &param_value.to_string())]);
@@ -6788,9 +6853,9 @@ pub async fn put_employee(
     params: PutEmployeeParams,
 ) -> Result<models::Employee, Error<PutEmployeeError>> {
     let uri_str = format!(
-        "{}/staff/employees/{user_id}",
+        "{}/staff/employees/{employee_id}",
         configuration.base_path,
-        user_id = crate::apis::urlencode(params.user_id)
+        employee_id = crate::apis::urlencode(params.employee_id)
     );
     let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
 
@@ -7048,9 +7113,9 @@ pub async fn revoke_device(
     params: RevokeDeviceParams,
 ) -> Result<(), Error<RevokeDeviceError>> {
     let uri_str = format!(
-        "{}/staff/employees/{user_id}/device",
+        "{}/staff/employees/{employee_id}/device",
         configuration.base_path,
-        user_id = crate::apis::urlencode(params.user_id)
+        employee_id = crate::apis::urlencode(params.employee_id)
     );
     let mut req_builder = configuration
         .client

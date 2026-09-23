@@ -199,7 +199,7 @@ class _AdvanceToRow extends ConsumerWidget {
         ],
       ),
     );
-    notifier.setAdvanceTo(picked?.userId, picked?.name);
+    notifier.setAdvanceTo(picked?.employeeId, picked?.name);
   }
 
   @override

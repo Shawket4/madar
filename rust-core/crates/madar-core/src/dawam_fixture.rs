@@ -32,7 +32,8 @@ impl World {
         let pay = role != "employee";
         let person = |id: &str, name: &str, phone: &str, role: &str, branches: &[&str], salary: i64, gender: &str| {
             json!({
-                "user_id": id, "name": name, "phone": phone, "role": role, "branch_ids": branches,
+                // Actors (decided_by, …) are the managers' linked Madar users.
+                "employee_id": id, "user_id": match id { "e2" => Some("u2"), "e3" => Some("u3"), _ => None }, "name": name, "phone": phone, "role": role, "branch_ids": branches,
                 "gender": gender, "hire_date": "2025-01-05",
                 "base_salary_piastres": if pay || id == "e1" { Some(salary) } else { None },
                 "pay_method": if id == "e1" { "bank" } else { "cash" }, "pay_account": "",
@@ -52,7 +53,7 @@ impl World {
         }
         json!({
             "role": role, "org_name": "Nile Café",
-            "caps": if role == "owner" { vec!["hr.payroll.run", "hr.schedule.publish"] } else if role == "manager" { vec!["hr.schedule.publish"] } else { vec![] },
+            "caps": if role == "owner" { vec!["hr.attendance.read", "hr.payroll.run", "hr.schedule.publish", "hr.schedule.read", "hr.staff.read"] } else if role == "manager" { vec!["hr.attendance.read", "hr.schedule.publish", "hr.schedule.read", "hr.staff.read"] } else { vec![] },
             "adjustment_limit_piastres": if role == "manager" { Some(100_000) } else { None },
             "branches": [
                 { "id": B1, "name": "Zamalek", "geo_radius_meters": 200, "latitude": 30.0609, "longitude": 31.2197, "timezone": "Africa/Cairo" },
@@ -78,7 +79,7 @@ impl World {
         for day in -7..8 {
             for (u, t) in [("e1", "zM"), ("e4", "zE"), ("e5", "mM")] {
                 if who.contains(&u) {
-                    out.push(json!({ "user_id": u, "date": self.d(day), "work_shift_id": t, "changed": u == "e1" && day == 1, "on_leave": false }));
+                    out.push(json!({ "employee_id": u, "date": self.d(day), "work_shift_id": t, "changed": u == "e1" && day == 1, "on_leave": false }));
                 }
             }
         }
@@ -88,11 +89,11 @@ impl World {
     fn attendance(&self) -> Vec<Value> {
         let rec = |id: &str, u: &str, day: i64, t: &str, inn: Option<&str>, out: Option<&str>, status: &str, late: i64| {
             json!({
-                "id": id, "user_id": u, "business_date": self.d(day), "work_shift_id": t, "status": status,
+                "id": id, "employee_id": u, "business_date": self.d(day), "work_shift_id": t, "status": status,
                 "check_in_at": inn.map(|h| self.at(day, h)), "check_out_at": out.map(|h| self.at(day, h)),
                 "check_in_method": inn.map(|_| "mobile_gps"), "check_out_method": out.map(|_| "mobile_gps"),
                 "late_minutes": late, "overtime_minutes": 0, "worked_minutes": 470, "tracking_off": false,
-                "covered_user_id": null, "cover_status": null, "overtime_status": null,
+                "covered_employee_id": null, "cover_status": null, "overtime_status": null,
             })
         };
         vec![
@@ -104,20 +105,20 @@ impl World {
 
     fn requests(&self) -> Vec<Value> {
         vec![
-            json!({ "id": "q1", "kind": "leave", "user_id": "e4", "status": "pending", "on_date": self.d(3), "is_half_day": false, "reason": "Family wedding", "created_at": self.at(0, "07:00") }),
-            json!({ "id": "q2", "kind": "late_arrival", "user_id": "e1", "status": "approved", "on_date": self.d(2), "to_time": "09:30:00", "is_half_day": false, "reason": "Doctor", "created_at": self.at(-2, "10:00"), "decided_by": "e2" }),
+            json!({ "id": "q1", "kind": "leave", "employee_id": "e4", "status": "pending", "on_date": self.d(3), "is_half_day": false, "reason": "Family wedding", "created_at": self.at(0, "07:00") }),
+            json!({ "id": "q2", "kind": "late_arrival", "employee_id": "e1", "status": "approved", "on_date": self.d(2), "to_time": "09:30:00", "is_half_day": false, "reason": "Doctor", "created_at": self.at(-2, "10:00"), "decided_by": "u2" }),
             // Shapes the server really sends, which once crashed Approvals: a
             // pending late arrival (its time only in `to_time`), a correction
             // of the out punch alone, and someone no longer on the team.
-            json!({ "id": "q3", "kind": "late_arrival", "user_id": "e4", "status": "pending", "on_date": self.d(1), "from_time": null, "to_time": "10:15:00", "is_half_day": false, "reason": "Exam", "created_at": self.at(0, "08:00") }),
-            json!({ "id": "q4", "kind": "correction", "user_id": "e4", "status": "pending", "on_date": self.d(0), "from_time": null, "to_time": "23:50:00", "attendance_record_id": "r3", "is_half_day": false, "reason": "Forgot to clock out", "created_at": self.at(0, "09:00") }),
-            json!({ "id": "q5", "kind": "leave", "user_id": "gone", "status": "pending", "on_date": self.d(4), "end_date": self.d(4), "is_half_day": false, "reason": "", "created_at": self.at(0, "09:30") }),
+            json!({ "id": "q3", "kind": "late_arrival", "employee_id": "e4", "status": "pending", "on_date": self.d(1), "from_time": null, "to_time": "10:15:00", "is_half_day": false, "reason": "Exam", "created_at": self.at(0, "08:00") }),
+            json!({ "id": "q4", "kind": "correction", "employee_id": "e4", "status": "pending", "on_date": self.d(0), "from_time": null, "to_time": "23:50:00", "attendance_record_id": "r3", "is_half_day": false, "reason": "Forgot to clock out", "created_at": self.at(0, "09:00") }),
+            json!({ "id": "q5", "kind": "leave", "employee_id": "gone", "status": "pending", "on_date": self.d(4), "end_date": self.d(4), "is_half_day": false, "reason": "", "created_at": self.at(0, "09:30") }),
         ]
     }
 
     fn slip(&self, u: &str, base: i64, net: i64) -> Value {
         json!({
-            "user_id": u, "base_piastres": base, "net_piastres": net, "overtime_piastres": 0, "overtime_minutes": 0,
+            "employee_id": u, "base_piastres": base, "net_piastres": net, "overtime_piastres": 0, "overtime_minutes": 0,
             "bonuses_piastres": 0, "deductions_piastres": base - net, "advance_installment_piastres": 0, "carry_out_piastres": 0,
             "breakdown": { "paid_days": 31, "window_days": 31, "bonuses": [],
                 "deductions": if base > net { vec![json!({ "id": format!("d-{u}"), "reason": "Late arrival", "piastres": base - net, "source": "late_penalty" })] } else { vec![] },
@@ -143,22 +144,22 @@ impl World {
                 "holidays": [{ "on_date": format!("{}-10-06", self.today.year()), "name_en": "Armed Forces Day", "name_ar": "عيد القوات المسلحة", "decision": null }],
             }),
             "/staff/attendance" => json!(self.attendance()),
-            "/staff/me/attendance" => json!(self.attendance().into_iter().filter(|r| r["user_id"] == "e1").collect::<Vec<_>>()),
+            "/staff/me/attendance" => json!(self.attendance().into_iter().filter(|r| r["employee_id"] == "e1").collect::<Vec<_>>()),
             "/staff/requests" => json!(self.requests()),
-            "/staff/me/requests" => json!(self.requests().into_iter().filter(|r| r["user_id"] == "e1").collect::<Vec<_>>()),
+            "/staff/me/requests" => json!(self.requests().into_iter().filter(|r| r["employee_id"] == "e1").collect::<Vec<_>>()),
             "/staff/payroll/advances" | "/staff/me/advances" => json!([
-                { "id": "v1", "user_id": "e1", "amount_piastres": 100_000, "installments": 2, "remaining_piastres": 50_000, "status": "approved", "created_at": self.at(-20, "10:00"), "decided_at": self.at(-20, "11:00"), "decided_by": "e2" },
-                { "id": "v2", "user_id": "e4", "amount_piastres": 50_000, "installments": 1, "remaining_piastres": 50_000, "status": "pending", "reason": "Rent", "created_at": self.at(0, "08:00") }
+                { "id": "v1", "employee_id": "e1", "amount_piastres": 100_000, "installments": 2, "remaining_piastres": 50_000, "status": "approved", "created_at": self.at(-20, "10:00"), "decided_at": self.at(-20, "11:00"), "decided_by": "u2" },
+                { "id": "v2", "employee_id": "e4", "amount_piastres": 50_000, "installments": 1, "remaining_piastres": 50_000, "status": "pending", "reason": "Rent", "created_at": self.at(0, "08:00") }
             ]),
             "/staff/flags" => json!([
-                { "id": "f1", "user_id": "e4", "user_name": "Youssef Adel", "branch_id": B1, "attendance_record_id": "r3", "kind": "left_mid_shift", "minutes_away": 35, "detected_at": self.at(0, "17:10"), "resolution": null, "suggested_deduction_piastres": 5_500 }
+                { "id": "f1", "employee_id": "e4", "employee_name": "Youssef Adel", "branch_id": B1, "attendance_record_id": "r3", "kind": "left_mid_shift", "minutes_away": 35, "detected_at": self.at(0, "17:10"), "resolution": null, "suggested_deduction_piastres": 5_500 }
             ]),
             "/staff/adjustments" | "/staff/me/adjustments" => json!([
-                { "id": "a1", "kind": "deduction", "user_id": "e4", "amount_piastres": 20_000, "reason": "Broke a glass", "created_by": "e2", "created_at": self.at(-3, "12:00"), "effective_date": self.d(-3), "status": "approved", "recurring": false, "source": "manual" },
-                { "id": "a2", "kind": "bonus", "user_id": "e1", "amount_piastres": 150_000, "reason": "Best month", "created_by": "e2", "created_at": self.at(0, "09:00"), "effective_date": self.d(0), "status": "pending", "recurring": false, "source": "manual" }
+                { "id": "a1", "kind": "deduction", "employee_id": "e4", "amount_piastres": 20_000, "reason": "Broke a glass", "created_by": "u2", "created_at": self.at(-3, "12:00"), "effective_date": self.d(-3), "status": "approved", "recurring": false, "source": "manual" },
+                { "id": "a2", "kind": "bonus", "employee_id": "e1", "amount_piastres": 150_000, "reason": "Best month", "created_by": "u2", "created_at": self.at(0, "09:00"), "effective_date": self.d(0), "status": "pending", "recurring": false, "source": "manual" }
             ]),
             "/staff/expense-advances" | "/staff/me/expense-advances" => json!([
-                { "id": "x1", "user_id": "e1", "amount_piastres": 30_000, "given_on": self.d(-1), "branch_id": B1, "purpose": "Milk", "handed_by": "e2", "via": "cash" }
+                { "id": "x1", "employee_id": "e1", "amount_piastres": 30_000, "given_on": self.d(-1), "branch_id": B1, "purpose": "Milk", "handed_by": "u2", "via": "cash" }
             ]),
             "/staff/swaps" => json!([]),
             "/staff/me/notifications" => json!([
@@ -173,11 +174,11 @@ impl World {
                 "history": [{ "id": "p1", "start_date": "2026-07-26", "end_date": "2026-08-25", "status": "paid" }],
             }),
             "/staff/payroll/periods/p1/payslips" => json!([
-                { "period_start": "2026-07-26", "user_id": "e1", "paid_method": "bank", "net_piastres": 850_000, "overtime_piastres": 0, "bonuses_piastres": 0, "deductions_piastres": 50_000, "advance_installment_piastres": 0, "breakdown": { "bonuses": [], "deductions": [], "advances": [] } }
+                { "period_start": "2026-07-26", "employee_id": "e1", "paid_method": "bank", "net_piastres": 850_000, "overtime_piastres": 0, "bonuses_piastres": 0, "deductions_piastres": 50_000, "advance_installment_piastres": 0, "breakdown": { "bonuses": [], "deductions": [], "advances": [] } }
             ]),
             "/staff/me/coverable" if !manager => json!([]),
             "/staff/roster/suggestions" => json!([
-                { "id": "g1", "date": self.d(2), "user_id": "e4", "user_name": "Youssef Adel", "shift_name": "Evening", "work_shift_id": "zE", "reason_key": "staff.sg_gap", "reason_args": { "shift": "Evening", "short": 1 }, "confidence": 72, "by_default": true }
+                { "id": "g1", "date": self.d(2), "employee_id": "e4", "employee_name": "Youssef Adel", "shift_name": "Evening", "work_shift_id": "zE", "reason_key": "staff.sg_gap", "reason_args": { "shift": "Evening", "short": 1 }, "confidence": 72, "by_default": true }
             ]),
             _ => json!([]),
         }

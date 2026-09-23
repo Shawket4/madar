@@ -13,14 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BranchPerson {
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     #[serde(rename = "name")]
     pub name: String,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
 }
 
 impl BranchPerson {
-    pub fn new(name: String, user_id: uuid::Uuid) -> BranchPerson {
-        BranchPerson { name, user_id }
+    pub fn new(employee_id: uuid::Uuid, name: String) -> BranchPerson {
+        BranchPerson { employee_id, name }
     }
 }

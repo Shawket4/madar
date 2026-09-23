@@ -1,17 +1,13 @@
-# SalaryAdvanceRow
+# StaffTokenRefresh
 
 ## Properties
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**amount_piastres** | **i64** |  | 
 **employee_id** | **uuid::Uuid** |  | 
-**employee_name** | **String** |  | 
-**given_on** | **chrono::NaiveDate** |  | 
-**id** | **uuid::Uuid** |  | 
-**installments** | **i32** |  | 
-**remaining_piastres** | **i64** |  | 
-**status** | **String** | `pending` · `approved` · `rejected` · … | 
+**expires_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
+**org_id** | **uuid::Uuid** |  | 
+**token** | **String** | A fresh staff token for `/staff/_*`. | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

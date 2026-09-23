@@ -569,6 +569,8 @@ impl MadarCore {
         self.api.set_bearer(state.token.clone());
         if let Ok(Some(dev)) = self.store.blob_get(staff::K_STAFF_DEVICE) {
             let _ = self.api.set_staff_device(String::from_utf8(dev).ok());
+            let at = self.store.kv_get(staff::K_STAFF_EXPIRES).ok().flatten();
+            self.api.set_staff_expiry(at.as_deref());
         }
         let snapshot = state.snapshot.clone();
         let _ = till::set_active_user(&self.store, Some(&snapshot.user_id));
@@ -777,7 +779,9 @@ impl MadarCore {
         *self.session.write().unwrap_or_else(|e| e.into_inner()) = None;
         let _ = self.store.blob_delete(session::K_SESSION_BLOB);
         let _ = self.store.blob_delete(staff::K_STAFF_DEVICE);
+        let _ = self.store.kv_put(staff::K_STAFF_EXPIRES, "");
         let _ = self.api.set_staff_device(None);
+        self.api.set_staff_expiry(None);
         // Tear down any live realtime stream + listener so the next sign-in starts
         // clean. start_realtime's "already subscribed" guard would otherwise see the
         // stale handle and no-op, leaving the NEXT user with no events. Host signOut
@@ -2109,6 +2113,16 @@ impl MadarCore {
     async fn unpark_if_token_accepted(&self) {
         use std::sync::atomic::Ordering::Relaxed;
         if !self.auth_paused.load(Relaxed) || !self.api.has_bearer() {
+            return;
+        }
+        // A staff token cannot read `/auth/permissions`; its proof is a
+        // refresh, which this phone's device token either earns or is refused.
+        if self.api.is_staff() {
+            let stale = self.api.bearer();
+            if self.api.refresh_staff(stale.as_deref()).await.is_ok() {
+                self.keep_staff_token();
+                self.auth_paused.store(false, Relaxed);
+            }
             return;
         }
         if madar_api::apis::auth_api::get_my_permissions(&self.api.config())
@@ -12607,12 +12621,19 @@ impl MadarCore {
         self.api.set_bearer(Some(token.to_string()));
         self.api.set_staff_device(Some(device.to_string()))?;
         let _ = self.store.blob_put(staff::K_STAFF_DEVICE, device.as_bytes());
+        let expires = v["token_expires_at"].as_str();
+        self.api.set_staff_expiry(expires);
+        let _ = self.store.kv_put(staff::K_STAFF_EXPIRES, expires.unwrap_or_default());
         self.auth_paused.store(false, Relaxed);
         self.borrowed_token.store(false, Relaxed);
-        let mut snapshot = session::SessionSnapshot {
-            user_id: v["user_id"].as_str().unwrap_or_default().to_string(),
+        // The employee is who signed in: "me" everywhere in Dawam is their
+        // employee id. A staff token opens `/staff/*` only, so no
+        // `/auth/permissions` or `/authz/me` here (both would 401): what they
+        // may do comes with `/staff/me/context` (`caps`).
+        let snapshot = session::SessionSnapshot {
+            user_id: v["employee_id"].as_str().unwrap_or_default().to_string(),
             display_name: v["name"].as_str().unwrap_or_default().to_string(),
-            role: v["role"].as_str().unwrap_or("teller").to_string(),
+            role: v["role"].as_str().unwrap_or("employee").to_string(),
             org_id: v["org_id"].as_str().map(str::to_string),
             branch_id: None,
             currency_code: "EGP".into(),
@@ -12622,21 +12643,13 @@ impl MadarCore {
             service_charge_taxable: false,
             require_table_for_orders: false,
             online: true,
-            permissions_loaded: false,
+            permissions_loaded: true,
         };
-        let permissions = match madar_api::apis::auth_api::get_my_permissions(&self.api.config()).await {
-            Ok(p) => {
-                snapshot.permissions_loaded = true;
-                session::permissions_from(&p)
-            }
-            Err(_) => Vec::new(),
-        };
-        let authz = self.fetch_authz(None).await;
         self.persist_and_set(session::SessionState {
             snapshot,
-            permissions,
+            permissions: Vec::new(),
             token: Some(token.to_string()),
-            authz,
+            authz: None,
         });
         Ok(body)
     }
@@ -12673,8 +12686,71 @@ impl MadarCore {
             })?),
             None => None,
         };
-        let text = self.api.send_json(method, &path, body.as_ref()).await?;
+        let text = self.staff_send(method, &path, body.as_ref()).await?;
         Ok(if text.is_empty() { "null".into() } else { text })
+    }
+
+    /// A `/staff/*` call with the staff token: the client refreshes an expired
+    /// token and retries once; a refreshed token is kept for the next start,
+    /// and a staff refusal comes back in the person's language.
+    pub(crate) async fn staff_send(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<&serde_json::Value>,
+    ) -> Result<String, CoreError> {
+        let r = self.api.send_json(method, path, body).await;
+        self.keep_staff_token();
+        r.map_err(|e| self.staff_error(e))
+    }
+
+    /// Store the bearer a refresh put in place, so a cold start resumes with it.
+    fn keep_staff_token(&self) {
+        let Some(token) = self.api.bearer() else { return };
+        let blob = {
+            let mut g = self.session.write().unwrap_or_else(|e| e.into_inner());
+            match g.as_mut() {
+                Some(s) if s.token.as_deref() != Some(token.as_str()) => {
+                    s.token = Some(token);
+                    Some(s.to_blob())
+                }
+                _ => None,
+            }
+        };
+        if let Some(blob) = blob {
+            let _ = self.store.blob_put(session::K_SESSION_BLOB, &blob);
+            if let Some(ms) = self.api.staff_expires_ms() {
+                let at = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(ms).map(|t| t.to_rfc3339());
+                let _ = self.store.kv_put(staff::K_STAFF_EXPIRES, at.as_deref().unwrap_or_default());
+            }
+        }
+    }
+
+    /// A staff principal's coded refusal, worded for the person. `DEVICE_REVOKED`
+    /// and a `TOKEN_EXPIRED` the refresh could not fix stay `Unauthenticated`,
+    /// which signs the app out.
+    pub(crate) fn staff_error(&self, e: CoreError) -> CoreError {
+        let key = |code: &str| match code {
+            net::DEVICE_REVOKED => Some("staff.err_device_revoked"),
+            net::TOKEN_EXPIRED => Some("staff.err_token_expired"),
+            "DAWAM_OFF" => Some("staff.err_dawam_off"),
+            "EMPLOYEE_INACTIVE" => Some("staff.err_employee_inactive"),
+            "MANAGER_ACCOUNT_NEEDED" => Some("staff.err_manager_account_needed"),
+            "STAFF_APP_ONLY" => Some("staff.err_staff_app_only"),
+            _ => None,
+        };
+        let locale = self.current_locale();
+        match e {
+            CoreError::Unauthenticated { detail } => match key(&detail) {
+                Some(k) => CoreError::Unauthenticated { detail: i18n::tr(&locale, k) },
+                None => CoreError::Unauthenticated { detail },
+            },
+            CoreError::Forbidden { resource, action } => match key(&resource) {
+                Some(k) => CoreError::Forbidden { action: i18n::tr(&locale, k), resource },
+                None => CoreError::Forbidden { resource, action },
+            },
+            e => e,
+        }
     }
 
     /// The home screen: today's business date, the open record, what is rostered,
@@ -12858,7 +12934,7 @@ impl MadarCore {
         let rows = staff_api::my_leave_balances(
             &self.api.config(),
             staff_api::MyLeaveBalancesParams {
-                user_id: None,
+                employee_id: None,
                 year: year.map(|y| y as i32),
             },
         )
@@ -12966,7 +13042,7 @@ impl MadarCore {
         let rows = staff_api::list_requests(
             &self.api.config(),
             staff_api::ListRequestsParams {
-                user_id: None,
+                employee_id: None,
                 kind,
                 status,
                 from: None,
@@ -13017,6 +13093,8 @@ impl MadarCore {
                 department_id: None,
                 employment_status: None,
                 search,
+                branch_id: None,
+                kind: None,
             },
         )
         .await
@@ -13108,14 +13186,14 @@ impl MadarCore {
         let rows = if deductions {
             staff_api::list_deductions(
                 &self.api.config(),
-                staff_api::ListDeductionsParams { user_id, from, to },
+                staff_api::ListDeductionsParams { employee_id: user_id, from, to },
             )
             .await
             .map_err(net::map_api_error)?
         } else {
             staff_api::list_bonuses(
                 &self.api.config(),
-                staff_api::ListBonusesParams { user_id, from, to },
+                staff_api::ListBonusesParams { employee_id: user_id, from, to },
             )
             .await
             .map_err(net::map_api_error)?
@@ -13154,8 +13232,8 @@ impl MadarCore {
         })?;
         let mut body = madar_api::models::CreateAdjustmentRequest::new(
             parse_ymd(&effective_date, "effective_date")?,
-            reason,
             user,
+            reason,
         );
         body.amount_piastres = Some(Some(amount_minor));
 
@@ -13265,7 +13343,7 @@ impl MadarCore {
         let rows = staff_api::list_advances(
             &self.api.config(),
             staff_api::ListAdvancesParams {
-                user_id: None,
+                employee_id: None,
                 from: None,
                 to: None,
             },

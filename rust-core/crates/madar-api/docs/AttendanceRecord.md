@@ -17,12 +17,14 @@ Name | Type | Description | Notes
 **check_out_longitude** | Option<**f64**> |  | [optional]
 **check_out_method** | Option<**String**> |  | [optional]
 **cover_status** | Option<**String**> | `pending` · `confirmed` · `rejected` for a cover. | [optional]
-**covered_user_id** | Option<**uuid::Uuid**> | A cover: whose shift this person worked (CV-*). | [optional]
+**covered_employee_id** | Option<**uuid::Uuid**> | A cover: whose shift this person worked (CV-*). | [optional]
 **created_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **created_by** | Option<**uuid::Uuid**> |  | [optional]
 **early_leave_minutes** | **i32** |  | 
 **edit_reason** | Option<**String**> |  | [optional]
 **edited_by** | Option<**uuid::Uuid**> |  | [optional]
+**employee_id** | **uuid::Uuid** |  | 
+**employee_name** | Option<**String**> |  | [optional]
 **id** | **uuid::Uuid** |  | 
 **is_manual** | **bool** |  | 
 **late_minutes** | **i32** |  | 
@@ -36,8 +38,6 @@ Name | Type | Description | Notes
 **status** | **String** |  | 
 **tracking_off** | **bool** |  | 
 **updated_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
-**user_id** | **uuid::Uuid** |  | 
-**user_name** | Option<**String**> |  | [optional]
 **work_shift_id** | Option<**uuid::Uuid**> |  | [optional]
 **work_shift_name** | Option<**String**> |  | [optional]
 **worked_minutes** | **i32** |  | 

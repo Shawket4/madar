@@ -11,10 +11,18 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// PutEmployeeRequest : Full replace of an employee's HR profile. A PUT rather than a POST because the key is the user id: writing a profile for a user who has none promotes them to staff, and writing it again edits them.
+/// PutEmployeeRequest : Replace an employee's HR profile. Profile fields are a full replace (null clears them); `name`, `phone`, `app_access` and `branch_ids` are kept when omitted.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PutEmployeeRequest {
-    /// Piastres. Ignored unless the caller has `payroll:update` — a branch manager editing a job title must not be able to award a raise.
+    /// Turning it off signs the phone out.
+    #[serde(
+        rename = "app_access",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub app_access: Option<Option<bool>>,
+    /// Piastres. Ignored unless the caller has `hr.payroll.edit` for every branch — a branch manager editing a job title must not award a raise.
     #[serde(
         rename = "base_salary_piastres",
         default,
@@ -22,6 +30,14 @@ pub struct PutEmployeeRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub base_salary_piastres: Option<Option<i64>>,
+    /// The whole set of branches.
+    #[serde(
+        rename = "branch_ids",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub branch_ids: Option<Option<Vec<uuid::Uuid>>>,
     #[serde(
         rename = "department_id",
         default,
@@ -50,7 +66,7 @@ pub struct PutEmployeeRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub employee_code: Option<Option<String>>,
-    /// `active` | `suspended` | `terminated`. Defaults to `active`.
+    /// `active` | `suspended` | `terminated`. Defaults to `active`. Anything but `active` signs the phone out (RO-10).
     #[serde(
         rename = "employment_status",
         default,
@@ -81,6 +97,13 @@ pub struct PutEmployeeRequest {
     )]
     pub job_title: Option<Option<String>>,
     #[serde(
+        rename = "name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub name: Option<Option<String>>,
+    #[serde(
         rename = "national_id",
         default,
         with = "::serde_with::rust::double_option",
@@ -109,6 +132,14 @@ pub struct PutEmployeeRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub pay_method: Option<Option<String>>,
+    /// A new number signs the old phone out (RO-10). Empty clears it.
+    #[serde(
+        rename = "phone",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub phone: Option<Option<String>>,
     #[serde(
         rename = "photo_url",
         default,
@@ -126,10 +157,12 @@ pub struct PutEmployeeRequest {
 }
 
 impl PutEmployeeRequest {
-    /// Full replace of an employee's HR profile. A PUT rather than a POST because the key is the user id: writing a profile for a user who has none promotes them to staff, and writing it again edits them.
+    /// Replace an employee's HR profile. Profile fields are a full replace (null clears them); `name`, `phone`, `app_access` and `branch_ids` are kept when omitted.
     pub fn new() -> PutEmployeeRequest {
         PutEmployeeRequest {
+            app_access: None,
             base_salary_piastres: None,
+            branch_ids: None,
             department_id: None,
             emergency_contact_name: None,
             emergency_contact_phone: None,
@@ -138,10 +171,12 @@ impl PutEmployeeRequest {
             gender: None,
             hire_date: None,
             job_title: None,
+            name: None,
             national_id: None,
             notes: None,
             pay_account: None,
             pay_method: None,
+            phone: None,
             photo_url: None,
             termination_date: None,
         }

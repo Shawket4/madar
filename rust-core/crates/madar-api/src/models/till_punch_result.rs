@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TillPunchResult {
+    /// The employee the PIN's owner is.
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     #[serde(rename = "name")]
     pub name: String,
     /// `in` · `out`
@@ -20,22 +23,20 @@ pub struct TillPunchResult {
     pub punched: String,
     #[serde(rename = "record")]
     pub record: Box<models::AttendanceRecord>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
 }
 
 impl TillPunchResult {
     pub fn new(
+        employee_id: uuid::Uuid,
         name: String,
         punched: String,
         record: models::AttendanceRecord,
-        user_id: uuid::Uuid,
     ) -> TillPunchResult {
         TillPunchResult {
+            employee_id,
             name,
             punched,
             record: Box::new(record),
-            user_id,
         }
     }
 }

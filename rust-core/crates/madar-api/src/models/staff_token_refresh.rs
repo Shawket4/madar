@@ -12,30 +12,30 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct NewExpenseAdvance {
-    #[serde(rename = "amount_piastres")]
-    pub amount_piastres: i64,
+pub struct StaffTokenRefresh {
     #[serde(rename = "employee_id")]
     pub employee_id: uuid::Uuid,
-    #[serde(rename = "purpose")]
-    pub purpose: String,
-    /// `safe` · `bank` · `till`
-    #[serde(rename = "via")]
-    pub via: String,
+    #[serde(rename = "expires_at")]
+    pub expires_at: chrono::DateTime<chrono::FixedOffset>,
+    #[serde(rename = "org_id")]
+    pub org_id: uuid::Uuid,
+    /// A fresh staff token for `/staff/_*`.
+    #[serde(rename = "token")]
+    pub token: String,
 }
 
-impl NewExpenseAdvance {
+impl StaffTokenRefresh {
     pub fn new(
-        amount_piastres: i64,
         employee_id: uuid::Uuid,
-        purpose: String,
-        via: String,
-    ) -> NewExpenseAdvance {
-        NewExpenseAdvance {
-            amount_piastres,
+        expires_at: chrono::DateTime<chrono::FixedOffset>,
+        org_id: uuid::Uuid,
+        token: String,
+    ) -> StaffTokenRefresh {
+        StaffTokenRefresh {
             employee_id,
-            purpose,
-            via,
+            expires_at,
+            org_id,
+            token,
         }
     }
 }

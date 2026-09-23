@@ -29,6 +29,10 @@ pub struct AttendanceFlag {
     pub branch_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "detected_at")]
     pub detected_at: chrono::DateTime<chrono::FixedOffset>,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(rename = "employee_name")]
+    pub employee_name: String,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     /// `left_mid_shift` · `suspicious` · `tracking_off` · `time_unverified` · `new_phone` · `cover`
@@ -53,34 +57,30 @@ pub struct AttendanceFlag {
     /// Time away × the person's minute rate, rounded to the nearest 5 EGP (CL-7).
     #[serde(rename = "suggested_deduction_piastres")]
     pub suggested_deduction_piastres: i64,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
-    #[serde(rename = "user_name")]
-    pub user_name: String,
 }
 
 impl AttendanceFlag {
     pub fn new(
         detected_at: chrono::DateTime<chrono::FixedOffset>,
+        employee_id: uuid::Uuid,
+        employee_name: String,
         id: uuid::Uuid,
         kind: String,
         minutes_away: i32,
         suggested_deduction_piastres: i64,
-        user_id: uuid::Uuid,
-        user_name: String,
     ) -> AttendanceFlag {
         AttendanceFlag {
             attendance_record_id: None,
             branch_id: None,
             detected_at,
+            employee_id,
+            employee_name,
             id,
             kind,
             minutes_away,
             resolution: None,
             resolved_at: None,
             suggested_deduction_piastres,
-            user_id,
-            user_name,
         }
     }
 }

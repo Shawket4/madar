@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct OpenShift {
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
+    /// The employee who claimed it.
     #[serde(
         rename = "claimed_by",
         default,

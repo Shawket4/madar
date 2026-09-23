@@ -15,16 +15,16 @@ use serde::{Deserialize, Serialize};
 pub struct ExpenseAdvanceRow {
     #[serde(rename = "amount_piastres")]
     pub amount_piastres: i64,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(rename = "employee_name")]
+    pub employee_name: String,
     #[serde(rename = "given_on")]
     pub given_on: chrono::NaiveDate,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(rename = "purpose")]
     pub purpose: String,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
-    #[serde(rename = "user_name")]
-    pub user_name: String,
     /// `safe` · `bank` · `till`
     #[serde(rename = "via")]
     pub via: String,
@@ -33,20 +33,20 @@ pub struct ExpenseAdvanceRow {
 impl ExpenseAdvanceRow {
     pub fn new(
         amount_piastres: i64,
+        employee_id: uuid::Uuid,
+        employee_name: String,
         given_on: chrono::NaiveDate,
         id: uuid::Uuid,
         purpose: String,
-        user_id: uuid::Uuid,
-        user_name: String,
         via: String,
     ) -> ExpenseAdvanceRow {
         ExpenseAdvanceRow {
             amount_piastres,
+            employee_id,
+            employee_name,
             given_on,
             id,
             purpose,
-            user_id,
-            user_name,
             via,
         }
     }

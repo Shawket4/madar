@@ -34,6 +34,8 @@ pub struct ComputedPayslip {
     pub carry_out_piastres: i64,
     #[serde(rename = "deductions_piastres")]
     pub deductions_piastres: i64,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     #[serde(rename = "late_minutes")]
     pub late_minutes: i64,
     #[serde(rename = "leave_days")]
@@ -46,8 +48,6 @@ pub struct ComputedPayslip {
     pub overtime_minutes: i64,
     #[serde(rename = "overtime_piastres")]
     pub overtime_piastres: i64,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
     #[serde(rename = "worked_days")]
     pub worked_days: f64,
 }
@@ -63,13 +63,13 @@ impl ComputedPayslip {
         breakdown: Option<serde_json::Value>,
         carry_out_piastres: i64,
         deductions_piastres: i64,
+        employee_id: uuid::Uuid,
         late_minutes: i64,
         leave_days: f64,
         name: String,
         net_piastres: i64,
         overtime_minutes: i64,
         overtime_piastres: i64,
-        user_id: uuid::Uuid,
         worked_days: f64,
     ) -> ComputedPayslip {
         ComputedPayslip {
@@ -81,13 +81,13 @@ impl ComputedPayslip {
             breakdown,
             carry_out_piastres,
             deductions_piastres,
+            employee_id,
             late_minutes,
             leave_days,
             name,
             net_piastres,
             overtime_minutes,
             overtime_piastres,
-            user_id,
             worked_days,
         }
     }

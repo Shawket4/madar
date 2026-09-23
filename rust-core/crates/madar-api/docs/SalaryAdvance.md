@@ -9,6 +9,8 @@ Name | Type | Description | Notes
 **decided_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **decided_by** | Option<**uuid::Uuid**> |  | [optional]
 **decision_note** | Option<**String**> |  | [optional]
+**employee_id** | **uuid::Uuid** |  | 
+**employee_name** | Option<**String**> |  | [optional]
 **id** | **uuid::Uuid** |  | 
 **installments** | **i32** |  | 
 **monthly_installment_piastres** | **i64** |  | 
@@ -17,8 +19,6 @@ Name | Type | Description | Notes
 **remaining_piastres** | **i64** |  | 
 **status** | **String** |  | 
 **updated_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
-**user_id** | **uuid::Uuid** |  | 
-**user_name** | Option<**String**> |  | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

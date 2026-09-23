@@ -17,6 +17,8 @@
 
 /// The store key of the Dawam phone binding token (`X-Staff-Device`).
 pub(crate) const K_STAFF_DEVICE: &str = "staff:device";
+/// When the staff token expires (RFC 3339), so a cold start refreshes it in time.
+pub(crate) const K_STAFF_EXPIRES: &str = "staff:token_expires_at";
 
 use madar_api::models;
 use serde::{Deserialize, Serialize};
@@ -232,7 +234,7 @@ pub(crate) fn request_view(r: models::StaffRequest) -> StaffRequestView {
     let hhmm = |v: Option<Option<String>>| flat(v).get(..5).map(str::to_string).unwrap_or_default();
     StaffRequestView {
         id: r.id.to_string(),
-        user_name: flat(r.user_name),
+        user_name: flat(r.employee_name),
         kind: r.kind,
         on_date: r.on_date.to_string(),
         end_date: r
@@ -432,8 +434,9 @@ pub(crate) fn adjustment_view(
     });
     AdjustmentView {
         id: a.id.to_string(),
-        user_id: a.user_id.to_string(),
-        user_name: flat(a.user_name),
+        // The employee (Phase A); the field keeps its bridge name.
+        user_id: a.employee_id.to_string(),
+        user_name: flat(a.employee_name),
         amount_minor: amount,
         reason: a.reason,
         effective_date: a.effective_date.to_string(),
@@ -449,8 +452,8 @@ pub(crate) fn adjustment_view(
 
 pub(crate) fn presence_view(r: models::PresenceRow) -> PresenceRowView {
     PresenceRowView {
-        user_id: r.user_id.to_string(),
-        name: r.user_name,
+        user_id: r.employee_id.to_string(),
+        name: r.employee_name,
         job_title: flat(r.job_title),
         branch_name: flat(r.branch_name),
         state: r.state,
@@ -477,7 +480,7 @@ pub(crate) fn team_presence_view(p: models::TeamPresence) -> TeamPresenceView {
 
 pub(crate) fn employee_view(e: models::Employee) -> EmployeeView {
     EmployeeView {
-        user_id: e.user_id.to_string(),
+        user_id: e.id.to_string(),
         name: e.name,
         job_title: flat(e.job_title),
         department_name: flat(e.department_name),
@@ -526,7 +529,7 @@ pub(crate) fn payroll_line_view(c: models::ComputedPayslip) -> PayrollLineView {
         String::new()
     };
     PayrollLineView {
-        user_id: c.user_id.to_string(),
+        user_id: c.employee_id.to_string(),
         name: c.name,
         worked_minutes: 0,
         overtime_minutes: c.overtime_minutes,
@@ -566,5 +569,155 @@ mod tests {
         assert_eq!(flat(None), "");
         assert_eq!(flat(Some(None)), "");
         assert_eq!(flat(Some(Some("x".into()))), "x");
+    }
+}
+
+/// The Dawam staff session (Phase A): the employee is who signed in, the
+/// token lasts an hour and the phone refreshes it with its device token.
+#[cfg(test)]
+pub(crate) mod session_tests {
+    use crate::testkit::{Stub, StubResponse};
+    use crate::{CoreError, MadarConfig, MadarCore};
+    use serde_json::{json, Value};
+    use std::sync::Arc;
+
+    pub(crate) const EMP: &str = "00000000-0000-0000-0000-0000000000e1";
+    pub(crate) const ORG: &str = "00000000-0000-0000-0000-0000000000aa";
+
+    pub(crate) fn fresh(base: &str) -> Arc<MadarCore> {
+        MadarCore::new(MadarConfig {
+            base_url: base.to_string(),
+            environment: "dev".into(),
+            db_path: String::new(),
+            locale: "en".into(),
+            app_version: None,
+        })
+        .unwrap()
+    }
+
+    pub(crate) fn session(expires_at: &str) -> Value {
+        json!({
+            "needs_org": false, "orgs": [], "new_phone": false,
+            "token": "t1", "token_expires_at": expires_at, "device_token": "dev-1",
+            "employee_id": EMP, "user_id": null, "name": "Sara", "org_id": ORG,
+        })
+    }
+
+    pub(crate) fn later() -> String {
+        (chrono::Utc::now() + chrono::Duration::minutes(60)).to_rfc3339()
+    }
+
+    pub(crate) async fn signed_in(stub: &Stub) -> Arc<MadarCore> {
+        let core = fresh(&stub.base);
+        core.staff_otp_verify("+201001234567".into(), "123456".into(), None, None, None).await.unwrap();
+        core
+    }
+
+    #[tokio::test]
+    async fn the_employee_is_me_and_no_user_endpoint_is_called() {
+        let exp = later();
+        let stub = Stub::start(move |r| {
+            (r.path == "/auth/staff/otp/verify").then(|| StubResponse::json(200, session(&exp)))
+        })
+        .await;
+        let core = signed_in(&stub).await;
+        let s = core.current_session().expect("signed in");
+        assert_eq!(s.user_id, EMP, "me is the employee id");
+        assert_eq!(s.display_name, "Sara");
+        assert_eq!(s.role, "employee", "no linked account: no POS role");
+        assert!(s.permissions_loaded, "nothing left to fetch: caps come with the context");
+        let seen: Vec<String> = stub.seen.lock().unwrap().iter().map(|r| r.path.clone()).collect();
+        assert_eq!(seen, ["/auth/staff/otp/verify"], "no /auth/permissions, no /authz/me");
+    }
+
+    #[tokio::test]
+    async fn an_expired_token_is_refreshed_and_the_call_retried_once() {
+        let exp = later();
+        let stub = Stub::start(move |r| {
+            let bearer = r.header("authorization").unwrap_or_default();
+            Some(match r.path.as_str() {
+                "/auth/staff/otp/verify" => StubResponse::json(200, session(&exp)),
+                "/auth/staff/refresh" => {
+                    assert_eq!(r.header("x-staff-device").as_deref(), Some("dev-1"), "the device is the credential");
+                    StubResponse::json(200, json!({ "token": "t2", "expires_at": later(), "employee_id": EMP, "org_id": ORG }))
+                }
+                _ if bearer == "Bearer t1" => StubResponse::json(401, json!({ "error": "Your session expired.", "code": "TOKEN_EXPIRED" })),
+                _ => StubResponse::json(200, json!({ "ok": true })),
+            })
+        })
+        .await;
+        let core = signed_in(&stub).await;
+        let out = core.staff_call("GET".into(), "/staff/me/today".into(), None).await.unwrap();
+        assert_eq!(out, r#"{"ok":true}"#);
+        let calls: Vec<(String, Option<String>)> =
+            stub.seen.lock().unwrap().iter().skip(1).map(|r| (r.path.clone(), r.header("authorization"))).collect();
+        assert_eq!(
+            calls,
+            [
+                ("/staff/me/today".into(), Some("Bearer t1".into())),
+                ("/auth/staff/refresh".into(), None),
+                ("/staff/me/today".into(), Some("Bearer t2".into())),
+            ]
+        );
+        // The new token is what a cold start resumes with.
+        let blob = core.store.blob_get(crate::session::K_SESSION_BLOB).unwrap().unwrap();
+        let back = fresh(&stub.base);
+        back.restore_session(blob).unwrap();
+        assert_eq!(back.api.bearer().as_deref(), Some("t2"));
+    }
+
+    #[tokio::test]
+    async fn a_token_about_to_run_out_is_refreshed_before_the_call() {
+        let soon = (chrono::Utc::now() + chrono::Duration::seconds(20)).to_rfc3339();
+        let stub = Stub::start(move |r| {
+            Some(match r.path.as_str() {
+                "/auth/staff/otp/verify" => StubResponse::json(200, session(&soon)),
+                "/auth/staff/refresh" => StubResponse::json(200, json!({ "token": "t2", "expires_at": later(), "employee_id": EMP, "org_id": ORG })),
+                _ => StubResponse::json(200, json!(null)),
+            })
+        })
+        .await;
+        let core = signed_in(&stub).await;
+        core.staff_call("GET".into(), "/staff/me/today".into(), None).await.unwrap();
+        let seen: Vec<(String, Option<String>)> =
+            stub.seen.lock().unwrap().iter().skip(1).map(|r| (r.path.clone(), r.header("authorization"))).collect();
+        assert_eq!(seen, [("/auth/staff/refresh".into(), None), ("/staff/me/today".into(), Some("Bearer t2".into()))]);
+    }
+
+    #[tokio::test]
+    async fn a_revoked_phone_signs_out_in_the_persons_language() {
+        let exp = later();
+        let stub = Stub::start(move |r| {
+            Some(match r.path.as_str() {
+                "/auth/staff/otp/verify" => StubResponse::json(200, session(&exp)),
+                "/auth/staff/refresh" => StubResponse::json(401, json!({ "error": "This phone was signed out.", "code": "DEVICE_REVOKED" })),
+                _ => StubResponse::json(401, json!({ "error": "Your session expired.", "code": "TOKEN_EXPIRED" })),
+            })
+        })
+        .await;
+        let core = signed_in(&stub).await;
+        core.set_locale("ar".into());
+        let err = core.staff_call("GET".into(), "/staff/me/today".into(), None).await.unwrap_err();
+        let CoreError::Unauthenticated { detail } = err else { panic!("{err:?}") };
+        assert_eq!(detail, crate::i18n::tr("ar", "staff.err_device_revoked"));
+        assert_eq!(stub.requests("/auth/staff/refresh").len(), 1, "one refresh, no loop");
+        assert_eq!(stub.requests("/staff/me/today").len(), 1, "no retry without a token");
+    }
+
+    #[tokio::test]
+    async fn dawam_switched_off_is_said_not_signed_out() {
+        let exp = later();
+        let stub = Stub::start(move |r| {
+            Some(match r.path.as_str() {
+                "/auth/staff/otp/verify" => StubResponse::json(200, session(&exp)),
+                _ => StubResponse::json(403, json!({ "error": "Dawam is switched off for Nile.", "code": "DAWAM_OFF" })),
+            })
+        })
+        .await;
+        let core = signed_in(&stub).await;
+        let err = core.staff_call("GET".into(), "/staff/me/today".into(), None).await.unwrap_err();
+        let CoreError::Forbidden { resource, action } = err else { panic!("{err:?}") };
+        assert_eq!((resource.as_str(), action), ("DAWAM_OFF", crate::i18n::tr("en", "staff.err_dawam_off")));
+        assert!(core.current_session().is_some());
     }
 }

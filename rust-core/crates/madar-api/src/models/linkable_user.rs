@@ -11,36 +11,41 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// LinkableUser : A Madar user who can be made an employee.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct OpenCover {
-    /// Whose shift.
-    #[serde(rename = "employee_id")]
-    pub employee_id: uuid::Uuid,
+pub struct LinkableUser {
     #[serde(
-        rename = "latitude",
+        rename = "email",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub latitude: Option<Option<f64>>,
+    pub email: Option<Option<String>>,
+    #[serde(rename = "name")]
+    pub name: String,
     #[serde(
-        rename = "longitude",
+        rename = "phone",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub longitude: Option<Option<f64>>,
-    #[serde(rename = "work_shift_id")]
-    pub work_shift_id: uuid::Uuid,
+    pub phone: Option<Option<String>>,
+    /// Their POS role (`org_admin`, `branch_manager`, `teller`, …).
+    #[serde(rename = "role")]
+    pub role: String,
+    #[serde(rename = "user_id")]
+    pub user_id: uuid::Uuid,
 }
 
-impl OpenCover {
-    pub fn new(employee_id: uuid::Uuid, work_shift_id: uuid::Uuid) -> OpenCover {
-        OpenCover {
-            employee_id,
-            latitude: None,
-            longitude: None,
-            work_shift_id,
+impl LinkableUser {
+    /// A Madar user who can be made an employee.
+    pub fn new(name: String, role: String, user_id: uuid::Uuid) -> LinkableUser {
+        LinkableUser {
+            email: None,
+            name,
+            phone: None,
+            role,
+            user_id,
         }
     }
 }

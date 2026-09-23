@@ -27,6 +27,8 @@ pub struct NewAdjustment {
         skip_serializing_if = "Option::is_none"
     )]
     pub effective_date: Option<Option<chrono::NaiveDate>>,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     /// `bonus` · `deduction`
     #[serde(rename = "kind")]
     pub kind: String,
@@ -43,20 +45,18 @@ pub struct NewAdjustment {
     /// Every month until stopped (AD-3).
     #[serde(rename = "recurring", skip_serializing_if = "Option::is_none")]
     pub recurring: Option<bool>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
 }
 
 impl NewAdjustment {
-    pub fn new(kind: String, reason: String, user_id: uuid::Uuid) -> NewAdjustment {
+    pub fn new(employee_id: uuid::Uuid, kind: String, reason: String) -> NewAdjustment {
         NewAdjustment {
             amount_piastres: None,
             effective_date: None,
+            employee_id,
             kind,
             percent_of_base: None,
             reason,
             recurring: None,
-            user_id,
         }
     }
 }

@@ -59,20 +59,20 @@ class BranchOpenTillView {
 
 /// Someone at this branch, for the expense-advance picker.
 class BranchPersonView {
-  final String userId;
+  final String employeeId;
   final String name;
 
-  const BranchPersonView({required this.userId, required this.name});
+  const BranchPersonView({required this.employeeId, required this.name});
 
   @override
-  int get hashCode => userId.hashCode ^ name.hashCode;
+  int get hashCode => employeeId.hashCode ^ name.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is BranchPersonView &&
           runtimeType == other.runtimeType &&
-          userId == other.userId &&
+          employeeId == other.employeeId &&
           name == other.name;
 }
 

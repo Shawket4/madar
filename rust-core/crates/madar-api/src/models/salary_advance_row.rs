@@ -15,6 +15,10 @@ use serde::{Deserialize, Serialize};
 pub struct SalaryAdvanceRow {
     #[serde(rename = "amount_piastres")]
     pub amount_piastres: i64,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(rename = "employee_name")]
+    pub employee_name: String,
     #[serde(rename = "given_on")]
     pub given_on: chrono::NaiveDate,
     #[serde(rename = "id")]
@@ -26,32 +30,28 @@ pub struct SalaryAdvanceRow {
     /// `pending` · `approved` · `rejected` · …
     #[serde(rename = "status")]
     pub status: String,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
-    #[serde(rename = "user_name")]
-    pub user_name: String,
 }
 
 impl SalaryAdvanceRow {
     pub fn new(
         amount_piastres: i64,
+        employee_id: uuid::Uuid,
+        employee_name: String,
         given_on: chrono::NaiveDate,
         id: uuid::Uuid,
         installments: i32,
         remaining_piastres: i64,
         status: String,
-        user_id: uuid::Uuid,
-        user_name: String,
     ) -> SalaryAdvanceRow {
         SalaryAdvanceRow {
             amount_piastres,
+            employee_id,
+            employee_name,
             given_on,
             id,
             installments,
             remaining_piastres,
             status,
-            user_id,
-            user_name,
         }
     }
 }

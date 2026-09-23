@@ -61,7 +61,7 @@ class FakeCore implements DawamBackend {
     String phone,
     String code, {
     String? orgId,
-  }) async => {'user_id': who, 'token': 't', 'device_token': 'd'};
+  }) async => {'employee_id': who, 'token': 't', 'device_token': 'd'};
 
   @override
   Future<String> snapshot({required bool refresh}) async => fixture(who);

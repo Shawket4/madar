@@ -20,6 +20,10 @@ pub struct RosterShift {
     pub changed: bool,
     #[serde(rename = "date")]
     pub date: chrono::NaiveDate,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(rename = "employee_name")]
+    pub employee_name: String,
     #[serde(rename = "end_at")]
     pub end_at: chrono::DateTime<chrono::FixedOffset>,
     /// On approved leave or a mission that day.
@@ -29,10 +33,6 @@ pub struct RosterShift {
     pub shift_name: String,
     #[serde(rename = "start_at")]
     pub start_at: chrono::DateTime<chrono::FixedOffset>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
-    #[serde(rename = "user_name")]
-    pub user_name: String,
     #[serde(rename = "work_shift_id")]
     pub work_shift_id: uuid::Uuid,
 }
@@ -42,24 +42,24 @@ impl RosterShift {
         branch_id: uuid::Uuid,
         changed: bool,
         date: chrono::NaiveDate,
+        employee_id: uuid::Uuid,
+        employee_name: String,
         end_at: chrono::DateTime<chrono::FixedOffset>,
         on_leave: bool,
         shift_name: String,
         start_at: chrono::DateTime<chrono::FixedOffset>,
-        user_id: uuid::Uuid,
-        user_name: String,
         work_shift_id: uuid::Uuid,
     ) -> RosterShift {
         RosterShift {
             branch_id,
             changed,
             date,
+            employee_id,
+            employee_name,
             end_at,
             on_leave,
             shift_name,
             start_at,
-            user_id,
-            user_name,
             work_shift_id,
         }
     }

@@ -30,12 +30,17 @@ pub struct StaffContext {
     pub advance_limit_percent: Option<Option<i64>>,
     #[serde(rename = "branches")]
     pub branches: Vec<models::ContextBranch>,
-    /// The HR capabilities I hold (`hr.*` keys).
+    /// The HR capabilities I hold (`hr.*` keys) — through my Madar account; empty for an employee with none. The app gates tabs on these (PM-4).
     #[serde(rename = "caps")]
     pub caps: Vec<String>,
+    /// Who is signed in: the employee.
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     /// The org's modules (`pos`, `dawam`); POS on means till punches (CL-13).
     #[serde(rename = "modules")]
     pub modules: Vec<String>,
+    #[serde(rename = "name")]
+    pub name: String,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
     #[serde(rename = "org_name")]
@@ -47,8 +52,14 @@ pub struct StaffContext {
     pub role: String,
     #[serde(rename = "settings")]
     pub settings: Box<models::ContextSettings>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
+    /// Their Madar account, when they have one; manager acts go through it.
+    #[serde(
+        rename = "user_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub user_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "work_shifts")]
     pub work_shifts: Vec<models::WorkShiftBrief>,
 }
@@ -57,13 +68,14 @@ impl StaffContext {
     pub fn new(
         branches: Vec<models::ContextBranch>,
         caps: Vec<String>,
+        employee_id: uuid::Uuid,
         modules: Vec<String>,
+        name: String,
         org_id: uuid::Uuid,
         org_name: String,
         people: Vec<models::ContextPerson>,
         role: String,
         settings: models::ContextSettings,
-        user_id: uuid::Uuid,
         work_shifts: Vec<models::WorkShiftBrief>,
     ) -> StaffContext {
         StaffContext {
@@ -71,13 +83,15 @@ impl StaffContext {
             advance_limit_percent: None,
             branches,
             caps,
+            employee_id,
             modules,
+            name,
             org_id,
             org_name,
             people,
             role,
             settings: Box::new(settings),
-            user_id,
+            user_id: None,
             work_shifts,
         }
     }

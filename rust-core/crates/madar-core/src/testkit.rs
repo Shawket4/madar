@@ -12,9 +12,19 @@ pub(crate) struct SeenRequest {
     /// Path including the query string.
     pub path: String,
     pub body: String,
+    /// The raw header lines.
+    pub head: String,
 }
 
 impl SeenRequest {
+    /// A header's value (name case-insensitive).
+    pub fn header(&self, name: &str) -> Option<String> {
+        let want = format!("{}:", name.to_ascii_lowercase());
+        self.head.lines().find_map(|l| {
+            l.to_ascii_lowercase().starts_with(&want).then(|| l[want.len()..].trim().to_string())
+        })
+    }
+
     pub fn json(&self) -> serde_json::Value {
         serde_json::from_str(&self.body).unwrap_or(serde_json::Value::Null)
     }
@@ -91,11 +101,13 @@ impl Stub {
                         method: parts.next().unwrap_or("").to_string(),
                         path: parts.next().unwrap_or("").to_string(),
                         body: text[head_end + 4..head_end + 4 + len].to_string(),
+                        head: text[..head_end].to_string(),
                     };
                     sink.lock().unwrap().push(req.clone());
                     // Sign-in always reads as offline, so a test core unlocks with
                     // the cached bundle whatever else the stub serves.
-                    let resp = if req.path.starts_with("/auth/") {
+                    // The staff app's sign-in and refresh are the handler's.
+                    let resp = if req.path.starts_with("/auth/") && !req.path.starts_with("/auth/staff/") {
                         StubResponse::hangup()
                     } else {
                         handler(&req).unwrap_or(StubResponse::text(404, r#"{"error":"not found"}"#))

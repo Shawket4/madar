@@ -35,6 +35,10 @@ pub struct PresenceRow {
         skip_serializing_if = "Option::is_none"
     )]
     pub check_out_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(rename = "employee_name")]
+    pub employee_name: String,
     #[serde(
         rename = "job_title",
         default,
@@ -50,10 +54,6 @@ pub struct PresenceRow {
     /// `in` | `late` | `absent` | `on_leave` | `off` | `done`.
     #[serde(rename = "state")]
     pub state: String,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
-    #[serde(rename = "user_name")]
-    pub user_name: String,
     #[serde(rename = "worked_minutes")]
     pub worked_minutes: i32,
 }
@@ -61,23 +61,23 @@ pub struct PresenceRow {
 impl PresenceRow {
     /// One person's state right now, for the manager's live team list.
     pub fn new(
+        employee_id: uuid::Uuid,
+        employee_name: String,
         late_minutes: i32,
         scheduled_minutes: i64,
         state: String,
-        user_id: uuid::Uuid,
-        user_name: String,
         worked_minutes: i32,
     ) -> PresenceRow {
         PresenceRow {
             branch_name: None,
             check_in_at: None,
             check_out_at: None,
+            employee_id,
+            employee_name,
             job_title: None,
             late_minutes,
             scheduled_minutes,
             state,
-            user_id,
-            user_name,
             worked_minutes,
         }
     }

@@ -17,6 +17,8 @@ pub struct LabourWarning {
     /// The day (or, for a week's limit, the Saturday it starts).
     #[serde(rename = "date")]
     pub date: chrono::NaiveDate,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     /// `day_hours` · `week_hours` · `presence` · `rest` · `weekly_rest` · `overtime_day`
     #[serde(rename = "kind")]
     pub kind: String,
@@ -24,25 +26,23 @@ pub struct LabourWarning {
     pub limit_minutes: i64,
     #[serde(rename = "minutes")]
     pub minutes: i64,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
 }
 
 impl LabourWarning {
     /// A roster past a labour limit. Warns, never blocks (RU-13).
     pub fn new(
         date: chrono::NaiveDate,
+        employee_id: uuid::Uuid,
         kind: String,
         limit_minutes: i64,
         minutes: i64,
-        user_id: uuid::Uuid,
     ) -> LabourWarning {
         LabourWarning {
             date,
+            employee_id,
             kind,
             limit_minutes,
             minutes,
-            user_id,
         }
     }
 }

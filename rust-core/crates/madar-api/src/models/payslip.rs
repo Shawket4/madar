@@ -28,6 +28,15 @@ pub struct Payslip {
     pub carry_out_piastres: i64,
     #[serde(rename = "deductions_piastres")]
     pub deductions_piastres: i64,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(
+        rename = "employee_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub employee_name: Option<Option<String>>,
     #[serde(rename = "generated_at")]
     pub generated_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "id")]
@@ -83,15 +92,6 @@ pub struct Payslip {
         skip_serializing_if = "Option::is_none"
     )]
     pub period_start: Option<Option<chrono::NaiveDate>>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
-    #[serde(
-        rename = "user_name",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub user_name: Option<Option<String>>,
     #[serde(rename = "worked_days")]
     pub worked_days: f64,
 }
@@ -105,6 +105,7 @@ impl Payslip {
         breakdown: Option<serde_json::Value>,
         carry_out_piastres: i64,
         deductions_piastres: i64,
+        employee_id: uuid::Uuid,
         generated_at: chrono::DateTime<chrono::FixedOffset>,
         id: uuid::Uuid,
         late_minutes: i32,
@@ -114,7 +115,6 @@ impl Payslip {
         overtime_minutes: i32,
         overtime_piastres: i64,
         payroll_period_id: uuid::Uuid,
-        user_id: uuid::Uuid,
         worked_days: f64,
     ) -> Payslip {
         Payslip {
@@ -125,6 +125,8 @@ impl Payslip {
             breakdown,
             carry_out_piastres,
             deductions_piastres,
+            employee_id,
+            employee_name: None,
             generated_at,
             id,
             late_minutes,
@@ -139,8 +141,6 @@ impl Payslip {
             period_end: None,
             period_name: None,
             period_start: None,
-            user_id,
-            user_name: None,
             worked_days,
         }
     }

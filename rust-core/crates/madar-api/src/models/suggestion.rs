@@ -21,21 +21,26 @@ pub struct Suggestion {
     pub confidence: i32,
     #[serde(rename = "date")]
     pub date: chrono::NaiveDate,
+    /// Who the suggestion puts on the shift.
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(rename = "employee_name")]
+    pub employee_name: String,
     /// Who it takes off it, for a reassignment.
     #[serde(
-        rename = "from_user_id",
+        rename = "from_employee_id",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub from_user_id: Option<Option<uuid::Uuid>>,
+    pub from_employee_id: Option<Option<uuid::Uuid>>,
     #[serde(
-        rename = "from_user_name",
+        rename = "from_employee_name",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub from_user_name: Option<Option<String>>,
+    pub from_employee_name: Option<Option<String>>,
     /// Opaque; send it back to accept or reject.
     #[serde(rename = "id")]
     pub id: String,
@@ -46,11 +51,6 @@ pub struct Suggestion {
     pub reason_key: String,
     #[serde(rename = "shift_name")]
     pub shift_name: String,
-    /// Who the suggestion puts on the shift.
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
-    #[serde(rename = "user_name")]
-    pub user_name: String,
     #[serde(rename = "work_shift_id")]
     pub work_shift_id: uuid::Uuid,
 }
@@ -60,26 +60,26 @@ impl Suggestion {
         by_default: bool,
         confidence: i32,
         date: chrono::NaiveDate,
+        employee_id: uuid::Uuid,
+        employee_name: String,
         id: String,
         reason_args: Option<serde_json::Value>,
         reason_key: String,
         shift_name: String,
-        user_id: uuid::Uuid,
-        user_name: String,
         work_shift_id: uuid::Uuid,
     ) -> Suggestion {
         Suggestion {
             by_default,
             confidence,
             date,
-            from_user_id: None,
-            from_user_name: None,
+            employee_id,
+            employee_name,
+            from_employee_id: None,
+            from_employee_name: None,
             id,
             reason_args,
             reason_key,
             shift_name,
-            user_id,
-            user_name,
             work_shift_id,
         }
     }

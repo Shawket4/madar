@@ -1263,8 +1263,8 @@ class CashMovementsNotifier extends Notifier<CashMovementsState> {
   void fail(UiText error) => state = state.copyWith(error: error);
 
   /// Tag the pay-out as someone's expense advance, or untag it (null).
-  void setAdvanceTo(String? userId, String? name) =>
-      state = state.copyWith(advanceTo: userId, advanceToName: name);
+  void setAdvanceTo(String? employeeId, String? name) =>
+      state = state.copyWith(advanceTo: employeeId, advanceToName: name);
 
   /// Pick what the movement IS. A safe drop and a correction both take money
   /// out; `corrects` is cleared when the kind is no longer a correction, so a

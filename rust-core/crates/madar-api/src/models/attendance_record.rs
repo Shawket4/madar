@@ -97,12 +97,12 @@ pub struct AttendanceRecord {
     pub cover_status: Option<Option<String>>,
     /// A cover: whose shift this person worked (CV-*).
     #[serde(
-        rename = "covered_user_id",
+        rename = "covered_employee_id",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub covered_user_id: Option<Option<uuid::Uuid>>,
+    pub covered_employee_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(
@@ -128,6 +128,15 @@ pub struct AttendanceRecord {
         skip_serializing_if = "Option::is_none"
     )]
     pub edited_by: Option<Option<uuid::Uuid>>,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(
+        rename = "employee_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub employee_name: Option<Option<String>>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(rename = "is_manual")]
@@ -181,15 +190,6 @@ pub struct AttendanceRecord {
     pub tracking_off: bool,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
-    #[serde(
-        rename = "user_name",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub user_name: Option<Option<String>>,
     #[serde(
         rename = "work_shift_id",
         default,
@@ -214,6 +214,7 @@ impl AttendanceRecord {
         business_date: chrono::NaiveDate,
         created_at: chrono::DateTime<chrono::FixedOffset>,
         early_leave_minutes: i32,
+        employee_id: uuid::Uuid,
         id: uuid::Uuid,
         is_manual: bool,
         late_minutes: i32,
@@ -222,7 +223,6 @@ impl AttendanceRecord {
         status: String,
         tracking_off: bool,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
-        user_id: uuid::Uuid,
         worked_minutes: i32,
     ) -> AttendanceRecord {
         AttendanceRecord {
@@ -239,12 +239,14 @@ impl AttendanceRecord {
             check_out_longitude: None,
             check_out_method: None,
             cover_status: None,
-            covered_user_id: None,
+            covered_employee_id: None,
             created_at,
             created_by: None,
             early_leave_minutes,
             edit_reason: None,
             edited_by: None,
+            employee_id,
+            employee_name: None,
             id,
             is_manual,
             late_minutes,
@@ -258,8 +260,6 @@ impl AttendanceRecord {
             status,
             tracking_off,
             updated_at,
-            user_id,
-            user_name: None,
             work_shift_id: None,
             work_shift_name: None,
             worked_minutes,

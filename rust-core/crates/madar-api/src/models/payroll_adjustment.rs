@@ -31,6 +31,15 @@ pub struct PayrollAdjustment {
     pub created_by: Option<Option<uuid::Uuid>>,
     #[serde(rename = "effective_date")]
     pub effective_date: chrono::NaiveDate,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(
+        rename = "employee_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub employee_name: Option<Option<String>>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(rename = "org_id")]
@@ -72,15 +81,6 @@ pub struct PayrollAdjustment {
     pub status: String,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
-    #[serde(
-        rename = "user_name",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub user_name: Option<Option<String>>,
     #[serde(
         rename = "waive_reason",
         default,
@@ -102,19 +102,21 @@ impl PayrollAdjustment {
     pub fn new(
         created_at: chrono::DateTime<chrono::FixedOffset>,
         effective_date: chrono::NaiveDate,
+        employee_id: uuid::Uuid,
         id: uuid::Uuid,
         org_id: uuid::Uuid,
         reason: String,
         source: String,
         status: String,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
-        user_id: uuid::Uuid,
     ) -> PayrollAdjustment {
         PayrollAdjustment {
             amount_piastres: None,
             created_at,
             created_by: None,
             effective_date,
+            employee_id,
+            employee_name: None,
             id,
             org_id,
             original_amount_piastres: None,
@@ -125,8 +127,6 @@ impl PayrollAdjustment {
             source,
             status,
             updated_at,
-            user_id,
-            user_name: None,
             waive_reason: None,
             waived_at: None,
         }

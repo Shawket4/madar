@@ -11,9 +11,18 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// CreateEmployeeRequest : Add an employee of any kind (see the module docs).
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateEmployeeRequest {
-    /// Piastres. Ignored without `payroll:update`, as on the profile.
+    /// May sign in to the staff app. Defaults to \"has a phone\".
+    #[serde(
+        rename = "app_access",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub app_access: Option<Option<bool>>,
+    /// Piastres. Ignored without `hr.payroll.edit` for every branch.
     #[serde(
         rename = "base_salary_piastres",
         default,
@@ -21,8 +30,30 @@ pub struct CreateEmployeeRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub base_salary_piastres: Option<Option<i64>>,
-    #[serde(rename = "branch_id")]
-    pub branch_id: uuid::Uuid,
+    #[serde(
+        rename = "branch_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub branch_id: Option<Option<uuid::Uuid>>,
+    /// Where they work (at least one). `branch_id` is the older one-branch form.
+    #[serde(rename = "branch_ids", skip_serializing_if = "Option::is_none")]
+    pub branch_ids: Option<Vec<uuid::Uuid>>,
+    #[serde(
+        rename = "department_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub department_id: Option<Option<uuid::Uuid>>,
+    #[serde(
+        rename = "employee_code",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub employee_code: Option<Option<String>>,
     /// `m` · `f`
     #[serde(
         rename = "gender",
@@ -31,6 +62,14 @@ pub struct CreateEmployeeRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub gender: Option<Option<String>>,
+    /// Defaults to today.
+    #[serde(
+        rename = "hire_date",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub hire_date: Option<Option<chrono::NaiveDate>>,
     #[serde(
         rename = "job_title",
         default,
@@ -38,22 +77,48 @@ pub struct CreateEmployeeRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub job_title: Option<Option<String>>,
-    #[serde(rename = "name")]
-    pub name: String,
-    /// Their WhatsApp number: how they sign in to Dawam.
-    #[serde(rename = "phone")]
-    pub phone: String,
+    /// Required unless `user_id` is given.
+    #[serde(
+        rename = "name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub name: Option<Option<String>>,
+    /// Their WhatsApp number: how they sign in to the staff app.
+    #[serde(
+        rename = "phone",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub phone: Option<Option<String>>,
+    /// Make this existing Madar user an employee (kind `linked`). Their name and number are the defaults for the employee's.
+    #[serde(
+        rename = "user_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub user_id: Option<Option<uuid::Uuid>>,
 }
 
 impl CreateEmployeeRequest {
-    pub fn new(branch_id: uuid::Uuid, name: String, phone: String) -> CreateEmployeeRequest {
+    /// Add an employee of any kind (see the module docs).
+    pub fn new() -> CreateEmployeeRequest {
         CreateEmployeeRequest {
+            app_access: None,
             base_salary_piastres: None,
-            branch_id,
+            branch_id: None,
+            branch_ids: None,
+            department_id: None,
+            employee_code: None,
             gender: None,
+            hire_date: None,
             job_title: None,
-            name,
-            phone,
+            name: None,
+            phone: None,
+            user_id: None,
         }
     }
 }

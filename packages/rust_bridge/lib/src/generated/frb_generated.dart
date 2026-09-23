@@ -13866,7 +13866,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     if (arr.length != 2)
       throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
     return BranchPersonView(
-      userId: dco_decode_String(arr[0]),
+      employeeId: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
     );
   }
@@ -17868,9 +17868,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   @protected
   BranchPersonView sse_decode_branch_person_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_userId = sse_decode_String(deserializer);
+    var var_employeeId = sse_decode_String(deserializer);
     var var_name = sse_decode_String(deserializer);
-    return BranchPersonView(userId: var_userId, name: var_name);
+    return BranchPersonView(employeeId: var_employeeId, name: var_name);
   }
 
   @protected
@@ -23277,7 +23277,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.userId, serializer);
+    sse_encode_String(self.employeeId, serializer);
     sse_encode_String(self.name, serializer);
   }
 

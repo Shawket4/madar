@@ -16444,7 +16444,7 @@ const _: fn() = || {
     }
     {
         let BranchPersonView = None::<crate::api::till::BranchPersonView>.unwrap();
-        let _: String = BranchPersonView.user_id;
+        let _: String = BranchPersonView.employee_id;
         let _: String = BranchPersonView.name;
     }
     {
@@ -18240,10 +18240,10 @@ impl SseDecode for crate::api::till::BranchOpenTillView {
 impl SseDecode for crate::api::till::BranchPersonView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_userId = <String>::sse_decode(deserializer);
+        let mut var_employeeId = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         return crate::api::till::BranchPersonView {
-            user_id: var_userId,
+            employee_id: var_employeeId,
             name: var_name,
         };
     }
@@ -24987,7 +24987,7 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::BranchOpenTi
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::BranchPersonView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
-            self.0.user_id.into_into_dart().into_dart(),
+            self.0.employee_id.into_into_dart().into_dart(),
             self.0.name.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -29424,7 +29424,7 @@ impl SseEncode for crate::api::till::BranchOpenTillView {
 impl SseEncode for crate::api::till::BranchPersonView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.user_id, serializer);
+        <String>::sse_encode(self.employee_id, serializer);
         <String>::sse_encode(self.name, serializer);
     }
 }

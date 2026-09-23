@@ -22,6 +22,8 @@ pub struct RosterPerson {
         skip_serializing_if = "Option::is_none"
     )]
     pub department_id: Option<Option<uuid::Uuid>>,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     #[serde(
         rename = "gender",
         default,
@@ -38,19 +40,17 @@ pub struct RosterPerson {
         skip_serializing_if = "Option::is_none"
     )]
     pub pref_time: Option<Option<String>>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
 }
 
 impl RosterPerson {
-    pub fn new(cant_work_days: Vec<i32>, name: String, user_id: uuid::Uuid) -> RosterPerson {
+    pub fn new(cant_work_days: Vec<i32>, employee_id: uuid::Uuid, name: String) -> RosterPerson {
         RosterPerson {
             cant_work_days,
             department_id: None,
+            employee_id,
             gender: None,
             name,
             pref_time: None,
-            user_id,
         }
     }
 }

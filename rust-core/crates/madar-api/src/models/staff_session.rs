@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StaffSession {
-    /// Kept in the phone's secure storage and sent as `X-Staff-Device` on every punch and ping (RO-3).
+    /// Kept in the phone's secure storage and sent as `X-Staff-Device` on every call (RO-3). It is what refreshes the session.
     #[serde(
         rename = "device_token",
         default,
@@ -21,6 +21,14 @@ pub struct StaffSession {
         skip_serializing_if = "Option::is_none"
     )]
     pub device_token: Option<Option<String>>,
+    /// Who signed in: the employee.
+    #[serde(
+        rename = "employee_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub employee_id: Option<Option<uuid::Uuid>>,
     #[serde(
         rename = "name",
         default,
@@ -43,6 +51,7 @@ pub struct StaffSession {
     pub org_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "orgs")]
     pub orgs: Vec<models::StaffOrgChoice>,
+    /// The linked account's role; null for an employee with no account.
     #[serde(
         rename = "role",
         default,
@@ -50,7 +59,7 @@ pub struct StaffSession {
         skip_serializing_if = "Option::is_none"
     )]
     pub role: Option<Option<models::UserRole>>,
-    /// `Authorization: Bearer` for every other call.
+    /// The staff token: `Authorization: Bearer` on `/staff/_*` only. It lives an hour; refresh it with `POST /auth/staff/refresh`.
     #[serde(
         rename = "token",
         default,
@@ -58,6 +67,14 @@ pub struct StaffSession {
         skip_serializing_if = "Option::is_none"
     )]
     pub token: Option<Option<String>>,
+    #[serde(
+        rename = "token_expires_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub token_expires_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// Their Madar account when they have one (a manager, a cashier). Manager acts in the app go through it.
     #[serde(
         rename = "user_id",
         default,
@@ -75,6 +92,7 @@ impl StaffSession {
     ) -> StaffSession {
         StaffSession {
             device_token: None,
+            employee_id: None,
             name: None,
             needs_org,
             new_phone,
@@ -82,6 +100,7 @@ impl StaffSession {
             orgs,
             role: None,
             token: None,
+            token_expires_at: None,
             user_id: None,
         }
     }

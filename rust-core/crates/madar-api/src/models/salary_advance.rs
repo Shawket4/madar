@@ -38,6 +38,15 @@ pub struct SalaryAdvance {
         skip_serializing_if = "Option::is_none"
     )]
     pub decision_note: Option<Option<String>>,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(
+        rename = "employee_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub employee_name: Option<Option<String>>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(rename = "installments")]
@@ -59,21 +68,13 @@ pub struct SalaryAdvance {
     pub status: String,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
-    #[serde(
-        rename = "user_name",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub user_name: Option<Option<String>>,
 }
 
 impl SalaryAdvance {
     pub fn new(
         amount_piastres: i64,
         created_at: chrono::DateTime<chrono::FixedOffset>,
+        employee_id: uuid::Uuid,
         id: uuid::Uuid,
         installments: i32,
         monthly_installment_piastres: i64,
@@ -81,7 +82,6 @@ impl SalaryAdvance {
         remaining_piastres: i64,
         status: String,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
-        user_id: uuid::Uuid,
     ) -> SalaryAdvance {
         SalaryAdvance {
             amount_piastres,
@@ -89,6 +89,8 @@ impl SalaryAdvance {
             decided_at: None,
             decided_by: None,
             decision_note: None,
+            employee_id,
+            employee_name: None,
             id,
             installments,
             monthly_installment_piastres,
@@ -97,8 +99,6 @@ impl SalaryAdvance {
             remaining_piastres,
             status,
             updated_at,
-            user_id,
-            user_name: None,
         }
     }
 }

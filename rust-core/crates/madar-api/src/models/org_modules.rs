@@ -11,20 +11,19 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// OrgModules : Which modules an org has switched on.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PunchFor {
-    #[serde(rename = "employee_id")]
-    pub employee_id: uuid::Uuid,
-    /// Required (CL-13): a dead phone, a forgotten one.
-    #[serde(rename = "reason")]
-    pub reason: String,
+pub struct OrgModules {
+    /// `pos`, `dawam` (PS-2).
+    #[serde(rename = "modules")]
+    pub modules: Vec<String>,
+    #[serde(rename = "org_id")]
+    pub org_id: uuid::Uuid,
 }
 
-impl PunchFor {
-    pub fn new(employee_id: uuid::Uuid, reason: String) -> PunchFor {
-        PunchFor {
-            employee_id,
-            reason,
-        }
+impl OrgModules {
+    /// Which modules an org has switched on.
+    pub fn new(modules: Vec<String>, org_id: uuid::Uuid) -> OrgModules {
+        OrgModules { modules, org_id }
     }
 }

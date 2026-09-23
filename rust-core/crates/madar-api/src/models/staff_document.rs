@@ -15,6 +15,8 @@ use serde::{Deserialize, Serialize};
 pub struct StaffDocument {
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     #[serde(
         rename = "expires_on",
         default,
@@ -44,21 +46,20 @@ pub struct StaffDocument {
         skip_serializing_if = "Option::is_none"
     )]
     pub uploaded_by: Option<Option<uuid::Uuid>>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
 }
 
 impl StaffDocument {
     pub fn new(
         created_at: chrono::DateTime<chrono::FixedOffset>,
+        employee_id: uuid::Uuid,
         id: uuid::Uuid,
         kind: String,
         org_id: uuid::Uuid,
         title: String,
-        user_id: uuid::Uuid,
     ) -> StaffDocument {
         StaffDocument {
             created_at,
+            employee_id,
             expires_on: None,
             file_url: None,
             id,
@@ -66,7 +67,6 @@ impl StaffDocument {
             org_id,
             title,
             uploaded_by: None,
-            user_id,
         }
     }
 }

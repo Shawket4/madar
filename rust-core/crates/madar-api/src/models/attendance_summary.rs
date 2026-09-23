@@ -16,6 +16,10 @@ use serde::{Deserialize, Serialize};
 pub struct AttendanceSummary {
     #[serde(rename = "absent_days")]
     pub absent_days: i64,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(rename = "employee_name")]
+    pub employee_name: String,
     #[serde(rename = "half_days")]
     pub half_days: i64,
     #[serde(rename = "late_days")]
@@ -30,16 +34,14 @@ pub struct AttendanceSummary {
     pub total_overtime_minutes: i64,
     #[serde(rename = "total_worked_minutes")]
     pub total_worked_minutes: i64,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
-    #[serde(rename = "user_name")]
-    pub user_name: String,
 }
 
 impl AttendanceSummary {
     /// One employee's totals over a reporting window.
     pub fn new(
         absent_days: i64,
+        employee_id: uuid::Uuid,
+        employee_name: String,
         half_days: i64,
         late_days: i64,
         leave_days: i64,
@@ -47,11 +49,11 @@ impl AttendanceSummary {
         total_late_minutes: i64,
         total_overtime_minutes: i64,
         total_worked_minutes: i64,
-        user_id: uuid::Uuid,
-        user_name: String,
     ) -> AttendanceSummary {
         AttendanceSummary {
             absent_days,
+            employee_id,
+            employee_name,
             half_days,
             late_days,
             leave_days,
@@ -59,8 +61,6 @@ impl AttendanceSummary {
             total_late_minutes,
             total_overtime_minutes,
             total_worked_minutes,
-            user_id,
-            user_name,
         }
     }
 }

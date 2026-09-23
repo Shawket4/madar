@@ -22,7 +22,7 @@ pub struct ProvisionOrgRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub currency_code: Option<Option<String>>,
-    /// `pos`, `dawam`; default both. A Dawam-only customer is `[\"dawam\"]` (SA-1).
+    /// `pos`, `dawam`; default POS only — Dawam is switched on per org. A Dawam-only customer is `[\"dawam\"]` (SA-1).
     #[serde(
         rename = "modules",
         default,

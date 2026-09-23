@@ -13,7 +13,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Employee {
-    /// `None` when the caller lacks `payroll:read` — see the module docs.
+    /// May sign in to the staff app with a WhatsApp code.
+    #[serde(rename = "app_access")]
+    pub app_access: bool,
+    /// `None` when the caller may not read this person's pay — see the module docs.
     #[serde(
         rename = "base_salary_piastres",
         default,
@@ -21,6 +24,12 @@ pub struct Employee {
         skip_serializing_if = "Option::is_none"
     )]
     pub base_salary_piastres: Option<Option<i64>>,
+    /// Where they work; managers see the people of their branches (RO-6).
+    #[serde(rename = "branch_ids")]
+    pub branch_ids: Vec<uuid::Uuid>,
+    /// Days they can't work: 0 = Sunday … 6 = Saturday.
+    #[serde(rename = "cant_work_days")]
+    pub cant_work_days: Vec<i32>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(
@@ -37,6 +46,28 @@ pub struct Employee {
         skip_serializing_if = "Option::is_none"
     )]
     pub department_name: Option<Option<String>>,
+    #[serde(
+        rename = "device_last_seen",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_last_seen: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// The live phone signed in to the staff app, if any.
+    #[serde(
+        rename = "device_model",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_model: Option<Option<String>>,
+    #[serde(
+        rename = "device_since",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_since: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(
         rename = "email",
         default,
@@ -65,6 +96,7 @@ pub struct Employee {
         skip_serializing_if = "Option::is_none"
     )]
     pub employee_code: Option<Option<String>>,
+    /// `active` · `suspended` · `terminated`
     #[serde(rename = "employment_status")]
     pub employment_status: String,
     /// `m` · `f` · null — only ever a soft default for late shifts (SC-13).
@@ -82,8 +114,8 @@ pub struct Employee {
         skip_serializing_if = "Option::is_none"
     )]
     pub hire_date: Option<Option<chrono::NaiveDate>>,
-    #[serde(rename = "is_active")]
-    pub is_active: bool,
+    #[serde(rename = "id")]
+    pub id: uuid::Uuid,
     #[serde(
         rename = "job_title",
         default,
@@ -91,7 +123,9 @@ pub struct Employee {
         skip_serializing_if = "Option::is_none"
     )]
     pub job_title: Option<Option<String>>,
-    /// From `users` — the employee's name IS their user name; there is no second copy to drift.
+    /// `linked` · `app` (signs in to the staff app, no Madar account) · `manual` (records only, no app).
+    #[serde(rename = "kind")]
+    pub kind: String,
     #[serde(rename = "name")]
     pub name: String,
     #[serde(
@@ -134,9 +168,22 @@ pub struct Employee {
         skip_serializing_if = "Option::is_none"
     )]
     pub photo_url: Option<Option<String>>,
-    /// The POS role. Orthogonal to employment: a cleaner is a `teller`-role user with the POS permissions revoked.
-    #[serde(rename = "role")]
-    pub role: String,
+    /// `morning` · `evening` · null
+    #[serde(
+        rename = "pref_time",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub pref_time: Option<Option<String>>,
+    /// The linked user's POS role; null for an unlinked employee.
+    #[serde(
+        rename = "role",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub role: Option<Option<String>>,
     #[serde(
         rename = "termination_date",
         default,
@@ -146,27 +193,41 @@ pub struct Employee {
     pub termination_date: Option<Option<chrono::NaiveDate>>,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
+    /// The linked Madar user, when this employee is one (a cashier, a manager, the owner). Null for someone who is only on payroll.
+    #[serde(
+        rename = "user_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub user_id: Option<Option<uuid::Uuid>>,
 }
 
 impl Employee {
     pub fn new(
+        app_access: bool,
+        branch_ids: Vec<uuid::Uuid>,
+        cant_work_days: Vec<i32>,
         created_at: chrono::DateTime<chrono::FixedOffset>,
         employment_status: String,
-        is_active: bool,
+        id: uuid::Uuid,
+        kind: String,
         name: String,
         org_id: uuid::Uuid,
         pay_method: String,
-        role: String,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
-        user_id: uuid::Uuid,
     ) -> Employee {
         Employee {
+            app_access,
             base_salary_piastres: None,
+            branch_ids,
+            cant_work_days,
             created_at,
             department_id: None,
             department_name: None,
+            device_last_seen: None,
+            device_model: None,
+            device_since: None,
             email: None,
             emergency_contact_name: None,
             emergency_contact_phone: None,
@@ -174,8 +235,9 @@ impl Employee {
             employment_status,
             gender: None,
             hire_date: None,
-            is_active,
+            id,
             job_title: None,
+            kind,
             name,
             national_id: None,
             notes: None,
@@ -184,10 +246,11 @@ impl Employee {
             pay_method,
             phone: None,
             photo_url: None,
-            role,
+            pref_time: None,
+            role: None,
             termination_date: None,
             updated_at,
-            user_id,
+            user_id: None,
         }
     }
 }

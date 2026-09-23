@@ -6,11 +6,11 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **created_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **created_by** | Option<**uuid::Uuid**> |  | [optional]
+**employee_id** | **uuid::Uuid** |  | 
 **id** | **uuid::Uuid** |  | 
 **on_date** | **chrono::NaiveDate** |  | 
 **org_id** | **uuid::Uuid** |  | 
 **reason** | Option<**String**> |  | [optional]
-**user_id** | **uuid::Uuid** |  | 
 **work_shift_id** | Option<**uuid::Uuid**> | `None` = an explicit day off. | [optional]
 **work_shift_name** | Option<**String**> |  | [optional]
 

@@ -30,6 +30,10 @@ pub struct DisciplineRow {
         skip_serializing_if = "Option::is_none"
     )]
     pub department_name: Option<Option<String>>,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(rename = "employee_name")]
+    pub employee_name: String,
     #[serde(rename = "late_days")]
     pub late_days: i64,
     #[serde(rename = "present_days")]
@@ -39,32 +43,28 @@ pub struct DisciplineRow {
     pub rank_in_department: i64,
     #[serde(rename = "total_late_minutes")]
     pub total_late_minutes: i64,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
-    #[serde(rename = "user_name")]
-    pub user_name: String,
 }
 
 impl DisciplineRow {
     pub fn new(
         absent_days: i64,
+        employee_id: uuid::Uuid,
+        employee_name: String,
         late_days: i64,
         present_days: i64,
         rank_in_department: i64,
         total_late_minutes: i64,
-        user_id: uuid::Uuid,
-        user_name: String,
     ) -> DisciplineRow {
         DisciplineRow {
             absent_days,
             department_id: None,
             department_name: None,
+            employee_id,
+            employee_name,
             late_days,
             present_days,
             rank_in_department,
             total_late_minutes,
-            user_id,
-            user_name,
         }
     }
 }

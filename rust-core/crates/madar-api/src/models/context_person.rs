@@ -39,6 +39,8 @@ pub struct ContextPerson {
         skip_serializing_if = "Option::is_none"
     )]
     pub device_since: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
     #[serde(
         rename = "gender",
         default,
@@ -78,21 +80,27 @@ pub struct ContextPerson {
         skip_serializing_if = "Option::is_none"
     )]
     pub pref_time: Option<Option<String>>,
-    /// `owner` · `manager` · `employee`
+    /// `owner` · `manager` · `employee` (from the linked account; an employee with no account is `employee`).
     #[serde(rename = "role")]
     pub role: String,
-    #[serde(rename = "user_id")]
-    pub user_id: uuid::Uuid,
+    /// Their Madar account, when they have one.
+    #[serde(
+        rename = "user_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub user_id: Option<Option<uuid::Uuid>>,
 }
 
 impl ContextPerson {
     pub fn new(
         branch_ids: Vec<uuid::Uuid>,
         cant_work_days: Vec<i32>,
+        employee_id: uuid::Uuid,
         name: String,
         pay_method: String,
         role: String,
-        user_id: uuid::Uuid,
     ) -> ContextPerson {
         ContextPerson {
             base_salary_piastres: None,
@@ -100,6 +108,7 @@ impl ContextPerson {
             cant_work_days,
             device_model: None,
             device_since: None,
+            employee_id,
             gender: None,
             hire_date: None,
             name,
@@ -108,7 +117,7 @@ impl ContextPerson {
             phone: None,
             pref_time: None,
             role,
-            user_id,
+            user_id: None,
         }
     }
 }
