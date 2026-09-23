@@ -442,48 +442,32 @@ fn server_checksums(resp: &PullResponse) -> Checksums {
         .collect()
 }
 
-/// Every type the POS syncs (§10.1): what a LAN peer may hand over too.
-pub(crate) const SYNCED_TYPES: &[&str] = &[
-    "category", "menu_item", "bundle", "ingredient", "payment_method", "payment_availability",
-    "discount", "branch_settings", "device", "teller", "floor_section", "floor_table",
-    "table_occupancy", "table_transfer", "open_ticket", "kitchen_ticket", "delivery", "booking",
-    "till", "cash_movement", "order", "refund", "addon_item", "staff_drink", "customer",
-];
+/// Every type the POS syncs (§10.1): what a LAN peer may hand over too. The
+/// type lists, the ledger classification and the R-checksum are one copy with
+/// the server, in madar-shared (`madar_sync`).
+pub(crate) const SYNCED_TYPES: &[&str] = madar_sync::ALL_TYPES;
 #[cfg(test)]
 pub(crate) const ALL_TYPES: &[&str] = SYNCED_TYPES;
 /// The types a snapshot must list to count as COMPLETE (and move the cursor):
 /// the contract's original set. A type added later (`addon_item`, `customer`)
 /// is applied when a server sends it, but a server that predates it still
 /// completes — a till never waits on the customer list to open.
-pub(crate) const REQUIRED_TYPES: &[&str] = &[
-    "category", "menu_item", "bundle", "ingredient", "payment_method", "payment_availability",
-    "discount", "branch_settings", "device", "teller", "floor_section", "floor_table",
-    "table_occupancy", "table_transfer", "open_ticket", "kitchen_ticket", "delivery", "booking",
-    "till", "cash_movement", "order", "refund",
-];
+pub(crate) const REQUIRED_TYPES: &[&str] = madar_sync::REQUIRED_TYPES;
 /// Ledger types: never checksummed; replaced only inside the full snapshot's window.
-/// The server's `sync::pull::LEDGER_TYPES`, `staff_drink` included: it is
-/// sent inside the 48 h window and paged with the other ledger rows, so a
-/// snapshot page missing a drink says nothing about it. Unlike the other four
-/// it has no typed `ledger_*` table (`ledger::is_ledger_type`); it lives in
-/// `sync_rows` plus its `ledger_staff_drinks` mirror, and a snapshot never
+/// `staff_drink` included: it is sent inside the 48 h window and paged with the
+/// other ledger rows, so a snapshot page missing a drink says nothing about it.
+/// Unlike the other four it has no typed `ledger_*` table (`ledger::is_ledger_type`);
+/// it lives in `sync_rows` plus its `ledger_staff_drinks` mirror, and a snapshot never
 /// sweeps it — only an explicit delete in the changefeed removes a drink.
-pub(crate) const LEDGER_TYPES: &[&str] = &["till", "cash_movement", "order", "refund", "staff_drink"];
+#[allow(dead_code)]
+pub(crate) const LEDGER_TYPES: &[&str] = madar_sync::LEDGER_TYPES;
 
-fn is_ledger(ty: &str) -> bool {
-    LEDGER_TYPES.contains(&ty)
-}
+use madar_sync::is_ledger;
 
 // ── pure pieces ─────────────────────────────────────────────────────────────
 
 /// First 16 hex of sha256 over sorted `"<id>:<seq>"` joined by `\n` (R-checksum).
-pub(crate) fn checksum_of(rows: &[(String, i64)]) -> String {
-    use sha2::{Digest, Sha256};
-    let mut lines: Vec<String> = rows.iter().map(|(id, seq)| format!("{id}:{seq}")).collect();
-    lines.sort();
-    let digest = Sha256::digest(lines.join("\n").as_bytes());
-    digest.iter().take(8).map(|b| format!("{b:02x}")).collect()
-}
+pub(crate) use madar_sync::checksum_of;
 
 /// What to do after a response arrives.
 #[allow(dead_code)]
@@ -2156,18 +2140,5 @@ mod tests {
             })
             .unwrap();
         assert_eq!(old_bill_hours(&store, B), 5);
-    }
-
-    #[test]
-    fn checksum_formula_matches_backend_vector() {
-        let raw = include_str!("../tests/fixtures/sync_checksum_vector.json");
-        let v: serde_json::Value = serde_json::from_str(raw).unwrap();
-        let rows: Vec<(String, i64)> = v["rows"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|r| (r["id"].as_str().unwrap().to_string(), r["seq"].as_i64().unwrap()))
-            .collect();
-        assert_eq!(checksum_of(&rows), v["checksum"].as_str().unwrap());
     }
 }
