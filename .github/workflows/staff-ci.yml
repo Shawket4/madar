@@ -93,10 +93,11 @@ jobs:
           key: staff
 
       # Where the app's logic actually lives: the snapshot, the actions, the
-      # outbox, the offline stamp, and the vendored authz crate.
+      # outbox, the offline stamp. The permission crate (madar-authz) is a
+      # madar-shared dependency now; its tests run in madar-shared's CI.
       - name: Core tests
         working-directory: rust-core
-        run: cargo test -p madar-core -p madar-authz
+        run: cargo test -p madar-core
 
       # The staff app's OWN bindings crate — a separate .so/.dylib from the
       # POS's, so a break here never shows up in ci.yml.

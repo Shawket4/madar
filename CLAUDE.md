@@ -186,9 +186,10 @@ its outbox op commit in ONE transaction; acks fold the server's answer in.
   person's effective capabilities from the core (the generated `Cap` keys in
   `app_core/lib/src/generated/capabilities.dart`). `isManagerRole`-style checks are
   being removed; do not add new ones.
-- **The registry is generated.** `rust-core/crates/madar-authz` is a byte-identical copy
-  of `MadarRust/authz/crate`, and `capabilities.dart` comes from the backend's spec.
-  Regenerate with `tool/sync_authz.sh`; never hand-edit either (`crate_hash_matches_its_files`).
+- **The registry is generated.** `madar-authz` is a git dependency on
+  `Shawket4/madar-shared` (pinned by tag in `madar-core/Cargo.toml`, the same tag the
+  backend pins), and `capabilities.dart` is generated there from its spec: in a
+  madar-shared checkout, `cargo run -p authz-gen -- --pos ../madar`. Never hand-edit it.
 - **Unknown means no.** While grants are not loaded, only plain selling is assumed
   (`session::SELL_WHILE_UNLOADED`); money exceptions wait for real grants. An offline
   unlock adopts the person's last-known grants from the synced teller row.

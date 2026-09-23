@@ -1881,8 +1881,8 @@ dependencies = [
 [[package]]
 name = "madar-authz"
 version = "0.1.0"
+source = "git+https://github.com/Shawket4/madar-shared?tag=v0.1.0#101fa1dfd1521bf9f4033db4593f7f7caf0633a9"
 dependencies = [
- "proptest",
  "serde",
  "serde_json",
 ]
