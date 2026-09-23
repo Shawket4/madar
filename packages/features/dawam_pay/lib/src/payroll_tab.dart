@@ -380,11 +380,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
         MadarButton(
           label: tr('staff.reopen_payroll'),
           variant: MadarButtonVariant.ghost,
-          onTap: () => attempt(
-            ref,
-            store.reopenPayroll,
-            ok: tr('staff.reopened_advances_were_not_collected_twice'),
-          ),
+          onTap: _reopen,
         ),
       if (p.status == PeriodStatus.paid)
         NoticeBanner(
@@ -392,6 +388,49 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
           tone: ChipTone.success,
         ),
     ];
+  }
+
+  /// Reopening is logged with why (AD-9, PAY-6): ask before sending.
+  Future<void> _reopen() {
+    final reason = TextEditingController();
+    return showDawamSheet<void>(
+      context,
+      title: tr('staff.reopen_payroll'),
+      builder: (ctx, ref, store) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.md,
+        children: [
+          Text(tr('staff.reopen_reason'), style: MadarType.body),
+          MadarField(
+            controller: reason,
+            placeholder: tr('staff.reason_required'),
+            kind: MadarFieldKind.note,
+            autofocus: true,
+          ),
+          MadarButton(
+            label: tr('staff.reopen_payroll'),
+            variant: MadarButtonVariant.danger,
+            onTap: () async {
+              if (reason.text.trim().isEmpty) {
+                ref
+                    .read(toastProvider.notifier)
+                    .show(
+                      tr('staff.a_reason_is_required_to_reopen'),
+                      tone: ChipTone.danger,
+                    );
+                return;
+              }
+              final done = await attempt(
+                ref,
+                () => store.reopenPayroll(reason.text.trim()),
+                ok: tr('staff.reopened_advances_were_not_collected_twice'),
+              );
+              if (done && ctx.mounted) Navigator.of(ctx).maybePop();
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _markPaid(String emp) {

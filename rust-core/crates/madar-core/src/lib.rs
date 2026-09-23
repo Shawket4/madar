@@ -3697,6 +3697,11 @@ impl MadarCore {
     pub fn tr(&self, key: String) -> String {
         i18n::tr(&self.current_locale(), &key)
     }
+    /// The same string in a NAMED locale, whatever the device is set to: a
+    /// payslip PDF in Arabic from an English phone (PAY-10).
+    pub fn tr_in(&self, locale: String, key: String) -> String {
+        i18n::tr(&locale, &key)
+    }
     /// The active locale (BCP-47).
     pub fn locale(&self) -> String {
         self.current_locale()

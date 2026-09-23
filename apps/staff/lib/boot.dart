@@ -40,6 +40,7 @@ Future<List<Override>> boot() async {
     ),
   );
   words = (key) => core.bridge.tr(key: key);
+  wordsIn = (lang, key) => core.bridge.trIn(locale: lang, key: key);
   final lang = core.bridge.locale().startsWith('ar') ? 'ar' : 'en';
   final backend = _BridgeBackend(core.bridge);
   final store = DawamStore(backend);

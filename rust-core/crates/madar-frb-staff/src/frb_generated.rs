@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1396642916;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -547386300;
 
 // Section: executor
 
@@ -2803,6 +2803,58 @@ fn wire__crate__api__bridge__MadarBridge_tr_impl(
         },
     )
 }
+fn wire__crate__api__bridge__MadarBridge_tr_in_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_tr_in",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            let api_locale = <String>::sse_decode(&mut deserializer);
+            let api_key = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Ok::<_, ()>(crate::api::bridge::MadarBridge::tr_in(
+                    &*api_that_guard,
+                    api_locale,
+                    api_key,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__bridge__core_version_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4136,8 +4188,9 @@ fn pde_ffi_dispatcher_sync_impl(
         ),
         31 => wire__crate__api__bridge__MadarBridge_set_locale_impl(ptr, rust_vec_len, data_len),
         47 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
-        49 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__bridge__MadarBridge_tr_in_impl(ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

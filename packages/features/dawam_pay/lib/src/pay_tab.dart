@@ -28,7 +28,9 @@ class PayTab extends ConsumerWidget {
     final exps = store.expenses.where((x) => x.emp == me).toList();
 
     final now = <Widget>[
-      if (p.status == PeriodStatus.open) ...[
+      if (!store.onPayroll)
+        NoticeBanner(text: tr('staff.not_on_payroll'))
+      else if (p.status == PeriodStatus.open) ...[
         MadarStatCard(
           label: tr('staff.this_period_so_far'),
           minor: est.net,

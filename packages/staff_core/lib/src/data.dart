@@ -261,6 +261,7 @@ class Adj {
     this.resolved = 0,
     this.recurring = false,
     this.status = 'active',
+    this.waived = false,
   });
   final String id;
   final String emp;
@@ -268,6 +269,8 @@ class Adj {
   final String by;
   final bool bonus;
   final bool recurring;
+  /// A waived rule deduction: struck through, charged nothing (AD-6, AD-8).
+  final bool waived;
   final int amount;
   final double? pct;
   final DateTime at;
@@ -571,6 +574,9 @@ class DawamStore extends ChangeNotifier {
   int managerBonusLimit = 1 << 40;
   int managerDeductLimit = 1 << 40;
 
+  /// Paid through Dawam (the server says). Off: no estimate on the Pay tab.
+  bool onPayroll = true;
+
   Timer? _pings;
   Timer? _poll;
   StreamSubscription<DawamFix>? _track;
@@ -783,6 +789,7 @@ class DawamStore extends ChangeNotifier {
           resolved: _int(a['value']),
           recurring: a['recurring'] == true,
           status: a['status'] as String,
+          waived: a['waived'] == true,
         ),
       );
     }
@@ -909,8 +916,11 @@ class DawamStore extends ChangeNotifier {
     final st = v['settings'] as J;
     holidayMult = (st['holiday_mult'] as num).toDouble();
     advanceCapPct = (st['advance_cap_pct'] as num).toDouble();
+    // Two limits (AD-5), both the server's; an older server sends one.
     final limit = st['adjustment_limit'] as int?;
-    managerBonusLimit = managerDeductLimit = limit ?? 1 << 40;
+    managerBonusLimit = limit ?? 1 << 40;
+    managerDeductLimit = (st['deduction_limit'] as int?) ?? limit ?? 1 << 40;
+    onPayroll = v['on_payroll'] != false;
     rulesSaved = st['rules_saved'] != false;
     _schedulePings();
     notifyListeners();
@@ -1225,11 +1235,17 @@ class DawamStore extends ChangeNotifier {
   });
 
   /// [how]: `excuse_paid` · `excuse_unpaid` · `deduct` · `revoke` · `ignore`.
-  Future<void> resolve(Flag f, String how, {int deduct = 0}) => _act({
+  Future<void> resolve(
+    Flag f,
+    String how, {
+    int deduct = 0,
+    String? reason,
+  }) => _act({
     'action': 'resolve',
     'flag': f.id,
     'how': f.kind == FlagKind.cover && how == 'ignore' ? 'confirm' : how,
     'deduct': deduct,
+    if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
   });
   Future<void> addAdjustment(
     String emp, {
@@ -1254,10 +1270,9 @@ class DawamStore extends ChangeNotifier {
   Future<void> stopAdj(Adj a) => _act({'action': 'stop_adj', 'adj': a.id});
   Future<void> waive(String key, String reason) =>
       _act({'action': 'waive', 'key': key, 'reason': reason});
-  Future<void> unwaive(String key) => _run(() async {
-    final m = tr('staff.a_waiver_is_final');
-    throw DawamError(m, m);
-  });
+  /// Undo a waiver with a reason (AT-7): the rule's figure comes back.
+  Future<void> unwaive(String key, String reason) =>
+      _act({'action': 'unwaive', 'key': key, 'reason': reason});
   Future<void> recordAdvance(String emp, int amount, int installments) => _act({
     'action': 'record_advance',
     'emp': emp,
@@ -1300,7 +1315,9 @@ class DawamStore extends ChangeNotifier {
       _act({'action': 'set_prefs', 'time': time, 'cant': cant.toList()});
   Future<void> readAll() => _act({'action': 'read_all'});
   Future<void> approvePayroll() => _act({'action': 'approve_payroll'});
-  Future<void> reopenPayroll() => _act({'action': 'reopen_payroll'});
+  /// Back to a live preview; the reason goes to the audit log (AD-9).
+  Future<void> reopenPayroll(String reason) =>
+      _act({'action': 'reopen_payroll', 'reason': reason});
   Future<void> markPaid(String emp, PayMethod m) =>
       _act({'action': 'mark_paid', 'emp': emp, 'method': m.name});
 }

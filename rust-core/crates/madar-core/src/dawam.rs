@@ -194,6 +194,9 @@ pub struct Snapshot {
     /// Per person: the cap on outstanding advances, and what is outstanding (AV-5).
     pub advance_cap: BTreeMap<String, i64>,
     pub outstanding: BTreeMap<String, i64>,
+    /// Paid through Dawam. Off (an app-using owner, say): no estimate, no
+    /// payslips, but every other screen works.
+    pub on_payroll: bool,
     pub suggestions: Vec<SuggestionV>,
     pub holidays: Vec<HolidayV>,
     /// Labour-limit warnings (RU-13): `user|week_start` → core i18n keys + args.
@@ -219,8 +222,10 @@ pub struct SettingsV {
     pub advance_cap_pct: f64,
     pub absence_days: f64,
     pub period_start_day: i64,
-    /// My ceiling on a bonus or deduction before it waits for the owner.
+    /// My ceiling on a bonus before it waits for the owner (AD-5)…
     pub adjustment_limit: Option<i64>,
+    /// …and on a deduction: two limits, the server's.
+    pub deduction_limit: Option<i64>,
     /// The owner saved the rules; until then nobody clocks in (RU-1, DSH-6).
     pub rules_saved: bool,
 }
@@ -337,8 +342,10 @@ pub struct AdjV {
     pub bonus: bool,
     pub amount: i64,
     pub pct: Option<f64>,
-    /// What it comes to: a % of salary resolved against the person's salary.
+    /// What it comes to: the server's figure (a % of salary already resolved).
     pub value: i64,
+    /// A waived rule deduction: shown struck through, charged nothing (AD-6).
+    pub waived: bool,
     pub reason: String,
     pub by: String,
     pub at: String,
@@ -472,7 +479,7 @@ pub enum Act {
         #[serde(default)] note: Option<String>,
     },
     /// `excuse_paid` · `excuse_unpaid` · `deduct` · `revoke` · `confirm` · `ignore`
-    Resolve { flag: String, how: String, #[serde(default)] deduct: i64 },
+    Resolve { flag: String, how: String, #[serde(default)] deduct: i64, #[serde(default)] reason: Option<String> },
     AddAdjustment {
         emp: String,
         bonus: bool,
@@ -485,6 +492,8 @@ pub enum Act {
     DeleteAdj { adj: String },
     StopAdj { adj: String },
     Waive { key: String, reason: String },
+    /// Undo a waiver, with a reason (AT-7): the rule's figure comes back.
+    Unwaive { key: String, reason: String },
     RecordAdvance { emp: String, amount: i64, installments: i64 },
     LogExpense { emp: String, amount: i64, purpose: String, via: String },
     SetDay { emp: String, date: String, tpl: Option<String> },
@@ -503,7 +512,8 @@ pub enum Act {
     /// Signing out: the server forgets this phone and its pushes (APP-6).
     SignOut,
     ApprovePayroll,
-    ReopenPayroll,
+    /// Back to a live preview, with the reason the audit log keeps (AD-9).
+    ReopenPayroll { #[serde(default)] reason: String },
     MarkPaid { emp: String, method: String },
 }
 
@@ -1241,9 +1251,10 @@ impl MadarCore {
                 };
                 self.dawam_srv("PATCH", &path, Some(body)).await?;
             }
-            Act::Resolve { flag, how, deduct } => {
+            Act::Resolve { flag, how, deduct, reason } => {
                 let mut body = json!({ "action": how });
                 if deduct > 0 { body["amount_piastres"] = json!(deduct); }
+                if let Some(r) = reason.filter(|r| !r.trim().is_empty()) { body["reason"] = json!(r.trim()); }
                 self.dawam_srv("PATCH", &format!("/staff/flags/{flag}"), Some(body)).await?;
             }
             Act::AddAdjustment { emp, bonus, amount, reason, pct, recurring } => {
@@ -1272,9 +1283,14 @@ impl MadarCore {
                     self.dawam_srv("PATCH", &format!("/staff/payroll/deductions/{id}/waive"), Some(json!({ "reason": reason }))).await?;
                 }
             }
+            Act::Unwaive { key, reason } => {
+                if let Some(id) = key.strip_prefix("d|") {
+                    self.dawam_srv("PATCH", &format!("/staff/payroll/deductions/{id}/unwaive"), Some(json!({ "reason": reason }))).await?;
+                }
+            }
             Act::RecordAdvance { emp, amount, installments } => {
-                let a = self.dawam_srv("POST", "/staff/payroll/advances", Some(json!({ "employee_id": emp, "amount_piastres": amount, "installments": installments }))).await?;
-                self.dawam_srv("PATCH", &format!("/staff/advances/{}/review", s(&a, "id")), Some(json!({ "approve": true }))).await?;
+                // One atomic call (AV-2): recorded and approved, or nothing.
+                self.dawam_srv("POST", "/staff/advances/record", Some(json!({ "employee_id": emp, "amount_piastres": amount, "installments": installments }))).await?;
             }
             Act::LogExpense { emp, amount, purpose, via } => {
                 self.dawam_srv("POST", "/staff/expense-advances", Some(json!({ "employee_id": emp, "amount_piastres": amount, "purpose": purpose, "via": via }))).await?;
@@ -1326,11 +1342,16 @@ impl MadarCore {
             Act::ReadAll => {
                 self.dawam_srv("POST", "/staff/me/notifications/read", Some(json!({ "ids": [] }))).await?;
             }
+            // Without a period id there is nothing to approve or reopen: say so
+            // rather than POST to `/periods//generate` (audit 06 B14).
+            Act::ApprovePayroll | Act::ReopenPayroll { .. } if period_id.is_empty() => {
+                return Err(CoreError::Validation { field: "period".into(), detail: i18n::tr(&self.current_locale(), "staff.no_period_yet") });
+            }
             Act::ApprovePayroll => {
                 self.dawam_srv("POST", &format!("/staff/payroll/periods/{period_id}/generate"), Some(json!({}))).await?;
             }
-            Act::ReopenPayroll => {
-                self.dawam_srv("PATCH", &format!("/staff/payroll/periods/{period_id}/status"), Some(json!({ "status": "draft" }))).await?;
+            Act::ReopenPayroll { reason } => {
+                self.dawam_srv("PATCH", &format!("/staff/payroll/periods/{period_id}/status"), Some(json!({ "status": "draft", "reason": reason }))).await?;
             }
             Act::MarkPaid { emp, method } => {
                 self.dawam_srv("PATCH", &format!("/staff/payroll/periods/{period_id}/payslips/{emp}/paid"), Some(json!({ "method": method }))).await?;
@@ -1471,6 +1492,7 @@ impl MadarCore {
             absence_days: f(st, "absence_deduction_days"),
             period_start_day: i(st, "period_start_day").clamp(1, 28),
             adjustment_limit: ctx.get("adjustment_limit_piastres").and_then(Value::as_i64),
+            deduction_limit: ctx.get("deduction_limit_piastres").and_then(Value::as_i64),
             // Old servers don't say: assume saved rather than block the screens.
             rules_saved: st.get("rules_saved").and_then(Value::as_bool).unwrap_or(true),
         };
@@ -1702,9 +1724,23 @@ impl MadarCore {
                 collected,
             });
         }
+        // The cap is the server's figure (AV-5, AT-3); an older server that
+        // doesn't send it leaves the percent maths as a fallback.
+        let server_caps: HashMap<String, i64> = rows("dawam_people").iter()
+            .filter_map(|p| Some((s(p, "employee_id"), p.get("advance_cap_piastres")?.as_i64()?)))
+            .collect();
         for p in &out.people {
-            out.advance_cap.insert(p.id.clone(), (p.salary as f64 * out.settings.advance_cap_pct / 100.0).round() as i64);
+            let cap = server_caps.get(&p.id).copied()
+                .unwrap_or_else(|| (p.salary as f64 * out.settings.advance_cap_pct / 100.0).round() as i64);
+            out.advance_cap.insert(p.id.clone(), cap);
         }
+        if let Some(cap) = estimate.get("advance_cap_piastres").and_then(Value::as_i64) {
+            out.advance_cap.insert(me.clone(), cap);
+        }
+        if let Some(o) = estimate.get("advance_outstanding_piastres").and_then(Value::as_i64) {
+            out.outstanding.insert(me.clone(), o);
+        }
+        out.on_payroll = estimate.get("on_payroll").and_then(Value::as_bool).unwrap_or(true);
 
         // Absent past its end with nothing to excuse it (the sweep's rule,
         // read ahead of the sweep so the day shows at once).
@@ -1767,13 +1803,17 @@ impl MadarCore {
                 _ => "active",
             };
             let pct = a.get("percent_of_base").filter(|x| !x.is_null()).map(|_| f(a, "percent_of_base"));
+            // The server values a % line (AT-3); an older server leaves it to us.
             let salary = out.people.iter().find(|p| p.id == s(a, "employee_id")).map_or(0, |p| p.salary);
+            let value = a.get("value_piastres").and_then(Value::as_i64)
+                .unwrap_or_else(|| pct.map_or(i(a, "amount_piastres"), |p| (salary as f64 * p / 100.0).round() as i64));
             out.adjustments.push(AdjV {
                 id: format!("a|{}|{}", s(a, "kind"), s(a, "id")),
                 emp: s(a, "employee_id"),
                 bonus: s(a, "kind") == "bonus",
                 amount: i(a, "amount_piastres"),
-                value: pct.map_or(i(a, "amount_piastres"), |p| (salary as f64 * p / 100.0).round() as i64),
+                value,
+                waived: a.get("waived_at").is_some_and(|x| !x.is_null()),
                 pct,
                 reason: s(a, "reason"),
                 by: actor(so(a, "created_by")).unwrap_or_default(),
@@ -2196,6 +2236,23 @@ mod tests {
         assert_eq!(week[0], ("staff.warn_rest".to_string(), json!({ "date": "2026-09-20", "hours": "12", "worked": "8" })));
         assert_eq!(week[1].0, "staff.warn_week_hours");
         assert_eq!(week[2].1["hours"], "7.5");
+    }
+
+    /// The money acts the screens send (Phase B payroll): a reopen carries
+    /// its reason, a flag deduction its reason, an un-waive its reason.
+    #[test]
+    fn money_acts_carry_their_reasons() {
+        let reopen: Act = serde_json::from_value(json!({ "action": "reopen_payroll", "reason": "a line was missing" })).unwrap();
+        assert!(matches!(reopen, Act::ReopenPayroll { ref reason } if reason == "a line was missing"));
+        // An old screen that sends none still parses (the server refuses it in words).
+        let bare: Act = serde_json::from_value(json!({ "action": "reopen_payroll" })).unwrap();
+        assert!(matches!(bare, Act::ReopenPayroll { ref reason } if reason.is_empty()));
+        let resolve: Act = serde_json::from_value(json!({ "action": "resolve", "flag": "f1", "how": "deduct", "deduct": 500, "reason": "left early" })).unwrap();
+        assert!(matches!(resolve, Act::Resolve { ref reason, deduct: 500, .. } if reason.as_deref() == Some("left early")));
+        let unwaive: Act = serde_json::from_value(json!({ "action": "unwaive", "key": "d|x", "reason": "wrong day" })).unwrap();
+        assert!(matches!(unwaive, Act::Unwaive { ref key, ref reason } if key == "d|x" && reason == "wrong day"));
+        let record: Act = serde_json::from_value(json!({ "action": "record_advance", "emp": "e2", "amount": 150000, "installments": 3 })).unwrap();
+        assert!(matches!(record, Act::RecordAdvance { amount: 150_000, installments: 3, .. }));
     }
 
     #[test]
