@@ -203,8 +203,14 @@ class _DayRow extends ConsumerWidget {
 Future<void> correctionSheet(BuildContext context, Shift s) {
   final inAt = s.inAt;
   final outAt = s.outAt;
-  final in0 = inAt == null ? s.template.start : inAt.hour * 60 + inAt.minute;
-  final out0 = outAt == null ? s.template.end : outAt.hour * 60 + outAt.minute;
+  // A missing punch is proposed at THIS shift's times: its own from/to when
+  // the rota set them, else its block's (E2E S10: it took the template's).
+  final in0 = inAt == null
+      ? (s.start ?? s.template.start)
+      : inAt.hour * 60 + inAt.minute;
+  final out0 = outAt == null
+      ? (s.end ?? s.template.end)
+      : outAt.hour * 60 + outAt.minute;
   var inT = in0;
   var outT = out0;
   final note = TextEditingController();

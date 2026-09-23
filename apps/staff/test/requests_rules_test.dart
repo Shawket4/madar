@@ -269,6 +269,42 @@ void main() {
         expect(lastAct()['time2'], today.template.end);
         await finish(t);
       });
+
+      // E2E bug S10 (Youssef, EN, tablet): a block with its own times
+      // (00:47–03:22 on the rota) proposed the template's 16:00 in the fix.
+      testWidgets('a missing punch is proposed at the shift\'s own times', (
+        t,
+      ) async {
+        final c = await pumpApp(
+          t,
+          lang: lang,
+          who: 'e1',
+          tab: _timesheet,
+          core: (f) => f.edit = (v) {
+            for (final s
+                in (v['shifts'] as List<dynamic>)
+                    .cast<Map<String, dynamic>>()) {
+              if (s['emp'] == 'e1' && s['in_at'] == null) {
+                s['start'] = 47; // 00:47
+                s['end'] = 202; // 03:22
+                s['edited'] = true;
+              }
+            }
+          },
+        );
+        final store = c.read(dawamProvider);
+        final today = store.shifts.firstWhere(
+          (s) => s.emp == 'e1' && sameDay(s.date, store.today),
+        );
+        expect((today.start, today.end), (47, 202));
+        await t.tap(find.textContaining(shiftWindow(today)).first);
+        await frames(t);
+        await tapText(t, w('staff.fix_this_shift'));
+        await tapText(t, w('staff.send_to_manager'));
+        expect(lastAct()['time'], 47, reason: 'the shift\'s own start');
+        expect(lastAct()['time2'], 202, reason: 'the shift\'s own end');
+        await finish(t);
+      });
     });
   }
 }
