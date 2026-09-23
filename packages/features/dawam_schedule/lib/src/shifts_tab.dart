@@ -237,8 +237,17 @@ class _SwapAsk extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final store = ref.watch(dawamProvider);
-    final a = store.shifts.firstWhere((s) => s.id == r.shift);
-    final b = store.shifts.firstWhere((s) => s.id == r.shift2);
+    // The asker's shift is theirs, not mine: it may not be in my picture
+    // (E2E S9 — firstWhere threw and the whole Shifts tab went red). Each
+    // side is read from the shift when I have it, else from its id.
+    final a = _parts(
+      store.shifts.where((s) => s.id == r.shift).firstOrNull,
+      r.shift,
+    );
+    final b = _parts(
+      store.shifts.where((s) => s.id == r.shift2).firstOrNull,
+      r.shift2,
+    );
     return MadarCard.column(
       children: [
         Row(
@@ -255,10 +264,10 @@ class _SwapAsk extends ConsumerWidget {
         ),
         Text(
           tr('staff.their_your', {
-            'date': dayLabel(a.date),
-            'shift': tplName(a.template),
-            'date2': dayLabel(b.date),
-            'shift2': tplName(b.template),
+            'date': a.day,
+            'shift': a.shift,
+            'date2': b.day,
+            'shift2': b.shift,
           }),
           style: MadarType.body,
         ),
@@ -296,14 +305,20 @@ class _SwapAsk extends ConsumerWidget {
 /// One side of a swap: its day and shift, from the shift when I have it,
 /// else from its id (`emp|yyyy-mm-dd|template`).
 String _side(Shift? s, String? id) {
-  if (s != null) return '${dayLabel(s.date)} · ${tplName(s.template)}';
+  final p = _parts(s, id);
+  return [p.day, p.shift].where((x) => x.isNotEmpty).join(' · ');
+}
+
+/// A swap side's day and shift name, from the shift or its id.
+({String day, String shift}) _parts(Shift? s, String? id) {
+  if (s != null) return (day: dayLabel(s.date), shift: tplName(s.template));
   final p = (id ?? '').split('|');
   final day = p.length > 1 ? DateTime.tryParse(p[1]) : null;
   final tpl = p.length > 2 ? tplIndex[p[2]] : null;
-  return [
-    if (day != null) dayLabel(day),
-    if (tpl != null) tplName(tpl),
-  ].join(' · ');
+  return (
+    day: day == null ? '' : dayLabel(day),
+    shift: tpl == null ? '' : tplName(tpl),
+  );
 }
 
 /// A swap I asked for, still undecided: I can take it back (SC-8).
