@@ -16,6 +16,8 @@ Name | Type | Description | Notes
 **check_out_latitude** | Option<**f64**> |  | [optional]
 **check_out_longitude** | Option<**f64**> |  | [optional]
 **check_out_method** | Option<**String**> |  | [optional]
+**cover_status** | Option<**String**> | `pending` · `confirmed` · `rejected` for a cover. | [optional]
+**covered_user_id** | Option<**uuid::Uuid**> | A cover: whose shift this person worked (CV-*). | [optional]
 **created_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **created_by** | Option<**uuid::Uuid**> |  | [optional]
 **early_leave_minutes** | **i32** |  | 
@@ -27,9 +29,12 @@ Name | Type | Description | Notes
 **notes** | Option<**String**> |  | [optional]
 **org_id** | **uuid::Uuid** |  | 
 **overtime_minutes** | **i32** |  | 
+**overtime_status** | Option<**String**> | `pending` · `approved` · `rejected` when overtime needs a decision. | [optional]
+**punch_reason** | Option<**String**> | Why someone else punched for this person. | [optional]
 **scheduled_end_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **scheduled_start_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **status** | **String** |  | 
+**tracking_off** | **bool** |  | 
 **updated_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **user_id** | **uuid::Uuid** |  | 
 **user_name** | Option<**String**> |  | [optional]

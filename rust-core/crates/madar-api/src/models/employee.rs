@@ -67,6 +67,14 @@ pub struct Employee {
     pub employee_code: Option<Option<String>>,
     #[serde(rename = "employment_status")]
     pub employment_status: String,
+    /// `m` · `f` · null — only ever a soft default for late shifts (SC-13).
+    #[serde(
+        rename = "gender",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub gender: Option<Option<String>>,
     #[serde(
         rename = "hire_date",
         default,
@@ -102,6 +110,16 @@ pub struct Employee {
     pub notes: Option<Option<String>>,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
+    #[serde(
+        rename = "pay_account",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub pay_account: Option<Option<String>>,
+    /// `cash` · `bank` · `wallet`
+    #[serde(rename = "pay_method")]
+    pub pay_method: String,
     #[serde(
         rename = "phone",
         default,
@@ -139,6 +157,7 @@ impl Employee {
         is_active: bool,
         name: String,
         org_id: uuid::Uuid,
+        pay_method: String,
         role: String,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
         user_id: uuid::Uuid,
@@ -153,6 +172,7 @@ impl Employee {
             emergency_contact_phone: None,
             employee_code: None,
             employment_status,
+            gender: None,
             hire_date: None,
             is_active,
             job_title: None,
@@ -160,6 +180,8 @@ impl Employee {
             national_id: None,
             notes: None,
             org_id,
+            pay_account: None,
+            pay_method,
             phone: None,
             photo_url: None,
             role,

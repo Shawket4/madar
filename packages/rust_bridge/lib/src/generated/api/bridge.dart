@@ -169,6 +169,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   Future<List<BranchOpenTillView>> branchOpenTills();
 
+  /// This branch's staff, for the expense-advance picker (the last list offline).
+  Future<List<BranchPersonView>> branchPeople();
+
   /// The branch's IANA timezone name (cached at login, or the Cairo fallback) —
   /// for any host that needs the raw zone (e.g. a platform date picker).
   String branchTimezone();
@@ -1015,6 +1018,14 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The spot report of this look was printed.
   Future<SpotViewLineView> recordCashSpotPrint({required String viewId});
 
+  /// A pay-out handed to an employee for shop purchases: their expense
+  /// advance in Dawam, never deducted (AV-8). `amount_minor` is positive.
+  Future<CashMovementView> recordExpenseAdvance({
+    required PlatformInt64 amountMinor,
+    required String note,
+    required String person,
+  });
+
   /// Put the drink on the branch's pool (queued; works offline).
   Future<StaffDrinkRecordedView> recordStaffDrink({
     required StaffDrinkInput input,
@@ -1419,6 +1430,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Whether the shell must wall this device to the open-till screen, with
   /// the reason and what to do next. Sync + offline-safe.
   TillLockView tillLock();
+
+  /// A dead or forgotten phone: clock in or out with the till PIN (CL-13).
+  Future<TillPunchView> tillPunch({required String pin});
 
   Future<TillReportView> tillReport();
 

@@ -5,9 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:staff_core/staff_core.dart';
 
-/// The demo's WhatsApp code. The real one is the core's OTP (RO-2).
-const demoCode = '123456';
-
 enum _Step { phone, code, org, privacy }
 
 /// Sign-in: WhatsApp number and code (RO-2), the business pick (RO-5), the
@@ -24,11 +21,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _phone = TextEditingController();
   final _code = TextEditingController();
   _Step _step = _Step.phone;
-  late Emp _who;
+  List<(String, String, String, bool)> _orgs = const [];
   String? _error;
-  int _attempts = 5;
   int _left = 300;
-  bool _newPhone = false;
+  bool _busy = false;
   Timer? _timer;
 
   DawamStore get _store => ref.read(dawamProvider);
@@ -41,12 +37,24 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     super.dispose();
   }
 
-  void _sendCode() {
-    final e = _store.byPhone(_phone.text.trim());
-    if (e == null) {
-      setState(() => _error = tr('staff.this_number_isn_t_registered_with'));
-      return;
+  /// Runs a sign-in step; a refusal shows as the server words it.
+  Future<void> _step$(Future<void> Function() op) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await op();
+    } on DawamError catch (e) {
+      if (mounted) setState(() => _error = loc(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
+  }
+
+  void _sendCode() => _step$(() async {
+    await _store.requestCode(_phone.text.trim());
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
@@ -54,14 +62,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       if (_left <= 0) _back(tr('staff.the_code_expired_send_a_new'));
     });
     setState(() {
-      _who = e;
-      _error = null;
-      _attempts = 5;
       _left = 300;
       _code.clear();
       _step = _Step.code;
     });
-  }
+  });
 
   void _back([String? why]) {
     _timer?.cancel();
@@ -71,29 +76,32 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     });
   }
 
-  void _verify() {
-    if (_code.text.trim() != demoCode) {
-      _attempts--;
-      if (_attempts <= 0) return _back(tr('staff.too_many_tries_send_a_new'));
-      setState(
-        () =>
-            _error = tr('staff.wrong_code_tries_left', {'attempts': _attempts}),
-      );
-      return;
-    }
+  // The server counts the tries and says how many are left (RO-2).
+  void _verify() => _step$(() async {
+    final orgs = await _store.verifyCode(_phone.text.trim(), _code.text.trim());
     _timer?.cancel(); // the code is deleted on use
     setState(() {
-      _error = null;
-      _step = _store.orgsFor(_who).length > 1 ? _Step.org : _Step.privacy;
+      _orgs = orgs ?? const [];
+      _step = orgs != null ? _Step.org : _Step.privacy;
     });
-    if (_step == _Step.privacy) _privacyOrFinish();
+    if (_step == _Step.privacy) await _privacyOrFinish();
+  });
+
+  void _pickOrg(String orgId) => _step$(() async {
+    await _store.verifyCode(
+      _phone.text.trim(),
+      _code.text.trim(),
+      orgId: orgId,
+    );
+    setState(() => _step = _Step.privacy);
+    await _privacyOrFinish();
+  });
+
+  Future<void> _privacyOrFinish() async {
+    if (_store.privacyAccepted.contains(_store.pendingUser)) await _finish();
   }
 
-  void _privacyOrFinish() {
-    if (_store.privacyAccepted.contains(_who.id)) _finish();
-  }
-
-  void _finish() => _store.signIn(_who.id, newPhone: _newPhone);
+  Future<void> _finish() => _store.enter();
 
   @override
   Widget build(BuildContext context) {
@@ -160,28 +168,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       onSubmitted: (_) => _sendCode(),
     ),
     MadarButton(label: tr('staff.send_code'), onTap: _sendCode),
-    const SizedBox(height: Space.sm),
-    MadarSectionHeader(text: tr('staff.demo_accounts')),
-    for (final (id, role) in [
-      ('e1', tr('staff.employee')),
-      ('e4', tr('staff.employee_evenings')),
-      ('e2', tr('staff.branch_manager')),
-      ('e3', tr('staff.owner')),
-    ])
-      MadarListRow.nav(
-        title: name(_store.emp(id)),
-        meta: role,
-        onTap: () {
-          _phone.text = _store.emp(id).phone;
-          _sendCode();
-        },
-      ),
   ];
 
   List<Widget> _codeStep(MadarColors c) => [
     _lede(
       tr('staff.enter_the_code'),
-      tr('staff.sent_on_whatsapp_to', {'phone': _who.phone}),
+      tr('staff.sent_on_whatsapp_to', {'phone': _phone.text.trim()}),
       c,
     ),
     MadarField(
@@ -202,28 +194,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
             style: MadarType.bodySm.copyWith(color: c.textMuted),
           ),
         ),
-        MadarTag(label: '${tr('staff.demo_code')}$demoCode'),
       ],
-    ),
-    MadarCard(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Space.lg,
-        vertical: Space.sm,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              tr('staff.demo_this_is_a_new_phone'),
-              style: MadarType.bodySm,
-            ),
-          ),
-          Switch.adaptive(
-            value: _newPhone,
-            onChanged: (v) => setState(() => _newPhone = v),
-          ),
-        ],
-      ),
     ),
     MadarButton(label: tr('staff.verify'), onTap: _verify),
     MadarButton(
@@ -239,17 +210,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       tr('staff.you_work_for_more_than_one'),
       c,
     ),
-    for (final (en, ar, active) in _store.orgsFor(_who))
+    for (final (id, en, ar, active) in _orgs)
       MadarListRow.bill(
         title: isAr ? ar : en,
         status: active
             ? MadarStatus(tr('staff.active'), tone: MadarTone.success)
             : MadarStatus(tr('staff.suspended'), tone: MadarTone.danger),
         onTap: active
-            ? () {
-                setState(() => _step = _Step.privacy);
-                _privacyOrFinish();
-              }
+            ? () => _pickOrg(id)
             : () => setState(
                 () => _error = tr('staff.is_suspended_sign_in_is_stopped', {
                   'name': isAr ? ar : en,
@@ -280,8 +248,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     MadarButton(
       label: tr('staff.i_agree'),
       onTap: () {
-        _store.privacyAccepted.add(_who.id);
-        _finish();
+        _store.privacyAccepted.add(_store.pendingUser!);
+        _step$(_finish);
       },
     ),
   ];

@@ -20,6 +20,32 @@ String coreVersion() => StaffBridge.instance.api.crateApiBridgeCoreVersion();
 abstract class MadarBridge implements RustOpaqueInterface {
   SessionSnapshot? currentSession();
 
+  /// Do one Dawam action (`dawam::Act` as JSON); returns the new snapshot.
+  Future<String> dawamDo({required String action});
+
+  /// A 15-minute on-shift location reading; queued offline (CL-4, CL-10).
+  Future<String> dawamPing({
+    required double latitude,
+    required double longitude,
+    double? accuracy,
+    required bool mock,
+    String? gpsTime,
+    PlatformInt64? battery,
+  });
+
+  /// The phone's push token and language, for notifications (APP-6).
+  Future<void> dawamSetPushToken({
+    required String token,
+    required String locale,
+  });
+
+  /// Dawam's whole picture as JSON (the core's `dawam::Snapshot`). `refresh`
+  /// asks the server first; offline it is the mirror plus what is queued.
+  Future<String> dawamSnapshot({required bool refresh});
+
+  /// Send what is queued, then refresh (the connection came back).
+  Future<String> dawamSync();
+
   /// `HH:mm` of an instant in the BRANCH's timezone (learned from the staff
   /// payloads), never the phone's. `—` for an empty or bad timestamp.
   String formatClock({required String rfc3339});
@@ -152,6 +178,13 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String to,
   });
 
+  /// Any `/staff/*` call with an optional JSON body; the server's JSON back.
+  Future<String> staffCall({
+    required String method,
+    required String path,
+    String? body,
+  });
+
   /// Clock in at `branch_id` with the device's current position.
   ///
   /// The coordinates are evidence, not a decision — the server measures the
@@ -190,6 +223,19 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// Own leave balances for `year` (current calendar year when `None`).
   Future<List<LeaveBalanceView>> staffLeaveBalances({PlatformInt64? year});
+
+  /// Dawam sign-in step 1: WhatsApp a code to `phone`. `Some(code)` only on a
+  /// debug server with the dev echo on.
+  Future<String?> staffOtpRequest({required String phone});
+
+  /// Dawam sign-in step 2; the server's session JSON (or `needs_org`).
+  Future<String> staffOtpVerify({
+    required String phone,
+    required String code,
+    String? orgId,
+    String? platform,
+    String? model,
+  });
 
   /// Own payslips — finalised periods only.
   Future<List<PayslipView>> staffPayslips();

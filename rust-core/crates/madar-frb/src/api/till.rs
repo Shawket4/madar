@@ -304,6 +304,27 @@ impl MadarBridge {
             .map_err(MadarError::from)
     }
 
+    /// A pay-out handed to an employee for shop purchases: their expense
+    /// advance in Dawam, never deducted (AV-8). `amount_minor` is positive.
+    pub async fn record_expense_advance(
+        &self,
+        amount_minor: i64,
+        note: String,
+        person: String,
+    ) -> Result<CashMovementView, MadarError> {
+        self.inner.record_expense_advance(amount_minor, note, person).await.map_err(MadarError::from)
+    }
+
+    /// This branch's staff, for the expense-advance picker (the last list offline).
+    pub async fn branch_people(&self) -> Result<Vec<BranchPersonView>, MadarError> {
+        self.inner.branch_people().await.map_err(MadarError::from)
+    }
+
+    /// A dead or forgotten phone: clock in or out with the till PIN (CL-13).
+    pub async fn till_punch(&self, pin: String) -> Result<TillPunchView, MadarError> {
+        self.inner.till_punch(pin).await.map_err(MadarError::from)
+    }
+
     pub async fn list_cash_movements(&self) -> Result<Vec<CashMovementView>, MadarError> {
         self.inner.list_cash_movements().await.map_err(MadarError::from)
     }
@@ -381,4 +402,22 @@ impl MadarBridge {
     pub fn device_id(&self) -> String {
         self.inner.device_id()
     }
+}
+
+pub use madar_core::till_dawam::{BranchPersonView, TillPunchView};
+
+/// Someone at this branch, for the expense-advance picker.
+#[frb(mirror(BranchPersonView))]
+pub struct _BranchPersonView {
+    pub user_id: String,
+    pub name: String,
+}
+
+/// What a till PIN punch did, worded by the core.
+#[frb(mirror(TillPunchView))]
+pub struct _TillPunchView {
+    pub name: String,
+    /// `in` · `out`
+    pub punched: String,
+    pub message: String,
 }

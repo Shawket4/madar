@@ -29,6 +29,9 @@ pub struct ComputedPayslip {
     /// Line-by-line, so a preview can name each deduction rather than showing a lump sum nobody can argue with.
     #[serde(rename = "breakdown", deserialize_with = "Option::deserialize")]
     pub breakdown: Option<serde_json::Value>,
+    /// Deductions beyond what was earned: the payslip stops at zero and this carries into the next one as a debt (PAY-12).
+    #[serde(rename = "carry_out_piastres")]
+    pub carry_out_piastres: i64,
     #[serde(rename = "deductions_piastres")]
     pub deductions_piastres: i64,
     #[serde(rename = "late_minutes")]
@@ -58,6 +61,7 @@ impl ComputedPayslip {
         base_salary_piastres: i64,
         bonuses_piastres: i64,
         breakdown: Option<serde_json::Value>,
+        carry_out_piastres: i64,
         deductions_piastres: i64,
         late_minutes: i64,
         leave_days: f64,
@@ -75,6 +79,7 @@ impl ComputedPayslip {
             base_salary_piastres,
             bonuses_piastres,
             breakdown,
+            carry_out_piastres,
             deductions_piastres,
             late_minutes,
             leave_days,

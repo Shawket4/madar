@@ -281,6 +281,11 @@ String methodLabel(Method m) => switch (m) {
         tone: MadarTone.accent,
         glyph: MadarGlyph.users,
       ),
+      FlagKind.phoneDied => (
+        label: tr('staff.phone_died'),
+        tone: MadarTone.neutral,
+        glyph: MadarGlyph.phone,
+      ),
     };
 
 String payMethod(PayMethod m) => switch (m) {

@@ -1,4 +1,5 @@
 import 'package:design_system/design_system.dart';
+import 'package:feature_dawam_schedule/src/coverage_sheet.dart';
 import 'package:feature_dawam_schedule/src/shift_calendar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -86,6 +87,17 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
             size: MadarButtonSize.compact,
             onTap: () => _publish(ws),
           ),
+        MadarButton(
+          label: tr('staff.coverage_needs'),
+          glyph: MadarGlyph.users,
+          size: MadarButtonSize.compact,
+          variant: MadarButtonVariant.secondary,
+          onTap: () => showDawamSheet<void>(
+            context,
+            title: tr('staff.coverage_needs'),
+            builder: (ctx, ref, store) => CoverageSheet(branch: _branch),
+          ),
+        ),
         // On a phone the calendar keeps the height; what needs a decision
         // (holidays, suggestions) waits one tap away.
         if (phone && sugg.length + hols.length > 0)

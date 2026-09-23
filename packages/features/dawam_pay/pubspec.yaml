@@ -13,6 +13,8 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.3.2
+  pdf: ^3.13.1
+  printing: ^5.15.1
   staff_core: ^0.1.0
 
 dev_dependencies:

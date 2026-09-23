@@ -8,6 +8,7 @@ Name | Type | Description | Notes
 **custom_branding** | Option<**bool**> | May this organisation wear its own mark and colours on the customer's card and signup page? A paid tier, and this endpoint is already super-admin only — which is the whole reason it lives here rather than with the other branding controls an org manager can reach. | [optional]
 **is_active** | Option<**bool**> |  | [optional]
 **logo_url** | Option<**String**> | `null` clears the logo; absent leaves it unchanged. To set a new logo, use `PUT /orgs/{id}/logo` (multipart) instead — JSON updates only accept the clear-to-null case here. | [optional]
+**modules** | Option<**Vec<String>**> | `pos`, `dawam`: at least one (PS-2, SA-5). Super admin only, like the rest of this endpoint. | [optional]
 **name** | Option<**String**> |  | [optional]
 **receipt_footer** | Option<**String**> |  | [optional]
 **require_table_for_orders** | Option<**bool**> |  | [optional]

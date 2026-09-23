@@ -27,7 +27,7 @@ android {
         namespace 'com.madar.rust_bridge_staff'
     }
 
-    compileSdkVersion 33
+    compileSdkVersion 36
 
     // Uses the NDK version declared by the app (NDK r27+ for 16 KB pages).
     ndkVersion android.ndkVersion

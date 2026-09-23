@@ -28,6 +28,7 @@ import 'package:feature_till/src/open_till_screen.dart';
 import 'package:feature_till/src/till_history_screen.dart';
 import 'package:feature_till/src/till_notices.dart';
 import 'package:feature_till/src/till_providers.dart';
+import 'package:feature_till/src/till_punch_sheet.dart';
 import 'package:feature_till/src/waste_screen.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -405,6 +406,22 @@ class _StatSkeleton extends StatelessWidget {
 }
 
 /// "This till" — where the drawer's pages are.
+/// Clock someone in or out with their PIN (CL-13), then say what happened.
+Future<void> _punch(BuildContext context, MadarBridge bridge) async {
+  final res = await showTillPunch(context);
+  if (res == null || !context.mounted) return;
+  await showMadarModal<void>(
+    context,
+    builder: (sheet) => MadarModalBody(
+      title: res.message,
+      primary: MadarModalAction(
+        bridge.tr(key: 'common.done'),
+        () => Navigator.of(sheet).maybePop(),
+      ),
+    ),
+  );
+}
+
 class _Links extends ConsumerWidget {
   const _Links({
     required this.onOpenOrders,
@@ -463,6 +480,12 @@ class _Links extends ConsumerWidget {
                 onTap: onWaste,
               ),
             ],
+            const MadarHairline.row(),
+            MadarListRow.nav(
+              title: t('staff.till_punch'),
+              glyph: MadarGlyph.clock,
+              onTap: () => unawaited(_punch(context, bridge)),
+            ),
             const MadarHairline.row(),
             MadarListRow.nav(
               title: t('spot.button'),

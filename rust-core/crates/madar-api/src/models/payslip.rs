@@ -23,6 +23,9 @@ pub struct Payslip {
     pub bonuses_piastres: i64,
     #[serde(rename = "breakdown", deserialize_with = "Option::deserialize")]
     pub breakdown: Option<serde_json::Value>,
+    /// What deductions exceeded pay by; carried into the next payslip (PAY-12).
+    #[serde(rename = "carry_out_piastres")]
+    pub carry_out_piastres: i64,
     #[serde(rename = "deductions_piastres")]
     pub deductions_piastres: i64,
     #[serde(rename = "generated_at")]
@@ -41,6 +44,21 @@ pub struct Payslip {
     pub overtime_minutes: i32,
     #[serde(rename = "overtime_piastres")]
     pub overtime_piastres: i64,
+    #[serde(
+        rename = "paid_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub paid_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// Paid by `cash` · `bank` · `wallet` (PAY-7); null until marked paid.
+    #[serde(
+        rename = "paid_method",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub paid_method: Option<Option<String>>,
     #[serde(rename = "payroll_period_id")]
     pub payroll_period_id: uuid::Uuid,
     #[serde(
@@ -85,6 +103,7 @@ impl Payslip {
         base_salary_piastres: i64,
         bonuses_piastres: i64,
         breakdown: Option<serde_json::Value>,
+        carry_out_piastres: i64,
         deductions_piastres: i64,
         generated_at: chrono::DateTime<chrono::FixedOffset>,
         id: uuid::Uuid,
@@ -104,6 +123,7 @@ impl Payslip {
             base_salary_piastres,
             bonuses_piastres,
             breakdown,
+            carry_out_piastres,
             deductions_piastres,
             generated_at,
             id,
@@ -113,6 +133,8 @@ impl Payslip {
             org_id,
             overtime_minutes,
             overtime_piastres,
+            paid_at: None,
+            paid_method: None,
             payroll_period_id,
             period_end: None,
             period_name: None,

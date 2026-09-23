@@ -67,6 +67,9 @@ pub struct Org {
         skip_serializing_if = "Option::is_none"
     )]
     pub logo_url: Option<Option<String>>,
+    /// Switched-on modules: `pos`, `dawam` (PS-2). Switching one off hides it and keeps every record.
+    #[serde(rename = "modules")]
+    pub modules: Vec<String>,
     #[serde(rename = "name")]
     pub name: String,
     #[serde(
@@ -113,6 +116,7 @@ impl Org {
         custom_branding: bool,
         id: uuid::Uuid,
         is_active: bool,
+        modules: Vec<String>,
         name: String,
         require_table_for_orders: bool,
         service_charge_rate: f64,
@@ -133,6 +137,7 @@ impl Org {
             id,
             is_active,
             logo_url: None,
+            modules,
             name,
             receipt_footer: None,
             require_table_for_orders,

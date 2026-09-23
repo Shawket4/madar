@@ -6,10 +6,15 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:staff_core/src/data.dart';
 import 'package:staff_core/src/format.dart';
 
-/// Dawam's core — the staff-app counterpart of `app_core`'s `coreProvider`.
-/// Today the in-memory store; the staff bridge's calls land behind it.
+/// The core behind the store — the staff bridge on a device, a fake in tests.
+/// The app overrides it at boot.
+final dawamBackendProvider = Provider<DawamBackend>(
+  (_) => throw UnimplementedError('override dawamBackendProvider at boot'),
+);
+
+/// Dawam's picture — the staff-app counterpart of `app_core`'s `coreProvider`.
 final dawamProvider = ChangeNotifierProvider<DawamStore>((ref) {
-  final store = DawamStore();
+  final store = DawamStore(ref.watch(dawamBackendProvider));
   ref.onDispose(store.stop);
   return store;
 });

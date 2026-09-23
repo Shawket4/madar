@@ -69,7 +69,7 @@ class StaffBridge
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -928146952;
+  int get rustContentHash => -1396642916;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -82,6 +82,36 @@ class StaffBridge
 
 abstract class StaffBridgeApi extends BaseApi {
   SessionSnapshot? crateApiBridgeMadarBridgeCurrentSession({
+    required MadarBridge that,
+  });
+
+  Future<String> crateApiBridgeMadarBridgeDawamDo({
+    required MadarBridge that,
+    required String action,
+  });
+
+  Future<String> crateApiBridgeMadarBridgeDawamPing({
+    required MadarBridge that,
+    required double latitude,
+    required double longitude,
+    double? accuracy,
+    required bool mock,
+    String? gpsTime,
+    PlatformInt64? battery,
+  });
+
+  Future<void> crateApiBridgeMadarBridgeDawamSetPushToken({
+    required MadarBridge that,
+    required String token,
+    required String locale,
+  });
+
+  Future<String> crateApiBridgeMadarBridgeDawamSnapshot({
+    required MadarBridge that,
+    required bool refresh,
+  });
+
+  Future<String> crateApiBridgeMadarBridgeDawamSync({
     required MadarBridge that,
   });
 
@@ -225,6 +255,13 @@ abstract class StaffBridgeApi extends BaseApi {
     required String to,
   });
 
+  Future<String> crateApiBridgeMadarBridgeStaffCall({
+    required MadarBridge that,
+    required String method,
+    required String path,
+    String? body,
+  });
+
   Future<AttendanceRecordView> crateApiBridgeMadarBridgeStaffCheckIn({
     required MadarBridge that,
     required String branchId,
@@ -255,6 +292,20 @@ abstract class StaffBridgeApi extends BaseApi {
   Future<List<LeaveBalanceView>> crateApiBridgeMadarBridgeStaffLeaveBalances({
     required MadarBridge that,
     PlatformInt64? year,
+  });
+
+  Future<String?> crateApiBridgeMadarBridgeStaffOtpRequest({
+    required MadarBridge that,
+    required String phone,
+  });
+
+  Future<String> crateApiBridgeMadarBridgeStaffOtpVerify({
+    required MadarBridge that,
+    required String phone,
+    required String code,
+    String? orgId,
+    String? platform,
+    String? model,
   });
 
   Future<List<PayslipView>> crateApiBridgeMadarBridgeStaffPayslips({
@@ -347,6 +398,222 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
       );
 
   @override
+  Future<String> crateApiBridgeMadarBridgeDawamDo({
+    required MadarBridge that,
+    required String action,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(action, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeDawamDoConstMeta,
+        argValues: [that, action],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeDawamDoConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_dawam_do",
+        argNames: ["that", "action"],
+      );
+
+  @override
+  Future<String> crateApiBridgeMadarBridgeDawamPing({
+    required MadarBridge that,
+    required double latitude,
+    required double longitude,
+    double? accuracy,
+    required bool mock,
+    String? gpsTime,
+    PlatformInt64? battery,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_f_64(latitude, serializer);
+          sse_encode_f_64(longitude, serializer);
+          sse_encode_opt_box_autoadd_f_64(accuracy, serializer);
+          sse_encode_bool(mock, serializer);
+          sse_encode_opt_String(gpsTime, serializer);
+          sse_encode_opt_box_autoadd_i_64(battery, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeDawamPingConstMeta,
+        argValues: [
+          that,
+          latitude,
+          longitude,
+          accuracy,
+          mock,
+          gpsTime,
+          battery,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeDawamPingConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_dawam_ping",
+        argNames: [
+          "that",
+          "latitude",
+          "longitude",
+          "accuracy",
+          "mock",
+          "gpsTime",
+          "battery",
+        ],
+      );
+
+  @override
+  Future<void> crateApiBridgeMadarBridgeDawamSetPushToken({
+    required MadarBridge that,
+    required String token,
+    required String locale,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(token, serializer);
+          sse_encode_String(locale, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeDawamSetPushTokenConstMeta,
+        argValues: [that, token, locale],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeDawamSetPushTokenConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_dawam_set_push_token",
+        argNames: ["that", "token", "locale"],
+      );
+
+  @override
+  Future<String> crateApiBridgeMadarBridgeDawamSnapshot({
+    required MadarBridge that,
+    required bool refresh,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_bool(refresh, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeDawamSnapshotConstMeta,
+        argValues: [that, refresh],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeDawamSnapshotConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_dawam_snapshot",
+        argNames: ["that", "refresh"],
+      );
+
+  @override
+  Future<String> crateApiBridgeMadarBridgeDawamSync({
+    required MadarBridge that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeDawamSyncConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeDawamSyncConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_dawam_sync",
+        argNames: ["that"],
+      );
+
+  @override
   String crateApiBridgeMadarBridgeFormatClock({
     required MadarBridge that,
     required String rfc3339,
@@ -360,7 +627,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
             serializer,
           );
           sse_encode_String(rfc3339, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -395,7 +662,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           );
           sse_encode_String(resource, serializer);
           sse_encode_String(action, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -424,7 +691,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -453,7 +720,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -479,7 +746,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -512,7 +779,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 12,
             port: port_,
           );
         },
@@ -558,7 +825,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 13,
             port: port_,
           );
         },
@@ -601,7 +868,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 14,
             port: port_,
           );
         },
@@ -647,7 +914,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 15,
             port: port_,
           );
         },
@@ -704,7 +971,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 16,
             port: port_,
           );
         },
@@ -748,7 +1015,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 17,
             port: port_,
           );
         },
@@ -788,7 +1055,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 18,
             port: port_,
           );
         },
@@ -827,7 +1094,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 19,
             port: port_,
           );
         },
@@ -869,7 +1136,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 20,
             port: port_,
           );
         },
@@ -908,7 +1175,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 21,
             port: port_,
           );
         },
@@ -943,7 +1210,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 22,
             port: port_,
           );
         },
@@ -981,7 +1248,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 23,
             port: port_,
           );
         },
@@ -1021,7 +1288,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1062,7 +1329,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1100,7 +1367,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1140,7 +1407,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1173,7 +1440,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1207,7 +1474,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1240,7 +1507,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_session_snapshot,
@@ -1273,7 +1540,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
             serializer,
           );
           sse_encode_String(locale, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -1307,7 +1574,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 32,
             port: port_,
           );
         },
@@ -1347,7 +1614,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1366,6 +1633,48 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
       const TaskConstMeta(
         debugName: "MadarBridge_staff_attendance",
         argNames: ["that", "from", "to"],
+      );
+
+  @override
+  Future<String> crateApiBridgeMadarBridgeStaffCall({
+    required MadarBridge that,
+    required String method,
+    required String path,
+    String? body,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(method, serializer);
+          sse_encode_String(path, serializer);
+          sse_encode_opt_String(body, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 34,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeStaffCallConstMeta,
+        argValues: [that, method, path, body],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeStaffCallConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_staff_call",
+        argNames: ["that", "method", "path", "body"],
       );
 
   @override
@@ -1389,7 +1698,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1429,7 +1738,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1485,7 +1794,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1547,7 +1856,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 38,
             port: port_,
           );
         },
@@ -1569,6 +1878,90 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
       );
 
   @override
+  Future<String?> crateApiBridgeMadarBridgeStaffOtpRequest({
+    required MadarBridge that,
+    required String phone,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(phone, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 39,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeStaffOtpRequestConstMeta,
+        argValues: [that, phone],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeStaffOtpRequestConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_staff_otp_request",
+        argNames: ["that", "phone"],
+      );
+
+  @override
+  Future<String> crateApiBridgeMadarBridgeStaffOtpVerify({
+    required MadarBridge that,
+    required String phone,
+    required String code,
+    String? orgId,
+    String? platform,
+    String? model,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(phone, serializer);
+          sse_encode_String(code, serializer);
+          sse_encode_opt_String(orgId, serializer);
+          sse_encode_opt_String(platform, serializer);
+          sse_encode_opt_String(model, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 40,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeStaffOtpVerifyConstMeta,
+        argValues: [that, phone, code, orgId, platform, model],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeStaffOtpVerifyConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_staff_otp_verify",
+        argNames: ["that", "phone", "code", "orgId", "platform", "model"],
+      );
+
+  @override
   Future<List<PayslipView>> crateApiBridgeMadarBridgeStaffPayslips({
     required MadarBridge that,
   }) {
@@ -1583,7 +1976,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 41,
             port: port_,
           );
         },
@@ -1625,7 +2018,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 42,
             port: port_,
           );
         },
@@ -1661,7 +2054,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 43,
             port: port_,
           );
         },
@@ -1701,7 +2094,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 44,
             port: port_,
           );
         },
@@ -1741,7 +2134,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 45,
             port: port_,
           );
         },
@@ -1777,7 +2170,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 46,
             port: port_,
           );
         },
@@ -1812,7 +2205,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
             serializer,
           );
           sse_encode_String(key, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1837,7 +2230,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1859,7 +2252,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_u_32,
@@ -4009,6 +4402,49 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   SessionSnapshot? currentSession() => StaffBridge.instance.api
       .crateApiBridgeMadarBridgeCurrentSession(that: this);
 
+  /// Do one Dawam action (`dawam::Act` as JSON); returns the new snapshot.
+  Future<String> dawamDo({required String action}) => StaffBridge.instance.api
+      .crateApiBridgeMadarBridgeDawamDo(that: this, action: action);
+
+  /// A 15-minute on-shift location reading; queued offline (CL-4, CL-10).
+  Future<String> dawamPing({
+    required double latitude,
+    required double longitude,
+    double? accuracy,
+    required bool mock,
+    String? gpsTime,
+    PlatformInt64? battery,
+  }) => StaffBridge.instance.api.crateApiBridgeMadarBridgeDawamPing(
+    that: this,
+    latitude: latitude,
+    longitude: longitude,
+    accuracy: accuracy,
+    mock: mock,
+    gpsTime: gpsTime,
+    battery: battery,
+  );
+
+  /// The phone's push token and language, for notifications (APP-6).
+  Future<void> dawamSetPushToken({
+    required String token,
+    required String locale,
+  }) => StaffBridge.instance.api.crateApiBridgeMadarBridgeDawamSetPushToken(
+    that: this,
+    token: token,
+    locale: locale,
+  );
+
+  /// Dawam's whole picture as JSON (the core's `dawam::Snapshot`). `refresh`
+  /// asks the server first; offline it is the mirror plus what is queued.
+  Future<String> dawamSnapshot({required bool refresh}) => StaffBridge
+      .instance
+      .api
+      .crateApiBridgeMadarBridgeDawamSnapshot(that: this, refresh: refresh);
+
+  /// Send what is queued, then refresh (the connection came back).
+  Future<String> dawamSync() =>
+      StaffBridge.instance.api.crateApiBridgeMadarBridgeDawamSync(that: this);
+
   /// `HH:mm` of an instant in the BRANCH's timezone (learned from the staff
   /// payloads), never the phone's. `—` for an empty or bad timestamp.
   String formatClock({required String rfc3339}) => StaffBridge.instance.api
@@ -4221,6 +4657,18 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     to: to,
   );
 
+  /// Any `/staff/*` call with an optional JSON body; the server's JSON back.
+  Future<String> staffCall({
+    required String method,
+    required String path,
+    String? body,
+  }) => StaffBridge.instance.api.crateApiBridgeMadarBridgeStaffCall(
+    that: this,
+    method: method,
+    path: path,
+    body: body,
+  );
+
   /// Clock in at `branch_id` with the device's current position.
   ///
   /// The coordinates are evidence, not a decision — the server measures the
@@ -4284,6 +4732,29 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
         that: this,
         year: year,
       );
+
+  /// Dawam sign-in step 1: WhatsApp a code to `phone`. `Some(code)` only on a
+  /// debug server with the dev echo on.
+  Future<String?> staffOtpRequest({required String phone}) => StaffBridge
+      .instance
+      .api
+      .crateApiBridgeMadarBridgeStaffOtpRequest(that: this, phone: phone);
+
+  /// Dawam sign-in step 2; the server's session JSON (or `needs_org`).
+  Future<String> staffOtpVerify({
+    required String phone,
+    required String code,
+    String? orgId,
+    String? platform,
+    String? model,
+  }) => StaffBridge.instance.api.crateApiBridgeMadarBridgeStaffOtpVerify(
+    that: this,
+    phone: phone,
+    code: code,
+    orgId: orgId,
+    platform: platform,
+    model: model,
+  );
 
   /// Own payslips — finalised periods only.
   Future<List<PayslipView>> staffPayslips() => StaffBridge.instance.api

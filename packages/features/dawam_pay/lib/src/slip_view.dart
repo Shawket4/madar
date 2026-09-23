@@ -1,4 +1,5 @@
 import 'package:design_system/design_system.dart';
+import 'package:feature_dawam_pay/src/payslip_pdf.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:staff_core/staff_core.dart';
@@ -195,16 +196,20 @@ Future<void> payslipSheet(BuildContext context, Slip s) => showDawamSheet<void>(
         Row(
           spacing: Space.sm,
           children: [
-            for (final l in ['العربية', 'English'])
+            for (final (l, ar) in [('العربية', true), ('English', false)])
               Expanded(
                 child: MadarButton(
                   label: 'PDF · $l',
                   glyph: MadarGlyph.printer,
                   size: MadarButtonSize.compact,
                   variant: MadarButtonVariant.secondary,
-                  enabled: false,
-                  tooltip: tr('staff.pdf_export_comes_with_the_real'),
-                  onTap: () {},
+                  onTap: () => sharePayslipPdf(
+                    slip: s,
+                    person: name(store.emp(s.emp)),
+                    business: store.orgName,
+                    arabic: ar,
+                    paidWith: paid == null ? null : payMethod(paid),
+                  ),
                 ),
               ),
           ],

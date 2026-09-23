@@ -5,4 +5,5 @@ library;
 export 'src/money_sheets.dart';
 export 'src/pay_tab.dart';
 export 'src/payroll_tab.dart';
+export 'src/payslip_pdf.dart';
 export 'src/slip_view.dart';

@@ -22,6 +22,14 @@ pub struct ProvisionOrgRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub currency_code: Option<Option<String>>,
+    /// `pos`, `dawam`; default both. A Dawam-only customer is `[\"dawam\"]` (SA-1).
+    #[serde(
+        rename = "modules",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub modules: Option<Option<Vec<String>>>,
     #[serde(rename = "name")]
     pub name: String,
     #[serde(rename = "owner")]
@@ -59,6 +67,7 @@ impl ProvisionOrgRequest {
         ProvisionOrgRequest {
             branch: Box::new(branch),
             currency_code: None,
+            modules: None,
             name,
             owner: Box::new(owner),
             slug,

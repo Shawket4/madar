@@ -6,6 +6,7 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **branch** | [**models::ProvisionBranch**](ProvisionBranch.md) |  | 
 **currency_code** | Option<**String**> |  | [optional]
+**modules** | Option<**Vec<String>**> | `pos`, `dawam`; default both. A Dawam-only customer is `[\"dawam\"]` (SA-1). | [optional]
 **name** | **String** |  | 
 **owner** | [**models::ProvisionOwner**](ProvisionOwner.md) |  | 
 **slug** | **String** |  | 

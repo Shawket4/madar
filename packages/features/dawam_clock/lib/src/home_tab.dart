@@ -46,7 +46,15 @@ class HomeTab extends ConsumerWidget {
           ),
         ],
       ),
-      if (active != null && store.battery <= 15)
+      if (!store.rulesSaved)
+        NoticeBanner(
+          text: tr(
+            store.role == Role.owner
+                ? 'staff.rules_not_saved_owner'
+                : 'staff.rules_not_saved',
+          ),
+        ),
+      if (store.chargePhone)
         NoticeBanner(
           text: tr('staff.battery_at_charge_your_phone_if', {
             'battery': store.battery,

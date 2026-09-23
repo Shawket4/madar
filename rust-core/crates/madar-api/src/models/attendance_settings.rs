@@ -15,6 +15,9 @@ use serde::{Deserialize, Serialize};
 pub struct AttendanceSettings {
     #[serde(rename = "absence_deduction_days")]
     pub absence_deduction_days: f64,
+    /// Salary advances owed may reach this share of monthly salary (AV-5).
+    #[serde(rename = "advance_cap_percent")]
+    pub advance_cap_percent: f64,
     #[serde(rename = "auto_checkout_buffer_minutes")]
     pub auto_checkout_buffer_minutes: i32,
     #[serde(
@@ -31,6 +34,15 @@ pub struct AttendanceSettings {
     /// Whether an approved mid-shift permission or early departure is PAID by default. The approver may override it on any individual request.
     #[serde(rename = "excused_time_paid_default")]
     pub excused_time_paid_default: bool,
+    /// `off` · `soft` · `hard`: how the gender default weighs in suggestions (SC-12).
+    #[serde(rename = "gender_mode")]
+    pub gender_mode: String,
+    /// `half_shift` · `whole_day`: what a half-day leave counts as (RQ-8).
+    #[serde(rename = "half_day_leave_counts")]
+    pub half_day_leave_counts: String,
+    /// What working a set-up holiday pays (RU-10).
+    #[serde(rename = "holiday_multiplier")]
+    pub holiday_multiplier: f64,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(
@@ -38,14 +50,49 @@ pub struct AttendanceSettings {
         deserialize_with = "Option::deserialize"
     )]
     pub late_deduction_tiers: Option<serde_json::Value>,
+    /// Labour limits, hours (RU-13). They warn, never block, and stay unconfirmed until a lawyer signs them off.
+    #[serde(rename = "limit_day_hours")]
+    pub limit_day_hours: f64,
+    #[serde(rename = "limit_overtime_day_hours")]
+    pub limit_overtime_day_hours: f64,
+    #[serde(rename = "limit_presence_hours")]
+    pub limit_presence_hours: f64,
+    #[serde(rename = "limit_rest_hours")]
+    pub limit_rest_hours: f64,
+    #[serde(rename = "limit_week_hours")]
+    pub limit_week_hours: f64,
+    #[serde(rename = "night_end")]
+    pub night_end: String,
+    /// Night for the night overtime rate and for suggestions (RU-8, RU-9).
+    #[serde(rename = "night_start")]
+    pub night_start: String,
+    /// POS-derived coverage: one person per this many orders an hour.
+    #[serde(rename = "orders_per_staff")]
+    pub orders_per_staff: i32,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
+    #[serde(rename = "overtime_day_multiplier")]
+    pub overtime_day_multiplier: f64,
+    /// `off` · `automatic` · `approval` (RU-7).
+    #[serde(rename = "overtime_mode")]
+    pub overtime_mode: String,
+    #[serde(rename = "overtime_night_multiplier")]
+    pub overtime_night_multiplier: f64,
+    /// Day of the month a pay period opens (PAY-1): 26 = a 26th–25th cycle.
+    #[serde(rename = "period_start_day")]
+    pub period_start_day: i32,
     #[serde(rename = "require_geofence")]
     pub require_geofence: bool,
+    /// When the business saved its rules; nobody clocks in before (RU-1).
+    #[serde(
+        rename = "rules_saved_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub rules_saved_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
-    #[serde(rename = "weekend_days")]
-    pub weekend_days: Vec<i32>,
     #[serde(rename = "working_days_per_month")]
     pub working_days_per_month: f64,
 }
@@ -53,31 +100,62 @@ pub struct AttendanceSettings {
 impl AttendanceSettings {
     pub fn new(
         absence_deduction_days: f64,
+        advance_cap_percent: f64,
         auto_checkout_buffer_minutes: i32,
         created_at: chrono::DateTime<chrono::FixedOffset>,
         default_overtime_multiplier: f64,
         excused_time_paid_default: bool,
+        gender_mode: String,
+        half_day_leave_counts: String,
+        holiday_multiplier: f64,
         id: uuid::Uuid,
         late_deduction_tiers: Option<serde_json::Value>,
+        limit_day_hours: f64,
+        limit_overtime_day_hours: f64,
+        limit_presence_hours: f64,
+        limit_rest_hours: f64,
+        limit_week_hours: f64,
+        night_end: String,
+        night_start: String,
+        orders_per_staff: i32,
         org_id: uuid::Uuid,
+        overtime_day_multiplier: f64,
+        overtime_mode: String,
+        overtime_night_multiplier: f64,
+        period_start_day: i32,
         require_geofence: bool,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
-        weekend_days: Vec<i32>,
         working_days_per_month: f64,
     ) -> AttendanceSettings {
         AttendanceSettings {
             absence_deduction_days,
+            advance_cap_percent,
             auto_checkout_buffer_minutes,
             branch_id: None,
             created_at,
             default_overtime_multiplier,
             excused_time_paid_default,
+            gender_mode,
+            half_day_leave_counts,
+            holiday_multiplier,
             id,
             late_deduction_tiers,
+            limit_day_hours,
+            limit_overtime_day_hours,
+            limit_presence_hours,
+            limit_rest_hours,
+            limit_week_hours,
+            night_end,
+            night_start,
+            orders_per_staff,
             org_id,
+            overtime_day_multiplier,
+            overtime_mode,
+            overtime_night_multiplier,
+            period_start_day,
             require_geofence,
+            rules_saved_at: None,
             updated_at,
-            weekend_days,
             working_days_per_month,
         }
     }

@@ -196,7 +196,9 @@ class StaffShell extends ConsumerWidget {
               MadarListRow.nav(
                 glyph: MadarGlyph.lock,
                 title: u.device,
-                meta: tr('staff.this_phone_since', {'date': u.deviceSince}),
+                meta: tr('staff.this_phone_since', {
+                  'date': u.deviceSince ?? '',
+                }),
               ),
             ],
           ),
@@ -218,12 +220,6 @@ class StaffShell extends ConsumerWidget {
             },
           ),
           MadarButton(
-            label: tr('staff.demo_controls'),
-            glyph: MadarGlyph.settings,
-            variant: MadarButtonVariant.secondary,
-            onTap: () => demoControls(ctx),
-          ),
-          MadarButton(
             label: tr('staff.sign_out'),
             glyph: MadarGlyph.signOut,
             variant: MadarButtonVariant.ghost,
@@ -238,139 +234,6 @@ class StaffShell extends ConsumerWidget {
     },
   );
 }
-
-/// What a real phone would tell the app, as switches, so every path can be
-/// walked by hand: the clock, the geofence, "Always" location, the battery,
-/// the connection, and what the 15-minute pings would catch.
-Future<void> demoControls(BuildContext context) => showDawamSheet<void>(
-  context,
-  title: tr('staff.demo_controls'),
-  builder: (ctx, ref, store) {
-    Widget toggle(
-      String label, {
-      required bool value,
-      required ValueChanged<bool> set,
-    }) => MadarCard(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Space.lg,
-        vertical: Space.xs,
-      ),
-      child: Row(
-        children: [
-          Expanded(child: Text(label, style: MadarType.body)),
-          Switch.adaptive(
-            value: value,
-            onChanged: (x) => store.set(() => set(x)),
-          ),
-        ],
-      ),
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: Space.md,
-      children: [
-        NoticeBanner(
-          text: tr('staff.prototype_mock_data_nothing_leaves_this'),
-          tone: ChipTone.info,
-        ),
-        MadarSectionHeader(
-          text: tr('staff.clock', {
-            'date': dayLabel(store.now),
-            'time': hm(store.now),
-          }),
-        ),
-        Wrap(
-          spacing: Space.sm,
-          runSpacing: Space.sm,
-          children: [
-            for (final (l, m) in [
-              ('-30m', -30),
-              ('+15m', 15),
-              ('+30m', 30),
-              ('+2h', 120),
-            ])
-              MadarChip(label: l, onTap: () => store.shiftClock(m)),
-            for (final (l, m) in [
-              ('08:52', 8 * 60 + 52),
-              ('09:30', 9 * 60 + 30),
-              ('17:20', 17 * 60 + 20),
-            ])
-              MadarChip(label: l, onTap: () => store.setClock(m)),
-          ],
-        ),
-        MadarSectionHeader(text: tr('staff.phone')),
-        toggle(
-          tr('staff.inside_the_branch_geofence'),
-          value: store.inside,
-          set: (v) => store.inside = v,
-        ),
-        toggle(
-          tr('staff.always_location_allowed'),
-          value: store.alwaysLocation,
-          set: (v) => store.alwaysLocation = v,
-        ),
-        toggle(
-          tr('staff.battery_low_15'),
-          value: store.battery <= 15,
-          set: (v) => store.battery = v ? 15 : 78,
-        ),
-        toggle(
-          tr('staff.offline'),
-          value: store.offline,
-          set: (v) => store.offline = v,
-        ),
-        MadarSectionHeader(text: tr('staff.what_the_pings_find_on_shift')),
-        Row(
-          spacing: Space.sm,
-          children: [
-            Expanded(
-              child: MadarButton(
-                label: tr('staff.leave_branch'),
-                variant: MadarButtonVariant.secondary,
-                size: MadarButtonSize.compact,
-                enabled: store.activeShift != null,
-                tooltip: tr('staff.clock_in_first'),
-                onTap: () => attempt(
-                  ref,
-                  () => store.simulate(FlagKind.leftMidShift),
-                  ok: tr('staff.manager_notified'),
-                ),
-              ),
-            ),
-            Expanded(
-              child: MadarButton(
-                label: tr('staff.spoof_gps'),
-                variant: MadarButtonVariant.secondary,
-                size: MadarButtonSize.compact,
-                enabled: store.activeShift != null,
-                tooltip: tr('staff.clock_in_first'),
-                onTap: () => attempt(
-                  ref,
-                  () => store.simulate(FlagKind.suspicious),
-                  ok: tr('staff.flagged_for_the_manager'),
-                ),
-              ),
-            ),
-          ],
-        ),
-        MadarButton(
-          label: tr('staff.reset_all_demo_data'),
-          variant: MadarButtonVariant.danger,
-          size: MadarButtonSize.compact,
-          onTap: () {
-            Navigator.of(ctx).popUntil((r) => r.isFirst);
-            ref.read(shellProvider.notifier).select(0);
-            store.reset();
-          },
-        ),
-        Text(
-          tr('staff.time_follows_the_phone_s_12'),
-          style: MadarType.bodySm.copyWith(color: ctx.madarColors.textMuted),
-        ),
-      ],
-    );
-  },
-);
 
 /// A 44-point action on the dark chrome, with an optional count badge.
 class _ChromeAction extends StatelessWidget {

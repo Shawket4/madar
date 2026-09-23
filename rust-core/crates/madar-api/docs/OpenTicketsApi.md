@@ -12,6 +12,7 @@ Method | HTTP request | Description
 [**public_table**](OpenTicketsApi.md#public_table) | **GET** /public/tables/{id} | 
 [**public_table_menu**](OpenTicketsApi.md#public_table_menu) | **GET** /public/tables/{id}/menu | The menu at this table.
 [**public_table_order**](OpenTicketsApi.md#public_table_order) | **POST** /public/table-orders | Send this table's order to the kitchen.
+[**set_ticket_customer**](OpenTicketsApi.md#set_ticket_customer) | **PUT** /open-tickets/{id}/customer | Set or clear the customer on an open bill (the dashboard / online path; a till queues `set_ticket_customer` through `/sync/replay` instead).
 [**settle_open_ticket**](OpenTicketsApi.md#settle_open_ticket) | **POST** /open-tickets/{id}/settle | 
 [**void_open_ticket**](OpenTicketsApi.md#void_open_ticket) | **POST** /open-tickets/{id}/void | 
 [**void_ticket_line**](OpenTicketsApi.md#void_ticket_line) | **POST** /open-tickets/{id}/items/{item_id}/void | 
@@ -240,6 +241,35 @@ Name | Type | Description  | Required | Notes
 ### Authorization
 
 No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## set_ticket_customer
+
+> models::SetTicketCustomerResponse set_ticket_customer(id, set_ticket_customer_request)
+Set or clear the customer on an open bill (the dashboard / online path; a till queues `set_ticket_customer` through `/sync/replay` instead).
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Open ticket ID | [required] |
+**set_ticket_customer_request** | [**SetTicketCustomerRequest**](SetTicketCustomerRequest.md) |  | [required] |
+
+### Return type
+
+[**models::SetTicketCustomerResponse**](SetTicketCustomerResponse.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
 
 ### HTTP request headers
 

@@ -97,6 +97,9 @@ pub mod session;
 /// Shift lifecycle — open/current via the outbox (PLAN §7.4).
 pub mod till;
 /// Employee self-service reads/writes for the staff app (`/staff/me/*`).
+pub mod dawam;
+#[cfg(test)]
+mod dawam_fixture;
 pub mod staff;
 /// The branch's daily staff drinks pool — the allowance, the required note,
 /// and the overspend mark. Shared with the backend by `staff_pool_vectors.json`.
@@ -125,6 +128,7 @@ pub mod tickets;
 pub mod till_views;
 pub(crate) mod ledger;
 pub mod till_ops;
+pub mod till_dawam;
 pub mod sync_pull;
 pub mod assets;
 /// Gated device reconfigure = a fresh install (`reconfigure.rs`).
@@ -558,6 +562,9 @@ impl MadarCore {
         // online path before the first `refresh_connectivity`).
         state.snapshot.online = false;
         self.api.set_bearer(state.token.clone());
+        if let Ok(Some(dev)) = self.store.blob_get(staff::K_STAFF_DEVICE) {
+            let _ = self.api.set_staff_device(String::from_utf8(dev).ok());
+        }
         let snapshot = state.snapshot.clone();
         let _ = till::set_active_user(&self.store, Some(&snapshot.user_id));
         *self.session.write().unwrap_or_else(|e| e.into_inner()) = Some(state);
@@ -764,6 +771,8 @@ impl MadarCore {
             .store(false, std::sync::atomic::Ordering::Relaxed);
         *self.session.write().unwrap_or_else(|e| e.into_inner()) = None;
         let _ = self.store.blob_delete(session::K_SESSION_BLOB);
+        let _ = self.store.blob_delete(staff::K_STAFF_DEVICE);
+        let _ = self.api.set_staff_device(None);
         // Tear down any live realtime stream + listener so the next sign-in starts
         // clean. start_realtime's "already subscribed" guard would otherwise see the
         // stale handle and no-op, leaving the NEXT user with no events. Host signOut
@@ -1840,6 +1849,23 @@ impl MadarCore {
         body_out: &mut Option<serde_json::Value>,
         seq_out: &mut Option<i64>,
     ) -> SendOutcome {
+        // Dawam punches and pings go to their own `/staff/*` endpoint. A 409
+        // is the server already holding it (a resend after a lost answer).
+        if item.op_type.starts_with(dawam::OP_PREFIX) {
+            // A punch is a claim about one person: it only ever goes under
+            // their own token, so it waits for them to sign in again.
+            let me = self.current_session().map(|s| s.user_id);
+            if item.user_id.is_some() && item.user_id != me {
+                return SendOutcome::Throttled("waits for its own person to sign in".into());
+            }
+            return match self.dawam_send(item).await {
+                Ok(v) => {
+                    *body_out = Some(v);
+                    SendOutcome::Acked(None)
+                }
+                Err(e) => classify_send(e, Idem::Yes),
+            };
+        }
         let (envelope, idem) = match self.replay_envelope(item) {
             Ok(e) => e,
             Err(outcome) => return outcome,
@@ -7943,7 +7969,7 @@ impl MadarCore {
             .unwrap_or_else(|| crate::tax::TaxPolicy::default().service_charge_taxable)
     }
 
-    fn session_branch_id(&self) -> Result<String, CoreError> {
+    pub(crate) fn session_branch_id(&self) -> Result<String, CoreError> {
         let g = self.session.read().unwrap_or_else(|e| e.into_inner());
         let s = g.as_ref().ok_or_else(|| CoreError::Unauthenticated {
             detail: "not signed in".into(),
@@ -12436,6 +12462,124 @@ impl MadarCore {
         password: String,
     ) -> Result<session::SessionSnapshot, CoreError> {
         self.dashboard_sign_in(email, password, None).await
+    }
+
+    /// Dawam sign-in, step 1: send a WhatsApp code to `phone`. Returns the code
+    /// itself only on a debug server with `MADAR_DEV_OTP_ECHO=1`.
+    pub async fn staff_otp_request(&self, phone: String) -> Result<Option<String>, CoreError> {
+        let body = self
+            .api
+            .send_json(
+                reqwest::Method::POST,
+                "/auth/staff/otp/request",
+                Some(&serde_json::json!({ "phone": phone })),
+            )
+            .await?;
+        let v: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+        Ok(v["dev_code"].as_str().map(str::to_string))
+    }
+
+    /// Dawam sign-in, step 2. On success the session is live and this phone is
+    /// the account's one bound device (RO-4). With two businesses and no
+    /// `org_id` it returns `needs_org` and the choices instead (RO-5). The raw
+    /// server JSON comes back either way.
+    pub async fn staff_otp_verify(
+        &self,
+        phone: String,
+        code: String,
+        org_id: Option<String>,
+        platform: Option<String>,
+        model: Option<String>,
+    ) -> Result<String, CoreError> {
+        use std::sync::atomic::Ordering::Relaxed;
+        let body = self
+            .api
+            .send_json(
+                reqwest::Method::POST,
+                "/auth/staff/otp/verify",
+                Some(&serde_json::json!({
+                    "phone": phone, "code": code, "org_id": org_id,
+                    "platform": platform, "model": model,
+                })),
+            )
+            .await?;
+        let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| CoreError::Internal {
+            detail: format!("decode: {e}"),
+        })?;
+        let (Some(token), Some(device)) = (v["token"].as_str(), v["device_token"].as_str()) else {
+            return Ok(body);
+        };
+        self.api.set_bearer(Some(token.to_string()));
+        self.api.set_staff_device(Some(device.to_string()))?;
+        let _ = self.store.blob_put(staff::K_STAFF_DEVICE, device.as_bytes());
+        self.auth_paused.store(false, Relaxed);
+        self.borrowed_token.store(false, Relaxed);
+        let mut snapshot = session::SessionSnapshot {
+            user_id: v["user_id"].as_str().unwrap_or_default().to_string(),
+            display_name: v["name"].as_str().unwrap_or_default().to_string(),
+            role: v["role"].as_str().unwrap_or("teller").to_string(),
+            org_id: v["org_id"].as_str().map(str::to_string),
+            branch_id: None,
+            currency_code: "EGP".into(),
+            tax_rate: 0.0,
+            tax_inclusive: false,
+            service_charge_rate: 0.0,
+            service_charge_taxable: false,
+            require_table_for_orders: false,
+            online: true,
+            permissions_loaded: false,
+        };
+        let permissions = match madar_api::apis::auth_api::get_my_permissions(&self.api.config()).await {
+            Ok(p) => {
+                snapshot.permissions_loaded = true;
+                session::permissions_from(&p)
+            }
+            Err(_) => Vec::new(),
+        };
+        let authz = self.fetch_authz(None).await;
+        self.persist_and_set(session::SessionState {
+            snapshot,
+            permissions,
+            token: Some(token.to_string()),
+            authz,
+        });
+        Ok(body)
+    }
+
+    /// One authenticated Dawam call: `method` + a `/staff/...` path + an
+    /// optional JSON body, returning the server's JSON. The Dawam screens
+    /// decode the payloads themselves.
+    // ponytail: one passthrough instead of ~40 typed wrappers; promote a call to
+    // a typed method + FRB mirror when the POS core needs it offline.
+    pub async fn staff_call(
+        &self,
+        method: String,
+        path: String,
+        body: Option<String>,
+    ) -> Result<String, CoreError> {
+        if !path.starts_with("/staff/") {
+            return Err(CoreError::Validation {
+                field: "path".into(),
+                detail: "only /staff/* is reachable here".into(),
+            });
+        }
+        let method = reqwest::Method::from_bytes(method.to_ascii_uppercase().as_bytes()).map_err(|_| {
+            CoreError::Validation {
+                field: "method".into(),
+                detail: "unknown HTTP method".into(),
+            }
+        })?;
+        let body = match body {
+            Some(b) => Some(serde_json::from_str::<serde_json::Value>(&b).map_err(|e| {
+                CoreError::Validation {
+                    field: "body".into(),
+                    detail: format!("not JSON: {e}"),
+                }
+            })?),
+            None => None,
+        };
+        let text = self.api.send_json(method, &path, body.as_ref()).await?;
+        Ok(if text.is_empty() { "null".into() } else { text })
     }
 
     /// The home screen: today's business date, the open record, what is rostered,

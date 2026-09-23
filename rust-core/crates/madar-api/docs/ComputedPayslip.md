@@ -10,6 +10,7 @@ Name | Type | Description | Notes
 **base_salary_piastres** | **i64** |  | 
 **bonuses_piastres** | **i64** |  | 
 **breakdown** | Option<**serde_json::Value**> | Line-by-line, so a preview can name each deduction rather than showing a lump sum nobody can argue with. | 
+**carry_out_piastres** | **i64** | Deductions beyond what was earned: the payslip stops at zero and this carries into the next one as a debt (PAY-12). | 
 **deductions_piastres** | **i64** |  | 
 **late_minutes** | **i64** |  | 
 **leave_days** | **f64** |  | 

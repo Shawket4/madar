@@ -1154,7 +1154,16 @@ class CashMovementsState {
     this.busy = false,
     this.error,
     this.loadError,
+    this.advanceTo,
+    this.advanceToName,
   });
+
+  /// A pay-out handed to this person for shop purchases: their expense
+  /// advance in Dawam (AV-8). Null = an ordinary pay-out.
+  final String? advanceTo;
+
+  /// [advanceTo]'s name, for the form.
+  final String? advanceToName;
 
   /// Why the ledger could not be read, or null — never shown as "no
   /// movements".
@@ -1205,8 +1214,14 @@ class CashMovementsState {
     bool? busy,
     Object? error = _unset,
     Object? loadError = _unset,
+    Object? advanceTo = _unset,
+    Object? advanceToName = _unset,
   }) {
     return CashMovementsState(
+      advanceTo: advanceTo == _unset ? this.advanceTo : advanceTo as String?,
+      advanceToName: advanceToName == _unset
+          ? this.advanceToName
+          : advanceToName as String?,
       loadError: loadError == _unset ? this.loadError : loadError as UiText?,
       movements: movements ?? this.movements,
       loading: loading ?? this.loading,
@@ -1237,8 +1252,19 @@ class CashMovementsNotifier extends Notifier<CashMovementsState> {
   }
 
   /// Pay-in / pay-out direction toggle.
-  void setDirection({required bool isIn}) =>
-      state = state.copyWith(isIn: isIn, kind: isIn ? 'pay_in' : 'pay_out');
+  void setDirection({required bool isIn}) => state = state.copyWith(
+    isIn: isIn,
+    kind: isIn ? 'pay_in' : 'pay_out',
+    advanceTo: isIn ? null : state.advanceTo,
+    advanceToName: isIn ? null : state.advanceToName,
+  );
+
+  /// Show an error on the form (a picker that could not load).
+  void fail(UiText error) => state = state.copyWith(error: error);
+
+  /// Tag the pay-out as someone's expense advance, or untag it (null).
+  void setAdvanceTo(String? userId, String? name) =>
+      state = state.copyWith(advanceTo: userId, advanceToName: name);
 
   /// Pick what the movement IS. A safe drop and a correction both take money
   /// out; `corrects` is cleared when the kind is no longer a correction, so a
@@ -1286,15 +1312,30 @@ class CashMovementsNotifier extends Notifier<CashMovementsState> {
       // A safe drop and a correction-of-a-pay-in both leave the drawer; the
       // sign follows the money, the kind says what it means.
       final signed = state.isIn ? state.amountMinor : -state.amountMinor;
-      await _bridge.recordCashMovement(
-        amountMinor: signed,
-        note: state.note.trim(),
-        kind: state.kind,
-        corrects: state.corrects,
-      );
+      final advanceTo = state.advanceTo;
+      if (!state.isIn && state.kind == 'pay_out' && advanceTo != null) {
+        await _bridge.recordExpenseAdvance(
+          amountMinor: state.amountMinor,
+          note: state.note.trim(),
+          person: advanceTo,
+        );
+      } else {
+        await _bridge.recordCashMovement(
+          amountMinor: signed,
+          note: state.note.trim(),
+          kind: state.kind,
+          corrects: state.corrects,
+        );
+      }
       await load();
       if (_disposed) return false;
-      state = state.copyWith(busy: false, amountMinor: 0, note: '');
+      state = state.copyWith(
+        busy: false,
+        amountMinor: 0,
+        note: '',
+        advanceTo: null,
+        advanceToName: null,
+      );
       shell.refresh();
       // The core's report already counts the movement (acked, or still
       // queued in the outbox) — tell every drawer surface to re-read it.

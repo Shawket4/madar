@@ -9,6 +9,7 @@ Name | Type | Description | Notes
 **corrects_id** | Option<**uuid::Uuid**> |  | [optional]
 **created_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **device_id** | Option<**uuid::Uuid**> |  | [optional]
+**expense_advance_to** | Option<**uuid::Uuid**> | A pay-out handed to an employee for shop purchases: logged in Dawam as their expense advance, never deducted (AV-8). | [optional]
 **kind** | Option<[**models::CashMovementKind**](CashMovementKind.md)> |  | [optional]
 **note** | **String** |  | 
 

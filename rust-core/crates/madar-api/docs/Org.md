@@ -14,6 +14,7 @@ Name | Type | Description | Notes
 **id** | **uuid::Uuid** |  | 
 **is_active** | **bool** |  | 
 **logo_url** | Option<**String**> |  | [optional]
+**modules** | **Vec<String>** | Switched-on modules: `pos`, `dawam` (PS-2). Switching one off hides it and keeps every record. | 
 **name** | **String** |  | 
 **receipt_footer** | Option<**String**> |  | [optional]
 **require_table_for_orders** | **bool** | Every dine-in sale must belong to a table. No effect where a branch has no floor authored — a shop cannot be made to seat somebody in a room with no seats. | 

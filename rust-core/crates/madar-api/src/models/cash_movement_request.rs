@@ -43,6 +43,14 @@ pub struct CashMovementRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub device_id: Option<Option<uuid::Uuid>>,
+    /// A pay-out handed to an employee for shop purchases: logged in Dawam as their expense advance, never deducted (AV-8).
+    #[serde(
+        rename = "expense_advance_to",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub expense_advance_to: Option<Option<uuid::Uuid>>,
     #[serde(
         rename = "kind",
         default,
@@ -62,6 +70,7 @@ impl CashMovementRequest {
             corrects_id: None,
             created_at: None,
             device_id: None,
+            expense_advance_to: None,
             kind: None,
             note,
         }

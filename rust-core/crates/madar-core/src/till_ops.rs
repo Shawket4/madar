@@ -465,6 +465,20 @@ impl MadarCore {
         kind: Option<String>,
         corrects: Option<String>,
     ) -> Result<till::CashMovementView, CoreError> {
+        self.record_cash_movement_tagged(amount_minor, note, kind, corrects, None).await
+    }
+
+    /// [`Self::record_cash_movement`], optionally tagging a pay-out as an
+    /// employee's expense advance (AV-8). The tag rides the queued request, so
+    /// an offline till loses nothing.
+    pub(crate) async fn record_cash_movement_tagged(
+        &self,
+        amount_minor: i64,
+        note: String,
+        kind: Option<String>,
+        corrects: Option<String>,
+        expense_advance_to: Option<String>,
+    ) -> Result<till::CashMovementView, CoreError> {
         let t = self.open_till_or_err()?;
         let note = note.trim().to_string();
         if amount_minor == 0 {
@@ -488,6 +502,13 @@ impl MadarCore {
         request.client_ref = Some(Some(client_ref));
         request.created_at = Some(Some(created_at));
         request.kind = kind.as_deref().map(crate::map_cash_kind).map(Some);
+        if let Some(who) = expense_advance_to.as_deref() {
+            let parsed = uuid::Uuid::parse_str(who).map_err(|_| CoreError::Validation {
+                field: "expense_advance_to".into(),
+                detail: "pick who took the cash".into(),
+            })?;
+            request.expense_advance_to = Some(Some(parsed));
+        }
         if let Some(id) = corrects.as_deref().filter(|s| !s.trim().is_empty()) {
             let parsed = uuid::Uuid::parse_str(id).map_err(|_| CoreError::Validation {
                 field: "corrects".into(),

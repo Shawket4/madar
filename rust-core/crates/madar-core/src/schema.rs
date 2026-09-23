@@ -19,7 +19,7 @@ type Step = fn(&Transaction<'_>) -> CoreResult<()>;
 
 /// The steps, in order. Step N brings the store from `user_version = N-1` to N.
 /// Append only: a shipped step is never edited.
-const STEPS: &[Step] = &[step1_sync_streams, step2_ledger, step3_order_details, step4_backfill_ledger, step5_drop_legacy_read_caches, step6_lan_authz_flags, step7_spot_views, step8_staff_drinks];
+const STEPS: &[Step] = &[step1_sync_streams, step2_ledger, step3_order_details, step4_backfill_ledger, step5_drop_legacy_read_caches, step6_lan_authz_flags, step7_spot_views, step8_staff_drinks, step9_dawam];
 
 /// The schema version this build writes.
 pub(crate) fn latest() -> i64 {
@@ -376,6 +376,31 @@ fn step5_drop_legacy_read_caches(tx: &Transaction<'_>) -> CoreResult<()> {
     }
     // Every per-station KDS board cache (`cache:kds:<station>`, `cache:kds:all`).
     tx.execute("DELETE FROM kv WHERE substr(k, 1, 10) = 'cache:kds:' AND k <> 'cache:kds:lan'", [])?;
+    Ok(())
+}
+
+/// Dawam's offline mirror (`dawam.rs`): one table per server resource the staff
+/// app shows, so every screen reads from here with or without a connection.
+/// Each row keeps the server's JSON verbatim in `data`, beside the columns the
+/// screens filter on; `dawam_meta` holds the single-object payloads.
+fn step9_dawam(tx: &Transaction<'_>) -> CoreResult<()> {
+    let mut ddl = String::from(
+        "CREATE TABLE IF NOT EXISTS dawam_meta (k TEXT PRIMARY KEY, data TEXT NOT NULL, fetched_at INTEGER NOT NULL);",
+    );
+    for t in crate::dawam::TABLES {
+        ddl.push_str(&format!(
+            "CREATE TABLE IF NOT EXISTS {t} (
+               id        TEXT PRIMARY KEY,
+               user_id   TEXT,
+               branch_id TEXT,
+               on_date   TEXT,
+               status    TEXT,
+               data      TEXT NOT NULL
+             );
+             CREATE INDEX IF NOT EXISTS {t}_user ON {t}(user_id, on_date);"
+        ));
+    }
+    tx.execute_batch(&ddl)?;
     Ok(())
 }
 

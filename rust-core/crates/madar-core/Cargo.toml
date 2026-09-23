@@ -111,6 +111,8 @@ chrono = { version = "0.4", features = ["serde"] }
 # zone exactly as Postgres `AT TIME ZONE` does — the order_ref must be byte-identical
 # whether minted on the server or predicted offline on the device.
 chrono-tz = "0.10"
+# Time since boot for offline punches (Dawam CL-11).
+libc = "0.2"
 thiserror = "2"
 
 # Receipt rasterizer. The TSP143III is raster-only and receipts carry a logo +

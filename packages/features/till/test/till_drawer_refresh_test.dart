@@ -31,6 +31,7 @@ const _till = TillView(
 
 class _CoreBridge implements MadarBridge {
   final List<CashMovementView> movements = [];
+  final List<String> advances = [];
   int reportReads = 0;
 
   TillReportView _report() {
@@ -181,6 +182,19 @@ class _CoreBridge implements MadarBridge {
       movements.insert(0, m);
       return Future<CashMovementView>.value(m);
     }
+    if (name == #recordExpenseAdvance) {
+      advances.add('${args[#person]}:${args[#amountMinor]}');
+      final m = CashMovementView(
+        id: 'cm-${movements.length}',
+        kind: 'pay_out',
+        amountMinor: -(args[#amountMinor] as int),
+        note: args[#note] as String,
+        movedByName: 'Sara',
+        createdAt: _till.openedAt,
+      );
+      movements.insert(0, m);
+      return Future<CashMovementView>.value(m);
+    }
     if (name == #listTills) return Future<List<TillView>>.value(const []);
     if (name == #syncStatus) {
       return SyncStatusView(
@@ -286,5 +300,31 @@ void main() {
     await _settle();
 
     expect(bridge.reportReads, greaterThan(before));
+  });
+
+  test('a pay-out tagged to someone is their expense advance (AV-8)', () async {
+    container
+      ..listen(tillProvider, (_, _) {})
+      ..listen(cashMovementsProvider, (_, _) {});
+    await _settle();
+    final cash = container.read(cashMovementsProvider.notifier)
+      ..setDirection(isIn: false)
+      ..setAmount(15000)
+      ..setNote('cups')
+      ..setAdvanceTo('u-amal', 'Amal');
+    expect(await cash.record(), isTrue);
+    await _settle();
+    expect(bridge.advances, ['u-amal:15000']);
+    expect(container.read(cashMovementsProvider).advanceTo, isNull);
+    expect(
+      container.read(tillProvider).report?.expectedCashMinor,
+      _opening - 15000,
+    );
+
+    // Switching to a pay-in drops the tag: only a pay-out is an advance.
+    cash
+      ..setAdvanceTo('u-amal', 'Amal')
+      ..setDirection(isIn: true);
+    expect(container.read(cashMovementsProvider).advanceTo, isNull);
   });
 }

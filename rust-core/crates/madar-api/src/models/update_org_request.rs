@@ -43,6 +43,14 @@ pub struct UpdateOrgRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub logo_url: Option<Option<String>>,
+    /// `pos`, `dawam`: at least one (PS-2, SA-5). Super admin only, like the rest of this endpoint.
+    #[serde(
+        rename = "modules",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub modules: Option<Option<Vec<String>>>,
     #[serde(
         rename = "name",
         default,
@@ -124,6 +132,7 @@ impl UpdateOrgRequest {
             custom_branding: None,
             is_active: None,
             logo_url: None,
+            modules: None,
             name: None,
             receipt_footer: None,
             require_table_for_orders: None,

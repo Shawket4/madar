@@ -10,10 +10,13 @@ Name | Type | Description | Notes
 **emergency_contact_phone** | Option<**String**> |  | [optional]
 **employee_code** | Option<**String**> |  | [optional]
 **employment_status** | Option<**String**> | `active` | `suspended` | `terminated`. Defaults to `active`. | [optional]
+**gender** | Option<**String**> | `m` · `f`; omitted keeps what is there. | [optional]
 **hire_date** | Option<**chrono::NaiveDate**> |  | [optional]
 **job_title** | Option<**String**> |  | [optional]
 **national_id** | Option<**String**> |  | [optional]
 **notes** | Option<**String**> |  | [optional]
+**pay_account** | Option<**String**> |  | [optional]
+**pay_method** | Option<**String**> | `cash` · `bank` · `wallet`; omitted keeps what is there. | [optional]
 **photo_url** | Option<**String**> |  | [optional]
 **termination_date** | Option<**chrono::NaiveDate**> |  | [optional]
 

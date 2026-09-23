@@ -30,6 +30,22 @@ pub struct CheckInRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub longitude: Option<Option<f64>>,
+    /// Set when the punch was queued offline; the server rebuilds its time (CL-11).
+    #[serde(
+        rename = "offline",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub offline: Option<Option<Box<models::OfflineStamp>>>,
+    /// \"Always\" location was refused: the shift is marked and the manager told (CL-5). Location at the punch is still required.
+    #[serde(
+        rename = "tracking_off",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub tracking_off: Option<Option<bool>>,
 }
 
 impl CheckInRequest {
@@ -38,6 +54,8 @@ impl CheckInRequest {
             branch_id,
             latitude: None,
             longitude: None,
+            offline: None,
+            tracking_off: None,
         }
     }
 }

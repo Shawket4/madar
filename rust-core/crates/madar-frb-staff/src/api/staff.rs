@@ -205,6 +205,75 @@ pub struct _PayrollLineView {
 }
 
 impl MadarBridge {
+    /// Dawam sign-in step 1: WhatsApp a code to `phone`. `Some(code)` only on a
+    /// debug server with the dev echo on.
+    pub async fn staff_otp_request(&self, phone: String) -> Result<Option<String>, MadarError> {
+        self.inner.staff_otp_request(phone).await.map_err(MadarError::from)
+    }
+
+    /// Dawam sign-in step 2; the server's session JSON (or `needs_org`).
+    pub async fn staff_otp_verify(
+        &self,
+        phone: String,
+        code: String,
+        org_id: Option<String>,
+        platform: Option<String>,
+        model: Option<String>,
+    ) -> Result<String, MadarError> {
+        self.inner
+            .staff_otp_verify(phone, code, org_id, platform, model)
+            .await
+            .map_err(MadarError::from)
+    }
+
+    /// Any `/staff/*` call with an optional JSON body; the server's JSON back.
+    pub async fn staff_call(
+        &self,
+        method: String,
+        path: String,
+        body: Option<String>,
+    ) -> Result<String, MadarError> {
+        self.inner.staff_call(method, path, body).await.map_err(MadarError::from)
+    }
+
+    /// Dawam's whole picture as JSON (the core's `dawam::Snapshot`). `refresh`
+    /// asks the server first; offline it is the mirror plus what is queued.
+    pub async fn dawam_snapshot(&self, refresh: bool) -> Result<String, MadarError> {
+        self.inner.dawam_snapshot(refresh).await.map_err(MadarError::from)
+    }
+
+    /// Do one Dawam action (`dawam::Act` as JSON); returns the new snapshot.
+    pub async fn dawam_do(&self, action: String) -> Result<String, MadarError> {
+        self.inner.dawam_do(action).await.map_err(MadarError::from)
+    }
+
+    /// A 15-minute on-shift location reading; queued offline (CL-4, CL-10).
+    #[allow(clippy::too_many_arguments)]
+    pub async fn dawam_ping(
+        &self,
+        latitude: f64,
+        longitude: f64,
+        accuracy: Option<f64>,
+        mock: bool,
+        gps_time: Option<String>,
+        battery: Option<i64>,
+    ) -> Result<String, MadarError> {
+        self.inner
+            .dawam_ping(madar_core::dawam::DawamFix { latitude, longitude, accuracy, mock, gps_time, battery })
+            .await
+            .map_err(MadarError::from)
+    }
+
+    /// Send what is queued, then refresh (the connection came back).
+    pub async fn dawam_sync(&self) -> Result<String, MadarError> {
+        self.inner.dawam_sync().await.map_err(MadarError::from)
+    }
+
+    /// The phone's push token and language, for notifications (APP-6).
+    pub async fn dawam_set_push_token(&self, token: String, locale: String) -> Result<(), MadarError> {
+        self.inner.dawam_set_push_token(token, locale).await.map_err(MadarError::from)
+    }
+
     /// The home screen in one round trip.
     pub async fn staff_today(&self) -> Result<TodayView, MadarError> {
         self.inner.staff_today().await.map_err(MadarError::from)

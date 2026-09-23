@@ -233,6 +233,7 @@ class _TeamTabState extends ConsumerState<TeamTab> {
         FlagKind.timeUnverified => tr(
           'staff.the_phone_rebooted_offline_the_time',
         ),
+        FlagKind.phoneDied => tr('staff.phone_died_explain'),
       };
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -260,7 +261,7 @@ class _TeamTabState extends ConsumerState<TeamTab> {
                     label: tr('staff.excuse_paid'),
                     size: MadarButtonSize.compact,
                     variant: MadarButtonVariant.secondary,
-                    onTap: () => done(tr('staff.excused_paid')),
+                    onTap: () => done('excuse_paid'),
                   ),
                 ),
                 Expanded(
@@ -268,14 +269,8 @@ class _TeamTabState extends ConsumerState<TeamTab> {
                     label: tr('staff.excuse_unpaid'),
                     size: MadarButtonSize.compact,
                     variant: MadarButtonVariant.secondary,
-                    onTap: () => done(
-                      tr('staff.excused_unpaid'),
-                      deduct: store.minuteCost(
-                        f.emp,
-                        dateOnly(f.at),
-                        f.minutesAway,
-                      ),
-                    ),
+                    onTap: () =>
+                        done('excuse_unpaid', deduct: store.suggestedAway(f)),
                   ),
                 ),
               ],
@@ -305,7 +300,7 @@ class _TeamTabState extends ConsumerState<TeamTab> {
                       .show(tr('staff.type_an_amount'), tone: ChipTone.danger);
                   return;
                 }
-                done(tr('staff.deducted'), deduct: v);
+                done('deduct', deduct: v);
               },
             ),
           ],
@@ -314,14 +309,13 @@ class _TeamTabState extends ConsumerState<TeamTab> {
               label: tr('staff.revoke_this_phone'),
               variant: MadarButtonVariant.danger,
               onTap: () {
-                store.set(() => e.device = tr('staff.no_phone'));
-                done(tr('staff.revoked'));
+                done('revoke');
               },
             ),
           MadarButton(
             label: tr('staff.ignore'),
             variant: MadarButtonVariant.ghost,
-            onTap: () => done(tr('staff.ignored')),
+            onTap: () => done('ignore'),
           ),
         ],
       );
@@ -373,7 +367,7 @@ class _TeamTabState extends ConsumerState<TeamTab> {
               MadarListRow.nav(
                 glyph: MadarGlyph.lock,
                 title: e.device,
-                meta: tr('staff.phone_since', {'date': e.deviceSince}),
+                meta: tr('staff.phone_since', {'date': e.deviceSince ?? ''}),
               ),
               MadarListRow.nav(
                 glyph: MadarGlyph.star,

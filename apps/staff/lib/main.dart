@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:design_system/design_system.dart';
 import 'package:feature_dawam_auth/feature_dawam_auth.dart';
 import 'package:flutter/material.dart';
@@ -65,7 +67,7 @@ class DawamApp extends ConsumerWidget {
         use24h = MediaQuery.alwaysUse24HourFormatOf(context);
         MadarKeyboardDone.label = tr('common.done');
         return MadarKeyboardDoneBar(
-          child: Stack(children: [child!, const _Toast()]),
+          child: _Failures(child: Stack(children: [child!, const _Toast()])),
         );
       },
       // Keyed by language: every string re-reads the core on a switch.
@@ -97,4 +99,41 @@ class _Toast extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// A live write the server refused, after its screen moved on: the toast
+/// says why in the server's words.
+class _Failures extends ConsumerStatefulWidget {
+  const _Failures({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_Failures> createState() => _FailuresState();
+}
+
+class _FailuresState extends ConsumerState<_Failures> {
+  StreamSubscription<String>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = ref
+        .read(dawamProvider)
+        .failures
+        .stream
+        .listen(
+          (m) =>
+              ref.read(toastProvider.notifier).show(m, tone: ChipTone.danger),
+        );
+  }
+
+  @override
+  void dispose() {
+    unawaited(_sub?.cancel());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

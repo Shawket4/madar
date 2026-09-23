@@ -223,6 +223,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   BranchOpenTillView dco_decode_branch_open_till_view(dynamic raw);
 
   @protected
+  BranchPersonView dco_decode_branch_person_view(dynamic raw);
+
+  @protected
   BranchView dco_decode_branch_view(dynamic raw);
 
   @protected
@@ -428,6 +431,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<BranchOpenTillView> dco_decode_list_branch_open_till_view(dynamic raw);
+
+  @protected
+  List<BranchPersonView> dco_decode_list_branch_person_view(dynamic raw);
 
   @protected
   List<BranchView> dco_decode_list_branch_view(dynamic raw);
@@ -1000,6 +1006,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   TillOpenSyncView dco_decode_till_open_sync_view(dynamic raw);
 
   @protected
+  TillPunchView dco_decode_till_punch_view(dynamic raw);
+
+  @protected
   TillRefundsView dco_decode_till_refunds_view(dynamic raw);
 
   @protected
@@ -1277,6 +1286,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  BranchPersonView sse_decode_branch_person_view(SseDeserializer deserializer);
+
+  @protected
   BranchView sse_decode_branch_view(SseDeserializer deserializer);
 
   @protected
@@ -1528,6 +1540,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<BranchOpenTillView> sse_decode_list_branch_open_till_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<BranchPersonView> sse_decode_list_branch_person_view(
     SseDeserializer deserializer,
   );
 
@@ -2306,6 +2323,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   TillOpenSyncView sse_decode_till_open_sync_view(SseDeserializer deserializer);
 
   @protected
+  TillPunchView sse_decode_till_punch_view(SseDeserializer deserializer);
+
+  @protected
   TillRefundsView sse_decode_till_refunds_view(SseDeserializer deserializer);
 
   @protected
@@ -2652,6 +2672,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_branch_person_view(
+    BranchPersonView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_branch_view(BranchView self, SseSerializer serializer);
 
   @protected
@@ -2969,6 +2995,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_branch_open_till_view(
     List<BranchOpenTillView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_branch_person_view(
+    List<BranchPersonView> self,
     SseSerializer serializer,
   );
 
@@ -3991,6 +4023,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
     TillOpenSyncView self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_till_punch_view(TillPunchView self, SseSerializer serializer);
 
   @protected
   void sse_encode_till_refunds_view(

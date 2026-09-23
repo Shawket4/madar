@@ -48,6 +48,10 @@ pub struct ApiClient {
     /// The device id + app version the default headers were built from, kept so
     /// a reconfigure wipe can rebuild both clients under a NEW device id.
     app_version: Option<String>,
+    device_id: RwLock<Option<String>>,
+    /// The Dawam staff app's phone binding (`X-Staff-Device`), sent on every
+    /// call once an OTP sign-in hands one out.
+    staff_device: RwLock<Option<String>>,
     http: RwLock<reqwest::Client>,
     /// A SECOND client for long-lived SSE streams (the realtime bus). Identical TLS
     /// to `http`, but built WITHOUT the 20s total `timeout` — that timeout would
@@ -85,11 +89,14 @@ impl ApiClient {
         app_version: Option<&str>,
     ) -> CoreResult<Self> {
         let user_agent = format!("madar-core/{}", env!("CARGO_PKG_VERSION"));
-        let (http, stream_http) = build_clients(&user_agent, device_id.as_deref(), app_version)?;
+        let (http, stream_http) =
+            build_clients(&user_agent, device_id.as_deref(), app_version, None)?;
         Ok(Self {
             base_url,
             user_agent,
             app_version: app_version.map(str::to_string),
+            device_id: RwLock::new(device_id),
+            staff_device: RwLock::new(None),
             http: RwLock::new(http),
             stream_http: RwLock::new(stream_http),
             bearer: Arc::new(RwLock::new(None)),
@@ -138,10 +145,55 @@ impl ApiClient {
     /// wipe mints a fresh install identity). A realtime stream already open keeps
     /// the old client until it is re-subscribed — the wipe stops it first.
     pub(crate) fn set_device_id(&self, device_id: &str) -> CoreResult<()> {
-        let (http, stream) = build_clients(&self.user_agent, Some(device_id), self.app_version.as_deref())?;
+        *self.device_id.write().unwrap_or_else(|e| e.into_inner()) = Some(device_id.to_string());
+        self.rebuild_clients()
+    }
+
+    /// Bind (or unbind) the staff app's phone token; every later call carries it.
+    pub(crate) fn set_staff_device(&self, token: Option<String>) -> CoreResult<()> {
+        *self.staff_device.write().unwrap_or_else(|e| e.into_inner()) = token;
+        self.rebuild_clients()
+    }
+
+    fn rebuild_clients(&self) -> CoreResult<()> {
+        let device = self.device_id.read().unwrap_or_else(|e| e.into_inner()).clone();
+        let staff = self.staff_device.read().unwrap_or_else(|e| e.into_inner()).clone();
+        let (http, stream) = build_clients(
+            &self.user_agent,
+            device.as_deref(),
+            self.app_version.as_deref(),
+            staff.as_deref(),
+        )?;
         *self.http.write().unwrap_or_else(|e| e.into_inner()) = http;
         *self.stream_http.write().unwrap_or_else(|e| e.into_inner()) = stream;
         Ok(())
+    }
+
+    /// Authenticated raw call of any method with an optional JSON body,
+    /// returning the response text on 2xx (status → `CoreError` otherwise).
+    pub async fn send_json(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<&serde_json::Value>,
+    ) -> CoreResult<String> {
+        let url = format!("{}{}", self.base_url, path);
+        let mut rb = self.http().request(method, &url);
+        if let Some(b) = body {
+            rb = rb.json(b);
+        }
+        if let Some(token) = self.bearer.read().unwrap_or_else(|e| e.into_inner()).clone() {
+            rb = rb.bearer_auth(token);
+        }
+        let resp = rb.send().await.map_err(|e| classify_reqwest(&e))?;
+        self.observe_clock(&resp);
+        let status = resp.status();
+        let text = resp.text().await.map_err(|e| classify_reqwest(&e))?;
+        if status.is_success() {
+            Ok(text)
+        } else {
+            Err(status_to_error(status.as_u16(), &text))
+        }
     }
 
     /// Swap the live access token (login/refresh sets `Some`, logout sets `None`).
@@ -352,10 +404,14 @@ fn build_clients(
     user_agent: &str,
     device_id: Option<&str>,
     app_version: Option<&str>,
+    staff_device: Option<&str>,
 ) -> CoreResult<(reqwest::Client, reqwest::Client)> {
     let mut headers = reqwest::header::HeaderMap::new();
     if let Some(Ok(v)) = device_id.map(reqwest::header::HeaderValue::from_str) {
         headers.insert("X-Madar-Device", v);
+    }
+    if let Some(Ok(v)) = staff_device.map(reqwest::header::HeaderValue::from_str) {
+        headers.insert("X-Staff-Device", v);
     }
     if let Ok(v) = reqwest::header::HeaderValue::from_str(&client_header(app_version)) {
         headers.insert("X-Madar-Client", v);

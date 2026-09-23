@@ -58,6 +58,14 @@ pub struct PutEmployeeRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub employment_status: Option<Option<String>>,
+    /// `m` · `f`; omitted keeps what is there.
+    #[serde(
+        rename = "gender",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub gender: Option<Option<String>>,
     #[serde(
         rename = "hire_date",
         default,
@@ -87,6 +95,21 @@ pub struct PutEmployeeRequest {
     )]
     pub notes: Option<Option<String>>,
     #[serde(
+        rename = "pay_account",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub pay_account: Option<Option<String>>,
+    /// `cash` · `bank` · `wallet`; omitted keeps what is there.
+    #[serde(
+        rename = "pay_method",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub pay_method: Option<Option<String>>,
+    #[serde(
         rename = "photo_url",
         default,
         with = "::serde_with::rust::double_option",
@@ -112,10 +135,13 @@ impl PutEmployeeRequest {
             emergency_contact_phone: None,
             employee_code: None,
             employment_status: None,
+            gender: None,
             hire_date: None,
             job_title: None,
             national_id: None,
             notes: None,
+            pay_account: None,
+            pay_method: None,
             photo_url: None,
             termination_date: None,
         }

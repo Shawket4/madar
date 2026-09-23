@@ -15,6 +15,9 @@
 //! Money is integer minor units (piastres) end to end; the host formats it with
 //! the session currency, exactly like `reports`.
 
+/// The store key of the Dawam phone binding token (`X-Staff-Device`).
+pub(crate) const K_STAFF_DEVICE: &str = "staff:device";
+
 use madar_api::models;
 use serde::{Deserialize, Serialize};
 

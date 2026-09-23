@@ -99,6 +99,7 @@ Class | Method | HTTP request | Description
 *CustomersApi* | [**erase_customer**](docs/CustomersApi.md#erase_customer) | **POST** /customers/{id}/erase | 
 *CustomersApi* | [**get_customer**](docs/CustomersApi.md#get_customer) | **GET** /customers/{id} | 
 *CustomersApi* | [**list_customer_addresses**](docs/CustomersApi.md#list_customer_addresses) | **GET** /customers/{id}/addresses | 
+*CustomersApi* | [**list_customer_bookings**](docs/CustomersApi.md#list_customer_bookings) | **GET** /customers/{id}/bookings | A customer's bookings, newest first. A merged id answers for its survivor, and bookings made under any id merged into it are included.
 *CustomersApi* | [**list_customers**](docs/CustomersApi.md#list_customers) | **GET** /customers | 
 *CustomersApi* | [**merge_customer**](docs/CustomersApi.md#merge_customer) | **POST** /customers/{id}/merge | 
 *CustomersApi* | [**update_customer**](docs/CustomersApi.md#update_customer) | **PATCH** /customers/{id} | 
@@ -308,6 +309,7 @@ Class | Method | HTTP request | Description
 *OpenTicketsApi* | [**public_table**](docs/OpenTicketsApi.md#public_table) | **GET** /public/tables/{id} | 
 *OpenTicketsApi* | [**public_table_menu**](docs/OpenTicketsApi.md#public_table_menu) | **GET** /public/tables/{id}/menu | The menu at this table.
 *OpenTicketsApi* | [**public_table_order**](docs/OpenTicketsApi.md#public_table_order) | **POST** /public/table-orders | Send this table's order to the kitchen.
+*OpenTicketsApi* | [**set_ticket_customer**](docs/OpenTicketsApi.md#set_ticket_customer) | **PUT** /open-tickets/{id}/customer | Set or clear the customer on an open bill (the dashboard / online path; a till queues `set_ticket_customer` through `/sync/replay` instead).
 *OpenTicketsApi* | [**settle_open_ticket**](docs/OpenTicketsApi.md#settle_open_ticket) | **POST** /open-tickets/{id}/settle | 
 *OpenTicketsApi* | [**void_open_ticket**](docs/OpenTicketsApi.md#void_open_ticket) | **POST** /open-tickets/{id}/void | 
 *OpenTicketsApi* | [**void_ticket_line**](docs/OpenTicketsApi.md#void_ticket_line) | **POST** /open-tickets/{id}/items/{item_id}/void | 
@@ -364,6 +366,8 @@ Class | Method | HTTP request | Description
 *PurchasingApi* | [**reorder_suggestions**](docs/PurchasingApi.md#reorder_suggestions) | **GET** /purchasing/branches/{branch_id}/reorder-suggestions | Ingredients at/below their reorder point (par_min, else reorder_threshold), with the quantity to reach the order-up-to level (par_max), grouped by the ingredient's default supplier — the basis for one-click \"create PO\".
 *PurchasingApi* | [**submit_purchase_order**](docs/PurchasingApi.md#submit_purchase_order) | **POST** /purchasing/orders/{id}/submit | Place a draft PO with the supplier: `draft → ordered`. Makes \"ordered, awaiting goods\" a distinct, queryable state (outstanding-orders views) vs a draft still being built. Receiving is still allowed directly from draft for workflows that don't formally place orders first.
 *PurchasingApi* | [**update_supplier**](docs/PurchasingApi.md#update_supplier) | **PATCH** /purchasing/suppliers/{id} | 
+*PushApi* | [**delete_push_token**](docs/PushApi.md#delete_push_token) | **DELETE** /push/token | 
+*PushApi* | [**set_push_token**](docs/PushApi.md#set_push_token) | **PUT** /push/token | 
 *QrApi* | [**branch_booking_qr**](docs/QrApi.md#branch_booking_qr) | **GET** /branches/{id}/booking-qr | 
 *QrApi* | [**branch_loyalty_qr**](docs/QrApi.md#branch_loyalty_qr) | **GET** /branches/{id}/loyalty-qr | The counter's join QR: a static, per-branch card that opens the public signup form. Static on purpose — it is printed once and stood on a counter, so it must keep working with no reprint. The per-CUSTOMER QR is a different thing entirely: it lives on their Wallet pass and carries their member token.
 *QrApi* | [**branch_qr**](docs/QrApi.md#branch_qr) | **GET** /branches/{id}/qr | 
@@ -411,6 +415,7 @@ Class | Method | HTTP request | Description
 *ReportsApi* | [**branch_stock**](docs/ReportsApi.md#branch_stock) | **GET** /reports/branches/{branch_id}/stock | 
 *ReportsApi* | [**branch_supplier_spend**](docs/ReportsApi.md#branch_supplier_spend) | **GET** /reports/branches/{branch_id}/supplier-spend | 
 *ReportsApi* | [**branch_teller_stats**](docs/ReportsApi.md#branch_teller_stats) | **GET** /reports/branches/{branch_id}/tellers | 
+*ReportsApi* | [**branch_till_sessions**](docs/ReportsApi.md#branch_till_sessions) | **GET** /reports/branches/{branch_id}/tills | 
 *ReportsApi* | [**branch_waiter_stats**](docs/ReportsApi.md#branch_waiter_stats) | **GET** /reports/branches/{branch_id}/waiters | 
 *ReportsApi* | [**branch_waste_report**](docs/ReportsApi.md#branch_waste_report) | **GET** /reports/branches/{branch_id}/waste-report | 
 *ReportsApi* | [**deduction_overrides_audit**](docs/ReportsApi.md#deduction_overrides_audit) | **GET** /reports/orgs/{org_id}/deduction-overrides-audit | 
@@ -452,16 +457,23 @@ Class | Method | HTTP request | Description
 *ShiftsApi* | [**legacy_add_shift_cash_movement**](docs/ShiftsApi.md#legacy_add_shift_cash_movement) | **POST** /shifts/{shift_id}/cash-movements | 
 *ShiftsApi* | [**list_shifts**](docs/ShiftsApi.md#list_shifts) | **GET** /shifts/branches/{branch_id} | 
 *ShiftsApi* | [**open_shift**](docs/ShiftsApi.md#open_shift) | **POST** /shifts/branches/{branch_id}/open | 
+*StaffApi* | [**advances**](docs/StaffApi.md#advances) | **GET** /staff/reports/advances | Advances given in range, and what is still owed.
+*StaffApi* | [**answer_swap**](docs/StaffApi.md#answer_swap) | **PATCH** /staff/me/swaps/{id} | The colleague agrees or declines.
+*StaffApi* | [**ask_swap**](docs/StaffApi.md#ask_swap) | **POST** /staff/me/swaps | Ask a colleague to swap: they agree first, then the manager (SC-8).
 *StaffApi* | [**attendance_summary**](docs/StaffApi.md#attendance_summary) | **GET** /staff/attendance/summary | 
+*StaffApi* | [**branch_people**](docs/StaffApi.md#branch_people) | **GET** /staff/branches/{branch_id}/people | Active staff at a branch, names only: what a till shows to tag a pay-out as someone's expense advance (AV-8). Anyone who works the branch may read it; nothing about pay is in it.
 *StaffApi* | [**check_in**](docs/StaffApi.md#check_in) | **POST** /staff/me/check-in | 
 *StaffApi* | [**check_out**](docs/StaffApi.md#check_out) | **POST** /staff/me/check-out | 
+*StaffApi* | [**claim_open_shift**](docs/StaffApi.md#claim_open_shift) | **POST** /staff/open-shifts/{id}/claim | Claim an open shift; the manager approves the claim (SC-9).
 *StaffApi* | [**correct_record**](docs/StaffApi.md#correct_record) | **PATCH** /staff/attendance/{id} | 
+*StaffApi* | [**create_adjustment**](docs/StaffApi.md#create_adjustment) | **POST** /staff/adjustments | Add a bonus or deduction. Over the caller's limit it is created pending and waits for the owner (AD-5).
 *StaffApi* | [**create_advance_admin**](docs/StaffApi.md#create_advance_admin) | **POST** /staff/payroll/advances | 
 *StaffApi* | [**create_assignment**](docs/StaffApi.md#create_assignment) | **POST** /staff/schedules | 
 *StaffApi* | [**create_bonus**](docs/StaffApi.md#create_bonus) | **POST** /staff/payroll/bonuses | 
 *StaffApi* | [**create_deduction**](docs/StaffApi.md#create_deduction) | **POST** /staff/payroll/deductions | 
 *StaffApi* | [**create_department**](docs/StaffApi.md#create_department) | **POST** /staff/departments | 
 *StaffApi* | [**create_document**](docs/StaffApi.md#create_document) | **POST** /staff/employees/{user_id}/documents | 
+*StaffApi* | [**create_employee**](docs/StaffApi.md#create_employee) | **POST** /staff/employees | Add a Dawam employee: a user who signs in with a WhatsApp code, so no password or till PIN (a manager can give them a PIN later to work a till). Used by the Add Employee form and the spreadsheet import (DSH-7).
 *StaffApi* | [**create_leave_type**](docs/StaffApi.md#create_leave_type) | **POST** /staff/leave/types | 
 *StaffApi* | [**create_manual_record**](docs/StaffApi.md#create_manual_record) | **POST** /staff/attendance | 
 *StaffApi* | [**create_my_advance**](docs/StaffApi.md#create_my_advance) | **POST** /staff/me/advances | 
@@ -469,8 +481,16 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**create_period**](docs/StaffApi.md#create_period) | **POST** /staff/payroll/periods | 
 *StaffApi* | [**create_request_admin**](docs/StaffApi.md#create_request_admin) | **POST** /staff/requests | 
 *StaffApi* | [**create_work_shift**](docs/StaffApi.md#create_work_shift) | **POST** /staff/work-shifts | 
+*StaffApi* | [**current**](docs/StaffApi.md#current) | **GET** /staff/payroll/current | The running period with everyone's pay (PAY-1..PAY-5).
+*StaffApi* | [**decide_adjustment**](docs/StaffApi.md#decide_adjustment) | **PATCH** /staff/adjustments/{kind}/{id}/decision | The owner (or anyone whose limit covers it) decides a pending line.
 *StaffApi* | [**decide_advance**](docs/StaffApi.md#decide_advance) | **PATCH** /staff/payroll/advances/{id}/decision | 
+*StaffApi* | [**decide_claim**](docs/StaffApi.md#decide_claim) | **PATCH** /staff/open-shifts/{id}/decision | Approve a claim: the shift becomes theirs for that date. Rejecting reopens it.
+*StaffApi* | [**decide_cover**](docs/StaffApi.md#decide_cover) | **PATCH** /staff/attendance/{id}/cover | Confirm or reject a cover. Rejecting pays nothing (CV-5); the confirmer is neither person involved.
+*StaffApi* | [**decide_holiday**](docs/StaffApi.md#decide_holiday) | **PUT** /staff/holidays/{date} | 
+*StaffApi* | [**decide_overtime**](docs/StaffApi.md#decide_overtime) | **PATCH** /staff/attendance/{id}/overtime | Approve or reject a shift's overtime, within the approver's money limit.
 *StaffApi* | [**decide_request**](docs/StaffApi.md#decide_request) | **PATCH** /staff/requests/{id}/decision | 
+*StaffApi* | [**decide_suggestion**](docs/StaffApi.md#decide_suggestion) | **POST** /staff/roster/suggestions/decide | Accept (changes that date only) or reject; either way it is remembered.
+*StaffApi* | [**decide_swap**](docs/StaffApi.md#decide_swap) | **PATCH** /staff/swaps/{id}/decision | The manager approves: both rosters update for those dates (SC-8).
 *StaffApi* | [**delete_assignment**](docs/StaffApi.md#delete_assignment) | **DELETE** /staff/schedules/{id} | 
 *StaffApi* | [**delete_bonus**](docs/StaffApi.md#delete_bonus) | **DELETE** /staff/payroll/bonuses/{id} | 
 *StaffApi* | [**delete_deduction**](docs/StaffApi.md#delete_deduction) | **DELETE** /staff/payroll/deductions/{id} | 
@@ -484,43 +504,79 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**delete_work_shift**](docs/StaffApi.md#delete_work_shift) | **DELETE** /staff/work-shifts/{id} | 
 *StaffApi* | [**discipline_report**](docs/StaffApi.md#discipline_report) | **GET** /staff/discipline-report | 
 *StaffApi* | [**export_period_csv**](docs/StaffApi.md#export_period_csv) | **GET** /staff/payroll/periods/{id}/export.csv | The generated period as a bank-ready CSV.
+*StaffApi* | [**fairness**](docs/StaffApi.md#fairness) | **GET** /staff/roster/fairness | Owner only, monthly: who works the nights, by gender, against who said they want them.
 *StaffApi* | [**generate_period**](docs/StaffApi.md#generate_period) | **POST** /staff/payroll/periods/{id}/generate | 
 *StaffApi* | [**get_attendance_settings**](docs/StaffApi.md#get_attendance_settings) | **GET** /staff/attendance/settings | 
+*StaffApi* | [**get_coverage**](docs/StaffApi.md#get_coverage) | **GET** /staff/roster/coverage | 
 *StaffApi* | [**get_employee**](docs/StaffApi.md#get_employee) | **GET** /staff/employees/{user_id} | 
 *StaffApi* | [**get_scheduled_day**](docs/StaffApi.md#get_scheduled_day) | **GET** /staff/schedules/day | 
+*StaffApi* | [**labour_vs_sales**](docs/StaffApi.md#labour_vs_sales) | **GET** /staff/reports/labour-vs-sales | Labour cost vs sales, per branch and day. Only when POS is on (DSH-4).
+*StaffApi* | [**list_adjustments**](docs/StaffApi.md#list_adjustments) | **GET** /staff/adjustments | 
 *StaffApi* | [**list_advances**](docs/StaffApi.md#list_advances) | **GET** /staff/payroll/advances | 
 *StaffApi* | [**list_assignments**](docs/StaffApi.md#list_assignments) | **GET** /staff/schedules | 
 *StaffApi* | [**list_attendance**](docs/StaffApi.md#list_attendance) | **GET** /staff/attendance | 
+*StaffApi* | [**list_attendance_flags**](docs/StaffApi.md#list_attendance_flags) | **GET** /staff/flags | The flags a manager should look at, for their branches (RO-6).
 *StaffApi* | [**list_balances**](docs/StaffApi.md#list_balances) | **GET** /staff/leave/balances | 
 *StaffApi* | [**list_bonuses**](docs/StaffApi.md#list_bonuses) | **GET** /staff/payroll/bonuses | 
 *StaffApi* | [**list_deductions**](docs/StaffApi.md#list_deductions) | **GET** /staff/payroll/deductions | 
 *StaffApi* | [**list_departments**](docs/StaffApi.md#list_departments) | **GET** /staff/departments | 
 *StaffApi* | [**list_documents**](docs/StaffApi.md#list_documents) | **GET** /staff/employees/{user_id}/documents | 
 *StaffApi* | [**list_employees**](docs/StaffApi.md#list_employees) | **GET** /staff/employees | 
+*StaffApi* | [**list_expense_advances**](docs/StaffApi.md#list_expense_advances) | **GET** /staff/expense-advances | 
 *StaffApi* | [**list_leave_types**](docs/StaffApi.md#list_leave_types) | **GET** /staff/leave/types | 
+*StaffApi* | [**list_open_shifts**](docs/StaffApi.md#list_open_shifts) | **GET** /staff/open-shifts | Open shifts and their claims at the branches I run (SC-9) — the dashboard's approvals queue and schedule.
 *StaffApi* | [**list_payslips**](docs/StaffApi.md#list_payslips) | **GET** /staff/payroll/periods/{id}/payslips | 
 *StaffApi* | [**list_periods**](docs/StaffApi.md#list_periods) | **GET** /staff/payroll/periods | 
 *StaffApi* | [**list_requests**](docs/StaffApi.md#list_requests) | **GET** /staff/requests | 
+*StaffApi* | [**list_swaps**](docs/StaffApi.md#list_swaps) | **GET** /staff/swaps | 
 *StaffApi* | [**list_work_shifts**](docs/StaffApi.md#list_work_shifts) | **GET** /staff/work-shifts | 
+*StaffApi* | [**log_expense_advance**](docs/StaffApi.md#log_expense_advance) | **POST** /staff/expense-advances | 
+*StaffApi* | [**mark_paid**](docs/StaffApi.md#mark_paid) | **PATCH** /staff/payroll/periods/{id}/payslips/{user_id}/paid | Mark one payslip paid; the period is paid once everyone is (PAY-7).
+*StaffApi* | [**my_adjustments**](docs/StaffApi.md#my_adjustments) | **GET** /staff/me/adjustments | 
 *StaffApi* | [**my_advances**](docs/StaffApi.md#my_advances) | **GET** /staff/me/advances | 
 *StaffApi* | [**my_attendance**](docs/StaffApi.md#my_attendance) | **GET** /staff/me/attendance | 
+*StaffApi* | [**my_context**](docs/StaffApi.md#my_context) | **GET** /staff/me/context | 
+*StaffApi* | [**my_coverable**](docs/StaffApi.md#my_coverable) | **GET** /staff/me/coverable | 
+*StaffApi* | [**my_estimate**](docs/StaffApi.md#my_estimate) | **GET** /staff/me/pay/estimate | What I've earned so far this period.
+*StaffApi* | [**my_expense_advances**](docs/StaffApi.md#my_expense_advances) | **GET** /staff/me/expense-advances | 
 *StaffApi* | [**my_leave_balances**](docs/StaffApi.md#my_leave_balances) | **GET** /staff/me/leave-balances | 
+*StaffApi* | [**my_notifications**](docs/StaffApi.md#my_notifications) | **GET** /staff/me/notifications | 
 *StaffApi* | [**my_payslips**](docs/StaffApi.md#my_payslips) | **GET** /staff/me/payslips | 
 *StaffApi* | [**my_requests**](docs/StaffApi.md#my_requests) | **GET** /staff/me/requests | 
+*StaffApi* | [**my_roster**](docs/StaffApi.md#my_roster) | **GET** /staff/me/roster | My published shifts, open shifts to claim, and my swaps.
 *StaffApi* | [**my_schedule**](docs/StaffApi.md#my_schedule) | **GET** /staff/me/schedule | The employee's OWN roster for a date range — what the app's Shifts tab shows.
 *StaffApi* | [**my_today**](docs/StaffApi.md#my_today) | **GET** /staff/me/today | 
+*StaffApi* | [**open_cover**](docs/StaffApi.md#open_cover) | **POST** /staff/me/cover | Open a colleague's missed shift as a cover: the same phone and geofence checks as a clock-in; flagged for the manager; paid only once confirmed (CV-1..CV-5, CV-7).
 *StaffApi* | [**override_deduction**](docs/StaffApi.md#override_deduction) | **PATCH** /staff/payroll/deductions/{id}/override | 
+*StaffApi* | [**payroll_history**](docs/StaffApi.md#payroll_history) | **GET** /staff/reports/payroll-history | Overtime and payroll history: one row per pay period in range.
+*StaffApi* | [**ping**](docs/StaffApi.md#ping) | **POST** /staff/me/pings | A location every 15 minutes between clock-in and clock-out (CL-4, CL-17).
+*StaffApi* | [**post_open_shift**](docs/StaffApi.md#post_open_shift) | **POST** /staff/open-shifts | 
 *StaffApi* | [**preview_period**](docs/StaffApi.md#preview_period) | **GET** /staff/payroll/periods/{id}/preview | 
+*StaffApi* | [**publish**](docs/StaffApi.md#publish) | **POST** /staff/roster/publish | Publish a week: staff see it and are told (SC-3).
+*StaffApi* | [**punch_for**](docs/StaffApi.md#punch_for) | **POST** /staff/attendance/punch | Clock someone in, or out if they are in, now; marked as made by the manager with the reason (CL-13, CL-16).
 *StaffApi* | [**put_attendance_settings**](docs/StaffApi.md#put_attendance_settings) | **PUT** /staff/attendance/settings | 
 *StaffApi* | [**put_balance**](docs/StaffApi.md#put_balance) | **PUT** /staff/leave/balances | 
+*StaffApi* | [**put_coverage**](docs/StaffApi.md#put_coverage) | **PUT** /staff/roster/coverage | 
 *StaffApi* | [**put_employee**](docs/StaffApi.md#put_employee) | **PUT** /staff/employees/{user_id} | 
 *StaffApi* | [**put_override**](docs/StaffApi.md#put_override) | **PUT** /staff/schedules/overrides | 
+*StaffApi* | [**put_preferences**](docs/StaffApi.md#put_preferences) | **PUT** /staff/me/preferences | Preferred times and days I can't work; managers see them (SC-12).
+*StaffApi* | [**read_notifications**](docs/StaffApi.md#read_notifications) | **POST** /staff/me/notifications/read | 
+*StaffApi* | [**resolve_flag**](docs/StaffApi.md#resolve_flag) | **PATCH** /staff/flags/{id} | Handle a flag. Nothing is ever charged automatically (CL-6).
+*StaffApi* | [**review_advance**](docs/StaffApi.md#review_advance) | **PATCH** /staff/advances/{id}/review | Decide an advance within the cap: the approver's limit is a % of the employee's salary (AV-4, AV-5).
+*StaffApi* | [**revoke_device**](docs/StaffApi.md#revoke_device) | **DELETE** /staff/employees/{user_id}/device | Sign a person's phone out now (RO-4).
+*StaffApi* | [**roster**](docs/StaffApi.md#roster) | **GET** /staff/roster | The manager's roster for one branch (SC-7, RO-6).
 *StaffApi* | [**set_period_status**](docs/StaffApi.md#set_period_status) | **PATCH** /staff/payroll/periods/{id}/status | 
+*StaffApi* | [**set_staff_push_token**](docs/StaffApi.md#set_staff_push_token) | **PUT** /staff/me/push-token | `PUT /staff/me/push-token` — kept for old app builds; registers through the same `push_devices` table as `PUT /push/token` (app = `\"dawam\"`).
+*StaffApi* | [**stop_adjustment**](docs/StaffApi.md#stop_adjustment) | **POST** /staff/adjustments/{kind}/{id}/stop | Stop a monthly line from the next period on; past payslips keep it (AD-3).
+*StaffApi* | [**suggestions**](docs/StaffApi.md#suggestions) | **GET** /staff/roster/suggestions | 
 *StaffApi* | [**team_presence**](docs/StaffApi.md#team_presence) | **GET** /staff/team/presence | Who is in, late, absent or on leave right now.
+*StaffApi* | [**till_punch**](docs/StaffApi.md#till_punch) | **POST** /staff/attendance/till-punch | A dead or forgotten phone in a Madar org: the person clocks in or out on the branch till with their till PIN (CL-13). Marked `till` (CL-16). The till is at the branch, so there is no geofence to check. Online only: a PIN is never queued.
 *StaffApi* | [**update_department**](docs/StaffApi.md#update_department) | **PATCH** /staff/departments/{id} | 
 *StaffApi* | [**update_leave_type**](docs/StaffApi.md#update_leave_type) | **PATCH** /staff/leave/types/{id} | 
 *StaffApi* | [**update_work_shift**](docs/StaffApi.md#update_work_shift) | **PATCH** /staff/work-shifts/{id} | 
 *StaffApi* | [**waive_deduction**](docs/StaffApi.md#waive_deduction) | **PATCH** /staff/payroll/deductions/{id}/waive | 
+*StaffAuthApi* | [**staff_otp_request**](docs/StaffAuthApi.md#staff_otp_request) | **POST** /auth/staff/otp/request | 
+*StaffAuthApi* | [**staff_otp_verify**](docs/StaffAuthApi.md#staff_otp_verify) | **POST** /auth/staff/otp/verify | 
 *StaffPoolApi* | [**delete_staff_pool_settings**](docs/StaffPoolApi.md#delete_staff_pool_settings) | **DELETE** /staff-pool/settings | 
 *StaffPoolApi* | [**get_staff_pool_settings**](docs/StaffPoolApi.md#get_staff_pool_settings) | **GET** /staff-pool/settings | 
 *StaffPoolApi* | [**get_staff_pool_today**](docs/StaffPoolApi.md#get_staff_pool_today) | **GET** /staff-pool/today | 
@@ -586,7 +642,9 @@ Class | Method | HTTP request | Description
  - [AddonSalesRow](docs/AddonSalesRow.md)
  - [AddonSlot](docs/AddonSlot.md)
  - [AdjustRequest](docs/AdjustRequest.md)
+ - [Adjustment](docs/Adjustment.md)
  - [AdvanceDecision](docs/AdvanceDecision.md)
+ - [AdvancesReport](docs/AdvancesReport.md)
  - [AiChatKind](docs/AiChatKind.md)
  - [AiChatKindOneOf](docs/AiChatKindOneOf.md)
  - [AiChatKindOneOf1](docs/AiChatKindOneOf1.md)
@@ -597,6 +655,7 @@ Class | Method | HTTP request | Description
  - [AnalyticsOrder](docs/AnalyticsOrder.md)
  - [AnalyticsResponse](docs/AnalyticsResponse.md)
  - [ApplyPackagingRulesResult](docs/ApplyPackagingRulesResult.md)
+ - [AskSwap](docs/AskSwap.md)
  - [AssetBundleRef](docs/AssetBundleRef.md)
  - [AssetGroupRef](docs/AssetGroupRef.md)
  - [AssetJobResult](docs/AssetJobResult.md)
@@ -605,6 +664,7 @@ Class | Method | HTTP request | Description
  - [AssignBranchRequest](docs/AssignBranchRequest.md)
  - [AssignmentInput](docs/AssignmentInput.md)
  - [AssignmentView](docs/AssignmentView.md)
+ - [AttendanceFlag](docs/AttendanceFlag.md)
  - [AttendanceRecord](docs/AttendanceRecord.md)
  - [AttendanceSettings](docs/AttendanceSettings.md)
  - [AttendanceStatus](docs/AttendanceStatus.md)
@@ -630,6 +690,7 @@ Class | Method | HTTP request | Description
  - [BranchDeliverySettings](docs/BranchDeliverySettings.md)
  - [BranchMenuOverride](docs/BranchMenuOverride.md)
  - [BranchMenuOverrideInput](docs/BranchMenuOverrideInput.md)
+ - [BranchPerson](docs/BranchPerson.md)
  - [BranchSalesReport](docs/BranchSalesReport.md)
  - [BranchSettingsInput](docs/BranchSettingsInput.md)
  - [BranchSizeOverride](docs/BranchSizeOverride.md)
@@ -695,10 +756,16 @@ Class | Method | HTTP request | Description
  - [ComponentPopularity](docs/ComponentPopularity.md)
  - [ComputedPayslip](docs/ComputedPayslip.md)
  - [ConsumptionRow](docs/ConsumptionRow.md)
+ - [ContextBranch](docs/ContextBranch.md)
+ - [ContextPerson](docs/ContextPerson.md)
+ - [ContextSettings](docs/ContextSettings.md)
  - [ConversationDetail](docs/ConversationDetail.md)
  - [ConversationList](docs/ConversationList.md)
  - [ConversationSummary](docs/ConversationSummary.md)
  - [CorrectRecordRequest](docs/CorrectRecordRequest.md)
+ - [CoverableShift](docs/CoverableShift.md)
+ - [CoverageNeed](docs/CoverageNeed.md)
+ - [CoverageView](docs/CoverageView.md)
  - [CreateActivationCodeRequest](docs/CreateActivationCodeRequest.md)
  - [CreateAddonItemRequest](docs/CreateAddonItemRequest.md)
  - [CreateAddonSlotRequest](docs/CreateAddonSlotRequest.md)
@@ -716,6 +783,7 @@ Class | Method | HTTP request | Description
  - [CreateDecisionRequest](docs/CreateDecisionRequest.md)
  - [CreateDiscountRequest](docs/CreateDiscountRequest.md)
  - [CreateDocumentRequest](docs/CreateDocumentRequest.md)
+ - [CreateEmployeeRequest](docs/CreateEmployeeRequest.md)
  - [CreateFloorTableRequest](docs/CreateFloorTableRequest.md)
  - [CreateFloorTransferRequest](docs/CreateFloorTransferRequest.md)
  - [CreateGroupRequest](docs/CreateGroupRequest.md)
@@ -747,11 +815,16 @@ Class | Method | HTTP request | Description
  - [CreateWasteRequest](docs/CreateWasteRequest.md)
  - [CredentialSummary](docs/CredentialSummary.md)
  - [CredentialWithSecret](docs/CredentialWithSecret.md)
+ - [CurrentPayroll](docs/CurrentPayroll.md)
  - [Customer](docs/Customer.md)
  - [CustomerAddress](docs/CustomerAddress.md)
  - [CustomerDetail](docs/CustomerDetail.md)
  - [CustomerOrder](docs/CustomerOrder.md)
  - [DatasetInfo](docs/DatasetInfo.md)
+ - [Decide](docs/Decide.md)
+ - [DecidePay](docs/DecidePay.md)
+ - [DecideRoster](docs/DecideRoster.md)
+ - [DecideSuggestion](docs/DecideSuggestion.md)
  - [DecisionOut](docs/DecisionOut.md)
  - [DeductionLogRow](docs/DeductionLogRow.md)
  - [DeliveryAddonOption](docs/DeliveryAddonOption.md)
@@ -783,9 +856,13 @@ Class | Method | HTTP request | Description
  - [EarningItemList](docs/EarningItemList.md)
  - [Employee](docs/Employee.md)
  - [ErrorBody](docs/ErrorBody.md)
+ - [ExpenseAdvance](docs/ExpenseAdvance.md)
+ - [ExpenseAdvanceRow](docs/ExpenseAdvanceRow.md)
  - [ExplainStep](docs/ExplainStep.md)
  - [Explanation](docs/Explanation.md)
  - [ExportResponse](docs/ExportResponse.md)
+ - [FairnessRow](docs/FairnessRow.md)
+ - [FairnessView](docs/FairnessView.md)
  - [FieldInfo](docs/FieldInfo.md)
  - [FilterInfo](docs/FilterInfo.md)
  - [FinalizeInput](docs/FinalizeInput.md)
@@ -808,6 +885,8 @@ Class | Method | HTTP request | Description
  - [GuestSavedLocation](docs/GuestSavedLocation.md)
  - [HistoryTurn](docs/HistoryTurn.md)
  - [HoldTableRequest](docs/HoldTableRequest.md)
+ - [HolidayDecision](docs/HolidayDecision.md)
+ - [HolidayView](docs/HolidayView.md)
  - [HoursEntry](docs/HoursEntry.md)
  - [IngredientCategory](docs/IngredientCategory.md)
  - [InventoryValuationReport](docs/InventoryValuationReport.md)
@@ -825,6 +904,8 @@ Class | Method | HTTP request | Description
  - [KitchenStation](docs/KitchenStation.md)
  - [KitchenTicketItemView](docs/KitchenTicketItemView.md)
  - [KitchenTicketView](docs/KitchenTicketView.md)
+ - [LabourDay](docs/LabourDay.md)
+ - [LabourWarning](docs/LabourWarning.md)
  - [LastTillWarning](docs/LastTillWarning.md)
  - [LateDeductionKind](docs/LateDeductionKind.md)
  - [LateTier](docs/LateTier.md)
@@ -853,6 +934,7 @@ Class | Method | HTTP request | Description
  - [MarginLedgerRow](docs/MarginLedgerRow.md)
  - [MarginTargets](docs/MarginTargets.md)
  - [MarginWatch](docs/MarginWatch.md)
+ - [MarkPaid](docs/MarkPaid.md)
  - [MarketingLink](docs/MarketingLink.md)
  - [MaterialCostTrendRow](docs/MaterialCostTrendRow.md)
  - [MeResponse](docs/MeResponse.md)
@@ -873,12 +955,18 @@ Class | Method | HTTP request | Description
  - [MoveTicketTableRequest](docs/MoveTicketTableRequest.md)
  - [MyAttendanceToday](docs/MyAttendanceToday.md)
  - [MyAuthz](docs/MyAuthz.md)
+ - [MyRosterView](docs/MyRosterView.md)
+ - [NewAdjustment](docs/NewAdjustment.md)
+ - [NewExpenseAdvance](docs/NewExpenseAdvance.md)
  - [OfflineAuthBundle](docs/OfflineAuthBundle.md)
+ - [OfflineStamp](docs/OfflineStamp.md)
  - [OfflineTellerCredential](docs/OfflineTellerCredential.md)
  - [OnboardingStatus](docs/OnboardingStatus.md)
  - [OnboardingStep](docs/OnboardingStep.md)
  - [OnlineTaxPolicy](docs/OnlineTaxPolicy.md)
  - [OpenBillsNotice](docs/OpenBillsNotice.md)
+ - [OpenCover](docs/OpenCover.md)
+ - [OpenShift](docs/OpenShift.md)
  - [OpenShiftRequest](docs/OpenShiftRequest.md)
  - [OpenTicketItemView](docs/OpenTicketItemView.md)
  - [OpenTicketView](docs/OpenTicketView.md)
@@ -936,11 +1024,13 @@ Class | Method | HTTP request | Description
  - [PatchPackagingRuleRequest](docs/PatchPackagingRuleRequest.md)
  - [PatchRecipeBaseRequest](docs/PatchRecipeBaseRequest.md)
  - [PauseInput](docs/PauseInput.md)
+ - [PayEstimate](docs/PayEstimate.md)
  - [PaymentLeg](docs/PaymentLeg.md)
  - [PaymentMethodAvailability](docs/PaymentMethodAvailability.md)
  - [PaymentSplitInput](docs/PaymentSplitInput.md)
  - [PaymentSummaryRow](docs/PaymentSummaryRow.md)
  - [PayrollAdjustment](docs/PayrollAdjustment.md)
+ - [PayrollHistoryRow](docs/PayrollHistoryRow.md)
  - [PayrollPeriod](docs/PayrollPeriod.md)
  - [Payslip](docs/Payslip.md)
  - [PeakDayPoint](docs/PeakDayPoint.md)
@@ -952,6 +1042,8 @@ Class | Method | HTTP request | Description
  - [Permission](docs/Permission.md)
  - [PermissionMatrix](docs/PermissionMatrix.md)
  - [PinSuggestion](docs/PinSuggestion.md)
+ - [PingRequest](docs/PingRequest.md)
+ - [PingResult](docs/PingResult.md)
  - [PoLeadTimeReport](docs/PoLeadTimeReport.md)
  - [PoLeadTimeRow](docs/PoLeadTimeRow.md)
  - [PoLineInput](docs/PoLineInput.md)
@@ -961,6 +1053,8 @@ Class | Method | HTTP request | Description
  - [PosMetricsItem](docs/PosMetricsItem.md)
  - [PosMetricsReport](docs/PosMetricsReport.md)
  - [PosMetricsTender](docs/PosMetricsTender.md)
+ - [PostOpenShift](docs/PostOpenShift.md)
+ - [Preferences](docs/Preferences.md)
  - [PrepTimeInput](docs/PrepTimeInput.md)
  - [PresenceRow](docs/PresenceRow.md)
  - [PresetInfo](docs/PresetInfo.md)
@@ -996,15 +1090,19 @@ Class | Method | HTTP request | Description
  - [PublicTableBill](docs/PublicTableBill.md)
  - [PublicTableLine](docs/PublicTableLine.md)
  - [PublicTableRound](docs/PublicTableRound.md)
+ - [PublishWeek](docs/PublishWeek.md)
  - [PullChange](docs/PullChange.md)
  - [PullRequest](docs/PullRequest.md)
  - [PullResponse](docs/PullResponse.md)
+ - [PunchFor](docs/PunchFor.md)
  - [PurchaseOrder](docs/PurchaseOrder.md)
  - [PurchaseOrderFull](docs/PurchaseOrderFull.md)
  - [PurchaseOrderLine](docs/PurchaseOrderLine.md)
+ - [PushToken](docs/PushToken.md)
  - [PutAllowedAddonsRequest](docs/PutAllowedAddonsRequest.md)
  - [PutAttendanceSettingsRequest](docs/PutAttendanceSettingsRequest.md)
  - [PutBalanceRequest](docs/PutBalanceRequest.md)
+ - [PutCoverage](docs/PutCoverage.md)
  - [PutEarningItems](docs/PutEarningItems.md)
  - [PutEmployeeRequest](docs/PutEmployeeRequest.md)
  - [PutItemOptionsRequest](docs/PutItemOptionsRequest.md)
@@ -1020,6 +1118,7 @@ Class | Method | HTTP request | Description
  - [QrResponse](docs/QrResponse.md)
  - [QuerySpec](docs/QuerySpec.md)
  - [QuoteResponse](docs/QuoteResponse.md)
+ - [ReadNotifications](docs/ReadNotifications.md)
  - [ReadyGroupRef](docs/ReadyGroupRef.md)
  - [ReceiveLineInput](docs/ReceiveLineInput.md)
  - [ReceivePurchaseOrderRequest](docs/ReceivePurchaseOrderRequest.md)
@@ -1047,6 +1146,7 @@ Class | Method | HTTP request | Description
  - [RefundReason](docs/RefundReason.md)
  - [RefundTotals](docs/RefundTotals.md)
  - [RegisterDeviceRequest](docs/RegisterDeviceRequest.md)
+ - [RegisterPushDevice](docs/RegisterPushDevice.md)
  - [RegistryInfo](docs/RegistryInfo.md)
  - [ReleaseTableRequest](docs/ReleaseTableRequest.md)
  - [RenameConversationRequest](docs/RenameConversationRequest.md)
@@ -1063,17 +1163,23 @@ Class | Method | HTTP request | Description
  - [RequestDecision](docs/RequestDecision.md)
  - [ResolveBranchRequest](docs/ResolveBranchRequest.md)
  - [ResolveBranchResponse](docs/ResolveBranchResponse.md)
+ - [ResolveFlag](docs/ResolveFlag.md)
  - [ResolveWarning](docs/ResolveWarning.md)
  - [ResolvedShift](docs/ResolvedShift.md)
  - [ResultBlock](docs/ResultBlock.md)
  - [ReturnLineInput](docs/ReturnLineInput.md)
+ - [ReviewAdvance](docs/ReviewAdvance.md)
  - [RewardCatalogue](docs/RewardCatalogue.md)
  - [RewardItem](docs/RewardItem.md)
  - [RewardItemInput](docs/RewardItemInput.md)
  - [RolePermission](docs/RolePermission.md)
  - [RoleView](docs/RoleView.md)
+ - [RosterPerson](docs/RosterPerson.md)
+ - [RosterShift](docs/RosterShift.md)
+ - [RosterView](docs/RosterView.md)
  - [RoutingModeResponse](docs/RoutingModeResponse.md)
  - [SalaryAdvance](docs/SalaryAdvance.md)
+ - [SalaryAdvanceRow](docs/SalaryAdvanceRow.md)
  - [SaveLayoutRequest](docs/SaveLayoutRequest.md)
  - [ScanResult](docs/ScanResult.md)
  - [ScheduleAssignment](docs/ScheduleAssignment.md)
@@ -1086,6 +1192,8 @@ Class | Method | HTTP request | Description
  - [SetOverrideRequest](docs/SetOverrideRequest.md)
  - [SetParRequest](docs/SetParRequest.md)
  - [SetRoutingModeRequest](docs/SetRoutingModeRequest.md)
+ - [SetTicketCustomerRequest](docs/SetTicketCustomerRequest.md)
+ - [SetTicketCustomerResponse](docs/SetTicketCustomerResponse.md)
  - [SettleOpenTicketRequest](docs/SettleOpenTicketRequest.md)
  - [Shift](docs/Shift.md)
  - [ShiftPreFill](docs/ShiftPreFill.md)
@@ -1104,11 +1212,18 @@ Class | Method | HTTP request | Description
  - [Sort](docs/Sort.md)
  - [SpotViewApproval](docs/SpotViewApproval.md)
  - [SpotViewRequest](docs/SpotViewRequest.md)
+ - [StaffContext](docs/StaffContext.md)
  - [StaffDocument](docs/StaffDocument.md)
  - [StaffDrink](docs/StaffDrink.md)
+ - [StaffNotification](docs/StaffNotification.md)
+ - [StaffOrgChoice](docs/StaffOrgChoice.md)
+ - [StaffOtpRequest](docs/StaffOtpRequest.md)
+ - [StaffOtpSent](docs/StaffOtpSent.md)
+ - [StaffOtpVerify](docs/StaffOtpVerify.md)
  - [StaffPoolSettings](docs/StaffPoolSettings.md)
  - [StaffPoolToday](docs/StaffPoolToday.md)
  - [StaffRequest](docs/StaffRequest.md)
+ - [StaffSession](docs/StaffSession.md)
  - [StationRoutes](docs/StationRoutes.md)
  - [StatusInput](docs/StatusInput.md)
  - [StockMovement](docs/StockMovement.md)
@@ -1120,8 +1235,10 @@ Class | Method | HTTP request | Description
  - [StoredTurn](docs/StoredTurn.md)
  - [StudioAggregate](docs/StudioAggregate.md)
  - [SuggestedComponent](docs/SuggestedComponent.md)
+ - [Suggestion](docs/Suggestion.md)
  - [Supplier](docs/Supplier.md)
  - [SupplierSpendRow](docs/SupplierSpendRow.md)
+ - [Swap](docs/Swap.md)
  - [SwapTablesRequest](docs/SwapTablesRequest.md)
  - [SyncIngredient](docs/SyncIngredient.md)
  - [SyncItem](docs/SyncItem.md)
@@ -1142,10 +1259,13 @@ Class | Method | HTTP request | Description
  - [Till](docs/Till.md)
  - [TillBrief](docs/TillBrief.md)
  - [TillPreFill](docs/TillPreFill.md)
+ - [TillPunch](docs/TillPunch.md)
+ - [TillPunchResult](docs/TillPunchResult.md)
  - [TillReconciliationLine](docs/TillReconciliationLine.md)
  - [TillRefunds](docs/TillRefunds.md)
  - [TillReportFigures](docs/TillReportFigures.md)
  - [TillReportResponse](docs/TillReportResponse.md)
+ - [TillSessionRow](docs/TillSessionRow.md)
  - [TillSpotView](docs/TillSpotView.md)
  - [TillStatus](docs/TillStatus.md)
  - [TillVerification](docs/TillVerification.md)
@@ -1157,6 +1277,7 @@ Class | Method | HTTP request | Description
  - [TransfersSyncResponse](docs/TransfersSyncResponse.md)
  - [Transform](docs/Transform.md)
  - [TypeChecksum](docs/TypeChecksum.md)
+ - [UnregisterPushDevice](docs/UnregisterPushDevice.md)
  - [UpdateAddonItemRequest](docs/UpdateAddonItemRequest.md)
  - [UpdateAddonSlotRequest](docs/UpdateAddonSlotRequest.md)
  - [UpdateBookingRequest](docs/UpdateBookingRequest.md)
@@ -1221,6 +1342,7 @@ Class | Method | HTTP request | Description
  - [WidgetOutcomeOneOf1](docs/WidgetOutcomeOneOf1.md)
  - [WidgetRequest](docs/WidgetRequest.md)
  - [WorkShift](docs/WorkShift.md)
+ - [WorkShiftBrief](docs/WorkShiftBrief.md)
  - [ZoneInput](docs/ZoneInput.md)
 
 

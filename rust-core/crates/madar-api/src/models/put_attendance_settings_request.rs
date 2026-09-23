@@ -21,6 +21,13 @@ pub struct PutAttendanceSettingsRequest {
     )]
     pub absence_deduction_days: Option<Option<f64>>,
     #[serde(
+        rename = "advance_cap_percent",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub advance_cap_percent: Option<Option<f64>>,
+    #[serde(
         rename = "auto_checkout_buffer_minutes",
         default,
         with = "::serde_with::rust::double_option",
@@ -49,6 +56,29 @@ pub struct PutAttendanceSettingsRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub excused_time_paid_default: Option<Option<bool>>,
+    /// `off` · `soft` · `hard`; owner only (`hr.roster.settings`).
+    #[serde(
+        rename = "gender_mode",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub gender_mode: Option<Option<String>>,
+    /// `half_shift` · `whole_day`.
+    #[serde(
+        rename = "half_day_leave_counts",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub half_day_leave_counts: Option<Option<String>>,
+    #[serde(
+        rename = "holiday_multiplier",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub holiday_multiplier: Option<Option<f64>>,
     #[serde(
         rename = "late_deduction_tiers",
         default,
@@ -57,19 +87,97 @@ pub struct PutAttendanceSettingsRequest {
     )]
     pub late_deduction_tiers: Option<Option<Vec<models::LateTier>>>,
     #[serde(
+        rename = "limit_day_hours",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub limit_day_hours: Option<Option<f64>>,
+    #[serde(
+        rename = "limit_overtime_day_hours",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub limit_overtime_day_hours: Option<Option<f64>>,
+    #[serde(
+        rename = "limit_presence_hours",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub limit_presence_hours: Option<Option<f64>>,
+    #[serde(
+        rename = "limit_rest_hours",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub limit_rest_hours: Option<Option<f64>>,
+    #[serde(
+        rename = "limit_week_hours",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub limit_week_hours: Option<Option<f64>>,
+    #[serde(
+        rename = "night_end",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub night_end: Option<Option<String>>,
+    #[serde(
+        rename = "night_start",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub night_start: Option<Option<String>>,
+    #[serde(
+        rename = "orders_per_staff",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub orders_per_staff: Option<Option<i32>>,
+    #[serde(
+        rename = "overtime_day_multiplier",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub overtime_day_multiplier: Option<Option<f64>>,
+    /// `off` · `automatic` · `approval`.
+    #[serde(
+        rename = "overtime_mode",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub overtime_mode: Option<Option<String>>,
+    #[serde(
+        rename = "overtime_night_multiplier",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub overtime_night_multiplier: Option<Option<f64>>,
+    #[serde(
+        rename = "period_start_day",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub period_start_day: Option<Option<i32>>,
+    #[serde(
         rename = "require_geofence",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
     pub require_geofence: Option<Option<bool>>,
-    #[serde(
-        rename = "weekend_days",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub weekend_days: Option<Option<Vec<i32>>>,
     #[serde(
         rename = "working_days_per_month",
         default,
@@ -83,13 +191,28 @@ impl PutAttendanceSettingsRequest {
     pub fn new() -> PutAttendanceSettingsRequest {
         PutAttendanceSettingsRequest {
             absence_deduction_days: None,
+            advance_cap_percent: None,
             auto_checkout_buffer_minutes: None,
             branch_id: None,
             default_overtime_multiplier: None,
             excused_time_paid_default: None,
+            gender_mode: None,
+            half_day_leave_counts: None,
+            holiday_multiplier: None,
             late_deduction_tiers: None,
+            limit_day_hours: None,
+            limit_overtime_day_hours: None,
+            limit_presence_hours: None,
+            limit_rest_hours: None,
+            limit_week_hours: None,
+            night_end: None,
+            night_start: None,
+            orders_per_staff: None,
+            overtime_day_multiplier: None,
+            overtime_mode: None,
+            overtime_night_multiplier: None,
+            period_start_day: None,
             require_geofence: None,
-            weekend_days: None,
             working_days_per_month: None,
         }
     }

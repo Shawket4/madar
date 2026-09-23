@@ -27,6 +27,14 @@ pub struct CheckOutRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub longitude: Option<Option<f64>>,
+    /// Set when the punch was queued offline; the server rebuilds its time (CL-11).
+    #[serde(
+        rename = "offline",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub offline: Option<Option<Box<models::OfflineStamp>>>,
 }
 
 impl CheckOutRequest {
@@ -34,6 +42,7 @@ impl CheckOutRequest {
         CheckOutRequest {
             latitude: None,
             longitude: None,
+            offline: None,
         }
     }
 }

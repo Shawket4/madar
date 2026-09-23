@@ -140,6 +140,7 @@ class _CashInOutPanelState extends ConsumerState<CashInOutPanel> {
                 style: MadarType.labelSm.copyWith(color: colors.textMuted),
               ),
             ),
+            if (!isIn) const _AdvanceToRow(),
             if (error != null)
               NoticeBanner(
                 text: error.of(bridge),
@@ -157,6 +158,62 @@ class _CashInOutPanelState extends ConsumerState<CashInOutPanel> {
         ),
         const CashLedger(),
       ],
+    );
+  }
+}
+
+/// Optional: the pay-out is cash handed to an employee for shop purchases,
+/// logged for them in Dawam as an expense advance (AV-8).
+class _AdvanceToRow extends ConsumerWidget {
+  const _AdvanceToRow();
+
+  Future<void> _pick(BuildContext context, WidgetRef ref) async {
+    final bridge = ref.read(bridgeProvider);
+    final notifier = ref.read(cashMovementsProvider.notifier);
+    List<BranchPersonView> people;
+    try {
+      people = await bridge.branchPeople();
+    } on MadarError catch (e) {
+      notifier.fail(UiText.error(e));
+      return;
+    }
+    if (!context.mounted) return;
+    final picked = await showMadarSheet<BranchPersonView?>(
+      context,
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          MadarRow(
+            title: bridge.tr(key: 'cash.expense_advance_none'),
+            onTap: () => Navigator.of(context).pop(),
+            chevron: false,
+          ),
+          for (final p in people)
+            MadarRow(
+              title: p.name,
+              glyph: MadarGlyph.user,
+              onTap: () => Navigator.of(context).pop(p),
+              chevron: false,
+            ),
+        ],
+      ),
+    );
+    notifier.setAdvanceTo(picked?.userId, picked?.name);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.bridge;
+    final name = ref.watch(
+      cashMovementsProvider.select((s) => s.advanceToName),
+    );
+    return MadarRow(
+      title: bridge.tr(key: 'cash.expense_advance'),
+      subtitle: bridge.tr(key: 'cash.expense_advance_hint'),
+      glyph: MadarGlyph.user,
+      value: Text(name ?? bridge.tr(key: 'cash.expense_advance_none')),
+      onTap: () => unawaited(_pick(context, ref)),
     );
   }
 }

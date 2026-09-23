@@ -13,6 +13,7 @@ Name | Type | Description | Notes
 **emergency_contact_phone** | Option<**String**> |  | [optional]
 **employee_code** | Option<**String**> |  | [optional]
 **employment_status** | **String** |  | 
+**gender** | Option<**String**> | `m` · `f` · null — only ever a soft default for late shifts (SC-13). | [optional]
 **hire_date** | Option<**chrono::NaiveDate**> |  | [optional]
 **is_active** | **bool** |  | 
 **job_title** | Option<**String**> |  | [optional]
@@ -20,6 +21,8 @@ Name | Type | Description | Notes
 **national_id** | Option<**String**> |  | [optional]
 **notes** | Option<**String**> |  | [optional]
 **org_id** | **uuid::Uuid** |  | 
+**pay_account** | Option<**String**> |  | [optional]
+**pay_method** | **String** | `cash` · `bank` · `wallet` | 
 **phone** | Option<**String**> |  | [optional]
 **photo_url** | Option<**String**> |  | [optional]
 **role** | **String** | The POS role. Orthogonal to employment: a cleaner is a `teller`-role user with the POS permissions revoked. | 

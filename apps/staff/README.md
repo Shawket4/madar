@@ -23,13 +23,31 @@ Arabic first, built the way the POS is:
   `MadarLanguagePicker`, and the `series` palette for people's colours.
 - **Theme** is the POS's `ThemeChoice` (light · dark · system), persisted under
   the POS's keys (`madar.theme`, `madar.locale`).
-- **Workflows** run on the in-memory `DawamStore` (staff_core) until the staff
-  API is wired through the core; screens only reach it via `dawamProvider`.
+- **Workflows** run through madar-core: every screen reads one snapshot and
+  sends one action (`dawam_do`), offline-first through the core's outbox.
+  Screens reach it only via `dawamProvider`.
 
     flutter run                      # builds the Rust core via Cargokit
     flutter test                     # workflows + every screen, AR/EN, phone/tablet
     flutter test test/screens_test.dart --dart-define=MADAR_RENDER=true   # PNGs → build/shots
     cd ../../packages/staff_core && flutter test                         # the money path
+
+## Firebase (push, APP-6)
+
+The generated config is **not in git** — these repos are public, and it
+carries the project's API key and app ids. Nothing else is needed to run the
+app's tests; a device build wants the files back:
+
+    cd apps/staff
+    flutterfire configure --project=dawam-by-madar \
+      --platforms=android,ios \
+      --ios-bundle-id=com.madar.madarStaff --android-package-name=com.madar.madar_staff
+
+That writes `lib/firebase_options.dart`, `android/app/google-services.json`,
+`ios/Runner/GoogleService-Info.plist` and `firebase.json`, all git-ignored. The
+APNs key (`.p8`) is uploaded once in the Firebase console, and the server's
+service-account JSON lives outside every repo (`FCM_SERVICE_ACCOUNT_FILE` in
+MadarRust's `.env`). CI injects the four files from its own secrets.
 
 Demo: pick a demo account on sign-in (code 123456). Profile → Demo controls
 moves the clock, the geofence, "Always" location, battery and connection, and

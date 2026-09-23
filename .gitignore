@@ -44,3 +44,18 @@ build/
 secring.*
 openpgp-revocs.d/
 .talabat-pgp/
+
+# Firebase, per app (APP-6). These repos are PUBLIC: the generated client
+# config carries the project's API key and app ids, and the service-account
+# JSON and the APNs .p8 are outright credentials. None of them belong here.
+# Regenerate the client config with:
+#   cd apps/staff && flutterfire configure --project=dawam-by-madar
+**/google-services.json
+**/GoogleService-Info.plist
+**/firebase_options.dart
+**/firebase.json
+**/AuthKey_*.p8
+*service-account*.json
+
+# Kotlin build cache.
+**/.kotlin/

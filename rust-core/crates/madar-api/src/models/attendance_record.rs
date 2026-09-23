@@ -87,6 +87,22 @@ pub struct AttendanceRecord {
         skip_serializing_if = "Option::is_none"
     )]
     pub check_out_method: Option<Option<String>>,
+    /// `pending` · `confirmed` · `rejected` for a cover.
+    #[serde(
+        rename = "cover_status",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cover_status: Option<Option<String>>,
+    /// A cover: whose shift this person worked (CV-*).
+    #[serde(
+        rename = "covered_user_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub covered_user_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(
@@ -129,6 +145,22 @@ pub struct AttendanceRecord {
     pub org_id: uuid::Uuid,
     #[serde(rename = "overtime_minutes")]
     pub overtime_minutes: i32,
+    /// `pending` · `approved` · `rejected` when overtime needs a decision.
+    #[serde(
+        rename = "overtime_status",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub overtime_status: Option<Option<String>>,
+    /// Why someone else punched for this person.
+    #[serde(
+        rename = "punch_reason",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub punch_reason: Option<Option<String>>,
     #[serde(
         rename = "scheduled_end_at",
         default,
@@ -145,6 +177,8 @@ pub struct AttendanceRecord {
     pub scheduled_start_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "status")]
     pub status: String,
+    #[serde(rename = "tracking_off")]
+    pub tracking_off: bool,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "user_id")]
@@ -186,6 +220,7 @@ impl AttendanceRecord {
         org_id: uuid::Uuid,
         overtime_minutes: i32,
         status: String,
+        tracking_off: bool,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
         user_id: uuid::Uuid,
         worked_minutes: i32,
@@ -203,6 +238,8 @@ impl AttendanceRecord {
             check_out_latitude: None,
             check_out_longitude: None,
             check_out_method: None,
+            cover_status: None,
+            covered_user_id: None,
             created_at,
             created_by: None,
             early_leave_minutes,
@@ -214,9 +251,12 @@ impl AttendanceRecord {
             notes: None,
             org_id,
             overtime_minutes,
+            overtime_status: None,
+            punch_reason: None,
             scheduled_end_at: None,
             scheduled_start_at: None,
             status,
+            tracking_off,
             updated_at,
             user_id,
             user_name: None,

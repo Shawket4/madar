@@ -57,6 +57,25 @@ class BranchOpenTillView {
           source == other.source;
 }
 
+/// Someone at this branch, for the expense-advance picker.
+class BranchPersonView {
+  final String userId;
+  final String name;
+
+  const BranchPersonView({required this.userId, required this.name});
+
+  @override
+  int get hashCode => userId.hashCode ^ name.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BranchPersonView &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          name == other.name;
+}
+
 class CashMovementView {
   final String id;
 
@@ -530,6 +549,33 @@ class TillLockView {
           canOpen == other.canOpen &&
           holdsDrawer == other.holdsDrawer &&
           elsewhere == other.elsewhere;
+}
+
+/// What a till PIN punch did, worded by the core.
+class TillPunchView {
+  final String name;
+
+  /// `in` · `out`
+  final String punched;
+  final String message;
+
+  const TillPunchView({
+    required this.name,
+    required this.punched,
+    required this.message,
+  });
+
+  @override
+  int get hashCode => name.hashCode ^ punched.hashCode ^ message.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TillPunchView &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          punched == other.punched &&
+          message == other.message;
 }
 
 class TillReportCashLine {
