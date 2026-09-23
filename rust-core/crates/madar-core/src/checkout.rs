@@ -2278,6 +2278,103 @@ mod tests {
         assert_eq!(r.total_amount, Some(Some(750))); // 1000 - 250, no tax
     }
 
+    /// A4 (madar-shared discovery): the till's "needs a manager" list maps a
+    /// refused sale to the discount capability it wanted, from the REAL outbox
+    /// payload — `{"request": CreateOrderRequest}` with FLAT `discount_*`
+    /// fields. It looked for a nested `discount` object no payload has, so a
+    /// refused discounted sale was a plain dead letter.
+    #[test]
+    fn a_queued_sales_real_payload_names_its_discount_capability() {
+        use crate::till_review::capability_for_op;
+        let payload = |set: &dyn Fn(&Store)| {
+            let store = Store::open("").unwrap();
+            seed_methods(&store);
+            seed_discounts(&store);
+            cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
+            set(&store);
+            let p = prepare(&store, None, "en", BRANCH, SHIFT, &mk_input(CASH, 2000), &tax_policy_at(0.14),
+                "2026-06-20T12:00:00+00:00".into())
+            .unwrap();
+            // Exactly what the checkout queues as the op's payload.
+            serde_json::to_string(&p.command).unwrap()
+        };
+        let preset_pct = payload(&|s| cart::set_discount(s, None, "00000000-0000-0000-0000-0000000000d1").unwrap());
+        let preset_fixed = payload(&|s| cart::set_discount(s, None, "00000000-0000-0000-0000-0000000000d2").unwrap());
+        let manual = |kind: &str, amount: Option<i64>, bps: Option<i64>| {
+            let m = cart::ManualDiscount { kind: kind.into(), amount_minor: amount, percent_bps: bps };
+            payload(&move |s| cart::set_manual_discount(s, None, &m).unwrap())
+        };
+        let manual_pct = manual("manual_percent", None, Some(1250));
+        let manual_amt = manual("manual_amount", Some(300), None);
+        assert!(preset_pct.contains("\"discount_kind\":\"preset\""), "{preset_pct}");
+
+        assert_eq!(capability_for_op("create_order", &preset_pct), Some("orders.discount.preset"));
+        assert_eq!(capability_for_op("create_order", &preset_fixed), Some("orders.discount.preset"));
+        assert_eq!(capability_for_op("create_order", &manual_pct), Some("orders.discount.manual_percent"));
+        assert_eq!(capability_for_op("create_order", &manual_amt), Some("orders.discount.manual_amount"));
+
+        // An older till sent no `discount_kind`: the server's `ask_from`
+        // fallback — a preset id means preset, else a percentage type means
+        // manual percent, else manual amount.
+        let without_kind = |p: &str| {
+            let mut v: serde_json::Value = serde_json::from_str(p).unwrap();
+            v["request"].as_object_mut().unwrap().remove("discount_kind");
+            v.to_string()
+        };
+        assert_eq!(capability_for_op("create_order", &without_kind(&preset_pct)), Some("orders.discount.preset"));
+        assert_eq!(capability_for_op("create_order", &without_kind(&preset_fixed)), Some("orders.discount.preset"));
+        assert_eq!(
+            capability_for_op("create_order", &without_kind(&manual_pct)),
+            Some("orders.discount.manual_percent")
+        );
+        assert_eq!(
+            capability_for_op("create_order", &without_kind(&manual_amt)),
+            Some("orders.discount.manual_amount")
+        );
+
+        // A sale with no discount is never refused for one.
+        let plain = payload(&|_| ());
+        assert_eq!(capability_for_op("create_order", &plain), None);
+    }
+
+    /// The same for a table bill: `settle_open_ticket`'s payload is
+    /// `{"ticket_id", "request": SettleOpenTicketRequest}`, flat fields again,
+    /// filled the way `settle_ticket` fills them.
+    #[test]
+    fn a_queued_settles_real_payload_names_its_discount_capability() {
+        use crate::till_review::capability_for_op;
+        let settle = |f: &dyn Fn(&mut models::SettleOpenTicketRequest)| {
+            let mut request = models::SettleOpenTicketRequest::new("cash".into(), uuid::Uuid::nil());
+            f(&mut request);
+            let cmd = crate::tickets::SettleTicketCommand { ticket_id: "tk-1".into(), request, approval: None };
+            serde_json::to_string(&cmd).unwrap()
+        };
+        let preset = uuid::Uuid::parse_str("00000000-0000-0000-0000-0000000000d1").unwrap();
+        let with_kind = settle(&|r| {
+            r.discount_id = Some(Some(preset));
+            r.discount_type = Some(Some("percentage".into()));
+            r.discount_value = Some(Some(0.10));
+            r.discount_kind = Some(Some("preset".into()));
+            r.discount_percent_bps = Some(Some(1000));
+            r.discount_amount = Some(Some(500));
+        });
+        assert_eq!(capability_for_op("settle_open_ticket", &with_kind), Some("orders.discount.preset"));
+        // A waiter's ad-hoc percentage, settled by a build that sent no kind.
+        let adhoc_pct = settle(&|r| {
+            r.discount_type = Some(Some("percentage".into()));
+            r.discount_value = Some(Some(0.15));
+        });
+        assert_eq!(capability_for_op("settle_open_ticket", &adhoc_pct), Some("orders.discount.manual_percent"));
+        let adhoc_fixed = settle(&|r| {
+            r.discount_type = Some(Some("fixed".into()));
+            r.discount_value = Some(Some(200.0));
+        });
+        assert_eq!(capability_for_op("settle_open_ticket", &adhoc_fixed), Some("orders.discount.manual_amount"));
+        let preset_no_kind = settle(&|r| r.discount_id = Some(Some(preset)));
+        assert_eq!(capability_for_op("settle_open_ticket", &preset_no_kind), Some("orders.discount.preset"));
+        assert_eq!(capability_for_op("settle_open_ticket", &settle(&|_| ())), None);
+    }
+
     #[test]
     fn no_discount_leaves_discount_fields_unset() {
         let store = Store::open("").unwrap();
