@@ -1,5 +1,5 @@
 name: feature_dawam_schedule
-description: "Dawam shifts and roster: the calendar (kalender), swaps, open shifts, suggestions, publish."
+description: "Dawam shifts and roster: my shifts on a calendar (kalender); the manager's week board (two_dimensional_scrollables), swaps, open shifts, suggestions, publish."
 version: 0.1.0
 publish_to: none
 resolution: workspace
@@ -15,6 +15,7 @@ dependencies:
   flutter_riverpod: ^3.3.2
   kalender: ^0.31.3
   staff_core: ^0.1.0
+  two_dimensional_scrollables: ^0.5.4
 
 dev_dependencies:
   flutter_test:

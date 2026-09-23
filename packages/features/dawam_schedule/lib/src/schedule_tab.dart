@@ -1,12 +1,15 @@
+import 'dart:math' as math;
+
 import 'package:design_system/design_system.dart';
 import 'package:feature_dawam_schedule/src/coverage_sheet.dart';
-import 'package:feature_dawam_schedule/src/shift_calendar.dart';
+import 'package:feature_dawam_schedule/src/roster_board.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:staff_core/staff_core.dart';
 
-/// The manager's roster on a calendar: drag a shift to another day or
-/// start, tap it to change or reassign, tap an empty slot to add (SC-5,
+/// The manager's roster as a week board: people down the side, Saturday to
+/// Friday across. Tap a shift to change or reassign it, tap an empty day to
+/// add one, long-press a shift to drag it to another day or person (SC-5,
 /// SC-7); publish the week (SC-3); accept or reject suggestions (SC-13);
 /// set up holidays (RU-10). Limits warn, never block (RU-13).
 class ScheduleTab extends ConsumerStatefulWidget {
@@ -17,31 +20,90 @@ class ScheduleTab extends ConsumerStatefulWidget {
 }
 
 class _ScheduleTabState extends ConsumerState<ScheduleTab> {
-  late String _branch = ref.read(dawamProvider).myBranches.first;
-  late DateTime _visible = ref.read(dawamProvider).today;
-  String? _person;
+  String? _pickedBranch;
+  late DateTime _week = weekStart(ref.read(dawamProvider).today);
+
+  /// A phone's one-day list, and the day it shows (0 = Saturday).
+  bool _dayView = false;
+  int? _day;
 
   DawamStore get _store => ref.read(dawamProvider);
 
-  List<Emp> _staff(DawamStore store) =>
+  /// The branch on show: the one picked, while the manager still has it.
+  String _branch(DawamStore store) {
+    final picked = _pickedBranch;
+    if (picked != null && store.myBranches.contains(picked)) return picked;
+    return store.myBranches.firstOrNull ?? '';
+  }
+
+  List<Emp> _staff(DawamStore store, String branch) =>
       store.emps.values
-          .where((e) => e.branches.contains(_branch) && e.role != Role.owner)
+          .where((e) => e.branches.contains(branch) && e.role != Role.owner)
           .toList()
         ..sort((a, b) => a.id.compareTo(b.id));
 
-  Color _colorOf(DawamStore store, Shift s, MadarColors c) {
-    if (s.emp == null) return c.warning;
-    final i = _staff(store).indexWhere((e) => e.id == s.emp);
-    return c.series[(i < 0 ? 0 : i) % c.series.length];
+  String _branchName(DawamStore store, String id) {
+    final b = store.branches[id];
+    return b == null ? id : loc(b);
+  }
+
+  String _who(DawamStore store, String? emp) {
+    final e = emp == null ? null : store.emps[emp];
+    return e == null ? tr('staff.open_shift') : name(e);
+  }
+
+  List<DateTime> _days(DateTime ws) => [
+    for (var i = 0; i < 7; i++) DateTime(ws.year, ws.month, ws.day + i),
+  ];
+
+  /// "8 AM", "8:30 PM", or "20:30" on a 24-hour phone: short enough for a
+  /// phone's column.
+  String _clock(int minute) {
+    final m = minute % 1440;
+    final h = m ~/ 60;
+    final mm = (m % 60).toString().padLeft(2, '0');
+    if (use24h) return '${h.toString().padLeft(2, '0')}:$mm';
+    final h12 = h % 12 == 0 ? 12 : h % 12;
+    return '$h12${mm == '00' ? '' : ':$mm'} '
+        '${h < 12 ? tr('staff.am') : tr('staff.pm')}';
+  }
+
+  /// A template's hours; tighter on a phone's narrow column (Arabic's
+  /// ص and م are short enough to keep the spaces).
+  String _window(Tpl? t, {bool tight = false}) => t == null
+      ? ''
+      : '${_clock(t.start)}${tight ? '–' : ' – '}${_clock(t.end)}';
+
+  /// The most people the coverage grid asks for at once on [d]'s weekday;
+  /// null when the branch has no grid (typed or derived) for it.
+  int? _need(DawamStore store, String branch, DateTime d) {
+    final view = store.coverage[branch];
+    if (view == null) return null;
+    List<J> rows(String k) => [
+      for (final x in (view[k] as List<dynamic>?) ?? const <dynamic>[])
+        if (x is J) x,
+    ];
+    final typed = rows('needs');
+    var peak = 0;
+    for (final n in typed.isNotEmpty ? typed : rows('derived')) {
+      if (n['day_of_week'] == d.weekday % 7) {
+        peak = math.max(peak, (n['staff'] as num?)?.round() ?? 0);
+      }
+    }
+    return peak > 0 ? peak : null;
   }
 
   @override
   Widget build(BuildContext context) {
     final store = ref.watch(dawamProvider);
     final c = context.madarColors;
-    final ws = weekStart(_visible);
-    final pub = store.published.contains('$_branch|$ws');
-    final sugg = store.suggestions.where((g) => g.branch == _branch).toList();
+    final branch = _branch(store);
+    final ws = _week;
+    final days = _days(ws);
+    final end = days.last;
+    final thisWeek = sameDay(ws, weekStart(store.today));
+    final pub = store.published.contains('$branch|$ws');
+    final sugg = store.suggestions.where((g) => g.branch == branch).toList();
     final hols = store.holidays
         .where(
           (h) =>
@@ -50,107 +112,297 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
               h.date.difference(store.today).inDays < 30,
         )
         .toList();
-    final shifts = store.shifts
-        .where(
-          (s) =>
-              s.template.branch == _branch &&
-              (_person == null || s.emp == _person || s.emp == null),
-        )
-        .toList();
     final phone = MadarLayout.of(context).isPhone;
 
-    final bar = Wrap(
+    // ── the week's picture ──
+    final tpls = store.tpls.values.where((t) => t.branch == branch).toList()
+      ..sort((a, b) => a.start.compareTo(b.start));
+    Color tplColor(String id) {
+      final i = tpls.indexWhere((t) => t.id == id);
+      return c.series[math.max(i, 0) % c.series.length];
+    }
+
+    final week = store.shifts.where(
+      (s) =>
+          store.tpls[s.tpl]?.branch == branch &&
+          !s.date.isBefore(ws) &&
+          !s.date.isAfter(end),
+    );
+    final byCell = <String, List<Shift>>{};
+    for (final s in week) {
+      (byCell['${s.emp}|${dateOnly(s.date)}'] ??= []).add(s);
+    }
+    for (final l in byCell.values) {
+      l.sort(
+        (a, b) => (store.tpls[a.tpl]?.start ?? 0).compareTo(
+          store.tpls[b.tpl]?.start ?? 0,
+        ),
+      );
+    }
+    final swaps = {
+      for (final r in store.reqs)
+        if (r.kind == ReqKind.swap &&
+            (r.status == ReqStatus.awaitingPeer ||
+                r.status == ReqStatus.pending))
+          ...[r.shift, r.shift2].nonNulls,
+    };
+    final claims = {
+      for (final r in store.reqs)
+        if (r.kind == ReqKind.openShift && r.status == ReqStatus.pending)
+          ?r.shift,
+    };
+    List<RosterCard> cardsAt(String? emp, DateTime d) => [
+      for (final s in byCell['$emp|${dateOnly(d)}'] ?? const <Shift>[])
+        RosterCard(
+          shift: s,
+          title: switch (store.tpls[s.tpl]) {
+            final t? => tplName(t),
+            null => '',
+          },
+          window: _window(store.tpls[s.tpl], tight: phone && !isAr),
+          color: s.emp == null ? c.warning : tplColor(s.tpl),
+          leave: s.leave,
+          half: s.halfLeave,
+          changed: s.changed,
+          swap: swaps.contains(s.id),
+          claimed: claims.contains(s.id),
+        ),
+    ];
+
+    // People: the branch's staff, then anyone else rostered here this week;
+    // the open shifts ride on top.
+    final staff = _staff(store, branch);
+    final extra = {
+      for (final s in week)
+        if (s.emp case final id? when !staff.any((e) => e.id == id)) id,
+    };
+    int minutesOf(String emp) {
+      var m = 0;
+      for (final s in week) {
+        final t = store.tpls[s.tpl];
+        if (s.emp != emp || t == null) continue;
+        if (s.leave == null) {
+          m += t.length;
+        } else if (s.halfLeave) {
+          m += t.length ~/ 2;
+        }
+      }
+      return m;
+    }
+
+    final ids = [...staff.map((e) => e.id), ...extra];
+    final rows = [
+      RosterRow(emp: null, name: tr('staff.open_shifts'), color: c.warning),
+      for (final (i, id) in ids.indexed)
+        RosterRow(
+          emp: id,
+          name: switch (store.emps[id]) {
+            final e? => phone ? firstName(e) : name(e),
+            null => '—',
+          },
+          color: c.series[i % c.series.length],
+          minutes: minutesOf(id),
+        ),
+    ];
+    final heads = [
+      for (final d in days)
+        RosterDay(
+          d,
+          today: sameDay(d, store.today),
+          holiday: switch (store.holidays.where(
+            (h) => h.decision == 'holiday' && sameDay(h.date, d),
+          )) {
+            final hs when hs.isNotEmpty => loc(hs.first),
+            _ => null,
+          },
+          staffed: {
+            for (final s in byCell.entries)
+              if (s.key.endsWith('|$d'))
+                for (final x in s.value)
+                  if (x.emp != null && x.leave == null) x.emp,
+          }.length,
+          need: _need(store, branch, d),
+        ),
+    ];
+    final focus = thisWeek ? store.today.difference(ws).inDays.clamp(0, 6) : 0;
+    final day = _day ?? focus;
+
+    // ── the bar ──
+    final nav = Row(
       spacing: Space.sm,
-      runSpacing: Space.sm,
-      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        if (store.myBranches.length > 1)
-          for (final b in store.myBranches)
-            MadarChip(
-              label: branchName(store, b),
-              selected: b == _branch,
-              onTap: () => setState(() {
-                _branch = b;
-                _person = null;
-              }),
-            ),
-        MadarStatusPill.of(
-          '${pub ? tr('staff.published') : tr('staff.draft')} · '
-          '${dayMonth(ws)} – ${dayMonth(ws.add(const Duration(days: 6)))}',
-          tone: pub ? MadarTone.success : MadarTone.warning,
-          glyph: pub ? MadarGlyph.check : MadarGlyph.edit,
+        MadarGlyphTile(
+          glyph: MadarGlyph.chevronBack,
+          semanticLabel: tr('staff.previous'),
+          onTap: () => _goWeek(-7),
         ),
-        if (!pub)
-          MadarButton(
-            label: tr('staff.publish_week'),
-            glyph: MadarGlyph.check,
-            size: MadarButtonSize.compact,
-            onTap: () => _publish(ws),
+        MadarGlyphTile(
+          glyph: MadarGlyph.chevronForward,
+          semanticLabel: tr('staff.next'),
+          onTap: () => _goWeek(7),
+        ),
+        Expanded(
+          child: Text(
+            '${dayMonth(ws)} – ${dayMonth(end)}',
+            style: MadarType.h3,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
+        ),
+      ],
+    );
+    final status = MadarStatusPill.of(
+      pub ? tr('staff.published') : tr('staff.draft'),
+      tone: pub ? MadarTone.success : MadarTone.warning,
+      glyph: pub ? MadarGlyph.check : MadarGlyph.edit,
+    );
+    final review = sugg.length + hols.length;
+    final actions = <Widget>[
+      if (!thisWeek)
+        MadarChip(
+          label: tr('staff.this_week'),
+          onTap: () => setState(() {
+            _week = weekStart(store.today);
+            _day = null;
+          }),
+        ),
+      if (!pub)
         MadarButton(
-          label: tr('staff.coverage_needs'),
-          glyph: MadarGlyph.users,
+          label: tr('staff.publish_week'),
+          glyph: MadarGlyph.check,
           size: MadarButtonSize.compact,
-          variant: MadarButtonVariant.secondary,
-          onTap: () => showDawamSheet<void>(
-            context,
-            title: tr('staff.coverage_needs'),
-            builder: (ctx, ref, store) => CoverageSheet(branch: _branch),
+          onTap: () => _publish(branch, ws),
+        ),
+      MadarButton(
+        label: tr('staff.coverage_needs'),
+        glyph: MadarGlyph.users,
+        size: MadarButtonSize.compact,
+        variant: MadarButtonVariant.secondary,
+        onTap: () => showDawamSheet<void>(
+          context,
+          title: tr('staff.coverage_needs'),
+          builder: (ctx, ref, store) => CoverageSheet(branch: branch),
+        ),
+      ),
+      // What needs a decision (holidays, suggestions) waits one tap away,
+      // so the board keeps the room.
+      MadarButton(
+        label: review > 0
+            ? '${tr('staff.suggestions')} · $review'
+            : tr('staff.suggestions'),
+        glyph: MadarGlyph.sparkle,
+        size: MadarButtonSize.compact,
+        variant: MadarButtonVariant.secondary,
+        onTap: () => showDawamSheet<void>(
+          context,
+          title: tr('staff.to_review'),
+          builder: (ctx, ref, store) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: Space.lg,
+            children: [
+              for (final h in hols) _HolidayPrompt(h),
+              _Suggestions(branch: branch),
+              Text(
+                tr('staff.limits_48_h_a_week_12'),
+                style: MadarType.bodySm.copyWith(
+                  color: ctx.madarColors.textMuted,
+                ),
+              ),
+            ],
           ),
         ),
-        // On a phone the calendar keeps the height; what needs a decision
-        // (holidays, suggestions) waits one tap away.
-        if (phone && sugg.length + hols.length > 0)
-          MadarButton(
-            label: '${tr('staff.to_review')} · ${sugg.length + hols.length}',
-            glyph: MadarGlyph.sparkle,
-            size: MadarButtonSize.compact,
-            variant: MadarButtonVariant.secondary,
-            onTap: () => showDawamSheet<void>(
-              context,
-              title: tr('staff.to_review'),
-              builder: (ctx, ref, store) => Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: Space.lg,
+      ),
+    ];
+    final branches = [
+      if (store.myBranches.length > 1)
+        for (final b in store.myBranches)
+          MadarChip(
+            label: _branchName(store, b),
+            selected: b == branch,
+            onTap: () => setState(() => _pickedBranch = b),
+          ),
+    ];
+
+    final bar = phone
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: Space.sm,
+            children: [
+              Row(
+                spacing: Space.sm,
                 children: [
-                  for (final h in hols) _HolidayPrompt(h),
-                  _Suggestions(branch: _branch),
+                  Expanded(child: nav),
+                  status,
                 ],
               ),
+              Wrap(
+                spacing: Space.sm,
+                runSpacing: Space.sm,
+                children: [...branches, ...actions],
+              ),
+              MadarSegmented<bool>(
+                items: [
+                  MadarSegmentItem(false, tr('staff.view_week')),
+                  MadarSegmentItem(true, tr('staff.view_day')),
+                ],
+                value: _dayView,
+                onChanged: (v) => setState(() => _dayView = v),
+              ),
+            ],
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: Space.sm,
+            children: [
+              Row(
+                spacing: Space.sm,
+                children: [
+                  Expanded(child: nav),
+                  status,
+                  ...actions,
+                ],
+              ),
+              if (branches.isNotEmpty) _Strip(branches),
+            ],
+          );
+
+    final Widget body;
+    if (phone && _dayView) {
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.sm,
+        children: [
+          _Strip([
+            for (final (i, d) in heads.indexed)
+              MadarChip(
+                label: '${weekday(d.date.weekday)} ${d.date.day}',
+                glyph: d.holiday != null ? MadarGlyph.flame : null,
+                selected: i == day,
+                onTap: () => setState(() => _day = i),
+              ),
+          ]),
+          Expanded(
+            child: RosterDayList(
+              rows: rows,
+              day: heads[day],
+              cardsAt: cardsAt,
+              onTapCard: _edit,
+              onTapEmpty: _add,
             ),
           ),
-      ],
-    );
-
-    final calendar = ShiftCalendar(
-      shifts: shifts,
-      now: () => _store.now,
-      editable: true,
-      phoneView: CalendarView.day,
-      tabletView: CalendarView.threeDays,
-      colorOf: (s) => _colorOf(store, s, c),
-      titleOf: (s) =>
-          s.emp == null ? tr('staff.open_shift') : firstName(store.emp(s.emp!)),
-      onTapShift: _edit,
-      onMove: _move,
-      onTapSlot: _add,
-      onRangeChanged: (d) => setState(() => _visible = d),
-      trailing: _PersonFilter(
-        people: _staff(store),
-        value: _person,
-        colorOf: (e) => c.series[_staff(store).indexOf(e) % c.series.length],
-        onChanged: (v) => setState(() => _person = v),
-      ),
-    );
-
-    final main = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: Space.md,
-      children: [
-        bar,
-        Expanded(child: calendar),
-      ],
-    );
+        ],
+      );
+    } else {
+      body = RosterBoard(
+        rows: rows,
+        days: heads,
+        cardsAt: cardsAt,
+        focus: focus,
+        onTapCard: _edit,
+        onTapEmpty: _add,
+        onDrop: _drop,
+      );
+    }
 
     return MadarContentFrame(
       child: Padding(
@@ -158,37 +410,29 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
           top: Space.lg,
           bottom: Space.lg,
         ),
-        child: phone
-            ? main
-            : Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: Space.xl,
-                children: [
-                  Expanded(child: main),
-                  SizedBox(
-                    width: 320,
-                    child: ListView(
-                      children: [
-                        for (final h in hols) ...[
-                          _HolidayPrompt(h),
-                          const SizedBox(height: Space.lg),
-                        ],
-                        _Suggestions(branch: _branch),
-                        const SizedBox(height: Space.xl),
-                        Text(
-                          tr('staff.limits_48_h_a_week_12'),
-                          style: MadarType.bodySm.copyWith(color: c.textMuted),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.md,
+          children: [
+            bar,
+            Expanded(child: body),
+            if (!phone)
+              Text(
+                tr('staff.roster_drag_hint'),
+                style: MadarType.bodySm.copyWith(color: c.textMuted),
               ),
+          ],
+        ),
       ),
     );
   }
 
-  Future<void> _publish(DateTime ws) async {
+  void _goWeek(int days) => setState(() {
+    _week = DateTime(_week.year, _week.month, _week.day + days);
+    _day = null;
+  });
+
+  Future<void> _publish(String branch, DateTime ws) async {
     final ok = await showMadarConfirm(
       context,
       title: tr('staff.publish_this_week'),
@@ -197,46 +441,41 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
       cancelLabel: tr('staff.not_yet'),
     );
     if (ok) {
-      _store.publish(_branch, ws);
+      _store.publish(branch, ws);
       ref
           .read(toastProvider.notifier)
           .show(tr('staff.published'), tone: ChipTone.success);
     }
   }
 
-  /// A drop: another day keeps the template; another start picks the
-  /// branch template that begins then. Shifts follow templates (SC-1).
-  void _move(Shift s, DateTime start) {
-    final minute = start.hour * 60 + start.minute;
-    final tpl = minute == s.template.start
-        ? s.template
-        : _store.tpls.values
-              .where((t) => t.branch == _branch && t.start == minute)
-              .firstOrNull;
-    if (tpl == null) {
+  /// A drop: another day of the same row moves the shift, keeping its
+  /// template; another row the same day gives it to that person (or opens
+  /// it). Shifts follow templates (SC-1).
+  void _drop(Shift s, String? emp, DateTime day) {
+    if (s.emp == emp) {
+      _store.moveShift(s, dateOnly(day), s.tpl);
       ref
           .read(toastProvider.notifier)
-          .show(tr('staff.no_shift_starts_then'), tone: ChipTone.danger);
-      return;
+          .show(
+            tr('staff.moved_to', {'date': dayLabel(day)}),
+            tone: ChipTone.success,
+          );
+    } else {
+      _store.assign(s, emp);
     }
-    _store.moveShift(s, dateOnly(start), tpl.id);
-    ref
-        .read(toastProvider.notifier)
-        .show(
-          tr('staff.moved_to', {'date': dayLabel(start)}),
-          tone: ChipTone.success,
-        );
   }
 
   Future<void> _edit(Shift s) => showDawamSheet<void>(
     context,
-    title: s.emp == null ? tr('staff.open_shift') : name(_store.emp(s.emp!)),
+    title: _who(_store, s.emp),
     builder: (ctx, ref, store) {
-      final e = s.emp == null ? null : store.emp(s.emp!);
+      final branch = _branch(store);
+      final e = s.emp == null ? null : store.emps[s.emp];
       final warnings = e == null
           ? const <(String, Map<String, Object>)>[]
           : store.warnings(e.id, weekStart(s.date));
-      final tpls = store.tpls.values.where((t) => t.branch == _branch);
+      final tpl = store.tpls[s.tpl];
+      final tpls = store.tpls.values.where((t) => t.branch == branch);
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.md,
@@ -245,10 +484,11 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
             spacing: 0,
             children: [
               MadarSummaryLine(label: tr('staff.day'), value: dayLabel(s.date)),
-              MadarSummaryLine(
-                label: tplName(s.template),
-                value: shiftWindow(s),
-              ),
+              if (tpl != null)
+                MadarSummaryLine(
+                  label: tplName(tpl),
+                  value: '${hmMin(tpl.start)} – ${hmMin(tpl.end)}',
+                ),
             ],
           ),
           if (e != null && e.cantWork.contains(s.date.weekday))
@@ -273,7 +513,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                     meta: '${hmMin(t.start)} – ${hmMin(t.end)}',
                     selected: t.id == s.tpl,
                     onTap: () {
-                      store.setDay(e.id, s.date, t.id, _branch);
+                      store.setDay(e.id, s.date, t.id, branch);
                       Navigator.of(ctx).maybePop();
                     },
                   ),
@@ -281,7 +521,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                   glyph: MadarGlyph.close,
                   title: tr('staff.day_off'),
                   onTap: () {
-                    store.setDay(e.id, s.date, null, _branch);
+                    store.setDay(e.id, s.date, null, branch);
                     Navigator.of(ctx).maybePop();
                   },
                 ),
@@ -290,7 +530,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
           DawamSection(
             tr('staff.give_to'),
             children: [
-              for (final p in _staff(store).where((p) => p.id != s.emp))
+              for (final p in _staff(store, branch).where((p) => p.id != s.emp))
                 MadarListRow.nav(
                   title: name(p),
                   meta: p.cantWork.contains(s.date.weekday)
@@ -320,16 +560,23 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
     },
   );
 
-  Future<void> _add(DateTime at) {
+  /// An empty day tapped: add a shift for that row's person, or post an
+  /// open one from the open-shifts row.
+  Future<void> _add(String? emp, DateTime at) async {
     final d = dateOnly(at);
-    final minute = at.hour * 60 + at.minute;
-    final tpls = _store.tpls.values.where((t) => t.branch == _branch).toList()
-      ..sort(
-        (a, b) => (a.start - minute).abs().compareTo((b.start - minute).abs()),
-      );
-    String? who;
-    var tpl = tpls.first.id;
-    return showDawamSheet<void>(
+    final branch = _branch(_store);
+    final tpls = _store.tpls.values.where((t) => t.branch == branch).toList()
+      ..sort((a, b) => a.start.compareTo(b.start));
+    final first = tpls.firstOrNull;
+    if (first == null) {
+      ref
+          .read(toastProvider.notifier)
+          .show(tr('staff.no_shift_starts_then'), tone: ChipTone.danger);
+      return;
+    }
+    var who = emp;
+    var tpl = first.id;
+    await showDawamSheet<void>(
       context,
       title: tr('staff.add_to', {'date': dayLabel(d)}),
       builder: (ctx, ref, store) => StatefulBuilder(
@@ -357,7 +604,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                   selected: who == null,
                   onTap: () => setS(() => who = null),
                 ),
-                for (final p in _staff(store))
+                for (final p in _staff(store, branch))
                   MadarListRow.pick(
                     title: name(p),
                     meta: p.cantWork.contains(d.weekday)
@@ -377,10 +624,11 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                   : tr('staff.add'),
               glyph: MadarGlyph.plus,
               onTap: () {
-                if (who == null) {
-                  store.postOpen(_branch, d, tpl);
+                final id = who;
+                if (id == null) {
+                  store.postOpen(branch, d, tpl);
                 } else {
-                  store.setDay(who!, d, tpl, _branch);
+                  store.setDay(id, d, tpl, branch);
                 }
                 Navigator.of(ctx).maybePop();
               },
@@ -392,55 +640,16 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
   }
 }
 
-/// Filter the calendar to one person (open shifts stay visible).
-class _PersonFilter extends StatelessWidget {
-  const _PersonFilter({
-    required this.people,
-    required this.value,
-    required this.colorOf,
-    required this.onChanged,
-  });
+/// A row of controls that scrolls sideways rather than wrap or overflow.
+class _Strip extends StatelessWidget {
+  const _Strip(this.children);
 
-  final List<Emp> people;
-  final String? value;
-  final Color Function(Emp) colorOf;
-  final ValueChanged<String?> onChanged;
+  final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => PopupMenuButton<String>(
-    tooltip: tr('staff.filter_people'),
-    onSelected: (v) => onChanged(v.isEmpty ? null : v),
-    itemBuilder: (_) => [
-      PopupMenuItem(value: '', child: Text(tr('staff.everyone'))),
-      for (final e in people)
-        PopupMenuItem(
-          value: e.id,
-          child: Row(
-            spacing: Space.sm,
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: colorOf(e),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              Text(name(e)),
-            ],
-          ),
-        ),
-    ],
-    child: IgnorePointer(
-      child: MadarChip(
-        label: value == null
-            ? tr('staff.everyone')
-            : firstName(people.firstWhere((e) => e.id == value)),
-        glyph: MadarGlyph.users,
-        selected: value != null,
-        onTap: () {},
-      ),
-    ),
+  Widget build(BuildContext context) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: Row(spacing: Space.sm, children: children),
   );
 }
 
