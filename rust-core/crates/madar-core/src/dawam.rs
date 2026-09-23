@@ -2326,7 +2326,8 @@ mod tests {
         let sh = snap["shifts"].as_array().unwrap().iter().find(|x| x["id"] == json!(shift)).unwrap();
         assert!(sh["queued"].as_bool().unwrap() && sh["in_at"].is_string());
         // AT-1: the queued punch and the clock read in the branch's zone.
-        let off = cairo.format("%:z").to_string();
+        // The branch's UTC offset now ("+03:00"), written by chrono itself.
+        let off = chrono::Offset::fix(cairo.offset()).to_string();
         assert!(sh["in_at"].as_str().unwrap().ends_with(&off), "{} in {off}", sh["in_at"]);
         assert!(snap["now"].as_str().unwrap().ends_with(&off), "{} in {off}", snap["now"]);
         let snap: Value = serde_json::from_str(&core.dawam_ping(fix).await.unwrap()).unwrap();
