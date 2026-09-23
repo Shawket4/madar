@@ -57,6 +57,10 @@ pub struct ApiClient {
     /// One `/auth/staff/refresh` at a time: parallel calls that all hit
     /// `TOKEN_EXPIRED` share the first one's new token.
     staff_refresh: tokio::sync::Mutex<()>,
+    /// The last signed server time a staff response carried (`X-Dawam-Time`),
+    /// with the phone's time-since-boot and wall clock when it arrived: what
+    /// an offline punch is dated from (CL-11).
+    staff_anchor: RwLock<Option<StaffAnchor>>,
     http: RwLock<reqwest::Client>,
     /// A SECOND client for long-lived SSE streams (the realtime bus). Identical TLS
     /// to `http`, but built WITHOUT the 20s total `timeout` — that timeout would
@@ -104,6 +108,7 @@ impl ApiClient {
             staff_device: RwLock::new(None),
             staff_expires_ms: RwLock::new(None),
             staff_refresh: tokio::sync::Mutex::new(()),
+            staff_anchor: RwLock::new(None),
             http: RwLock::new(http),
             stream_http: RwLock::new(stream_http),
             bearer: Arc::new(RwLock::new(None)),
@@ -129,6 +134,18 @@ impl ApiClient {
     /// the raw client handles (login, `/sync/replay` drain, catalog) — keeping the
     /// recorded-time correction continuously fresh, like Flutter's interceptor.
     fn observe_clock(&self, resp: &reqwest::Response) {
+        if let Some(signed) = resp
+            .headers()
+            .get(DAWAM_TIME_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .filter(|v| !v.is_empty())
+        {
+            *self.staff_anchor.write().unwrap_or_else(|e| e.into_inner()) = Some(StaffAnchor {
+                signed: signed.to_string(),
+                boot_ms: crate::dawam::boot_ms(),
+                wall_ms: chrono::Utc::now().timestamp_millis(),
+            });
+        }
         if let Some(server_epoch) = resp
             .headers()
             .get(reqwest::header::DATE)
@@ -209,6 +226,17 @@ impl ApiClient {
     /// The live bearer token.
     pub(crate) fn bearer(&self) -> Option<String> {
         self.bearer.read().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// The last signed server time a staff response carried, if any.
+    pub(crate) fn staff_anchor(&self) -> Option<StaffAnchor> {
+        self.staff_anchor.read().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// The phone's device token, while one is bound (the host keeps it in
+    /// the platform's secure storage).
+    pub(crate) fn staff_device(&self) -> Option<String> {
+        self.staff_device.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// The staff token's expiry as epoch ms, if known.
@@ -694,6 +722,28 @@ fn extract_error_code(body: &str) -> Option<String> {
         .get("code")?
         .as_str()
         .map(str::to_string)
+}
+
+/// The header every staff-app response carries: the server's time, signed for
+/// this phone (CL-11).
+pub(crate) const DAWAM_TIME_HEADER: &str = "x-dawam-time";
+
+/// A signed server time as the phone received it.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct StaffAnchor {
+    /// `v1.<epoch ms>.<hmac>` as the server sent it.
+    pub signed: String,
+    /// The phone's time since boot when it arrived.
+    pub boot_ms: i64,
+    /// The phone's wall clock when it arrived (to notice a reboot).
+    pub wall_ms: i64,
+}
+
+impl StaffAnchor {
+    /// The server time it carries (epoch ms).
+    pub fn server_ms(&self) -> Option<i64> {
+        self.signed.split('.').nth(1)?.parse().ok()
+    }
 }
 
 /// A staff token this close to its expiry is refreshed before the call.
