@@ -701,6 +701,45 @@ pub struct BlockA {
     pub end: Option<i64>,
 }
 
+/// The server's refusals of a punch (E2E B1: they came as English with an
+/// HTTP prefix). They keep the server's body, so the core words them with
+/// the server's `vars` as `staff.err_<code in lower case>`.
+pub(crate) const PUNCH_CODES: &[&str] = &[
+    "OUTSIDE_FENCE",
+    "CHECKIN_TOO_EARLY",
+    "SHIFT_ENDED",
+    "LOCATION_REQUIRED",
+    "BRANCH_NO_LOCATION",
+    "EMPLOYMENT_NOT_ACTIVE",
+    "NOT_AN_EMPLOYEE",
+    "BRANCH_OTHER_ORG",
+    "NOT_YOUR_BRANCH",
+    "ALREADY_CHECKED_IN",
+];
+
+/// A punch refusal in `locale`, from the server's body (`{error, code,
+/// vars}`): the core's words with the server's figures, an instant shown at
+/// the branch's time; the server's own `error` when the body can't be read.
+pub(crate) fn punch_words(locale: &str, code: &str, body: &str, tz: chrono_tz::Tz) -> String {
+    let v: Value = serde_json::from_str(body).unwrap_or(Value::Null);
+    let args: BTreeMap<String, String> = v.get("vars").and_then(Value::as_object).into_iter().flatten()
+        .map(|(k, x)| {
+            let text = match x {
+                Value::Number(n) => n.as_f64().map_or_else(|| n.to_string(), |f| format!("{}", f.round() as i64)),
+                Value::String(t) => crate::timefmt::hhmm_in(tz, t, locale).unwrap_or_else(|| t.clone()),
+                other => other.to_string(),
+            };
+            (k.clone(), text)
+        })
+        .collect();
+    let server = || v.get("error").and_then(Value::as_str).map_or_else(|| body.to_string(), str::to_string);
+    let key = format!("staff.err_{}", code.to_lowercase());
+    let words = i18n::tr(locale, &key);
+    let out = fill(&words, &args);
+    // No words for it, or a figure the server didn't send: its own sentence.
+    if words == key || out.contains('{') { server() } else { out }
+}
+
 /// The server's roster refusals (audit 02): worded in the phone's language
 /// as `staff.err_<code in lower case>`.
 pub(crate) const ROSTER_CODES: &[&str] = &[
@@ -972,6 +1011,11 @@ impl MadarCore {
                     // A roster refusal, in the phone's language.
                     CoreError::Server { status, code, .. } if ROSTER_CODES.contains(&code.as_str()) => {
                         let detail = i18n::tr(&self.current_locale(), &format!("staff.err_{}", code.to_lowercase()));
+                        CoreError::Server { status, code, detail }
+                    }
+                    // A punch refusal, in the phone's language with the server's figures.
+                    CoreError::Server { status, code, detail } if PUNCH_CODES.contains(&code.as_str()) => {
+                        let detail = punch_words(&self.current_locale(), &code, &detail, self.dawam_tz());
                         CoreError::Server { status, code, detail }
                     }
                     e => e,
@@ -3800,6 +3844,37 @@ mod tests {
                 }
                 e => panic!("{e:?}"),
             }
+        }
+    }
+
+    /// E2E B1: a refused punch reads in the phone's language with the
+    /// server's figures — never "Forbidden: You are 1201 m…" in Arabic.
+    #[test]
+    fn punch_refusals_are_worded_with_the_servers_figures() {
+        let tz: chrono_tz::Tz = "Africa/Cairo".parse().unwrap();
+        let fence = r#"{"error":"You are 1201 m from the branch — you must be within 200 m to clock in","code":"OUTSIDE_FENCE","vars":{"distance_m":1201.4,"radius_m":200}}"#;
+        assert_eq!(punch_words("en", "OUTSIDE_FENCE", fence, tz), "You're 1201 m from the branch. Clock in within 200 m.");
+        assert_eq!(punch_words("ar", "OUTSIDE_FENCE", fence, tz), "إنت على بُعد 1201 م من الفرع. لازم تكون في حدود 200 م عشان تسجّل حضور.");
+        let early = r#"{"error":"Too early","code":"CHECKIN_TOO_EARLY","vars":{"shift":"Evening","minutes":120,"opens_at":"2026-09-24T11:00:00Z"}}"#;
+        let en = punch_words("en", "CHECKIN_TOO_EARLY", early, tz);
+        assert!(en.contains("Evening") && en.contains("02:00 PM") && en.contains("120"), "{en}");
+        let ar = punch_words("ar", "CHECKIN_TOO_EARLY", early, tz);
+        assert!(ar.contains("Evening") && ar.contains("02:00") && ar.contains("120") && ar.starts_with("لسه"), "{ar}");
+        // An unreadable body keeps what the server said.
+        assert_eq!(punch_words("ar", "OUTSIDE_FENCE", "not json", tz), "not json");
+        for c in PUNCH_CODES {
+            let k = format!("staff.err_{}", c.to_lowercase());
+            let (en, ar) = (i18n::tr("en", &k), i18n::tr("ar", &k));
+            assert_ne!(en, k, "{k} has no English");
+            assert_ne!(ar, en, "{k} has no Arabic");
+        }
+        // The wire keeps the body for these codes, so the vars survive.
+        match crate::net::status_to_error(403, fence) {
+            CoreError::Server { status, code, detail } => {
+                assert_eq!((status, code.as_str()), (403, "OUTSIDE_FENCE"));
+                assert!(detail.contains("\"vars\""), "{detail}");
+            }
+            e => panic!("{e:?}"),
         }
     }
 
