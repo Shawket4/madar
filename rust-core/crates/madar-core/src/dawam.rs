@@ -60,7 +60,7 @@ const LIVE_MS: i64 = 30_000;
 
 /// Milliseconds since the phone booted, counting deep sleep: `CLOCK_BOOTTIME`
 /// on Android, `CLOCK_MONOTONIC` on Apple (which keeps counting asleep).
-fn boot_ms() -> i64 {
+pub(crate) fn boot_ms() -> i64 {
     #[cfg(any(target_os = "linux", target_os = "android"))]
     const CLOCK: libc::clockid_t = libc::CLOCK_BOOTTIME;
     #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -80,11 +80,15 @@ fn boot_ms() -> i64 {
     START.get_or_init(std::time::Instant::now).elapsed().as_millis() as i64
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 struct Anchor {
     server_ms: i64,
     boot_ms: i64,
     wall_ms: i64,
+    /// The server's signature over `server_ms` for this phone (`X-Dawam-Time`).
+    /// Without it the server dates the punch but marks it unverified.
+    #[serde(default)]
+    sig: Option<String>,
 }
 
 /// What the server needs to date an event recorded now (`OfflineStamp`).
@@ -93,6 +97,14 @@ fn stamp(anchor: Option<Anchor>, boot: i64, wall: i64, gps_time: Option<&str>) -
         // Never saw the server: only the satellites can date it.
         return json!({ "server_time": ms_rfc3339(wall), "elapsed_ms": 0, "rebooted": true, "gps_time": gps_time });
     };
+    let mut v = stamp_unsigned(&a, boot, wall, gps_time);
+    if let Some(sig) = a.sig {
+        v["anchor"] = json!(sig);
+    }
+    v
+}
+
+fn stamp_unsigned(a: &Anchor, boot: i64, wall: i64, gps_time: Option<&str>) -> Value {
     // A smaller uptime is a reboot; so is the boot moment moving (wall − uptime),
     // which also catches a restart that has since run longer than before.
     // ponytail: a wall-clock change also moves it, which only makes it "unverified".
@@ -675,7 +687,17 @@ impl MadarCore {
         match self.staff_send(m, path, body.as_ref()).await {
             Ok(text) => {
                 self.note_connectivity(true);
-                let a = Anchor { server_ms: self.corrected_now_ms(), boot_ms: boot_ms(), wall_ms: wall_ms() };
+                // The server's signed time when it sent one (CL-11); an older
+                // server only has its `Date`, which dates but doesn't vouch.
+                let a = match self.api.staff_anchor() {
+                    Some(sa) if sa.server_ms().is_some() => Anchor {
+                        server_ms: sa.server_ms().unwrap_or_default(),
+                        boot_ms: sa.boot_ms,
+                        wall_ms: sa.wall_ms,
+                        sig: Some(sa.signed),
+                    },
+                    _ => Anchor { server_ms: self.corrected_now_ms(), boot_ms: boot_ms(), wall_ms: wall_ms(), sig: None },
+                };
                 if let Ok(j) = serde_json::to_string(&a) {
                     let _ = self.store.kv_put(K_ANCHOR, &j);
                 }
@@ -690,8 +712,23 @@ impl MadarCore {
         }
     }
 
+    /// The last server time this phone saw: the newest signed one any staff
+    /// call brought back (a refresh too), else the one kept from before.
     fn dawam_anchor(&self) -> Option<Anchor> {
-        self.store.kv_get(K_ANCHOR).ok().flatten().and_then(|j| serde_json::from_str(&j).ok())
+        let kept: Option<Anchor> = self.store.kv_get(K_ANCHOR).ok().flatten().and_then(|j| serde_json::from_str(&j).ok());
+        let live = self.api.staff_anchor().and_then(|sa| {
+            Some(Anchor { server_ms: sa.server_ms()?, boot_ms: sa.boot_ms, wall_ms: sa.wall_ms, sig: Some(sa.signed) })
+        });
+        match (kept, live) {
+            (Some(k), Some(l)) if k.wall_ms >= l.wall_ms => Some(k),
+            (_, Some(l)) => {
+                if let Ok(j) = serde_json::to_string(&l) {
+                    let _ = self.store.kv_put(K_ANCHOR, &j);
+                }
+                Some(l)
+            }
+            (k, None) => k,
+        }
     }
 
     fn dawam_me(&self) -> Result<String, CoreError> {
