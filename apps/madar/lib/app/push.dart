@@ -16,7 +16,8 @@ import 'dart:io' show Platform;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show debugPrint, kDebugMode, visibleForTesting;
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// Firebase needs a real entry point for a message that wakes a killed app.
@@ -93,14 +94,23 @@ class PosPush {
       if (initial != null) openQueue();
       _refresh = m.onTokenRefresh.listen((t) {
         _token = t;
+        _debugToken(t);
         unawaited(register());
       });
       _token = await m.getToken();
+      _debugToken(_token);
       await register();
     } on Object {
       // Permission refused, no APNs token yet, no network: none of it is
       // worth a broken till.
     }
+  }
+
+  /// Debug builds print the token, so a push can be tested from the Firebase
+  /// console ("Send test message") before any server sends one. Never in
+  /// release: a token is an address anyone can push to.
+  static void _debugToken(String? token) {
+    if (kDebugMode && token != null) debugPrint('[push] FCM token: $token');
   }
 
   /// Hand the token to the server. Called again when the language changes or
