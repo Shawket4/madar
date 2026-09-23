@@ -18,8 +18,10 @@ import 'package:staff_core/staff_core.dart';
 import 'package:staff_core/testing.dart';
 
 /// The core's own words, straight from i18n.rs — what a device shows.
-void useCoreWords() =>
-    words = (key) => coreWord(key, arabic: currentLang == 'ar');
+void useCoreWords() {
+  words = (key) => coreWord(key, arabic: currentLang == 'ar');
+  wordsIn = (lang, key) => coreWord(key, arabic: lang == 'ar');
+}
 
 /// Real frames: sheets slide in on a spring and a badge pulses for ever, so
 /// pumpAndSettle would never settle.

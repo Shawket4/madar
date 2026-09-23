@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:feature_dawam_pay/feature_dawam_pay.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:staff_core/staff_core.dart';
+import 'package:staff_core/testing.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -37,10 +38,57 @@ void main() {
         person: 'Amal',
         business: 'Cafe',
         arabic: arabic,
-        paidWith: 'Bank',
+        paidWith: PayMethod.bank,
       );
       expect(ascii.decode(bytes.sublist(0, 5)), '%PDF-');
       expect(bytes.length, greaterThan(2000));
+    });
+  }
+
+  for (final arabic in [true, false]) {
+    test('the ${arabic ? 'Arabic' : 'English'} PDF reads the core words in its '
+        "own language, whatever the app's", () async {
+      final asked = <(String, String)>[];
+      final lang = arabic ? 'ar' : 'en';
+      currentLang = arabic ? 'en' : 'ar'; // the app in the other language
+      wordsIn = (l, k) {
+        asked.add((l, k));
+        return coreWord(k, arabic: l == 'ar');
+      };
+      addTearDown(() => wordsIn = (l, k) => k);
+      await payslipPdf(
+        slip: Slip(
+          'e1',
+          slip.start,
+          slip.end,
+          slip.lines,
+          -1000,
+          1000,
+          const {},
+          frozen: true,
+        ),
+        person: 'Amal',
+        business: 'Cafe',
+        arabic: arabic,
+        paidWith: PayMethod.wallet,
+      );
+      expect(asked, isNotEmpty);
+      expect(asked.map((a) => a.$1).toSet(), {lang});
+      for (final (_, k) in asked) {
+        expect(coreWordTable('en'), contains(k));
+        expect(coreWordTable('ar'), contains(k));
+      }
+      expect(
+        asked.map((a) => a.$2),
+        containsAll([
+          'staff.pdf_payslip',
+          'staff.pdf_paid',
+          'staff.wallet',
+          'staff.pdf_net_pay',
+          'staff.pdf_carried',
+          'staff.pdf_egp',
+        ]),
+      );
     });
   }
 }

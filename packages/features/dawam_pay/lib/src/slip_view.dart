@@ -214,7 +214,7 @@ Future<void> payslipSheet(BuildContext context, Slip s) => showDawamSheet<void>(
                     person: name(store.emp(s.emp)),
                     business: store.orgName,
                     arabic: ar,
-                    paidWith: paid == null ? null : payMethod(paid),
+                    paidWith: paid,
                   ),
                 ),
               ),

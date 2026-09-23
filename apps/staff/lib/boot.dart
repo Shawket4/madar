@@ -40,6 +40,18 @@ Future<List<Override>> boot() async {
     ),
   );
   words = (key) => core.bridge.tr(key: key);
+  // The bridge answers in its current locale: switch for one lookup and back
+  // (both calls are synchronous, on this isolate).
+  wordsIn = (lang, key) {
+    final was = core.bridge.locale();
+    if (was.startsWith(lang)) return core.bridge.tr(key: key);
+    core.bridge.setLocale(locale: lang);
+    try {
+      return core.bridge.tr(key: key);
+    } finally {
+      core.bridge.setLocale(locale: was);
+    }
+  };
   final lang = core.bridge.locale().startsWith('ar') ? 'ar' : 'en';
   final backend = _BridgeBackend(core.bridge);
   final store = DawamStore(backend);

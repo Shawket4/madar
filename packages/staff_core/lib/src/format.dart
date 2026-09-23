@@ -6,6 +6,18 @@ import 'package:staff_core/src/data.dart';
 /// i18n.rs reader in tests.
 String Function(String key) words = (key) => key;
 
+/// The core's words in a named language (`en` / `ar`), whatever the app's:
+/// the payslip PDF prints in the language picked on its button (PAY-10).
+/// Installed at boot beside [words].
+String Function(String lang, String key) wordsIn = (lang, key) => key;
+
+/// [tr] in a named language.
+String trIn(String lang, String key, [Map<String, Object> args = const {}]) {
+  var s = wordsIn(lang, key);
+  args.forEach((k, v) => s = s.replaceAll('{$k}', '$v'));
+  return s;
+}
+
 /// The active language, kept in step by `localeProvider` (the dashboard's
 /// `formatLocale` pattern) so formatting helpers need no `ref`.
 String currentLang = 'ar';
