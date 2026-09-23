@@ -38,10 +38,17 @@ impl MadarCore {
         if pin.is_empty() {
             return Err(CoreError::Validation { field: "pin".into(), detail: "enter your PIN".into() });
         }
+        // The server takes a PIN punch only from the branch's own registered
+        // till (audit 03 P0): the install's `X-Madar-Device` rides every call,
+        // and its activation credential proves it when it has one.
+        let credential = self.store.kv_get(crate::K_DEVICE_CREDENTIAL).ok().flatten().filter(|t| !t.is_empty());
+        let headers: Vec<(&str, &str)> =
+            credential.as_deref().map(|t| vec![("X-Madar-Device-Token", t)]).unwrap_or_default();
         let text = self
             .api
-            .send_json(reqwest::Method::POST, "/staff/attendance/till-punch", Some(&json!({ "branch_id": branch, "pin": pin })))
-            .await?;
+            .post_with_header("/staff/attendance/till-punch", &json!({ "branch_id": branch, "pin": pin }), &headers)
+            .await
+            .map_err(|e| self.till_punch_refusal(e))?;
         let v: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
         let name = v["name"].as_str().unwrap_or_default().to_string();
         let punched = v["punched"].as_str().unwrap_or("in").to_string();
@@ -54,6 +61,19 @@ impl MadarCore {
         let key = if punched == "out" { "staff.till_clocked_out" } else { "staff.till_clocked_in" };
         let message = crate::i18n::tr(&locale, key).replace("{name}", &name).replace("{time}", &time);
         Ok(TillPunchView { name, punched, message })
+    }
+
+    /// The server's refusal of a PIN punch, in the till's language. A wrong
+    /// PIN is never a sign-out (it would read as one: the server says 401).
+    fn till_punch_refusal(&self, e: CoreError) -> CoreError {
+        let locale = self.current_locale();
+        let worded = |key: &str| CoreError::Validation { field: String::new(), detail: crate::i18n::tr(&locale, key) };
+        match e {
+            CoreError::Forbidden { resource, .. } if resource == "TILL_ONLY" => worded("staff.err_till_only"),
+            CoreError::Forbidden { resource, .. } if resource == "NO_TILL_SESSION" => worded("staff.err_no_till_session"),
+            CoreError::Unauthenticated { .. } => worded("err.wrong_pin"),
+            e => e,
+        }
     }
 
     /// This branch's staff; the last list when offline.
@@ -106,6 +126,41 @@ mod tests {
         assert!(v.message.starts_with("Amal clocked in at "), "{}", v.message);
         let sent = &stub.requests("/staff/attendance/till-punch")[0];
         assert_eq!(sent.json(), json!({ "branch_id": BRANCH, "pin": "4321" }));
+        assert!(sent.header("x-madar-device").is_some(), "the till says which device it is");
+        assert_eq!(sent.header("x-madar-device-token"), None, "a till bound the old way has no credential");
+    }
+
+    /// Audit 03 P0: the server takes a PIN punch only from the branch's own
+    /// till, proven by its activation credential; the core sends it, and
+    /// words each refusal for the teller (never as a sign-out).
+    #[tokio::test]
+    async fn a_pin_punch_proves_the_till_and_words_its_refusals() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+        let n = Arc::new(AtomicUsize::new(0));
+        let m = n.clone();
+        let stub = Stub::start(move |r| {
+            (r.path == "/staff/attendance/till-punch").then(|| match m.fetch_add(1, Ordering::SeqCst) {
+                0 => StubResponse::json(403, json!({ "error": "Till punches are made on the branch till.", "code": "TILL_ONLY" })),
+                1 => StubResponse::json(409, json!({ "error": "Open the till first.", "code": "NO_TILL_SESSION" })),
+                _ => StubResponse::json(401, json!({ "error": "Wrong PIN" })),
+            })
+        })
+        .await;
+        let core = testkit::online_core(&stub.base, "").await;
+        core.store.kv_put(crate::K_DEVICE_CREDENTIAL, "cred-1").unwrap();
+        let said = |e: crate::CoreError| match e {
+            crate::CoreError::Validation { detail, .. } => detail,
+            e => panic!("{e:?}"),
+        };
+        assert_eq!(said(core.till_punch("1111".into()).await.unwrap_err()), crate::i18n::tr("en", "staff.err_till_only"));
+        core.set_locale("ar".into());
+        assert_eq!(said(core.till_punch("1111".into()).await.unwrap_err()), crate::i18n::tr("ar", "staff.err_no_till_session"));
+        assert_eq!(said(core.till_punch("1111".into()).await.unwrap_err()), crate::i18n::tr("ar", "err.wrong_pin"));
+        assert!(core.current_session().is_some(), "a wrong PIN signs nobody out");
+        for r in stub.requests("/staff/attendance/till-punch") {
+            assert_eq!(r.header("x-madar-device-token").as_deref(), Some("cred-1"));
+        }
     }
 
     #[tokio::test]

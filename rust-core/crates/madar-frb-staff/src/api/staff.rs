@@ -226,6 +226,21 @@ impl MadarBridge {
             .map_err(MadarError::from)
     }
 
+    /// The phone's Dawam device token, handed over ONCE after a sign-in (or
+    /// once from an older build's store) for the host to keep in the
+    /// platform's secure storage (Keychain / Android Keystore, RO-3). `None`
+    /// the rest of the time.
+    #[frb(sync)]
+    pub fn staff_take_device_token(&self) -> Option<String> {
+        self.inner.staff_take_device_token()
+    }
+
+    /// Bind the device token read back from secure storage at a cold start.
+    #[frb(sync)]
+    pub fn staff_bind_device(&self, token: String) -> Result<(), MadarError> {
+        self.inner.staff_bind_device(token).map_err(MadarError::from)
+    }
+
     /// Any `/staff/*` call with an optional JSON body; the server's JSON back.
     pub async fn staff_call(
         &self,

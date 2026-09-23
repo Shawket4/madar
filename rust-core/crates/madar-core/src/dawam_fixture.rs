@@ -53,6 +53,8 @@ impl World {
         }
         json!({
             "role": role, "org_name": "Nile Café",
+            // This phone accepted the location notice (AT-5).
+            "privacy_accepted_at": "2026-03-02T09:00:00Z",
             "caps": if role == "owner" { vec!["hr.advances.decide", "hr.attendance.read", "hr.leave.edit", "hr.payroll.run", "hr.schedule.publish", "hr.schedule.read", "hr.staff.read"] } else if role == "manager" { vec!["hr.advances.decide", "hr.attendance.read", "hr.leave.edit", "hr.schedule.publish", "hr.schedule.read", "hr.staff.read"] } else { vec![] },
             "adjustment_limit_piastres": if role == "manager" { Some(100_000) } else { None },
             "branches": [
@@ -230,6 +232,8 @@ async fn dawam_fixture_three_people_see_their_own_picture() {
     assert!(!e1["can_manage"].as_bool().unwrap());
     assert!(e1["shifts"].as_array().unwrap().iter().any(|s| s["emp"] == "e1" && s["published"] == true));
     assert_eq!(e1["my_now"].as_array().unwrap().len(), 1, "today's morning shift");
+    assert_eq!(e1["privacy_accepted"], true, "this phone accepted the notice");
+    assert_eq!(e1["fences"]["b1"]["state"], "unknown", "no reading yet: never \"inside\"");
     assert!(e1["slips"].as_array().unwrap().iter().any(|s| s["emp"] == "e1" && s["frozen"] == false), "the estimate");
     let notices: Vec<&str> = e1["notices"].as_array().unwrap().iter().filter_map(|n| n["text"].as_str()).collect();
     assert!(notices[0].contains("approved") && notices[1].contains("published"), "newest first, in words: {notices:?}");

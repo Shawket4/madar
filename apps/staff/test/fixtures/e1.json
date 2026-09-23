@@ -79,7 +79,19 @@
       "via": "cash"
     }
   ],
-  "fetched_at": 1790169650027,
+  "fences": {
+    "b1": {
+      "distance_m": null,
+      "radius": 200,
+      "state": "unknown"
+    },
+    "b2": {
+      "distance_m": null,
+      "radius": 150,
+      "state": "unknown"
+    }
+  },
+  "fetched_at": 1790174371843,
   "flags": [],
   "history": [
     {
@@ -211,6 +223,7 @@
     "start": "2026-08-26",
     "status": "open"
   },
+  "privacy_accepted": true,
   "queued": 0,
   "requests": [
     {

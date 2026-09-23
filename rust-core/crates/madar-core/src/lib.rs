@@ -354,6 +354,12 @@ pub struct MadarCore {
     /// teller to relogin under their own account (a teller must never operate
     /// indefinitely under someone else's identity). See `unlock_offline`.
     borrowed_token: std::sync::atomic::AtomicBool,
+    /// The Dawam phone's device token waiting to be moved into the platform's
+    /// secure storage (RO-3, audit 03 CL-1c): set by a sign-in (or found in
+    /// the SQLite store of an older build), handed to the host exactly once
+    /// by [`MadarCore::staff_take_device_token`]. The core never writes it
+    /// to its own store.
+    staff_vault_pending: Mutex<Option<String>>,
     /// A small in-memory ring buffer of diagnostic warnings (sync dead-letters,
     /// cascade failures, auth parks) — surfaced in Settings → Diagnostics so a
     /// teller/manager can see WHY something is stuck without a debugger.
@@ -503,6 +509,7 @@ impl MadarCore {
             realtime_connected: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             auth_paused: std::sync::atomic::AtomicBool::new(false),
             borrowed_token: std::sync::atomic::AtomicBool::new(false),
+            staff_vault_pending: Mutex::new(None),
             diag: Mutex::new(std::collections::VecDeque::new()),
             drain_lock: tokio::sync::Mutex::new(()),
             realtime: Mutex::new(None),
@@ -567,8 +574,17 @@ impl MadarCore {
         // online path before the first `refresh_connectivity`).
         state.snapshot.online = false;
         self.api.set_bearer(state.token.clone());
+        // An older build kept the Dawam device token in this store: use it
+        // now, and hand it to the host's secure storage once (it is deleted
+        // here when taken). A current build binds it from the vault instead
+        // (`staff_bind_device`).
         if let Ok(Some(dev)) = self.store.blob_get(staff::K_STAFF_DEVICE) {
-            let _ = self.api.set_staff_device(String::from_utf8(dev).ok());
+            if let Ok(token) = String::from_utf8(dev) {
+                let _ = self.api.set_staff_device(Some(token.clone()));
+                *self.staff_vault_pending.lock().unwrap_or_else(|e| e.into_inner()) = Some(token);
+            }
+        }
+        if self.api.is_staff() {
             let at = self.store.kv_get(staff::K_STAFF_EXPIRES).ok().flatten();
             self.api.set_staff_expiry(at.as_deref());
         }
@@ -781,6 +797,7 @@ impl MadarCore {
         let _ = self.store.blob_delete(staff::K_STAFF_DEVICE);
         let _ = self.store.kv_put(staff::K_STAFF_EXPIRES, "");
         let _ = self.api.set_staff_device(None);
+        *self.staff_vault_pending.lock().unwrap_or_else(|e| e.into_inner()) = None;
         self.api.set_staff_expiry(None);
         // Tear down any live realtime stream + listener so the next sign-in starts
         // clean. start_realtime's "already subscribed" guard would otherwise see the
@@ -1258,11 +1275,21 @@ impl MadarCore {
                     }
                     return Ok(());
                 }
+                SendOutcome::Held(why) => {
+                    self.store
+                        .mark_retry_no_count(item.seq, now_ms() + K_HELD_RETRY_MS)?;
+                    self.push_diag("info", format!("{} waits: {why}", item.op_type));
+                }
                 // Server error (5xx) / undecodable 2xx → counted exponential
                 // backoff; dead-letter after the retry budget is exhausted.
                 SendOutcome::Retry(err) => {
                     let attempts = item.attempts + 1;
-                    if attempts >= K_MAX_RETRIES {
+                    // A Dawam punch or ping is a fact about where someone was:
+                    // a server that answers 5xx for a while (or a token refresh
+                    // that does) must never turn it into a dead op the app then
+                    // drops. It keeps its place in the person's queue, backing
+                    // off up to the cap, until the server takes it.
+                    if attempts >= K_MAX_RETRIES && !item.op_type.starts_with(dawam::OP_PREFIX) {
                         self.store.mark_dead(item.seq, &err)?;
                     } else {
                         let backoff = compute_backoff_ms(attempts, item.seq);
@@ -1872,6 +1899,11 @@ impl MadarCore {
                     *body_out = Some(v);
                     SendOutcome::Acked(None)
                 }
+                // Location before the notice was accepted on this phone (AT-5):
+                // the punch is kept for when it is, never dropped.
+                Err(CoreError::Forbidden { resource, action }) if resource == dawam::PRIVACY_NOT_ACCEPTED => {
+                    SendOutcome::Held(action)
+                }
                 Err(e) => classify_send(e, Idem::Yes),
             };
         }
@@ -2176,6 +2208,12 @@ enum SendOutcome {
     /// limiter's burst — found by the 1000-sale integration run, where every op
     /// past the burst dead-lettered); the pass stops and resumes shortly.
     Throttled(String),
+    /// Waits for something the person does on this phone (a Dawam punch made
+    /// before the location notice was accepted there). Not a failure: kept,
+    /// uncounted, and tried again after [`K_HELD_RETRY_MS`] or as soon as the
+    /// person acts (accepting the notice clears the wait and drains). The
+    /// pass goes on with everyone else's work.
+    Held(String),
 }
 
 /// Idempotency profile of an endpoint, deciding how 409/404 are read.
@@ -2430,6 +2468,9 @@ const K_MAX_RETRIES: i64 = 8;
 const K_BASE_BACKOFF_MS: i64 = 2_000; // 2s
 const K_MAX_BACKOFF_MS: i64 = 300_000; // 5min
 const K_NETWORK_RETRY_MS: i64 = 15_000; // fixed reschedule for connectivity blips
+/// How long an op held for the person (`SendOutcome::Held`) waits before the
+/// next try when nothing clears it sooner.
+const K_HELD_RETRY_MS: i64 = 300_000;
 /// How long a 429 holds the queue before the next pass (the server's bucket
 /// refills a request every ~0.3 s, so a couple of seconds sends a few more).
 const K_THROTTLE_RETRY_MS: i64 = 2_000;
@@ -12620,7 +12661,10 @@ impl MadarCore {
         };
         self.api.set_bearer(Some(token.to_string()));
         self.api.set_staff_device(Some(device.to_string()))?;
-        let _ = self.store.blob_put(staff::K_STAFF_DEVICE, device.as_bytes());
+        // The device token goes to the platform's secure storage, never this
+        // store (RO-3): the host takes it with `staff_take_device_token`.
+        let _ = self.store.blob_delete(staff::K_STAFF_DEVICE);
+        *self.staff_vault_pending.lock().unwrap_or_else(|e| e.into_inner()) = Some(device.to_string());
         let expires = v["token_expires_at"].as_str();
         self.api.set_staff_expiry(expires);
         let _ = self.store.kv_put(staff::K_STAFF_EXPIRES, expires.unwrap_or_default());
@@ -12651,7 +12695,39 @@ impl MadarCore {
             token: Some(token.to_string()),
             authz: None,
         });
-        Ok(body)
+        // The host gets the session, never its secrets: the staff token and
+        // the device token stay in the core (06 bug 14).
+        let mut out = v;
+        if let Some(o) = out.as_object_mut() {
+            for k in ["token", "device_token", "refresh_token"] {
+                o.remove(k);
+            }
+        }
+        Ok(out.to_string())
+    }
+
+    /// The Dawam device token for the host to keep in the platform's secure
+    /// storage (Keychain / Android Keystore, RO-3), handed over once after a
+    /// sign-in (or once after an older build's store was read); `None` the
+    /// rest of the time.
+    pub fn staff_take_device_token(&self) -> Option<String> {
+        let token = self.staff_vault_pending.lock().unwrap_or_else(|e| e.into_inner()).take()?;
+        let _ = self.store.blob_delete(staff::K_STAFF_DEVICE);
+        Some(token)
+    }
+
+    /// Bind this phone's Dawam device token, read back from the platform's
+    /// secure storage at a cold start (before or after `restore_session_cached`).
+    /// Every later call carries it (`X-Staff-Device`).
+    pub fn staff_bind_device(&self, token: String) -> Result<(), CoreError> {
+        let token = token.trim().to_string();
+        if token.is_empty() {
+            return Ok(());
+        }
+        self.api.set_staff_device(Some(token))?;
+        let at = self.store.kv_get(staff::K_STAFF_EXPIRES).ok().flatten().filter(|x| !x.is_empty());
+        self.api.set_staff_expiry(at.as_deref());
+        Ok(())
     }
 
     /// One authenticated Dawam call: `method` + a `/staff/...` path + an
@@ -12737,6 +12813,7 @@ impl MadarCore {
             "EMPLOYEE_INACTIVE" => Some("staff.err_employee_inactive"),
             "MANAGER_ACCOUNT_NEEDED" => Some("staff.err_manager_account_needed"),
             "STAFF_APP_ONLY" => Some("staff.err_staff_app_only"),
+            dawam::PRIVACY_NOT_ACCEPTED => Some("staff.err_privacy_not_accepted"),
             _ => None,
         };
         let locale = self.current_locale();
