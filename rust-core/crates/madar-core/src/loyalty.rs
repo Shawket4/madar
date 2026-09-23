@@ -494,6 +494,9 @@ pub struct RewardLineInput {
     /// The line as charged (modifiers included, before any reward).
     pub line_total_minor: i64,
     pub is_bundle: bool,
+    /// The line is a STAFF DRINK: the pool already gives it away, so it can
+    /// never be taken as a reward too (the server refuses the pair with a 400).
+    pub is_staff_drink: bool,
 }
 
 /// A reward applied to one line: which line (its position in the list the
@@ -559,6 +562,7 @@ pub fn reward_lines_from_cart(lines: &[crate::cart::CartLineView]) -> Vec<Reward
             qty: l.qty as i32,
             line_total_minor: l.line_total_minor,
             is_bundle: l.bundle_id.is_some(),
+            is_staff_drink: l.staff_drink.is_some(),
         })
         .collect()
 }
@@ -575,6 +579,7 @@ pub fn reward_lines_from_ticket(lines: &[crate::tickets::TicketLineView]) -> Vec
             cart_index: None,
             ticket_line_id: Some(l.id.clone()),
             is_bundle: l.menu_item_id.is_none(),
+            is_staff_drink: false,
             menu_item_id: l.menu_item_id.clone(),
             qty: l.qty,
             line_total_minor: l.line_total_minor,
@@ -628,7 +633,7 @@ pub fn redemptions_from_picks(
 
 /// What one unit of `line` costs, if this balance's programme lets it be taken.
 fn unit_cost_for(line: &RewardLineInput, scan: &LoyaltyScanView) -> Option<i64> {
-    if line.is_bundle {
+    if line.is_bundle || line.is_staff_drink {
         return None;
     }
     let item = line.menu_item_id.as_deref()?;
@@ -723,6 +728,7 @@ pub fn reward_board(
                 .map(|p| p.units)
                 .unwrap_or(0);
             let blocked_reason = match unit {
+                None if line.is_staff_drink => Some(tr("loyalty.reward_no_staff_drink")),
                 None if line.is_bundle => Some(tr("loyalty.reward_no_bundles")),
                 None => None,
                 Some(_) if units >= line.qty => None,
@@ -1046,6 +1052,7 @@ mod tests {
             qty,
             line_total_minor: total,
             is_bundle: false,
+            is_staff_drink: false,
         }
     }
 

@@ -98,6 +98,29 @@ pub(crate) struct StoredLine {
     bundle_id: Option<String>,
     #[serde(default)]
     bundle_components: Vec<StoredBundleComponent>,
+    /// The line is a STAFF DRINK (see [`StoredStaffMark`]). Rides the stored
+    /// line, so it survives a restart with the cart.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    staff_drink: Option<StoredStaffMark>,
+}
+
+/// A cart line put on the branch's staff pool: the mark the teller saved on the
+/// sheet. Nothing is spent yet — the pool entry is written when the order is
+/// charged, with the order, so an abandoned cart never burns the allowance.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub(crate) struct StoredStaffMark {
+    /// Client-minted: the `staff_drinks` row's id AND the idempotency key.
+    pub id: String,
+    /// REQUIRED. Who it is for, in the teller's words.
+    pub note: String,
+    /// The manager approval that unlocked the act, when one was needed.
+    #[serde(default)]
+    pub approval: Option<crate::approvals::ApprovalView>,
+    /// What the comp rule gives ONE unit for free, as last computed from the
+    /// catalogue (`MadarCore::refresh_staff_marks`). The line's comp is this
+    /// times its quantity.
+    #[serde(default)]
+    pub free_per_unit_minor: i64,
 }
 
 /// A host-supplied addon choice (id + how many). The CORE resolves its price.
@@ -174,6 +197,23 @@ pub struct CartLineView {
     /// time, so `view()` itself stays a pure function of the stored lines.
     /// Cleared once this line's chit prints ([`clear_line_kitchen_note`]).
     pub kitchen_note: Option<String>,
+    /// Set when the line is a STAFF DRINK: the mark and what the comp rule
+    /// leaves to pay. `line_total_minor` stays the NORMAL price — the host
+    /// strikes it through and shows `charged_minor` beside it.
+    pub staff_drink: Option<CartStaffDrinkView>,
+}
+
+/// A cart line's staff-drink mark, as the host renders it.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CartStaffDrinkView {
+    /// The client-minted staff drink id the order line will carry.
+    pub id: String,
+    pub note: String,
+    /// What the pool gives for free on the WHOLE line.
+    pub comp_minor: i64,
+    /// What the line still pays (a bigger size, extras, pricier picks). 0 = free.
+    pub charged_minor: i64,
 }
 
 /// The priced cart summary the host shows in the cart panel + action-bar badge.
@@ -410,9 +450,29 @@ fn line_total(l: &StoredLine) -> i64 {
     (l.unit_price_minor + line_extras(l)) * l.qty
 }
 
+/// What the staff pool takes off the WHOLE line: the per-unit comp times the
+/// quantity, never more than the line rings at, never on a bundle.
+fn staff_comp(l: &StoredLine) -> i64 {
+    match &l.staff_drink {
+        Some(m) if l.bundle_id.is_none() => {
+            (m.free_per_unit_minor.max(0) * l.qty.max(0)).clamp(0, line_total(l).max(0))
+        }
+        _ => 0,
+    }
+}
+
 /// The line key: a deterministic signature over the full selection. Option-less
 /// lines key by `item_id` so the basic add/qty/remove path stays stable.
 fn signature(l: &StoredLine) -> String {
+    // A staff drink is its own line: it never merges with a paid twin, and two
+    // marks are two drinks. The mark's id keeps the key stable across edits.
+    match &l.staff_drink {
+        Some(m) => format!("{}|staff:{}", base_signature(l), m.id),
+        None => base_signature(l),
+    }
+}
+
+fn base_signature(l: &StoredLine) -> String {
     // A bundle keys by its id + each component's full selection, so identical
     // configurations merge (qty++) and differently-configured ones stay distinct.
     if let Some(bid) = &l.bundle_id {
@@ -531,6 +591,12 @@ fn view(lines: &[StoredLine]) -> Vec<CartLineView> {
                 })
                 .collect(),
             kitchen_note: None,
+            staff_drink: l.staff_drink.as_ref().map(|m| CartStaffDrinkView {
+                id: m.id.clone(),
+                note: m.note.clone(),
+                comp_minor: staff_comp(l),
+                charged_minor: line_total(l) - staff_comp(l),
+            }),
         })
         .collect()
 }
@@ -747,6 +813,7 @@ pub(crate) fn resolve_line(
         notes,
         bundle_id: None,
         bundle_components: vec![],
+        staff_drink: None,
     }
 }
 
@@ -866,6 +933,7 @@ pub(crate) fn resolve_bundle_line(
         notes: None,
         bundle_id: Some(bundle.id.clone()),
         bundle_components,
+        staff_drink: None,
     }
 }
 
@@ -1419,7 +1487,13 @@ pub(crate) fn replace_resolved(
             detail: "that line is no longer in the cart".into(),
         });
     };
-    lines.remove(at);
+    // An edited staff drink is still one: the mark follows the line (a bundle
+    // can never carry it). Its comp is recomputed by the caller.
+    let old = lines.remove(at);
+    let mut line = line;
+    if line.bundle_id.is_none() && line.item_id == old.item_id {
+        line.staff_drink = old.staff_drink;
+    }
     let sig = signature(&line);
     match lines.iter_mut().find(|l| signature(l) == sig) {
         Some(l) => l.qty += line.qty,
@@ -1479,6 +1553,7 @@ pub(crate) fn add(
             notes: None,
             bundle_id: None,
             bundle_components: vec![],
+            staff_drink: None,
         },
     )
 }
@@ -1551,6 +1626,348 @@ pub(crate) fn clear(store: &Store, ctx: Ctx<'_>) -> CoreResult<()> {
     store.kv_put(&key_for(ctx, K_META), "{}")?; // the spent cart forgets its name/draft/booking
     store.kv_put(&key_for(ctx, K_OWNER), "")?; // and whose it was
     save(store, ctx, &[])
+}
+
+// ── staff drinks (a line put on the branch's pool) ───────────────────────────
+//
+// The MARK lives on the stored line. This module only keeps it and prices it;
+// who may mark, whether the pool allows it and what the comp is are decided by
+// `staff_drink.rs` (the pool) and `staff_comp.rs` (the rule), which hand the
+// per-unit comp back through [`set_staff_comps`].
+
+/// Why a mark left a line by itself. The host toasts the translated reason.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum StaffMarkDrop {
+    /// The line became a bundle / is one.
+    Bundle,
+    /// The item is no longer on the pool's list (a settings sync), or the pool
+    /// was switched off.
+    NotEligible,
+    /// The cart became a table's bill: a ticket never carries a staff drink.
+    TableBill,
+}
+
+impl StaffMarkDrop {
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Bundle => "staff_pool.dropped.bundle",
+            Self::NotEligible => "staff_pool.dropped.not_eligible",
+            Self::TableBill => "staff_pool.dropped.table",
+        }
+    }
+}
+
+/// A marked line as the pool and the comp rule need to see it.
+#[derive(Clone, Debug)]
+pub(crate) struct StaffMarkedLine {
+    pub key: String,
+    pub index: usize,
+    pub item_id: String,
+    pub name: String,
+    pub size_label: Option<String>,
+    pub qty: i64,
+    pub is_bundle: bool,
+    pub mark: StoredStaffMark,
+    pub line_total_minor: i64,
+    pub comp_minor: i64,
+}
+
+/// The cart's staff drinks in one figure — what the Charge sheet states beside
+/// the subtotal: how many units are on the pool, what the pool comps, and what
+/// those lines still pay.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CartStaffSummary {
+    pub units: i64,
+    pub comp_minor: i64,
+    pub charged_minor: i64,
+}
+
+/// `None` when nothing in the context is marked.
+pub(crate) fn staff_summary(store: &Store, ctx: Ctx<'_>) -> CoreResult<Option<CartStaffSummary>> {
+    let marked = staff_marked(store, ctx)?;
+    Ok((!marked.is_empty()).then(|| CartStaffSummary {
+        units: marked.iter().map(|m| m.qty).sum(),
+        comp_minor: marked.iter().map(|m| m.comp_minor).sum(),
+        charged_minor: marked.iter().map(|m| m.line_total_minor - m.comp_minor).sum(),
+    }))
+}
+
+/// Every marked line of the context, in cart order.
+pub(crate) fn staff_marked(store: &Store, ctx: Ctx<'_>) -> CoreResult<Vec<StaffMarkedLine>> {
+    Ok(load(store, ctx)?
+        .iter()
+        .enumerate()
+        .filter_map(|(index, l)| {
+            let mark = l.staff_drink.clone()?;
+            Some(StaffMarkedLine {
+                key: signature(l),
+                index,
+                item_id: l.item_id.clone(),
+                name: l.name.clone(),
+                size_label: l.size_label.clone(),
+                qty: l.qty,
+                is_bundle: l.bundle_id.is_some(),
+                mark,
+                line_total_minor: line_total(l),
+                comp_minor: staff_comp(l),
+            })
+        })
+        .collect())
+}
+
+/// Put `mark` on the line keyed `line_key`. A bundle refuses; a key no longer
+/// in the cart refuses. Returns the lines (the marked line has a NEW key).
+pub(crate) fn mark_staff(
+    store: &Store,
+    ctx: Ctx<'_>,
+    line_key: &str,
+    mark: StoredStaffMark,
+) -> CoreResult<Vec<CartLineView>> {
+    let mut lines = load(store, ctx)?;
+    let Some(l) = lines.iter_mut().find(|l| signature(l) == line_key) else {
+        return Err(CoreError::Validation {
+            field: "line".into(),
+            detail: "that line is no longer in the cart".into(),
+        });
+    };
+    if l.bundle_id.is_some() {
+        return Err(CoreError::Validation {
+            field: "item".into(),
+            detail: "a bundle cannot be a staff drink".into(),
+        });
+    }
+    l.staff_drink = Some(mark);
+    let new_key = signature(l);
+    save(store, ctx, &lines)?;
+    rekey_kitchen_note(store, ctx, line_key, &new_key)?;
+    Ok(view(&lines))
+}
+
+/// A mark changes its line's key; the cook's note on that line follows it.
+fn rekey_kitchen_note(store: &Store, ctx: Ctx<'_>, old: &str, new: &str) -> CoreResult<()> {
+    if old == new {
+        return Ok(());
+    }
+    let mut map = kitchen_notes_map(store, ctx)?;
+    if let Some(note) = map.remove(old) {
+        map.entry(new.to_string()).or_insert(note);
+        save_kitchen_notes_map(store, ctx, &map)?;
+    }
+    Ok(())
+}
+
+/// Change the note of a marked line. `false` when the line is not marked.
+pub(crate) fn set_staff_note(store: &Store, ctx: Ctx<'_>, line_key: &str, note: &str) -> CoreResult<bool> {
+    let mut lines = load(store, ctx)?;
+    let Some(m) = lines
+        .iter_mut()
+        .find(|l| signature(l) == line_key)
+        .and_then(|l| l.staff_drink.as_mut())
+    else {
+        return Ok(false);
+    };
+    m.note = note.trim().to_string();
+    save(store, ctx, &lines)?;
+    Ok(true)
+}
+
+/// Take the mark off a line: it rings at its normal price again. If an
+/// identical paid line already sits in the cart the two merge, as any two
+/// identical lines do.
+pub(crate) fn unmark_staff(store: &Store, ctx: Ctx<'_>, line_key: &str) -> CoreResult<Vec<CartLineView>> {
+    let mut lines = load(store, ctx)?;
+    if let Some(at) = lines.iter().position(|l| signature(l) == line_key && l.staff_drink.is_some()) {
+        let mut l = lines.remove(at);
+        l.staff_drink = None;
+        let sig = signature(&l);
+        rekey_kitchen_note(store, ctx, line_key, &sig)?;
+        match lines.iter_mut().find(|x| signature(x) == sig) {
+            Some(x) => x.qty += l.qty,
+            None => lines.insert(at.min(lines.len()), l),
+        }
+        save(store, ctx, &lines)?;
+    }
+    Ok(view(&lines))
+}
+
+/// Re-decide every mark of the context: `decide` answers, per marked line,
+/// either the per-unit comp or why the mark must go. Dropped marks are
+/// returned (line name + reason); nothing is written when nothing changed.
+pub(crate) fn set_staff_comps(
+    store: &Store,
+    ctx: Ctx<'_>,
+    mut decide: impl FnMut(&StaffCompLine<'_>) -> Result<i64, StaffMarkDrop>,
+) -> CoreResult<Vec<(String, StaffMarkDrop)>> {
+    let mut lines = load(store, ctx)?;
+    let mut dropped = Vec::new();
+    let mut changed = false;
+    for l in lines.iter_mut() {
+        let Some(mark) = l.staff_drink.clone() else { continue };
+        let verdict = if l.bundle_id.is_some() {
+            Err(StaffMarkDrop::Bundle)
+        } else {
+            decide(&StaffCompLine { line: l })
+        };
+        match verdict {
+            Ok(free) if free == mark.free_per_unit_minor => {}
+            Ok(free) => {
+                if let Some(m) = l.staff_drink.as_mut() {
+                    m.free_per_unit_minor = free;
+                }
+                changed = true;
+            }
+            Err(why) => {
+                l.staff_drink = None;
+                dropped.push((l.name.clone(), why));
+                changed = true;
+            }
+        }
+    }
+    if changed {
+        // Two lines a dropped mark made identical merge, as everywhere else.
+        let mut merged: Vec<StoredLine> = Vec::new();
+        for l in lines {
+            let sig = signature(&l);
+            match merged.iter_mut().find(|x| signature(x) == sig) {
+                Some(x) => x.qty += l.qty,
+                None => merged.push(l),
+            }
+        }
+        save(store, ctx, &merged)?;
+    }
+    Ok(dropped)
+}
+
+/// Take every mark off the context's lines for one reason (a cart that became
+/// a table's bill). Returns the names of the lines that lost one.
+pub(crate) fn strip_staff_marks(store: &Store, ctx: Ctx<'_>, why: StaffMarkDrop) -> CoreResult<Vec<(String, StaffMarkDrop)>> {
+    set_staff_comps(store, ctx, |_| Err(why))
+}
+
+/// A stored line, opened just far enough for the comp rule's input builder.
+pub(crate) struct StaffCompLine<'a> {
+    line: &'a StoredLine,
+}
+
+impl StaffCompLine<'_> {
+    pub fn item_id(&self) -> &str {
+        &self.line.item_id
+    }
+
+    /// The comp rule's input for this line, built exactly as the contract's
+    /// "Interpretations" say (and as the server's `comp_input` does):
+    ///
+    /// * sizes only when the line NAMES a size — a sizeless line rings at the
+    ///   item's "from" price, and that price is the free amount;
+    /// * required groups = the item's attached groups whose effective minimum
+    ///   is ≥ 1 (a group flagged required with minimum 0 reads as 1), NEVER a
+    ///   swap family (milk / beans): the resolver already rings those as the
+    ///   difference over the recipe's own ingredient;
+    /// * option prices as the cart rings them; an option this branch has
+    ///   switched off is inactive; the item-private optionals are never free;
+    /// * picks at the prices the line carries.
+    pub fn comp_input(
+        &self,
+        item: &menu::MenuItemView,
+        addon_catalog: &[menu::AddonItemView],
+        unified: Option<&[menu::UnifiedGroup]>,
+        eligible: bool,
+    ) -> crate::staff_comp::CompInput {
+        use crate::staff_comp::{CompGroup, CompInput, CompOption, CompPick, CompSize};
+        let m = |v: i64| v.clamp(0, i32::MAX as i64) as i32;
+        let l = self.line;
+        let sizes = if l.size_label.is_some() {
+            item.sizes
+                .iter()
+                .map(|s| CompSize {
+                    label: s.label.clone(),
+                    price: m(s.price_minor),
+                    is_active: s.is_active,
+                    branch_price: None,
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let flat = item_addons(item, addon_catalog);
+        let rings_at = |id: &str, fallback: i64| {
+            flat.iter().find(|a| a.addon_item_id == id).map(|a| a.charged_price_minor).unwrap_or(fallback)
+        };
+        let is_swap_option = |id: &str| addon_catalog.iter().any(|a| a.id == id && is_swap_family(&a.addon_type));
+        let groups: Vec<CompGroup> = match unified.filter(|u| !u.is_empty()) {
+            Some(unified) => unified
+                .iter()
+                .filter(|g| {
+                    g.effect != "swaps"
+                        && !g.legacy_addon_type.as_deref().is_some_and(is_swap_family)
+                        && !g.options.iter().any(|o| is_swap_option(&o.id))
+                })
+                .filter_map(|g| {
+                    let required_min = if g.min >= 1 { g.min } else { i32::from(g.is_required) };
+                    (required_min >= 1).then(|| CompGroup {
+                        id: g.group_id.clone(),
+                        required_min,
+                        options: g
+                            .options
+                            .iter()
+                            .filter(|o| !is_private_optional(item, addon_catalog, &o.id))
+                            .map(|o| CompOption {
+                                id: o.id.clone(),
+                                price: m(rings_at(&o.id, o.price)),
+                                branch_price: None,
+                                is_default: o.is_default,
+                                is_active: o.is_available,
+                            })
+                            .collect(),
+                    })
+                })
+                .collect(),
+            // The legacy projection has no "default" flag: the cheapest active
+            // option sets the allowance, which is the rule's own fallback.
+            None => item_modifier_groups(item, addon_catalog)
+                .into_iter()
+                .filter(|g| g.kind == ModifierGroupKind::Addon)
+                .filter(|g| !g.addon_type.as_deref().is_some_and(is_swap_family))
+                .filter_map(|g| {
+                    let required_min =
+                        if g.min_selections >= 1 { g.min_selections } else { i32::from(g.is_required) };
+                    (required_min >= 1).then(|| CompGroup {
+                        id: g.group_id,
+                        required_min,
+                        options: g
+                            .options
+                            .into_iter()
+                            .map(|o| CompOption {
+                                id: o.id,
+                                price: m(o.charged_price_minor),
+                                branch_price: None,
+                                is_default: false,
+                                is_active: true,
+                            })
+                            .collect(),
+                    })
+                })
+                .collect(),
+        };
+        CompInput {
+            eligible,
+            unit_price: m(l.unit_price_minor),
+            sizes,
+            groups,
+            picks: l
+                .addons
+                .iter()
+                .map(|a| CompPick {
+                    option_id: a.addon_item_id.clone(),
+                    unit_price: m(a.price_modifier_minor),
+                    quantity: m(a.qty),
+                })
+                .collect(),
+            optionals_per_unit: m(l.optionals.iter().map(|o| o.price_minor).sum()),
+            quantity: m(l.qty),
+        }
+    }
 }
 
 // ── cart payload (the wire shape a held order carries) ───────────────────────
@@ -1965,6 +2382,7 @@ fn priced(l: &StoredLine) -> pricing::CartLine {
         unit_price: l.unit_price_minor,
         is_bundle: l.bundle_id.is_some(),
         reward_units: 0,
+        staff_comp_minor: staff_comp(l),
         addons: l
             .addons
             .iter()
@@ -2033,7 +2451,7 @@ pub(crate) fn totals_with_rewards(
             .enumerate()
             .map(|(i, l)| {
                 let mut line = priced(l);
-                if !line.is_bundle {
+                if !line.is_bundle && line.staff_comp_minor == 0 && l.staff_drink.is_none() {
                     line.reward_units = reward_units.get(&i).copied().unwrap_or(0);
                 }
                 line
@@ -2099,6 +2517,7 @@ mod tests {
             notes: None,
             bundle_id: None,
             bundle_components: vec![],
+            staff_drink: None,
         }
     }
 
@@ -2853,6 +3272,7 @@ mod tests {
             name_translations: serde_json::json!({}),
             price: 0,
             is_available: true,
+            is_default: false,
         }
     }
 
@@ -2873,6 +3293,7 @@ mod tests {
                     max: None,
                     is_required: false,
                     legacy_addon_type: Some("milk_type".into()),
+                    effect: String::new(),
                     options: vec![uopt("oat"), uopt("almond")],
                 },
                 menu::UnifiedGroup {
@@ -2884,6 +3305,7 @@ mod tests {
                     max: Some(3),
                     is_required: false,
                     legacy_addon_type: None,
+                    effect: String::new(),
                     options: vec![uopt("whole"), uopt("almond")],
                 },
                 menu::UnifiedGroup {
@@ -2895,6 +3317,7 @@ mod tests {
                     max: None,
                     is_required: false,
                     legacy_addon_type: Some("extra".into()),
+                    effect: String::new(),
                     options: vec![uopt("shot")],
                 },
             ],
@@ -2970,6 +3393,7 @@ mod tests {
                 max: None,
                 is_required: true,
                 legacy_addon_type: Some("milk_type".into()),
+                effect: String::new(),
                 options: vec![
                     menu::UnifiedOption {
                         id: "oat".into(),
@@ -2977,6 +3401,7 @@ mod tests {
                         name_translations: serde_json::json!({}),
                         price: 1500,
                         is_available: true,
+                        is_default: false,
                     },
                     menu::UnifiedOption {
                         id: "almond".into(),
@@ -2984,6 +3409,7 @@ mod tests {
                         name_translations: serde_json::json!({}),
                         price: 2000,
                         is_available: true,
+                        is_default: false,
                     },
                     menu::UnifiedOption {
                         id: "soy".into(),
@@ -2991,6 +3417,7 @@ mod tests {
                         name_translations: serde_json::json!({}),
                         price: 1800,
                         is_available: false,
+                        is_default: false,
                     },
                 ],
             },
@@ -3003,12 +3430,14 @@ mod tests {
                 max: Some(2),
                 is_required: false,
                 legacy_addon_type: None,
+                effect: String::new(),
                 options: vec![menu::UnifiedOption {
                     id: "hot".into(),
                     name: "Hot".into(),
                     name_translations: serde_json::json!({}),
                     price: 250,
                     is_available: true,
+                    is_default: false,
                 }],
             },
         ];
@@ -3068,6 +3497,7 @@ mod tests {
                 max: Some(1),
                 is_required: false,
                 legacy_addon_type: Some("milk_type".into()),
+                effect: String::new(),
                 options: vec![uopt("oat"), uopt("almond")],
             },
             menu::UnifiedGroup {
@@ -3079,12 +3509,14 @@ mod tests {
                 max: None,
                 is_required: false,
                 legacy_addon_type: None,
+                effect: String::new(),
                 options: vec![menu::UnifiedOption {
                     id: "van".into(),
                     name: "Vanilla".into(),
                     name_translations: serde_json::json!({}),
                     price: 300,
                     is_available: true,
+                    is_default: false,
                 }],
             },
         ];

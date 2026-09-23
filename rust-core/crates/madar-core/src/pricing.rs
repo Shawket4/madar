@@ -74,6 +74,11 @@ pub struct CartLine {
     /// at the line's charged per-unit price, BEFORE the discount — the server's
     /// order (`loyalty_reward_vectors.json`). Never set on a bundle.
     pub reward_units: i64,
+    /// What the STAFF POOL comps on this whole line (`staff_comp.rs`). It comes
+    /// off the subtotal before anything is computed on it, exactly as a reward
+    /// does, so the discount, service charge and tax see the CHARGED part only.
+    /// Clamped to what the line rings at. Never set on a bundle or beside a reward.
+    pub staff_comp_minor: MoneyMinor,
     pub addons: Vec<AddonSel>,
     pub optionals: Vec<OptionalSel>,
     pub bundle_components: Vec<BundleComponentSel>,
@@ -114,6 +119,8 @@ pub struct PricedBreakdown {
     pub subtotal_minor: MoneyMinor,
     /// What rewards took off the lines (0 without rewards).
     pub reward_covered_minor: MoneyMinor,
+    /// What the staff pool took off the lines (0 without a staff drink).
+    pub staff_comp_minor: MoneyMinor,
     pub discount_minor: MoneyMinor,
     pub taxable_minor: MoneyMinor,
     pub tax_minor: MoneyMinor,
@@ -171,8 +178,15 @@ pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
         .filter(|l| !l.is_bundle)
         .map(|l| crate::loyalty::covered_minor(line_total(l), l.quantity, l.reward_units))
         .sum();
+    // A staff drink's comp leaves with them, for the same reason.
+    let staff_comp: MoneyMinor = input
+        .lines
+        .iter()
+        .filter(|l| !l.is_bundle && l.reward_units == 0)
+        .map(|l| l.staff_comp_minor.clamp(0, line_total(l).max(0)))
+        .sum();
     let subtotal: MoneyMinor =
-        input.lines.iter().map(line_total).sum::<MoneyMinor>() - reward_covered;
+        input.lines.iter().map(line_total).sum::<MoneyMinor>() - reward_covered - staff_comp;
 
     // Discount, clamped to [0, subtotal] whatever its kind (doc 05 F8: a >100%
     // percentage must not drive the total negative; fixed is capped likewise).
@@ -220,6 +234,7 @@ pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
     PricedBreakdown {
         subtotal_minor: subtotal,
         reward_covered_minor: reward_covered,
+        staff_comp_minor: staff_comp,
         discount_minor: discount,
         taxable_minor: taxable,
         tax_minor: b.tax,
@@ -300,6 +315,7 @@ mod tests {
             unit_price: 1000,
             is_bundle: false,
             reward_units: 0,
+            staff_comp_minor: 0,
             addons: vec![AddonSel { price_modifier: 250, quantity: 2 }],
             optionals: vec![],
             bundle_components: vec![],
@@ -342,6 +358,7 @@ mod tests {
             unit_price: unit,
             is_bundle: false,
             reward_units: 0,
+            staff_comp_minor: 0,
             addons: vec![],
             optionals: vec![],
             bundle_components: vec![],
@@ -399,6 +416,7 @@ mod tests {
             unit_price: 5000,
             is_bundle: false,
             reward_units: 0,
+            staff_comp_minor: 0,
             addons: vec![
                 AddonSel {
                     price_modifier: 1000,
@@ -417,6 +435,7 @@ mod tests {
             unit_price: 5000,
             is_bundle: false,
             reward_units: 0,
+            staff_comp_minor: 0,
             addons: vec![
                 AddonSel {
                     price_modifier: 500,
@@ -472,6 +491,7 @@ mod tests {
                 unit_price: 12000,
                 is_bundle: true,
                 reward_units: 0,
+                staff_comp_minor: 0,
                 addons: vec![],
                 optionals: vec![],
                 bundle_components: if a_first {
@@ -499,6 +519,7 @@ mod tests {
             unit_price: 1500,
             is_bundle: false,
             reward_units: 0,
+            staff_comp_minor: 0,
             addons: vec![
                 AddonSel {
                     price_modifier: 500,
@@ -613,6 +634,7 @@ mod tests {
             unit_price: 5000, // fixed bundle price
             is_bundle: true,
             reward_units: 0,
+            staff_comp_minor: 0,
             addons: vec![],
             optionals: vec![],
             bundle_components: vec![comp1, comp2],
@@ -649,6 +671,7 @@ mod tests {
             PricedBreakdown {
                 subtotal_minor: 0,
                 reward_covered_minor: 0,
+            staff_comp_minor: 0,
                 discount_minor: 0,
                 taxable_minor: 0,
                 tax_minor: 0,
@@ -851,6 +874,7 @@ mod tests {
             unit_price: 4000,
             is_bundle: true,
             reward_units: 0,
+            staff_comp_minor: 0,
             addons: vec![],
             optionals: vec![],
             bundle_components: vec![comp],
@@ -869,6 +893,7 @@ mod tests {
             unit_price: 5000,
             is_bundle: true,
             reward_units: 0,
+            staff_comp_minor: 0,
             addons: vec![AddonSel {
                 price_modifier: 9999,
                 quantity: 5,
@@ -891,6 +916,7 @@ mod tests {
             unit_price: 1000,
             is_bundle: false,
             reward_units: 0,
+            staff_comp_minor: 0,
             addons: vec![AddonSel {
                 price_modifier: 300,
                 quantity: 3,
@@ -924,6 +950,7 @@ mod tests {
             unit_price: 0,
             is_bundle: false,
             reward_units: 0,
+            staff_comp_minor: 0,
             addons: vec![],
             optionals: vec![OptionalSel { price: 300 }],
             bundle_components: vec![],
@@ -981,6 +1008,7 @@ mod proptests {
                 unit_price,
                 is_bundle: false,
                 reward_units: 0,
+                staff_comp_minor: 0,
                 addons,
                 optionals,
                 bundle_components: vec![],
@@ -1108,6 +1136,7 @@ mod proptests {
         PricedBreakdown {
             subtotal_minor: subtotal,
             reward_covered_minor: 0,
+            staff_comp_minor: 0,
             discount_minor: discount,
             taxable_minor: taxable,
             tax_minor: b.tax,
@@ -1156,6 +1185,7 @@ mod proptests {
                         unit_price: l.per_unit,
                         is_bundle: false,
                         reward_units: l.reward_units,
+                        staff_comp_minor: 0,
                         addons: vec![],
                         optionals: vec![],
                         bundle_components: vec![],

@@ -484,6 +484,11 @@ class ReceiptLineView {
   /// A bundle/combo line — its breakdown is in `components`, not `addons`.
   final bool isBundle;
   final String? rewardLabel;
+
+  /// "Staff drink" when the pool comped this line: it shows at its NORMAL
+  /// price, then this label as a line discount of `staff_comp_minor`.
+  final String? staffLabel;
+  final PlatformInt64 staffCompMinor;
   final List<ReceiptModifierView> addons;
   final List<ReceiptModifierView> optionals;
   final List<ReceiptComponentView> components;
@@ -495,6 +500,8 @@ class ReceiptLineView {
     required this.lineTotalMinor,
     required this.isBundle,
     this.rewardLabel,
+    this.staffLabel,
+    required this.staffCompMinor,
     required this.addons,
     required this.optionals,
     required this.components,
@@ -508,6 +515,8 @@ class ReceiptLineView {
       lineTotalMinor.hashCode ^
       isBundle.hashCode ^
       rewardLabel.hashCode ^
+      staffLabel.hashCode ^
+      staffCompMinor.hashCode ^
       addons.hashCode ^
       optionals.hashCode ^
       components.hashCode;
@@ -523,6 +532,8 @@ class ReceiptLineView {
           lineTotalMinor == other.lineTotalMinor &&
           isBundle == other.isBundle &&
           rewardLabel == other.rewardLabel &&
+          staffLabel == other.staffLabel &&
+          staffCompMinor == other.staffCompMinor &&
           addons == other.addons &&
           optionals == other.optionals &&
           components == other.components;
@@ -640,6 +651,10 @@ class ReceiptView {
   /// A sale whose rewards the server recorded without points, said for the teller.
   final String? loyaltyNotice;
 
+  /// After a sale with staff drinks: how the pool stands, or that this server
+  /// does not support free staff drinks yet. For the done card; never printed.
+  final String? staffNotice;
+
   const ReceiptView({
     required this.localOrderId,
     this.orderNumber,
@@ -676,6 +691,7 @@ class ReceiptView {
     required this.createdAt,
     required this.payments,
     this.loyaltyNotice,
+    this.staffNotice,
   });
 
   @override
@@ -714,7 +730,8 @@ class ReceiptView {
       queuedOffline.hashCode ^
       createdAt.hashCode ^
       payments.hashCode ^
-      loyaltyNotice.hashCode;
+      loyaltyNotice.hashCode ^
+      staffNotice.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -755,7 +772,8 @@ class ReceiptView {
           queuedOffline == other.queuedOffline &&
           createdAt == other.createdAt &&
           payments == other.payments &&
-          loyaltyNotice == other.loyaltyNotice;
+          loyaltyNotice == other.loyaltyNotice &&
+          staffNotice == other.staffNotice;
 }
 
 /// A line picked on the refund sheet.

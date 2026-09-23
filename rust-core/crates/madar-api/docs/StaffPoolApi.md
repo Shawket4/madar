@@ -10,6 +10,7 @@ Method | HTTP request | Description
 [**list_staff_drinks**](StaffPoolApi.md#list_staff_drinks) | **GET** /staff-pool/drinks | The staff drinks of a branch over a range of business days, newest first.
 [**put_staff_pool_settings**](StaffPoolApi.md#put_staff_pool_settings) | **PUT** /staff-pool/settings | 
 [**record_staff_drink**](StaffPoolApi.md#record_staff_drink) | **POST** /staff-pool/drinks | 
+[**summarize_staff_drinks**](StaffPoolApi.md#summarize_staff_drinks) | **GET** /staff-pool/drinks/summary | Totals for the same range and filter as `GET /staff-pool/drinks`.
 
 
 
@@ -182,6 +183,37 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## summarize_staff_drinks
+
+> models::StaffDrinksSummary summarize_staff_drinks(branch_id, from, to, overspent_only)
+Totals for the same range and filter as `GET /staff-pool/drinks`.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**branch_id** | **uuid::Uuid** |  | [required] |
+**from** | Option<**chrono::NaiveDate**> | Business days, inclusive. Both default to the branch's today. |  |
+**to** | Option<**chrono::NaiveDate**> |  |  |
+**overspent_only** | Option<**bool**> | Only the drinks that went past the allowance. |  |
+
+### Return type
+
+[**models::StaffDrinksSummary**](StaffDrinksSummary.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

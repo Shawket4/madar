@@ -60,6 +60,9 @@ pub struct StaffDrinkInput {
     pub note: String,
     /// The zero-priced sale it rang as, when there is one.
     pub order_id: Option<String>,
+    /// The cart line being asked about, when it is ALREADY marked (the sheet
+    /// reopened from its badge): its own units are then not counted twice.
+    pub line_key: Option<String>,
 }
 
 /// The branch's pool as this device holds it today.
@@ -226,7 +229,11 @@ impl MadarCore {
         let branch = self.session_branch_id()?;
         let settings = self.staff_pool_settings()?;
         let date = self.staff_pool_date();
-        let used = self.staff_drinks_used(&branch, &date);
+        // Drinks already MARKED in the counter's cart are as good as spent: two
+        // marked lines in one cart must not both claim the last drink of the
+        // day. The line being asked about is not counted against itself.
+        let used = self.staff_drinks_used(&branch, &date)
+            + self.staff_units_marked_in_cart(input.line_key.as_deref());
         let decision = staff_pool::decide(&settings, &date, &input.menu_item_id, &input.note, used);
         let access = self.staff_drink_access();
         let locale = self.current_locale();
@@ -394,8 +401,412 @@ impl MadarCore {
                 overspent: r.overspent,
                 recorded_at: r.recorded_at,
                 queued: r.queued,
+                comp_minor: r.comp_minor,
+                extras_minor: r.extras_minor,
             })
             .collect())
+    }
+}
+
+// ── a cart line MARKED as a staff drink (owner rule 2026-09-21) ──────────────
+//
+// Saving the sheet no longer spends anything: it MARKS the cart line. The mark
+// (a client-minted drink id, the note, the approval if one was needed) rides
+// the stored line, so it survives a restart; the line is priced by the comp
+// rule (`staff_comp.rs`) through the bill engine at once; and the pool entry is
+// written when the order is CHARGED, in the sale's own transaction — an
+// abandoned cart never burns the allowance.
+//
+// Only the COUNTER's cart carries marks. A table's bill is priced when a round
+// is fired and settled hours later; the backend refuses a pooled line on a
+// ticket (`staff_drink_not_on_ticket`), so a cart in a table's context is never
+// offered the action and a marked cart that becomes a table's loses its marks.
+
+/// kv key — reasons marks were dropped by themselves, waiting for the host to
+/// toast them (JSON array of translated strings).
+const K_STAFF_NOTICES: &str = "cart:staff_notices";
+
+fn old_server_key(order: &str) -> String {
+    format!("staff_old_server:{order}")
+}
+
+impl MadarCore {
+    /// Units already marked in the counter's cart, not counting `except`.
+    fn staff_units_marked_in_cart(&self, except: Option<&str>) -> i32 {
+        crate::cart::staff_marked(&self.store, None)
+            .unwrap_or_default()
+            .iter()
+            .filter(|m| Some(m.key.as_str()) != except)
+            .map(|m| m.qty.clamp(0, i32::MAX as i64) as i32)
+            .sum()
+    }
+
+    /// Re-decide every mark of a cart: recompute each comp from the catalogue
+    /// as it stands now, and DROP a mark whose line stopped being eligible (a
+    /// bundle, an item a settings sync took off the list, a pool switched off,
+    /// a cart that belongs to a table). Dropped marks are remembered for
+    /// [`Self::take_staff_drink_notices`]. Cheap when nothing is marked.
+    pub(crate) fn refresh_staff_marks(&self, ctx: crate::cart::Ctx<'_>) -> Vec<String> {
+        use crate::cart::StaffMarkDrop;
+        if crate::cart::staff_marked(&self.store, ctx).map(|m| m.is_empty()).unwrap_or(true) {
+            return Vec::new();
+        }
+        let dropped = if ctx.is_some() {
+            crate::cart::strip_staff_marks(&self.store, ctx, StaffMarkDrop::TableBill)
+        } else {
+            let settings = self.staff_pool_settings().unwrap_or_default();
+            let on = settings.enabled && !settings.eligible_item_ids.is_empty();
+            let catalog = self.catalog().ok();
+            crate::cart::set_staff_comps(&self.store, ctx, |line| {
+                if !on || !settings.eligible_item_ids.iter().any(|i| i == line.item_id()) {
+                    return Err(StaffMarkDrop::NotEligible);
+                }
+                let catalog = catalog.as_ref().ok_or(StaffMarkDrop::NotEligible)?;
+                let item = catalog
+                    .items
+                    .iter()
+                    .find(|i| i.id == line.item_id())
+                    .ok_or(StaffMarkDrop::NotEligible)?;
+                let unified = catalog.unified.as_ref().and_then(|doc| doc.groups_for(line.item_id()));
+                let input = line.comp_input(item, &catalog.addons, unified.as_deref(), true);
+                Ok(crate::staff_comp::comp(&input).free_per_unit as i64)
+            })
+        }
+        .unwrap_or_default();
+        self.note_staff_drops(ctx, dropped)
+    }
+
+    /// Word the dropped marks and keep them for the host's toast.
+    pub(crate) fn note_staff_drops(
+        &self,
+        _ctx: crate::cart::Ctx<'_>,
+        dropped: Vec<(String, crate::cart::StaffMarkDrop)>,
+    ) -> Vec<String> {
+        if dropped.is_empty() {
+            return Vec::new();
+        }
+        let locale = self.current_locale();
+        let said: Vec<String> = dropped
+            .iter()
+            .map(|(name, why)| crate::i18n::tr(&locale, why.key()).replace("{item}", name))
+            .collect();
+        let mut kept: Vec<String> = self
+            .store
+            .kv_get(K_STAFF_NOTICES)
+            .ok()
+            .flatten()
+            .and_then(|j| serde_json::from_str(&j).ok())
+            .unwrap_or_default();
+        kept.extend(said.iter().cloned());
+        let _ = self.store.kv_put(K_STAFF_NOTICES, &serde_json::to_string(&kept).unwrap_or_default());
+        said
+    }
+
+    /// Why marks left their lines since the host last asked — each already a
+    /// sentence in the till's language. Re-checks the cart first, so a settings
+    /// sync that took an item off the list is caught the next time the cart is
+    /// looked at. Draining: a reason is handed over once.
+    pub fn take_staff_drink_notices(&self, table_id: Option<String>) -> Vec<String> {
+        let _ = self.refresh_staff_marks(table_id.as_deref());
+        let kept: Vec<String> = self
+            .store
+            .kv_get(K_STAFF_NOTICES)
+            .ok()
+            .flatten()
+            .and_then(|j| serde_json::from_str(&j).ok())
+            .unwrap_or_default();
+        if !kept.is_empty() {
+            let _ = self.store.kv_put(K_STAFF_NOTICES, "[]");
+        }
+        kept
+    }
+
+    /// MARK a cart line as a staff drink. The note is REQUIRED; the pool must
+    /// allow the item; the person must hold the act or bring a manager's
+    /// approval; the cart must be the counter's. Nothing is spent — the pool
+    /// entry is written when the order is charged. Returns the cart's lines
+    /// (the marked line has a new key).
+    pub fn mark_staff_drink(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+        note: String,
+        approval: Option<ApprovalView>,
+    ) -> Result<Vec<crate::cart::CartLineView>, CoreError> {
+        let locale = self.current_locale();
+        if table_id.is_some() {
+            return Err(CoreError::Validation {
+                field: "table".into(),
+                detail: crate::i18n::tr(&locale, "staff_pool.refused.table"),
+            });
+        }
+        let access = self.staff_drink_access();
+        let approval = match access.outcome.as_str() {
+            "allow" => None,
+            "needs_approval" => match approval {
+                Some(a) if a.capability == CAP_STAFF_DRINK => Some(a),
+                _ => return Err(CoreError::Forbidden { resource: "approval".into(), action: access.reason }),
+            },
+            _ => return Err(CoreError::Forbidden { resource: "staff_drink".into(), action: access.reason }),
+        };
+        let lines = crate::cart::lines(&self.store, None)?;
+        let line = lines.iter().find(|l| l.key == line_key).ok_or_else(|| CoreError::Validation {
+            field: "line".into(),
+            detail: "that line is no longer in the cart".into(),
+        })?;
+        if line.bundle_id.is_some() {
+            return Err(CoreError::Validation {
+                field: "item".into(),
+                detail: crate::i18n::tr(&locale, staff_pool::StaffDrinkRefusal::ItemNotEligible.key()),
+            });
+        }
+        let branch = self.session_branch_id()?;
+        let settings = self.staff_pool_settings()?;
+        let date = self.staff_pool_date();
+        let used = self.staff_drinks_used(&branch, &date) + self.staff_units_marked_in_cart(Some(&line_key));
+        let verdict = staff_pool::decide(&settings, &date, &line.item_id, &note, used);
+        if let Some(r) = verdict.refusal {
+            return Err(CoreError::Validation {
+                field: if r == staff_pool::StaffDrinkRefusal::NoteRequired { "note".into() } else { "item".into() },
+                detail: crate::i18n::tr(&locale, r.key()),
+            });
+        }
+        // Re-marking a marked line keeps its drink id (it is one drink).
+        let id = line.staff_drink.as_ref().map(|m| m.id.clone()).unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
+        crate::cart::mark_staff(
+            &self.store,
+            None,
+            &line_key,
+            crate::cart::StoredStaffMark { id, note: note.trim().to_string(), approval, free_per_unit_minor: 0 },
+        )?;
+        drop(_guard);
+        // Priced at once, by the rule, from the catalogue.
+        self.refresh_staff_marks(None);
+        crate::cart::lines(&self.store, None)
+    }
+
+    /// Change a marked line's note. A blank note is refused: the note is the
+    /// only record of who drank it.
+    pub fn edit_staff_drink_note(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+        note: String,
+    ) -> Result<Vec<crate::cart::CartLineView>, CoreError> {
+        if !staff_pool::note_is_given(&note) {
+            return Err(CoreError::Validation {
+                field: "note".into(),
+                detail: crate::i18n::tr(&self.current_locale(), staff_pool::StaffDrinkRefusal::NoteRequired.key()),
+            });
+        }
+        let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
+        crate::cart::set_staff_note(&self.store, table_id.as_deref(), &line_key, &note)?;
+        crate::cart::lines(&self.store, table_id.as_deref())
+    }
+
+    /// Take the mark off: the line rings at its normal price again.
+    pub fn unmark_staff_drink(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+    ) -> Result<Vec<crate::cart::CartLineView>, CoreError> {
+        let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
+        crate::cart::unmark_staff(&self.store, table_id.as_deref(), &line_key)
+    }
+
+    /// The cart is about to become (part of) a table's BILL — a round is being
+    /// fired, or the host aimed it at a table or an open ticket. Every mark
+    /// goes, and the reasons come back already worded (they are also kept for
+    /// [`Self::take_staff_drink_notices`]).
+    pub fn drop_staff_marks_for_bill(&self, table_id: Option<String>) -> Vec<String> {
+        let ctx = table_id.as_deref();
+        let dropped = crate::cart::strip_staff_marks(&self.store, ctx, crate::cart::StaffMarkDrop::TableBill)
+            .unwrap_or_default();
+        self.note_staff_drops(ctx, dropped)
+    }
+
+    /// The cart's staff drinks as the Charge sheet states them: the comp as a
+    /// discount, and what those lines still pay. `None` without one. Local.
+    pub fn cart_staff_summary(&self, table_id: Option<String>) -> Option<crate::cart::CartStaffSummary> {
+        crate::cart::staff_summary(&self.store, table_id.as_deref()).ok().flatten()
+    }
+
+    /// Decide each staff line of a prepared sale against the pool, in cart
+    /// order (each one counts the ones before it), stamp `overspent` on the
+    /// wire, and build the ledger rows the sale commits with. Returns the rows
+    /// and the pool as it stands after the last one.
+    pub(crate) fn settle_staff_lines(
+        &self,
+        prepared: &mut crate::checkout::Prepared,
+        till_id: &str,
+    ) -> Result<(Vec<Value>, Option<StaffPoolDay>), CoreError> {
+        if prepared.staff_lines.is_empty() {
+            return Ok((Vec::new(), None));
+        }
+        let branch = self.session_branch_id()?;
+        let settings = self.staff_pool_settings()?;
+        let date = self.staff_pool_date();
+        let mut used = self.staff_drinks_used(&branch, &date);
+        let device_id = self.lan_device_id();
+        let mut rows = Vec::new();
+        let mut pool = None;
+        for s in &prepared.staff_lines {
+            let verdict = staff_pool::decide(&settings, &date, &s.menu_item_id, &s.note, used);
+            let quantity = s.quantity.clamp(1, i32::MAX as i64) as i32;
+            if let Some(Some(sd)) = prepared
+                .command
+                .request
+                .items
+                .get_mut(s.item_index)
+                .map(|i| i.staff_drink.as_mut().and_then(|o| o.as_mut()))
+            {
+                sd.overspent = Some(Some(verdict.overspent));
+            }
+            rows.push(json!({
+                "id": s.id,
+                "branch_id": branch,
+                "till_id": till_id,
+                "order_id": prepared.order_id.to_string(),
+                "menu_item_id": s.menu_item_id,
+                "item_name": s.item_name,
+                "size_label": s.size_label,
+                "quantity": quantity,
+                "note": s.note.trim(),
+                "allowance_at_record": settings.daily_allowance,
+                "used_before": used,
+                "overspent": verdict.overspent,
+                "overspent_on_replay": false,
+                "comp_minor": s.comp_minor,
+                "extras_minor": s.extras_minor,
+                "device_id": device_id,
+                "recorded_at": prepared.event_at,
+                "business_date": date,
+            }));
+            used += quantity;
+            pool = Some(staff_pool::pool_state(&date, settings.daily_allowance, used));
+        }
+        Ok((rows, pool))
+    }
+
+    /// "Staff drinks: 3 left today" / "… 2 over today's allowance" — the done
+    /// card's line after a sale that carried one.
+    pub(crate) fn staff_done_label(&self, pool: &StaffPoolDay) -> String {
+        let locale = self.current_locale();
+        let n = |k: &str, v: i32| crate::i18n::tr(&locale, k).replace("{count}", &v.to_string());
+        if pool.over > 0 {
+            n("staff_pool.done_over", pool.over)
+        } else if pool.remaining == 0 {
+            crate::i18n::tr(&locale, "staff_pool.done_none_left")
+        } else {
+            n("staff_pool.done_left", pool.remaining)
+        }
+    }
+
+    /// The server answered a sale that carried staff drinks.
+    ///
+    /// * A server that speaks the contract names each pooled line
+    ///   (`staff_drink_id`) with the comp IT stored (`staff_comp_minor`): the
+    ///   drink's local row adopts those figures, so the till and the server
+    ///   never disagree on a synced sale. (The sale's own row adopts the
+    ///   server's totals through the ordinary ack fold.)
+    /// * A server that PREDATES the contract ignores the line field: no line
+    ///   of its answer carries `staff_comp_minor`. The sale is kept exactly as
+    ///   that server priced it, each drink is recorded on the pool through the
+    ///   record-only op it does understand (same id, so nothing is counted
+    ///   twice later), and the teller is told plainly.
+    pub(crate) fn staff_drinks_acked(&self, item: &store::OutboxItem, ack: &Value) {
+        let Ok(cmd) = serde_json::from_str::<crate::checkout::CheckoutCommand>(&item.payload) else { return };
+        let drinks: Vec<(usize, String)> = cmd
+            .request
+            .items
+            .iter()
+            .enumerate()
+            .filter_map(|(i, it)| Some((i, it.staff_drink.clone().flatten()?.id.to_string())))
+            .collect();
+        if drinks.is_empty() {
+            return;
+        }
+        let Some(lines) = ack.get("items").and_then(Value::as_array).filter(|l| !l.is_empty()) else {
+            // No body to read (an idempotent ack): the feed reconciles it.
+            return;
+        };
+        let server_order = ack.get("id").and_then(Value::as_str).unwrap_or(&item.id).to_string();
+        let speaks_contract = lines.iter().any(|l| l.get("staff_comp_minor").is_some());
+        if speaks_contract {
+            for (_, id) in &drinks {
+                let Some(line) = lines.iter().find(|l| l.get("staff_drink_id").and_then(Value::as_str) == Some(id)) else {
+                    continue;
+                };
+                let comp = line.get("staff_comp_minor").and_then(Value::as_i64).unwrap_or(0);
+                let _ = self.store.with_tx_touch(|tx, touched| {
+                    if let Some(mut row) = staff_drinks::raw(tx, id)? {
+                        let rang = row.get("comp_minor").and_then(Value::as_i64).unwrap_or(0)
+                            + row.get("extras_minor").and_then(Value::as_i64).unwrap_or(0);
+                        row["comp_minor"] = json!(comp);
+                        row["extras_minor"] = json!((rang - comp).max(0));
+                        row["order_id"] = json!(server_order);
+                        staff_drinks::upsert(tx, &row, "local")?;
+                        touched.extend(crate::changes::tables_for_op(T_STAFF_DRINK));
+                    }
+                    Ok(())
+                });
+            }
+            return;
+        }
+        // OLD SERVER. Never lose the sale, never lose the drink.
+        for (_, id) in &drinks {
+            let Ok(Some(mut row)) = self.store.with_conn(|c| staff_drinks::raw(c, id)) else { continue };
+            row["order_id"] = json!(server_order);
+            // That server comped nothing it knows of; the record-only drink
+            // carries no money (`comp_minor = null`, contract §2 "Unchanged").
+            let mut request = row.clone();
+            if let Some(o) = request.as_object_mut() {
+                for k in ["business_date", "overspent_on_replay", "comp_minor", "extras_minor"] {
+                    o.remove(k);
+                }
+            }
+            let payload = serde_json::to_string(&StaffDrinkCommand {
+                request,
+                approval: cmd.approval.clone().filter(|a| {
+                    a.get("capability").and_then(Value::as_str) == Some(CAP_STAFF_DRINK)
+                }),
+            })
+            .unwrap_or_default();
+            let op = store::NewOutboxOp {
+                id: format!("staff_drink:{id}"),
+                op_type: T_STAFF_DRINK.into(),
+                idempotency_key: format!("staff_drink:{id}"),
+                payload,
+                event_at: row.get("recorded_at").and_then(Value::as_str).unwrap_or(&item.event_at).to_string(),
+                depends_on_seq: None,
+                user_id: item.user_id.clone(),
+                clock_offset_ms: item.clock_offset_ms,
+                till_id: item.till_id.clone(),
+                device_id: Some(self.lan_device_id()),
+                entity_type: Some(T_STAFF_DRINK.into()),
+                entity_id: Some(id.clone()),
+            };
+            let _ = self.store.with_tx_touch(|tx, touched| {
+                staff_drinks::commit(tx, &op, &row)?;
+                touched.extend(crate::changes::tables_for_op(T_STAFF_DRINK));
+                Ok(())
+            });
+        }
+        let _ = self.store.kv_put(&old_server_key(&item.id), "1");
+        let _ = self.store.kv_put(&old_server_key(&server_order), "1");
+        self.push_diag("warn", "this server does not price staff drinks: recorded on the pool the old way");
+    }
+
+    /// The teller-facing sentence when `order` (client key or server id) was
+    /// answered by a server that does not support free staff drinks.
+    pub fn staff_old_server_notice(&self, order: String) -> Option<String> {
+        self.store
+            .kv_get(&old_server_key(&order))
+            .ok()
+            .flatten()
+            .filter(|s| !s.is_empty())
+            .map(|_| crate::i18n::tr(&self.current_locale(), "staff_pool.old_server"))
     }
 }
 
@@ -412,6 +823,10 @@ pub struct StaffDrinkLineView {
     pub recorded_at: String,
     /// Still in the outbox — the server has not counted it yet.
     pub queued: bool,
+    /// What the pool comped on its line / what the line still paid. `None` on
+    /// a record-only drink.
+    pub comp_minor: Option<i64>,
+    pub extras_minor: Option<i64>,
 }
 
 fn user_id_of(op: &store::NewOutboxOp) -> &str {

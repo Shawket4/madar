@@ -58,6 +58,17 @@ pub struct RecordStaffDrinkParams {
     pub record_staff_drink_request: models::RecordStaffDrinkRequest,
 }
 
+/// struct for passing parameters to the method [`summarize_staff_drinks`]
+#[derive(Clone, Debug)]
+pub struct SummarizeStaffDrinksParams {
+    pub branch_id: String,
+    /// Business days, inclusive. Both default to the branch's today.
+    pub from: Option<chrono::NaiveDate>,
+    pub to: Option<chrono::NaiveDate>,
+    /// Only the drinks that went past the allowance.
+    pub overspent_only: Option<bool>,
+}
+
 /// struct for typed errors of method [`delete_staff_pool_settings`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -127,6 +138,19 @@ pub enum PutStaffPoolSettingsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum RecordStaffDrinkError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`summarize_staff_drinks`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SummarizeStaffDrinksError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -402,6 +426,59 @@ pub async fn record_staff_drink(
     } else {
         let content = resp.text().await?;
         let entity: Option<RecordStaffDrinkError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn summarize_staff_drinks(
+    configuration: &configuration::Configuration,
+    params: SummarizeStaffDrinksParams,
+) -> Result<models::StaffDrinksSummary, Error<SummarizeStaffDrinksError>> {
+    let uri_str = format!("{}/staff-pool/drinks/summary", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    req_builder = req_builder.query(&[("branch_id", &params.branch_id.to_string())]);
+    if let Some(ref param_value) = params.from {
+        req_builder = req_builder.query(&[("from", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.to {
+        req_builder = req_builder.query(&[("to", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.overspent_only {
+        req_builder = req_builder.query(&[("overspent_only", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::StaffDrinksSummary`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::StaffDrinksSummary`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<SummarizeStaffDrinksError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

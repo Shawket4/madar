@@ -49,6 +49,14 @@ pub struct OrderItemInput {
         skip_serializing_if = "Option::is_none"
     )]
     pub size_label: Option<Option<String>>,
+    /// Put this line on the branch's STAFF POOL: a normal sale whose base configuration (cheapest size + the default of each required choice) is comped, extras still charged. Needs `orders.staff_drink.record`. The server prices the comp; see `docs/staff-drink-comp-contract.md`. Additive — a client that omits it rings an ordinary paid line. Not carried by a bundle line (`item_not_eligible`) nor by a ticket's line.
+    #[serde(
+        rename = "staff_drink",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub staff_drink: Option<Option<Box<models::StaffDrinkLine>>>,
     /// What the customer was actually charged, in piastres.  Read ONLY when a queued offline sale is replayed — see [`ClientPrices`]. On the live path the server prices the line and this is ignored, so a till cannot charge a price of its own choosing and no manual override exists to let anyone try.
     #[serde(
         rename = "unit_price",
@@ -70,6 +78,7 @@ impl OrderItemInput {
             optional_field_ids: None,
             quantity,
             size_label: None,
+            staff_drink: None,
             unit_price: None,
         }
     }

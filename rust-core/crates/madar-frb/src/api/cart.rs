@@ -8,7 +8,7 @@ use crate::api::error::MadarError;
 
 pub use madar_core::cart::{
     AddonSelection, BundleComponentSelection, CartAddonView, CartBundleComponentView, CartLineView,
-    CartOptionalView, CartTotals, CartMeta, DraftSwitchView, DraftView, GroupViolationView, HeldParkInput,
+    CartOptionalView, CartStaffDrinkView, CartStaffSummary, CartTotals, CartMeta, DraftSwitchView, DraftView, GroupViolationView, HeldParkInput,
     ItemAddonView, LinePreviewView, ModifierGroupKind, ModifierGroupView, ModifierOptionView,
 };
 pub use madar_core::recipe::ComputedRecipeLineView;
@@ -122,6 +122,26 @@ pub struct _CartLineView {
     /// A KITCHEN-ONLY note for this line — never on the checkout payload,
     /// never on the customer receipt. Cleared once this line's chit prints.
     pub kitchen_note: Option<String>,
+    /// Set when the line is a STAFF DRINK. `line_total_minor` stays the normal
+    /// price; this carries the comp and what is still charged.
+    pub staff_drink: Option<CartStaffDrinkView>,
+}
+
+/// A cart line's staff-drink mark.
+#[frb(mirror(CartStaffDrinkView))]
+pub struct _CartStaffDrinkView {
+    pub id: String,
+    pub note: String,
+    pub comp_minor: i64,
+    pub charged_minor: i64,
+}
+
+/// The cart's staff drinks in one figure, for the Charge sheet.
+#[frb(mirror(CartStaffSummary))]
+pub struct _CartStaffSummary {
+    pub units: i64,
+    pub comp_minor: i64,
+    pub charged_minor: i64,
 }
 
 /// The priced cart summary the host shows in the cart panel + action-bar badge.
