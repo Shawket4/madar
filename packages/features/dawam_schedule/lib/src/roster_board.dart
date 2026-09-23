@@ -67,6 +67,8 @@ class RosterCard {
     this.changed = false,
     this.swap = false,
     this.claimed = false,
+    this.edited = false,
+    this.nextDay = false,
   });
 
   final Shift shift;
@@ -91,6 +93,12 @@ class RosterCard {
   /// An open shift someone claimed (SC-9).
   final bool claimed;
 
+  /// This one assignment has its own from/to (the block is unchanged).
+  final bool edited;
+
+  /// It ends on the next day (still this day's shift, SC-10).
+  final bool nextDay;
+
   String get label => [
     if (leave == 'paid')
       tr('staff.paid_leave')
@@ -99,6 +107,8 @@ class RosterCard {
     if (half) tr('staff.half_day'),
     title,
     window,
+    if (nextDay) tr('staff.ends_next_day'),
+    if (edited) tr('staff.edited'),
     if (changed) tr('staff.changed'),
     if (swap) tr('staff.swap_pending'),
     if (claimed) tr('staff.claimed'),
@@ -747,6 +757,8 @@ class ShiftCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (card.edited)
+                  MadarGlyphIcon(MadarGlyph.edit, size: 12, color: c.info),
                 if (card.swap)
                   MadarGlyphIcon(MadarGlyph.refresh, size: 12, color: c.info),
                 if (card.claimed)

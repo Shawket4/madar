@@ -147,7 +147,8 @@ void main() {
     await t.tap(find.text('Off').first);
     await frames(t);
     await tapText(t, 'Add');
-    expect(lastAct(), containsPair('action', 'set_day'));
+    // Beside anything else that day, never replacing it (SC-11).
+    expect(lastAct(), containsPair('action', 'add_block'));
     expect(lastAct(), containsPair('emp', 'e2'));
     await finish(t);
   });

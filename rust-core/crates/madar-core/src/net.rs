@@ -812,6 +812,11 @@ pub(crate) fn status_to_error(status: u16, body: &str) -> CoreError {
     let message = backend_envelope
         .clone()
         .unwrap_or_else(|| reason(status).to_string());
+    // The Dawam roster's refusals keep their code whatever the status, so the
+    // core can word them for the person (`dawam::ROSTER_CODES`).
+    if let Some(code) = extract_error_code(body).filter(|c| crate::dawam::ROSTER_CODES.contains(&c.as_str())) {
+        return CoreError::Server { status, code, detail: message };
+    }
     match status {
         // A genuine backend 401 carries our error envelope → the token really was
         // rejected (expired/invalid) and the caller should surface re-auth. A 401

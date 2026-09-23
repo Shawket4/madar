@@ -18,6 +18,16 @@ class ShiftsTab extends ConsumerWidget {
     final asks = store.reqs
         .where((r) => r.peer == me && r.status == ReqStatus.awaitingPeer)
         .toList();
+    // Swaps I asked for that nobody decided yet: I can take them back.
+    final mine = store.reqs
+        .where(
+          (r) =>
+              r.kind == ReqKind.swap &&
+              r.emp == me &&
+              (r.status == ReqStatus.awaitingPeer ||
+                  r.status == ReqStatus.pending),
+        )
+        .toList();
     final next = weekStart(store.today).add(const Duration(days: 7));
     final nextPublished = store.user.branches.every(
       (b) => store.published.contains('$b|$next'),
@@ -42,6 +52,7 @@ class ShiftsTab extends ConsumerWidget {
           spacing: Space.md,
           children: [
             for (final r in asks) _SwapAsk(r),
+            for (final r in mine) _MySwap(r),
             if (!nextPublished)
               NoticeBanner(
                 text: tr('staff.not_published_yet_you_ll_get'),
@@ -148,15 +159,10 @@ class ShiftsTab extends ConsumerWidget {
                   title: name(store.emp(s.emp!)),
                   meta: '${dayLabel(s.date)} · ${tplName(s.template)}',
                   onTap: () async {
+                    // MY shift first, the colleague's second (06 B2).
                     final sent = await attempt(
                       ref,
-                      () => store.file(
-                        ReqKind.swap,
-                        from: mine.date,
-                        shift: s.id,
-                        shift2: mine.id,
-                        peer: s.emp,
-                      ),
+                      () => store.askSwap(mine, s),
                       ok: tr('staff.asked', {'name': name(store.emp(s.emp!))}),
                     );
                     if (sent && ctx.mounted) Navigator.of(ctx).maybePop();
@@ -281,6 +287,40 @@ class _SwapAsk extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+/// A swap I asked for, still undecided: I can take it back (SC-8).
+class _MySwap extends ConsumerWidget {
+  const _MySwap(this.r);
+
+  final Req r;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final store = ref.watch(dawamProvider);
+    final a = store.shifts.where((s) => s.id == r.shift).firstOrNull;
+    final b = store.shifts.where((s) => s.id == r.shift2).firstOrNull;
+    final peer = r.peer == null ? null : store.emps[r.peer];
+    return MadarCard.column(
+      children: [
+        Text(tr('staff.swap_this_shift'), style: MadarType.title),
+        if (a != null && b != null)
+          Text(
+            '${dayLabel(a.date)} · ${tplName(a.template)} ⇄ '
+            '${peer == null ? '' : '${name(peer)} · '}'
+            '${dayLabel(b.date)} · ${tplName(b.template)}',
+            style: MadarType.body,
+          ),
+        MadarButton(
+          label: tr('staff.cancel_swap'),
+          variant: MadarButtonVariant.secondary,
+          size: MadarButtonSize.compact,
+          glyph: MadarGlyph.close,
+          onTap: () => attempt(ref, () => store.cancel(r)),
         ),
       ],
     );

@@ -225,6 +225,32 @@ void main() {
     }
   }
 
+  for (final lang in ['ar', 'en']) {
+    test('a card says it is edited and ends the next day · $lang', () {
+      currentLang = lang;
+      final s = Shift('e1|2026-09-24|w', 'e1', 'w', DateTime(2026, 9, 24));
+      final card = RosterCard(
+        shift: s,
+        title: 'Evening',
+        window: '18:00 – 02:00 +1',
+        color: const Color(0xFF000000),
+        edited: true,
+        nextDay: true,
+      );
+      expect(card.label, contains(tr('staff.edited')));
+      expect(card.label, contains(tr('staff.ends_next_day')));
+      expect(
+        RosterCard(
+          shift: s,
+          title: 'Evening',
+          window: '',
+          color: const Color(0xFF000000),
+        ).label,
+        isNot(contains(tr('staff.edited'))),
+      );
+    });
+  }
+
   testWidgets('a tablet sees the whole week without scrolling', (t) async {
     await _pump(t, 'en', const Size(1180, 820));
     for (final d in _days) {
