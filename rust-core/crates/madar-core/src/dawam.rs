@@ -18,7 +18,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -373,6 +373,12 @@ pub struct ShiftV {
     pub end: i64,
     /// Ends on the following date (it still belongs to `date`, SC-10).
     pub next_day: bool,
+    /// The server's own instants for it (DW1): read as sent, never rebuilt
+    /// from the wall-clock times, so a DST day can't lose or move a shift.
+    #[serde(skip)]
+    pub start_at: Option<DateTime<Utc>>,
+    #[serde(skip)]
+    pub end_at: Option<DateTime<Utc>>,
     /// This assignment has its own from/to: show it as edited.
     pub edited: bool,
     /// The date holds its own set of shifts (not the standing pattern).
@@ -1992,6 +1998,8 @@ impl MadarCore {
                 own_day: b(r, "from_override"),
                 rostered: true,
                 leave: b(r, "on_leave").then(|| "paid".to_string()),
+                start_at: at(r, "start_at"),
+                end_at: at(r, "end_at"),
                 ..Default::default()
             });
         }
@@ -1999,7 +2007,7 @@ impl MadarCore {
             let (Some(d), id) = (date(o, "on_date"), s(o, "work_shift_id")) else { continue };
             let Some(tp) = tpl(&id) else { continue };
             let (start, end) = tp.times_on(d);
-            shifts.push(ShiftV { id: format!("open|{}", s(o, "id")), tpl: id, date: d.to_string(), published: is_pub(&tp.branch, d), start, end, next_day: end <= start, ..Default::default() });
+            shifts.push(ShiftV { id: format!("open|{}", s(o, "id")), tpl: id, date: d.to_string(), published: is_pub(&tp.branch, d), start, end, next_day: end <= start, start_at: at(o, "start_at"), end_at: at(o, "end_at"), ..Default::default() });
             if s(o, "status") == "claimed" {
                 if let Some(by) = so(o, "claimed_by") {
                     out.requests.push(ReqV { id: format!("o|{}", s(o, "id")), kind: "openShift".into(), emp: by, created: now.to_rfc3339(), status: "pending".into(), from: Some(d.to_string()), shift: Some(format!("open|{}", s(o, "id"))), installments: 1, ..Default::default() });
@@ -2027,6 +2035,9 @@ impl MadarCore {
                 }
             };
             let sh = &mut shifts[idx];
+            // The record's scheduled instants, when the roster didn't send any.
+            sh.start_at = sh.start_at.or_else(|| at(r, "scheduled_start_at"));
+            sh.end_at = sh.end_at.or_else(|| at(r, "scheduled_end_at"));
             sh.in_at = at(r, "check_in_at").map(|x| x.to_rfc3339());
             sh.out_at = at(r, "check_out_at").map(|x| x.to_rfc3339());
             sh.in_method = method_of(&s(r, "check_in_method"));
@@ -2208,16 +2219,10 @@ impl MadarCore {
                 collected,
             });
         }
-        // The cap is the server's figure (AV-5, AT-3); an older server that
-        // doesn't send it leaves the percent maths as a fallback.
-        let server_caps: HashMap<String, i64> = rows("dawam_people").iter()
-            .filter_map(|p| Some((s(p, "employee_id"), p.get("advance_cap_piastres")?.as_i64()?)))
-            .collect();
-        for p in &out.people {
-            let cap = server_caps.get(&p.id).copied()
-                .unwrap_or_else(|| (p.salary as f64 * out.settings.advance_cap_pct / 100.0).round() as i64);
-            out.advance_cap.insert(p.id.clone(), cap);
-        }
+        // The cap is the server's figure only (AV-5, AT-3, DW3): no percent
+        // maths here — a person the server sends none for (salary hidden
+        // from me) has none.
+        out.advance_cap.extend(advance_caps(rows("dawam_people")));
         if let Some(cap) = estimate.get("advance_cap_piastres").and_then(Value::as_i64) {
             out.advance_cap.insert(me.clone(), cap);
         }
@@ -2291,10 +2296,8 @@ impl MadarCore {
                 _ => "active",
             };
             let pct = a.get("percent_of_base").filter(|x| !x.is_null()).map(|_| f(a, "percent_of_base"));
-            // The server values a % line (AT-3); an older server leaves it to us.
-            let salary = out.people.iter().find(|p| p.id == s(a, "employee_id")).map_or(0, |p| p.salary);
-            let value = a.get("value_piastres").and_then(Value::as_i64)
-                .unwrap_or_else(|| pct.map_or(i(a, "amount_piastres"), |p| (salary as f64 * p / 100.0).round() as i64));
+            // The server values a % line (AT-3, DW3); it is never priced here.
+            let value = adj_value(a, pct);
             out.adjustments.push(AdjV {
                 id: format!("a|{}|{}", s(a, "kind"), s(a, "id")),
                 emp: s(a, "employee_id"),
@@ -2449,7 +2452,7 @@ impl MadarCore {
         out.charge_phone = out.active_shift.is_some() && noted.as_ref().and_then(|x| x.fix.battery).is_some_and(|b| b <= LOW_BATTERY);
         let fresh = noted.filter(|n| n.fresh_at(boot_ms())).map(|n| n.fix);
         for br in rows("dawam_branches") {
-            let radius = br.get("geo_radius_meters").and_then(Value::as_i64).filter(|r| *r > 0).unwrap_or(200);
+            let radius = effective_radius(br);
             let centre = br.get("latitude").and_then(Value::as_f64).zip(br.get("longitude").and_then(Value::as_f64));
             let fence = match (&fresh, centre) {
                 (Some(fx), Some(c)) => {
@@ -2506,19 +2509,63 @@ fn parts(id: &str) -> (&str, &str, &str) {
     (p.next().unwrap_or_default(), p.next().unwrap_or_default(), p.next().unwrap_or_default())
 }
 
-/// A shift's start in the branch's zone, from its own (effective) times.
+/// A shift's start: the server's instant (DW1). Only a shift the server sent
+/// no instant for is placed here, by the server's own rule.
 fn shift_start(sh: &ShiftV, tz: &chrono_tz::Tz) -> Option<DateTime<Utc>> {
+    if sh.start_at.is_some() {
+        return sh.start_at;
+    }
     let d = NaiveDate::parse_from_str(&sh.date, "%Y-%m-%d").ok()?;
     let t = NaiveTime::from_num_seconds_from_midnight_opt((sh.start.rem_euclid(1440) * 60) as u32, 0)?;
-    tz.from_local_datetime(&d.and_time(t)).earliest().map(|x| x.with_timezone(&Utc))
+    wall_instant(tz, d.and_time(t))
 }
 
-/// Its end: on the next date when it crosses midnight.
+/// Its end: the server's instant, else on the next date when it crosses
+/// midnight.
 fn shift_end(sh: &ShiftV, tz: &chrono_tz::Tz) -> Option<DateTime<Utc>> {
+    if sh.end_at.is_some() {
+        return sh.end_at;
+    }
     let d = NaiveDate::parse_from_str(&sh.date, "%Y-%m-%d").ok()?;
     let d = if sh.end <= sh.start { d + Duration::days(1) } else { d };
     let t = NaiveTime::from_num_seconds_from_midnight_opt((sh.end.rem_euclid(1440) * 60) as u32, 0)?;
-    tz.from_local_datetime(&d.and_time(t)).earliest().map(|x| x.with_timezone(&Utc))
+    wall_instant(tz, d.and_time(t))
+}
+
+/// A branch wall-clock time as an instant, the way Postgres's
+/// `(date + time) AT TIME ZONE tz` places it (the server's shift instants):
+/// a time in the spring-forward gap moves forward by the gap, and a time
+/// that happens twice in the autumn is the later (standard-time) one.
+/// chrono's `.earliest()` gave `None` and one hour early respectively.
+fn wall_instant(tz: &chrono_tz::Tz, wall: NaiveDateTime) -> Option<DateTime<Utc>> {
+    use chrono::offset::LocalResult;
+    match tz.from_local_datetime(&wall) {
+        LocalResult::Single(x) => Some(x.with_timezone(&Utc)),
+        LocalResult::Ambiguous(_, later) => Some(later.with_timezone(&Utc)),
+        LocalResult::None => (1..=3)
+            .find_map(|h| tz.from_local_datetime(&(wall + Duration::hours(h))).latest())
+            .map(|x| x.with_timezone(&Utc)),
+    }
+}
+
+/// Each person's salary-advance cap as the server computed it (numeric
+/// rounding in `dawam_advance_cap`); none where the server sent none.
+fn advance_caps(people: &[Value]) -> impl Iterator<Item = (String, i64)> + '_ {
+    people.iter().filter_map(|p| Some((s(p, "employee_id"), p.get("advance_cap_piastres")?.as_i64()?)))
+}
+
+/// What an adjustment is worth: the server's `value_piastres` (a % of salary
+/// is rounded by the server's numeric maths: 1500 × 33.3% = 500, where f64
+/// gave 499). Without it, a flat line is its amount; a % line is unpriced (0).
+fn adj_value(a: &Value, pct: Option<f64>) -> i64 {
+    a.get("value_piastres").and_then(Value::as_i64).unwrap_or_else(|| if pct.is_some() { 0 } else { i(a, "amount_piastres") })
+}
+
+/// A branch's geofence radius by the server's rule (`staff/attendance.rs`:
+/// `unwrap_or(200).max(0)`, DW2): unset is 200 m, and 0 is 0 m — not 200, or
+/// the phone says "inside" where the server refuses the punch.
+fn effective_radius(br: &Value) -> i64 {
+    br.get("geo_radius_meters").and_then(Value::as_i64).unwrap_or(200).max(0)
 }
 
 /// The pay period `d` falls in, for a business starting on `start_day` (PAY-1).
@@ -2808,6 +2855,110 @@ mod tests {
         assert!(matches!(unwaive, Act::Unwaive { ref key, ref reason } if key == "d|x" && reason == "wrong day"));
         let record: Act = serde_json::from_value(json!({ "action": "record_advance", "emp": "e2", "amount": 150000, "installments": 3 })).unwrap();
         assert!(matches!(record, Act::RecordAdvance { amount: 150_000, installments: 3, .. }));
+    }
+
+    /// DW1: a shift's instants are the server's, so a DST day neither loses
+    /// a shift (Cairo 2026-04-24 00:30 is in the spring gap) nor moves one an
+    /// hour early (2026-10-29 23:30 happens twice).
+    #[test]
+    fn shift_instants_are_the_servers_on_dst_days() {
+        let tz: chrono_tz::Tz = "Africa/Cairo".parse().unwrap();
+        let utc = |x: &str| DateTime::parse_from_rfc3339(x).unwrap().with_timezone(&Utc);
+        // Postgres: 00:30 in the gap is 01:30 +03; 08:30 is +03.
+        let gap = ShiftV { date: "2026-04-24".into(), start: 30, end: 510, start_at: Some(utc("2026-04-23T22:30:00Z")), end_at: Some(utc("2026-04-24T05:30:00Z")), ..Default::default() };
+        assert_eq!(shift_start(&gap, &tz), Some(utc("2026-04-23T22:30:00Z")), "the gap shift exists and starts at the server's instant");
+        assert_eq!(shift_end(&gap, &tz), Some(utc("2026-04-24T05:30:00Z")));
+        // Postgres: the repeated 23:30 is standard time (+02); ends 07:30 +02.
+        let twice = ShiftV { date: "2026-10-29".into(), start: 1410, end: 450, next_day: true, start_at: Some(utc("2026-10-29T21:30:00Z")), end_at: Some(utc("2026-10-30T05:30:00Z")), ..Default::default() };
+        assert_eq!(shift_start(&twice, &tz), Some(utc("2026-10-29T21:30:00Z")), "not an hour early");
+        assert_eq!(shift_end(&twice, &tz), Some(utc("2026-10-30T05:30:00Z")));
+
+        // A shift the server sent no instant for is placed by the same rule.
+        let no_at = |x: &ShiftV| ShiftV { start_at: None, end_at: None, ..x.clone() };
+        assert_eq!(shift_start(&no_at(&gap), &tz), Some(utc("2026-04-23T22:30:00Z")), "was None with .earliest()");
+        assert_eq!(shift_start(&no_at(&twice), &tz), Some(utc("2026-10-29T21:30:00Z")), "was 20:30Z with .earliest()");
+        assert_eq!(shift_end(&no_at(&twice), &tz), Some(utc("2026-10-30T05:30:00Z")));
+        // An ordinary day is unchanged.
+        let plain = ShiftV { date: "2026-09-23".into(), start: 480, end: 960, ..Default::default() };
+        assert_eq!(shift_start(&plain, &tz), Some(utc("2026-09-23T05:00:00Z")));
+    }
+
+    /// DW1: the snapshot places a shift by the roster's own instants. Here
+    /// they disagree with the wall-clock times (as they do on a DST day): the
+    /// shift started an hour ago by the server, and the phone must say so.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn the_snapshot_places_a_shift_by_the_servers_instants() {
+        use crate::staff::session_tests::{later, session, signed_in, EMP};
+        use crate::testkit::{Stub, StubResponse, BRANCH};
+        let exp = later();
+        let now = Utc::now();
+        let yesterday = (now.with_timezone(&chrono_tz::Africa::Cairo).date_naive() - Duration::days(1)).to_string();
+        let (a, z) = ((now - Duration::hours(1)).to_rfc3339(), (now + Duration::hours(3)).to_rfc3339());
+        let stub = Stub::start(move |r| {
+            let path = r.path.split('?').next().unwrap_or_default();
+            let res = match path {
+                "/auth/staff/otp/verify" => StubResponse::json(200, session(&exp)),
+                "/staff/me/context" => StubResponse::json(200, json!({
+                    "role": "employee", "org_name": "Nile Café", "caps": [],
+                    "privacy_accepted_at": "2026-09-01T08:00:00Z",
+                    "branches": [{ "id": BRANCH, "name": "Zamalek", "geo_radius_meters": 200,
+                                   "latitude": 30.0609, "longitude": 31.2197, "timezone": "Africa/Cairo" }],
+                    "work_shifts": [{ "id": "w1", "name": "Night", "branch_id": BRANCH,
+                                      "start_time": "00:30:00", "end_time": "04:30:00", "grace_minutes": 10 }],
+                    "people": [{ "employee_id": EMP, "name": "Sara", "role": "employee", "branch_ids": [BRANCH] }],
+                    "settings": { "period_start_day": 26 },
+                })),
+                // Yesterday 00:30–04:30 by the wall clock — long over — but
+                // the server's instants say it is running now.
+                "/staff/me/roster" => StubResponse::json(200, json!({
+                    "shifts": [{ "employee_id": EMP, "date": yesterday, "work_shift_id": "w1",
+                                 "start_time": "00:30:00", "end_time": "04:30:00",
+                                 "start_at": a, "end_at": z }],
+                    "team": [], "open_shifts": [], "swaps": [], "unpublished_weeks": [],
+                })),
+                p if p.ends_with("estimate") => StubResponse::json(200, json!({})),
+                _ => StubResponse::json(200, json!([])),
+            };
+            Some(res)
+        })
+        .await;
+        let core = signed_in(&stub).await;
+        let v: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let id = format!("{EMP}|{}|w1", (Utc::now().with_timezone(&chrono_tz::Africa::Cairo).date_naive() - Duration::days(1)));
+        assert!(v["shifts"].as_array().unwrap().iter().any(|x| x["id"] == id.as_str()), "{v:#}");
+        assert_eq!(v["my_now"], json!([id]), "running by the server's instants (was rebuilt from 00:30–04:30)");
+        let sh = v["shifts"].as_array().unwrap().iter().find(|x| x["id"] == id.as_str()).unwrap();
+        assert_eq!(sh["absent"], false, "not absent: by the server it hasn't ended");
+    }
+
+    /// DW2: the phone's fence follows the server's radius rule: unset is
+    /// 200 m, 0 is 0 m (the server refuses a punch 150 m away), never 200.
+    #[test]
+    fn the_fence_radius_follows_the_servers_rule() {
+        assert_eq!(effective_radius(&json!({})), 200);
+        assert_eq!(effective_radius(&json!({ "geo_radius_meters": null })), 200);
+        assert_eq!(effective_radius(&json!({ "geo_radius_meters": 0 })), 0, "was 200 on the phone");
+        assert_eq!(effective_radius(&json!({ "geo_radius_meters": -5 })), 0);
+        assert_eq!(effective_radius(&json!({ "geo_radius_meters": 350 })), 350);
+        let d = haversine_m((30.02047, 31.004112), (30.02047 + 150.0 / 111_195.0, 31.004112));
+        assert!(d > effective_radius(&json!({ "geo_radius_meters": 0 })) as f64, "150 m away is outside a 0 m fence");
+    }
+
+    /// DW3: money is the server's figure; the core no longer prices a % of
+    /// salary in f64 (1500 EGP at 33.3%: the server's 500, f64 gave 499).
+    #[test]
+    fn caps_and_percent_lines_are_the_servers_figures() {
+        let people = vec![
+            json!({ "employee_id": "e1", "base_salary_piastres": 150_000, "advance_cap_piastres": 50_000 }),
+            json!({ "employee_id": "e2", "base_salary_piastres": null }),
+        ];
+        let caps: BTreeMap<String, i64> = advance_caps(&people).collect();
+        assert_eq!(caps.get("e1"), Some(&50_000), "the server's numeric rounding, not f64's 49 950");
+        assert_eq!(caps.get("e2"), None, "no figure sent: none made up here");
+        let pct = json!({ "percent_of_base": "33.3", "value_piastres": 50_000 });
+        assert_eq!(adj_value(&pct, Some(33.3)), 50_000);
+        assert_eq!(adj_value(&json!({ "percent_of_base": "33.3" }), Some(33.3)), 0, "never priced on the phone");
+        assert_eq!(adj_value(&json!({ "amount_piastres": 12_500 }), None), 12_500);
     }
 
     #[test]
