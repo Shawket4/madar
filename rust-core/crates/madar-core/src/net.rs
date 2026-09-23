@@ -765,6 +765,14 @@ pub(crate) const STAFF_CODES: &[&str] = &[
     "STAFF_APP_ONLY",
 ];
 
+/// Dawam refusals the app words for the person (`MadarCore::staff_error`).
+/// They stay `Server { code }` so the code survives to the wording.
+pub(crate) const DAWAM_CODES: &[&str] = &[
+    // One notion of a closed month: an approved or paid payroll freezes
+    // every day inside it (RQ-4, PAY-5).
+    "PERIOD_CLOSED",
+];
+
 /// Map an HTTP status + raw body to a `CoreError` variant.
 pub(crate) fn status_to_error(status: u16, body: &str) -> CoreError {
     if extract_error_code(body).as_deref() == Some("PAYMENT_METHOD_UNAVAILABLE") {
@@ -797,6 +805,9 @@ pub(crate) fn status_to_error(status: u16, body: &str) -> CoreError {
             401 => CoreError::Unauthenticated { detail: code },
             _ => CoreError::Forbidden { resource: code, action: backend_envelope.unwrap_or_default() },
         };
+    }
+    if let Some(code) = extract_error_code(body).filter(|c| DAWAM_CODES.contains(&c.as_str())) {
+        return CoreError::Server { status, code, detail: backend_envelope.unwrap_or_else(|| reason(status).to_string()) };
     }
     let message = backend_envelope
         .clone()
@@ -1090,6 +1101,20 @@ mod tests {
             CoreError::Unauthenticated { detail } => assert_eq!(detail, "token expired"),
             other => panic!("expected Unauthenticated, got {other:?}"),
         }
+    }
+
+    /// Decision #1: the closed month keeps its code to the wording, so the
+    /// staff app says it in the person's language (`staff_error`).
+    #[test]
+    fn a_closed_period_keeps_its_code() {
+        match status_to_error(409, r#"{"error":"PERIOD_CLOSED: approved","code":"PERIOD_CLOSED"}"#) {
+            CoreError::Server { status, code, detail } => {
+                assert_eq!((status, code.as_str(), detail.as_str()), (409, "PERIOD_CLOSED", "PERIOD_CLOSED: approved"));
+            }
+            other => panic!("expected Server, got {other:?}"),
+        }
+        // Any other coded 409 is as before.
+        assert!(matches!(status_to_error(409, r#"{"error":"x","code":"OTHER"}"#), CoreError::Server { code, .. } if code == "Conflict"));
     }
 
     #[test]

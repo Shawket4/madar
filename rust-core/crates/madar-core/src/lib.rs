@@ -12737,6 +12737,7 @@ impl MadarCore {
             "EMPLOYEE_INACTIVE" => Some("staff.err_employee_inactive"),
             "MANAGER_ACCOUNT_NEEDED" => Some("staff.err_manager_account_needed"),
             "STAFF_APP_ONLY" => Some("staff.err_staff_app_only"),
+            "PERIOD_CLOSED" => Some("staff.err_period_closed"),
             _ => None,
         };
         let locale = self.current_locale();
@@ -12748,6 +12749,10 @@ impl MadarCore {
             CoreError::Forbidden { resource, action } => match key(&resource) {
                 Some(k) => CoreError::Forbidden { action: i18n::tr(&locale, k), resource },
                 None => CoreError::Forbidden { resource, action },
+            },
+            CoreError::Server { status, code, detail } => match key(&code) {
+                Some(k) => CoreError::Server { status, detail: i18n::tr(&locale, k), code },
+                None => CoreError::Server { status, code, detail },
             },
             e => e,
         }

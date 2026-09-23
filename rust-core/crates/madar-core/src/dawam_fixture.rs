@@ -113,6 +113,12 @@ impl World {
             json!({ "id": "q3", "kind": "late_arrival", "employee_id": "e4", "status": "pending", "on_date": self.d(1), "from_time": null, "to_time": "10:15:00", "is_half_day": false, "reason": "Exam", "created_at": self.at(0, "08:00") }),
             json!({ "id": "q4", "kind": "correction", "employee_id": "e4", "status": "pending", "on_date": self.d(0), "from_time": null, "to_time": "23:50:00", "attendance_record_id": "r3", "is_half_day": false, "reason": "Forgot to clock out", "created_at": self.at(0, "09:00") }),
             json!({ "id": "q5", "kind": "leave", "employee_id": "gone", "status": "pending", "on_date": self.d(4), "end_date": self.d(4), "is_half_day": false, "reason": "", "created_at": self.at(0, "09:30") }),
+            // Phase B: an early departure whose rule says paid (RQ-7), a
+            // manager's own request routed above them (RQ-5), and Sara's
+            // approved half day she may cancel with a reason (AT-7).
+            json!({ "id": "q6", "kind": "early_departure", "employee_id": "e4", "status": "pending", "on_date": self.d(2), "from_time": "14:00:00", "is_half_day": false, "reason": "Pharmacy", "created_at": self.at(0, "09:40"), "paid_default": true, "work_shift_id": "zE" }),
+            json!({ "id": "q7", "kind": "leave", "employee_id": "e2", "status": "pending", "on_date": self.d(6), "end_date": self.d(6), "is_half_day": false, "reason": "Moving house", "created_at": self.at(0, "09:45"), "to_owner": true }),
+            json!({ "id": "q8", "kind": "leave", "employee_id": "e1", "status": "approved", "on_date": self.d(6), "end_date": self.d(6), "is_half_day": true, "leave_half": "second", "is_paid": true, "reason": "Sister's graduation", "created_at": self.at(-1, "09:00"), "decided_by": "u2" }),
         ]
     }
 
@@ -149,7 +155,7 @@ impl World {
             "/staff/me/requests" => json!(self.requests().into_iter().filter(|r| r["employee_id"] == "e1").collect::<Vec<_>>()),
             "/staff/payroll/advances" | "/staff/me/advances" => json!([
                 { "id": "v1", "employee_id": "e1", "amount_piastres": 100_000, "installments": 2, "remaining_piastres": 50_000, "status": "approved", "created_at": self.at(-20, "10:00"), "decided_at": self.at(-20, "11:00"), "decided_by": "u2" },
-                { "id": "v2", "employee_id": "e4", "amount_piastres": 50_000, "installments": 1, "remaining_piastres": 50_000, "status": "pending", "reason": "Rent", "created_at": self.at(0, "08:00") }
+                { "id": "v2", "employee_id": "e4", "amount_piastres": 50_050, "installments": 1, "remaining_piastres": 50_000, "status": "pending", "reason": "Rent", "created_at": self.at(0, "08:00") }
             ]),
             "/staff/flags" => json!([
                 { "id": "f1", "employee_id": "e4", "employee_name": "Youssef Adel", "branch_id": B1, "attendance_record_id": "r3", "kind": "left_mid_shift", "minutes_away": 35, "detected_at": self.at(0, "17:10"), "resolution": null, "suggested_deduction_piastres": 5_500 }
@@ -238,6 +244,15 @@ async fn dawam_fixture_three_people_see_their_own_picture() {
     let inbox: Vec<&str> = e2["inbox"].as_array().unwrap().iter().filter_map(Value::as_str).collect();
     assert!(inbox.contains(&"q|q1") && inbox.contains(&"v|v2"), "{inbox:?}");
     assert_eq!(e2["open_flags"], json!(["f1"]));
+    // RQ-5: the manager's own request waits for the owner, not a peer.
+    assert!(!inbox.contains(&"q|q7") && inbox.contains(&"q|q6"), "{inbox:?}");
+    let e3_inbox: Vec<&str> = e3["inbox"].as_array().unwrap().iter().filter_map(Value::as_str).collect();
+    assert!(e3_inbox.contains(&"q|q7"), "{e3_inbox:?}");
+    let q6 = e2["requests"].as_array().unwrap().iter().find(|q| q["id"] == "q|q6").unwrap();
+    assert_eq!(q6["paid_default"], true);
+    // Sara's approved half day, this month: cancellable, the second half.
+    let q8 = e1["requests"].as_array().unwrap().iter().find(|q| q["id"] == "q|q8").unwrap();
+    assert_eq!((q8["month_open"].clone(), q8["leave_half"].clone()), (json!(true), json!("second")));
     let yesterday = e2["shifts"].as_array().unwrap().iter().find(|s| s["id"].as_str().unwrap().starts_with("e4|") && s["absent"] == true);
     assert!(yesterday.is_some(), "Youssef's missed evening reads absent");
     // The owner: payroll, and the adjustment over the manager's limit.
