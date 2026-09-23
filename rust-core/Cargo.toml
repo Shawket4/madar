@@ -13,9 +13,6 @@
 resolver = "2"
 members = [
     "crates/madar-core",
-    # The shared permission library, vendored byte-for-byte from
-    # MadarRust/authz/crate by tool/sync_authz.sh. Never edit it here.
-    "crates/madar-authz",
     "crates/madar-api",
     "crates/madar-frb",
     "crates/madar-frb-dashboard",

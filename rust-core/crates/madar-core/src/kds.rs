@@ -259,20 +259,18 @@ pub fn kitchen_is_routed(mode: Option<&str>) -> bool {
 // (`kitchen::derive_*`), so the projection dedups against the server feed by id and a
 // bump on a derived line id reconciles once the fire syncs.
 
-/// Fixed namespace — MUST equal the backend's `KITCHEN_ID_NS` byte-for-byte. Pinned
-/// by `id_tests::kitchen_id_derivation_matches_backend`. "madar_kitchen_ns" as bytes.
-const KITCHEN_ID_NS: uuid::Uuid = uuid::Uuid::from_u128(0x6d61_6461_725f_6b69_7463_6865_6e5f_6e73);
-
-/// The kitchen-ticket id a fire WILL create, from the round's client idempotency key.
+/// The kitchen-ticket id a fire WILL create, from the round's client idempotency key
+/// (madar-shared `madar_sync::kitchen`, the server's rule). Pinned here by
+/// `kitchen_id_derivation_matches_backend`.
 pub(crate) fn derive_kitchen_ticket_id(round_idem: &str) -> Option<String> {
     let seed = uuid::Uuid::parse_str(round_idem).ok()?;
-    Some(uuid::Uuid::new_v5(&KITCHEN_ID_NS, seed.as_bytes()).to_string())
+    Some(madar_sync::kitchen::derive_kitchen_ticket_id(seed).to_string())
 }
 
 /// The kitchen-line id for the line at `index` within its derived kitchen ticket.
 pub(crate) fn derive_kitchen_item_id(kitchen_ticket_id: &str, index: usize) -> String {
     let kt = uuid::Uuid::parse_str(kitchen_ticket_id).unwrap_or(uuid::Uuid::nil());
-    uuid::Uuid::new_v5(&kt, &(index as u32).to_le_bytes()).to_string()
+    madar_sync::kitchen::derive_kitchen_item_id(kt, index).to_string()
 }
 
 /// Build the KDS projection of a just-fired round from the cart lines, with the

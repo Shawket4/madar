@@ -30,10 +30,11 @@ use crate::ledger::{i, s};
 
 /// The capability the screen and the call are gated on.
 pub const CAP: &str = "reports.pos_metrics";
-/// How many items the leaderboard carries (backend `TOP_ITEMS`).
-pub const TOP_ITEMS: usize = 10;
-/// The longest custom window (backend `MAX_DAYS`).
-pub const MAX_DAYS: i64 = 366;
+/// How many items the leaderboard carries (madar-shared
+/// `madar_money::metrics::TOP_ITEMS`, the backend's too).
+pub const TOP_ITEMS: usize = madar_money::metrics::TOP_ITEMS as usize;
+/// The longest custom window (`madar_money::metrics::MAX_DAYS`).
+pub const MAX_DAYS: i64 = madar_money::metrics::MAX_DAYS;
 
 /// The date presets the screen offers, in order.
 pub const PRESETS: &[&str] = &["today", "yesterday", "this_week", "this_month", "last_7_days", "custom"];
@@ -146,14 +147,8 @@ pub(crate) struct Figures {
     pub items_missing: i64,
 }
 
-/// Rounded half up; 0 with no sales (backend `average_ticket`).
-pub(crate) fn average_ticket(net_sales: i64, order_count: i64) -> i64 {
-    if order_count <= 0 {
-        0
-    } else {
-        (2 * net_sales + order_count).div_euclid(2 * order_count)
-    }
-}
+/// Rounded half up; 0 with no sales (madar-shared, the backend's too).
+pub(crate) use madar_money::metrics::average_ticket;
 
 impl Figures {
     pub(crate) fn from_report(r: &madar_api::models::PosMetricsReport) -> Figures {
@@ -777,7 +772,7 @@ mod tests {
     /// `reports::pos_metrics_tests::pos_metrics_vectors`), field by field.
     #[test]
     fn local_figures_match_the_backend_vectors() {
-        let doc: Value = serde_json::from_str(include_str!("../tests/fixtures/pos_metrics_vectors.json")).unwrap();
+        let doc: Value = serde_json::from_str(madar_money::vectors::POS_METRICS).unwrap();
         let store = Store::open("").unwrap();
         let ctx = PageCtx {
             full: true,

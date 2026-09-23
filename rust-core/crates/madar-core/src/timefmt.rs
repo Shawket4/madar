@@ -30,42 +30,24 @@ pub enum TimeStyle {
 /// every order/shift payload that carries `timezone`), or Cairo — the
 /// product-home default, matching Flutter's fallback. Falling back is flagged
 /// (once per process) so a till printing in the default zone is visible.
-/// The first day of a week, everywhere (owner rule, 2026-09-17): SATURDAY. The
-/// backend (`tz::WEEK_START`) and the dashboard (`lib/week.ts`) carry the same
-/// rule; every week preset reads it through [`week_start`].
-pub const WEEK_START: chrono::Weekday = chrono::Weekday::Sat;
+/// The first day of a week, everywhere (owner rule, 2026-09-17): SATURDAY, and
+/// the branch-local day the week holding a day starts on. One copy with the
+/// backend, in madar-shared (`madar_time`); the dashboard (`lib/week.ts`)
+/// carries the same rule. Every week preset reads it through [`week_start`].
+pub use madar_time::WEEK_START;
+pub(crate) use madar_time::week_start;
 
-/// The branch-local day the week holding `day` starts on.
-pub(crate) fn week_start(day: chrono::NaiveDate) -> chrono::NaiveDate {
-    use chrono::Datelike;
-    let back = (7 + day.weekday().num_days_from_monday() as i64 - WEEK_START.num_days_from_monday() as i64) % 7;
-    day - chrono::Duration::days(back)
-}
-
-/// A branch-local calendar day as UTC bounds, midnight to midnight — the
-/// backend's `service_day_bounds` (bookings/handlers.rs), gap rule included:
-/// when a DST change swallows midnight (Cairo, Beirut) the day starts at the
-/// first wall-clock time that exists, stepping forward 30 minutes at a time.
-/// It used to read the missing midnight as UTC, which started Cairo's
-/// spring-forward day two hours late.
+/// A branch-local calendar day as bounds, midnight to midnight, at the zone's
+/// offset — madar-shared's `madar_time::day_bounds` (the backend's
+/// `service_day_bounds`), gap rule included: when a DST change swallows
+/// midnight (Cairo, Beirut) the day starts at the first wall-clock time that
+/// exists.
 pub(crate) fn local_day_bounds(
     tz: chrono_tz::Tz,
     date: chrono::NaiveDate,
 ) -> (chrono::DateTime<chrono::FixedOffset>, chrono::DateTime<chrono::FixedOffset>) {
-    use chrono::TimeZone;
-    let midnight = |d: chrono::NaiveDate| {
-        let first = d.and_hms_opt(0, 0, 0).expect("midnight exists");
-        let mut t = first;
-        for _ in 0..4 {
-            if let Some(at) = tz.from_local_datetime(&t).earliest() {
-                return at.fixed_offset();
-            }
-            t += chrono::Duration::minutes(30);
-        }
-        // The server's last resort, kept identical.
-        tz.from_utc_datetime(&first).fixed_offset()
-    };
-    (midnight(date), midnight(date + chrono::Duration::days(1)))
+    let (start, end) = madar_time::day_bounds(tz, date);
+    (start.with_timezone(&tz).fixed_offset(), end.with_timezone(&tz).fixed_offset())
 }
 
 pub(crate) fn branch_tz(store: &Store) -> chrono_tz::Tz {
@@ -143,10 +125,11 @@ pub(crate) fn hhmm_in(tz: chrono_tz::Tz, rfc3339: &str, locale: &str) -> Option<
     Some(strftime_in(&at.with_timezone(&tz), "%I:%M %p", locale))
 }
 
-/// `yyMMdd` of an instant in `tz` (the order-ref date segment).
+/// `yyMMdd` of an instant in `tz` (the order-ref date segment;
+/// `madar_time::yymmdd_in`, the backend's rule).
 pub(crate) fn yymmdd_in(tz: chrono_tz::Tz, rfc3339: &str) -> Option<String> {
     let at = chrono::DateTime::parse_from_rfc3339(rfc3339).ok()?;
-    Some(at.with_timezone(&tz).format("%y%m%d").to_string())
+    Some(madar_time::yymmdd_in(tz, at.with_timezone(&chrono::Utc)))
 }
 
 fn format_pat_in(tz: chrono_tz::Tz, rfc3339: &str, pat: &str, locale: &str) -> String {

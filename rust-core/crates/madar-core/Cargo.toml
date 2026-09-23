@@ -20,8 +20,18 @@ name = "madar_core"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
 
 [dependencies]
-# Permission decisions, shared with the backend (vendored; see tool/sync_authz.sh).
-madar-authz = { path = "../madar-authz" }
+# Permission decisions, shared with the backend: one crate in madar-shared,
+# pinned by tag in both repos (bump them together; see madar-shared's README).
+madar-authz = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.1.0" }
+# Money rules the server runs too (tax engine, refund split, staff pool/comp,
+# reward cover, POS-metrics average): one copy, in madar-shared, same tag.
+madar-money = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.1.0" }
+# Business-day rules the server runs too (week start, business date, YYMMDD,
+# day bounds with the DST-gap rule), same tag.
+madar-time = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.1.0" }
+# /sync/pull contract pieces the server runs too (type lists, ledger
+# classification, the R-checksum, kitchen UUIDv5 ids), same tag.
+madar-sync = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.1.0" }
 # Proc-macro UniFFI (no .udl). "cli" gates uniffi_bindgen_main for the bin below;
 # "tokio" lets us export `async fn`s with `async_runtime = "tokio"`.
 uniffi = { version = "0.32", features = ["cli", "tokio"], optional = true }
