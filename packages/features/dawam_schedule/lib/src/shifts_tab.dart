@@ -293,6 +293,19 @@ class _SwapAsk extends ConsumerWidget {
   }
 }
 
+/// One side of a swap: its day and shift, from the shift when I have it,
+/// else from its id (`emp|yyyy-mm-dd|template`).
+String _side(Shift? s, String? id) {
+  if (s != null) return '${dayLabel(s.date)} · ${tplName(s.template)}';
+  final p = (id ?? '').split('|');
+  final day = p.length > 1 ? DateTime.tryParse(p[1]) : null;
+  final tpl = p.length > 2 ? tplIndex[p[2]] : null;
+  return [
+    if (day != null) dayLabel(day),
+    if (tpl != null) tplName(tpl),
+  ].join(' · ');
+}
+
 /// A swap I asked for, still undecided: I can take it back (SC-8).
 class _MySwap extends ConsumerWidget {
   const _MySwap(this.r);
@@ -308,13 +321,15 @@ class _MySwap extends ConsumerWidget {
     return MadarCard.column(
       children: [
         Text(tr('staff.swap_this_shift'), style: MadarType.title),
-        if (a != null && b != null)
-          Text(
-            '${dayLabel(a.date)} · ${tplName(a.template)} ⇄ '
-            '${peer == null ? '' : '${name(peer)} · '}'
-            '${dayLabel(b.date)} · ${tplName(b.template)}',
-            style: MadarType.body,
-          ),
+        // Which swap, even when its week isn't published to me yet and its
+        // shifts aren't in my picture: the ids carry the day and the shift
+        // (E2E S5 — the card said only "Swap this shift").
+        Text(
+          '${_side(a, r.shift)} ⇄ '
+          '${peer == null ? '' : '${name(peer)} · '}'
+          '${_side(b, r.shift2)}',
+          style: MadarType.body,
+        ),
         MadarButton(
           label: tr('staff.cancel_swap'),
           variant: MadarButtonVariant.secondary,
