@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:design_system/design_system.dart';
 import 'package:feature_dawam_clock/feature_dawam_clock.dart';
 import 'package:feature_dawam_pay/feature_dawam_pay.dart';
@@ -15,7 +17,22 @@ class ShellNotifier extends Notifier<({int tab, bool manage})> {
 
   void select(int tab) => state = (tab: tab, manage: state.manage);
   void toggle() => state = (tab: 0, manage: !state.manage);
+
+  /// Jump to a side and tab (a tapped push).
+  void open({required bool manage, required int tab}) =>
+      state = (tab: tab, manage: manage);
 }
+
+/// The tab names on each side, in the order [StaffShell] builds them, for
+/// the store's current rights. A tapped push finds its screen here.
+List<String> shellTabs(DawamStore store, {required bool manage}) => manage
+    ? [
+        if (store.canTeam) 'team',
+        if (store.canApprove) 'approvals',
+        if (store.canSchedule) 'schedule',
+        if (store.canPayroll) 'payroll',
+      ]
+    : const ['home', 'timesheet', 'shifts', 'requests', 'pay'];
 
 final shellProvider = NotifierProvider<ShellNotifier, ({int tab, bool manage})>(
   ShellNotifier.new,
@@ -33,27 +50,31 @@ class StaffShell extends ConsumerWidget {
     final shell = ref.watch(shellProvider);
     final manage = shell.manage && store.canManage;
     final tabs = manage
+        // Each tab shows only for the capability behind it (PM-4).
         ? <(MadarTab, Widget)>[
-            (
-              MadarTab(
-                label: tr('staff.team'),
-                glyph: MadarGlyph.users,
-                badge: store.openFlags.length,
+            if (store.canTeam)
+              (
+                MadarTab(
+                  label: tr('staff.team'),
+                  glyph: MadarGlyph.users,
+                  badge: store.openFlags.length,
+                ),
+                const TeamTab(),
               ),
-              const TeamTab(),
-            ),
-            (
-              MadarTab(
-                label: tr('staff.approvals'),
-                glyph: MadarGlyph.inbox,
-                badge: store.inbox.length + store.adjInbox.length,
+            if (store.canApprove)
+              (
+                MadarTab(
+                  label: tr('staff.approvals'),
+                  glyph: MadarGlyph.inbox,
+                  badge: store.inbox.length + store.adjInbox.length,
+                ),
+                const ApprovalsTab(),
               ),
-              const ApprovalsTab(),
-            ),
-            (
-              MadarTab(label: tr('staff.schedule'), glyph: MadarGlyph.grid),
-              const ScheduleTab(),
-            ),
+            if (store.canSchedule)
+              (
+                MadarTab(label: tr('staff.schedule'), glyph: MadarGlyph.grid),
+                const ScheduleTab(),
+              ),
             if (store.canPayroll)
               (
                 MadarTab(
@@ -95,145 +116,197 @@ class StaffShell extends ConsumerWidget {
               const PayTab(),
             ),
           ];
+    assert(tabs.length == shellTabs(store, manage: manage).length);
     final i = shell.tab.clamp(0, tabs.length - 1);
     final u = store.user;
     // The POS's pattern: one Material under the whole shell, the chrome's
     // colour, so ink and fields inside it have their ancestor.
     return Material(
       color: context.madarColors.chrome,
-      child: MadarShellScaffold(
-        tabs: [for (final t in tabs) t.$1],
-        selectedIndex: i,
-        onSelect: ref.read(shellProvider.notifier).select,
-        person: MadarPerson(name: name(u), initial: name(u).characters.first),
-        onPersonTap: () => _settings(context),
-        onMarkTap: () => _settings(context),
-        topBar: MadarTopBar(
-          title: manage ? tr('staff.dawam_manage') : tr('staff.dawam'),
-          subtitle: store.myBranches
-              .map((b) => branchName(store, b))
-              .join(' · '),
-          pill: store.offline || store.queued > 0
-              ? MadarOutboxPill(
-                  state: store.offline
-                      ? OutboxState.offline
-                      : OutboxState.queued,
-                  label: store.offline
-                      ? tr('staff.offline')
-                      : tr('staff.queued'),
-                  count: store.queued,
-                  onTap: store.offline ? null : store.sync,
-                )
-              : null,
-          actions: [
-            if (store.canManage)
+      child: _PushRouter(
+        child: MadarShellScaffold(
+          tabs: [for (final t in tabs) t.$1],
+          selectedIndex: i,
+          onSelect: ref.read(shellProvider.notifier).select,
+          person: MadarPerson(name: name(u), initial: name(u).characters.first),
+          onPersonTap: () => _settings(context),
+          onMarkTap: () => _settings(context),
+          topBar: MadarTopBar(
+            title: manage ? tr('staff.dawam_manage') : tr('staff.dawam'),
+            subtitle: store.myBranches
+                .map((b) => branchName(store, b))
+                .join(' · '),
+            pill: store.offline || store.queued > 0
+                ? MadarOutboxPill(
+                    state: store.offline
+                        ? OutboxState.offline
+                        : OutboxState.queued,
+                    label: store.offline
+                        ? tr('staff.offline')
+                        : tr('staff.queued'),
+                    count: store.queued,
+                    onTap: store.offline ? null : store.sync,
+                  )
+                : null,
+            actions: [
+              if (store.canManage)
+                _ChromeAction(
+                  glyph: manage ? MadarGlyph.user : MadarGlyph.users,
+                  label: manage ? tr('staff.my_view') : tr('staff.manage'),
+                  onTap: ref.read(shellProvider.notifier).toggle,
+                ),
               _ChromeAction(
-                glyph: manage ? MadarGlyph.user : MadarGlyph.users,
-                label: manage ? tr('staff.my_view') : tr('staff.manage'),
-                onTap: ref.read(shellProvider.notifier).toggle,
-              ),
-            _ChromeAction(
-              glyph: MadarGlyph.bell,
-              label: tr('staff.inbox'),
-              badge: store.unread,
-              onTap: () => _inbox(context, ref),
-            ),
-          ],
-        ),
-        body: tabs[i].$2,
-      ),
-    );
-  }
-
-  Future<void> _inbox(BuildContext context, WidgetRef ref) async {
-    await showDawamSheet<void>(
-      context,
-      title: tr('staff.inbox'),
-      builder: (ctx, ref, store) => DawamSection(
-        tr('staff.notifications'),
-        children: [
-          for (final n in store.myNotices.take(30))
-            MadarListRow.bill(
-              title: loc(n),
-              meta: '${dayLabel(n.at)} · ${hm(n.at)}',
-              rail: n.read ? null : MadarTone.accent,
-            ),
-        ],
-      ),
-    );
-    ref.read(dawamProvider).readAll();
-  }
-
-  Future<void> _settings(BuildContext context) => showDawamSheet<void>(
-    context,
-    title: name(ProviderScope.containerOf(context).read(dawamProvider).user),
-    builder: (ctx, ref, store) {
-      final u = store.user;
-      final role = switch (u.role) {
-        Role.employee => tr('staff.employee'),
-        Role.manager => tr('staff.branch_manager'),
-        Role.owner => tr('staff.owner'),
-      };
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.lg,
-        children: [
-          DawamSection(
-            tr('settings.account'),
-            children: [
-              MadarListRow.nav(
-                glyph: MadarGlyph.user,
-                title: role,
-                meta: store.myBranches
-                    .map((b) => branchName(store, b))
-                    .join(' · '),
-              ),
-              MadarListRow.nav(
-                glyph: MadarGlyph.phone,
-                title: u.phone,
-                meta: tr('staff.whatsapp'),
-              ),
-              MadarListRow.nav(
-                glyph: MadarGlyph.lock,
-                title: u.device,
-                meta: tr('staff.this_phone_since', {
-                  'date': u.deviceSince ?? '',
-                }),
+                glyph: MadarGlyph.bell,
+                label: tr('staff.inbox'),
+                badge: store.unread,
+                onTap: () => _inbox(context, ref),
               ),
             ],
           ),
-          // The POS's own appearance controls, shared through the kit.
-          MadarSectionHeader(text: tr('settings.appearance')),
-          MadarThemePicker(
-            value: ref.watch(themeChoiceProvider),
-            onChanged: ref.read(themeChoiceProvider.notifier).set,
-            light: tr('settings.theme_light'),
-            dark: tr('settings.theme_dark'),
-            system: tr('settings.theme_system'),
-          ),
-          MadarSectionHeader(text: tr('settings.language')),
-          MadarLanguagePicker(
-            value: ref.watch(localeProvider),
-            onChanged: (l) {
-              Navigator.of(ctx).maybePop();
-              ref.read(localeProvider.notifier).set(l);
-            },
-          ),
-          MadarButton(
-            label: tr('staff.sign_out'),
-            glyph: MadarGlyph.signOut,
-            variant: MadarButtonVariant.ghost,
-            onTap: () {
-              Navigator.of(ctx).maybePop();
-              ref.read(shellProvider.notifier).select(0);
-              store.signOut();
-            },
-          ),
-        ],
-      );
-    },
-  );
+          body: tabs[i].$2,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _inbox(BuildContext context, WidgetRef ref) =>
+      showInbox(context, ref);
 }
+
+/// Opens the screen a tapped push is about (APP-6, 06 B8): its tab when this
+/// person has it, the inbox otherwise.
+class _PushRouter extends ConsumerStatefulWidget {
+  const _PushRouter({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_PushRouter> createState() => _PushRouterState();
+}
+
+class _PushRouterState extends ConsumerState<_PushRouter> {
+  late final ValueNotifier<String?> _opened;
+
+  @override
+  void initState() {
+    super.initState();
+    _opened = ref.read(openedPushProvider)..addListener(_open);
+    // The push that launched the app arrives before the shell exists.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _open());
+  }
+
+  @override
+  void dispose() {
+    _opened.removeListener(_open);
+    super.dispose();
+  }
+
+  void _open() {
+    final key = _opened.value;
+    if (key == null || !mounted) return;
+    _opened.value = null;
+    final store = ref.read(dawamProvider);
+    final t = pushTarget(key);
+    final manage = t.manage && store.canManage;
+    final i = shellTabs(store, manage: manage).indexOf(t.tab);
+    if (i >= 0) {
+      ref.read(shellProvider.notifier).open(manage: manage, tab: i);
+    } else {
+      unawaited(showInbox(context, ref));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+/// The inbox sheet: the newest notifications, marked read on close.
+Future<void> showInbox(BuildContext context, WidgetRef ref) async {
+  await showDawamSheet<void>(
+    context,
+    title: tr('staff.inbox'),
+    builder: (ctx, ref, store) => DawamSection(
+      tr('staff.notifications'),
+      children: [
+        for (final n in store.myNotices.take(30))
+          MadarListRow.bill(
+            title: loc(n),
+            meta: '${dayLabel(n.at)} · ${hm(n.at)}',
+            rail: n.read ? null : MadarTone.accent,
+          ),
+      ],
+    ),
+  );
+  await ref.read(dawamProvider).readAll();
+}
+
+Future<void> _settings(BuildContext context) => showDawamSheet<void>(
+  context,
+  title: name(ProviderScope.containerOf(context).read(dawamProvider).user),
+  builder: (ctx, ref, store) {
+    final u = store.user;
+    final role = switch (u.role) {
+      Role.employee => tr('staff.employee'),
+      Role.manager => tr('staff.branch_manager'),
+      Role.owner => tr('staff.owner'),
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.lg,
+      children: [
+        DawamSection(
+          tr('settings.account'),
+          children: [
+            MadarListRow.nav(
+              glyph: MadarGlyph.user,
+              title: role,
+              meta: store.myBranches
+                  .map((b) => branchName(store, b))
+                  .join(' · '),
+            ),
+            MadarListRow.nav(
+              glyph: MadarGlyph.phone,
+              title: u.phone,
+              meta: tr('staff.whatsapp'),
+            ),
+            MadarListRow.nav(
+              glyph: MadarGlyph.lock,
+              title: u.device,
+              meta: tr('staff.this_phone_since', {'date': u.deviceSince ?? ''}),
+            ),
+          ],
+        ),
+        // The POS's own appearance controls, shared through the kit.
+        MadarSectionHeader(text: tr('settings.appearance')),
+        MadarThemePicker(
+          value: ref.watch(themeChoiceProvider),
+          onChanged: ref.read(themeChoiceProvider.notifier).set,
+          light: tr('settings.theme_light'),
+          dark: tr('settings.theme_dark'),
+          system: tr('settings.theme_system'),
+        ),
+        MadarSectionHeader(text: tr('settings.language')),
+        MadarLanguagePicker(
+          value: ref.watch(localeProvider),
+          onChanged: (l) {
+            Navigator.of(ctx).maybePop();
+            ref.read(localeProvider.notifier).set(l);
+          },
+        ),
+        MadarButton(
+          label: tr('staff.sign_out'),
+          glyph: MadarGlyph.signOut,
+          variant: MadarButtonVariant.ghost,
+          onTap: () {
+            Navigator.of(ctx).maybePop();
+            ref.read(shellProvider.notifier).select(0);
+            store.signOut();
+          },
+        ),
+      ],
+    );
+  },
+);
 
 /// A 44-point action on the dark chrome, with an optional count badge.
 class _ChromeAction extends StatelessWidget {

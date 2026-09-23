@@ -66,8 +66,20 @@ bool sameDay(DateTime a, DateTime b) =>
 typedef J = Map<String, dynamic>;
 
 DateTime _date(Object? v) => DateTime.parse(v! as String);
-DateTime? _at(Object? v) =>
-    v == null ? null : DateTime.parse(v as String).toLocal();
+DateTime? _at(Object? v) => v is String && v.isNotEmpty ? branchWall(v) : null;
+
+final _wall = RegExp(r'^\d{4}-\d\d-\d\d[T ]\d\d:\d\d(:\d\d(\.\d+)?)?');
+
+/// An instant from the core, which writes every one in the branch's zone
+/// (`2026-09-23T09:02:00+03:00`), read as that wall-clock time (AT-1). The
+/// offset is dropped on purpose: the phone's own zone never moves a time.
+/// Unparseable text is null, never a crash (one bad field must not blank the
+/// screen).
+DateTime? branchWall(String v) {
+  final m = _wall.firstMatch(v);
+  return m == null ? null : DateTime.tryParse(m.group(0)!);
+}
+
 List<J> _list(Object? v) => (v as List<dynamic>? ?? const []).cast<J>();
 int _int(Object? v) => (v as num?)?.round() ?? 0;
 T _enum<T extends Enum>(List<T> values, Object? name, T fallback) =>
@@ -519,6 +531,11 @@ class DawamStore extends ChangeNotifier {
   String orgName = '';
   bool canManage = false;
   bool canPayroll = false;
+
+  /// The manager tabs, from the capabilities the server says I hold (PM-4).
+  bool canTeam = false;
+  bool canApprove = false;
+  bool canSchedule = false;
   bool? insideNow;
   double? distance;
   List<String> myBranches = const [];
@@ -603,7 +620,7 @@ class DawamStore extends ChangeNotifier {
     _slips.clear();
 
     me = v['me'] as String;
-    _skew = _at(v['now'])!.difference(DateTime.now());
+    _skew = (_at(v['now']) ?? DateTime.now()).difference(DateTime.now());
     offline = v['online'] != true;
     queued = _int(v['queued']);
     stuck = (v['stuck'] as List<dynamic>).cast<String>();
@@ -611,6 +628,10 @@ class DawamStore extends ChangeNotifier {
     orgName = v['org_name'] as String;
     canManage = v['can_manage'] == true;
     canPayroll = v['can_payroll'] == true;
+    final tabs = (v['tabs'] as J?) ?? const {};
+    canTeam = tabs['team'] == true;
+    canApprove = tabs['approvals'] == true;
+    canSchedule = tabs['schedule'] == true;
     myBranches = (v['my_branches'] as List<dynamic>).cast<String>();
     insideNow = v['inside'] as bool?;
     distance = (v['distance_m'] as num?)?.toDouble();
@@ -989,7 +1010,7 @@ class DawamStore extends ChangeNotifier {
     if (u == null) return;
     privacyAccepted.add(u);
     try {
-      _apply(await backend.snapshot(refresh: false));
+      _applySafely(await backend.snapshot(refresh: false));
       unawaited(refresh());
     } on Object {
       me = null;
@@ -1016,7 +1037,7 @@ class DawamStore extends ChangeNotifier {
     loading = true;
     notifyListeners();
     try {
-      _apply(await backend.snapshot(refresh: true));
+      _applySafely(await backend.snapshot(refresh: true));
     } on DawamSignedOut catch (e) {
       failures.add(loc(e));
       signOut();
@@ -1026,7 +1047,7 @@ class DawamStore extends ChangeNotifier {
       // keep showing what the phone already has.
       failures.add(loc(e));
       try {
-        _apply(await backend.snapshot(refresh: false));
+        _applySafely(await backend.snapshot(refresh: false));
       } on Object {
         // nothing saved yet either
       }
@@ -1069,20 +1090,58 @@ class DawamStore extends ChangeNotifier {
     unawaited(_run(() => backend.ping(fix)));
   }
 
+  /// Runs one core call and shows its answer. Inside [awaitingAnswer] (the
+  /// screen that asked is waiting: `attempt`), a refusal is thrown back to
+  /// it, so its sheet stays open with the server's words and no success is
+  /// shown (B1). Anywhere else a refusal arrives on [failures]. An answer
+  /// the screens can't read keeps the last picture; it is never a refusal:
+  /// the server did accept it.
   Future<void> _run(Future<String> Function() op) async {
+    final String json;
     try {
-      _apply(await op());
+      json = await op();
     } on DawamSignedOut catch (e) {
-      failures.add(loc(e));
       signOut();
-    } on DawamError catch (e) {
+      if (awaitingAnswer) rethrow;
       failures.add(loc(e));
+      return;
+    } on DawamError catch (e) {
+      if (awaitingAnswer) rethrow;
+      failures.add(loc(e));
+      return;
     } on Object catch (e) {
+      if (awaitingAnswer) throw DawamError('$e', '$e');
       failures.add('$e');
+      return;
+    }
+    _applySafely(json);
+  }
+
+  /// The screen that started this call waits for the server's answer.
+  static bool get awaitingAnswer => Zone.current[awaitAnswerKey] == true;
+
+  /// Zone key set by `attempt` around the calls it awaits.
+  static const awaitAnswerKey = #dawamAwaitAnswer;
+
+  /// A picture the screens can't read (one bad field from the core) never
+  /// blanks the app: the last good picture stays, and the fault is reported.
+  void _applySafely(String json) {
+    try {
+      _apply(json);
+    } on Object catch (e, st) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: e,
+          stack: st,
+          library: 'staff_core',
+          context: ErrorDescription('reading the Dawam snapshot'),
+        ),
+      );
+      notifyListeners();
     }
   }
 
-  void _act(J action) => unawaited(_run(() => backend.act(action)));
+  Future<void> _act(J action) => _run(() => backend.act(action));
 
   Future<void> _actAt(J action) async {
     final fix = await backend.locate();
@@ -1102,21 +1161,21 @@ class DawamStore extends ChangeNotifier {
   }
 
   // ── what the screens do: each is one core action ──
-  void clockIn(Shift s) => unawaited(() async {
+  Future<void> clockIn(Shift s) async {
     alwaysLocation = await backend.alwaysLocation();
     await _actAt({
       'action': 'clock_in',
       'shift': s.id,
       'tracking_off': !alwaysLocation,
     });
-  }());
-  void clockOut(Shift s) => unawaited(_actAt({'action': 'clock_out'}));
-  void openCover(Shift s) =>
-      unawaited(_actAt({'action': 'cover', 'shift': s.id}));
-  void punchFor(Shift s, String reason) =>
+  }
+
+  Future<void> clockOut(Shift s) => _actAt({'action': 'clock_out'});
+  Future<void> openCover(Shift s) => _actAt({'action': 'cover', 'shift': s.id});
+  Future<void> punchFor(Shift s, String reason) =>
       _act({'action': 'punch_for', 'shift': s.id, 'reason': reason});
 
-  void file(
+  Future<void> file(
     ReqKind kind, {
     DateTime? from,
     DateTime? to,
@@ -1144,11 +1203,11 @@ class DawamStore extends ChangeNotifier {
     'shift2': ?shift2,
     'peer': ?peer,
   });
-  void claim(Shift s) => _act({'action': 'claim', 'shift': s.id});
-  void peerAnswer(Req r, {required bool yes}) =>
+  Future<void> claim(Shift s) => _act({'action': 'claim', 'shift': s.id});
+  Future<void> peerAnswer(Req r, {required bool yes}) =>
       _act({'action': 'peer_answer', 'req': r.id, 'yes': yes});
-  void cancel(Req r) => _act({'action': 'cancel', 'req': r.id});
-  void decide(
+  Future<void> cancel(Req r) => _act({'action': 'cancel', 'req': r.id});
+  Future<void> decide(
     Req r, {
     required bool approve,
     bool? paid,
@@ -1166,13 +1225,13 @@ class DawamStore extends ChangeNotifier {
   });
 
   /// [how]: `excuse_paid` · `excuse_unpaid` · `deduct` · `revoke` · `ignore`.
-  void resolve(Flag f, String how, {int deduct = 0}) => _act({
+  Future<void> resolve(Flag f, String how, {int deduct = 0}) => _act({
     'action': 'resolve',
     'flag': f.id,
     'how': f.kind == FlagKind.cover && how == 'ignore' ? 'confirm' : how,
     'deduct': deduct,
   });
-  void addAdjustment(
+  Future<void> addAdjustment(
     String emp, {
     required bool bonus,
     required int amount,
@@ -1188,55 +1247,60 @@ class DawamStore extends ChangeNotifier {
     'pct': ?pct,
     'recurring': recurring,
   });
-  void decideAdj(Adj a, {required bool yes}) =>
+  Future<void> decideAdj(Adj a, {required bool yes}) =>
       _act({'action': 'decide_adj', 'adj': a.id, 'yes': yes});
-  void deleteAdj(String adjId) => _act({'action': 'delete_adj', 'adj': adjId});
-  void stopAdj(Adj a) => _act({'action': 'stop_adj', 'adj': a.id});
-  void waive(String key, String reason) =>
+  Future<void> deleteAdj(String adjId) =>
+      _act({'action': 'delete_adj', 'adj': adjId});
+  Future<void> stopAdj(Adj a) => _act({'action': 'stop_adj', 'adj': a.id});
+  Future<void> waive(String key, String reason) =>
       _act({'action': 'waive', 'key': key, 'reason': reason});
-  void unwaive(String key) => failures.add(tr('staff.a_waiver_is_final'));
-  void recordAdvance(String emp, int amount, int installments) => _act({
+  Future<void> unwaive(String key) => _run(() async {
+    final m = tr('staff.a_waiver_is_final');
+    throw DawamError(m, m);
+  });
+  Future<void> recordAdvance(String emp, int amount, int installments) => _act({
     'action': 'record_advance',
     'emp': emp,
     'amount': amount,
     'installments': installments,
   });
-  void logExpense(String emp, int amount, String purpose, String via) => _act({
-    'action': 'log_expense',
-    'emp': emp,
-    'amount': amount,
-    'purpose': purpose,
-    'via': via,
-  });
-  void setDay(String emp, DateTime d, String? tpl, String branch) =>
+  Future<void> logExpense(String emp, int amount, String purpose, String via) =>
+      _act({
+        'action': 'log_expense',
+        'emp': emp,
+        'amount': amount,
+        'purpose': purpose,
+        'via': via,
+      });
+  Future<void> setDay(String emp, DateTime d, String? tpl, String branch) =>
       _act({'action': 'set_day', 'emp': emp, 'date': _d(d), 'tpl': tpl});
-  void moveShift(Shift s, DateTime day, String tpl) =>
+  Future<void> moveShift(Shift s, DateTime day, String tpl) =>
       _act({'action': 'move_shift', 'shift': s.id, 'day': _d(day), 'tpl': tpl});
-  void assign(Shift s, String? emp) =>
+  Future<void> assign(Shift s, String? emp) =>
       _act({'action': 'assign', 'shift': s.id, 'emp': emp});
-  void postOpen(String branch, DateTime d, String tpl) => _act({
+  Future<void> postOpen(String branch, DateTime d, String tpl) => _act({
     'action': 'post_open',
     'branch': branch,
     'date': _d(d),
     'tpl': tpl,
   });
-  void publish(String branch, DateTime ws) =>
+  Future<void> publish(String branch, DateTime ws) =>
       _act({'action': 'publish', 'branch': branch, 'week': _d(ws)});
-  void acceptSuggestion(Suggestion g) =>
+  Future<void> acceptSuggestion(Suggestion g) =>
       _act({'action': 'accept_suggestion', 'id': g.id});
-  void rejectSuggestion(Suggestion g) =>
+  Future<void> rejectSuggestion(Suggestion g) =>
       _act({'action': 'reject_suggestion', 'id': g.id});
 
   /// Replace a branch's weekly coverage grid (SC-13).
-  void setCoverage(String branch, List<J> needs) =>
+  Future<void> setCoverage(String branch, List<J> needs) =>
       _act({'action': 'set_coverage', 'branch': branch, 'needs': needs});
-  void decideHoliday(Holiday h, String d) =>
+  Future<void> decideHoliday(Holiday h, String d) =>
       _act({'action': 'decide_holiday', 'date': _d(h.date), 'decision': d});
-  void setPrefs(String emp, String? time, Set<int> cant) =>
+  Future<void> setPrefs(String emp, String? time, Set<int> cant) =>
       _act({'action': 'set_prefs', 'time': time, 'cant': cant.toList()});
-  void readAll() => _act({'action': 'read_all'});
-  void approvePayroll() => _act({'action': 'approve_payroll'});
-  void reopenPayroll() => _act({'action': 'reopen_payroll'});
-  void markPaid(String emp, PayMethod m) =>
+  Future<void> readAll() => _act({'action': 'read_all'});
+  Future<void> approvePayroll() => _act({'action': 'approve_payroll'});
+  Future<void> reopenPayroll() => _act({'action': 'reopen_payroll'});
+  Future<void> markPaid(String emp, PayMethod m) =>
       _act({'action': 'mark_paid', 'emp': emp, 'method': m.name});
 }

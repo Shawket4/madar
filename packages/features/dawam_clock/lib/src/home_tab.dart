@@ -148,7 +148,7 @@ class HomeTab extends ConsumerWidget {
       cancelLabel: tr('staff.not_now'),
     );
     if (ok) {
-      attempt(
+      await attempt(
         ref,
         () => ref.read(dawamProvider).openCover(s),
         ok: tr('staff.you_re_covering_manager_notified'),
@@ -303,7 +303,7 @@ class ShiftCard extends ConsumerWidget {
                 cancelLabel: tr('staff.stay'),
               );
               if (ok) {
-                attempt(
+                await attempt(
                   ref,
                   () => store.clockOut(s),
                   ok: tr('staff.see_you_next_shift'),

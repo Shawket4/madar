@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,12 +7,18 @@ import 'package:staff_core/src/data.dart';
 import 'package:staff_core/src/format.dart';
 import 'package:staff_core/src/providers.dart';
 
-/// Runs a core call. A refusal (geofence, window, cap…) comes back as a
-/// toast in the core's words, never a crash; [ok] confirms a success.
-bool attempt(WidgetRef ref, VoidCallback call, {String? ok}) {
+/// Runs a core call and WAITS for the server's answer (B1). A refusal
+/// (geofence, window, cap, "needs a connection"…) comes back as a toast in
+/// the core's words and `false`, so the sheet that asked stays open with what
+/// was typed; [ok] confirms a success only once the server has accepted it.
+Future<bool> attempt(
+  WidgetRef ref,
+  Future<void> Function() call, {
+  String? ok,
+}) async {
   final toast = ref.read(toastProvider.notifier);
   try {
-    call();
+    await runZoned(call, zoneValues: {DawamStore.awaitAnswerKey: true});
     if (ok != null) toast.show(ok, tone: ChipTone.success);
     return true;
   } on DawamError catch (e) {

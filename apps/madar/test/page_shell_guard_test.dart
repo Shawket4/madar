@@ -28,6 +28,11 @@ void main() {
             path.contains('/ephemeral/') ||
             path.contains('/.symlinks/') ||
             path.contains('/generated/') ||
+            // The till-rescue app is a standalone one-screen tool outside the
+            // workspace (its own pubspec, no design_system; see
+            // apps/rescue/README.md and the root analysis_options exclude):
+            // it cannot use the page shell, and it must never depend on it.
+            path.contains('/apps/rescue/') ||
             path.endsWith('design_system/lib/src/page.dart')) {
           continue;
         }

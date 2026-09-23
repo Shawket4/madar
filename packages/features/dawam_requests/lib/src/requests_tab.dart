@@ -156,7 +156,11 @@ class _ReqRow extends ConsumerWidget {
                 cancelLabel: tr('staff.keep'),
               );
               if (ok) {
-                attempt(ref, () => store.cancel(r), ok: tr('staff.cancelled'));
+                await attempt(
+                  ref,
+                  () => store.cancel(r),
+                  ok: tr('staff.cancelled'),
+                );
               }
             }
           : null,
@@ -258,7 +262,7 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
               ),
             MadarButton(
               label: tr('staff.send'),
-              onTap: () {
+              onTap: () async {
                 if (k == ReqKind.excuse && time2 <= time) {
                   ref
                       .read(toastProvider.notifier)
@@ -268,7 +272,7 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
                       );
                   return;
                 }
-                final sent = attempt(
+                final sent = await attempt(
                   ref,
                   () => store.file(
                     k,
@@ -283,7 +287,7 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
                       ? tr('staff.approved')
                       : tr('staff.sent_to_your_manager'),
                 );
-                if (sent) Navigator.of(ctx).maybePop();
+                if (sent && ctx.mounted) Navigator.of(ctx).maybePop();
               },
             ),
           ],

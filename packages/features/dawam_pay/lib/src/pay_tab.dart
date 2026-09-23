@@ -184,7 +184,7 @@ class PayTab extends ConsumerWidget {
             ),
             MadarButton(
               label: tr('staff.send'),
-              onTap: () {
+              onTap: () async {
                 final v = readMoney(amount);
                 if (v == null) {
                   ref
@@ -192,7 +192,7 @@ class PayTab extends ConsumerWidget {
                       .show(tr('staff.enter_an_amount'), tone: ChipTone.danger);
                   return;
                 }
-                final sent = attempt(
+                final sent = await attempt(
                   ref,
                   () => store.file(
                     ReqKind.salaryAdvance,
@@ -202,7 +202,7 @@ class PayTab extends ConsumerWidget {
                   ),
                   ok: tr('staff.sent_to_your_manager'),
                 );
-                if (sent) Navigator.of(ctx).maybePop();
+                if (sent && ctx.mounted) Navigator.of(ctx).maybePop();
               },
             ),
           ],

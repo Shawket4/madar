@@ -4,6 +4,8 @@
 /// it types its own.
 library;
 
+import 'dart:async';
+
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,7 +47,7 @@ class _CoverageSheetState extends ConsumerState<CoverageSheet> {
 
   void _save(List<J> needs) {
     setState(() => _needs = needs);
-    ref.read(dawamProvider).setCoverage(widget.branch, needs);
+    unawaited(ref.read(dawamProvider).setCoverage(widget.branch, needs));
   }
 
   @override

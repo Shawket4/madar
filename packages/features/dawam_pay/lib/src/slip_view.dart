@@ -70,10 +70,13 @@ class SlipLines extends ConsumerWidget {
         confirmLabel: tr('staff.delete'),
         cancelLabel: tr('staff.keep'),
       );
-      if (ok) store.deleteAdj(l.manual!);
+      if (ok) await store.deleteAdj(l.manual!);
       return;
     }
-    if (l.waived) return store.unwaive(l.key);
+    if (l.waived) {
+      await store.unwaive(l.key);
+      return;
+    }
     if (!context.mounted) return;
     final reason = TextEditingController();
     await showDawamSheet<void>(
@@ -102,7 +105,7 @@ class SlipLines extends ConsumerWidget {
           ),
           MadarButton(
             label: tr('staff.waive'),
-            onTap: () {
+            onTap: () async {
               if (reason.text.trim().isEmpty) {
                 ref
                     .read(toastProvider.notifier)
@@ -112,8 +115,11 @@ class SlipLines extends ConsumerWidget {
                     );
                 return;
               }
-              store.waive(l.key, reason.text.trim());
-              Navigator.of(ctx).maybePop();
+              final done = await attempt(
+                ref,
+                () => store.waive(l.key, reason.text.trim()),
+              );
+              if (done && ctx.mounted) Navigator.of(ctx).maybePop();
             },
           ),
         ],

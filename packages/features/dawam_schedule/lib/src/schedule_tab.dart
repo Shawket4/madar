@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:design_system/design_system.dart';
@@ -441,10 +442,11 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
       cancelLabel: tr('staff.not_yet'),
     );
     if (ok) {
-      _store.publish(branch, ws);
-      ref
-          .read(toastProvider.notifier)
-          .show(tr('staff.published'), tone: ChipTone.success);
+      await attempt(
+        ref,
+        () => _store.publish(branch, ws),
+        ok: tr('staff.published'),
+      );
     }
   }
 
@@ -453,15 +455,15 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
   /// it). Shifts follow templates (SC-1).
   void _drop(Shift s, String? emp, DateTime day) {
     if (s.emp == emp) {
-      _store.moveShift(s, dateOnly(day), s.tpl);
-      ref
-          .read(toastProvider.notifier)
-          .show(
-            tr('staff.moved_to', {'date': dayLabel(day)}),
-            tone: ChipTone.success,
-          );
+      unawaited(
+        attempt(
+          ref,
+          () => _store.moveShift(s, dateOnly(day), s.tpl),
+          ok: tr('staff.moved_to', {'date': dayLabel(day)}),
+        ),
+      );
     } else {
-      _store.assign(s, emp);
+      unawaited(_store.assign(s, emp));
     }
   }
 
@@ -513,7 +515,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                     meta: '${hmMin(t.start)} – ${hmMin(t.end)}',
                     selected: t.id == s.tpl,
                     onTap: () {
-                      store.setDay(e.id, s.date, t.id, branch);
+                      unawaited(store.setDay(e.id, s.date, t.id, branch));
                       Navigator.of(ctx).maybePop();
                     },
                   ),
@@ -521,7 +523,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                   glyph: MadarGlyph.close,
                   title: tr('staff.day_off'),
                   onTap: () {
-                    store.setDay(e.id, s.date, null, branch);
+                    unawaited(store.setDay(e.id, s.date, null, branch));
                     Navigator.of(ctx).maybePop();
                   },
                 ),
@@ -540,7 +542,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                         })
                       : null,
                   onTap: () {
-                    store.assign(s, p.id);
+                    unawaited(store.assign(s, p.id));
                     Navigator.of(ctx).maybePop();
                   },
                 ),
@@ -549,7 +551,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                   glyph: MadarGlyph.plus,
                   title: tr('staff.open_shift_anyone_claims'),
                   onTap: () {
-                    store.assign(s, null);
+                    unawaited(store.assign(s, null));
                     Navigator.of(ctx).maybePop();
                   },
                 ),
@@ -626,9 +628,9 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
               onTap: () {
                 final id = who;
                 if (id == null) {
-                  store.postOpen(branch, d, tpl);
+                  unawaited(store.postOpen(branch, d, tpl));
                 } else {
-                  store.setDay(id, d, tpl, branch);
+                  unawaited(store.setDay(id, d, tpl, branch));
                 }
                 Navigator.of(ctx).maybePop();
               },

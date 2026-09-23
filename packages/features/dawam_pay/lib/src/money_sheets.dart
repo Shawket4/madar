@@ -97,7 +97,7 @@ Future<void> adjustmentSheet(BuildContext context, {String? emp}) {
             MadarButton(
               label: tr('staff.add'),
               glyph: MadarGlyph.plus,
-              onTap: () {
+              onTap: () async {
                 final v = double.tryParse(amount.text.trim());
                 if (v == null || v <= 0 || reason.text.trim().isEmpty) {
                   ref
@@ -108,7 +108,7 @@ Future<void> adjustmentSheet(BuildContext context, {String? emp}) {
                       );
                   return;
                 }
-                final added = attempt(
+                final added = await attempt(
                   ref,
                   () => store.addAdjustment(
                     who!,
@@ -120,7 +120,7 @@ Future<void> adjustmentSheet(BuildContext context, {String? emp}) {
                   ),
                   ok: tr('staff.added'),
                 );
-                if (added) Navigator.of(ctx).maybePop();
+                if (added && ctx.mounted) Navigator.of(ctx).maybePop();
               },
             ),
           ],
@@ -178,7 +178,7 @@ Future<void> recordAdvanceSheet(BuildContext context, String emp) {
           ),
           MadarButton(
             label: tr('staff.record'),
-            onTap: () {
+            onTap: () async {
               final v = readMoney(amount);
               if (v == null) {
                 ref
@@ -186,12 +186,12 @@ Future<void> recordAdvanceSheet(BuildContext context, String emp) {
                     .show(tr('staff.enter_an_amount'), tone: ChipTone.danger);
                 return;
               }
-              final done = attempt(
+              final done = await attempt(
                 ref,
                 () => store.recordAdvance(emp, v, inst),
                 ok: tr('staff.recorded'),
               );
-              if (done) Navigator.of(ctx).maybePop();
+              if (done && ctx.mounted) Navigator.of(ctx).maybePop();
             },
           ),
         ],
@@ -253,7 +253,7 @@ Future<void> expenseSheet(BuildContext context, {String? emp}) {
             ),
             MadarButton(
               label: tr('staff.log_it'),
-              onTap: () {
+              onTap: () async {
                 final v = readMoney(amount);
                 if (v == null || purpose.text.trim().isEmpty) {
                   ref
@@ -264,12 +264,12 @@ Future<void> expenseSheet(BuildContext context, {String? emp}) {
                       );
                   return;
                 }
-                final done = attempt(
+                final done = await attempt(
                   ref,
                   () => store.logExpense(who!, v, purpose.text.trim(), via),
                   ok: tr('staff.logged'),
                 );
-                if (done) Navigator.of(ctx).maybePop();
+                if (done && ctx.mounted) Navigator.of(ctx).maybePop();
               },
             ),
           ],

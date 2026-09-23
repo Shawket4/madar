@@ -154,6 +154,8 @@ pub struct Snapshot {
     pub stuck: Vec<String>,
     pub can_manage: bool,
     pub can_payroll: bool,
+    /// Which manager tabs show, from `caps` (PM-4).
+    pub tabs: ManageTabs,
     pub caps: Vec<String>,
     pub my_branches: Vec<String>,
     /// When the mirror last heard from the server (epoch ms; 0 = never).
@@ -486,6 +488,8 @@ pub enum Act {
     /// The weekly coverage grid for a branch (SC-13): `[{day_of_week, band_start, band_end, staff}]`.
     SetCoverage { branch: String, needs: Value },
     ReadAll,
+    /// Signing out: the server forgets this phone and its pushes (APP-6).
+    SignOut,
     ApprovePayroll,
     ReopenPayroll,
     MarkPaid { emp: String, method: String },
@@ -532,6 +536,23 @@ fn date(v: &Value, k: &str) -> Option<NaiveDate> {
 fn at(v: &Value, k: &str) -> Option<DateTime<Utc>> {
     v.get(k).and_then(Value::as_str).and_then(|x| DateTime::parse_from_rfc3339(x).ok()).map(|d| d.with_timezone(&Utc))
 }
+/// Every instant the screens get is written in the branch's zone (AT-1):
+/// `2026-09-23T09:02:00+03:00`, never the server's `Z` or the phone's zone.
+/// The app shows the wall-clock part as it is, so a phone set to another
+/// zone still reads the branch's time. Plain dates are left alone.
+pub(crate) fn in_branch_zone(v: &mut Value, tz: &chrono_tz::Tz) {
+    match v {
+        Value::String(x) if x.len() >= 20 && x.as_bytes().get(10) == Some(&b'T') => {
+            if let Ok(d) = DateTime::parse_from_rfc3339(x) {
+                *x = d.with_timezone(tz).to_rfc3339_opts(chrono::SecondsFormat::AutoSi, false);
+            }
+        }
+        Value::Array(a) => a.iter_mut().for_each(|x| in_branch_zone(x, tz)),
+        Value::Object(o) => o.values_mut().for_each(|x| in_branch_zone(x, tz)),
+        _ => {}
+    }
+}
+
 /// `HH:MM[:SS]` → minute of the day.
 fn minute_of(x: &str) -> Option<i64> {
     let mut p = x.split(':');
@@ -707,7 +728,7 @@ impl MadarCore {
         let me = self.dawam_me()?;
         let ctx = self.dawam_srv("GET", "/staff/me/context", None).await?;
         let role = role_of(&s(&ctx, "role"));
-        let manager = manages(role, &ctx);
+        let manager = manages(&ctx);
         let all: Vec<String> = arr(&ctx, "branches").iter().map(|b| s(b, "id")).collect();
         let mine: Vec<String> = if role == "owner" {
             all.clone()
@@ -946,7 +967,9 @@ impl MadarCore {
             }
         }
         let snap = self.dawam_build()?;
-        serde_json::to_string(&snap).map_err(|e| CoreError::Internal { detail: format!("snapshot: {e}") })
+        let mut v = serde_json::to_value(&snap).map_err(|e| CoreError::Internal { detail: format!("snapshot: {e}") })?;
+        in_branch_zone(&mut v, &self.dawam_tz());
+        serde_json::to_string(&v).map_err(|e| CoreError::Internal { detail: format!("snapshot: {e}") })
     }
 
     /// Drain queued punches and pings, then refresh (connection restored).
@@ -1025,6 +1048,16 @@ impl MadarCore {
     pub async fn dawam_do(&self, action: String) -> Result<String, CoreError> {
         let act: Act = serde_json::from_str(&action).map_err(|e| CoreError::Validation { field: "action".into(), detail: e.to_string() })?;
         let online = self.current_session().is_some_and(|s| s.online);
+        if matches!(act, Act::SignOut) {
+            // Best effort and brief: signing out never waits on the network.
+            // The host signs the core out after this, whatever it answers.
+            let call = self.dawam_srv("POST", "/staff/me/sign-out", None);
+            return match tokio::time::timeout(std::time::Duration::from_secs(5), call).await {
+                Ok(Ok(_)) => Ok("{}".into()),
+                Ok(Err(e)) => Err(e),
+                Err(_) => Err(CoreError::Transient { detail: "sign-out timed out".into() }),
+            };
+        }
         if act.queueable() {
             self.dawam_queue(act)?;
             let _ = self.drain_outbox().await;
@@ -1265,7 +1298,7 @@ impl MadarCore {
             Act::MarkPaid { emp, method } => {
                 self.dawam_srv("PATCH", &format!("/staff/payroll/periods/{period_id}/payslips/{emp}/paid"), Some(json!({ "method": method }))).await?;
             }
-            Act::ClockIn { .. } | Act::ClockOut { .. } | Act::Cover { .. } | Act::PunchFor { .. } => {}
+            Act::ClockIn { .. } | Act::ClockOut { .. } | Act::Cover { .. } | Act::PunchFor { .. } | Act::SignOut => {}
         }
         Ok(())
     }
@@ -1327,8 +1360,9 @@ impl MadarCore {
             online,
             queued: queued.len() as u32,
             stuck,
-            can_manage: manages(&role, &ctx),
-            can_payroll: role == "owner" || caps.iter().any(|c| c == "hr.payroll.run"),
+            can_manage: manages(&ctx),
+            can_payroll: manage_tabs(&caps).payroll,
+            tabs: manage_tabs(&caps),
             caps,
             fetched_at,
             role,
@@ -1904,8 +1938,42 @@ fn group(n: i64) -> String {
 /// An inbox line in the phone's language (the server sends a key and args).
 /// The manager side opens on what the server lets them read (PM-4): a
 /// manager's role with no `hr.*` read capability gets the employee's app.
-fn manages(role: &str, ctx: &Value) -> bool {
-    role != "employee" && arr(ctx, "caps").iter().filter_map(Value::as_str).any(|c| c.starts_with("hr.") && c.ends_with(".read"))
+/// The manager tabs this person sees, from the capabilities the server says
+/// they hold (PM-4) — never from their role's name.
+#[derive(Serialize, Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct ManageTabs {
+    /// Who's in, flags, punch for someone.
+    pub team: bool,
+    /// Requests, advances, covers, overtime, swaps and claims to decide.
+    pub approvals: bool,
+    /// The roster board.
+    pub schedule: bool,
+    /// Run, approve and pay the month.
+    pub payroll: bool,
+}
+
+/// What decides each tab: any one capability of its list.
+const TAB_CAPS: [(&str, &[&str]); 4] = [
+    ("team", &["hr.attendance.read"]),
+    (
+        "approvals",
+        &["hr.leave.edit", "hr.advances.decide", "hr.shift_cover.confirm", "hr.overtime.approve", "hr.schedule.edit", "hr.payroll.run"],
+    ),
+    ("schedule", &["hr.schedule.read"]),
+    ("payroll", &["hr.payroll.run"]),
+];
+
+pub(crate) fn manage_tabs(caps: &[String]) -> ManageTabs {
+    let held = |tab: &str| {
+        TAB_CAPS.iter().find(|(t, _)| *t == tab).is_some_and(|(_, need)| need.iter().any(|n| caps.iter().any(|c| c == n)))
+    };
+    ManageTabs { team: held("team"), approvals: held("approvals"), schedule: held("schedule"), payroll: held("payroll") }
+}
+
+fn manages(ctx: &Value) -> bool {
+    let caps: Vec<String> = arr(ctx, "caps").iter().filter_map(Value::as_str).map(str::to_string).collect();
+    let t = manage_tabs(&caps);
+    t.team || t.approvals || t.schedule || t.payroll
 }
 
 fn notice_text(locale: &str, key: &str, args: &Value) -> String {
@@ -2039,6 +2107,46 @@ mod tests {
         assert_eq!(s["rebooted"], true);
     }
 
+    /// AT-1: every instant the app reads is in the branch's zone, so a phone
+    /// set to another zone still shows the branch's wall-clock time.
+    #[test]
+    fn instants_are_written_in_the_branch_zone_and_dates_are_left_alone() {
+        let mut v = json!({
+            "now": "2026-09-23T06:02:00Z",
+            "shifts": [{ "in_at": "2026-09-23T06:02:00.123456+00:00", "date": "2026-09-23" }],
+            "notices": [{ "at": "2026-01-15T22:30:00Z", "text": "not a time: 2026-09-23T06:02:00Z" }],
+            "odd": "2026-09-23T25:99:00Z",
+        });
+        in_branch_zone(&mut v, &chrono_tz::Africa::Cairo);
+        assert_eq!(v["now"], "2026-09-23T09:02:00+03:00", "summer time in Cairo");
+        assert_eq!(v["shifts"][0]["in_at"], "2026-09-23T09:02:00.123456+03:00");
+        assert_eq!(v["shifts"][0]["date"], "2026-09-23");
+        assert_eq!(v["notices"][0]["at"], "2026-01-16T00:30:00+02:00", "winter time, and the next day");
+        assert_eq!(v["notices"][0]["text"], "not a time: 2026-09-23T06:02:00Z");
+        assert_eq!(v["odd"], "2026-09-23T25:99:00Z", "unparseable text stays as it came");
+        // Another zone moves the wall clock, never the instant.
+        let mut w = json!("2026-09-23T06:02:00Z");
+        in_branch_zone(&mut w, &chrono_tz::Asia::Dubai);
+        assert_eq!(w, "2026-09-23T10:02:00+04:00");
+    }
+
+    /// PM-4: the manager tabs follow capabilities, not the role's name — a
+    /// "manager" with no rights sees none, an employee granted one sees it.
+    #[test]
+    fn manager_tabs_come_from_capabilities_not_the_role() {
+        let caps = |c: &[&str]| c.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        assert_eq!(manage_tabs(&caps(&[])), ManageTabs::default());
+        assert_eq!(manage_tabs(&caps(&["hr.staff.read"])), ManageTabs::default(), "reading staff opens no tab");
+        let t = manage_tabs(&caps(&["hr.schedule.read"]));
+        assert!(t.schedule && !t.team && !t.approvals && !t.payroll);
+        let t = manage_tabs(&caps(&["hr.overtime.approve"]));
+        assert!(t.approvals && !t.schedule);
+        let t = manage_tabs(&caps(&["hr.payroll.run"]));
+        assert!(t.payroll && t.approvals, "the payroll runner decides pay lines over the limit");
+        assert!(!manages(&json!({ "role": "manager", "caps": [] })), "a manager role without rights manages nothing");
+        assert!(manages(&json!({ "role": "employee", "caps": ["hr.attendance.read"] })), "an employee granted a right manages");
+    }
+
     #[test]
     fn labour_warnings_come_from_the_server_keyed_by_week() {
         let rows = vec![
@@ -2134,6 +2242,10 @@ mod tests {
         assert_eq!(snap["queued"], 1);
         let sh = snap["shifts"].as_array().unwrap().iter().find(|x| x["id"] == json!(shift)).unwrap();
         assert!(sh["queued"].as_bool().unwrap() && sh["in_at"].is_string());
+        // AT-1: the queued punch and the clock read in the branch's zone.
+        let off = cairo.format("%:z").to_string();
+        assert!(sh["in_at"].as_str().unwrap().ends_with(&off), "{} in {off}", sh["in_at"]);
+        assert!(snap["now"].as_str().unwrap().ends_with(&off), "{} in {off}", snap["now"]);
         let snap: Value = serde_json::from_str(&core.dawam_ping(fix).await.unwrap()).unwrap();
         assert_eq!(snap["queued"], 2, "the ping waits too");
         assert_eq!(snap["inside"], true);
@@ -2232,6 +2344,31 @@ mod tests {
         let body = post.json();
         assert_eq!(body["to_time"], "10:00");
         assert!(body.get("from_time").is_none(), "the server refuses a from_time on a late arrival");
+    }
+
+    /// APP-6 / 06 B3: signing out tells the server first (it forgets the
+    /// phone and its pushes), and a server that can't be reached never
+    /// holds the sign-out up.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn signing_out_unregisters_this_phone_on_the_server() {
+        use crate::testkit::{online_core, Stub, StubResponse};
+        let stub = Stub::start(|r| {
+            Some(match (r.method.as_str(), r.path.as_str()) {
+                ("POST", "/staff/me/sign-out") => StubResponse::json(204, json!(null)),
+                _ => StubResponse::json(200, json!({})),
+            })
+        })
+        .await;
+        let core = online_core(&stub.base, "").await;
+        core.set_online(true);
+        let out = core.dawam_do(json!({ "action": "sign_out" }).to_string()).await.unwrap();
+        assert_eq!(out, "{}");
+        assert_eq!(stub.requests("/staff/me/sign-out").len(), 1);
+
+        let down = Stub::start(|_| Some(StubResponse::hangup())).await;
+        let core = online_core(&down.base, "").await;
+        core.set_online(false);
+        assert!(core.dawam_do(json!({ "action": "sign_out" }).to_string()).await.is_err(), "the host still signs out");
     }
 
     #[test]

@@ -244,8 +244,8 @@ Future<void> correctionSheet(BuildContext context, Shift s) {
           ),
           MadarButton(
             label: tr('staff.send_to_manager'),
-            onTap: () {
-              final sent = attempt(
+            onTap: () async {
+              final sent = await attempt(
                 ref,
                 () => store.file(
                   ReqKind.correction,
@@ -257,7 +257,8 @@ Future<void> correctionSheet(BuildContext context, Shift s) {
                 ),
                 ok: tr('staff.sent'),
               );
-              if (sent) Navigator.of(ctx).popUntil((r) => r.isFirst);
+              if (sent && ctx.mounted)
+                Navigator.of(ctx).popUntil((r) => r.isFirst);
             },
           ),
         ],

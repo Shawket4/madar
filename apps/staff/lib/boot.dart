@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:design_system/design_system.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:geolocator/geolocator.dart';
@@ -40,11 +41,15 @@ Future<List<Override>> boot() async {
   );
   words = (key) => core.bridge.tr(key: key);
   final lang = core.bridge.locale().startsWith('ar') ? 'ar' : 'en';
-  final store = DawamStore(_BridgeBackend(core.bridge));
+  final backend = _BridgeBackend(core.bridge);
+  final store = DawamStore(backend);
   await store.restore();
-  final push = _Push(core.bridge, store, lang);
+  final opened = ValueNotifier<String?>(null);
+  final push = _Push(core.bridge, store, lang, opened);
+  backend.beforeSignOut = push.forget;
   unawaited(push.start());
   return [
+    openedPushProvider.overrideWithValue(opened),
     dawamProvider.overrideWith((ref) {
       ref.onDispose(store.stop);
       return store;
@@ -68,14 +73,17 @@ Future<List<Override>> boot() async {
 
 /// Push notifications (APP-6). Once someone is signed in, the phone's FCM
 /// token goes to the server with the language its pushes are written in; a
-/// push that arrives while the app is open refreshes the picture.
+/// push that arrives while the app is open refreshes the picture; a tapped
+/// push opens its screen; signing out forgets the token.
 class _Push {
-  _Push(this.bridge, this.store, this.lang);
+  _Push(this.bridge, this.store, this.lang, this.opened);
 
   final MadarBridge bridge;
   final DawamStore store;
+  final ValueNotifier<String?> opened;
   String lang;
   String? _sent; // who|language last registered
+  bool _on = false; // Firebase is configured on this build
 
   Future<void> start() async {
     try {
@@ -87,6 +95,7 @@ class _Push {
     } on Object {
       return; // no Firebase here: the in-app inbox still works
     }
+    _on = true;
     final m = FirebaseMessaging.instance;
     // Shown while the app is open too, like the inbox badge.
     await m.setForegroundNotificationPresentationOptions(
@@ -96,6 +105,11 @@ class _Push {
     );
     m.onTokenRefresh.listen((_) => unawaited(_register(force: true)));
     FirebaseMessaging.onMessage.listen((_) => store.sync());
+    // Tapped while the app ran in the background, or the tap that launched
+    // it: refresh, and open the screen the push is about (06 B8).
+    FirebaseMessaging.onMessageOpenedApp.listen(_opened);
+    final first = await m.getInitialMessage();
+    if (first != null) _opened(first);
     store.addListener(() {
       if (store.me == null) {
         _sent = null;
@@ -104,6 +118,25 @@ class _Push {
       }
     });
     if (store.me != null) unawaited(_register());
+  }
+
+  void _opened(RemoteMessage msg) {
+    store.sync();
+    opened.value = msg.data['key'] as String?;
+  }
+
+  /// Signing out (06 B3): this phone's token is deleted at Firebase, so
+  /// nothing more reaches it even if the server never heard the sign-out.
+  Future<void> forget() async {
+    _sent = null;
+    if (!_on) return;
+    try {
+      await FirebaseMessaging.instance.deleteToken().timeout(
+        const Duration(seconds: 5),
+      );
+    } on Object {
+      // offline: the server-side revoke (or the next sign-in) covers it
+    }
   }
 
   void language(String l) {
@@ -139,6 +172,9 @@ class _BridgeBackend implements DawamBackend {
   _BridgeBackend(this.bridge);
 
   final MadarBridge bridge;
+
+  /// Runs before the core signs out (the push token is forgotten).
+  Future<void> Function()? beforeSignOut;
 
   Future<T> _wrap<T>(Future<T> Function() op) async {
     try {
@@ -263,10 +299,9 @@ class _BridgeBackend implements DawamBackend {
             accuracy: LocationAccuracy.high,
             distanceFilter: 0,
             intervalDuration: const Duration(minutes: 5),
-            foregroundNotificationConfig: const ForegroundNotificationConfig(
-              notificationTitle: 'Dawam',
-              notificationText:
-                  'On shift: your location is recorded every 15 minutes until you clock out.',
+            foregroundNotificationConfig: ForegroundNotificationConfig(
+              notificationTitle: tr('staff.dawam'),
+              notificationText: tr('staff.tracking_notice'),
               enableWakeLock: false,
             ),
           )
@@ -287,6 +322,17 @@ class _BridgeBackend implements DawamBackend {
   @override
   String? restoredUser() => bridge.restoreSessionCached()?.userId;
 
+  /// The server forgets this phone and its pushes first (06 B3), then
+  /// Firebase forgets the token, then the core signs out — whatever the
+  /// network says, the phone is signed out.
   @override
-  Future<void> signOut() => bridge.logout(wipeOutbox: false);
+  Future<void> signOut() async {
+    try {
+      await bridge.dawamDo(action: jsonEncode({'action': 'sign_out'}));
+    } on Object {
+      // offline or refused: signing out never waits on the server
+    }
+    await beforeSignOut?.call();
+    await bridge.logout(wipeOutbox: false);
+  }
 }

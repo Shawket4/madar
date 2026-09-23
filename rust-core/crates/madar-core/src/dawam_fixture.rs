@@ -53,7 +53,7 @@ impl World {
         }
         json!({
             "role": role, "org_name": "Nile Café",
-            "caps": if role == "owner" { vec!["hr.attendance.read", "hr.payroll.run", "hr.schedule.publish", "hr.schedule.read", "hr.staff.read"] } else if role == "manager" { vec!["hr.attendance.read", "hr.schedule.publish", "hr.schedule.read", "hr.staff.read"] } else { vec![] },
+            "caps": if role == "owner" { vec!["hr.advances.decide", "hr.attendance.read", "hr.leave.edit", "hr.payroll.run", "hr.schedule.publish", "hr.schedule.read", "hr.staff.read"] } else if role == "manager" { vec!["hr.advances.decide", "hr.attendance.read", "hr.leave.edit", "hr.schedule.publish", "hr.schedule.read", "hr.staff.read"] } else { vec![] },
             "adjustment_limit_piastres": if role == "manager" { Some(100_000) } else { None },
             "branches": [
                 { "id": B1, "name": "Zamalek", "geo_radius_meters": 200, "latitude": 30.0609, "longitude": 31.2197, "timezone": "Africa/Cairo" },
@@ -215,7 +215,7 @@ async fn snapshot_for(who: &str, role: &'static str) -> Value {
     // morning shift is on whatever time of day the fixtures are written.
     let nine = today.and_hms_opt(9, 30, 0).unwrap();
     let at = chrono::TimeZone::from_local_datetime(&chrono_tz::Africa::Cairo, &nine).single().unwrap();
-    v["now"] = json!(at.with_timezone(&Utc).to_rfc3339());
+    v["now"] = json!(at.to_rfc3339());
     v
 }
 
@@ -242,6 +242,9 @@ async fn dawam_fixture_three_people_see_their_own_picture() {
     assert!(yesterday.is_some(), "Youssef's missed evening reads absent");
     // The owner: payroll, and the adjustment over the manager's limit.
     assert!(e3["can_payroll"].as_bool().unwrap());
+    assert_eq!(e2["tabs"], json!({ "team": true, "approvals": true, "schedule": true, "payroll": false }));
+    assert_eq!(e3["tabs"]["payroll"], true);
+    assert_eq!(e1["tabs"], json!({ "team": false, "approvals": false, "schedule": false, "payroll": false }));
     assert_eq!(e3["adj_inbox"], json!(["a|bonus|a2"]));
     assert_eq!(e3["history"][0]["status"], "paid");
     assert_eq!(e3["slips"].as_array().unwrap().iter().filter(|s| s["frozen"] == false).count(), 4);
