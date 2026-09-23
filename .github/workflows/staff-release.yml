@@ -5,6 +5,9 @@ name: Staff release
 # package com.madar.madar_staff / bundle com.madar.madarStaff.
 #
 # Tag it:  git tag staff-v1.0.0 && git push origin staff-v1.0.0
+# A tag with a suffix (staff-v1.0.0-beta.1) publishes as a pre-release.
+# A manual run (workflow_dispatch) needs this file on the default branch;
+# until it is merged, a tag is the way to run it.
 # Or run it by hand from the Actions tab (workflow_dispatch) to prove the
 # device builds still work without cutting a release.
 #
@@ -336,6 +339,8 @@ jobs:
         with:
           name: Dawam by Madar ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
+          # staff-v1.0.0-beta.1 and friends: a test build, never "Latest".
+          prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
           body_path: notes.md
           files: |
