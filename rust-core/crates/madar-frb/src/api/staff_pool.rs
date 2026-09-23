@@ -9,6 +9,7 @@ use flutter_rust_bridge::frb;
 
 use crate::api::approvals::{ActDecisionView, ApprovalView};
 use crate::api::bridge::MadarBridge;
+use crate::api::cart::{CartLineView, CartStaffSummary};
 use crate::api::error::MadarError;
 
 pub use madar_core::staff_drink::{
@@ -53,6 +54,9 @@ pub struct _StaffDrinkInput {
     pub quantity: i32,
     pub note: String,
     pub order_id: Option<String>,
+    /// The cart line asked about, when it is ALREADY marked (so it does not
+    /// count its own units against the pool).
+    pub line_key: Option<String>,
 }
 
 /// The branch's pool as this device holds it today.
@@ -98,6 +102,8 @@ pub struct _StaffDrinkLineView {
     pub overspent: bool,
     pub recorded_at: String,
     pub queued: bool,
+    pub comp_minor: Option<i64>,
+    pub extras_minor: Option<i64>,
 }
 
 impl MadarBridge {
@@ -137,6 +143,65 @@ impl MadarBridge {
     /// A manager unlocks this act with their PIN.
     pub fn approve_staff_drink(&self, approver_pin: String) -> Result<ApprovalView, MadarError> {
         self.inner.approve_staff_drink(approver_pin).map_err(MadarError::from)
+    }
+
+    /// MARK a counter-cart line as a staff drink (note REQUIRED). Nothing is
+    /// spent: the pool entry is written when the order is charged. Returns the
+    /// cart's lines — the marked line has a new key.
+    pub fn mark_staff_drink(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+        note: String,
+        approval: Option<ApprovalView>,
+    ) -> Result<Vec<CartLineView>, MadarError> {
+        self.inner.mark_staff_drink(table_id, line_key, note, approval).map_err(MadarError::from)
+    }
+
+    /// Change a marked line's note (still required).
+    pub fn edit_staff_drink_note(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+        note: String,
+    ) -> Result<Vec<CartLineView>, MadarError> {
+        self.inner.edit_staff_drink_note(table_id, line_key, note).map_err(MadarError::from)
+    }
+
+    /// Take the mark off: the line rings at its normal price again.
+    pub fn unmark_staff_drink(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+    ) -> Result<Vec<CartLineView>, MadarError> {
+        self.inner.unmark_staff_drink(table_id, line_key).map_err(MadarError::from)
+    }
+
+    /// The cart's staff drinks as the Charge sheet states them. Local.
+    #[frb(sync)]
+    pub fn cart_staff_summary(&self, table_id: Option<String>) -> Option<CartStaffSummary> {
+        self.inner.cart_staff_summary(table_id)
+    }
+
+    /// Why marks left their lines since the last ask, each already a sentence
+    /// in the till's language. Re-checks the cart first. Local; no network.
+    #[frb(sync)]
+    pub fn take_staff_drink_notices(&self, table_id: Option<String>) -> Vec<String> {
+        self.inner.take_staff_drink_notices(table_id)
+    }
+
+    /// The cart is becoming a table's bill (aimed at a table or a ticket): its
+    /// staff-drink marks go. Returns the reasons, already worded.
+    #[frb(sync)]
+    pub fn drop_staff_marks_for_bill(&self, table_id: Option<String>) -> Vec<String> {
+        self.inner.drop_staff_marks_for_bill(table_id)
+    }
+
+    /// The sentence for a sale answered by a server that does not support free
+    /// staff drinks yet; `None` otherwise.
+    #[frb(sync)]
+    pub fn staff_old_server_notice(&self, order_id: String) -> Option<String> {
+        self.inner.staff_old_server_notice(order_id)
     }
 
     /// Put the drink on the branch's pool (queued; works offline).

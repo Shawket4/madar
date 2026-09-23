@@ -156,6 +156,10 @@ class CartLineView {
   /// never on the customer receipt. Cleared once this line's chit prints.
   final String? kitchenNote;
 
+  /// Set when the line is a STAFF DRINK. `line_total_minor` stays the normal
+  /// price; this carries the comp and what is still charged.
+  final CartStaffDrinkView? staffDrink;
+
   const CartLineView({
     required this.key,
     required this.itemId,
@@ -170,6 +174,7 @@ class CartLineView {
     this.bundleId,
     required this.bundleComponents,
     this.kitchenNote,
+    this.staffDrink,
   });
 
   @override
@@ -186,7 +191,8 @@ class CartLineView {
       lineTotalMinor.hashCode ^
       bundleId.hashCode ^
       bundleComponents.hashCode ^
-      kitchenNote.hashCode;
+      kitchenNote.hashCode ^
+      staffDrink.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -205,7 +211,8 @@ class CartLineView {
           lineTotalMinor == other.lineTotalMinor &&
           bundleId == other.bundleId &&
           bundleComponents == other.bundleComponents &&
-          kitchenNote == other.kitchenNote;
+          kitchenNote == other.kitchenNote &&
+          staffDrink == other.staffDrink;
 }
 
 /// What `switch_to_draft` left in hand.
@@ -279,6 +286,61 @@ class CartOptionalView {
           optionalFieldId == other.optionalFieldId &&
           name == other.name &&
           priceMinor == other.priceMinor;
+}
+
+/// A cart line's staff-drink mark.
+class CartStaffDrinkView {
+  final String id;
+  final String note;
+  final PlatformInt64 compMinor;
+  final PlatformInt64 chargedMinor;
+
+  const CartStaffDrinkView({
+    required this.id,
+    required this.note,
+    required this.compMinor,
+    required this.chargedMinor,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^ note.hashCode ^ compMinor.hashCode ^ chargedMinor.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CartStaffDrinkView &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          note == other.note &&
+          compMinor == other.compMinor &&
+          chargedMinor == other.chargedMinor;
+}
+
+/// The cart's staff drinks in one figure, for the Charge sheet.
+class CartStaffSummary {
+  final PlatformInt64 units;
+  final PlatformInt64 compMinor;
+  final PlatformInt64 chargedMinor;
+
+  const CartStaffSummary({
+    required this.units,
+    required this.compMinor,
+    required this.chargedMinor,
+  });
+
+  @override
+  int get hashCode =>
+      units.hashCode ^ compMinor.hashCode ^ chargedMinor.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CartStaffSummary &&
+          runtimeType == other.runtimeType &&
+          units == other.units &&
+          compMinor == other.compMinor &&
+          chargedMinor == other.chargedMinor;
 }
 
 /// The priced cart summary the host shows in the cart panel + action-bar badge.

@@ -206,6 +206,12 @@ pub struct ReceiptLineView {
     /// "Reward" (or "Reward ×2") when a loyalty reward paid for units of this
     /// line — printed under it, on the receipt and the kitchen chit alike.
     pub reward_label: Option<String>,
+    /// "Staff drink" when the branch's pool comped this line. The line prints
+    /// at its NORMAL price, then this label as a line discount of
+    /// `staff_comp_minor` — the comp is already off the receipt's subtotal.
+    pub staff_label: Option<String>,
+    /// What the pool took off the whole line (0 on a paid line).
+    pub staff_comp_minor: i64,
     pub addons: Vec<ReceiptModifierView>,
     pub optionals: Vec<ReceiptModifierView>,
     pub components: Vec<ReceiptComponentView>,
@@ -291,6 +297,11 @@ pub struct ReceiptView {
     /// (the balance was spent elsewhere first, or the programme was switched
     /// off). The sale stands at what was collected; the teller should know.
     pub loyalty_notice: Option<String>,
+    /// After a sale that carried staff drinks: how the branch's pool stands
+    /// ("Staff drinks: 3 left today" / "… 1 over today's allowance"), or that
+    /// this server does not support free staff drinks yet. Shown on the done
+    /// card; never printed.
+    pub staff_notice: Option<String>,
 }
 
 /// One tender on a split receipt: the method as the customer reads it, and
@@ -375,6 +386,26 @@ pub(crate) struct Prepared {
     pub command: CheckoutCommand,
     pub receipt: ReceiptView,
     pub event_at: String,
+    /// The order's staff drinks, in cart order — the caller decides each one's
+    /// overspend against the pool and writes their ledger rows with the sale.
+    pub staff_lines: Vec<PreparedStaffLine>,
+}
+
+/// One marked line of a prepared sale.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PreparedStaffLine {
+    /// Position in `request.items`.
+    pub item_index: usize,
+    pub id: String,
+    pub note: String,
+    pub approval: Option<crate::approvals::ApprovalView>,
+    pub menu_item_id: String,
+    pub item_name: String,
+    pub size_label: Option<String>,
+    pub quantity: i64,
+    /// The till's comp for the whole line, and what the line still pays.
+    pub comp_minor: i64,
+    pub extras_minor: i64,
 }
 
 /// Assemble an order from the current cart. Store reads only (no network).
@@ -578,7 +609,25 @@ pub(crate) fn prepare(
     let branch_uuid = parse_uuid(branch_id, "branch_id")?;
     let shift_uuid = parse_uuid(till_id, "till_id")?;
     let reward_units = reward_units_by_line(&lines, &input.loyalty_redemptions)?;
-
+    // The cart's staff drinks. A bundle never carries one (the cart refuses the
+    // mark and drops it when a line becomes one); the filter is the last gate.
+    let staff_lines: Vec<PreparedStaffLine> = cart::staff_marked(store, ctx)?
+        .into_iter()
+        .filter(|m| !m.is_bundle)
+        .map(|m| PreparedStaffLine {
+            item_index: m.index,
+            id: m.mark.id,
+            note: m.mark.note,
+            approval: m.mark.approval,
+            menu_item_id: m.item_id,
+            item_name: m.name,
+            size_label: m.size_label,
+            quantity: m.qty,
+            comp_minor: m.comp_minor,
+            extras_minor: m.line_total_minor - m.comp_minor,
+        })
+        .collect();
+    let staff_at = |i: usize| staff_lines.iter().find(|s| s.item_index == i);
     // The wire wants the raw `name` column (the backend validates against it),
     // NOT the localized label — resolve from the cached payment-method catalog.
     let raw =
@@ -622,6 +671,7 @@ pub(crate) fn prepare(
                 unit_price: l.unit_price_minor,
                 is_bundle: l.bundle_id.is_some(),
                 reward_units: reward_units.get(&i).copied().unwrap_or(0),
+                staff_comp_minor: staff_at(i).map_or(0, |s| s.comp_minor),
                 addons: l
                     .addons
                     .iter()
@@ -713,7 +763,22 @@ pub(crate) fn prepare(
 
     let order_id = uuid::Uuid::new_v4();
 
-    let items = lines_to_wire_items(&lines);
+    let mut items = lines_to_wire_items(&lines);
+    // A staff drink rides its order line (staff-drink-comp-contract §2): the
+    // id is the `staff_drinks` row's id and its idempotency key, `comp_minor`
+    // is this till's comp for the WHOLE line. Unit prices stay normal; the
+    // order's subtotal and total above are already net of the comp.
+    // `overspent` is the caller's to set — it holds the pool's count. Only
+    // this path adds the field: a ticket's lines never carry one.
+    for s in &staff_lines {
+        let (Some(item), Ok(id)) = (items.get_mut(s.item_index), uuid::Uuid::parse_str(&s.id)) else {
+            continue;
+        };
+        let mut sd = models::StaffDrinkLine::new(id, s.note.trim().to_string());
+        sd.comp_minor = Some(Some(s.comp_minor as i32));
+        sd.overspent = Some(Some(false));
+        item.staff_drink = Some(Some(Box::new(sd)));
+    }
 
     let mut request =
         models::CreateOrderRequest::new(branch_uuid, items, payment_method.clone(), shift_uuid);
@@ -864,6 +929,10 @@ pub(crate) fn prepare(
                         crate::loyalty::covered_minor(l.line_total_minor, l.qty, units);
                     line.reward_label = Some(crate::loyalty::reward_label(units, locale));
                 }
+                if let Some(s) = staff_at(i) {
+                    line.staff_label = Some(crate::i18n::tr(locale, "staff_pool.badge"));
+                    line.staff_comp_minor = s.comp_minor;
+                }
                 line
             })
             .collect(),
@@ -895,6 +964,7 @@ pub(crate) fn prepare(
         queued_offline: true, // the FFI flips this to false if the drain sends it now
         created_at: now_rfc3339.clone(),
         loyalty_notice: None,
+        staff_notice: None,
         payments: input
             .splits
             .iter()
@@ -912,6 +982,7 @@ pub(crate) fn prepare(
         command: CheckoutCommand { request, device: None, started_by: None, approval: None },
         receipt,
         event_at: now_rfc3339,
+        staff_lines,
     })
 }
 
@@ -920,6 +991,10 @@ pub(crate) fn prepare(
 /// units than the line holds. Affordability, the catalogue and the shop's cap
 /// are [`crate::loyalty::reward_board`]'s, checked against a fresh lookup
 /// before the sale is queued.
+/// The detail a sale refused for naming one line as both carries; the host
+/// maps it to `staff_pool.not_a_reward`.
+pub const STAFF_DRINK_NOT_A_REWARD: &str = "a staff drink cannot also be taken as a reward";
+
 pub(crate) fn reward_units_by_line(
     lines: &[cart::CartLineView],
     asked: &[CheckoutRedemption],
@@ -936,6 +1011,9 @@ pub(crate) fn reward_units_by_line(
             .ok_or_else(|| bad("a reward names a line that is not in the cart"))?;
         if line.bundle_id.is_some() {
             return Err(bad("a bundle cannot be taken as a reward"));
+        }
+        if line.staff_drink.is_some() {
+            return Err(bad(STAFF_DRINK_NOT_A_REWARD));
         }
         if r.units < 1 || r.units as i64 > line.qty {
             return Err(bad("a reward covers more units than the line holds"));
@@ -1005,6 +1083,8 @@ fn receipt_line_from_cart(l: &cart::CartLineView) -> ReceiptLineView {
         line_total_minor: l.line_total_minor,
         is_bundle: l.bundle_id.is_some(),
         reward_label: None,
+        staff_label: None,
+        staff_comp_minor: 0,
         addons,
         optionals,
         components,
@@ -2730,6 +2810,7 @@ mod tests {
                 optionals: vec![],
             }],
             kitchen_note: None,
+            staff_drink: None,
         };
         let r = receipt_line_from_cart(&line);
         let comp_addons = &r.components[0].addons;
@@ -2761,6 +2842,7 @@ mod tests {
             bundle_id: None,
             bundle_components: vec![],
             kitchen_note: Some("no salt — allergy".into()),
+            staff_drink: None,
         };
         let receipt_line = receipt_line_from_cart(&line);
         assert!(

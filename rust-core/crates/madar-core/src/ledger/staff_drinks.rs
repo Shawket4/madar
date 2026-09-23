@@ -107,14 +107,19 @@ pub(crate) struct StaffDrinkRow {
     pub recorded_at: String,
     /// Its op is still in the outbox.
     pub queued: bool,
+    /// What the pool comped on the sale's line, and what the line still paid.
+    /// `None` on a record-only drink and on a row from an older server.
+    pub comp_minor: Option<i64>,
+    pub extras_minor: Option<i64>,
 }
 
 /// A branch's drinks on one business date, oldest first (ties by id) — the
 /// server's `ORDER BY recorded_at, id`.
 pub(crate) fn for_day(conn: &Connection, branch_id: &str, business_date: &str) -> CoreResult<Vec<StaffDrinkRow>> {
     let mut st = conn.prepare(
-        "SELECT d.raw, EXISTS(SELECT 1 FROM outbox x WHERE x.entity_type=?3 AND x.entity_id=d.id
-                                AND x.status IN ('pending','inflight','dead'))
+        "SELECT d.raw, EXISTS(SELECT 1 FROM outbox x WHERE x.status IN ('pending','inflight','dead')
+                                AND ((x.entity_type=?3 AND x.entity_id=d.id)
+                                  OR (x.entity_type='order' AND x.entity_id=json_extract(d.raw,'$.order_id'))))
            FROM ledger_staff_drinks d WHERE d.branch_id=?1 AND d.business_date=?2",
     )?;
     let mut out: Vec<StaffDrinkRow> = st
@@ -134,6 +139,8 @@ pub(crate) fn for_day(conn: &Connection, branch_id: &str, business_date: &str) -
                 overspent: v.get("overspent").and_then(Value::as_bool).unwrap_or(false),
                 recorded_at: s(&v, "recorded_at").unwrap_or("").to_string(),
                 queued: queued != 0,
+                comp_minor: v.get("comp_minor").and_then(Value::as_i64),
+                extras_minor: v.get("extras_minor").and_then(Value::as_i64),
             }
         })
         .collect();

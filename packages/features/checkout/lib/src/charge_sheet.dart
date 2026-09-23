@@ -754,6 +754,28 @@ class _Hero extends StatelessWidget {
     // The breakdown, as "Subtotal 175.00 · Service 21.00 · VAT incl. 24.07".
     // Only lines that exist: a zero rate draws nothing.
     final parts = <String>[];
+    // A counter sale's staff drinks, stated before the subtotal they already
+    // left: the pool's comp as a discount, and what those lines still pay.
+    // The core's figures (local, synchronous); nothing here adds money up.
+    if (s.target case CartChargeTarget(:final tableId)) {
+      CartStaffSummary? staff;
+      try {
+        staff = bridge.cartStaffSummary(tableId: tableId);
+      } on Object {
+        staff = null;
+      }
+      if (staff != null) {
+        parts.add(
+          '${bridge.tr(key: 'staff_pool.badge')} −${money(staff.compMinor)}',
+        );
+        if (staff.chargedMinor > 0) {
+          parts.add(
+            '${bridge.tr(key: 'staff_pool.line_extras')} '
+            '${money(staff.chargedMinor)}',
+          );
+        }
+      }
+    }
     if (!s.heroIsSubtotal) {
       parts.add(
         '${bridge.tr(key: 'order.subtotal')} ${money(sum.subtotalMinor)}',

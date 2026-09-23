@@ -466,11 +466,23 @@ pub(crate) fn order_to_receipt(
                         .collect()
                 })
                 .unwrap_or_default();
+            // A staff drink: the stored figures are NET of the comp (contract
+            // §3) — the size part is off `line_total`, each pick's part off
+            // that pick's own row. The receipt prints the NORMAL price and
+            // then the comp as one line discount, so the size part goes back
+            // on. Both fields are absent from an older server: then 0 / none.
+            let staff_comp = it.staff_comp_minor.unwrap_or(0).max(0) as i64;
+            let staff_on_picks: i64 =
+                it.addons.iter().map(|a| a.staff_comp_minor.unwrap_or(0).max(0) as i64).sum();
+            let staff_on_size = (staff_comp - staff_on_picks).max(0);
             ReceiptLineView {
                 name: loc(&it.name_translations, &it.item_name, locale),
                 qty: it.quantity as i64,
                 size_label: it.size_label.clone().filter(|s| !s.is_empty()),
-                line_total_minor: it.line_total as i64,
+                line_total_minor: it.line_total as i64 + staff_on_size,
+                staff_label: (staff_comp > 0 || it.staff_drink_id.is_some())
+                    .then(|| crate::i18n::tr(locale, "staff_pool.badge")),
+                staff_comp_minor: staff_comp,
                 is_bundle: it.bundle_id.is_some(),
                 reward_label: it.is_reward.unwrap_or(false).then(|| {
                     crate::loyalty::reward_label(it.reward_units.unwrap_or(0) as i64, locale)
@@ -566,6 +578,7 @@ pub(crate) fn order_to_receipt(
         queued_offline: false,
         created_at: o.created_at.to_rfc3339(),
         // Only a SPLIT lists its legs; one leg is the payment line already.
+        staff_notice: None,
         loyalty_notice: o
             .loyalty_redemption_refused
             .clone()

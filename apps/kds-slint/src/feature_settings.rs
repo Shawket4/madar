@@ -289,6 +289,8 @@ fn test_receipt(teller_name: Option<String>) -> ReceiptView {
             optionals: Vec::new(),
             components: Vec::new(),
             reward_label: None,
+            staff_label: None,
+            staff_comp_minor: 0,
         }],
         payment_label: "—".into(),
         subtotal_minor: 0,
@@ -319,6 +321,7 @@ fn test_receipt(teller_name: Option<String>) -> ReceiptView {
         service_charge_waived_by_name: None,
         payments: Vec::new(),
         loyalty_notice: None,
+        staff_notice: None,
     }
 }
 

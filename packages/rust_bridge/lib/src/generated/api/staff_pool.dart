@@ -44,12 +44,17 @@ class StaffDrinkInput {
   final String note;
   final String? orderId;
 
+  /// The cart line asked about, when it is ALREADY marked (so it does not
+  /// count its own units against the pool).
+  final String? lineKey;
+
   const StaffDrinkInput({
     required this.menuItemId,
     this.sizeLabel,
     required this.quantity,
     required this.note,
     this.orderId,
+    this.lineKey,
   });
 
   @override
@@ -58,7 +63,8 @@ class StaffDrinkInput {
       sizeLabel.hashCode ^
       quantity.hashCode ^
       note.hashCode ^
-      orderId.hashCode;
+      orderId.hashCode ^
+      lineKey.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -69,7 +75,8 @@ class StaffDrinkInput {
           sizeLabel == other.sizeLabel &&
           quantity == other.quantity &&
           note == other.note &&
-          orderId == other.orderId;
+          orderId == other.orderId &&
+          lineKey == other.lineKey;
 }
 
 /// One drink on today's list.
@@ -82,6 +89,8 @@ class StaffDrinkLineView {
   final bool overspent;
   final String recordedAt;
   final bool queued;
+  final PlatformInt64? compMinor;
+  final PlatformInt64? extrasMinor;
 
   const StaffDrinkLineView({
     required this.id,
@@ -92,6 +101,8 @@ class StaffDrinkLineView {
     required this.overspent,
     required this.recordedAt,
     required this.queued,
+    this.compMinor,
+    this.extrasMinor,
   });
 
   @override
@@ -103,7 +114,9 @@ class StaffDrinkLineView {
       note.hashCode ^
       overspent.hashCode ^
       recordedAt.hashCode ^
-      queued.hashCode;
+      queued.hashCode ^
+      compMinor.hashCode ^
+      extrasMinor.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -117,7 +130,9 @@ class StaffDrinkLineView {
           note == other.note &&
           overspent == other.overspent &&
           recordedAt == other.recordedAt &&
-          queued == other.queued;
+          queued == other.queued &&
+          compMinor == other.compMinor &&
+          extrasMinor == other.extrasMinor;
 }
 
 /// The verdict before committing, with everything the sheet needs worded.

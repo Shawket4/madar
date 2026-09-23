@@ -11,7 +11,6 @@ Method | HTTP request | Description
 [**create_base**](MenuApi.md#create_base) | **POST** /recipe-bases | 
 [**create_category**](MenuApi.md#create_category) | **POST** /categories | 
 [**create_group**](MenuApi.md#create_group) | **POST** /modifier-groups | 
-[**create_linked_copy**](MenuApi.md#create_linked_copy) | **POST** /menu-items/{id}/linked-copy | 
 [**create_menu_item**](MenuApi.md#create_menu_item) | **POST** /menu-items | 
 [**create_option**](MenuApi.md#create_option) | **POST** /modifier-groups/{gid}/options | 
 [**create_optional_field**](MenuApi.md#create_optional_field) | **POST** /menu-items/{id}/optionals | 
@@ -263,35 +262,6 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::GroupOut**](GroupOut.md)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: application/json
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## create_linked_copy
-
-> models::LinkedCopyResult create_linked_copy(id, create_linked_copy_request)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**id** | **uuid::Uuid** | Source menu item ID | [required] |
-**create_linked_copy_request** | [**CreateLinkedCopyRequest**](CreateLinkedCopyRequest.md) |  | [required] |
-
-### Return type
-
-[**models::LinkedCopyResult**](LinkedCopyResult.md)
 
 ### Authorization
 

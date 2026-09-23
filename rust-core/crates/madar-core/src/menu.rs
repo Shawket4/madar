@@ -768,6 +768,10 @@ pub(crate) struct UnifiedOption {
     pub price: i64,
     #[serde(default = "unified_true")]
     pub is_available: bool,
+    /// The group's default pick. The staff comp's allowance is its price; an
+    /// older backend omits it and the cheapest option sets the allowance.
+    #[serde(default)]
+    pub is_default: bool,
 }
 
 #[derive(Clone, Deserialize)]
@@ -787,6 +791,9 @@ pub(crate) struct UnifiedGroup {
     pub is_required: bool,
     #[serde(default)]
     pub legacy_addon_type: Option<String>,
+    /// `adds` | `swaps`. A swap group is never a comp group (staff drinks).
+    #[serde(default)]
+    pub effect: String,
     #[serde(default)]
     pub options: Vec<UnifiedOption>,
 }

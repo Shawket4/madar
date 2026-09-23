@@ -178,6 +178,18 @@ class SellCart extends ConsumerWidget {
     // a waiter, whose "parking" is the open ticket.
     final isCounterFlow = !state.isWaiter && tableId == null && ticket == null;
     final canPark = isCounterFlow && lines.isNotEmpty;
+    // A cart that FIRES is (or is becoming) a table's bill, and a bill never
+    // carries a staff drink: a counter cart that was marked and then aimed at
+    // a table or a ticket loses its marks. The core drops them and words the
+    // reason; the cart toasts it.
+    if (cta.sendsToKitchen && lines.any((l) => l.staffDrink != null)) {
+      unawaited(
+        Future.microtask(
+          () =>
+              ref.read(cartProvider(tableId).notifier).dropStaffMarksForBill(),
+        ),
+      );
+    }
 
     return ColoredBox(
       color: colors.bg,
@@ -288,6 +300,7 @@ class SellCart extends ConsumerWidget {
                           tableLabel: tableLabel,
                           ticketRef: ticket?.ticketRef,
                           currency: state.currency,
+                          counterSale: !cta.sendsToKitchen,
                           onEdit: line.bundleId == null
                               ? () => onEditLine(line)
                               : null,
@@ -538,6 +551,7 @@ class _RoundLine extends ConsumerWidget {
     required this.tableId,
     required this.line,
     required this.currency,
+    this.counterSale = false,
     this.tableLabel,
     this.ticketRef,
     this.onEdit,
@@ -546,6 +560,10 @@ class _RoundLine extends ConsumerWidget {
 
   final String? tableId;
   final CartLineView line;
+
+  /// The cart charges a counter sale (it does not fire a round): the only
+  /// flow that offers the staff-drink action.
+  final bool counterSale;
 
   /// Where the chit says it goes, and the bill it belongs to — the same
   /// context a fired round prints with.
@@ -577,6 +595,13 @@ class _RoundLine extends ConsumerWidget {
           overflow: TextOverflow.ellipsis,
           style: MadarType.title.copyWith(color: colors.textPrimary),
         ),
+        // A staff drink says so, on the line. The badge is also the way back
+        // to its note, and to taking the mark off.
+        if (line.staffDrink != null)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(top: Space.xs),
+            child: StaffDrinkBadge(line: line, tableId: tableId),
+          ),
         if (mods.isNotEmpty)
           Text(
             mods.join(' · '),
@@ -617,18 +642,22 @@ class _RoundLine extends ConsumerWidget {
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: AlignmentDirectional.centerStart,
-          child: MoneyText(
-            line.lineTotalMinor,
-            currency: currency,
-            color: colors.textPrimary,
-          ),
+          // A staff drink: the normal price struck through, then what the
+          // pool leaves to pay ("Free" / "Extras 25.00") — the core's figures.
+          child: line.staffDrink != null
+              ? StaffDrinkPrice(line: line, currency: currency)
+              : MoneyText(
+                  line.lineTotalMinor,
+                  currency: currency,
+                  color: colors.textPrimary,
+                ),
         ),
       ],
     );
     final controls = <Widget>[
       // The branch's staff pool: hidden unless the core says this line is on
       // it and this person may act. See `staff_drink_sheet.dart`.
-      StaffDrinkTile(line: line, tableId: tableId),
+      StaffDrinkTile(line: line, tableId: tableId, counterSale: counterSale),
       MadarStepper(
         value: line.qty,
         onChanged: (q) => unawaited(notifier.setQty(line.key, q)),

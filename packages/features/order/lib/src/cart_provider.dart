@@ -185,6 +185,9 @@ class CartNotifier extends Notifier<CartState> {
     // Captured up front: the provider may be disposed across the awaits.
     final order = _order;
     final bridge = _bridge;
+    // Staff drinks first: the core re-decides every mark (a settings sync may
+    // have taken an item off the pool's list) and says why any had to go.
+    _sayStaffDrops(order, bridge);
     final lines = await order._quiet(() => bridge.cartLines(tableId: arg));
     if (!ref.mounted) return;
     final totals = await order._quiet(() => bridge.cartTotals(tableId: arg));
@@ -198,6 +201,35 @@ class CartNotifier extends Notifier<CartState> {
       meta: meta ?? state.meta,
       loaded: true,
     );
+  }
+
+  /// Toast why staff-drink marks left their lines, in the core's words. Local
+  /// and synchronous in the core; never a reason to fail a cart read.
+  bool _sayStaffDrops(OrderNotifier order, MadarBridge bridge) {
+    try {
+      final said = bridge.takeStaffDrinkNotices(tableId: arg);
+      for (final why in said) {
+        order.showToast(why, tone: ChipTone.warning, seconds: 4);
+      }
+      return said.isNotEmpty;
+    } on Object {
+      return false;
+    }
+  }
+
+  /// This cart is becoming a table's bill (it fires now): its staff-drink
+  /// marks go, with a toast saying why. A bill never carries one.
+  Future<void> dropStaffMarksForBill() async {
+    if (!state.lines.any((l) => l.staffDrink != null)) return;
+    try {
+      _bridge.dropStaffMarksForBill(tableId: arg);
+    } on Object {
+      return;
+    }
+    if (!ref.mounted) return;
+    // `load` drains the reasons the core kept and toasts them.
+    _writes += 1;
+    await load();
   }
 
   /// Replace this cart's meta — here and in the core.
@@ -214,7 +246,12 @@ class CartNotifier extends Notifier<CartState> {
   Future<void> _apply(Future<List<CartLineView>> Function() op) async {
     _writes += 1;
     try {
-      final lines = await op();
+      var lines = await op();
+      // A change may have cost a staff drink its mark (the core says why);
+      // the lines it handed back are then already stale.
+      if (_sayStaffDrops(_order, _bridge)) {
+        lines = await _bridge.cartLines(tableId: arg);
+      }
       final totals =
           await _order._quiet(() => _bridge.cartTotals(tableId: arg)) ??
           _emptyTotals;

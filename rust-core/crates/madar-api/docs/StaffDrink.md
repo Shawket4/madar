@@ -7,7 +7,10 @@ Name | Type | Description | Notes
 **allowance_at_record** | **i32** |  | 
 **branch_id** | **uuid::Uuid** |  | 
 **business_date** | **chrono::NaiveDate** |  | 
+**comp_minor** | Option<**i32**> | What the pool comped on the sale's line, minor units, as the SERVER prices it. `null` on a record-only drink (no priced line behind it). | [optional]
+**comp_minor_reported** | Option<**i32**> | What the TILL said the comp was, on a replayed sale. Differs from `comp_minor` exactly when `orders.staff_drink.record:comp_mismatch` was flagged. | [optional]
 **cost_minor** | Option<**i32**> |  | [optional]
+**extras_minor** | Option<**i32**> | What that line was still charged: a bigger size, extras, pricier picks. | [optional]
 **id** | **uuid::Uuid** |  | 
 **item_name** | **String** |  | 
 **menu_item_id** | Option<**uuid::Uuid**> |  | [optional]
