@@ -203,6 +203,17 @@ void main() {
     },
   );
 
+  testWidgets('Team shows who is in or late as the server said (AT-3)', (
+    t,
+  ) async {
+    final c = await pumpApp(t, lang: 'en', who: 'e2', manage: true);
+    final store = c.read(dawamProvider);
+    expect(store.presence['e1']?.state, PresenceState.late);
+    await frames(t);
+    expect(find.textContaining('12m late'), findsOneWidget);
+    await finish(t);
+  });
+
   group('a refused form stays open (06 B1, APP-8)', () {
     for (final lang in ['ar', 'en']) {
       testWidgets('request · $lang', (t) async {

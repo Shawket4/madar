@@ -93,7 +93,7 @@
       "via": "cash"
     }
   ],
-  "fetched_at": 1790169652187,
+  "fetched_at": 1790179056422,
   "flags": [
     {
       "at": "2026-09-23T17:10:00+03:00",
@@ -266,6 +266,18 @@
     "paid_by": {},
     "start": "2026-08-26",
     "status": "open"
+  },
+  "presence": {
+    "e1": {
+      "late_minutes": 12,
+      "since": "2026-09-23T08:12:00+03:00",
+      "state": "late"
+    },
+    "e4": {
+      "late_minutes": 0,
+      "since": null,
+      "state": "off"
+    }
   },
   "queued": 0,
   "requests": [

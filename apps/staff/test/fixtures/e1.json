@@ -79,7 +79,7 @@
       "via": "cash"
     }
   ],
-  "fetched_at": 1790169650027,
+  "fetched_at": 1790179054502,
   "flags": [],
   "history": [
     {
@@ -211,6 +211,7 @@
     "start": "2026-08-26",
     "status": "open"
   },
+  "presence": {},
   "queued": 0,
   "requests": [
     {

@@ -351,6 +351,17 @@ class Line implements Bilingual {
   bool waived = false; // a waived line leaves the server's payslip (AD-8)
 }
 
+/// The server's presence states (`/staff/team/presence`).
+enum PresenceState { in_, late, absent, onLeave, off, done }
+
+/// One colleague right now, as the server decided it.
+class Presence {
+  const Presence(this.state, {this.since, this.lateMinutes = 0});
+  final PresenceState state;
+  final DateTime? since;
+  final int lateMinutes;
+}
+
 class Slip {
   Slip(
     this.emp,
@@ -520,6 +531,11 @@ class DawamStore extends ChangeNotifier {
   /// Coverage needs per branch (SC-13), as the server sent them.
   Map<String, J> coverage = const {};
 
+  /// Each colleague's state right now, as the SERVER decided it (AT-3):
+  /// employee id → presence. Empty for someone who manages no one, and until
+  /// the first answer.
+  Map<String, Presence> presence = const {};
+
   // ── the picture ──
   Duration _skew = Duration.zero;
   DateTime get now => DateTime.now().add(_skew);
@@ -642,6 +658,23 @@ class DawamStore extends ChangeNotifier {
     coverage = ((v['coverage'] as J?) ?? const {}).map(
       (k, x) => MapEntry(k, x is J ? x : const <String, dynamic>{}),
     );
+    presence = {
+      for (final MapEntry(key: id, value: p)
+          in ((v['presence'] as J?) ?? const {}).entries)
+        if (p is J)
+          id: Presence(
+            switch (p['state']) {
+              'in' => PresenceState.in_,
+              'late' => PresenceState.late,
+              'absent' => PresenceState.absent,
+              'on_leave' => PresenceState.onLeave,
+              'done' => PresenceState.done,
+              _ => PresenceState.off,
+            },
+            since: _at(p['since']),
+            lateMinutes: _int(p['late_minutes']),
+          ),
+    };
 
     for (final b in _list(v['branches'])) {
       final name = b['name'] as String;

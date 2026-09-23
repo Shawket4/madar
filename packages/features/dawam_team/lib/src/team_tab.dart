@@ -18,55 +18,41 @@ class TeamTab extends ConsumerStatefulWidget {
 class _TeamTabState extends ConsumerState<TeamTab> {
   String? _branch;
 
+  /// Where someone is right now: the SERVER's call (AT-3, team presence),
+  /// never worked out here from grace minutes and the phone's clock. The
+  /// roster only supplies the words (which shift, when it starts).
   (_P, String) _presence(DawamStore store, Emp e) {
-    final now = store.now;
-    final ss = store
+    final p = store.presence[e.id];
+    final since = p?.since;
+    final today = store
         .rostered(e.id, store.today)
         .where((s) => !s.covered)
         .toList();
-    final active = store.shifts
-        .where(
-          (s) =>
-              s.emp == e.id && s.inAt != null && s.outAt == null && !s.covered,
-        )
-        .firstOrNull;
-    if (active != null) {
-      final l = store.lateMinutes(active);
-      return l > 0
-          ? (
-              _P.late,
-              tr('staff.in_since_m_late', {'time': hm(active.inAt!), 'l': l}),
-            )
-          : (_P.inNow, tr('staff.in_since', {'time': hm(active.inAt!)}));
-    }
-    if (ss.isEmpty) return (_P.off, tr('staff.off_today'));
-    if (ss.every((s) => s.leave != null || s.mission)) {
-      return (_P.leave, tr('staff.on_leave_now'));
-    }
-    final missed = ss.where(
-      (s) =>
-          s.inAt == null &&
-          now.isAfter(s.startAt.add(Duration(minutes: s.template.grace))),
-    );
-    if (missed.isNotEmpty) {
-      final s = missed.first;
-      return (
-        _P.absent,
-        now.isAfter(s.endAt)
-            ? tr('staff.absent_now')
-            : tr('staff.not_in_shift', {
-                'shift': tplName(s.template),
-                'time': hm(s.startAt),
-              }),
-      );
-    }
-    final next = ss
-        .where((s) => s.inAt == null && now.isBefore(s.endAt))
-        .firstOrNull;
-    if (next != null) {
-      return (_P.notYet, tr('staff.starts', {'time': hm(next.startAt)}));
-    }
-    return (_P.done, tr('staff.done_for_today'));
+    final next = today.where((s) => s.inAt == null).firstOrNull;
+    return switch (p?.state) {
+      PresenceState.in_ => (
+        _P.inNow,
+        since == null
+            ? tr('staff.in_now')
+            : tr('staff.in_since', {'time': hm(since)}),
+      ),
+      PresenceState.late => (
+        _P.late,
+        tr('staff.in_since_m_late', {
+          'time': since == null ? '—' : hm(since),
+          'l': p!.lateMinutes,
+        }),
+      ),
+      PresenceState.absent => (_P.absent, tr('staff.absent_now')),
+      PresenceState.onLeave => (_P.leave, tr('staff.on_leave_now')),
+      PresenceState.done => (_P.done, tr('staff.done_for_today')),
+      // Off now: a shift still to come today, or nothing today.
+      _ when next != null => (
+        _P.notYet,
+        tr('staff.starts', {'time': hm(next.startAt)}),
+      ),
+      _ => (_P.off, tr('staff.off_today')),
+    };
   }
 
   @override

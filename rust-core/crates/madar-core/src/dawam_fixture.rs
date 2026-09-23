@@ -162,6 +162,15 @@ impl World {
                 { "id": "x1", "employee_id": "e1", "amount_piastres": 30_000, "given_on": self.d(-1), "branch_id": B1, "purpose": "Milk", "handed_by": "u2", "via": "cash" }
             ]),
             "/staff/swaps" => json!([]),
+            // Who's where now, as the server decides it (AT-3).
+            "/staff/team/presence" => json!({
+                "business_date": self.d(0), "present": 1, "late": 1, "absent": 0, "on_leave": 0,
+                "worked_minutes": 78, "planned_minutes": 960,
+                "rows": [
+                    { "employee_id": "e1", "employee_name": "Sara Ahmed", "state": "late", "check_in_at": self.at(0, "08:12"), "late_minutes": 12, "worked_minutes": 78, "scheduled_minutes": 480 },
+                    { "employee_id": "e4", "employee_name": "Youssef Adel", "state": "off", "late_minutes": 0, "worked_minutes": 0, "scheduled_minutes": 480 }
+                ]
+            }),
             "/staff/me/notifications" => json!([
                 { "id": "n1", "key": "staff.n_week_published", "args": { "date": crate::dawam::week_start(self.today).to_string() }, "created_at": self.at(-2, "18:00"), "read_at": null },
                 { "id": "n2", "key": "staff.n_request_approved", "args": { "kind": "late_arrival", "date": self.d(2) }, "created_at": self.at(-1, "12:00"), "read_at": self.at(-1, "13:00") }
@@ -238,6 +247,12 @@ async fn dawam_fixture_three_people_see_their_own_picture() {
     let inbox: Vec<&str> = e2["inbox"].as_array().unwrap().iter().filter_map(Value::as_str).collect();
     assert!(inbox.contains(&"q|q1") && inbox.contains(&"v|v2"), "{inbox:?}");
     assert_eq!(e2["open_flags"], json!(["f1"]));
+    // Presence is the server's, carried as it said it (AT-3); an employee has none.
+    assert_eq!(e2["presence"]["e1"]["state"], "late");
+    assert_eq!(e2["presence"]["e1"]["late_minutes"], 12);
+    assert!(e2["presence"]["e1"]["since"].as_str().unwrap().contains("T08:12:00"));
+    assert_eq!(e2["presence"]["e4"]["state"], "off");
+    assert_eq!(e1["presence"], json!({}));
     let yesterday = e2["shifts"].as_array().unwrap().iter().find(|s| s["id"].as_str().unwrap().starts_with("e4|") && s["absent"] == true);
     assert!(yesterday.is_some(), "Youssef's missed evening reads absent");
     // The owner: payroll, and the adjustment over the manager's limit.
