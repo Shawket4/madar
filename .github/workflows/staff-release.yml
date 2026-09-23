@@ -4,7 +4,8 @@ name: Staff release
 # tag (SA-7). Same shape as deploy.yml, with the staff app's own identity:
 # identifier com.madar.dawam on Android and iOS alike.
 #
-# Tag it:  git tag staff-v1.0.0 && git push origin staff-v1.0.0
+# Runs on every merge into main that touches Dawam (TestFlight + AAB), and on
+# a tag:  git tag staff-v1.0.0 && git push origin staff-v1.0.0  (+ GitHub Release)
 # A tag with a suffix (staff-v1.0.0-beta.1) publishes as a pre-release.
 # A manual run (workflow_dispatch) needs this file on the default branch;
 # until it is merged, a tag is the way to run it.
@@ -32,7 +33,31 @@ on:
   push:
     tags:
       - "staff-v*.*.*"
+    # A merge into main that touches Dawam (the app, its packages, or the Rust
+    # it links) ships a TestFlight build and a Play-ready AAB artifact; only a
+    # tag also makes a GitHub Release.
+    branches: [main]
+    paths:
+      - apps/staff/**
+      - packages/staff_core/**
+      - packages/rust_bridge_staff/**
+      - packages/design_system/**
+      - packages/features/dawam_*/**
+      - rust-core/crates/madar-frb-staff/**
+      - rust-core/crates/madar-core/**
+      - rust-core/crates/madar-api/**
+      - rust-core/crates/madar-authz/**
+      - rust-core/Cargo.toml
+      - rust-core/Cargo.lock
+      - pubspec.yaml
+      - pubspec.lock
+      - .github/workflows/staff-release.yml
   workflow_dispatch:
+
+# Two merges in a row must not upload the same build number twice.
+concurrency:
+  group: staff-release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-android:
@@ -74,7 +99,7 @@ jobs:
       - name: Firebase config
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.STAFF_GOOGLE_SERVICES_JSON }}
-          TAGGED: ${{ startsWith(github.ref, 'refs/tags/') }}
+          TAGGED: ${{ startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' }}
         working-directory: apps/staff
         run: |
           set -euo pipefail
@@ -99,7 +124,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.STAFF_KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.STAFF_KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.STAFF_KEY_ALIAS }}
-          TAGGED: ${{ startsWith(github.ref, 'refs/tags/') }}
+          TAGGED: ${{ startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' }}
         working-directory: apps/staff
         run: |
           set -euo pipefail
