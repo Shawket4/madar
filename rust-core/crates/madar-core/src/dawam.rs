@@ -1132,8 +1132,14 @@ impl MadarCore {
                         let record = shift.as_deref().and_then(|sid| snap.shifts.iter().find(|x| x.id == sid)).and_then(|_| self.dawam_record_of(shift.as_deref()?));
                         let mut body = json!({ "kind": server, "on_date": d, "is_half_day": half });
                         if let Some(t) = to { body["end_date"] = json!(t); }
-                        if let Some(t) = time { body["from_time"] = json!(hhmm(t)); }
-                        if let Some(t) = time2 { body["to_time"] = json!(hhmm(t)); }
+                        // A late arrival's one time is when they will ARRIVE: the
+                        // server keeps that in `to_time` and refuses a `from_time`.
+                        if server == "late_arrival" {
+                            if let Some(t) = time { body["to_time"] = json!(hhmm(t)); }
+                        } else {
+                            if let Some(t) = time { body["from_time"] = json!(hhmm(t)); }
+                            if let Some(t) = time2 { body["to_time"] = json!(hhmm(t)); }
+                        }
                         if !note.is_empty() {
                             body["reason"] = json!(note);
                             if server == "mission" { body["title"] = json!(note); }
@@ -1530,8 +1536,10 @@ impl MadarCore {
                 from: so(q, "on_date"),
                 to: so(q, "end_date"),
                 half: b(q, "is_half_day"),
-                time: so(q, "from_time").and_then(|x| minute_of(&x)),
-                time2: so(q, "to_time").and_then(|x| minute_of(&x)),
+                // `time` is the kind's own time: for a late arrival that is the
+                // arrival, which the server keeps in `to_time`.
+                time: if kind == "lateArrival" { so(q, "to_time") } else { so(q, "from_time") }.and_then(|x| minute_of(&x)),
+                time2: if kind == "lateArrival" { None } else { so(q, "to_time") }.and_then(|x| minute_of(&x)),
                 note: s(q, "reason"),
                 paid: q.get("is_paid").and_then(Value::as_bool),
                 shift: rec.and_then(|rid| record_of.iter().find(|(_, v)| **v == rid).map(|(k, _)| k.clone())),
@@ -2132,6 +2140,50 @@ mod tests {
         assert_eq!(body["offline"]["rebooted"], false);
         assert!(body["offline"]["server_time"].is_string() && body["offline"]["elapsed_ms"].as_i64().unwrap() >= 0);
         assert!(seen[1].json()["offline"].is_object());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_late_arrival_keeps_its_time_in_to_time_both_ways() {
+        use crate::testkit::{online_core, Stub, StubResponse, BRANCH, TELLER};
+
+        let today = Utc::now().with_timezone(&chrono_tz::Africa::Cairo).date_naive().to_string();
+        let day = today.clone();
+        let stub = Stub::start(move |r| {
+            let path = r.path.split('?').next().unwrap_or_default();
+            Some(match (r.method.as_str(), path) {
+                (_, "/staff/me/context") => StubResponse::json(200, json!({
+                    "role": "employee", "org_name": "Nile Café", "caps": [],
+                    "branches": [{ "id": BRANCH, "name": "Zamalek", "timezone": "Africa/Cairo" }],
+                    "work_shifts": [], "settings": { "period_start_day": 26 },
+                    "people": [{ "user_id": TELLER, "name": "Sara", "role": "employee", "branch_ids": [BRANCH] }],
+                })),
+                // As the server stores it: the arrival in `to_time`, no `from_time`.
+                ("GET", "/staff/me/requests") => StubResponse::json(200, json!([{
+                    "id": "q1", "kind": "late_arrival", "user_id": TELLER, "status": "pending",
+                    "on_date": day, "from_time": null, "to_time": "09:30:00", "is_half_day": false,
+                    "reason": "Exam", "created_at": "2026-09-22T08:00:00Z",
+                }])),
+                ("POST", "/staff/me/requests") => StubResponse::json(201, json!({ "id": "q2" })),
+                (_, "/health") => StubResponse::text(200, "ok"),
+                (_, p) if p.ends_with("estimate") => StubResponse::json(200, json!({})),
+                _ => StubResponse::json(200, json!([])),
+            })
+        })
+        .await;
+        let core = online_core(&stub.base, "").await;
+        core.set_online(true);
+
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let q = snap["requests"].as_array().unwrap().iter().find(|q| q["kind"] == "lateArrival").expect("the late arrival");
+        assert_eq!(q["time"], 570, "09:30 read from to_time");
+
+        let act = json!({ "action": "file", "kind": "lateArrival", "from": today, "time": 600 }).to_string();
+        core.dawam_do(act).await.unwrap();
+        let seen = stub.seen.lock().unwrap();
+        let post = seen.iter().find(|r| r.method == "POST" && r.path == "/staff/me/requests").expect("filed");
+        let body = post.json();
+        assert_eq!(body["to_time"], "10:00");
+        assert!(body.get("from_time").is_none(), "the server refuses a from_time on a late arrival");
     }
 
     #[test]

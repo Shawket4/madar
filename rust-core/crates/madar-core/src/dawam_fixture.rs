@@ -105,7 +105,13 @@ impl World {
     fn requests(&self) -> Vec<Value> {
         vec![
             json!({ "id": "q1", "kind": "leave", "user_id": "e4", "status": "pending", "on_date": self.d(3), "is_half_day": false, "reason": "Family wedding", "created_at": self.at(0, "07:00") }),
-            json!({ "id": "q2", "kind": "late_arrival", "user_id": "e1", "status": "approved", "on_date": self.d(2), "from_time": "09:30:00", "is_half_day": false, "reason": "Doctor", "created_at": self.at(-2, "10:00"), "decided_by": "e2" }),
+            json!({ "id": "q2", "kind": "late_arrival", "user_id": "e1", "status": "approved", "on_date": self.d(2), "to_time": "09:30:00", "is_half_day": false, "reason": "Doctor", "created_at": self.at(-2, "10:00"), "decided_by": "e2" }),
+            // Shapes the server really sends, which once crashed Approvals: a
+            // pending late arrival (its time only in `to_time`), a correction
+            // of the out punch alone, and someone no longer on the team.
+            json!({ "id": "q3", "kind": "late_arrival", "user_id": "e4", "status": "pending", "on_date": self.d(1), "from_time": null, "to_time": "10:15:00", "is_half_day": false, "reason": "Exam", "created_at": self.at(0, "08:00") }),
+            json!({ "id": "q4", "kind": "correction", "user_id": "e4", "status": "pending", "on_date": self.d(0), "from_time": null, "to_time": "23:50:00", "attendance_record_id": "r3", "is_half_day": false, "reason": "Forgot to clock out", "created_at": self.at(0, "09:00") }),
+            json!({ "id": "q5", "kind": "leave", "user_id": "gone", "status": "pending", "on_date": self.d(4), "end_date": self.d(4), "is_half_day": false, "reason": "", "created_at": self.at(0, "09:30") }),
         ]
     }
 

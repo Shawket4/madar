@@ -84,7 +84,7 @@ class HomeTab extends ConsumerWidget {
             for (final s in covers)
               MadarListRow.bill(
                 title: tr('staff.hasn_t_clocked_in', {
-                  'name': name(store.emp(s.emp!)),
+                  'name': name(store.emp(s.emp ?? '')),
                 }),
                 meta: '${tplName(s.template)} · ${shiftWindow(s)}',
                 rail: MadarTone.warning,
@@ -168,7 +168,7 @@ class ShiftCard extends ConsumerWidget {
     final store = ref.watch(dawamProvider);
     final c = context.madarColors;
     final tp = s.template;
-    final b = store.branches[tp.branch]!;
+    final b = store.branches[tp.branch];
     final now = store.now;
     final opens = s.startAt.subtract(Duration(minutes: tp.window));
     final cover = s.coverBy == store.me;
@@ -212,8 +212,10 @@ class ShiftCard extends ConsumerWidget {
             Expanded(
               child: Text(
                 cover
-                    ? tr('staff.covering', {'name': name(store.emp(s.emp!))})
-                    : '${tplName(tp)} · ${loc(b)}',
+                    ? tr('staff.covering', {
+                        'name': name(store.emp(s.emp ?? '')),
+                      })
+                    : '${tplName(tp)}${b == null ? '' : ' · ${loc(b)}'}',
                 style: MadarType.label.copyWith(
                   color: c.textMuted,
                   letterSpacing: MadarType.tracking,
@@ -263,12 +265,12 @@ class ShiftCard extends ConsumerWidget {
             glyph: MadarGlyph.globe,
             text: store.inside
                 ? tr('staff.inside_40_m_of_m', {
-                    'name': loc(b),
-                    'radius': b.radius,
+                    'name': b == null ? '—' : loc(b),
+                    'radius': b?.radius ?? 0,
                   })
                 : tr('staff.outside_340_m_away_limit_m', {
-                    'name': loc(b),
-                    'radius': b.radius,
+                    'name': b == null ? '—' : loc(b),
+                    'radius': b?.radius ?? 0,
                   }),
           ),
           if (!store.alwaysLocation)

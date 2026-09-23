@@ -240,25 +240,34 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
     final r = widget.r;
     final e = store.emp(r.emp);
     final c = context.madarColors;
-    Shift sh(String id) => store.shifts.firstWhere((s) => s.id == id);
+    // The shift a request names may sit outside the weeks the snapshot holds;
+    // then the card falls back to the request's own dates.
+    Shift? sh(String? id) =>
+        id == null ? null : store.shifts.where((s) => s.id == id).firstOrNull;
+    final (s1, s2) = (sh(r.shift), sh(r.shift2));
+    final s1Emp = s1?.emp;
+    final s1In = s1?.inAt;
+    final from = r.from;
     final detail = switch (r.kind) {
-      ReqKind.swap => tr('staff.s_s_both_agreed', {
-        'name': name(store.emp(sh(r.shift!).emp!)),
-        'date': dayLabel(sh(r.shift!).date),
-        'name2': name(e),
-        'date2': dayLabel(sh(r.shift2!).date),
-      }),
-      ReqKind.openShift =>
-        '${dayLabel(sh(r.shift!).date)} · ${tplName(sh(r.shift!).template)}'
-            ' · ${shiftWindow(sh(r.shift!))}',
-      ReqKind.cover => tr('staff.covered_s_from_paid_at_s', {
-        'name': name(store.emp(sh(r.shift!).emp!)),
-        'shift': tplName(sh(r.shift!).template),
-        'time': hm(sh(r.shift!).inAt!),
-        'name2': name(e),
-      }),
-      ReqKind.overtime => tr('staff.past_the_shift_end', {
-        'date': dayLabel(r.from!),
+      ReqKind.swap when s1 != null && s2 != null && s1Emp != null =>
+        tr('staff.s_s_both_agreed', {
+          'name': name(store.emp(s1Emp)),
+          'date': dayLabel(s1.date),
+          'name2': name(e),
+          'date2': dayLabel(s2.date),
+        }),
+      ReqKind.openShift when s1 != null =>
+        '${dayLabel(s1.date)} · ${tplName(s1.template)}'
+            ' · ${shiftWindow(s1)}',
+      ReqKind.cover when s1 != null && s1Emp != null && s1In != null =>
+        tr('staff.covered_s_from_paid_at_s', {
+          'name': name(store.emp(s1Emp)),
+          'shift': tplName(s1.template),
+          'time': hm(s1In),
+          'name2': name(e),
+        }),
+      ReqKind.overtime when from != null => tr('staff.past_the_shift_end', {
+        'date': dayLabel(from),
         'duration': mins(r.minutes),
       }),
       ReqKind.salaryAdvance => tr('staff.outstanding_cap', {

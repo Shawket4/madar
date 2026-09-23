@@ -95,17 +95,28 @@ class RequestsTab extends ConsumerWidget {
 
 /// A request's "when", in the words of its kind.
 String reqWhen(Req r) {
-  final d = r.from == null ? '' : dayLabel(r.from!);
+  final from = r.from;
+  final to = r.to;
+  final time = r.time;
+  final time2 = r.time2;
+  final d = from == null ? '' : dayLabel(from);
+  // Times come from the server as it stored them: a correction may fix only
+  // the in or only the out, so print what is there and nothing for the rest.
+  final window = [
+    if (time != null) hmMin(time),
+    if (time2 != null) hmMin(time2),
+  ].join(' – ');
   return switch (r.kind) {
     ReqKind.leave || ReqKind.mission =>
-      r.to != null && !sameDay(r.to!, r.from!)
-          ? '$d → ${dayLabel(r.to!)}'
+      to != null && from != null && !sameDay(to, from)
+          ? '$d → ${dayLabel(to)}'
           : '$d${r.half ? tr('staff.half_day_suffix') : ''}',
-    ReqKind.lateArrival => '$d · ${tr('staff.until')} ${hmMin(r.time!)}',
-    ReqKind.earlyDeparture =>
-      '$d · ${tr('staff.from_inline')} ${hmMin(r.time!)}',
+    ReqKind.lateArrival when time != null =>
+      '$d · ${tr('staff.until')} ${hmMin(time)}',
+    ReqKind.earlyDeparture when time != null =>
+      '$d · ${tr('staff.from_inline')} ${hmMin(time)}',
     ReqKind.excuse ||
-    ReqKind.correction => '$d · ${hmMin(r.time!)} – ${hmMin(r.time2!)}',
+    ReqKind.correction when window.isNotEmpty => '$d · $window',
     ReqKind.salaryAdvance =>
       '${egp(r.amount)} · '
           '${r.installments == 1 ? tr('staff.next_payslip') : tr('staff.months', {'installments': r.installments})}',
@@ -127,6 +138,7 @@ class _ReqRow extends ConsumerWidget {
         r.status == ReqStatus.awaitingPeer ||
         (r.status == ReqStatus.approved &&
             r.kind == ReqKind.leave &&
+            r.from != null &&
             store.monthOpen(r.from!));
     return MadarListRow.bill(
       title: kindLabel(r.kind),

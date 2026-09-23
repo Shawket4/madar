@@ -345,8 +345,11 @@ class _TeamTabState extends ConsumerState<TeamTab> {
                       : s.inAt == null
                       ? tr('staff.no_punch')
                       : '${hm(s.inAt!)} – '
-                            '${s.outAt == null ? '…' : hm(s.outAt!)} · '
-                            '${methodLabel(s.inMethod!)}',
+                            '${s.outAt == null ? '…' : hm(s.outAt!)}'
+                            '${switch (s.inMethod) {
+                              final m? => ' · ${methodLabel(m)}',
+                              null => '',
+                            }}',
                   ctaLabel: s.covered || s.outAt != null || s.leave != null
                       ? null
                       : s.inAt == null
@@ -427,7 +430,7 @@ class _TeamTabState extends ConsumerState<TeamTab> {
         spacing: Space.md,
         children: [
           Text(
-            '${name(store.emp(s.emp!))} · ${hm(store.now)}',
+            '${name(store.emp(s.emp ?? ''))} · ${hm(store.now)}',
             style: MadarType.title,
           ),
           MadarField(

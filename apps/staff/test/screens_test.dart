@@ -98,6 +98,16 @@ void main() {
     }
   }
 
+  // The roster's one-day list, a phone's alternative to the week board.
+  for (final lang in ['ar', 'en']) {
+    testWidgets('roster day list · $lang · phone', (tester) async {
+      await pumpApp(tester, lang: lang, who: 'e2', manage: true, tab: 2);
+      await tester.tap(find.text(lang == 'ar' ? 'يوم' : 'Day'));
+      await frames(tester);
+      await _shot(tester, '$lang-phone-e2-m2-day');
+    });
+  }
+
   testWidgets('dark theme follows the shared picker', (tester) async {
     await pumpApp(tester, lang: 'ar', who: 'e1', theme: ThemeChoice.dark);
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));

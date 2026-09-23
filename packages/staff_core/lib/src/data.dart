@@ -175,7 +175,9 @@ class Shift {
   bool absent = false;
   bool queued = false;
 
-  Tpl get template => tplIndex[tpl]!;
+  // A shift can point at a template the snapshot didn't bring (deactivated,
+  // or another branch's): show it as an unnamed all-day shift, never crash.
+  Tpl get template => tplIndex[tpl] ?? Tpl(tpl, '', '—', '—', 0, 0);
   DateTime get startAt => date.add(Duration(minutes: template.start));
   DateTime get endAt => startAt.add(Duration(minutes: template.length));
   bool get covered => coverBy != null;
@@ -557,8 +559,24 @@ class DawamStore extends ChangeNotifier {
   StreamSubscription<DawamFix>? _track;
   DateTime? _lastPing;
 
-  Emp get user => emps[me]!;
-  Emp emp(String id) => emps[id]!;
+  Emp get user => emp(me ?? '');
+  // Requests, flags and shifts can name someone the snapshot doesn't carry — a
+  // terminated employee, or a branch this manager doesn't see. Show a blank
+  // person rather than crash the whole screen.
+  Emp emp(String id) =>
+      emps[id] ??
+      Emp(
+        id,
+        '—',
+        '—',
+        '',
+        Role.employee,
+        const [],
+        0,
+        '',
+        DateTime(2000),
+        PayMethod.cash,
+      );
   bool get inside => insideNow ?? true;
 
   // ── reading the core ──

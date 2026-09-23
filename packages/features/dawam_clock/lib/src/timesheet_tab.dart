@@ -120,7 +120,10 @@ class _DayRow extends ConsumerWidget {
       meta: s.inAt == null
           ? shiftWindow(s)
           : '${hm(s.inAt!)} – ${s.outAt == null ? '…' : hm(s.outAt!)}'
-                ' · ${methodLabel(s.inMethod!)}',
+                '${switch (s.inMethod) {
+                  final m? => ' · ${methodLabel(m)}',
+                  null => '',
+                }}',
       status: status,
       rail: absent
           ? MadarTone.danger

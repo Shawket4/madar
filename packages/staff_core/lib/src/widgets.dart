@@ -200,7 +200,11 @@ Widget personAvatar(Emp e, {double size = 40}) => MadarAvatar(
 
 String name(Emp e) => loc(e);
 String firstName(Emp e) => name(e).split(' ').first;
-String branchName(DawamStore store, String id) => loc(store.branches[id]!);
+String branchName(DawamStore store, String id) {
+  final b = store.branches[id];
+  return b == null ? '—' : loc(b);
+}
+
 String tplName(Tpl p) => loc(p);
 String shiftWindow(Shift s) => '${hm(s.startAt)} – ${hm(s.endAt)}';
 
