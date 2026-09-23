@@ -10,6 +10,7 @@ import 'dart:io';
 
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:madar_staff/main.dart';
@@ -21,6 +22,24 @@ import 'package:staff_core/testing.dart';
 void useCoreWords() {
   words = (key) => coreWord(key, arabic: currentLang == 'ar');
   wordsIn = (lang, key) => coreWord(key, arabic: lang == 'ar');
+}
+
+/// The app's real Plex faces, so text is measured as a phone measures it
+/// (the test font's square glyphs overflow rows no device would).
+Future<void> loadFonts() async {
+  const cuts = ['Regular', 'Medium', 'SemiBold', 'Bold'];
+  for (final family in [MadarType.fontFamily, MadarType.monoFamily]) {
+    final loader = FontLoader('packages/${MadarType.fontPackage}/$family');
+    for (final cut in cuts) {
+      final file = File(
+        '../../packages/design_system/assets/fonts/$family-$cut.ttf',
+      );
+      if (file.existsSync()) {
+        loader.addFont(file.readAsBytes().then(ByteData.sublistView));
+      }
+    }
+    await loader.load();
+  }
 }
 
 /// Real frames: sheets slide in on a spring and a badge pulses for ever, so
@@ -96,12 +115,20 @@ class FakeCore implements DawamBackend {
   /// When set, every action is refused with it (the server's answer).
   DawamError? refuse;
 
+  /// What the server made of the next filing (`filed`, RQ-5), laid over
+  /// the picture the action returns.
+  Map<String, dynamic>? filed;
+
   @override
   Future<String> act(Map<String, dynamic> action) async {
     acts.add(action);
     if (refuse != null) throw refuse!;
     if (action['action'] == 'accept_privacy') accepted = true;
-    return picture();
+    final f = filed;
+    if (f == null) return picture();
+    final v = jsonDecode(picture()) as Map<String, dynamic>;
+    v['filed'] = f;
+    return jsonEncode(v);
   }
 
   @override

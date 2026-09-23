@@ -187,7 +187,7 @@ class _DayRow extends ConsumerWidget {
             label: tr('staff.fix_this_shift'),
             glyph: MadarGlyph.edit,
             variant: MadarButtonVariant.secondary,
-            enabled: !live && store.monthOpen(s.date),
+            enabled: !live && s.monthOpen,
             tooltip: tr('staff.one_live_correction_per_shift'),
             onTap: () => correctionSheet(ctx, s),
           ),
@@ -198,13 +198,15 @@ class _DayRow extends ConsumerWidget {
 }
 
 /// One live correction per shift (RQ-9); its lateness still counts (RQ-10).
+/// Only what is proposed goes: a missing punch, or a time that was changed.
+/// An untouched punch stays as recorded (§3).
 Future<void> correctionSheet(BuildContext context, Shift s) {
-  var inT = s.inAt == null
-      ? s.template.start
-      : s.inAt!.hour * 60 + s.inAt!.minute;
-  var outT = s.outAt == null
-      ? s.template.end
-      : s.outAt!.hour * 60 + s.outAt!.minute;
+  final inAt = s.inAt;
+  final outAt = s.outAt;
+  final in0 = inAt == null ? s.template.start : inAt.hour * 60 + inAt.minute;
+  final out0 = outAt == null ? s.template.end : outAt.hour * 60 + outAt.minute;
+  var inT = in0;
+  var outT = out0;
   final note = TextEditingController();
   return showDawamSheet<void>(
     context,
@@ -251,8 +253,8 @@ Future<void> correctionSheet(BuildContext context, Shift s) {
                   ReqKind.correction,
                   from: s.date,
                   shift: s.id,
-                  time: inT,
-                  time2: outT,
+                  time: inAt == null || inT != in0 ? inT : null,
+                  time2: outAt == null || outT != out0 ? outT : null,
                   note: note.text,
                 ),
                 ok: tr('staff.sent'),

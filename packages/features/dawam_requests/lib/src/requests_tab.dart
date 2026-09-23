@@ -93,6 +93,13 @@ class RequestsTab extends ConsumerWidget {
   }
 }
 
+/// " · half day", with its half when the server says which (RQ-8).
+String halfSuffix(String? half) => switch (half) {
+  'first' => tr('staff.half_day_first_suffix'),
+  'second' => tr('staff.half_day_second_suffix'),
+  _ => tr('staff.half_day_suffix'),
+};
+
 /// A request's "when", in the words of its kind.
 String reqWhen(Req r) {
   final from = r.from;
@@ -110,7 +117,7 @@ String reqWhen(Req r) {
     ReqKind.leave || ReqKind.mission =>
       to != null && from != null && !sameDay(to, from)
           ? '$d → ${dayLabel(to)}'
-          : '$d${r.half ? tr('staff.half_day_suffix') : ''}',
+          : '$d${r.half ? halfSuffix(r.leaveHalf) : ''}',
     ReqKind.lateArrival when time != null =>
       '$d · ${tr('staff.until')} ${hmMin(time)}',
     ReqKind.earlyDeparture when time != null =>
@@ -133,25 +140,25 @@ class _ReqRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final store = ref.watch(dawamProvider);
+    // Whether its days can still change is the core's answer (RQ-4, B13).
     final cancellable =
         r.status == ReqStatus.pending ||
         r.status == ReqStatus.awaitingPeer ||
         (r.status == ReqStatus.approved &&
             r.kind == ReqKind.leave &&
-            r.from != null &&
-            store.monthOpen(r.from!));
+            r.monthOpen);
     return MadarListRow.bill(
       title: kindLabel(r.kind),
       meta: [reqWhen(r), if (r.note.isNotEmpty) r.note].join(' · '),
       status: statusOf(r.status),
-      onTap: cancellable
-          ? () async {
+      onTap: !cancellable
+          ? null
+          : r.status == ReqStatus.approved
+          ? () => _cancelApproved(context)
+          : () async {
               final ok = await showMadarConfirm(
                 context,
                 title: tr('staff.cancel_this_request'),
-                body: r.status == ReqStatus.approved
-                    ? tr('staff.those_days_are_repriced')
-                    : null,
                 confirmLabel: tr('staff.cancel_request'),
                 cancelLabel: tr('staff.keep'),
               );
@@ -162,8 +169,47 @@ class _ReqRow extends ConsumerWidget {
                   ok: tr('staff.cancelled'),
                 );
               }
-            }
-          : null,
+            },
+    );
+  }
+
+  /// Undoing an approved request says why (AT-7). The sheet waits for the
+  /// server and closes only when it agreed.
+  Future<void> _cancelApproved(BuildContext context) {
+    final why = TextEditingController();
+    return showDawamSheet<void>(
+      context,
+      title: tr('staff.cancel_this_request'),
+      builder: (ctx, ref, store) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.md,
+        children: [
+          const OfflineNotice(),
+          Text(
+            tr('staff.those_days_are_repriced'),
+            style: MadarType.body.copyWith(
+              color: ctx.madarColors.textSecondary,
+            ),
+          ),
+          MadarField(
+            controller: why,
+            placeholder: tr('staff.why_cancel'),
+            kind: MadarFieldKind.note,
+          ),
+          MadarButton(
+            label: tr('staff.cancel_request'),
+            variant: MadarButtonVariant.danger,
+            onTap: () async {
+              final done = await attempt(
+                ref,
+                () => store.cancel(r, note: why.text),
+                ok: tr('staff.cancelled'),
+              );
+              if (done && ctx.mounted) Navigator.of(ctx).maybePop();
+            },
+          ),
+        ],
+      ),
     );
   }
 }
@@ -174,6 +220,8 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
   DateTime? from;
   DateTime? to;
   var half = false;
+  var leaveHalf = 'first';
+  String? shift;
   var time = switch (k) {
     ReqKind.lateArrival => 10 * 60,
     ReqKind.earlyDeparture => 15 * 60,
@@ -188,6 +236,15 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
     builder: (ctx, ref, store) => StatefulBuilder(
       builder: (ctx, setS) {
         final day = from ?? store.today.add(const Duration(days: 1));
+        // A timed request names its shift on a split day (B4).
+        final timed =
+            k == ReqKind.lateArrival ||
+            k == ReqKind.earlyDeparture ||
+            k == ReqKind.excuse;
+        final dayShifts = timed
+            ? store.rostered(store.user.id, day)
+            : <Shift>[];
+        final picked = dayShifts.where((s) => s.id == shift).firstOrNull;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.md,
@@ -198,7 +255,12 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
               value: dayLabel(day),
               onTap: () async {
                 final v = await pickDate(ctx, store, initial: day);
-                if (v != null) setS(() => from = v);
+                if (v != null) {
+                  setS(() {
+                    from = v;
+                    shift = null;
+                  });
+                }
               },
             ),
             if (multi)
@@ -224,6 +286,26 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
                 value: half,
                 onChanged: (v) => setS(() => half = v),
               ),
+            if (k == ReqKind.leave && to == null && half)
+              MadarSegmented<String>(
+                items: [
+                  MadarSegmentItem('first', tr('staff.first_half')),
+                  MadarSegmentItem('second', tr('staff.second_half')),
+                ],
+                value: leaveHalf,
+                onChanged: (v) => setS(() => leaveHalf = v),
+              ),
+            if (dayShifts.length > 1) ...[
+              Text(tr('staff.for_the_shift'), style: MadarType.bodySm),
+              MadarSegmented<String>(
+                items: [
+                  for (final s in dayShifts)
+                    MadarSegmentItem(s.id, tplName(s.template)),
+                ],
+                value: (picked ?? dayShifts.first).id,
+                onChanged: (v) => setS(() => shift = v),
+              ),
+            ],
             if (!multi)
               DawamPickField(
                 label: switch (k) {
@@ -241,7 +323,10 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
             if (k == ReqKind.excuse)
               DawamPickField(
                 label: tr('staff.to'),
-                value: hmMin(time2),
+                // Ending earlier on the clock runs past midnight (B5).
+                value: time2 < time
+                    ? '${hmMin(time2)} · ${tr('staff.ends_the_next_day')}'
+                    : hmMin(time2),
                 glyph: MadarGlyph.clock,
                 onTap: () async {
                   final v = await pickTime(ctx, time2);
@@ -250,7 +335,9 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
               ),
             MadarField(
               controller: note,
-              placeholder: tr('staff.note_for_your_manager'),
+              placeholder: k == ReqKind.mission
+                  ? tr('staff.where_you_ll_be')
+                  : tr('staff.note_for_your_manager'),
               kind: MadarFieldKind.note,
             ),
             if (k == ReqKind.leave)
@@ -263,31 +350,31 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
             MadarButton(
               label: tr('staff.send'),
               onTap: () async {
-                if (k == ReqKind.excuse && time2 <= time) {
-                  ref
-                      .read(toastProvider.notifier)
-                      .show(
-                        tr('staff.the_end_must_be_after_the'),
-                        tone: ChipTone.danger,
-                      );
-                  return;
-                }
+                // What a request needs (a mission's note, a window that
+                // isn't empty) is checked by the core, in its words.
+                Filed? filed;
                 final sent = await attempt(
                   ref,
-                  () => store.file(
+                  () async => filed = await store.file(
                     k,
                     from: day,
                     to: to,
-                    half: half,
+                    half: half && to == null,
+                    leaveHalf: leaveHalf,
                     time: multi ? null : time,
                     time2: k == ReqKind.excuse ? time2 : null,
                     note: note.text,
+                    shift: dayShifts.length > 1
+                        ? (picked ?? dayShifts.first).id
+                        : null,
                   ),
-                  ok: store.user.role == Role.owner
-                      ? tr('staff.approved')
-                      : tr('staff.sent_to_your_manager'),
                 );
-                if (sent && ctx.mounted) Navigator.of(ctx).maybePop();
+                if (!sent) return;
+                // The server's answer, never the filer's role (RQ-5).
+                ref
+                    .read(toastProvider.notifier)
+                    .show(filedWords(filed), tone: ChipTone.success);
+                if (ctx.mounted) Navigator.of(ctx).maybePop();
               },
             ),
           ],
@@ -296,3 +383,10 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
     ),
   );
 }
+
+/// What to tell the filer, from what the server did with it (RQ-5).
+String filedWords(Filed? f) => switch (f) {
+  (status: ReqStatus.approved, id: _, toOwner: _) => tr('staff.approved'),
+  (status: _, id: _, toOwner: true) => tr('staff.sent_to_the_owner'),
+  _ => tr('staff.sent_to_your_manager'),
+};
