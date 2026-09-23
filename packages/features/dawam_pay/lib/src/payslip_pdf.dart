@@ -47,6 +47,12 @@ String _method(PayMethod m, bool ar) => _w(switch (m) {
   PayMethod.wallet => 'staff.wallet',
 }, ar);
 
+/// A line's words in the PDF's language, with its day when it has one (AD-6).
+String payslipLineLabel(Line l, {required bool arabic}) => _label(l, arabic);
+
+String _label(Line l, bool arabic) =>
+    '${arabic ? l.ar : l.en}${l.date == null ? '' : ' · ${_day(l.date!)}'}';
+
 String _day(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
@@ -127,10 +133,10 @@ Future<Uint8List> payslipPdf({
             person,
             paidWith == null
                 ? _w('staff.pdf_approved', arabic)
-                : _w('staff.paid_with_method', arabic).replaceAll(
-                    '{method}',
-                    _method(paidWith, arabic),
-                  ),
+                : _w(
+                    'staff.paid_with_method',
+                    arabic,
+                  ).replaceAll('{method}', _method(paidWith, arabic)),
             strong: true,
           ),
           row(
@@ -141,8 +147,8 @@ Future<Uint8List> payslipPdf({
           for (final l in slip.lines)
             row(
               l.waived
-                  ? '${arabic ? l.ar : l.en} (${_w('staff.pdf_waived', arabic)})'
-                  : (arabic ? l.ar : l.en),
+                  ? '${_label(l, arabic)} (${_w('staff.pdf_waived', arabic)})'
+                  : _label(l, arabic),
               _money(l.amount, arabic),
               struck: l.waived,
             ),

@@ -162,7 +162,7 @@ impl World {
             "employee_id": u, "base_piastres": base, "net_piastres": net, "overtime_piastres": 0, "overtime_minutes": 0,
             "bonuses_piastres": 0, "deductions_piastres": base - net, "advance_installment_piastres": 0, "carry_out_piastres": 0,
             "breakdown": { "paid_days": 31, "window_days": 31, "bonuses": [],
-                "deductions": if base > net { vec![json!({ "id": format!("d-{u}"), "reason": "Late arrival", "piastres": base - net, "source": "late_penalty" })] } else { vec![] },
+                "deductions": if base > net { vec![json!({ "id": format!("d-{u}"), "reason": "Late arrival", "piastres": base - net, "source": "late_penalty", "effective_date": self.d(-2) })] } else { vec![] },
                 "advances": [] }
         })
     }

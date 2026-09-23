@@ -156,7 +156,7 @@ class PayTab extends ConsumerWidget {
             Text(
               tr('staff.outstanding_cap_of_salary', {
                 'amount': egp(store.outstandingAdvances(store.me!)),
-                'amount2': egp(store.advanceCap(store.me!)),
+                'amount2': egpOrDash(store.advanceCap(store.me!)),
                 'advance_cap_pct': store.advanceCapPct,
               }),
               style: MadarType.bodySm.copyWith(

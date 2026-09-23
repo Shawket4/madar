@@ -1,0 +1,77 @@
+// AD-6: each bonus and deduction shows with its day, so two lines with the
+// same reason ("Late by 55 minutes") can be told apart, on screen and in the
+// PDF, in Arabic and English. AV-5 / DW3: a cap the server didn't send shows
+// as "—", never a made-up 0.
+import 'package:feature_dawam_pay/feature_dawam_pay.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:staff_core/staff_core.dart';
+import 'package:staff_core/testing.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() => words = (key) => coreWord(key, arabic: currentLang == 'ar'));
+  tearDown(() => currentLang = 'en');
+
+  final a = Line(
+    'd|1',
+    'Late by 55 minutes',
+    'تأخير 55 دقيقة',
+    -12500,
+    rule: true,
+    date: DateTime(2026, 9, 17),
+  );
+  final b = Line(
+    'd|2',
+    'Late by 55 minutes',
+    'تأخير 55 دقيقة',
+    -12500,
+    rule: true,
+    date: DateTime(2026, 8, 28),
+  );
+  final salary = Line('salary', 'Salary', 'المرتب', 650000);
+
+  for (final lang in ['en', 'ar']) {
+    test('a dated line names its day · $lang', () {
+      currentLang = lang;
+      expect(
+        lineLabel(a),
+        isNot(lineLabel(b)),
+        reason: 'same reason, different days',
+      );
+      expect(lineLabel(a), '${loc(a)} · ${dayMonth(DateTime(2026, 9, 17))}');
+      expect(lineLabel(a), contains(lang == 'ar' ? 'تأخير' : 'Late'));
+      expect(lineLabel(salary), loc(salary), reason: 'no day on the salary');
+      expect(egpOrDash(null), '—');
+      expect(egpOrDash(50000), egp(50000));
+    });
+  }
+
+  test('the PDF lines carry the day too', () async {
+    final slip = Slip(
+      'e1',
+      DateTime(2026, 8, 26),
+      DateTime(2026, 9, 25),
+      [salary, a, b],
+      625000,
+      0,
+      const {},
+      frozen: true,
+    );
+    for (final ar in [true, false]) {
+      wordsIn = (lang, key) => coreWord(key, arabic: lang == 'ar');
+      final bytes = await payslipPdf(
+        slip: slip,
+        person: 'Omar',
+        business: 'Rue',
+        arabic: ar,
+      );
+      expect(bytes.length, greaterThan(2000));
+    }
+    expect(
+      payslipLineLabel(a, arabic: false),
+      'Late by 55 minutes · 2026-09-17',
+    );
+    expect(payslipLineLabel(b, arabic: true), 'تأخير 55 دقيقة · 2026-08-28');
+    expect(payslipLineLabel(salary, arabic: true), 'المرتب');
+  });
+}

@@ -280,7 +280,7 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
       }),
       ReqKind.salaryAdvance => tr('staff.outstanding_cap', {
         'amount': egp(store.outstandingAdvances(r.emp)),
-        'amount2': egp(store.advanceCap(r.emp)),
+        'amount2': egpOrDash(store.advanceCap(r.emp)),
       }),
       _ => reqWhen(r),
     };

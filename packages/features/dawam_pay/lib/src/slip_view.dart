@@ -171,6 +171,11 @@ class SlipLines extends ConsumerWidget {
   }
 }
 
+/// A line's words, with its day when it has one: two "Late by 55
+/// minutes" lines are told apart by their dates (AD-6).
+String lineLabel(Line l) =>
+    l.date == null ? loc(l) : '${loc(l)} · ${dayMonth(l.date!)}';
+
 class _Line extends StatelessWidget {
   const _Line(this.l, {this.onTap});
 
@@ -183,7 +188,7 @@ class _Line extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         MadarSummaryLine(
-          label: loc(l),
+          label: lineLabel(l),
           minor: l.amount == 0 && l.waived ? null : l.amount,
           value: l.waived ? tr('staff.waived_short') : null,
           currency: 'EGP',

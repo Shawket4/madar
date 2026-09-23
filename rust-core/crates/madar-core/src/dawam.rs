@@ -540,6 +540,9 @@ pub struct LineV {
     pub manual: Option<String>,
     /// Waived: shown struck through, counted for nothing (AD-8).
     pub waived: bool,
+    /// The day a bonus or deduction counts on (`YYYY-MM-DD`), so two lines
+    /// with the same reason ("Late by 55 minutes") can be told apart (AD-6).
+    pub date: Option<String>,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -2676,11 +2679,12 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
         rule: false,
         manual: None,
         waived: false,
+        date: None,
     });
     let ot = i(s_, "overtime_piastres");
     if ot > 0 {
         let m = i(s_, "overtime_minutes");
-        lines.push(LineV { key: "ot".into(), en: format!("Overtime ({m} min)"), ar: format!("وقت إضافي ({m} د)"), amount: ot, rule: false, manual: None, waived: false });
+        lines.push(LineV { key: "ot".into(), en: format!("Overtime ({m} min)"), ar: format!("وقت إضافي ({m} د)"), amount: ot, rule: false, manual: None, waived: false, date: None });
     }
     for l in arr(bd, "bonuses") {
         let (en, ar) = match (s(l, "kind").as_str(), s(l, "reason")) {
@@ -2689,7 +2693,7 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
             (_, r) => (r.clone(), r),
         };
         let id = so(l, "id");
-        lines.push(LineV { key: format!("b|{}", id.clone().unwrap_or_default()), en, ar, amount: i(l, "piastres"), rule: false, manual: id.map(|x| format!("a|bonus|{x}")), waived: false });
+        lines.push(LineV { key: format!("b|{}", id.clone().unwrap_or_default()), en, ar, amount: i(l, "piastres"), rule: false, manual: id.map(|x| format!("a|bonus|{x}")), waived: false, date: so(l, "effective_date") });
     }
     for l in arr(bd, "deductions") {
         let carry = s(l, "kind") == "carry";
@@ -2703,6 +2707,7 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
             rule: !carry && !manual,
             manual: manual.then(|| format!("a|deduction|{id}")),
             waived: b(l, "waived"),
+            date: so(l, "effective_date"),
         });
     }
     let mut collected = BTreeMap::new();
@@ -2712,7 +2717,7 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
             continue;
         }
         collected.insert(s(a, "id"), take);
-        lines.push(LineV { key: format!("adv|{}", s(a, "id")), en: "Advance installment".into(), ar: "قسط سلفة".into(), amount: -take, rule: false, manual: None, waived: false });
+        lines.push(LineV { key: format!("adv|{}", s(a, "id")), en: "Advance installment".into(), ar: "قسط سلفة".into(), amount: -take, rule: false, manual: None, waived: false, date: None });
     }
     SlipV { emp: s(s_, "employee_id"), start: p.start.clone(), end: p.end.clone(), lines, net: i(s_, "net_piastres"), carry_out: i(s_, "carry_out_piastres"), collected, frozen }
 }
@@ -2971,7 +2976,7 @@ mod tests {
                 "paid_days": 31, "window_days": 31,
                 "bonuses": [{ "id": null, "kind": "cover", "reason": "cover", "piastres": 12_000 }],
                 "deductions": [
-                    { "id": "d1", "reason": "Late", "piastres": 5_000, "source": "late_penalty" },
+                    { "id": "d1", "reason": "Late", "piastres": 5_000, "source": "late_penalty", "effective_date": "2026-09-17" },
                     { "id": "d2", "reason": "Broke a glass", "piastres": 15_000, "source": "manual" }
                 ],
                 "advances": [{ "id": "v1", "applied_piastres": 50_000 }]
@@ -2982,6 +2987,9 @@ mod tests {
         assert!(sl.lines.iter().any(|l| l.key == "d|d1" && l.rule), "a rule line is waivable, not deletable");
         assert!(sl.lines.iter().any(|l| l.manual.as_deref() == Some("a|deduction|d2")));
         assert_eq!(sl.collected["v1"], 50_000);
+        // AD-6: each bonus and deduction carries its day.
+        assert_eq!(sl.lines.iter().find(|l| l.key == "d|d1").unwrap().date.as_deref(), Some("2026-09-17"));
+        assert_eq!(sl.lines[0].date, None, "the salary line has no day");
     }
 
 

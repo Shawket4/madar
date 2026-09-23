@@ -41,6 +41,9 @@ String tr(String key, [Map<String, Object> args = const {}]) {
 String loc(Bilingual b) => isAr ? b.ar : b.en;
 
 /// Money is piastres everywhere; pounds exist only here (AT-2).
+/// A figure the server may not have sent: "—" rather than a made-up 0.
+String egpOrDash(int? minor) => minor == null ? '—' : egp(minor);
+
 String egp(int minor, {bool signed = false}) => MadarFormat.money(
   minor,
   currency: 'EGP',

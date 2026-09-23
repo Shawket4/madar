@@ -33,12 +33,7 @@
       "waived": false
     }
   ],
-  "advance_cap": {
-    "e1": 450000,
-    "e2": 0,
-    "e3": 0,
-    "e4": 0
-  },
+  "advance_cap": {},
   "advances": [
     {
       "amount": 100000,
@@ -94,7 +89,7 @@
       "state": "unknown"
     }
   },
-  "fetched_at": 1790181758374,
+  "fetched_at": 1790187094409,
   "flags": [],
   "history": [
     {
@@ -1394,6 +1389,7 @@
         {
           "amount": 900000,
           "ar": "المرتب",
+          "date": null,
           "en": "Salary",
           "key": "salary",
           "manual": null,
@@ -1403,6 +1399,7 @@
         {
           "amount": -5000,
           "ar": "Late arrival",
+          "date": "2026-09-21",
           "en": "Late arrival",
           "key": "d|d-e1",
           "manual": null,
@@ -1423,6 +1420,7 @@
         {
           "amount": 900000,
           "ar": "المرتب",
+          "date": null,
           "en": "Salary",
           "key": "salary",
           "manual": null,
@@ -1432,6 +1430,7 @@
         {
           "amount": -50000,
           "ar": "Late arrival",
+          "date": "2026-09-21",
           "en": "Late arrival",
           "key": "d|d-e1",
           "manual": null,

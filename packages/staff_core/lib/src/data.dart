@@ -392,6 +392,7 @@ class Line implements Bilingual {
     this.amount, {
     this.rule = false,
     this.manual,
+    this.date,
   });
   final String key;
   @override
@@ -401,6 +402,7 @@ class Line implements Bilingual {
   final int amount; // signed piastres: + earning, - deduction
   final bool rule; // rule-made: waivable, never deletable (AD-7)
   final String? manual; // adjustment id: deletable until approval
+  final DateTime? date; // the day a bonus or deduction counts on (AD-6)
   String? note;
   bool waived = false; // a waived line leaves the server's payslip (AD-8)
 }
@@ -1028,6 +1030,9 @@ class DawamStore extends ChangeNotifier {
               _int(l['amount']),
               rule: l['rule'] == true,
               manual: l['manual'] as String?,
+              date: l['date'] is String
+                  ? DateTime.tryParse(l['date'] as String)
+                  : null,
             )..waived = l['waived'] == true,
         ],
         _int(s['net']),
@@ -1131,7 +1136,9 @@ class DawamStore extends ChangeNotifier {
   ];
   int suggestedAway(Flag f) => f.suggested;
   int outstandingAdvances(String emp) => _outstanding[emp] ?? 0;
-  int advanceCap(String emp) => _cap[emp] ?? 0;
+  /// The server's cap on what [emp] may owe (AV-5), or null when the server
+  /// sent none (their pay is hidden from me). It is never worked out here.
+  int? advanceCap(String emp) => _cap[emp];
   List<(String, Map<String, Object>)> warnings(String emp, DateTime ws) =>
       _warnings['$emp|${_d(ws)}'] ?? const [];
   Slip slip(String empId, Period p) =>
