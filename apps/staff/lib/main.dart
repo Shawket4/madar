@@ -10,6 +10,12 @@ import 'package:madar_staff/boot.dart';
 import 'package:madar_staff/shell.dart';
 import 'package:staff_core/staff_core.dart';
 
+// The Android location service starts `dawamTrackingMain` by name in an
+// engine of its own (DawamTrackingService.kt). The library must be part of
+// the app's program for that to resolve: nothing else imports it, so without
+// this export it is left out of the build and no ping is ever sent (E2E S3).
+export 'package:madar_staff/background.dart' show dawamTrackingMain;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // The calendar's day and month tables for Arabic and English.
