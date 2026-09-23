@@ -438,11 +438,12 @@ fn addon_optional_extras(addons: &[StoredAddon], optionals: &[StoredOptional]) -
 
 fn line_extras(l: &StoredLine) -> i64 {
     // A normal line's extras are its own addons/optionals; a bundle line's are
-    // the sum across its components (the fixed base already covers the items).
+    // the sum across its components (the fixed base already covers the items),
+    // each charged per component unit, as the server does.
     addon_optional_extras(&l.addons, &l.optionals)
         + l.bundle_components
             .iter()
-            .map(|c| addon_optional_extras(&c.addons, &c.optionals))
+            .map(|c| addon_optional_extras(&c.addons, &c.optionals) * c.qty)
             .sum::<i64>()
 }
 
@@ -2402,6 +2403,7 @@ fn priced(l: &StoredLine) -> pricing::CartLine {
             .bundle_components
             .iter()
             .map(|c| pricing::BundleComponentSel {
+                quantity: c.qty,
                 addons: c
                     .addons
                     .iter()
@@ -4309,16 +4311,18 @@ mod tests {
     }
 
     #[test]
-    fn bundle_component_qty_does_not_scale_extras() {
-        // A component qty of 5 must NOT multiply the addon/optional up-charge; the
-        // bundle's own line qty is the only multiplier (Flutter parity — extras are
-        // per-bundle, base covers the component count).
+    fn bundle_component_qty_scales_extras_like_the_server() {
+        // A component qty of 5 multiplies its addon/optional up-charge: each of
+        // the five is configured the same, and the server charges (and deducts
+        // stock for) every one — `(addons + optionals) × comp qty × line qty`
+        // (owner decision, madar-shared M3). It used to count them once.
         let mut comp = combo_component();
         comp.qty = 5;
         let line = resolve_bundle_line(&bundle(), &[item()], &catalog(), &[comp], 1);
         assert_eq!(line.bundle_components[0].qty, 5);
-        // 10000 base + 500 almond delta + 300 vanilla = 10800 (extras counted once).
-        assert_eq!(line_total(&line), 10800);
+        // 10000 base + (500 almond delta + 300 vanilla) × 5 = 14000.
+        assert_eq!(line_total(&line), 14000);
+        assert_eq!(priced(&line).bundle_components[0].quantity, 5, "the engine sees it too");
     }
 
     #[test]

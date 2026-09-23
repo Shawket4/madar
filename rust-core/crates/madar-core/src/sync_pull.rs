@@ -462,7 +462,13 @@ pub(crate) const REQUIRED_TYPES: &[&str] = &[
     "till", "cash_movement", "order", "refund",
 ];
 /// Ledger types: never checksummed; replaced only inside the full snapshot's window.
-pub(crate) const LEDGER_TYPES: &[&str] = &["till", "cash_movement", "order", "refund"];
+/// The server's `sync::pull::LEDGER_TYPES`, `staff_drink` included: it is
+/// sent inside the 48 h window and paged with the other ledger rows, so a
+/// snapshot page missing a drink says nothing about it. Unlike the other four
+/// it has no typed `ledger_*` table (`ledger::is_ledger_type`); it lives in
+/// `sync_rows` plus its `ledger_staff_drinks` mirror, and a snapshot never
+/// sweeps it — only an explicit delete in the changefeed removes a drink.
+pub(crate) const LEDGER_TYPES: &[&str] = &["till", "cash_movement", "order", "refund", "staff_drink"];
 
 fn is_ledger(ty: &str) -> bool {
     LEDGER_TYPES.contains(&ty)
@@ -747,6 +753,12 @@ pub(crate) fn apply_page_with(
                     present.insert(id);
                     hook(n)
                 })?;
+                // A windowed ledger type kept in `sync_rows` (`staff_drink`):
+                // absence from a page or from the window is not a delete.
+                if is_ledger(ty) {
+                    touched.push(crate::changes::table_for_sync_type(ty));
+                    continue;
+                }
                 // delete server-origin rows absent from the snapshot (non-protected)
                 let mut stmt = tx.prepare("SELECT id FROM sync_rows WHERE branch_id=?1 AND type=?2")?;
                 let existing: Vec<String> = stmt
@@ -1896,6 +1908,53 @@ mod tests {
             data: Some(serde_json::Value::Object(data)),
             ..Default::default()
         }
+    }
+
+    /// `staff_drink` is a LEDGER type on the server (48 h window, paged with the
+    /// other ledger rows). As a state type here, every page of a paged snapshot
+    /// deleted the local drinks it did not carry, and a drink older than the
+    /// window was deleted by the first snapshot after it — the pool then
+    /// over-granted. A snapshot page never deletes a drink.
+    #[test]
+    fn snapshot_pages_never_delete_staff_drinks() {
+        let store = Store::open("").unwrap();
+        let drink = |id: &str, day: &str, seq: i64| {
+            serde_json::json!({"id": id, "seq": seq, "branch_id": B, "business_date": day, "quantity": 1,
+                "recorded_at": format!("{day}T09:00:00Z")})
+        };
+        // A drink from three days ago, already on the device.
+        apply_page(&store, B, &incr(1, vec![]), &Protected::new(), true).unwrap();
+        store
+            .with_tx(|tx| {
+                let v = drink(&uid("old"), "2026-09-20", 1);
+                upsert_row(tx, B, "staff_drink", &uid("old"), 1, &v, false)?;
+                mirror_local(tx, "staff_drink", &uid("old"), Some(&v))?;
+                Ok(())
+            })
+            .unwrap();
+        // Page 1 carries drink A, page 2 (the last) carries only drink B.
+        let mut p1 = full(&["staff_drink"], vec![("staff_drink", drink("a", "2026-09-23", 5))], 20);
+        p1.has_more = true;
+        let p2 = full(&["staff_drink"], vec![("staff_drink", drink("b", "2026-09-23", 6))], 20);
+        let mut paging = SnapshotPaging::default();
+        for page in [&p1, &p2] {
+            apply_page_with(&store, B, page, None, &Protected::new(), true, Some(&mut paging), &mut |_| Ok(())).unwrap();
+        }
+        let local: Vec<String> = store
+            .with_conn(|c| {
+                let mut st = c.prepare("SELECT id FROM ledger_staff_drinks ORDER BY id")?;
+                let v = st.query_map([], |r| r.get(0))?.collect::<Result<Vec<String>, _>>()?;
+                Ok(v)
+            })
+            .unwrap();
+        let mut want = vec![uid("a"), uid("b"), uid("old")];
+        want.sort();
+        assert_eq!(local, want, "a drink only on page 1, and one older than 48 h, both survive");
+        for id in ["a", "b", "old"] {
+            assert!(row(&store, "staff_drink", id).is_some(), "{id} kept in the feed rows too");
+        }
+        // Never checksummed: a ledger type has no state checksum to heal against.
+        assert!(!local_checksums(&store, B, &["staff_drink".to_string()]).contains_key("staff_drink"));
     }
 
     #[test]

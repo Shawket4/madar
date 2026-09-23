@@ -74,12 +74,22 @@ fn the_capability_of_a_refused_op_comes_from_its_type_and_its_discount_kind() {
     assert_eq!(capability_for_op("void_order", "{}"), Some("orders.void"));
     assert_eq!(capability_for_op("refund_order", "{}"), Some("refunds.create"));
     assert_eq!(capability_for_op("record_waste", "{}"), Some("inventory.waste.record"));
+    // The payloads' flat `discount_*` fields (real payloads built through the
+    // checkout are pinned in `checkout.rs`).
     assert_eq!(
-        capability_for_op("create_order", &json!({"request":{"discount":{"kind":"percent"}}}).to_string()),
+        capability_for_op(
+            "create_order",
+            &json!({"request":{"discount_kind":"manual_percent","discount_type":"percentage","discount_value":0.1}})
+                .to_string()
+        ),
         Some("orders.discount.manual_percent")
     );
     assert_eq!(
-        capability_for_op("settle_open_ticket", &json!({"request":{"settle":{"discount":{"kind":"preset"}}}}).to_string()),
+        capability_for_op(
+            "settle_open_ticket",
+            &json!({"ticket_id":"t","request":{"discount_kind":"preset","discount_id":"00000000-0000-0000-0000-0000000000d1"}})
+                .to_string()
+        ),
         Some("orders.discount.preset")
     );
     // A sale with no discount is never refused for one — and an op no

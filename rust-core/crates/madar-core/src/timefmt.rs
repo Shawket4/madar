@@ -42,19 +42,28 @@ pub(crate) fn week_start(day: chrono::NaiveDate) -> chrono::NaiveDate {
     day - chrono::Duration::days(back)
 }
 
-/// A branch-local calendar day as UTC bounds, midnight to midnight (the
-/// backend's `service_day_bounds`; a DST gap resolves to the earliest valid instant).
+/// A branch-local calendar day as UTC bounds, midnight to midnight — the
+/// backend's `service_day_bounds` (bookings/handlers.rs), gap rule included:
+/// when a DST change swallows midnight (Cairo, Beirut) the day starts at the
+/// first wall-clock time that exists, stepping forward 30 minutes at a time.
+/// It used to read the missing midnight as UTC, which started Cairo's
+/// spring-forward day two hours late.
 pub(crate) fn local_day_bounds(
     tz: chrono_tz::Tz,
     date: chrono::NaiveDate,
 ) -> (chrono::DateTime<chrono::FixedOffset>, chrono::DateTime<chrono::FixedOffset>) {
     use chrono::TimeZone;
     let midnight = |d: chrono::NaiveDate| {
-        let naive = d.and_hms_opt(0, 0, 0).expect("midnight exists");
-        tz.from_local_datetime(&naive)
-            .earliest()
-            .unwrap_or_else(|| tz.from_utc_datetime(&naive))
-            .fixed_offset()
+        let first = d.and_hms_opt(0, 0, 0).expect("midnight exists");
+        let mut t = first;
+        for _ in 0..4 {
+            if let Some(at) = tz.from_local_datetime(&t).earliest() {
+                return at.fixed_offset();
+            }
+            t += chrono::Duration::minutes(30);
+        }
+        // The server's last resort, kept identical.
+        tz.from_utc_datetime(&first).fixed_offset()
     };
     (midnight(date), midnight(date + chrono::Duration::days(1)))
 }
@@ -432,5 +441,35 @@ mod tests {
             "format dates via timefmt only:\n{}",
             bad.join("\n")
         );
+    }
+
+    /// X1 (madar-shared discovery): on a DST gap that swallows midnight the day
+    /// starts at the first wall-clock time that exists — the backend's
+    /// `service_day_bounds` (bookings/handlers.rs) — never at midnight read as
+    /// UTC, which started Cairo's spring-forward day two hours late.
+    #[test]
+    fn a_dst_gap_day_starts_at_the_first_real_local_time_like_the_server() {
+        let d = |s: &str| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap();
+        let utc = |s: &str| chrono::DateTime::parse_from_rfc3339(s).unwrap().with_timezone(&chrono::Utc);
+        let cairo = chrono_tz::Africa::Cairo;
+        for (day, start) in [
+            ("2026-04-24", "2026-04-23T22:00:00Z"),
+            ("2024-04-26", "2024-04-25T22:00:00Z"),
+            ("2025-04-25", "2025-04-24T22:00:00Z"),
+        ] {
+            let (from, _) = local_day_bounds(cairo, d(day));
+            assert_eq!(from.with_timezone(&chrono::Utc), utc(start), "Cairo {day}");
+            // …and the day before ends exactly there: no gap, no overlap.
+            let (_, prev_end) = local_day_bounds(cairo, d(day).pred_opt().unwrap());
+            assert_eq!(prev_end, from, "Cairo {day}: contiguous days");
+        }
+        // Beirut springs forward at midnight too (last Sunday of March).
+        let (from, to) = local_day_bounds(chrono_tz::Asia::Beirut, d("2026-03-29"));
+        assert_eq!(from.with_timezone(&chrono::Utc), utc("2026-03-28T22:00:00Z"));
+        assert_eq!(to.with_timezone(&chrono::Utc), utc("2026-03-29T21:00:00Z"), "a 23-hour day");
+        // An ordinary day is untouched.
+        let (from, to) = local_day_bounds(cairo, d("2026-09-17"));
+        assert_eq!(from.with_timezone(&chrono::Utc), utc("2026-09-16T21:00:00Z"));
+        assert_eq!(to.with_timezone(&chrono::Utc), utc("2026-09-17T21:00:00Z"));
     }
 }
