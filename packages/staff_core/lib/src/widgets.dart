@@ -306,9 +306,30 @@ String payMethod(PayMethod m) => switch (m) {
   PayMethod.wallet => tr('staff.wallet'),
 };
 
+/// A number as typed on either keyboard (APP-4): Arabic-Indic (٠-٩) and
+/// Persian (۰-۹) digits, the Arabic decimal mark (٫) and thousands
+/// separators (٬ or ,) are all read. Null when it isn't a number.
+double? readNumber(String text) {
+  final b = StringBuffer();
+  for (final r in text.trim().runes) {
+    if (r >= 0x0660 && r <= 0x0669) {
+      b.writeCharCode(0x30 + r - 0x0660);
+    } else if (r >= 0x06F0 && r <= 0x06F9) {
+      b.writeCharCode(0x30 + r - 0x06F0);
+    } else if (r == 0x066B) {
+      b.write('.');
+    } else if (r == 0x066C || r == 0x2C) {
+      // a thousands separator: dropped
+    } else {
+      b.writeCharCode(r);
+    }
+  }
+  return double.tryParse(b.toString());
+}
+
 /// A money field's pounds as piastres; null when empty or not positive.
 int? readMoney(TextEditingController c) {
-  final v = double.tryParse(c.text.trim().replaceAll(',', ''));
+  final v = readNumber(c.text);
   return v == null || v <= 0 ? null : (v * 100).round();
 }
 

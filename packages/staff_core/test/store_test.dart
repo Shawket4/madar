@@ -336,4 +336,16 @@ void main() {
     expect(initialOf('  '), '·');
     expect(initialOf('Omar'), 'O');
   });
+
+  test('an amount typed on an Arabic keyboard is read (APP-4)', () {
+    expect(readNumber('١٢٥٠'), 1250);
+    expect(readNumber('۱۲۵'), 125);
+    expect(readNumber('١٬٢٥٠٫٥'), 1250.5);
+    expect(readNumber('1,250.50'), 1250.5);
+    expect(readNumber(' 40 '), 40);
+    expect(readNumber('abc'), isNull);
+    expect(readNumber(''), isNull);
+    expect(readMoney(TextEditingController(text: '٤٠')), 4000);
+    expect(readMoney(TextEditingController(text: '٠')), isNull);
+  });
 }

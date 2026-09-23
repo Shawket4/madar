@@ -100,7 +100,7 @@ Future<void> adjustmentSheet(BuildContext context, {String? emp}) {
               label: tr('staff.add'),
               glyph: MadarGlyph.plus,
               onTap: () async {
-                final v = double.tryParse(amount.text.trim());
+                final v = readNumber(amount.text);
                 if (v == null || v <= 0 || reason.text.trim().isEmpty) {
                   ref
                       .read(toastProvider.notifier)
