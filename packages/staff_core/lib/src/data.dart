@@ -356,10 +356,9 @@ class Slip {
   final int carryOut;
   final Map<String, int> collected; // advance id -> taken this slip
   final bool frozen;
-  int get earned =>
-      lines
-          .where((l) => l.amount > 0 && !l.waived)
-          .fold(0, (s, l) => s + l.amount);
+  int get earned => lines
+      .where((l) => l.amount > 0 && !l.waived)
+      .fold(0, (s, l) => s + l.amount);
   int get deducted => lines
       .where((l) => l.amount < 0 && !l.waived)
       .fold(0, (s, l) => s - l.amount);
@@ -1209,6 +1208,7 @@ class DawamStore extends ChangeNotifier {
       _act({'action': 'accept_suggestion', 'id': g.id});
   void rejectSuggestion(Suggestion g) =>
       _act({'action': 'reject_suggestion', 'id': g.id});
+
   /// Replace a branch's weekly coverage grid (SC-13).
   void setCoverage(String branch, List<J> needs) =>
       _act({'action': 'set_coverage', 'branch': branch, 'needs': needs});

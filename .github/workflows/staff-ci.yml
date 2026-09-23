@@ -1,0 +1,105 @@
+name: Staff CI
+
+# Dawam by Madar (apps/staff) — the same shape as ci.yml, for the staff app's
+# own tree: the Flutter shell, its spine (staff_core), its feature packages,
+# and the Rust core they all run on.
+#
+# Cheap on purpose: these suites are pure Dart (the core is faked in tests),
+# so they need no dylib and no macOS runner. The device builds live in
+# staff-release.yml, which can also be run by hand from the Actions tab.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: staff-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  staff:
+    name: Analyze + staff tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Pub get
+        run: dart pub get
+
+      # The whole staff tree. `flutter analyze .` at the root (ci.yml) covers
+      # it too; naming the packages here keeps the failure pointing at the app
+      # rather than at a repo-wide run.
+      - name: Analyze
+        run: |
+          flutter analyze \
+            apps/staff \
+            packages/staff_core \
+            packages/features/dawam_auth \
+            packages/features/dawam_clock \
+            packages/features/dawam_pay \
+            packages/features/dawam_requests \
+            packages/features/dawam_schedule \
+            packages/features/dawam_team
+
+      - name: Format check
+        run: |
+          git ls-files 'apps/staff/*.dart' 'packages/staff_core/*.dart' \
+            'packages/features/dawam_*/*.dart' \
+            | xargs dart format --set-exit-if-changed --output=none
+
+      # The app's own workflows and every screen, AR/EN, phone and tablet.
+      # The fixtures under apps/staff/test/fixtures are written by madar-core
+      # (`MADAR_WRITE_DAWAM_FIXTURES=1`), so this is the real snapshot shape.
+      - name: Staff app tests
+        working-directory: apps/staff
+        run: flutter test
+
+      # Only where there is something to run: a package with an empty test/
+      # makes `flutter test` exit non-zero, which would read as a failure.
+      - name: Package tests
+        run: |
+          set -e
+          for p in packages/staff_core packages/features/dawam_*; do
+            if find "$p/test" -name '*_test.dart' 2>/dev/null | grep -q .; then
+              echo "── $p"
+              (cd "$p" && flutter test)
+            fi
+          done
+
+  core:
+    name: Rust core (Dawam)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust (from rust-toolchain.toml)
+        working-directory: rust-core
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustc --version
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+          key: staff
+
+      # Where the app's logic actually lives: the snapshot, the actions, the
+      # outbox, the offline stamp, and the vendored authz crate.
+      - name: Core tests
+        working-directory: rust-core
+        run: cargo test -p madar-core -p madar-authz
+
+      # The staff app's OWN bindings crate — a separate .so/.dylib from the
+      # POS's, so a break here never shows up in ci.yml.
+      - name: Build the staff bridge
+        working-directory: rust-core
+        run: cargo build -p madar_frb_staff --release

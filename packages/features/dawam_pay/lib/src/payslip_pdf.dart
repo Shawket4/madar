@@ -104,7 +104,10 @@ Future<Uint8List> payslipPdf({
           pw.SizedBox(height: 4),
           pw.Text(
             _w('title', arabic),
-            style: const pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
+            style: const pw.TextStyle(
+              fontSize: 22,
+              fontWeight: pw.FontWeight.bold,
+            ),
           ),
           pw.SizedBox(height: 16),
           row(

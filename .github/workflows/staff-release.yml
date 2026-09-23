@@ -1,0 +1,344 @@
+name: Staff release
+
+# Dawam by Madar (apps/staff), release-signed and built by CI on every release
+# tag (SA-7). Same shape as deploy.yml, with the staff app's own identity:
+# package com.madar.madar_staff / bundle com.madar.madarStaff.
+#
+# Tag it:  git tag staff-v1.0.0 && git push origin staff-v1.0.0
+# Or run it by hand from the Actions tab (workflow_dispatch) to prove the
+# device builds still work without cutting a release.
+#
+# Secrets (repo → Settings → Secrets and variables → Actions):
+#   STAFF_KEYSTORE_BASE64            — Android release keystore, base64
+#   STAFF_KEYSTORE_PASSWORD
+#   STAFF_KEY_PASSWORD
+#   STAFF_KEY_ALIAS
+#   STAFF_GOOGLE_SERVICES_JSON       — android/app/google-services.json, base64
+#   STAFF_GOOGLE_SERVICE_INFO_PLIST  — ios/Runner/GoogleService-Info.plist, base64
+#   DIAWI_TOKEN                      — optional OTA install link; skipped when unset
+#
+# The Firebase files are git-ignored (these repos are public), so CI writes
+# them from the secrets above. Without them the app still builds — push is
+# simply off — which is why only a TAGGED run insists on having them.
+
+on:
+  push:
+    tags:
+      - "staff-v*.*.*"
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    name: Build Android (APK + AAB)
+    runs-on: ubuntu-latest
+    outputs:
+      diawi_url: ${{ steps.diawi.outputs.diawi_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Rust (from rust-toolchain.toml)
+        working-directory: rust-core
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustc --version
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+          key: staff-android
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      # Push (APP-6). A tagged build without it would reach the stores unable
+      # to notify anyone, so a missing secret stops the release here; a manual
+      # run carries on with push off.
+      - name: Firebase config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.STAFF_GOOGLE_SERVICES_JSON }}
+          TAGGED: ${{ startsWith(github.ref, 'refs/tags/') }}
+        working-directory: apps/staff
+        run: |
+          set -euo pipefail
+          if [ -z "${GOOGLE_SERVICES_JSON:-}" ]; then
+            if [ "$TAGGED" = "true" ]; then
+              echo "::error::STAFF_GOOGLE_SERVICES_JSON is not set — a released build must be able to receive push. Add the secret (base64 of apps/staff/android/app/google-services.json)."
+              exit 1
+            fi
+            echo "::warning::No STAFF_GOOGLE_SERVICES_JSON — building with push off."
+            exit 0
+          fi
+          echo "$GOOGLE_SERVICES_JSON" | base64 --decode > android/app/google-services.json
+          python3 -c "import json,sys; json.load(open('android/app/google-services.json'))" \
+            || { echo "::error::STAFF_GOOGLE_SERVICES_JSON did not decode to JSON — re-encode with 'base64 -i google-services.json | tr -d \\n'."; exit 1; }
+          echo "google-services.json OK."
+
+      # Fail here, not 20 minutes later inside Gradle: without the keystore the
+      # build falls back to the DEBUG key, and Play rejects that upload.
+      - name: Decode keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.STAFF_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.STAFF_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.STAFF_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.STAFF_KEY_ALIAS }}
+          TAGGED: ${{ startsWith(github.ref, 'refs/tags/') }}
+        working-directory: apps/staff
+        run: |
+          set -euo pipefail
+          missing=""
+          for v in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_PASSWORD KEY_ALIAS; do
+            [ -z "${!v:-}" ] && missing="$missing STAFF_$v"
+          done
+          if [ -n "$missing" ]; then
+            if [ "$TAGGED" = "true" ]; then
+              echo "::error::Missing release signing secret(s):$missing — a tagged release must be signed with the release key, not the debug key."
+              exit 1
+            fi
+            echo "::warning::No signing secrets — this manual run will be DEBUG-signed and is not shippable."
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
+          if [ ! -s android/app/release.keystore ]; then
+            echo "::error::STAFF_KEYSTORE_BASE64 decoded to an empty file — re-encode with 'base64 -w0 release.keystore'."
+            exit 1
+          fi
+          if ! keytool -list -keystore android/app/release.keystore \
+                -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null 2>&1; then
+            echo "::error::Cannot open the keystore with STAFF_KEYSTORE_PASSWORD / STAFF_KEY_ALIAS ('$KEY_ALIAS'). Check the secrets."
+            exit 1
+          fi
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=app/release.keystore
+          EOF
+          echo "Keystore OK — alias '$KEY_ALIAS' found."
+
+      - name: Pub get
+        run: dart pub get
+
+      # Both artifacts share one build number, so the APK that was tested and
+      # the AAB that is uploaded carry the same versionCode.
+      - name: Build APKs (one per ABI)
+        working-directory: apps/staff
+        run: |
+          flutter build apk --release --split-per-abi \
+            --target-platform android-arm64,android-arm \
+            --build-number=${{ github.run_number }}
+
+      - name: Build App Bundle (Play upload)
+        working-directory: apps/staff
+        run: flutter build appbundle --release --build-number=${{ github.run_number }}
+
+      # Catch a debug-signed "release" before it reaches a store or a phone.
+      - name: Verify release signing
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: apps/staff
+        run: |
+          set -euo pipefail
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          for apk in build/app/outputs/flutter-apk/app-*-release.apk; do
+            echo "── $apk"
+            "$APKSIGNER" verify --print-certs "$apk" | tee /tmp/certs.txt
+            if grep -qi "CN=Android Debug" /tmp/certs.txt; then
+              echo "::error::$apk is DEBUG-signed — the release keystore was not picked up."
+              exit 1
+            fi
+          done
+          echo "── app-release.aab"
+          jarsigner -verify -verbose:summary -certs \
+            build/app/outputs/bundle/release/app-release.aab > /tmp/aab.txt 2>&1 || true
+          if ! grep -q "jar verified" /tmp/aab.txt; then
+            echo "::error::app-release.aab is not signed"; tail -25 /tmp/aab.txt; exit 1
+          fi
+          if grep -qi "CN=Android Debug" /tmp/aab.txt; then
+            echo "::error::app-release.aab is DEBUG-signed — the release keystore was not picked up."
+            exit 1
+          fi
+          echo "app-release.aab is signed with a non-debug key"
+
+      # A shareable install page for the shop's phones. Never fails the
+      # release; skipped when DIAWI_TOKEN is unset.
+      - name: Upload APK to diawi (OTA install link)
+        id: diawi
+        continue-on-error: true
+        env:
+          DIAWI_TOKEN: ${{ secrets.DIAWI_TOKEN }}
+        working-directory: apps/staff
+        run: |
+          set +e
+          APK=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          if [ -z "$DIAWI_TOKEN" ]; then
+            echo "DIAWI_TOKEN not set — skipping diawi upload."; exit 0
+          fi
+          echo "Uploading $APK ($(du -h "$APK" | cut -f1)) to diawi…"
+          http=$(curl -s -o /tmp/diawi_up.json -w '%{http_code}' https://upload.diawi.com/ \
+            -F token="$DIAWI_TOKEN" \
+            -F file=@"$APK" \
+            -F comment="Dawam by Madar $GITHUB_REF_NAME")
+          echo "diawi upload → HTTP $http; response: $(cat /tmp/diawi_up.json)"
+          job=$(jq -r '.job // empty' /tmp/diawi_up.json 2>/dev/null)
+          if [ -z "$job" ]; then echo "diawi upload failed (no job id)"; exit 1; fi
+          for i in $(seq 1 60); do
+            sleep 5
+            resp=$(curl -s "https://upload.diawi.com/status?token=$DIAWI_TOKEN&job=$job")
+            status=$(echo "$resp" | jq -r '.status // empty')
+            case "$status" in
+              2000)
+                link="https://i.diawi.com/$(echo "$resp" | jq -r '.hash')"
+                echo "diawi_url=$link" >> "$GITHUB_OUTPUT"
+                { echo "## 📱 Dawam — Android install link (diawi)"; echo ""; echo "**$link**"; } >> "$GITHUB_STEP_SUMMARY"
+                exit 0 ;;
+              2001) echo "  …processing ($i/60)" ;;
+              *)    echo "diawi error: $resp"; exit 1 ;;
+            esac
+          done
+          echo "diawi timed out"; exit 1
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dawam-android-apk
+          path: apps/staff/build/app/outputs/flutter-apk/app-*-release.apk
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: dawam-android-aab
+          path: apps/staff/build/app/outputs/bundle/release/app-release.aab
+
+      # Neither the key nor the Firebase config may outlive the job.
+      - name: Shred signing material
+        if: always()
+        working-directory: apps/staff
+        run: |
+          shred -u android/app/release.keystore android/key.properties 2>/dev/null || true
+          shred -u android/app/google-services.json 2>/dev/null || true
+
+  build-ios:
+    name: Build iOS (unsigned)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust (from rust-toolchain.toml)
+        working-directory: rust-core
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustc --version
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+          key: staff-ios
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Firebase config
+        env:
+          PLIST: ${{ secrets.STAFF_GOOGLE_SERVICE_INFO_PLIST }}
+          TAGGED: ${{ startsWith(github.ref, 'refs/tags/') }}
+        working-directory: apps/staff
+        run: |
+          set -euo pipefail
+          if [ -z "${PLIST:-}" ]; then
+            if [ "$TAGGED" = "true" ]; then
+              echo "::error::STAFF_GOOGLE_SERVICE_INFO_PLIST is not set — a released build must be able to receive push."
+              exit 1
+            fi
+            echo "::warning::No STAFF_GOOGLE_SERVICE_INFO_PLIST — building with push off."
+            exit 0
+          fi
+          echo "$PLIST" | base64 --decode > ios/Runner/GoogleService-Info.plist
+          plutil -lint ios/Runner/GoogleService-Info.plist
+
+      - name: Pub get
+        run: dart pub get
+
+      # CI holds no Apple signing identity, so this proves the app COMPILES
+      # for a device — pods, the Rust core through Cargokit, the background
+      # location and push entitlements. The App Store build is archived and
+      # uploaded from Xcode (team NT5TZBZ3BZ), the way the POS's macOS build
+      # is. See the notes in staff-release.yml's header for what a signed CI
+      # build would need.
+      - name: Build iOS (no codesign)
+        working-directory: apps/staff
+        run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+
+      - name: Zip the app
+        working-directory: apps/staff/build/ios/iphoneos
+        run: zip -r "$GITHUB_WORKSPACE/Dawam-iOS-unsigned.zip" Runner.app
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: dawam-ios-unsigned
+          path: Dawam-iOS-unsigned.zip
+
+      - name: Shred Firebase config
+        if: always()
+        working-directory: apps/staff
+        run: rm -f ios/Runner/GoogleService-Info.plist
+
+  release:
+    name: Create GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-android, build-ios]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Compose release notes
+        env:
+          DIAWI_URL: ${{ needs.build-android.outputs.diawi_url }}
+        run: |
+          {
+            if [ -n "$DIAWI_URL" ]; then
+              echo "## 📱 Android — install over the air"
+              echo ""
+              echo "**[Install Dawam on Android]($DIAWI_URL)**  (diawi OTA)"
+              echo ""
+            fi
+            echo "## 🏪 Google Play"
+            echo ""
+            echo "**app-release.aab** below is the Play upload (release-signed, versionCode ${{ github.run_number }}) — upload it from the Play Console."
+            echo ""
+            echo "## 🍎 iOS"
+            echo ""
+            echo "**Dawam-iOS-unsigned.zip** is a CI compile check, not installable. The App Store build is archived and uploaded from Xcode."
+          } > notes.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: Dawam by Madar ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          body_path: notes.md
+          files: |
+            artifacts/dawam-android-apk/app-arm64-v8a-release.apk
+            artifacts/dawam-android-apk/app-armeabi-v7a-release.apk
+            artifacts/dawam-android-aab/app-release.aab

@@ -249,7 +249,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       label: tr('staff.i_agree'),
       onTap: () {
         _store.privacyAccepted.add(_store.pendingUser!);
-        _step$(_finish);
+        unawaited(_step$(_finish));
       },
     ),
   ];

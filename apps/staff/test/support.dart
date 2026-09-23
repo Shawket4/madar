@@ -29,7 +29,8 @@ Future<void> frames(WidgetTester t, [int n = 20]) async {
   }
 }
 
-String fixture(String who) => File('test/fixtures/$who.json').readAsStringSync();
+String fixture(String who) =>
+    File('test/fixtures/$who.json').readAsStringSync();
 
 /// The core behind the store, answering from the fixtures.
 class FakeCore implements DawamBackend {

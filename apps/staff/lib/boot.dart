@@ -265,7 +265,8 @@ class _BridgeBackend implements DawamBackend {
             intervalDuration: const Duration(minutes: 5),
             foregroundNotificationConfig: const ForegroundNotificationConfig(
               notificationTitle: 'Dawam',
-              notificationText: 'On shift: your location is recorded every 15 minutes until you clock out.',
+              notificationText:
+                  'On shift: your location is recorded every 15 minutes until you clock out.',
               enableWakeLock: false,
             ),
           )

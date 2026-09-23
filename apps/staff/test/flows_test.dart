@@ -32,7 +32,11 @@ void main() {
     await tapText(t, 'Clock in');
     expect(lastAct()['action'], 'clock_in');
     expect(lastAct()['shift'], startsWith('e1|'));
-    expect(lastAct()['fix'], isNotNull, reason: 'the punch carries the GPS fix');
+    expect(
+      lastAct()['fix'],
+      isNotNull,
+      reason: 'the punch carries the GPS fix',
+    );
     await finish(t);
   });
 
@@ -113,7 +117,8 @@ void main() {
     await tapText(t, 'Coverage needs');
     await tapText(t, 'Save');
     expect(lastAct()['action'], 'set_coverage');
-    final needs = (lastAct()['needs'] as List<dynamic>).cast<Map<String, dynamic>>();
+    final needs = (lastAct()['needs'] as List<dynamic>)
+        .cast<Map<String, dynamic>>();
     expect(needs.single, {
       'day_of_week': 6,
       'band_start': '12:00:00',
