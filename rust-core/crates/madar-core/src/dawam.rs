@@ -235,6 +235,11 @@ pub struct Snapshot {
     pub own_days: Vec<String>,
     /// `emp|date` of the dates changed to a day off.
     pub days_off: Vec<String>,
+    /// Each colleague's state right now, as the server decides it (AT-3):
+    /// employee id → `state` (`in` | `late` | `absent` | `on_leave` | `off` |
+    /// `done`), `since` (clock-in) and `late_minutes`. Managers only; the
+    /// phone never works presence out from grace times and its own clock.
+    pub presence: BTreeMap<String, PresenceV>,
     /// Inside the fence of the branch I work at now, from a FRESH fix; `None`
     /// when there is no reading from the last few minutes (06 B4: unknown is
     /// never "inside").
@@ -256,6 +261,27 @@ pub struct FenceV {
     /// Metres from the branch, rounded; `None` when unknown.
     pub distance_m: Option<i64>,
     pub radius: i64,
+}
+
+#[derive(Serialize, Debug, Default, PartialEq)]
+pub struct PresenceV {
+    pub state: String,
+    pub since: Option<String>,
+    pub late_minutes: i64,
+}
+
+/// The server's team board rows → presence by employee.
+fn presence_of(board: &Value) -> BTreeMap<String, PresenceV> {
+    arr(board, "rows")
+        .iter()
+        .map(|r| {
+            (
+                s(r, "employee_id"),
+                PresenceV { state: s(r, "state"), since: so(r, "check_in_at"), late_minutes: r["late_minutes"].as_i64().unwrap_or(0) },
+            )
+        })
+        .filter(|(id, p)| !id.is_empty() && !p.state.is_empty())
+        .collect()
 }
 
 #[derive(Serialize, Debug, Default)]
@@ -989,6 +1015,8 @@ impl MadarCore {
                 "/staff/adjustments".into(),
                 "/staff/expense-advances".into(),
                 "/staff/payroll/current".into(),
+                // Who is in, late or absent: the server's call (AT-3).
+                "/staff/team/presence".into(),
             ]);
             for b in &mine {
                 paths.extend(weeks.iter().map(|w| format!("/staff/roster/suggestions?branch_id={b}&week_start={w}")));
@@ -1160,6 +1188,7 @@ impl MadarCore {
             ("warnings", json!(warnings)),
             ("coverage", json!(coverage)),
             ("date_sets", json!(date_sets)),
+            ("presence", g("/staff/team/presence")),
         ];
         self.store.with_tx(|tx| write_mirror(tx, &m))?;
         Ok(())
@@ -1707,8 +1736,9 @@ impl MadarCore {
         let tz = self.dawam_tz();
         let today = now.with_timezone(&tz).date_naive();
         let queued = self.dawam_queued()?;
-        let (warn_rows, coverage, date_sets) =
-            self.store.with_conn(|c| Ok((read_meta(c, "warnings"), read_meta(c, "coverage"), read_meta(c, "date_sets"))))?;
+        let (warn_rows, coverage, date_sets, board) = self.store.with_conn(|c| {
+            Ok((read_meta(c, "warnings"), read_meta(c, "coverage"), read_meta(c, "date_sets"), read_meta(c, "presence")))
+        })?;
         let (t, ctx, published, estimate, current, me_roster, fetched_at) = self.store.with_conn(|c| {
             let mut t = HashMap::new();
             for name in TABLES {
@@ -2296,6 +2326,7 @@ impl MadarCore {
         // The server's labour warnings (RU-13): one rule, decided there.
         out.warnings = labour_warnings(warn_rows.as_array().map(Vec::as_slice).unwrap_or(&[]));
         out.coverage = coverage.as_object().into_iter().flatten().map(|(k, v)| (k.clone(), v.clone())).collect();
+        out.presence = presence_of(&board);
         // The dates that hold their own set (a date change), and which of
         // those are a day off: "back to the usual pattern" applies there only.
         for ds in date_sets.as_array().into_iter().flatten() {
@@ -2533,6 +2564,21 @@ fn labour_warnings(rows: &[Value]) -> BTreeMap<String, Vec<(String, Value)>> {
 mod tests {
     use super::*;
     use chrono::Timelike;
+
+    #[test]
+    fn presence_is_the_servers_board_by_person() {
+        let board = json!({ "rows": [
+            { "employee_id": "e1", "state": "late", "check_in_at": "2026-09-23T06:12:00Z", "late_minutes": 12 },
+            { "employee_id": "e4", "state": "absent", "late_minutes": 0 },
+            { "employee_id": "", "state": "in" },
+            { "employee_id": "e9", "state": "" }
+        ]});
+        let p = presence_of(&board);
+        assert_eq!(p.len(), 2, "rows without a person or a state are dropped");
+        assert_eq!(p["e1"], PresenceV { state: "late".into(), since: Some("2026-09-23T06:12:00Z".into()), late_minutes: 12 });
+        assert_eq!(p["e4"].state, "absent");
+        assert!(presence_of(&Value::Null).is_empty(), "no board (employee, offline first run): nothing");
+    }
 
     #[test]
     fn weeks_start_on_saturday_and_periods_on_the_start_day() {

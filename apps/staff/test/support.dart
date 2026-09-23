@@ -18,8 +18,10 @@ import 'package:staff_core/staff_core.dart';
 import 'package:staff_core/testing.dart';
 
 /// The core's own words, straight from i18n.rs — what a device shows.
-void useCoreWords() =>
-    words = (key) => coreWord(key, arabic: currentLang == 'ar');
+void useCoreWords() {
+  words = (key) => coreWord(key, arabic: currentLang == 'ar');
+  wordsIn = (lang, key) => coreWord(key, arabic: lang == 'ar');
+}
 
 /// Real frames: sheets slide in on a spring and a badge pulses for ever, so
 /// pumpAndSettle would never settle.
@@ -77,19 +79,27 @@ class FakeCore implements DawamBackend {
     who = _phones[phone]!;
   }
 
+  /// What the code check answers, when a test wants something else (a
+  /// person in two businesses, an answer with no person).
+  Map<String, dynamic>? Function(String? orgId)? verifyAnswer;
+
   @override
   Future<Map<String, dynamic>> otpVerify(
     String phone,
     String code, {
     String? orgId,
-  }) async => {'employee_id': who};
+  }) async => verifyAnswer?.call(orgId) ?? {'employee_id': who};
 
   @override
   Future<String> snapshot({required bool refresh}) async => picture();
 
+  /// When set, every action is refused with it (the server's answer).
+  DawamError? refuse;
+
   @override
   Future<String> act(Map<String, dynamic> action) async {
     acts.add(action);
+    if (refuse != null) throw refuse!;
     if (action['action'] == 'accept_privacy') accepted = true;
     return picture();
   }

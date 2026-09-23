@@ -10,13 +10,13 @@
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Dawam records your location every 15 minutes while you are on shift, and never after you clock out.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Madar uses your location only when you clock in or out, to confirm you are at your branch.</string>
+	<string>Dawam uses your location only when you clock in or out, to confirm you are at your branch.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Madar Staff</string>
+	<string>Dawam by Madar</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -24,7 +24,12 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>madar_staff</string>
+	<string>Dawam</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>ar</string>
+	</array>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

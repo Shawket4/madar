@@ -1,0 +1,5 @@
+/* اسم التطبيق تحت الأيقونة ورسائل إذن الموقع (PS-6, APP-4). */
+"CFBundleDisplayName" = "دوام بواسطة مدار";
+"CFBundleName" = "دوام";
+"NSLocationWhenInUseUsageDescription" = "دوام بيستخدم موقعك بس لما تسجّل حضور أو انصراف، عشان يتأكد إنك في فرعك.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "دوام بيسجّل موقعك كل 15 دقيقة وإنت في الوردية، وعمره ما بيسجّله بعد ما تسجّل انصراف.";

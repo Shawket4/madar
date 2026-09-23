@@ -67,6 +67,9 @@ Future<(DawamStore, _Backend)> _store() async {
   final b = _Backend();
   final s = DawamStore(b);
   await s.restore();
+  // The restored store polls (2 min) and pings on shift (15 min): stop both,
+  // or the test process never goes idle.
+  addTearDown(s.stop);
   return (s, b);
 }
 
@@ -128,8 +131,11 @@ void main() {
       expect(find.text('Outside Zamalek: 340 m away.'), findsOneWidget);
       expect(find.text('ok'), findsNothing);
       expect(failures, isEmpty, reason: 'shown once, by the screen that asked');
-      await sub.cancel();
+      // Not awaited: a broadcast cancel answers from the root zone, and
+      // awaiting it inside the fake clock stalls every later pump.
+      unawaited(sub.cancel());
       await t.pump(const Duration(seconds: 3));
+      store.stop();
     });
 
     testWidgets('a success is confirmed only after the answer', (t) async {
@@ -148,6 +154,7 @@ void main() {
       expect(find.text('ok'), findsOneWidget);
       expect(backend.acts.single['action'], 'read_all');
       await t.pump(const Duration(seconds: 3));
+      store.stop();
     });
 
     testWidgets('offline "needs a connection" is a refusal, not a success', (
@@ -170,6 +177,7 @@ void main() {
       expect(results, [false]);
       expect(find.text('This needs a connection.'), findsOneWidget);
       await t.pump(const Duration(seconds: 3));
+      store.stop();
     });
   });
 
@@ -231,13 +239,36 @@ void main() {
     FlutterError.onError = reported.add;
     addTearDown(() => FlutterError.onError = old);
     final broken = jsonDecode(_fixture()) as Map<String, dynamic>;
-    (broken['shifts'] as List<dynamic>).first['date'] = '';
+    ((broken['shifts'] as List<dynamic>).first
+            as Map<String, dynamic>)['date'] =
+        '';
     backend.answer = () async => jsonEncode(broken);
     await store.readAll();
     expect(store.me, 'e1', reason: 'still signed in');
     expect(store.shifts.length, shifts, reason: 'the last good picture stays');
     expect(reported, hasLength(1), reason: 'and the fault is reported');
   });
+
+  test(
+    'after a sign-out a bad picture never brings the last person back',
+    () async {
+      final (store, backend) = await _store();
+      final old = FlutterError.onError;
+      FlutterError.onError = (_) {};
+      addTearDown(() => FlutterError.onError = old);
+      await Future<void>.delayed(Duration.zero); // restore's refresh lands
+      store.signOut();
+      expect(store.me, isNull);
+      expect(backend.signOuts, 1);
+      final broken = jsonDecode(_fixture()) as Map<String, dynamic>;
+      ((broken['shifts'] as List<dynamic>).first
+              as Map<String, dynamic>)['date'] =
+          '';
+      backend.answer = () async => jsonEncode(broken);
+      await store.readAll();
+      expect(store.shifts, isEmpty, reason: "no fallback to e1's shifts");
+    },
+  );
 
   test('a snapshot with no clock does not crash', () async {
     final (store, backend) = await _store();
@@ -269,7 +300,8 @@ void main() {
     test("the store's clock and shift times read the branch's hours", () async {
       final (store, _) = await _store();
       // The fixture pins `now` to 09:30 in Cairo, whatever the phone's zone.
-      final raw = jsonDecode(_fixture())['now'] as String;
+      final raw =
+          (jsonDecode(_fixture()) as Map<String, dynamic>)['now'] as String;
       final wall = branchWall(raw)!;
       expect((wall.hour, wall.minute), (9, 30));
       expect(store.now.difference(wall).inMinutes.abs(), lessThan(2));
@@ -329,5 +361,17 @@ void main() {
     expect(initialOf(''), '·');
     expect(initialOf('  '), '·');
     expect(initialOf('Omar'), 'O');
+  });
+
+  test('an amount typed on an Arabic keyboard is read (APP-4)', () {
+    expect(readNumber('١٢٥٠'), 1250);
+    expect(readNumber('۱۲۵'), 125);
+    expect(readNumber('١٬٢٥٠٫٥'), 1250.5);
+    expect(readNumber('1,250.50'), 1250.5);
+    expect(readNumber(' 40 '), 40);
+    expect(readNumber('abc'), isNull);
+    expect(readNumber(''), isNull);
+    expect(readMoney(TextEditingController(text: '٤٠')), 4000);
+    expect(readMoney(TextEditingController(text: '٠')), isNull);
   });
 }

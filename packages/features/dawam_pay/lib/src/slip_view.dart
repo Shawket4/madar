@@ -205,10 +205,15 @@ class _Line extends StatelessWidget {
       ],
     );
     if (onTap == null) return line;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(Radii.sm),
-      child: line,
+    // Say it can be acted on: a bare InkWell reads as plain text.
+    return Semantics(
+      button: true,
+      hint: tr('staff.line_actions_hint'),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(Radii.sm),
+        child: line,
+      ),
     );
   }
 }

@@ -388,6 +388,17 @@ class Line implements Bilingual {
   bool waived = false; // a waived line leaves the server's payslip (AD-8)
 }
 
+/// The server's presence states (`/staff/team/presence`).
+enum PresenceState { in_, late, absent, onLeave, off, done }
+
+/// One colleague right now, as the server decided it.
+class Presence {
+  const Presence(this.state, {this.since, this.lateMinutes = 0});
+  final PresenceState state;
+  final DateTime? since;
+  final int lateMinutes;
+}
+
 class Slip {
   Slip(
     this.emp,
@@ -592,6 +603,11 @@ class DawamStore extends ChangeNotifier {
   bool isOwnDay(String emp, DateTime d) => ownDays.contains('$emp|${_d(d)}');
   bool isDayOff(String emp, DateTime d) => daysOff.contains('$emp|${_d(d)}');
 
+  /// Each colleague's state right now, as the SERVER decided it (AT-3):
+  /// employee id → presence. Empty for someone who manages no one, and until
+  /// the first answer.
+  Map<String, Presence> presence = const {};
+
   // ── the picture ──
   Duration _skew = Duration.zero;
   DateTime get now => DateTime.now().add(_skew);
@@ -738,6 +754,24 @@ class DawamStore extends ChangeNotifier {
     daysOff = ((v['days_off'] as List<dynamic>?) ?? const [])
         .cast<String>()
         .toSet();
+
+    presence = {
+      for (final MapEntry(key: id, value: p)
+          in ((v['presence'] as J?) ?? const {}).entries)
+        if (p is J)
+          id: Presence(
+            switch (p['state']) {
+              'in' => PresenceState.in_,
+              'late' => PresenceState.late,
+              'absent' => PresenceState.absent,
+              'on_leave' => PresenceState.onLeave,
+              'done' => PresenceState.done,
+              _ => PresenceState.off,
+            },
+            since: _at(p['since']),
+            lateMinutes: _int(p['late_minutes']),
+          ),
+    };
 
     for (final b in _list(v['branches'])) {
       final name = b['name'] as String;
@@ -1110,7 +1144,15 @@ class DawamStore extends ChangeNotifier {
           ),
       ];
     }
-    pendingUser = v['employee_id'] as String?;
+    final who = v['employee_id'];
+    // An answer with no person would crash the privacy step (06 B13).
+    if (who is! String || who.isEmpty) {
+      throw DawamError(
+        trIn('en', 'staff.sign_in_no_person'),
+        trIn('ar', 'staff.sign_in_no_person'),
+      );
+    }
+    pendingUser = who;
     return null;
   }
 
@@ -1149,22 +1191,24 @@ class DawamStore extends ChangeNotifier {
   }
 
   void signOut() {
-    unawaited(_track?.cancel());
-    _track = null;
+    stop();
     _trackingOn = false;
     unawaited(backend.tracking(on: false));
-    _poll?.cancel();
-    _poll = null;
+    // Never fall back to the last person's picture.
+    _lastGood = null;
     unawaited(backend.signOut());
     me = null;
     pendingUser = null;
     notifyListeners();
   }
 
+  /// Stops the poll, the ping timer and the position stream. Each is
+  /// cleared, so the next sign-in starts them again.
   void stop() {
+    _poll?.cancel();
+    _poll = null;
     unawaited(_track?.cancel());
     _track = null;
-    _poll?.cancel();
   }
 
   Future<void> refresh() async {
