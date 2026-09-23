@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The name under the launcher icon (PS-6). Arabic in values-ar. -->
+<resources>
+    <string name="app_name">Dawam by Madar</string>
+</resources>

@@ -30,7 +30,7 @@ Arabic first, built the way the POS is:
     flutter run                      # builds the Rust core via Cargokit
     flutter test                     # workflows + every screen, AR/EN, phone/tablet
     flutter test test/screens_test.dart --dart-define=MADAR_RENDER=true   # PNGs → build/shots
-    cd ../../packages/staff_core && flutter test                         # the money path
+    cd ../../packages/staff_core && flutter test                         # the store: awaited actions, branch-zone times, push routing
 
 ## Firebase (push, APP-6)
 
