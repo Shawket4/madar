@@ -14,6 +14,7 @@ pub mod loyalty;
 pub mod metrics;
 pub mod orders;
 pub mod printing;
+pub mod push;
 pub mod realtime;
 pub mod routes;
 pub mod staff_pool;

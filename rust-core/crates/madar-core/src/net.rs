@@ -309,6 +309,33 @@ impl ApiClient {
     /// ANY HTTP response (even 4xx, e.g. a captive portal) means we reached *a*
     /// server → online; only a transport failure errs. Returns the server-vs-device
     /// skew in SECONDS when the response carries a parseable `Date` header.
+    /// Authenticated raw call of any method with an optional JSON body,
+    /// returning the response text on 2xx (status -> `CoreError` otherwise).
+    pub async fn send_json(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<&serde_json::Value>,
+    ) -> CoreResult<String> {
+        let url = format!("{}{}", self.base_url, path);
+        let mut rb = self.http().request(method, &url);
+        if let Some(b) = body {
+            rb = rb.json(b);
+        }
+        if let Some(token) = self.bearer.read().unwrap_or_else(|e| e.into_inner()).clone() {
+            rb = rb.bearer_auth(token);
+        }
+        let resp = rb.send().await.map_err(|e| classify_reqwest(&e))?;
+        self.observe_clock(&resp);
+        let status = resp.status();
+        let text = resp.text().await.map_err(|e| classify_reqwest(&e))?;
+        if status.is_success() {
+            Ok(text)
+        } else {
+            Err(status_to_error(status.as_u16(), &text))
+        }
+    }
+
     pub async fn ping(&self) -> CoreResult<Option<i64>> {
         let url = format!("{}/health", self.base_url);
         let resp = self

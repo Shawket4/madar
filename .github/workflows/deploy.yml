@@ -12,6 +12,8 @@ on:
 #   KEYSTORE_BASE64    — Android release keystore, base64-encoded
 #   KEYSTORE_PASSWORD / KEY_PASSWORD / KEY_ALIAS
 #   DIAWI_TOKEN        — optional; skipped gracefully when unset
+#   POS_GOOGLE_SERVICES_JSON — optional; apps/madar/android/app/google-services.json,
+#                        base64. Without it the release builds and runs, push off.
 
 jobs:
   # ── Android APK + AAB ──────────────────────────────────────────────────────
@@ -47,6 +49,25 @@ jobs:
           flutter-version: "3.47.2"
           channel: stable
           cache: true
+
+      # Push (APP-6). The Firebase config is git-ignored (public repo); the
+      # Gradle plugin applies only when this file exists, so a release without
+      # the secret still builds — with push off, and a warning saying so.
+      - name: Firebase config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.POS_GOOGLE_SERVICES_JSON }}
+        working-directory: apps/madar
+        run: |
+          set -euo pipefail
+          if [ -z "${GOOGLE_SERVICES_JSON:-}" ]; then
+            echo "::warning::POS_GOOGLE_SERVICES_JSON is not set — this release has push notifications OFF."
+            exit 0
+          fi
+          echo "$GOOGLE_SERVICES_JSON" | base64 --decode > android/app/google-services.json
+          python3 -c "import json; d=json.load(open('android/app/google-services.json')); \
+            pk=[c['client_info']['android_client_info']['package_name'] for c in d['client']]; \
+            assert 'com.madar.pos' in pk, pk; print('google-services.json OK:', pk)" \
+            || { echo "::error::POS_GOOGLE_SERVICES_JSON is not a google-services.json for com.madar.pos."; exit 1; }
 
       # Fail here, not 20 minutes later inside Gradle. Without the keystore
       # build.gradle.kts silently falls back to the DEBUG key, which would
@@ -199,7 +220,7 @@ jobs:
       - name: Shred signing material
         if: always()
         working-directory: apps/madar
-        run: shred -u android/app/release.keystore android/key.properties 2>/dev/null || true
+        run: shred -u android/app/release.keystore android/key.properties android/app/google-services.json 2>/dev/null || true
 
   # ── macOS ──────────────────────────────────────────────────────────────────
   build-macos:

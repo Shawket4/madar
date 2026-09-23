@@ -419,6 +419,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Clear the diagnostics feed.
   Future<void> clearLogs();
 
+  /// Forget this device's token — sign-out, or the till changing hands.
+  Future<void> clearPushToken({required String token});
+
   /// Clear a bussed table — the one human act a table's status cannot
   /// derive. Everything else follows from the ticket sitting on it.
   /// Offline-safe: optimistic locally, queued for the server.
@@ -1277,6 +1280,13 @@ abstract class MadarBridge implements RustOpaqueInterface {
   Future<String> setKitchenRoutingMode({String? mode});
 
   void setLocale({required String locale});
+
+  /// Register (or rebind) this device's push token. Needs a connection.
+  Future<void> setPushToken({
+    required String token,
+    required String locale,
+    required String platform,
+  });
 
   /// Choose the customer an OPEN bill is for (or take them off with `None`).
   /// Kept on the device, carried by the bill's settle, and by its fire while

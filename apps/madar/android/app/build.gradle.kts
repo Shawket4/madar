@@ -7,6 +7,14 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Firebase (APP-6), only when its config is here: google-services.json is
+// git-ignored because this repo is public, and the plugin fails the build when
+// it is missing. `flutterfire configure` brings it back. Without it the app
+// builds and runs; only push is off.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 // Release signing (the sufrix_pos pattern): CI decodes the keystore from
 // secrets and writes android/key.properties; local release builds without it
 // fall back to debug signing so `flutter run --release` still works.
