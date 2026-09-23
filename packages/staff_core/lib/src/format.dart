@@ -6,6 +6,10 @@ import 'package:staff_core/src/data.dart';
 /// i18n.rs reader in tests.
 String Function(String key) words = (key) => key;
 
+/// The same table in a NAMED language (`en` / `ar`), whatever the phone is
+/// set to — a payslip PDF in the other language (PAY-10).
+String Function(String lang, String key) wordsIn = (lang, key) => key;
+
 /// The active language, kept in step by `localeProvider` (the dashboard's
 /// `formatLocale` pattern) so formatting helpers need no `ref`.
 String currentLang = 'ar';

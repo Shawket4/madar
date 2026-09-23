@@ -14,7 +14,8 @@
       "reason": "Broke a glass",
       "recurring": false,
       "status": "active",
-      "value": 20000
+      "value": 20000,
+      "waived": false
     },
     {
       "amount": 150000,
@@ -28,7 +29,8 @@
       "reason": "Best month",
       "recurring": false,
       "status": "pendingOwner",
-      "value": 150000
+      "value": 150000,
+      "waived": false
     }
   ],
   "advance_cap": {
@@ -88,7 +90,7 @@
       "via": "cash"
     }
   ],
-  "fetched_at": 1790169651267,
+  "fetched_at": 1790174949312,
   "flags": [
     {
       "at": "2026-09-23T17:10:00+03:00",
@@ -151,6 +153,7 @@
     }
   ],
   "now": "2026-09-23T09:30:00+03:00",
+  "on_payroll": true,
   "online": true,
   "open_flags": [
     "f1"
@@ -389,6 +392,7 @@
     "absence_days": 1.0,
     "adjustment_limit": 100000,
     "advance_cap_pct": 50.0,
+    "deduction_limit": null,
     "holiday_mult": 2.0,
     "ot_day": 1.35,
     "ot_night": 1.7,

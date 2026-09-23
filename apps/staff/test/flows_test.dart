@@ -65,6 +65,26 @@ void main() {
     await finish(t);
   });
 
+  testWidgets('a flag deduction carries the reason the manager types (AD-9)', (
+    t,
+  ) async {
+    await pumpApp(t, lang: 'en', who: 'e2', manage: true);
+    await tapText(t, 'Youssef Adel · Left mid-shift');
+    await t.enterText(
+      find.widgetWithText(TextField, 'Reason — the employee sees it on the pay line'),
+      'Left for a delivery',
+    );
+    await tapText(t, 'Deduct');
+    expect(lastAct(), {
+      'action': 'resolve',
+      'flag': 'f1',
+      'how': 'deduct',
+      'deduct': 5500,
+      'reason': 'Left for a delivery',
+    });
+    await finish(t);
+  });
+
   testWidgets('approving a leave as unpaid asks the core for exactly that', (
     t,
   ) async {

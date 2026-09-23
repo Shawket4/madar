@@ -73,12 +73,55 @@ class SlipLines extends ConsumerWidget {
       if (ok) await store.deleteAdj(l.manual!);
       return;
     }
-    if (l.waived) {
-      await store.unwaive(l.key);
-      return;
-    }
     if (!context.mounted) return;
     final reason = TextEditingController();
+    if (l.waived) {
+      // Undo the waiver, with a reason (AT-7): the rule's figure comes back.
+      await showDawamSheet<void>(
+        context,
+        title: tr('staff.unwaive_this_deduction'),
+        builder: (ctx, ref, store) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.md,
+          children: [
+            MadarSummaryLine(
+              label: loc(l),
+              minor: l.amount,
+              currency: 'EGP',
+              signed: true,
+              strike: true,
+              muted: true,
+            ),
+            MadarField(
+              controller: reason,
+              placeholder: tr('staff.reason_required'),
+              kind: MadarFieldKind.note,
+              autofocus: true,
+            ),
+            MadarButton(
+              label: tr('staff.unwaive'),
+              onTap: () async {
+                if (reason.text.trim().isEmpty) {
+                  ref
+                      .read(toastProvider.notifier)
+                      .show(
+                        tr('staff.a_reason_is_required'),
+                        tone: ChipTone.danger,
+                      );
+                  return;
+                }
+                final done = await attempt(
+                  ref,
+                  () => store.unwaive(l.key, reason.text.trim()),
+                );
+                if (done && ctx.mounted) Navigator.of(ctx).maybePop();
+              },
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     await showDawamSheet<void>(
       context,
       title: tr('staff.waive_this_deduction'),
@@ -214,7 +257,7 @@ Future<void> payslipSheet(BuildContext context, Slip s) => showDawamSheet<void>(
                     person: name(store.emp(s.emp)),
                     business: store.orgName,
                     arabic: ar,
-                    paidWith: paid == null ? null : payMethod(paid),
+                    paidWith: paid,
                   ),
                 ),
               ),

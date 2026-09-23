@@ -214,10 +214,11 @@ class _TeamTabState extends ConsumerState<TeamTab> {
       final amount = TextEditingController(
         text: (suggest / 100).toStringAsFixed(0),
       );
-      Future<void> done(String how, {int deduct = 0}) async {
+      final deductReason = TextEditingController();
+      Future<void> done(String how, {int deduct = 0, String? reason}) async {
         final ok = await attempt(
           ref,
-          () => store.resolve(f, how, deduct: deduct),
+          () => store.resolve(f, how, deduct: deduct, reason: reason),
         );
         if (ok && ctx.mounted) Navigator.of(ctx).maybePop();
       }
@@ -283,6 +284,11 @@ class _TeamTabState extends ConsumerState<TeamTab> {
               placeholder: tr('staff.deduction_egp'),
               kind: MadarFieldKind.decimal,
             ),
+            MadarField(
+              controller: deductReason,
+              placeholder: tr('staff.deduct_reason'),
+              kind: MadarFieldKind.note,
+            ),
             Text(
               tr('staff.suggested_min_minute_rate', {
                 'minutes_away': f.minutesAway,
@@ -303,7 +309,11 @@ class _TeamTabState extends ConsumerState<TeamTab> {
                       .show(tr('staff.type_an_amount'), tone: ChipTone.danger);
                   return;
                 }
-                await done('deduct', deduct: v);
+                await done(
+                  'deduct',
+                  deduct: v,
+                  reason: deductReason.text.trim(),
+                );
               },
             ),
           ],

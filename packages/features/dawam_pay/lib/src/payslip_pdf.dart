@@ -1,38 +1,51 @@
 /// A frozen payslip as an A4 PDF, in Arabic or English whatever the app's
-/// language (PAY-10). The figures and lines are the core's; this only lays
-/// them out, in IBM Plex Sans Arabic so both scripts shape correctly.
+/// language (PAY-10). The figures and lines are the core's, and so are the
+/// words: every label is `wordsIn(lang, key)` from the core's table (AT-13),
+/// in the PDF's language, not the phone's. Laid out in IBM Plex Sans Arabic
+/// so both scripts shape correctly.
 library;
 
 import 'dart:typed_data';
 
+import 'package:design_system/design_system.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:staff_core/staff_core.dart';
 
-const _words = {
-  'title': ('Payslip', 'قسيمة المرتب'),
-  'period': ('Period', 'الفترة'),
-  'net': ('Net pay', 'الصافي'),
-  'waived': ('Waived', 'متنازل عنه'),
-  'paid': ('Paid', 'اتدفع'),
-  'approved': ('Approved', 'معتمد'),
-  'carry': ('Carried to the next payslip', 'مرحّل للقسيمة الجاية'),
-};
+/// The core's keys the PDF reads (tests check each exists in EN and AR).
+const payslipPdfKeys = [
+  'staff.pdf_payslip',
+  'staff.pdf_period',
+  'staff.pdf_net',
+  'staff.pdf_waived',
+  'staff.pdf_paid',
+  'staff.pdf_approved',
+  'staff.pdf_carry',
+  'staff.paid_with_method',
+  'staff.cash',
+  'staff.bank',
+  'staff.wallet',
+];
 
-String _w(String k, bool ar) => ar ? _words[k]!.$2 : _words[k]!.$1;
+String _w(String key, bool ar) => wordsIn(ar ? 'ar' : 'en', key);
 
+/// Money in the PDF's language (piastres in, pounds out — AT-2).
 String _money(int minor, bool ar) {
-  final neg = minor < 0;
-  final v = (minor.abs() / 100).toStringAsFixed(minor % 100 == 0 ? 0 : 2);
-  final grouped = v.replaceAllMapped(
-    RegExp(r'\B(?=(\d{3})+(?!\d))'),
-    (_) => ',',
+  final s = MadarFormat.money(
+    minor.abs(),
+    currency: 'EGP',
+    locale: ar ? 'ar' : 'en',
   );
-  final s = ar ? '$grouped ج.م' : 'EGP $grouped';
-  return neg ? '−$s' : s;
+  return minor < 0 ? '−$s' : s;
 }
+
+String _method(PayMethod m, bool ar) => _w(switch (m) {
+  PayMethod.cash => 'staff.cash',
+  PayMethod.bank => 'staff.bank',
+  PayMethod.wallet => 'staff.wallet',
+}, ar);
 
 String _day(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -43,7 +56,7 @@ Future<Uint8List> payslipPdf({
   required String person,
   required String business,
   required bool arabic,
-  String? paidWith,
+  PayMethod? paidWith,
 }) async {
   final regular = pw.Font.ttf(
     await rootBundle.load(
@@ -103,7 +116,7 @@ Future<Uint8List> payslipPdf({
           ),
           pw.SizedBox(height: 4),
           pw.Text(
-            _w('title', arabic),
+            _w('staff.pdf_payslip', arabic),
             style: const pw.TextStyle(
               fontSize: 22,
               fontWeight: pw.FontWeight.bold,
@@ -113,24 +126,34 @@ Future<Uint8List> payslipPdf({
           row(
             person,
             paidWith == null
-                ? _w('approved', arabic)
-                : '${_w('paid', arabic)} · $paidWith',
+                ? _w('staff.pdf_approved', arabic)
+                : _w('staff.paid_with_method', arabic).replaceAll(
+                    '{method}',
+                    _method(paidWith, arabic),
+                  ),
             strong: true,
           ),
-          row(_w('period', arabic), '${_day(slip.start)} – ${_day(slip.end)}'),
+          row(
+            _w('staff.pdf_period', arabic),
+            '${_day(slip.start)} – ${_day(slip.end)}',
+          ),
           pw.Divider(),
           for (final l in slip.lines)
             row(
               l.waived
-                  ? '${arabic ? l.ar : l.en} (${_w('waived', arabic)})'
+                  ? '${arabic ? l.ar : l.en} (${_w('staff.pdf_waived', arabic)})'
                   : (arabic ? l.ar : l.en),
               _money(l.amount, arabic),
               struck: l.waived,
             ),
           pw.Divider(),
-          row(_w('net', arabic), _money(slip.net, arabic), strong: true),
+          row(
+            _w('staff.pdf_net', arabic),
+            _money(slip.net, arabic),
+            strong: true,
+          ),
           if (slip.carryOut > 0)
-            row(_w('carry', arabic), _money(-slip.carryOut, arabic)),
+            row(_w('staff.pdf_carry', arabic), _money(-slip.carryOut, arabic)),
         ],
       ),
     ),
@@ -144,7 +167,7 @@ Future<void> sharePayslipPdf({
   required String person,
   required String business,
   required bool arabic,
-  String? paidWith,
+  PayMethod? paidWith,
 }) async {
   final bytes = await payslipPdf(
     slip: slip,

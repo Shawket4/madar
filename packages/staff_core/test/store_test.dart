@@ -184,18 +184,41 @@ void main() {
     },
   );
 
-  test(
-    'a waiver is final: un-waiving is refused, not silently ignored',
-    () async {
-      final (store, _) = await _store();
-      final failures = <String>[];
-      final sub = store.failures.stream.listen(failures.add);
-      await store.unwaive('late|x');
-      await Future<void>.delayed(Duration.zero);
-      expect(failures, hasLength(1));
-      await sub.cancel();
-    },
-  );
+  test('un-waiving, reopening and a flag deduction carry their reason', () async {
+    final (store, backend) = await _store();
+    await store.unwaive('d|x', 'the cup was not his');
+    await store.reopenPayroll('a line was missing');
+    final flag = Flag('f1', FlagKind.leftMidShift, 'e2', DateTime(2026, 9, 2));
+    await store.resolve(flag, 'deduct', deduct: 500, reason: 'left early');
+    expect(backend.acts, [
+      {'action': 'unwaive', 'key': 'd|x', 'reason': 'the cup was not his'},
+      {'action': 'reopen_payroll', 'reason': 'a line was missing'},
+      {
+        'action': 'resolve',
+        'flag': 'f1',
+        'how': 'deduct',
+        'deduct': 500,
+        'reason': 'left early',
+      },
+    ]);
+  });
+
+  test('the record-advance act is one call with what the manager typed', () async {
+    final (store, backend) = await _store();
+    await store.recordAdvance('e2', 150000, 3);
+    expect(backend.acts.single, {
+      'action': 'record_advance',
+      'emp': 'e2',
+      'amount': 150000,
+      'installments': 3,
+    });
+  });
+
+  test('the server says who is on payroll and both pay-line limits', () async {
+    final (store, _) = await _store();
+    expect(store.onPayroll, isTrue, reason: 'the fixture person is paid here');
+    expect(store.managerDeductLimit, isNotNull);
+  });
 
   test('an unreadable answer keeps the last picture (06 B13)', () async {
     final (store, backend) = await _store();
