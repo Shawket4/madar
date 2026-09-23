@@ -2131,16 +2131,16 @@ mod tests {
 
     #[test]
     fn an_offline_stamp_counts_uptime_and_notices_a_reboot() {
-        let a = Anchor { server_ms: 1_000_000, boot_ms: 50_000, wall_ms: 2_000_000 };
-        let s = stamp(Some(a), 110_000, 2_060_000, None);
+        let a = Anchor { server_ms: 1_000_000, boot_ms: 50_000, wall_ms: 2_000_000, sig: None };
+        let s = stamp(Some(a.clone()), 110_000, 2_060_000, None);
         assert_eq!(s["elapsed_ms"], 60_000);
         assert_eq!(s["rebooted"], false);
         // Uptime went backwards: the phone restarted.
-        let s = stamp(Some(a), 5_000, 2_060_000, Some("2026-09-22T08:00:00Z"));
+        let s = stamp(Some(a.clone()), 5_000, 2_060_000, Some("2026-09-22T08:00:00Z"));
         assert_eq!(s["rebooted"], true);
         assert_eq!(s["gps_time"], "2026-09-22T08:00:00Z");
         // Restarted and has since run longer than before: the boot moment moved.
-        let s = stamp(Some(a), 60_000_000, 2_000_000 + 3_600_000 * 20, None);
+        let s = stamp(Some(a.clone()), 60_000_000, 2_000_000 + 3_600_000 * 20, None);
         assert_eq!(s["rebooted"], true);
     }
 
