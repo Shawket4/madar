@@ -214,9 +214,12 @@ class _TeamTabState extends ConsumerState<TeamTab> {
       final amount = TextEditingController(
         text: (suggest / 100).toStringAsFixed(0),
       );
-      void done(String how, {int deduct = 0}) {
-        store.resolve(f, how, deduct: deduct);
-        Navigator.of(ctx).maybePop();
+      Future<void> done(String how, {int deduct = 0}) async {
+        final ok = await attempt(
+          ref,
+          () => store.resolve(f, how, deduct: deduct),
+        );
+        if (ok && ctx.mounted) Navigator.of(ctx).maybePop();
       }
 
       final explain = switch (f.kind) {
@@ -292,7 +295,7 @@ class _TeamTabState extends ConsumerState<TeamTab> {
             MadarButton(
               label: tr('staff.deduct'),
               variant: MadarButtonVariant.danger,
-              onTap: () {
+              onTap: () async {
                 final v = readMoney(amount);
                 if (v == null) {
                   ref
@@ -300,7 +303,7 @@ class _TeamTabState extends ConsumerState<TeamTab> {
                       .show(tr('staff.type_an_amount'), tone: ChipTone.danger);
                   return;
                 }
-                done('deduct', deduct: v);
+                await done('deduct', deduct: v);
               },
             ),
           ],
@@ -308,9 +311,7 @@ class _TeamTabState extends ConsumerState<TeamTab> {
             MadarButton(
               label: tr('staff.revoke_this_phone'),
               variant: MadarButtonVariant.danger,
-              onTap: () {
-                done('revoke');
-              },
+              onTap: () => done('revoke'),
             ),
           MadarButton(
             label: tr('staff.ignore'),
@@ -441,7 +442,7 @@ class _TeamTabState extends ConsumerState<TeamTab> {
           ),
           MadarButton(
             label: tr('staff.punch'),
-            onTap: () {
+            onTap: () async {
               if (reason.text.trim().isEmpty) {
                 ref
                     .read(toastProvider.notifier)
@@ -451,8 +452,11 @@ class _TeamTabState extends ConsumerState<TeamTab> {
                     );
                 return;
               }
-              store.punchFor(s, reason.text.trim());
-              Navigator.of(ctx).maybePop();
+              final ok = await attempt(
+                ref,
+                () => store.punchFor(s, reason.text.trim()),
+              );
+              if (ok && ctx.mounted) Navigator.of(ctx).maybePop();
             },
           ),
         ],

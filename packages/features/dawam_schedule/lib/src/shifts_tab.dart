@@ -95,7 +95,7 @@ class ShiftsTab extends ConsumerWidget {
         cancelLabel: tr('staff.not_now'),
       );
       if (ok) {
-        attempt(
+        await attempt(
           ref,
           () => store.claim(s),
           ok: tr('staff.claimed_waiting_for_the_manager'),
@@ -147,8 +147,8 @@ class ShiftsTab extends ConsumerWidget {
                 MadarListRow.nav(
                   title: name(store.emp(s.emp!)),
                   meta: '${dayLabel(s.date)} · ${tplName(s.template)}',
-                  onTap: () {
-                    final sent = attempt(
+                  onTap: () async {
+                    final sent = await attempt(
                       ref,
                       () => store.file(
                         ReqKind.swap,
@@ -159,7 +159,7 @@ class ShiftsTab extends ConsumerWidget {
                       ),
                       ok: tr('staff.asked', {'name': name(store.emp(s.emp!))}),
                     );
-                    if (sent) Navigator.of(ctx).maybePop();
+                    if (sent && ctx.mounted) Navigator.of(ctx).maybePop();
                   },
                 ),
             ],

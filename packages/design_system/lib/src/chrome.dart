@@ -622,6 +622,7 @@ class MadarOutboxPill extends StatelessWidget {
     required this.label,
     this.count = 0,
     this.onTap,
+    this.compact = false,
     super.key,
   });
 
@@ -631,6 +632,10 @@ class MadarOutboxPill extends StatelessWidget {
   final String label;
   final int count;
   final VoidCallback? onTap;
+
+  /// Glyph and count only (the word stays in the semantics): the top bar
+  /// asks for it when a narrow phone also carries actions.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -701,14 +706,15 @@ class MadarOutboxPill extends StatelessWidget {
                 color: fg,
               ),
             ),
-          Text(
-            label,
-            style: MadarType.bodySm.copyWith(
-              fontWeight: FontWeight.w700,
-              color: fg,
+          if (!compact)
+            Text(
+              label,
+              style: MadarType.bodySm.copyWith(
+                fontWeight: FontWeight.w700,
+                color: fg,
+              ),
             ),
-          ),
-          if (state == OutboxState.queued)
+          if (state == OutboxState.queued && !compact)
             MadarGlyphIcon(
               MadarGlyph.arrowUp,
               size: IconSize.xs,
@@ -773,65 +779,104 @@ class MadarTopBar extends StatelessWidget {
       ),
       child: SizedBox(
         height: Metrics.topBarHeight,
-        child: Row(
-          spacing: Space.md,
-          children: [
-            if (showPerson) ...[
-              // Capped, so a long name cannot push the branch off the strip.
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 140),
-                child: _Who(
-                  person: person!,
-                  vertical: false,
-                  onTap: onPersonTap,
-                ),
-              ),
-              Text(
-                '·',
-                style: MadarType.body.copyWith(color: colors.onChromeMuted),
-              ),
-            ],
-            // The branch takes what is left and pushes the pill to the end;
-            // a second Flexible beside it would halve its share.
-            Expanded(
-              child: Row(
-                spacing: Space.md,
-                children: [
-                  Flexible(
-                    child: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: MadarType.body.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: colors.onChrome,
-                      ),
-                    ),
-                  ),
-                  if (subtitle != null && layout.isTablet) ...[
-                    Text(
-                      '·',
-                      style: MadarType.body.copyWith(
-                        color: colors.onChromeMuted,
-                      ),
-                    ),
-                    Text(
-                      subtitle!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: MadarType.body.copyWith(
-                        color: colors.onChromeMuted,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            ...actions,
-            ?pill,
-          ],
+        child: LayoutBuilder(
+          builder: (context, box) => _row(
+            context,
+            showPerson: showPerson,
+            // A narrow phone that also carries actions (the staff app's
+            // manager bar on a 358-pt phone): the person shrinks to the
+            // avatar (the name is one tap away, and read out) and the pill
+            // to glyph + count, so the actions keep their 44-pt targets.
+            compact:
+                layout.isPhone &&
+                actions.isNotEmpty &&
+                box.maxWidth < _compactBelow,
+          ),
         ),
       ),
+    );
+  }
+
+  /// Under this content width, a phone bar with actions goes compact.
+  static const double _compactBelow = 380;
+
+  Widget _row(
+    BuildContext context, {
+    required bool showPerson,
+    required bool compact,
+  }) {
+    final colors = context.madarColors;
+    final layout = MadarLayout.of(context);
+    final p = pill;
+    return Row(
+      spacing: Space.md,
+      children: [
+        if (showPerson && compact)
+          Semantics(
+            button: onPersonTap != null,
+            label: person!.name,
+            child: TactileScale(
+              onTap: onPersonTap,
+              child: ExcludeSemantics(
+                child: MadarAvatar(person: person!, size: 28),
+              ),
+            ),
+          )
+        else if (showPerson) ...[
+          // Capped, so a long name cannot push the branch off the strip.
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 140),
+            child: _Who(person: person!, vertical: false, onTap: onPersonTap),
+          ),
+          Text(
+            '·',
+            style: MadarType.body.copyWith(color: colors.onChromeMuted),
+          ),
+        ],
+        // The branch takes what is left and pushes the pill to the end;
+        // a second Flexible beside it would halve its share.
+        Expanded(
+          child: Row(
+            spacing: Space.md,
+            children: [
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MadarType.body.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: colors.onChrome,
+                  ),
+                ),
+              ),
+              if (subtitle != null && layout.isTablet) ...[
+                Text(
+                  '·',
+                  style: MadarType.body.copyWith(color: colors.onChromeMuted),
+                ),
+                Text(
+                  subtitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MadarType.body.copyWith(color: colors.onChromeMuted),
+                ),
+              ],
+            ],
+          ),
+        ),
+        ...actions,
+        if (p != null && compact)
+          MadarOutboxPill(
+            state: p.state,
+            label: p.label,
+            count: p.count,
+            onTap: p.onTap,
+            compact: true,
+          )
+        else
+          ?p,
+      ],
     );
   }
 }

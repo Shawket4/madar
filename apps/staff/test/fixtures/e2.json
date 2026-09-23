@@ -63,7 +63,9 @@
   "can_manage": true,
   "can_payroll": false,
   "caps": [
+    "hr.advances.decide",
     "hr.attendance.read",
+    "hr.leave.edit",
     "hr.schedule.publish",
     "hr.schedule.read",
     "hr.staff.read"
@@ -86,7 +88,7 @@
       "via": "cash"
     }
   ],
-  "fetched_at": 1790166041071,
+  "fetched_at": 1790169651267,
   "flags": [
     {
       "at": "2026-09-23T17:10:00+03:00",
@@ -148,7 +150,7 @@
       "text": "The roster for the week of 19 Sep is published"
     }
   ],
-  "now": "2026-09-23T06:30:00+00:00",
+  "now": "2026-09-23T09:30:00+03:00",
   "online": true,
   "open_flags": [
     "f1"
@@ -165,7 +167,7 @@
       ],
       "cant_work": [],
       "device": "iPhone 14",
-      "device_since": "2026-03-02T09:00:00Z",
+      "device_since": "2026-03-02T11:00:00+02:00",
       "gender": "f",
       "hired": "2025-01-05",
       "id": "e1",
@@ -183,7 +185,7 @@
       ],
       "cant_work": [],
       "device": "iPhone 14",
-      "device_since": "2026-03-02T09:00:00Z",
+      "device_since": "2026-03-02T11:00:00+02:00",
       "gender": "m",
       "hired": "2025-01-05",
       "id": "e2",
@@ -202,7 +204,7 @@
       ],
       "cant_work": [],
       "device": "iPhone 14",
-      "device_since": "2026-03-02T09:00:00Z",
+      "device_since": "2026-03-02T11:00:00+02:00",
       "gender": "f",
       "hired": "2025-01-05",
       "id": "e3",
@@ -222,7 +224,7 @@
         5
       ],
       "device": "iPhone 14",
-      "device_since": "2026-03-02T09:00:00Z",
+      "device_since": "2026-03-02T11:00:00+02:00",
       "gender": "m",
       "hired": "2025-01-05",
       "id": "e4",
@@ -874,13 +876,13 @@
       "excuse_paid": false,
       "half_leave": false,
       "id": "e1|2026-09-22|zM",
-      "in_at": "2026-09-22T05:12:00+00:00",
+      "in_at": "2026-09-22T08:12:00+03:00",
       "in_method": "app",
       "late_minutes": 2,
       "late_until": null,
       "leave": null,
       "mission": false,
-      "out_at": "2026-09-22T13:05:00+00:00",
+      "out_at": "2026-09-22T16:05:00+03:00",
       "out_method": "app",
       "published": true,
       "punch_reason": null,
@@ -942,7 +944,7 @@
       "tracking_off": false
     },
     {
-      "absent": false,
+      "absent": true,
       "changed": false,
       "cover_by": null,
       "date": "2026-09-23",
@@ -978,7 +980,7 @@
       "excuse_paid": false,
       "half_leave": false,
       "id": "e4|2026-09-23|zE",
-      "in_at": "2026-09-23T12:40:00+00:00",
+      "in_at": "2026-09-23T15:40:00+03:00",
       "in_method": "app",
       "late_minutes": 30,
       "late_until": null,
@@ -1666,6 +1668,12 @@
       "tpl": "zE"
     }
   ],
+  "tabs": {
+    "approvals": true,
+    "payroll": false,
+    "schedule": true,
+    "team": true
+  },
   "templates": [
     {
       "branch": "b1",

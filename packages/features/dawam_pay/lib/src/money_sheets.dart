@@ -18,7 +18,9 @@ Future<void> adjustmentSheet(BuildContext context, {String? emp}) {
     builder: (ctx, ref, store) => StatefulBuilder(
       builder: (ctx, setS) {
         final people = store.visibleEmps.where((e) => e.id != store.me);
-        who ??= people.first.id;
+        who ??= people.firstOrNull?.id;
+        // Nobody I can add this for (06 B6): say so, never crash.
+        if (who == null) return const _NoOneHere();
         final limit = bonus
             ? store.managerBonusLimit
             : store.managerDeductLimit;
@@ -97,7 +99,7 @@ Future<void> adjustmentSheet(BuildContext context, {String? emp}) {
             MadarButton(
               label: tr('staff.add'),
               glyph: MadarGlyph.plus,
-              onTap: () {
+              onTap: () async {
                 final v = double.tryParse(amount.text.trim());
                 if (v == null || v <= 0 || reason.text.trim().isEmpty) {
                   ref
@@ -108,7 +110,7 @@ Future<void> adjustmentSheet(BuildContext context, {String? emp}) {
                       );
                   return;
                 }
-                final added = attempt(
+                final added = await attempt(
                   ref,
                   () => store.addAdjustment(
                     who!,
@@ -120,7 +122,7 @@ Future<void> adjustmentSheet(BuildContext context, {String? emp}) {
                   ),
                   ok: tr('staff.added'),
                 );
-                if (added) Navigator.of(ctx).maybePop();
+                if (added && ctx.mounted) Navigator.of(ctx).maybePop();
               },
             ),
           ],
@@ -178,7 +180,7 @@ Future<void> recordAdvanceSheet(BuildContext context, String emp) {
           ),
           MadarButton(
             label: tr('staff.record'),
-            onTap: () {
+            onTap: () async {
               final v = readMoney(amount);
               if (v == null) {
                 ref
@@ -186,12 +188,12 @@ Future<void> recordAdvanceSheet(BuildContext context, String emp) {
                     .show(tr('staff.enter_an_amount'), tone: ChipTone.danger);
                 return;
               }
-              final done = attempt(
+              final done = await attempt(
                 ref,
                 () => store.recordAdvance(emp, v, inst),
                 ok: tr('staff.recorded'),
               );
-              if (done) Navigator.of(ctx).maybePop();
+              if (done && ctx.mounted) Navigator.of(ctx).maybePop();
             },
           ),
         ],
@@ -213,7 +215,8 @@ Future<void> expenseSheet(BuildContext context, {String? emp}) {
     builder: (ctx, ref, store) => StatefulBuilder(
       builder: (ctx, setS) {
         final people = store.visibleEmps.toList();
-        who ??= people.first.id;
+        who ??= people.firstOrNull?.id;
+        if (who == null) return const _NoOneHere();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.md,
@@ -253,7 +256,7 @@ Future<void> expenseSheet(BuildContext context, {String? emp}) {
             ),
             MadarButton(
               label: tr('staff.log_it'),
-              onTap: () {
+              onTap: () async {
                 final v = readMoney(amount);
                 if (v == null || purpose.text.trim().isEmpty) {
                   ref
@@ -264,12 +267,12 @@ Future<void> expenseSheet(BuildContext context, {String? emp}) {
                       );
                   return;
                 }
-                final done = attempt(
+                final done = await attempt(
                   ref,
                   () => store.logExpense(who!, v, purpose.text.trim(), via),
                   ok: tr('staff.logged'),
                 );
-                if (done) Navigator.of(ctx).maybePop();
+                if (done && ctx.mounted) Navigator.of(ctx).maybePop();
               },
             ),
           ],
@@ -305,5 +308,17 @@ class _PersonPicker extends StatelessWidget {
           ),
       ],
     ),
+  );
+}
+
+/// A money sheet opened with nobody visible to pick (a manager whose
+/// branches have no one else yet).
+class _NoOneHere extends StatelessWidget {
+  const _NoOneHere();
+
+  @override
+  Widget build(BuildContext context) => Text(
+    tr('staff.no_one_to_pick'),
+    style: MadarType.body.copyWith(color: context.madarColors.textMuted),
   );
 }

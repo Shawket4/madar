@@ -135,8 +135,8 @@ class _Who extends StatelessWidget {
 class _Decide extends ConsumerWidget {
   const _Decide({required this.yes, required this.no, this.yesLabel});
 
-  final VoidCallback yes;
-  final VoidCallback no;
+  final Future<void> Function() yes;
+  final Future<void> Function() no;
   final String? yesLabel;
 
   @override

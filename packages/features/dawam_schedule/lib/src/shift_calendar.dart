@@ -7,6 +7,13 @@ import 'package:staff_core/staff_core.dart';
 /// A roster shift on the calendar. The fields the tile shows are copied in,
 /// so a reassignment or template change reads as a new event (the calendar
 /// rebuilds a tile only when its event changes).
+/// Shifts are the branch's wall-clock times (AT-1): the core writes every
+/// time in the branch's zone and the app keeps its wall fields as they are.
+/// The calendar hands them back as the same wall fields, so they are copied
+/// field by field — never converted through the phone's zone.
+DateTime _wall(DateTime d) =>
+    DateTime(d.year, d.month, d.day, d.hour, d.minute, d.second);
+
 class ShiftEvent extends KalenderEvent {
   ShiftEvent({
     required this.shift,
@@ -193,8 +200,8 @@ class _ShiftCalendarState extends State<ShiftCalendar> {
 
   String _rangeLabel(KalenderDateTimeRange? r, CalendarView v) {
     if (r == null) return '';
-    final start = r.start.toLocal();
-    final end = r.end.toLocal().subtract(const Duration(minutes: 1));
+    final start = _wall(r.start);
+    final end = _wall(r.end).subtract(const Duration(minutes: 1));
     if (v == CalendarView.month) {
       final mid = start.add(const Duration(days: 15));
       return '${tr('staff.month_${mid.month}')} ${mid.year}';
@@ -307,11 +314,11 @@ class _ShiftCalendarState extends State<ShiftCalendar> {
                       widget.onTapShift?.call((e as ShiftEvent).shift),
                   onEventChanged: (old, updated) => widget.onMove?.call(
                     (old as ShiftEvent).shift,
-                    updated.start.toLocal(),
+                    _wall(updated.start),
                   ),
-                  onTapped: (d) => widget.onTapSlot?.call(d.toLocal()),
+                  onTapped: (d) => widget.onTapSlot?.call(_wall(d)),
                   onPageChanged: (r) =>
-                      widget.onRangeChanged?.call(r.start.toLocal()),
+                      widget.onRangeChanged?.call(_wall(r.start)),
                 ),
                 components: _components,
                 header: KalenderHeader(
@@ -379,7 +386,7 @@ class _ShiftCalendarState extends State<ShiftCalendar> {
               // Too narrow for words (a busy week): the person's initial.
               ? Center(
                   child: Text(
-                    widget.titleOf(s).characters.first,
+                    initialOf(widget.titleOf(s)),
                     style: MadarType.label.copyWith(color: hue),
                   ),
                 )

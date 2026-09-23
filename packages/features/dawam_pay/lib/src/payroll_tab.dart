@@ -236,7 +236,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
                         confirmLabel: tr('staff.stop'),
                         cancelLabel: tr('staff.keep'),
                       );
-                      if (ok) store.stopAdj(a);
+                      if (ok) await store.stopAdj(a);
                     }
                   : null,
             ),
@@ -319,7 +319,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
               confirmLabel: tr('staff.approve_payroll_confirm'),
               cancelLabel: tr('staff.not_yet'),
             );
-            if (ok) store.approvePayroll();
+            if (ok) await store.approvePayroll();
           },
         ),
       ];
@@ -415,9 +415,9 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
             ),
             MadarButton(
               label: tr('staff.mark_paid'),
-              onTap: () {
-                store.markPaid(emp, m);
-                Navigator.of(ctx).maybePop();
+              onTap: () async {
+                final done = await attempt(ref, () => store.markPaid(emp, m));
+                if (done && ctx.mounted) Navigator.of(ctx).maybePop();
               },
             ),
           ],

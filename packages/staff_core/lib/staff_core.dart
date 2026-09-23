@@ -7,4 +7,5 @@ library;
 export 'src/data.dart';
 export 'src/format.dart';
 export 'src/providers.dart';
+export 'src/push.dart';
 export 'src/widgets.dart';

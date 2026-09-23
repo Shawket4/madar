@@ -1,0 +1,63 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// Where a tapped push opens (APP-6): a tab on the manager's side, a tab on
+/// the person's own side, or — for anything else — the inbox.
+typedef PushTarget = ({bool manage, String tab});
+
+const PushTarget _inbox = (manage: false, tab: 'inbox');
+
+/// The screen a notification's core i18n key belongs to. The server sends
+/// the key in the push's `data`; this only picks the screen, it decides
+/// nothing about what the push says.
+PushTarget pushTarget(String? key) {
+  final k = (key ?? '').replaceFirst('staff.n_', '');
+  if (k.startsWith('flag_')) return (manage: true, tab: 'team');
+  return switch (k) {
+    // Waiting on a manager or the owner.
+    'request' ||
+    'swap_pending' ||
+    'claim' ||
+    'cover' ||
+    'overtime' ||
+    'adjustment_pending' => (manage: true, tab: 'approvals'),
+    // My roster.
+    'week_published' ||
+    'shift_changed' ||
+    'open_shift' ||
+    'swap_asked' ||
+    'swap_agreed' ||
+    'swap_declined' ||
+    'swap_approved' ||
+    'swap_rejected' ||
+    'claim_approved' ||
+    'claim_rejected' => (manage: false, tab: 'shifts'),
+    'request_approved' ||
+    'request_rejected' => (manage: false, tab: 'requests'),
+    // My money.
+    'advance_approved' ||
+    'advance_rejected' ||
+    'bonus_added' ||
+    'deduction_added' ||
+    'adjustment_approved' ||
+    'adjustment_rejected' ||
+    'paid' => (manage: false, tab: 'pay'),
+    // My punches.
+    'punched_for_you' ||
+    'cover_confirmed' ||
+    'cover_rejected' ||
+    'overtime_approved' ||
+    'overtime_rejected' => (manage: false, tab: 'timesheet'),
+    'charge_phone' => (manage: false, tab: 'home'),
+    _ => _inbox,
+  };
+}
+
+/// The key of the push the person just tapped. The host sets it (boot's
+/// Firebase listener, or the push that launched the app); the shell opens
+/// the screen and clears it.
+final openedPushProvider = Provider<ValueNotifier<String?>>((ref) {
+  final n = ValueNotifier<String?>(null);
+  ref.onDispose(n.dispose);
+  return n;
+});

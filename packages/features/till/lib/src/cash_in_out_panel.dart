@@ -140,7 +140,7 @@ class _CashInOutPanelState extends ConsumerState<CashInOutPanel> {
                 style: MadarType.labelSm.copyWith(color: colors.textMuted),
               ),
             ),
-            if (!isIn) const _AdvanceToRow(),
+            if (!isIn) const _AdvanceToPicker(),
             if (error != null)
               NoticeBanner(
                 text: error.of(bridge),
@@ -164,8 +164,8 @@ class _CashInOutPanelState extends ConsumerState<CashInOutPanel> {
 
 /// Optional: the pay-out is cash handed to an employee for shop purchases,
 /// logged for them in Dawam as an expense advance (AV-8).
-class _AdvanceToRow extends ConsumerWidget {
-  const _AdvanceToRow();
+class _AdvanceToPicker extends ConsumerWidget {
+  const _AdvanceToPicker();
 
   Future<void> _pick(BuildContext context, WidgetRef ref) async {
     final bridge = ref.read(bridgeProvider);
