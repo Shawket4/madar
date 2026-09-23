@@ -20,6 +20,10 @@ name: Staff release
 #   STAFF_GOOGLE_SERVICE_INFO_PLIST  — ios/Runner/GoogleService-Info.plist, base64
 #   DIAWI_TOKEN                      — optional OTA install link; skipped when unset
 #
+# iOS → TestFlight (the job skips itself, with a warning, until all are set).
+# The App Store Connect key is the POS's (deploy.yml) — same team, same key:
+#   ASC_KEY_P8 / ASC_KEY_ID / ASC_ISSUER_ID / APPLE_TEAM_ID
+#
 # The Firebase files are git-ignored (these repos are public), so CI writes
 # them from the secrets above. Without them the app still builds — push is
 # simply off — which is why only a TAGGED run insists on having them.
@@ -231,75 +235,133 @@ jobs:
           shred -u android/app/google-services.json 2>/dev/null || true
 
   build-ios:
-    name: Build iOS (unsigned)
+    name: Build iOS + upload to TestFlight
     runs-on: macos-26
+    env:
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      STAFF_PLIST: ${{ secrets.STAFF_GOOGLE_SERVICE_INFO_PLIST }}
     steps:
+      # Same App Store Connect key as the POS (deploy.yml): one team, one key.
+      - name: Check App Store Connect secrets
+        id: asc
+        run: |
+          missing=""
+          for v in ASC_KEY_P8 ASC_KEY_ID ASC_ISSUER_ID APPLE_TEAM_ID STAFF_PLIST; do
+            [ -z "${!v:-}" ] && missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::warning::iOS/TestFlight skipped — missing secret(s):$missing"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v7
+        if: steps.asc.outputs.ready == 'true'
 
       - name: Setup Rust (from rust-toolchain.toml)
+        if: steps.asc.outputs.ready == 'true'
         working-directory: rust-core
         run: |
           rustup show active-toolchain || rustup toolchain install
           rustc --version
 
       - name: Cache cargo
+        if: steps.asc.outputs.ready == 'true'
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust-core
           key: staff-ios
 
       - name: Setup Flutter
+        if: steps.asc.outputs.ready == 'true'
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.47.2"
           channel: stable
           cache: true
 
-      - name: Firebase config
-        env:
-          PLIST: ${{ secrets.STAFF_GOOGLE_SERVICE_INFO_PLIST }}
-          TAGGED: ${{ startsWith(github.ref, 'refs/tags/') }}
-        working-directory: apps/staff
+      # The plist is git-ignored (public repo); the Xcode "Firebase Config"
+      # build step copies it into the app when it exists.
+      - name: Firebase config + API key
+        if: steps.asc.outputs.ready == 'true'
         run: |
           set -euo pipefail
-          if [ -z "${PLIST:-}" ]; then
-            if [ "$TAGGED" = "true" ]; then
-              echo "::error::STAFF_GOOGLE_SERVICE_INFO_PLIST is not set — a released build must be able to receive push."
-              exit 1
-            fi
-            echo "::warning::No STAFF_GOOGLE_SERVICE_INFO_PLIST — building with push off."
-            exit 0
-          fi
-          echo "$PLIST" | base64 --decode > ios/Runner/GoogleService-Info.plist
-          plutil -lint ios/Runner/GoogleService-Info.plist
+          PL=apps/staff/ios/Runner/GoogleService-Info.plist
+          echo "$STAFF_PLIST" | base64 --decode > "$PL"
+          plutil -lint "$PL"
+          [ "$(/usr/libexec/PlistBuddy -c 'Print :BUNDLE_ID' "$PL")" = "com.madar.dawam" ] \
+            || { echo "::error::STAFF_GOOGLE_SERVICE_INFO_PLIST is not for com.madar.dawam."; exit 1; }
+          echo "$ASC_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          grep -q "BEGIN PRIVATE KEY" "$RUNNER_TEMP/AuthKey.p8" \
+            || { echo "::error::ASC_KEY_P8 did not decode to a .p8 key."; exit 1; }
 
       - name: Pub get
+        if: steps.asc.outputs.ready == 'true'
         run: dart pub get
 
-      # CI holds no Apple signing identity, so this proves the app COMPILES
-      # for a device — pods, the Rust core through Cargokit, the background
-      # location and push entitlements. The App Store build is archived and
-      # uploaded from Xcode (team NT5TZBZ3BZ), the way the POS's macOS build
-      # is. See the notes in staff-release.yml's header for what a signed CI
-      # build would need.
-      - name: Build iOS (no codesign)
+      - name: Prepare the Xcode project
+        if: steps.asc.outputs.ready == 'true'
         working-directory: apps/staff
-        run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+        run: |
+          flutter build ios --release --config-only --build-number=${{ github.run_number }}
+          cd ios && pod install
 
-      - name: Zip the app
-        working-directory: apps/staff/build/ios/iphoneos
-        run: zip -r "$GITHUB_WORKSPACE/Dawam-iOS-unsigned.zip" Runner.app
+      - name: Archive (signed)
+        if: steps.asc.outputs.ready == 'true'
+        working-directory: apps/staff/ios
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -workspace Runner.xcworkspace -scheme Runner -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic
 
-      - name: Upload iOS artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: dawam-ios-unsigned
-          path: Dawam-iOS-unsigned.zip
+      # destination=upload: the export IS the upload, no altool/Transporter.
+      - name: Upload to App Store Connect (TestFlight)
+        if: steps.asc.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          {
+            echo "## 🍎 iOS — uploaded to App Store Connect"
+            echo ""
+            echo "Build **${{ github.run_number }}** of Dawam by Madar (\`com.madar.dawam\`). It appears in TestFlight once Apple finishes processing, usually 5–30 minutes."
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Shred Firebase config
+      - name: Shred key and config
         if: always()
-        working-directory: apps/staff
-        run: rm -f ios/Runner/GoogleService-Info.plist
+        run: |
+          rm -f "$RUNNER_TEMP/AuthKey.p8" apps/staff/ios/Runner/GoogleService-Info.plist 2>/dev/null || true
 
   release:
     name: Create GitHub Release
@@ -331,7 +393,7 @@ jobs:
             echo ""
             echo "## 🍎 iOS"
             echo ""
-            echo "**Dawam-iOS-unsigned.zip** is a CI compile check, not installable. The App Store build is archived and uploaded from Xcode."
+            echo "Build ${{ github.run_number }} was uploaded to App Store Connect — install it from TestFlight once Apple finishes processing."
           } > notes.md
 
       - name: Create Release
