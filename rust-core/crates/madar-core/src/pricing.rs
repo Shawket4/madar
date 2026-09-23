@@ -56,6 +56,11 @@ pub struct OptionalSel {
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug)]
 pub struct BundleComponentSel {
+    /// Units of this component in ONE bundle (the catalogue's
+    /// `bundle_components.quantity`). Its extras are charged per unit, as the
+    /// server's `component_surcharge` does (`orders/handlers.rs`) and as its
+    /// inventory deducts them.
+    pub quantity: i64,
     pub addons: Vec<AddonSel>,
     pub optionals: Vec<OptionalSel>,
 }
@@ -147,11 +152,12 @@ fn line_total(line: &CartLine) -> MoneyMinor {
         line.bundle_components
             .iter()
             .map(|c| {
-                c.addons
+                (c.addons
                     .iter()
                     .map(|a| a.price_modifier * a.quantity)
                     .sum::<MoneyMinor>()
-                    + c.optionals.iter().map(|o| o.price).sum::<MoneyMinor>()
+                    + c.optionals.iter().map(|o| o.price).sum::<MoneyMinor>())
+                    * c.quantity
             })
             .sum()
     } else {
@@ -473,6 +479,7 @@ mod tests {
         // (+800) the legacy way; component B the same swap the new grouped way.
         let mk = |a_first: bool| {
             let comp_a = BundleComponentSel {
+                quantity: 1,
                 addons: vec![AddonSel {
                     price_modifier: 800,
                     quantity: 1,
@@ -480,6 +487,7 @@ mod tests {
                 optionals: vec![OptionalSel { price: 200 }],
             };
             let comp_b = BundleComponentSel {
+                quantity: 1,
                 addons: vec![AddonSel {
                     price_modifier: 800,
                     quantity: 1,
@@ -619,6 +627,7 @@ mod tests {
     #[test]
     fn bundle_line_fixed_base_plus_component_extras() {
         let comp1 = BundleComponentSel {
+            quantity: 1,
             addons: vec![AddonSel {
                 price_modifier: 200,
                 quantity: 1,
@@ -626,6 +635,7 @@ mod tests {
             optionals: vec![OptionalSel { price: 150 }],
         };
         let comp2 = BundleComponentSel {
+            quantity: 1,
             addons: vec![],
             optionals: vec![OptionalSel { price: 100 }],
         };
@@ -860,9 +870,10 @@ mod tests {
     }
 
     #[test]
-    fn bundle_extras_scale_with_bundle_qty_not_component_qty() {
+    fn bundle_extras_scale_with_bundle_qty() {
         // Two bundle lines (qty 3) each with one component up-charge of 250.
         let comp = BundleComponentSel {
+            quantity: 1,
             addons: vec![AddonSel {
                 price_modifier: 250,
                 quantity: 1,
@@ -884,6 +895,31 @@ mod tests {
         assert_eq!(b.subtotal_minor, 12_750);
     }
 
+    /// M3 (owner: the server is right): a component's extras are charged per
+    /// component unit, then per bundle — the server's
+    /// `(addons + optionals) × comp.quantity × item.quantity`.
+    #[test]
+    fn bundle_extras_scale_with_component_qty_like_the_server() {
+        let bundle = CartLine {
+            quantity: 1,
+            unit_price: 5000,
+            is_bundle: true,
+            reward_units: 0,
+            staff_comp_minor: 0,
+            addons: vec![],
+            optionals: vec![],
+            bundle_components: vec![BundleComponentSel {
+                quantity: 2,
+                addons: vec![AddonSel { price_modifier: 500, quantity: 1 }], // oat milk
+                optionals: vec![],
+            }],
+        };
+        let b = price_cart(cart(vec![bundle.clone()], DiscountKind::None, 0.0, 0.14));
+        assert_eq!((b.subtotal_minor, b.tax_minor, b.total_minor), (6000, 840, 6840), "the server's figures");
+        let two = CartLine { quantity: 2, ..bundle };
+        assert_eq!(price_cart(cart(vec![two], DiscountKind::None, 0.0, 0.14)).subtotal_minor, 12_000);
+    }
+
     #[test]
     fn bundle_ignores_top_level_addons_optionals() {
         // For a bundle line, only bundle_components add money; the line's own
@@ -900,6 +936,7 @@ mod tests {
             }], // ignored
             optionals: vec![OptionalSel { price: 8888 }], // ignored
             bundle_components: vec![BundleComponentSel {
+                quantity: 1,
                 addons: vec![],
                 optionals: vec![],
             }],

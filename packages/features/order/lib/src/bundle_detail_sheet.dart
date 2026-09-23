@@ -35,6 +35,20 @@ class BundleConfigState {
   /// can't record the bundle line twice.
   final bool adding;
 
+  /// What the configured components add on top of [bundle]'s price: each
+  /// draft's up-charge once per component UNIT, as the core prices the line
+  /// and the server charges it (`(addons + optionals) × component qty`).
+  int extrasMinor(BundleView bundle) {
+    var sum = 0;
+    for (final MapEntry(key: i, value: d) in drafts.entries) {
+      final qty = i < bundle.components.length
+          ? bundle.components[i].quantity
+          : 1;
+      sum += d.extrasMinor * qty;
+    }
+    return sum;
+  }
+
   BundleConfigState copyWith({
     Map<int, BundleComponentDraft>? drafts,
     bool? adding,
@@ -208,10 +222,7 @@ class _BundleDetailSheetState extends ConsumerState<BundleDetailSheet> {
         break;
       }
     }
-    final extrasTotal = config.drafts.values.fold(
-      0,
-      (sum, d) => sum + d.extrasMinor,
-    );
+    final extrasTotal = config.extrasMinor(bundle);
     final liveTotal = bundle.priceMinor + extrasTotal;
 
     return Column(
@@ -597,8 +608,10 @@ class _ComponentTile extends ConsumerWidget {
           ),
           if (configured && draft.extrasMinor > 0) ...[
             const SizedBox(width: Space.sm),
+            // Per component UNIT times the units: what this row adds to the
+            // footer's total.
             Text(
-              '+${Money.format(draft.extrasMinor, currency: currency, locale: MadarFormat.localeOf(context))}',
+              '+${Money.format(draft.extrasMinor * comp.quantity, currency: currency, locale: MadarFormat.localeOf(context))}',
               textDirection: TextDirection.ltr,
               style: MadarType.label.copyWith(
                 fontWeight: FontWeight.w700,

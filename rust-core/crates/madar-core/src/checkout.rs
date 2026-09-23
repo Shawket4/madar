@@ -691,6 +691,7 @@ pub(crate) fn prepare(
                     .bundle_components
                     .iter()
                     .map(|c| pricing::BundleComponentSel {
+                        quantity: c.qty,
                         addons: c
                             .addons
                             .iter()
@@ -2715,6 +2716,46 @@ mod tests {
         assert_eq!(c.optionals[0].name, "Vanilla");
         // line total = 10000 fixed + 500 almond delta + 300 vanilla = 10800.
         assert_eq!(rl.line_total_minor, 10800);
+    }
+
+    /// M3 (madar-shared discovery; owner: the server is right): a bundle
+    /// component's add-ons are charged per component UNIT, as the server's
+    /// `component_surcharge` does — `(addons + optionals) × component qty ×
+    /// line qty` — and as its inventory deducts them. A bundle at 5000 with a
+    /// component ×2 and +500 on it rang 5500 here and 6000 on the server, so
+    /// every such sale was price-flagged, and a split or a reward on it failed.
+    #[test]
+    fn a_bundle_components_extras_are_charged_per_component_unit() {
+        let store = Store::open("").unwrap();
+        seed_methods(&store);
+        let mut bundle = cfg_bundle();
+        bundle.price_minor = 5000;
+        let comp = cart::BundleComponentSelection {
+            item_id: "latte".into(),
+            size_label: Some("Large".into()),
+            qty: 2,
+            addons: vec![cart::AddonSelection { addon_item_id: "almond".into(), qty: 1 }], // +500
+            optional_field_ids: vec![],
+        };
+        let line = cart::resolve_bundle_line(&bundle, &[cfg_item()], &cfg_catalog(), &[comp], 1);
+        cart::add_resolved(&store, None, line).unwrap();
+        assert_eq!(cart::lines(&store, None).unwrap()[0].line_total_minor, 6000, "the cart's line");
+        let p = prepare(&store, None, "en", BRANCH, SHIFT, &mk_input(CASH, 10000), &tax_policy_at(0.14),
+            "2026-06-20T12:00:00+00:00".into())
+        .unwrap();
+        let r = &p.command.request;
+        // The server's figures: 5000 + 500 × 2 = 6000; 14% → 840; 6840.
+        assert_eq!(r.subtotal, Some(Some(6000)));
+        assert_eq!(r.tax_amount, Some(Some(840)));
+        assert_eq!(r.total_amount, Some(Some(6840)));
+        assert_eq!(p.receipt.lines[0].line_total_minor, 6000);
+        // Two of them: everything doubles, as on the server (× line qty).
+        cart::set_qty(&store, None, &cart::lines(&store, None).unwrap()[0].key, 2).unwrap();
+        let p = prepare(&store, None, "en", BRANCH, SHIFT, &mk_input(CASH, 20000), &tax_policy_at(0.14),
+            "2026-06-20T12:00:00+00:00".into())
+        .unwrap();
+        assert_eq!(p.command.request.subtotal, Some(Some(12000)));
+        assert_eq!(p.command.request.total_amount, Some(Some(13680)));
     }
 
     // The wire (CreateOrderRequest) parses cart ids as UUIDs, so the wire-shape
