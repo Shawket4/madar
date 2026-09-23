@@ -5,7 +5,6 @@
 // (ellipsis) and the actions never shrink below their tap target.
 
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -132,11 +131,11 @@ void main() {
     await _pump(
       tester,
       MadarShellScaffold(
-        tabs: [MadarTab(label: 'Sell', glyph: MadarGlyph.bag)],
+        tabs: const [MadarTab(label: 'Sell', glyph: MadarGlyph.bag)],
         selectedIndex: 0,
         onSelect: (_) {},
-        person: MadarPerson(name: 'Sara', initial: 'S'),
-        topBar: MadarTopBar(
+        person: const MadarPerson(name: 'Sara', initial: 'S'),
+        topBar: const MadarTopBar(
           title: 'Zamalek',
           pill: MadarOutboxPill(
             state: OutboxState.queued,

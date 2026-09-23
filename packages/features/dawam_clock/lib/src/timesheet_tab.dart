@@ -257,8 +257,9 @@ Future<void> correctionSheet(BuildContext context, Shift s) {
                 ),
                 ok: tr('staff.sent'),
               );
-              if (sent && ctx.mounted)
+              if (sent && ctx.mounted) {
                 Navigator.of(ctx).popUntil((r) => r.isFirst);
+              }
             },
           ),
         ],
