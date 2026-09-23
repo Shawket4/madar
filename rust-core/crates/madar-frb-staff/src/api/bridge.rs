@@ -97,6 +97,13 @@ impl MadarBridge {
         self.inner.tr(key)
     }
 
+    /// `tr` in a named locale (`en` / `ar`), whatever the phone is set to —
+    /// a payslip PDF in the other language (PAY-10).
+    #[frb(sync)]
+    pub fn tr_in(&self, locale: String, key: String) -> String {
+        self.inner.tr_in(locale, key)
+    }
+
     #[frb(sync)]
     pub fn locale(&self) -> String {
         self.inner.locale()

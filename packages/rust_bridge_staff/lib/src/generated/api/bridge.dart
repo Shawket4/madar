@@ -268,4 +268,8 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// Localized UI string for `key` (en/ar; falls back to en, then the key).
   String tr({required String key});
+
+  /// `tr` in a named locale (`en` / `ar`), whatever the phone is set to —
+  /// a payslip PDF in the other language (PAY-10).
+  String trIn({required String locale, required String key});
 }

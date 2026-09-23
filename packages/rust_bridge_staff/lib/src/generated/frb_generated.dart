@@ -69,7 +69,7 @@ class StaffBridge
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1396642916;
+  int get rustContentHash => -547386300;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -341,6 +341,12 @@ abstract class StaffBridgeApi extends BaseApi {
 
   String crateApiBridgeMadarBridgeTr({
     required MadarBridge that,
+    required String key,
+  });
+
+  String crateApiBridgeMadarBridgeTrIn({
+    required MadarBridge that,
+    required String locale,
     required String key,
   });
 
@@ -2225,12 +2231,47 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
       );
 
   @override
+  String crateApiBridgeMadarBridgeTrIn({
+    required MadarBridge that,
+    required String locale,
+    required String key,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(locale, serializer);
+          sse_encode_String(key, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeTrInConstMeta,
+        argValues: [that, locale, key],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeTrInConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_tr_in",
+        argNames: ["that", "locale", "key"],
+      );
+
+  @override
   String crateApiBridgeCoreVersion() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -2252,7 +2293,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_u_32,
@@ -4804,4 +4845,11 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// Localized UI string for `key` (en/ar; falls back to en, then the key).
   String tr({required String key}) => StaffBridge.instance.api
       .crateApiBridgeMadarBridgeTr(that: this, key: key);
+
+  /// `tr` in a named locale (`en` / `ar`), whatever the phone is set to —
+  /// a payslip PDF in the other language (PAY-10).
+  String trIn({required String locale, required String key}) => StaffBridge
+      .instance
+      .api
+      .crateApiBridgeMadarBridgeTrIn(that: this, locale: locale, key: key);
 }
