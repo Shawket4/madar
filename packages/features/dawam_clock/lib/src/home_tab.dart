@@ -419,16 +419,42 @@ class _Tracking extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final battery = ref.watch(dawamProvider.select((d) => d.battery));
     final on = !s.trackingOff;
-    return MadarListRow.nav(
-      glyph: on ? MadarGlyph.globe : MadarGlyph.wifiOff,
-      title: on
-          ? tr('staff.location_on_checked_every_15_min')
-          : tr('staff.tracking_off_your_manager_was_told'),
-      valueText: '$battery%',
-      trailing: MadarStatusPill.of(
-        on ? tr('staff.tracking_on') : tr('staff.tracking_off'),
-        tone: on ? MadarTone.success : MadarTone.warning,
-      ),
+    final c = context.madarColors;
+    // The sentence wraps across the row: beside the battery and the pill it
+    // was cut to "Location on —…" on a phone (E2E S2).
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: Space.sm,
+      children: [
+        MadarGlyphIcon(
+          on ? MadarGlyph.globe : MadarGlyph.wifiOff,
+          color: c.textSecondary,
+          size: IconSize.md,
+        ),
+        Expanded(
+          child: Text(
+            on
+                ? tr('staff.location_on_checked_every_15_min')
+                : tr('staff.tracking_off_your_manager_was_told'),
+            style: MadarType.bodySm.copyWith(color: c.textSecondary),
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          spacing: Space.xs,
+          children: [
+            MadarStatusPill.of(
+              on ? tr('staff.tracking_on') : tr('staff.tracking_off'),
+              tone: on ? MadarTone.success : MadarTone.warning,
+            ),
+            Text(
+              '$battery%',
+              style: MadarType.bodySm.copyWith(color: c.textMuted),
+              textDirection: TextDirection.ltr,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
