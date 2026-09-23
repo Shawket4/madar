@@ -10,6 +10,11 @@ enum _Step { phone, code, org, privacy }
 /// Sign-in: WhatsApp number and code (RO-2), the business pick (RO-5), the
 /// privacy notice (AT-5). On a tablet the shared brand panel stands beside
 /// the form, as on the POS.
+///
+/// The notice is accepted per phone ON THE SERVER: a signed-in person whose
+/// phone has not accepted it (a new phone, or a session restored after the
+/// app was closed on the notice) opens straight at it, and the tabs open
+/// only once the server has recorded "I agree".
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
 
@@ -28,6 +33,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   Timer? _timer;
 
   DawamStore get _store => ref.read(dawamProvider);
+
+  @override
+  void initState() {
+    super.initState();
+    // Signed in already, the notice not accepted on this phone yet.
+    if (ref.read(dawamProvider).me != null) _step = _Step.privacy;
+  }
 
   @override
   void dispose() {
@@ -97,11 +109,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     await _privacyOrFinish();
   });
 
-  Future<void> _privacyOrFinish() async {
-    if (_store.privacyAccepted.contains(_store.pendingUser)) await _finish();
-  }
-
-  Future<void> _finish() => _store.enter();
+  /// Signed in: load the picture. A phone that accepted the notice before
+  /// goes straight in (the app opens on the server's record); any other
+  /// stays on the notice.
+  Future<void> _privacyOrFinish() => _store.enter();
 
   @override
   Widget build(BuildContext context) {
@@ -247,9 +258,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     ),
     MadarButton(
       label: tr('staff.i_agree'),
+      onTap: () => _step$(_store.acceptPrivacy),
+    ),
+    MadarButton(
+      label: tr('staff.change_number'),
+      variant: MadarButtonVariant.ghost,
       onTap: () {
-        _store.privacyAccepted.add(_store.pendingUser!);
-        unawaited(_step$(_finish));
+        _store.signOut();
+        _back();
       },
     ),
   ];

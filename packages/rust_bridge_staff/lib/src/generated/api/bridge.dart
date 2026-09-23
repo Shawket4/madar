@@ -178,6 +178,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String to,
   });
 
+  /// Bind the device token read back from secure storage at a cold start.
+  void staffBindDevice({required String token});
+
   /// Any `/staff/*` call with an optional JSON body; the server's JSON back.
   Future<String> staffCall({
     required String method,
@@ -262,6 +265,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String email,
     required String password,
   });
+
+  /// The phone's Dawam device token, handed over ONCE after a sign-in (or
+  /// once from an older build's store) for the host to keep in the
+  /// platform's secure storage (Keychain / Android Keystore, RO-3). `None`
+  /// the rest of the time.
+  String? staffTakeDeviceToken();
 
   /// The home screen in one round trip.
   Future<TodayView> staffToday();

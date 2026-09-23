@@ -36,10 +36,28 @@ pub struct MadarBridge {
 impl MadarBridge {
     /// Open the store (SQLite + migrations) + build the HTTP client. Session
     /// restore is a separate explicit step.
+    ///
+    /// ONE core per store in the process: on Android the app and its
+    /// background location service (CL-4) are two Flutter engines in one
+    /// process, and both must work through the same core — one outbox drain,
+    /// one mirror, one session — never two over the same SQLite file.
     pub fn new(config: MadarConfig) -> Result<MadarBridge, MadarError> {
-        Ok(MadarBridge {
-            inner: MadarCore::new(config).map_err(MadarError::from)?,
-        })
+        use std::collections::HashMap;
+        use std::sync::{Mutex, OnceLock, Weak};
+        static CORES: OnceLock<Mutex<HashMap<String, Weak<MadarCore>>>> = OnceLock::new();
+        let key = config.db_path.clone();
+        let mut cores = CORES
+            .get_or_init(Default::default)
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if let Some(inner) = cores.get(&key).and_then(Weak::upgrade).filter(|_| !key.is_empty()) {
+            return Ok(MadarBridge { inner });
+        }
+        let inner = MadarCore::new(config).map_err(MadarError::from)?;
+        if !key.is_empty() {
+            cores.insert(key, Arc::downgrade(&inner));
+        }
+        Ok(MadarBridge { inner })
     }
 
     // ── session ───────────────────────────────────────────────────────────
@@ -135,5 +153,46 @@ impl MadarBridge {
     /// instead of letting a check-in fail at the moment it matters.
     pub async fn refresh_connectivity(&self) -> bool {
         self.inner.refresh_connectivity().await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config(db_path: &str) -> MadarConfig {
+        MadarConfig {
+            base_url: "http://127.0.0.1:9".into(),
+            environment: "dev".into(),
+            db_path: db_path.into(),
+            locale: "en".into(),
+            app_version: None,
+        }
+    }
+
+    /// CL-4: the app and its background location service share one core
+    /// over one store; a different store (or an in-memory one) is its own.
+    #[test]
+    fn one_core_per_store_in_the_process() {
+        let dir = std::env::temp_dir().join(format!(
+            "dawam-bridge-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("staff.db").to_string_lossy().to_string();
+        let app = MadarBridge::new(config(&db)).unwrap();
+        let service = MadarBridge::new(config(&db)).unwrap();
+        assert!(Arc::ptr_eq(&app.inner, &service.inner), "one core for one store");
+        let other = MadarBridge::new(config(&dir.join("other.db").to_string_lossy())).unwrap();
+        assert!(!Arc::ptr_eq(&app.inner, &other.inner));
+        let a = MadarBridge::new(config("")).unwrap();
+        let b = MadarBridge::new(config("")).unwrap();
+        assert!(!Arc::ptr_eq(&a.inner, &b.inner), "in-memory stores are never shared");
+        drop((app, service, other, a, b));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

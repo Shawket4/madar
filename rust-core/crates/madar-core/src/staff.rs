@@ -666,6 +666,55 @@ pub(crate) mod session_tests {
         assert_eq!(back.api.bearer().as_deref(), Some("t2"));
     }
 
+    /// RO-3 / audit 03 CL-1c, 06 bug 14: the device token lives in the
+    /// platform's secure storage, not the core's SQLite, and the sign-in JSON
+    /// the host reads carries no secret. The host takes the token once to
+    /// store it and binds it back at a cold start; an older build's stored
+    /// token is used once more and moved to the vault.
+    #[tokio::test]
+    async fn the_device_token_goes_to_the_vault_never_the_store() {
+        let exp = later();
+        let stub = Stub::start(move |r| {
+            Some(match r.path.as_str() {
+                "/auth/staff/otp/verify" => StubResponse::json(200, session(&exp)),
+                _ => StubResponse::json(200, json!({ "ok": true })),
+            })
+        })
+        .await;
+        let core = fresh(&stub.base);
+        let body: Value =
+            serde_json::from_str(&core.staff_otp_verify("+201001234567".into(), "123456".into(), None, None, None).await.unwrap()).unwrap();
+        assert!(body.get("token").is_none() && body.get("device_token").is_none(), "no secret reaches the host: {body}");
+        assert_eq!(body["employee_id"], EMP);
+        assert!(core.store.blob_get(super::K_STAFF_DEVICE).unwrap().is_none(), "not in SQLite");
+        assert_eq!(core.staff_take_device_token().as_deref(), Some("dev-1"), "handed to the vault");
+        assert_eq!(core.staff_take_device_token(), None, "once");
+
+        // A cold start: the session comes back from the store, the phone's
+        // token from the vault.
+        let blob = core.store.blob_get(crate::session::K_SESSION_BLOB).unwrap().unwrap();
+        let back = fresh(&stub.base);
+        back.store.blob_put(crate::session::K_SESSION_BLOB, &blob).unwrap();
+        back.restore_session_cached().expect("the session");
+        assert!(!back.api.is_staff(), "nothing bound until the vault answers");
+        back.staff_bind_device("dev-1".into()).unwrap();
+        back.staff_call("GET".into(), "/staff/me/today".into(), None).await.unwrap();
+        assert_eq!(stub.requests("/staff/me/today")[0].header("x-staff-device").as_deref(), Some("dev-1"));
+        assert_eq!(back.staff_take_device_token(), None, "already in the vault");
+
+        // An older build kept it in SQLite: used, then moved out.
+        let old = fresh(&stub.base);
+        old.store.blob_put(crate::session::K_SESSION_BLOB, &blob).unwrap();
+        old.store.blob_put(super::K_STAFF_DEVICE, b"old-dev").unwrap();
+        old.restore_session_cached().unwrap();
+        assert!(old.api.is_staff());
+        assert_eq!(old.staff_take_device_token().as_deref(), Some("old-dev"));
+        assert!(old.store.blob_get(super::K_STAFF_DEVICE).unwrap().is_none(), "gone from SQLite once in the vault");
+        // Signing out forgets it everywhere the core holds it.
+        old.logout(false).unwrap();
+        assert!(!old.api.is_staff());
+    }
+
     #[tokio::test]
     async fn a_token_about_to_run_out_is_refreshed_before_the_call() {
         let soon = (chrono::Utc::now() + chrono::Duration::seconds(20)).to_rfc3339();

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,11 +8,51 @@ import 'package:staff_core/staff_core.dart';
 /// Home: today's shift or shifts, the geofenced punch (CL-2), the check-in
 /// window (CL-3), tracking and battery (CL-4, CL-12), covering a no-show
 /// (CV-1). On a tablet the day and what's next stand side by side.
-class HomeTab extends ConsumerWidget {
+///
+/// The clock, the elapsed time and the window's state move on their own
+/// (06 B9: a 30-second tick), and a fresh reading is taken when Home opens
+/// and when the app comes back, so the fence line says where the person
+/// really is (06 B4).
+class HomeTab extends ConsumerStatefulWidget {
   const HomeTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends ConsumerState<HomeTab> with WidgetsBindingObserver {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _tick = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _locate());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _locate();
+  }
+
+  void _locate() {
+    if (mounted) unawaited(ref.read(dawamProvider).noteFix());
+  }
+
+  @override
+  Widget build(BuildContext context) => _home(context, ref);
+
+  Widget _home(BuildContext context, WidgetRef ref) {
     final store = ref.watch(dawamProvider);
     final c = context.madarColors;
     final u = store.user;
@@ -260,19 +302,7 @@ class ShiftCard extends ConsumerWidget {
           ),
         ],
         if (canIn) ...[
-          _Check(
-            tone: store.inside ? MadarTone.success : MadarTone.danger,
-            glyph: MadarGlyph.globe,
-            text: store.inside
-                ? tr('staff.inside_40_m_of_m', {
-                    'name': b == null ? '—' : loc(b),
-                    'radius': b?.radius ?? 0,
-                  })
-                : tr('staff.outside_340_m_away_limit_m', {
-                    'name': b == null ? '—' : loc(b),
-                    'radius': b?.radius ?? 0,
-                  }),
-          ),
+          _FenceLine(store.fenceAt(tp.branch), b == null ? '—' : loc(b)),
           if (!store.alwaysLocation)
             _Check(
               tone: MadarTone.warning,
@@ -313,6 +343,42 @@ class ShiftCard extends ConsumerWidget {
           ),
       ],
     );
+  }
+}
+
+/// Where the phone is against this shift's branch, from a fresh reading
+/// (06 B4): the real distance, or "not known yet" — never a made-up
+/// "inside".
+class _FenceLine extends StatelessWidget {
+  const _FenceLine(this.fence, this.branch);
+
+  final Fence fence;
+  final String branch;
+
+  @override
+  Widget build(BuildContext context) {
+    final args = {
+      'name': branch,
+      'distance': fence.distance ?? 0,
+      'radius': fence.radius,
+    };
+    return switch (fence.state) {
+      FenceState.inside => _Check(
+        tone: MadarTone.success,
+        glyph: MadarGlyph.globe,
+        text: tr('staff.fence_inside', args),
+      ),
+      FenceState.outside => _Check(
+        tone: MadarTone.danger,
+        glyph: MadarGlyph.globe,
+        text: tr('staff.fence_outside', args),
+      ),
+      FenceState.unknown => _Check(
+        tone: MadarTone.warning,
+        glyph: MadarGlyph.globe,
+        text: tr('staff.fence_unknown'),
+      ),
+    };
   }
 }
 

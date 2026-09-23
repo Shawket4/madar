@@ -48,11 +48,17 @@ pub(crate) const TABLES: &[&str] = &[
     "dawam_coverable",
 ];
 
+/// The server's refusal of a location before this phone accepted the notice.
+pub(crate) const PRIVACY_NOT_ACCEPTED: &str = "PRIVACY_NOT_ACCEPTED";
+
 /// Outbox op types (the drain sends them to `/staff/*`, not `/sync/replay`).
 pub(crate) const OP_PREFIX: &str = "dawam_";
 /// The last (server time, time since boot, wall time) the phone saw.
 const K_ANCHOR: &str = "dawam:anchor";
 const K_FIX: &str = "dawam:fix";
+/// A reading older than this says nothing about where the person is now: the
+/// fence line reads "unknown", never "inside" (06 B4).
+const FIX_FRESH_MS: i64 = 10 * 60_000;
 /// Sent within this long of being queued, a punch goes as live, not offline.
 const LIVE_MS: i64 = 30_000;
 
@@ -144,6 +150,22 @@ pub struct DawamFix {
     pub battery: Option<i64>,
 }
 
+/// The last reading and when it was taken (time since boot, so a clock change
+/// can't make an old one look fresh; a reboot makes it stale).
+#[derive(Deserialize, Serialize, Clone, Debug, Default)]
+struct NotedFix {
+    #[serde(flatten)]
+    fix: DawamFix,
+    #[serde(default)]
+    noted_boot_ms: Option<i64>,
+}
+
+impl NotedFix {
+    fn fresh_at(&self, boot: i64) -> bool {
+        self.noted_boot_ms.is_some_and(|b| boot >= b && boot - b <= FIX_FRESH_MS)
+    }
+}
+
 fn haversine_m(a: (f64, f64), b: (f64, f64)) -> f64 {
     let (la1, lo1, la2, lo2) = (a.0.to_radians(), a.1.to_radians(), b.0.to_radians(), b.1.to_radians());
     let h = ((la2 - la1) / 2.0).sin().powi(2) + la1.cos() * la2.cos() * ((lo2 - lo1) / 2.0).sin().powi(2);
@@ -208,9 +230,27 @@ pub struct Snapshot {
     pub charge_phone: bool,
     /// Coverage needs per branch (SC-13): `source` grid|pos|pattern, `needs`, `derived`.
     pub coverage: BTreeMap<String, Value>,
-    /// Inside the fence of the branch I work at now, from the last fix.
+    /// Inside the fence of the branch I work at now, from a FRESH fix; `None`
+    /// when there is no reading from the last few minutes (06 B4: unknown is
+    /// never "inside").
     pub inside: Option<bool>,
     pub distance_m: Option<f64>,
+    /// The same reading against every branch I may clock in at, by branch id
+    /// (a shift card shows its own branch's line).
+    pub fences: BTreeMap<String, FenceV>,
+    /// This phone accepted the location notice, as the server recorded it
+    /// (AT-5). Until then the app shows the notice, never the tabs.
+    pub privacy_accepted: bool,
+}
+
+/// Where I am against one branch's fence, from a fresh reading.
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct FenceV {
+    /// `inside` · `outside` · `unknown` (no reading from the last minutes).
+    pub state: String,
+    /// Metres from the branch, rounded; `None` when unknown.
+    pub distance_m: Option<i64>,
+    pub radius: i64,
 }
 
 #[derive(Serialize, Debug, Default)]
@@ -511,6 +551,11 @@ pub enum Act {
     ReadAll,
     /// Signing out: the server forgets this phone and its pushes (APP-6).
     SignOut,
+    /// This phone accepts the location notice (AT-5), on the server.
+    AcceptPrivacy,
+    /// A reading the host just took (Home opening, a resume): kept with its
+    /// time so the fence line is real (06 B4). Local only, never sent.
+    NoteFix { fix: DawamFix },
     ApprovePayroll,
     /// Back to a live preview, with the reason the audit log keeps (AD-9).
     ReopenPayroll { #[serde(default)] reason: String },
@@ -625,7 +670,9 @@ fn method_of(m: &str) -> Option<String> {
     Some(
         match m {
             "mobile_gps" => "app",
-            "manual" => "manager",
+            // A dashboard-written day and a manager's punch both read "by
+            // your manager" on the phone (CL-16 keeps them apart server-side).
+            "manual" | "manager" => "manager",
             "auto" | "offline" | "cover" | "till" | "kiosk" | "correction" => m,
             _ => return None,
         }
@@ -990,16 +1037,25 @@ impl MadarCore {
         Utc.timestamp_millis_opt(self.corrected_now_ms()).single().unwrap_or_else(Utc::now).with_timezone(&tz).date_naive()
     }
 
+    /// The zone of the branch I work at (AT-1, audit 03 bug 12): my own
+    /// first branch, not whichever branch the mirror happens to list first
+    /// (an owner or a manager sees every branch). No branch of mine known
+    /// yet: the first one, then Cairo.
     fn dawam_tz(&self) -> chrono_tz::Tz {
-        self.store
-            .with_conn(|c| {
-                Ok(c.query_row("SELECT data FROM dawam_branches ORDER BY rowid LIMIT 1", [], |r| r.get::<_, String>(0)).ok())
-            })
-            .ok()
-            .flatten()
-            .and_then(|d| serde_json::from_str::<Value>(&d).ok())
-            .and_then(|v| so(&v, "timezone"))
-            .and_then(|t| t.parse().ok())
+        let me = self.dawam_me().unwrap_or_default();
+        let (branches, people) = self
+            .store
+            .with_conn(|c| Ok((read_table(c, "dawam_branches")?, read_table(c, "dawam_people")?)))
+            .unwrap_or_default();
+        let mine: Vec<String> = people
+            .iter()
+            .find(|p| s(p, "employee_id") == me)
+            .map(|p| arr(p, "branch_ids").iter().filter_map(Value::as_str).map(str::to_string).collect())
+            .unwrap_or_default();
+        let zone_of = |b: &Value| so(b, "timezone").and_then(|t| t.parse::<chrono_tz::Tz>().ok());
+        mine.iter()
+            .find_map(|id| branches.iter().find(|b| s(b, "id") == *id).and_then(zone_of))
+            .or_else(|| branches.first().and_then(zone_of))
             .unwrap_or(chrono_tz::Africa::Cairo)
     }
 
@@ -1033,7 +1089,7 @@ impl MadarCore {
     /// loses nothing (CL-10); sent at once when online. Off shift it is not
     /// recorded at all (CL-17). Returns the snapshot.
     pub async fn dawam_ping(&self, fix: DawamFix) -> Result<String, CoreError> {
-        let _ = self.store.kv_put(K_FIX, &serde_json::to_string(&fix).unwrap_or_default());
+        self.dawam_note_fix(&fix);
         let on_shift = self.dawam_build()?.active_shift.is_some();
         if on_shift {
             let body = json!({
@@ -1044,6 +1100,12 @@ impl MadarCore {
             let _ = self.drain_outbox().await;
         }
         self.dawam_snapshot(false).await
+    }
+
+    /// Keep a reading with the moment it was taken (06 B4).
+    fn dawam_note_fix(&self, fix: &DawamFix) {
+        let noted = NotedFix { fix: fix.clone(), noted_boot_ms: Some(boot_ms()) };
+        let _ = self.store.kv_put(K_FIX, &serde_json::to_string(&noted).unwrap_or_default());
     }
 
     /// Hand the phone's push token to the server (APP-6).
@@ -1105,6 +1167,20 @@ impl MadarCore {
                 Err(_) => Err(CoreError::Transient { detail: "sign-out timed out".into() }),
             };
         }
+        if let Act::NoteFix { fix } = &act {
+            self.dawam_note_fix(fix);
+            return self.dawam_snapshot(false).await;
+        }
+        if matches!(act, Act::AcceptPrivacy) {
+            if !online {
+                return Err(needs_connection(&self.current_locale()));
+            }
+            self.dawam_srv("POST", "/staff/me/privacy", Some(json!({}))).await?;
+            // Anything that waited for the notice goes now.
+            let _ = self.store.clear_network_backoff();
+            let _ = self.drain_outbox().await;
+            return self.dawam_snapshot(true).await;
+        }
         if act.queueable() {
             self.dawam_queue(act)?;
             let _ = self.drain_outbox().await;
@@ -1148,21 +1224,40 @@ impl MadarCore {
             let tpl = shift.rsplit('|').next().unwrap_or_default();
             snap.templates.iter().find(|t| t.id == tpl).map(|t| t.branch.clone()).unwrap_or_default()
         };
-        let fix_body = |fix: &Option<DawamFix>| json!({ "latitude": fix.as_ref().map(|f| f.latitude), "longitude": fix.as_ref().map(|f| f.longitude) });
+        // The punch's own reading, spoof signals included (CL-8/9): a shift
+        // with tracking off has no pings, so the punch is all there is.
+        let fix_body = |fix: &Option<DawamFix>| {
+            json!({
+                "latitude": fix.as_ref().map(|f| f.latitude),
+                "longitude": fix.as_ref().map(|f| f.longitude),
+                "accuracy_meters": fix.as_ref().and_then(|f| f.accuracy),
+                "is_mock": fix.as_ref().map(|f| f.mock),
+            })
+        };
+        let noted = |fix: &Option<DawamFix>| {
+            if let Some(f) = fix {
+                self.dawam_note_fix(f);
+            }
+        };
         let gps = |fix: &Option<DawamFix>| fix.as_ref().and_then(|f| f.gps_time.clone());
         match act {
             Act::ClockIn { shift, fix, tracking_off } => {
                 if snap.active_shift.is_some() {
                     return Err(CoreError::Validation { field: "shift".into(), detail: i18n::tr(&self.current_locale(), "staff.clock_out_first") });
                 }
+                noted(&fix);
                 let mut body = fix_body(&fix);
                 body["branch_id"] = json!(branch_of(&shift));
                 body["tracking_off"] = json!(tracking_off);
                 body["shift"] = json!(shift);
                 self.dawam_enqueue("dawam_check_in", "/staff/me/check-in", body, gps(&fix).as_deref())
             }
-            Act::ClockOut { fix } => self.dawam_enqueue("dawam_check_out", "/staff/me/check-out", fix_body(&fix), gps(&fix).as_deref()),
+            Act::ClockOut { fix } => {
+                noted(&fix);
+                self.dawam_enqueue("dawam_check_out", "/staff/me/check-out", fix_body(&fix), gps(&fix).as_deref())
+            }
             Act::Cover { shift, fix } => {
+                noted(&fix);
                 let (user, _, tpl) = parts(&shift);
                 let mut body = fix_body(&fix);
                 body["employee_id"] = json!(user);
@@ -1356,7 +1451,13 @@ impl MadarCore {
             Act::MarkPaid { emp, method } => {
                 self.dawam_srv("PATCH", &format!("/staff/payroll/periods/{period_id}/payslips/{emp}/paid"), Some(json!({ "method": method }))).await?;
             }
-            Act::ClockIn { .. } | Act::ClockOut { .. } | Act::Cover { .. } | Act::PunchFor { .. } | Act::SignOut => {}
+            Act::ClockIn { .. }
+            | Act::ClockOut { .. }
+            | Act::Cover { .. }
+            | Act::PunchFor { .. }
+            | Act::SignOut
+            | Act::AcceptPrivacy
+            | Act::NoteFix { .. } => {}
         }
         Ok(())
     }
@@ -1423,6 +1524,7 @@ impl MadarCore {
             tabs: manage_tabs(&caps),
             caps,
             fetched_at,
+            privacy_accepted: ctx.get("privacy_accepted_at").is_some_and(|x| !x.is_null()),
             role,
             ..Default::default()
         };
@@ -1944,18 +2046,27 @@ impl MadarCore {
         out.warnings = labour_warnings(warn_rows.as_array().map(Vec::as_slice).unwrap_or(&[]));
         out.coverage = coverage.as_object().into_iter().flatten().map(|(k, v)| (k.clone(), v.clone())).collect();
 
-        // Inside the fence of where I work now, from the last reading.
-        let fix: Option<DawamFix> = self.store.kv_get(K_FIX).ok().flatten().and_then(|j| serde_json::from_str(&j).ok());
-        out.charge_phone = out.active_shift.is_some() && fix.as_ref().and_then(|x| x.battery).is_some_and(|b| b <= LOW_BATTERY);
-        let here_branch = out.my_now.first().and_then(|sid| shifts.iter().find(|x| &x.id == sid)).and_then(|x| tpl(&x.tpl)).map(|t| t.branch.clone());
-        if let (Some(fx), Some(bid)) = (fix, here_branch) {
-            if let Some(br) = rows("dawam_branches").iter().find(|x| s(x, "id") == bid) {
-                if let (Some(lat), Some(lng)) = (br.get("latitude").and_then(Value::as_f64), br.get("longitude").and_then(Value::as_f64)) {
-                    let d = haversine_m((lat, lng), (fx.latitude, fx.longitude));
-                    out.distance_m = Some(d.round());
-                    out.inside = Some(d <= i(br, "geo_radius_meters").max(1) as f64 || br.get("geo_radius_meters").is_none_or(Value::is_null) && d <= 200.0);
+        // Where I am against each branch's fence, from a FRESH reading only
+        // (06 B4): an old one, or none, is "unknown" — never "inside".
+        let noted: Option<NotedFix> = self.store.kv_get(K_FIX).ok().flatten().and_then(|j| serde_json::from_str(&j).ok());
+        out.charge_phone = out.active_shift.is_some() && noted.as_ref().and_then(|x| x.fix.battery).is_some_and(|b| b <= LOW_BATTERY);
+        let fresh = noted.filter(|n| n.fresh_at(boot_ms())).map(|n| n.fix);
+        for br in rows("dawam_branches") {
+            let radius = br.get("geo_radius_meters").and_then(Value::as_i64).filter(|r| *r > 0).unwrap_or(200);
+            let centre = br.get("latitude").and_then(Value::as_f64).zip(br.get("longitude").and_then(Value::as_f64));
+            let fence = match (&fresh, centre) {
+                (Some(fx), Some(c)) => {
+                    let d = haversine_m(c, (fx.latitude, fx.longitude));
+                    FenceV { state: if d <= radius as f64 { "inside" } else { "outside" }.into(), distance_m: Some(d.round() as i64), radius }
                 }
-            }
+                _ => FenceV { state: "unknown".into(), distance_m: None, radius },
+            };
+            out.fences.insert(s(br, "id"), fence);
+        }
+        let here_branch = out.my_now.first().and_then(|sid| shifts.iter().find(|x| &x.id == sid)).and_then(|x| tpl(&x.tpl)).map(|t| t.branch.clone());
+        if let Some(f) = here_branch.and_then(|b| out.fences.get(&b)).filter(|f| f.state != "unknown") {
+            out.distance_m = f.distance_m.map(|d| d as f64);
+            out.inside = Some(f.state == "inside");
         }
 
         shifts.sort_by(|a, z| (a.date.as_str(), a.id.as_str()).cmp(&(z.date.as_str(), z.id.as_str())));
@@ -2337,7 +2448,8 @@ mod tests {
         let sh = snap["shifts"].as_array().unwrap().iter().find(|x| x["id"] == json!(shift)).unwrap();
         assert!(sh["queued"].as_bool().unwrap() && sh["in_at"].is_string());
         // AT-1: the queued punch and the clock read in the branch's zone.
-        let off = cairo.format("%:z").to_string();
+        let secs = chrono::Offset::fix(cairo.offset()).local_minus_utc();
+        let off = format!("{}{:02}:{:02}", if secs < 0 { '-' } else { '+' }, secs.abs() / 3600, secs.abs() % 3600 / 60);
         assert!(sh["in_at"].as_str().unwrap().ends_with(&off), "{} in {off}", sh["in_at"]);
         assert!(snap["now"].as_str().unwrap().ends_with(&off), "{} in {off}", snap["now"]);
         let snap: Value = serde_json::from_str(&core.dawam_ping(fix).await.unwrap()).unwrap();
@@ -2394,6 +2506,388 @@ mod tests {
         assert!(!core.sync_status().auth_paused);
         let pings: Vec<_> = stub.requests("/staff/me/pings").iter().map(|r| r.header("authorization")).collect();
         assert_eq!(pings, [Some("Bearer t1".into()), Some("Bearer t2".into())], "refused, refreshed, replayed");
+    }
+
+    /// A signed server time as the backend writes it (`v1.<ms>.<64 hex>`);
+    /// the phone never checks the tag, it only carries it back.
+    fn signed_at(ms: i64) -> String {
+        format!("v1.{ms}.{}", "ab".repeat(32))
+    }
+
+    /// What a [`staff_stub`] does, switched by the test as it goes.
+    struct Knobs {
+        /// false = the signal is gone (every call hangs up).
+        up: std::sync::atomic::AtomicBool,
+        /// The first token (`t1`) is refused as expired.
+        t1_expired: std::sync::atomic::AtomicBool,
+        /// This phone accepted the location notice (AT-5).
+        accepted: std::sync::atomic::AtomicBool,
+    }
+
+    fn knobs() -> std::sync::Arc<Knobs> {
+        use std::sync::atomic::AtomicBool;
+        std::sync::Arc::new(Knobs { up: AtomicBool::new(true), t1_expired: AtomicBool::new(false), accepted: AtomicBool::new(true) })
+    }
+
+    /// A Dawam stub for a signed-in employee with a shift around now at a
+    /// Cairo branch; every answer carries the signed time. `refresh` answers
+    /// `/auth/staff/refresh`.
+    async fn staff_stub(
+        k: std::sync::Arc<Knobs>,
+        refresh: impl Fn() -> crate::testkit::StubResponse + Send + Sync + 'static,
+    ) -> crate::testkit::Stub {
+        use crate::staff::session_tests::{later, session, EMP};
+        use crate::testkit::{Stub, StubResponse, BRANCH};
+        use std::sync::atomic::Ordering;
+        let exp = later();
+        let cairo = Utc::now().with_timezone(&chrono_tz::Africa::Cairo);
+        let today = cairo.date_naive().to_string();
+        let hms = |t: NaiveTime| format!("{}:00", hhmm((t.hour() * 60 + t.minute()) as i64));
+        let (start, end) = (hms(cairo.time() - Duration::hours(1)), hms(cairo.time() + Duration::hours(3)));
+        Stub::start(move |r| {
+            if !k.up.load(Ordering::SeqCst) {
+                return Some(StubResponse::hangup());
+            }
+            let bearer = r.header("authorization").unwrap_or_default();
+            let located = r.method == "POST" && r.json().get("latitude").is_some_and(|x| !x.is_null());
+            let path = r.path.split('?').next().unwrap_or_default();
+            let res = match path {
+                "/auth/staff/otp/verify" => StubResponse::json(200, session(&exp)),
+                "/auth/staff/refresh" => refresh(),
+                "/health" => StubResponse::text(200, "ok"),
+                _ if bearer == "Bearer t1" && k.t1_expired.load(Ordering::SeqCst) => {
+                    StubResponse::json(401, json!({ "error": "expired", "code": "TOKEN_EXPIRED" }))
+                }
+                "/staff/me/context" => StubResponse::json(200, json!({
+                    "role": "employee", "org_name": "Nile Café", "caps": [],
+                    "privacy_accepted_at": if k.accepted.load(Ordering::SeqCst) { json!("2026-09-01T08:00:00Z") } else { Value::Null },
+                    "branches": [{ "id": BRANCH, "name": "Zamalek", "geo_radius_meters": 200,
+                                   "latitude": 30.0609, "longitude": 31.2197, "timezone": "Africa/Cairo" }],
+                    "work_shifts": [{ "id": "w1", "name": "Morning", "branch_id": BRANCH,
+                                      "start_time": start, "end_time": end, "grace_minutes": 10 }],
+                    "people": [{ "employee_id": EMP, "name": "Sara", "role": "employee", "branch_ids": [BRANCH],
+                                 "base_salary_piastres": 900000, "pay_method": "cash", "cant_work_days": [] }],
+                    "settings": { "period_start_day": 26, "advance_cap_percent": "50" },
+                })),
+                "/staff/me/roster" => StubResponse::json(200, json!({
+                    "shifts": [{ "employee_id": EMP, "date": today, "work_shift_id": "w1" }],
+                    "team": [], "open_shifts": [], "swaps": [], "unpublished_weeks": [],
+                })),
+                "/staff/me/privacy" => {
+                    k.accepted.store(true, Ordering::SeqCst);
+                    StubResponse::json(200, json!({ "accepted_at": "2026-09-23T08:00:00Z" }))
+                }
+                "/staff/me/check-in" | "/staff/me/check-out" | "/staff/me/pings" if located && !k.accepted.load(Ordering::SeqCst) => {
+                    StubResponse::json(403, json!({ "error": "Accept the location notice in the app first.", "code": "PRIVACY_NOT_ACCEPTED" }))
+                }
+                "/staff/me/check-in" => StubResponse::json(201, json!({ "id": "r1" })),
+                "/staff/me/check-out" => StubResponse::json(200, json!({ "id": "r1" })),
+                "/staff/me/pings" => StubResponse::json(200, json!({ "inside": true })),
+                p if p.ends_with("estimate") => StubResponse::json(200, json!({})),
+                _ => StubResponse::json(200, json!([])),
+            };
+            // Every staff answer carries the server's signed time (CL-11).
+            Some(res.with_header("x-dawam-time", &signed_at(Utc::now().timestamp_millis())))
+        })
+        .await
+    }
+
+    /// Hours without a signal (the anchor was received that long ago).
+    fn age_the_anchor(core: &MadarCore, by: Duration) -> Anchor {
+        let a: Anchor = serde_json::from_str(&core.store.kv_get(K_ANCHOR).unwrap().unwrap()).unwrap();
+        let ms = by.num_milliseconds();
+        let old = Anchor {
+            server_ms: a.server_ms - ms,
+            boot_ms: a.boot_ms - ms,
+            wall_ms: a.wall_ms - ms,
+            sig: Some(signed_at(a.server_ms - ms)),
+        };
+        core.store.kv_put(K_ANCHOR, &serde_json::to_string(&old).unwrap()).unwrap();
+        core.api.set_staff_anchor(Some(crate::net::StaffAnchor {
+            signed: old.sig.clone().unwrap(),
+            boot_ms: old.boot_ms,
+            wall_ms: old.wall_ms,
+        }));
+        old
+    }
+
+    fn dead_dawam_ops(core: &MadarCore) -> i64 {
+        core.store
+            .with_conn(|c| Ok(c.query_row("SELECT COUNT(*) FROM outbox WHERE status = 'dead' AND op_type LIKE 'dawam_%'", [], |r| r.get(0))?))
+            .unwrap()
+    }
+
+    /// The owner's case (RESUME "Offline × Phase A token"). The signal goes
+    /// for three hours — the 60-minute staff token runs out long before it
+    /// comes back. The punches and pings wait on the phone, each stamped with
+    /// the SIGNED server time it last saw plus the time since boot from it.
+    /// When the signal is back the token is refreshed once, through the
+    /// device, and the queue goes out in order, each one dated from that
+    /// signed time — nothing lost, nothing re-dated to the sync.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn hours_offline_past_the_token_then_one_refresh_and_an_ordered_signed_flush() {
+        use crate::staff::session_tests::{later, signed_in, EMP, ORG};
+        use crate::testkit::StubResponse;
+        use std::sync::atomic::Ordering;
+
+        let k = knobs();
+        let stub = staff_stub(k.clone(), || {
+            StubResponse::json(200, json!({ "token": "t2", "expires_at": later(), "employee_id": EMP, "org_id": ORG }))
+        })
+        .await;
+        let core = signed_in(&stub).await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let shift = snap["my_now"][0].as_str().expect("today's shift is mine").to_string();
+        let kept: Anchor = serde_json::from_str(&core.store.kv_get(K_ANCHOR).unwrap().unwrap()).unwrap();
+        assert!(kept.sig.as_deref().is_some_and(|x| x.starts_with("v1.")), "the signed time is kept: {kept:?}");
+
+        // The signal goes, and stays gone three hours: the anchor is that old
+        // and the 60-minute token ran out two hours ago.
+        k.up.store(false, Ordering::SeqCst);
+        let three_h = Duration::hours(3);
+        let old = age_the_anchor(&core, three_h);
+        core.api.set_staff_expiry(Some(&(Utc::now() - Duration::hours(2)).to_rfc3339()));
+        k.t1_expired.store(true, Ordering::SeqCst);
+
+        let fix = DawamFix { latitude: 30.0609, longitude: 31.2197, accuracy: Some(9.0), ..Default::default() };
+        core.dawam_do(json!({ "action": "clock_in", "shift": shift, "fix": fix }).to_string()).await.unwrap();
+        core.dawam_ping(fix.clone()).await.unwrap();
+        core.dawam_ping(fix.clone()).await.unwrap();
+        let snap: Value =
+            serde_json::from_str(&core.dawam_do(json!({ "action": "clock_out", "fix": fix }).to_string()).await.unwrap()).unwrap();
+        assert_eq!(snap["queued"], 4, "all four wait on the phone");
+        assert_eq!(dead_dawam_ops(&core), 0, "an unreachable refresh never kills a punch");
+        assert!(!core.sync_status().auth_paused, "no signal is not a signed-out phone");
+
+        // Back online: queued long ago, so each goes with its offline stamp.
+        core.store.with_conn(|c| Ok(c.execute("UPDATE outbox SET payload = json_set(payload, '$.queued_ms', 0)", [])?)).unwrap();
+        stub.seen.lock().unwrap().clear();
+        k.up.store(true, Ordering::SeqCst);
+        let snap: Value = serde_json::from_str(&core.dawam_sync().await.unwrap()).unwrap();
+        assert_eq!(snap["queued"], 0, "flushed");
+        assert_eq!(stub.requests("/auth/staff/refresh").len(), 1, "one refresh through the device, not one per punch");
+        assert_eq!(stub.requests("/auth/staff/refresh")[0].header("x-staff-device").as_deref(), Some("dev-1"));
+        let posts: Vec<_> = stub.seen.lock().unwrap().iter().filter(|r| r.method == "POST" && r.path.starts_with("/staff/")).cloned().collect();
+        assert_eq!(
+            posts.iter().map(|r| r.path.as_str()).collect::<Vec<_>>(),
+            ["/staff/me/check-in", "/staff/me/pings", "/staff/me/pings", "/staff/me/check-out"],
+            "in the order they happened"
+        );
+        let punch = posts[0].json();
+        assert_eq!((punch["accuracy_meters"].as_f64(), punch["is_mock"].as_bool()), (Some(9.0), Some(false)), "the punch's own spoof signals (CL-9)");
+        let mut last = 0;
+        for p in &posts {
+            assert_eq!(p.header("authorization").as_deref(), Some("Bearer t2"), "the fresh token");
+            let off = &p.json()["offline"];
+            assert_eq!(off["anchor"], json!(old.sig), "the signed time from before the signal went");
+            assert_eq!(off["server_time"], json!(ms_rfc3339(old.server_ms)));
+            assert_eq!(off["rebooted"], false);
+            let el = off["elapsed_ms"].as_i64().unwrap();
+            assert!(el >= three_h.num_milliseconds() && el < (three_h + Duration::minutes(5)).num_milliseconds(), "{el}");
+            assert!(el >= last, "dated in order");
+            last = el;
+        }
+    }
+
+    /// A refresh the server can't answer (503) is a blip, not a refusal: the
+    /// queued punch stays queued however often it fails, and goes the moment
+    /// the refresh works.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_failing_refresh_keeps_the_punch_queued_until_it_works() {
+        use crate::staff::session_tests::{later, signed_in, EMP, ORG};
+        use crate::testkit::StubResponse;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let broken = Arc::new(AtomicBool::new(false));
+        let b2 = broken.clone();
+        let k = knobs();
+        let stub = staff_stub(k.clone(), move || {
+            if b2.load(Ordering::SeqCst) {
+                StubResponse::json(503, json!({ "error": "down for a moment" }))
+            } else {
+                StubResponse::json(200, json!({ "token": "t2", "expires_at": later(), "employee_id": EMP, "org_id": ORG }))
+            }
+        })
+        .await;
+        let core = signed_in(&stub).await;
+        core.dawam_snapshot(true).await.unwrap();
+        broken.store(true, Ordering::SeqCst);
+        k.t1_expired.store(true, Ordering::SeqCst);
+        core.api.set_staff_expiry(Some(&(Utc::now() - Duration::hours(1)).to_rfc3339()));
+        core.dawam_enqueue("dawam_ping", "/staff/me/pings", json!({ "latitude": 30.06, "longitude": 31.21 }), None).unwrap();
+        for round in 0..12 {
+            // However long it has been failing, it is due again.
+            core.store.with_conn(|c| Ok(c.execute("UPDATE outbox SET next_attempt_at = 0", [])?)).unwrap();
+            let _ = core.dawam_sync().await;
+            assert_eq!(core.dawam_queued().unwrap().len(), 1, "round {round}: still queued");
+            assert_eq!(dead_dawam_ops(&core), 0, "round {round}: never dead");
+        }
+        assert!(stub.requests("/staff/me/pings").iter().all(|r| r.header("authorization").as_deref() == Some("Bearer t1")));
+        broken.store(false, Ordering::SeqCst);
+        core.store.with_conn(|c| Ok(c.execute("UPDATE outbox SET next_attempt_at = 0", [])?)).unwrap();
+        core.dawam_sync().await.unwrap();
+        assert!(core.dawam_queued().unwrap().is_empty(), "sent once the refresh worked");
+        assert_eq!(stub.requests("/staff/me/pings").last().unwrap().header("authorization").as_deref(), Some("Bearer t2"));
+    }
+
+    /// A phone signed out elsewhere (`DEVICE_REVOKED`) parks the queue instead
+    /// of dropping it: the punches wait, and go under the person's next
+    /// sign-in.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_revoked_phone_parks_the_queue_and_the_next_sign_in_sends_it() {
+        use crate::staff::session_tests::{later, EMP, ORG};
+        use crate::testkit::StubResponse;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let revoked = Arc::new(AtomicBool::new(false));
+        let r2 = revoked.clone();
+        let k = knobs();
+        let stub = staff_stub(k.clone(), move || {
+            if r2.load(Ordering::SeqCst) {
+                StubResponse::json(401, json!({ "error": "This phone was signed out.", "code": "DEVICE_REVOKED" }))
+            } else {
+                StubResponse::json(200, json!({ "token": "t2", "expires_at": later(), "employee_id": EMP, "org_id": ORG }))
+            }
+        })
+        .await;
+        let core = crate::staff::session_tests::signed_in(&stub).await;
+        core.dawam_snapshot(true).await.unwrap();
+        revoked.store(true, Ordering::SeqCst);
+        k.t1_expired.store(true, Ordering::SeqCst);
+        core.api.set_staff_expiry(Some(&(Utc::now() - Duration::hours(1)).to_rfc3339()));
+        core.dawam_enqueue("dawam_ping", "/staff/me/pings", json!({ "latitude": 30.06, "longitude": 31.21 }), None).unwrap();
+        let err = core.dawam_sync().await.unwrap_err();
+        assert!(matches!(err, CoreError::Unauthenticated { .. }), "{err:?}");
+        assert!(core.sync_status().auth_paused, "parked");
+        assert_eq!(core.dawam_queued().unwrap().len(), 1, "kept");
+        assert_eq!(dead_dawam_ops(&core), 0);
+
+        // The app signs out (keeping the queue); the person signs in again.
+        core.logout(false).unwrap();
+        revoked.store(false, Ordering::SeqCst);
+        core.staff_otp_verify("+201001234567".into(), "123456".into(), None, None, None).await.unwrap();
+        core.dawam_sync().await.unwrap();
+        assert!(core.dawam_queued().unwrap().is_empty(), "sent under the new sign-in");
+    }
+
+    /// 06 B4: the fence line is the real distance from a FRESH reading. No
+    /// reading, or one from long ago, is "unknown" — never "inside".
+    #[tokio::test(flavor = "multi_thread")]
+    async fn the_fence_line_is_a_fresh_real_distance_and_unknown_is_not_inside() {
+        use crate::staff::session_tests::signed_in;
+        use crate::testkit::{StubResponse, BRANCH};
+        let stub = staff_stub(knobs(), || StubResponse::json(503, json!({}))).await;
+        let core = signed_in(&stub).await;
+        let snap = |j: String| serde_json::from_str::<Value>(&j).unwrap();
+
+        let v = snap(core.dawam_snapshot(true).await.unwrap());
+        assert_eq!(v["fences"][BRANCH], json!({ "state": "unknown", "distance_m": null, "radius": 200 }));
+        assert!(v["inside"].is_null(), "no reading: unknown, not inside");
+
+        // 150 m north of the branch: inside, and it says how far.
+        let near = DawamFix { latitude: 30.0609 + 150.0 / 111_195.0, longitude: 31.2197, accuracy: Some(10.0), ..Default::default() };
+        let v = snap(core.dawam_do(json!({ "action": "note_fix", "fix": near }).to_string()).await.unwrap());
+        assert_eq!(v["fences"][BRANCH]["state"], "inside");
+        assert_eq!(v["fences"][BRANCH]["distance_m"], 150);
+        assert_eq!((v["inside"].as_bool(), v["distance_m"].as_f64()), (Some(true), Some(150.0)));
+        assert!(stub.requests("/staff/me/pings").is_empty(), "noting a reading sends nothing");
+
+        // 340 m away: outside, with its own distance (the old line always said 340).
+        let far = DawamFix { latitude: 30.0609 + 612.0 / 111_195.0, ..near.clone() };
+        let v = snap(core.dawam_do(json!({ "action": "note_fix", "fix": far }).to_string()).await.unwrap());
+        assert_eq!((v["fences"][BRANCH]["state"].as_str(), v["fences"][BRANCH]["distance_m"].as_i64()), (Some("outside"), Some(612)));
+
+        // The same reading an hour later says nothing about now.
+        let old = NotedFix { fix: near, noted_boot_ms: Some(boot_ms() - 60 * 60_000) };
+        core.store.kv_put(K_FIX, &serde_json::to_string(&old).unwrap()).unwrap();
+        let v = snap(core.dawam_snapshot(false).await.unwrap());
+        assert_eq!(v["fences"][BRANCH]["state"], "unknown");
+        assert!(v["inside"].is_null() && v["distance_m"].is_null());
+        // A reading kept by an older build (no time) is stale too.
+        core.store.kv_put(K_FIX, r#"{"latitude":30.0609,"longitude":31.2197}"#).unwrap();
+        let v = snap(core.dawam_snapshot(false).await.unwrap());
+        assert_eq!(v["fences"][BRANCH]["state"], "unknown");
+    }
+
+    /// AT-5: the notice is accepted per phone on the server. The snapshot
+    /// says whether it was; accepting needs a connection; a punch made before
+    /// is held (never dropped) and goes once the notice is accepted.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn the_notice_is_accepted_on_the_server_and_a_held_punch_goes_after() {
+        use crate::staff::session_tests::signed_in;
+        use crate::testkit::StubResponse;
+        use std::sync::atomic::Ordering;
+        let k = knobs();
+        k.accepted.store(false, Ordering::SeqCst);
+        let stub = staff_stub(k.clone(), || StubResponse::json(503, json!({}))).await;
+        let core = signed_in(&stub).await;
+        let snap = |j: String| serde_json::from_str::<Value>(&j).unwrap();
+        let v = snap(core.dawam_snapshot(true).await.unwrap());
+        assert_eq!(v["privacy_accepted"], false, "a new phone has not accepted");
+        let shift = v["my_now"][0].as_str().unwrap().to_string();
+
+        // A punch that reaches the server before the notice is accepted.
+        let fix = DawamFix { latitude: 30.0609, longitude: 31.2197, accuracy: Some(9.0), ..Default::default() };
+        let _ = core.dawam_do(json!({ "action": "clock_in", "shift": shift, "fix": fix }).to_string()).await;
+        assert_eq!(core.dawam_queued().unwrap().len(), 1, "held, not dropped");
+        assert_eq!(dead_dawam_ops(&core), 0);
+
+        // Offline, accepting says it needs a connection.
+        k.up.store(false, Ordering::SeqCst);
+        core.set_online(false);
+        let err = core.dawam_do(json!({ "action": "accept_privacy" }).to_string()).await.unwrap_err();
+        assert!(matches!(err, CoreError::Offline { .. }), "{err:?}");
+        k.up.store(true, Ordering::SeqCst);
+        core.set_online(true);
+
+        let v = snap(core.dawam_do(json!({ "action": "accept_privacy" }).to_string()).await.unwrap());
+        assert_eq!(stub.requests("/staff/me/privacy").len(), 1);
+        assert_eq!(v["privacy_accepted"], true);
+        assert_eq!(v["queued"], 0, "the held punch went once the notice was accepted");
+        assert_eq!(stub.requests("/staff/me/check-in").len(), 2, "refused once, then taken");
+    }
+
+    /// AT-1 / audit 03 bug 12: "today" is my branch's day, not the first
+    /// branch the mirror lists (a manager sees every branch).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn today_is_my_branchs_day_not_the_first_branch_listed() {
+        use crate::testkit::{online_core, Stub, StubResponse, TELLER};
+        let stub = Stub::start(|r| {
+            let path = r.path.split('?').next().unwrap_or_default();
+            Some(match path {
+                "/staff/me/context" => StubResponse::json(200, json!({
+                    "role": "employee", "org_name": "Nile", "caps": [],
+                    "branches": [
+                        { "id": "far", "name": "Honolulu", "timezone": "Pacific/Honolulu" },
+                        { "id": "mine", "name": "Kiritimati", "timezone": "Pacific/Kiritimati" },
+                    ],
+                    "work_shifts": [], "settings": {},
+                    "people": [{ "employee_id": TELLER, "name": "Sara", "role": "employee", "branch_ids": ["mine"] }],
+                })),
+                "/health" => StubResponse::text(200, "ok"),
+                p if p.ends_with("estimate") => StubResponse::json(200, json!({})),
+                _ => StubResponse::json(200, json!([])),
+            })
+        })
+        .await;
+        let core = online_core(&stub.base, "").await;
+        core.set_online(true);
+        core.dawam_snapshot(true).await.unwrap();
+        // UTC−10 and UTC+14 are always on different days.
+        let kiritimati = Utc::now().with_timezone(&chrono_tz::Pacific::Kiritimati).date_naive();
+        assert_eq!(core.dawam_today(), kiritimati);
+        assert_eq!(core.dawam_tz(), chrono_tz::Pacific::Kiritimati);
+    }
+
+    #[test]
+    fn a_managers_punch_and_a_correction_read_as_what_they_are() {
+        assert_eq!(method_of("manager").as_deref(), Some("manager"), "CL-16: the server writes `manager` now");
+        assert_eq!(method_of("manual").as_deref(), Some("manager"));
+        assert_eq!(method_of("correction").as_deref(), Some("correction"));
+        assert_eq!(method_of("till").as_deref(), Some("till"));
+        assert_eq!(method_of("nonsense"), None);
     }
 
     #[tokio::test(flavor = "multi_thread")]

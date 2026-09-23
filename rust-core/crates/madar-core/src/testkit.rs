@@ -34,18 +34,25 @@ impl SeenRequest {
 pub(crate) struct StubResponse {
     pub status: u16,
     pub body: String,
+    /// Extra response headers (e.g. the staff app's signed `x-dawam-time`).
+    pub headers: Vec<(String, String)>,
 }
 
 impl StubResponse {
     pub fn json(status: u16, v: serde_json::Value) -> Self {
-        Self { status, body: v.to_string() }
+        Self { status, body: v.to_string(), headers: Vec::new() }
     }
     pub fn text(status: u16, body: &str) -> Self {
-        Self { status, body: body.to_string() }
+        Self { status, body: body.to_string(), headers: Vec::new() }
     }
     /// Close the connection without answering (reads as "offline" to the core).
     pub fn hangup() -> Self {
-        Self { status: 0, body: String::new() }
+        Self { status: 0, body: String::new(), headers: Vec::new() }
+    }
+    /// The same answer carrying one more header.
+    pub fn with_header(mut self, name: &str, value: &str) -> Self {
+        self.headers.push((name.to_string(), value.to_string()));
+        self
     }
 }
 
@@ -115,8 +122,9 @@ impl Stub {
                     if resp.status == 0 {
                         return;
                     }
+                    let extra: String = resp.headers.iter().map(|(k, v)| format!("{k}: {v}\r\n")).collect();
                     let out = format!(
-                        "HTTP/1.1 {} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                        "HTTP/1.1 {} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\n{extra}connection: close\r\n\r\n{}",
                         resp.status,
                         resp.body.len(),
                         resp.body

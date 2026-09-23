@@ -24,6 +24,9 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   flutter_riverpod: ^3.3.2
+  # The phone's Dawam device token lives in the Keychain / Android Keystore,
+  # never the core's SQLite (RO-3, audit 03 CL-1c).
+  flutter_secure_storage: ^11.2.0
   # The clock-in position and the on-shift pings (CL-1, CL-6).
   geolocator: ^14.0.3
   intl: ^0.20.2

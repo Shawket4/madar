@@ -39,6 +39,27 @@ class FakeCore implements DawamBackend {
   String who;
   final acts = <Map<String, dynamic>>[];
 
+  /// This phone accepted the location notice on the server (AT-5).
+  bool accepted = true;
+
+  /// The core's fence reading per branch (06 B4); null: as the fixture says.
+  Map<String, dynamic>? fences;
+
+  /// Any other change to the picture.
+  void Function(Map<String, dynamic>)? edit;
+
+  /// What the background tracking was last told (CL-4).
+  final trackingCalls = <bool>[];
+
+  /// The fixture as the core would answer it now.
+  String picture() {
+    final v = jsonDecode(fixture(who)) as Map<String, dynamic>;
+    v['privacy_accepted'] = accepted;
+    if (fences != null) v['fences'] = fences;
+    edit?.call(v);
+    return jsonEncode(v);
+  }
+
   static const _phones = {
     '01001234567': 'e1',
     '01002345678': 'e2',
@@ -61,22 +82,23 @@ class FakeCore implements DawamBackend {
     String phone,
     String code, {
     String? orgId,
-  }) async => {'employee_id': who, 'token': 't', 'device_token': 'd'};
+  }) async => {'employee_id': who};
 
   @override
-  Future<String> snapshot({required bool refresh}) async => fixture(who);
+  Future<String> snapshot({required bool refresh}) async => picture();
 
   @override
   Future<String> act(Map<String, dynamic> action) async {
     acts.add(action);
-    return fixture(who);
+    if (action['action'] == 'accept_privacy') accepted = true;
+    return picture();
   }
 
   @override
-  Future<String> ping(DawamFix fix) async => fixture(who);
+  Future<String> ping(DawamFix fix) async => picture();
 
   @override
-  Future<String> sync() async => fixture(who);
+  Future<String> sync() async => picture();
 
   @override
   Future<DawamFix?> locate() async => (
@@ -97,7 +119,13 @@ class FakeCore implements DawamBackend {
   Future<bool> alwaysLocation() async => always;
 
   @override
-  String? restoredUser() => null;
+  Future<void> tracking({required bool on}) async => trackingCalls.add(on);
+
+  @override
+  String? restoredUser() => restored;
+
+  /// A session the core kept from before (a cold start).
+  String? restored;
 
   @override
   Future<void> signOut() async {}
@@ -114,6 +142,7 @@ Future<void> finish(WidgetTester tester) async {
 }
 
 /// Pumps the app for [who] (null: signed out) on the given side and tab.
+/// [core] sets the fake up before the app reads it.
 Future<ProviderContainer> pumpApp(
   WidgetTester tester, {
   required String lang,
@@ -122,11 +151,14 @@ Future<ProviderContainer> pumpApp(
   int tab = 0,
   Size size = const Size(390, 844),
   ThemeChoice theme = ThemeChoice.light,
+  void Function(FakeCore)? core,
 }) async {
   tester.view.physicalSize = size * 3;
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
-  testCore = FakeCore(who ?? 'e1');
+  // A fresh sign-in is a new phone: it has not accepted the notice yet.
+  testCore = FakeCore(who ?? 'e1')..accepted = who != null;
+  core?.call(testCore);
   final container = ProviderContainer(
     overrides: [
       dawamBackendProvider.overrideWithValue(testCore),
@@ -139,8 +171,9 @@ Future<ProviderContainer> pumpApp(
   testContainer = container;
   container.read(localeProvider);
   final store = container.read(dawamProvider);
-  if (who != null) {
-    store.privacyAccepted.add(who);
+  if (testCore.restored != null) {
+    await store.restore();
+  } else if (who != null) {
     await store.enter();
   }
   final shell = container.read(shellProvider.notifier);

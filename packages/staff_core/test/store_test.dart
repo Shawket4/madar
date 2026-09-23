@@ -49,6 +49,9 @@ class _Backend implements DawamBackend {
   Stream<DawamFix> track() => const Stream.empty();
   @override
   Future<bool> alwaysLocation() async => true;
+  final trackingCalls = <bool>[];
+  @override
+  Future<void> tracking({required bool on}) async => trackingCalls.add(on);
   @override
   String? restoredUser() => 'e1';
   @override

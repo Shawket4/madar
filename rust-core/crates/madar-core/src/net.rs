@@ -233,6 +233,12 @@ impl ApiClient {
         self.staff_anchor.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
+    /// Replace the kept signed time (tests: an anchor received hours ago).
+    #[cfg(test)]
+    pub(crate) fn set_staff_anchor(&self, a: Option<StaffAnchor>) {
+        *self.staff_anchor.write().unwrap_or_else(|e| e.into_inner()) = a;
+    }
+
     /// The phone's device token, while one is bound (the host keeps it in
     /// the platform's secure storage).
     pub(crate) fn staff_device(&self) -> Option<String> {
@@ -763,6 +769,11 @@ pub(crate) const STAFF_CODES: &[&str] = &[
     "EMPLOYEE_INACTIVE",
     "MANAGER_ACCOUNT_NEEDED",
     "STAFF_APP_ONLY",
+    // Location before this phone accepted the notice (AT-5).
+    crate::dawam::PRIVACY_NOT_ACCEPTED,
+    // The till PIN punch (CL-13): only from the branch's till, with a till open.
+    "TILL_ONLY",
+    "NO_TILL_SESSION",
 ];
 
 /// Map an HTTP status + raw body to a `CoreError` variant.
