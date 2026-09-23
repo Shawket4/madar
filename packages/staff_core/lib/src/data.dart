@@ -573,6 +573,7 @@ class DawamStore extends ChangeNotifier {
 
   Timer? _pings;
   Timer? _poll;
+  String? _lastGood;
   StreamSubscription<DawamFix>? _track;
   DateTime? _lastPing;
 
@@ -1019,18 +1020,24 @@ class DawamStore extends ChangeNotifier {
   }
 
   void signOut() {
-    _pings?.cancel();
-    _poll?.cancel();
-    _poll = null;
+    stop();
+    // Never fall back to the last person's picture.
+    _lastGood = null;
     unawaited(backend.signOut());
     me = null;
     pendingUser = null;
     notifyListeners();
   }
 
+  /// Stops the poll, the ping timer and the position stream. Each is
+  /// cleared, so the next sign-in starts them again.
   void stop() {
     _pings?.cancel();
+    _pings = null;
     _poll?.cancel();
+    _poll = null;
+    unawaited(_track?.cancel());
+    _track = null;
   }
 
   Future<void> refresh() async {
@@ -1128,7 +1135,17 @@ class DawamStore extends ChangeNotifier {
   void _applySafely(String json) {
     try {
       _apply(json);
+      _lastGood = json;
     } on Object catch (e, st) {
+      // `_apply` clears as it goes: put the last good picture back whole.
+      final good = _lastGood;
+      if (good != null) {
+        try {
+          _apply(good);
+        } on Object {
+          // it was readable before; nothing better to show
+        }
+      }
       FlutterError.reportError(
         FlutterErrorDetails(
           exception: e,
