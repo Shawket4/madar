@@ -97,7 +97,7 @@ jobs:
       # madar-shared dependency now; its tests run in madar-shared's CI.
       - name: Core tests
         working-directory: rust-core
-        run: cargo test -p madar-core
+        run: cargo test -p madar-core --locked
 
       # The staff app's OWN bindings crate — a separate .so/.dylib from the
       # POS's, so a break here never shows up in ci.yml.

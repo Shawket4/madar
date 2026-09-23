@@ -46,7 +46,6 @@ on:
       - rust-core/crates/madar-frb-staff/**
       - rust-core/crates/madar-core/**
       - rust-core/crates/madar-api/**
-      - rust-core/crates/madar-authz/**
       - rust-core/Cargo.toml
       - rust-core/Cargo.lock
       - pubspec.yaml
