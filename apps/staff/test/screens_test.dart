@@ -9,29 +9,12 @@ import 'dart:ui' as ui;
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'support.dart';
 
 const _render = bool.fromEnvironment('MADAR_RENDER');
-
-Future<void> _loadFonts() async {
-  const cuts = ['Regular', 'Medium', 'SemiBold', 'Bold'];
-  for (final family in [MadarType.fontFamily, MadarType.monoFamily]) {
-    final loader = FontLoader('packages/${MadarType.fontPackage}/$family');
-    for (final cut in cuts) {
-      final file = File(
-        '../../packages/design_system/assets/fonts/$family-$cut.ttf',
-      );
-      if (file.existsSync()) {
-        loader.addFont(file.readAsBytes().then(ByteData.sublistView));
-      }
-    }
-    await loader.load();
-  }
-}
 
 Future<void> _shot(WidgetTester tester, String name) async {
   await frames(tester);
@@ -61,7 +44,7 @@ void main() {
   useCoreWords();
 
   setUpAll(() async {
-    await _loadFonts();
+    await loadFonts();
     await initializeDateFormatting();
   });
 

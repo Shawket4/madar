@@ -176,6 +176,7 @@ class Shift {
   String? punchReason;
   String? leave; // 'paid' | 'unpaid'
   bool halfLeave = false;
+  String? leaveHalf; // 'first' | 'second' (RQ-8)
   bool mission = false;
   int? lateUntil; // minute of day agreed by an approved late arrival
   int? earlyFrom;
@@ -186,6 +187,10 @@ class Shift {
   int lateMinutes = 0;
   bool absent = false;
   bool queued = false;
+
+  /// No approved or paid period holds its day: it can still be fixed. The
+  /// core decides (RQ-4, B13).
+  bool monthOpen = true;
 
   // A shift can point at a template the snapshot didn't bring (deactivated,
   // or another branch's): show it as an unnamed all-day shift, never crash.
@@ -243,9 +248,21 @@ class Req {
   int installments = 1;
   int minutes = 0;
   bool toOwner = false;
+
+  /// The pay an approver starts from (the rule, RQ-7); null = not asked.
+  bool? paidDefault;
+  String? leaveHalf; // 'first' | 'second' (RQ-8)
   String? decidedBy;
   String? decisionNote;
+
+  /// Every day it covers can still change (RQ-4, B13), from the core.
+  bool monthOpen = true;
 }
+
+/// What the server made of a request just filed (RQ-5): approved at once for
+/// a filer who approves their own, else waiting — for the owner when
+/// `toOwner`.
+typedef Filed = ({String id, ReqStatus status, bool toOwner});
 
 class Adj {
   Adj(
@@ -563,6 +580,9 @@ class DawamStore extends ChangeNotifier {
   String? _active;
   List<String> _coverable = const [];
   List<String> _inbox = const [];
+
+  /// The server's answer to the last filing, from the picture it came with.
+  Filed? lastFiled;
   List<String> _adjInbox = const [];
   List<String> _openFlags = const [];
 
@@ -717,7 +737,9 @@ class DawamStore extends ChangeNotifier {
             ..timeUnverified = s['time_unverified'] == true
             ..lateMinutes = _int(s['late_minutes'])
             ..absent = s['absent'] == true
-            ..queued = s['queued'] == true;
+            ..queued = s['queued'] == true
+            ..leaveHalf = s['leave_half'] as String?
+            ..monthOpen = s['month_open'] != false;
       shifts.add(sh);
       if (sh.published) {
         published.add('${sh.template.branch}|${weekStart(sh.date)}');
@@ -763,11 +785,22 @@ class DawamStore extends ChangeNotifier {
           ..installments = _int(r['installments'])
           ..minutes = _int(r['minutes'])
           ..toOwner = r['to_owner'] == true
+          ..paidDefault = r['paid_default'] as bool?
+          ..leaveHalf = r['leave_half'] as String?
+          ..monthOpen = r['month_open'] != false
           ..decidedBy = r['decided_by'] as String?
           ..decisionNote = r['decision_note'] as String?,
       );
     }
     _inbox = (v['inbox'] as List<dynamic>).cast<String>();
+    final filed = v['filed'];
+    lastFiled = filed is J
+        ? (
+            id: filed['id'] as String,
+            status: _enum(ReqStatus.values, filed['status'], ReqStatus.pending),
+            toOwner: filed['to_owner'] == true,
+          )
+        : null;
     for (final a in _list(v['adjustments'])) {
       adjs.add(
         Adj(
@@ -940,8 +973,6 @@ class DawamStore extends ChangeNotifier {
   List<Shift> coverable() => [for (final id in _coverable) ?_shift(id)];
   int lateMinutes(Shift s) => s.lateMinutes;
   bool isAbsent(Shift s) => s.absent;
-  bool monthOpen(DateTime d) =>
-      !d.isBefore(period.start) && period.status == PeriodStatus.open;
   List<Req> get inbox => [
     for (final id in _inbox) ?reqs.where((r) => r.id == id).firstOrNull,
   ];
@@ -1175,11 +1206,13 @@ class DawamStore extends ChangeNotifier {
   Future<void> punchFor(Shift s, String reason) =>
       _act({'action': 'punch_for', 'shift': s.id, 'reason': reason});
 
-  Future<void> file(
+  /// Returns what the server made of it ([Filed]), for the screen's words.
+  Future<Filed?> file(
     ReqKind kind, {
     DateTime? from,
     DateTime? to,
     bool half = false,
+    String? leaveHalf,
     int? time,
     int? time2,
     String note = '',
@@ -1188,25 +1221,34 @@ class DawamStore extends ChangeNotifier {
     String? shift,
     String? shift2,
     String? peer,
-  }) => _act({
-    'action': 'file',
-    'kind': kind.name,
-    if (from != null) 'from': _d(from),
-    if (to != null) 'to': _d(to),
-    'half': half,
-    'time': ?time,
-    'time2': ?time2,
-    'note': note,
-    'amount': amount,
-    'installments': installments,
-    'shift': ?shift,
-    'shift2': ?shift2,
-    'peer': ?peer,
-  });
+  }) async {
+    lastFiled = null;
+    await _act({
+      'action': 'file',
+      'kind': kind.name,
+      if (from != null) 'from': _d(from),
+      if (to != null) 'to': _d(to),
+      'half': half,
+      if (half) 'leave_half': ?leaveHalf,
+      'time': ?time,
+      'time2': ?time2,
+      'note': note,
+      'amount': amount,
+      'installments': installments,
+      'shift': ?shift,
+      'shift2': ?shift2,
+      'peer': ?peer,
+    });
+    return lastFiled;
+  }
+
   Future<void> claim(Shift s) => _act({'action': 'claim', 'shift': s.id});
   Future<void> peerAnswer(Req r, {required bool yes}) =>
       _act({'action': 'peer_answer', 'req': r.id, 'yes': yes});
-  Future<void> cancel(Req r) => _act({'action': 'cancel', 'req': r.id});
+
+  /// [note]: why, required once it was approved (AT-7).
+  Future<void> cancel(Req r, {String? note}) =>
+      _act({'action': 'cancel', 'req': r.id, 'note': ?note});
   Future<void> decide(
     Req r, {
     required bool approve,

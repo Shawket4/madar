@@ -221,12 +221,20 @@ class _ReqCard extends ConsumerStatefulWidget {
 }
 
 class _ReqCardState extends ConsumerState<_ReqCard> {
-  // Leave defaults to paid; an excuse to the org rule, unpaid (RQ-7).
-  late bool _paid = widget.r.kind == ReqKind.leave;
+  // Leave starts paid; an excuse or early departure from the rule the
+  // server sends (branch, else business: RQ-7).
+  late bool _paid =
+      widget.r.kind == ReqKind.leave || (widget.r.paidDefault ?? false);
   late int _inst = widget.r.installments;
-  late final _amount = TextEditingController(
-    text: (widget.r.amount / 100).toStringAsFixed(0),
-  );
+  // To the piastre, so approving it unchanged changes nothing (§3).
+  late final String _asked = (widget.r.amount / 100).toStringAsFixed(2);
+  late final _amount = TextEditingController(text: _asked);
+
+  /// Pay is asked of leave, an excuse and an early departure only.
+  bool get _asksPay => switch (widget.r.kind) {
+    ReqKind.leave || ReqKind.excuse || ReqKind.earlyDeparture => true,
+    _ => false,
+  };
 
   @override
   void dispose() {
@@ -295,7 +303,7 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
             '“${r.note}”',
             style: MadarType.bodySm.copyWith(color: c.textSecondary),
           ),
-        if (r.kind == ReqKind.leave || r.kind == ReqKind.excuse)
+        if (_asksPay)
           MadarSegmented<bool>(
             items: [
               MadarSegmentItem(true, tr('staff.leave_paid')),
@@ -333,8 +341,13 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
           yes: () => store.decide(
             r,
             approve: true,
-            paid: _paid,
-            amount: r.kind == ReqKind.salaryAdvance ? readMoney(_amount) : null,
+            paid: _asksPay ? _paid : null,
+            // Sent only when the approver changed it: the asked amount
+            // stands as the server has it.
+            amount:
+                r.kind == ReqKind.salaryAdvance && _amount.text.trim() != _asked
+                ? readMoney(_amount)
+                : null,
             installments: _inst,
           ),
           no: () => store.decide(r, approve: false),
