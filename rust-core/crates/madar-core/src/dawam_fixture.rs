@@ -60,9 +60,18 @@ impl World {
                 { "id": B2, "name": "Maadi", "geo_radius_meters": 150, "latitude": 29.9602, "longitude": 31.2569, "timezone": "Africa/Cairo" }
             ],
             "work_shifts": [
-                { "id": "zM", "name": "Morning", "branch_id": B1, "start_time": "08:00:00", "end_time": "16:00:00", "grace_minutes": 10 },
-                { "id": "zE", "name": "Evening", "branch_id": B1, "start_time": "15:00:00", "end_time": "23:00:00", "grace_minutes": 10 },
-                { "id": "mM", "name": "Morning", "branch_id": B2, "start_time": "08:00:00", "end_time": "16:00:00", "grace_minutes": 10 }
+                { "id": "zM", "name": "Morning", "branch_id": B1, "start_time": "08:00:00", "end_time": "16:00:00", "grace_minutes": 10,
+                  "valid_days": [0, 1, 2, 3, 4, 5, 6], "day_times": [] },
+                // One block, its own later end on Thursday and Friday (owner, 2026-09-23).
+                { "id": "zE", "name": "Evening", "branch_id": B1, "start_time": "15:00:00", "end_time": "23:00:00", "grace_minutes": 10,
+                  "valid_days": [0, 1, 2, 3, 4, 5, 6],
+                  "day_times": [{ "day_of_week": 4, "start_time": "15:00:00", "end_time": "00:00:00" },
+                                { "day_of_week": 5, "start_time": "15:00:00", "end_time": "00:00:00" }] },
+                // A block worked on Fridays only: offered on no other day.
+                { "id": "zB", "name": "Brunch", "branch_id": B1, "start_time": "10:00:00", "end_time": "14:00:00", "grace_minutes": 10,
+                  "valid_days": [5], "day_times": [] },
+                { "id": "mM", "name": "Morning", "branch_id": B2, "start_time": "08:00:00", "end_time": "16:00:00", "grace_minutes": 10,
+                  "valid_days": [0, 1, 2, 3, 4, 5, 6], "day_times": [] }
             ],
             "people": people,
             "settings": {
@@ -73,14 +82,38 @@ impl World {
         })
     }
 
-    /// Two weeks: Sara mornings and Youssef evenings at Zamalek, Laila at Maadi.
+    /// Two weeks: Sara mornings and Youssef evenings at Zamalek, Laila at Maadi,
+    /// as the server resolves them (effective times, crossing midnight). In two
+    /// days Youssef's evening has its own times, to 00:30; in three days Sara
+    /// works a split day, her morning and an evening.
     fn roster(&self, who: &[&str]) -> Vec<Value> {
         let mut out = Vec::new();
         for day in -7..8 {
+            let d = self.today + chrono::Duration::days(day);
+            let late_end = matches!(d.weekday(), chrono::Weekday::Thu | chrono::Weekday::Fri);
             for (u, t) in [("e1", "zM"), ("e4", "zE"), ("e5", "mM")] {
-                if who.contains(&u) {
-                    out.push(json!({ "employee_id": u, "date": self.d(day), "work_shift_id": t, "changed": u == "e1" && day == 1, "on_leave": false }));
+                // In six days Sara has the day off by a date change.
+                if who.contains(&u) && !(u == "e1" && day == 6) {
+                    let (start, end, edited) = match t {
+                        "zE" if day == 2 => ("16:00:00", "00:30:00", true),
+                        "zE" if late_end => ("15:00:00", "00:00:00", false),
+                        "zE" => ("15:00:00", "23:00:00", false),
+                        _ => ("08:00:00", "16:00:00", false),
+                    };
+                    out.push(json!({
+                        "employee_id": u, "date": self.d(day), "work_shift_id": t,
+                        "start_time": start, "end_time": end, "crosses_midnight": end < start,
+                        "times_edited": edited, "from_override": edited || (u == "e1" && day == 3),
+                        "changed": u == "e1" && day == 1, "on_leave": false,
+                    }));
                 }
+            }
+            if who.contains(&"e1") && day == 3 {
+                out.push(json!({
+                    "employee_id": "e1", "date": self.d(day), "work_shift_id": "zE",
+                    "start_time": "17:00:00", "end_time": "21:00:00", "crosses_midnight": false,
+                    "times_edited": true, "from_override": true, "changed": false, "on_leave": false,
+                }));
             }
         }
         out
@@ -141,6 +174,11 @@ impl World {
             "/staff/roster" => json!({
                 "published_weeks": [crate::dawam::week_start(self.today).to_string()],
                 "shifts": self.roster(&all), "open_shifts": [],
+                "date_sets": [
+                    { "employee_id": "e4", "date": self.d(2), "day_off": false },
+                    { "employee_id": "e1", "date": self.d(3), "day_off": false },
+                    { "employee_id": "e1", "date": self.d(6), "day_off": true }
+                ],
                 "holidays": [{ "on_date": format!("{}-10-06", self.today.year()), "name_en": "Armed Forces Day", "name_ar": "عيد القوات المسلحة", "decision": null }],
             }),
             "/staff/attendance" => json!(self.attendance()),
@@ -240,6 +278,17 @@ async fn dawam_fixture_three_people_see_their_own_picture() {
     assert_eq!(e2["open_flags"], json!(["f1"]));
     let yesterday = e2["shifts"].as_array().unwrap().iter().find(|s| s["id"].as_str().unwrap().starts_with("e4|") && s["absent"] == true);
     assert!(yesterday.is_some(), "Youssef's missed evening reads absent");
+    // The board reads what the server resolved: a block's own days, one
+    // assignment's own times past midnight, a split day.
+    let brunch = e2["templates"].as_array().unwrap().iter().find(|t| t["id"] == "zB").unwrap();
+    assert_eq!(brunch["days"], json!([5]), "Friday only, in ISO");
+    let two = (Utc::now().with_timezone(&chrono_tz::Africa::Cairo).date_naive() + Duration::days(2)).to_string();
+    let late = e2["shifts"].as_array().unwrap().iter().find(|s| s["id"] == json!(format!("e4|{two}|zE"))).unwrap();
+    assert_eq!((late["end"].as_i64(), late["next_day"].as_bool(), late["edited"].as_bool()), (Some(30), Some(true), Some(true)));
+    let three = (Utc::now().with_timezone(&chrono_tz::Africa::Cairo).date_naive() + Duration::days(3)).to_string();
+    assert_eq!(e1["shifts"].as_array().unwrap().iter().filter(|s| s["emp"] == "e1" && s["date"] == json!(three)).count(), 2, "a split day");
+    let six = (Utc::now().with_timezone(&chrono_tz::Africa::Cairo).date_naive() + Duration::days(6)).to_string();
+    assert_eq!(e2["days_off"], json!([format!("e1|{six}")]));
     // The owner: payroll, and the adjustment over the manager's limit.
     assert!(e3["can_payroll"].as_bool().unwrap());
     assert_eq!(e2["tabs"], json!({ "team": true, "approvals": true, "schedule": true, "payroll": false }));
