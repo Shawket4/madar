@@ -336,6 +336,9 @@ pub struct ReqV {
     /// The pay an approver starts from for an excuse or early departure: the
     /// branch's rule, else the business's (RQ-7). `None` = the server didn't say.
     pub paid_default: Option<bool>,
+    /// The server's answer to "may I decide this one?" (RQ-5) when it sends
+    /// one; the inbox follows it over any reading of `to_owner`.
+    pub can_decide: Option<bool>,
     /// A half-day leave's half: `first` or `second` (RQ-8).
     pub leave_half: Option<String>,
     /// The work shift (template) a late arrival, early departure or excuse
@@ -1260,8 +1263,9 @@ impl MadarCore {
                             });
                         }
                         // The shift a timed request is for (B4): on a split day it
-                        // never reaches the other shift.
-                        if matches!(server, "late_arrival" | "early_departure" | "excuse") {
+                        // never reaches the other shift. A correction names it only
+                        // when no record holds that shift yet (RQ-9: nobody clocked).
+                        if matches!(server, "late_arrival" | "early_departure" | "excuse") || (server == "correction" && record.is_none()) {
                             if let Some(sid) = shift.as_deref().filter(|x| !x.starts_with("open|")) {
                                 let (_, _, tpl) = parts(sid);
                                 if !tpl.is_empty() {
@@ -1710,6 +1714,7 @@ impl MadarCore {
                 shift: rec.and_then(|rid| record_of.iter().find(|(_, v)| **v == rid).map(|(k, _)| k.clone())),
                 to_owner: b(q, "to_owner"),
                 paid_default: q.get("paid_default").and_then(Value::as_bool),
+                can_decide: q.get("can_decide").and_then(Value::as_bool),
                 leave_half: so(q, "leave_half").filter(|_| b(q, "is_half_day")),
                 tpl: so(q, "work_shift_id"),
                 decided_by: actor(so(q, "decided_by")),
@@ -1910,7 +1915,7 @@ impl MadarCore {
             let mut inbox: Vec<&ReqV> = out
                 .requests
                 .iter()
-                .filter(|r| r.status == "pending" && r.emp != me && visible.contains(r.emp.as_str()) && (!r.to_owner || owner))
+                .filter(|r| r.status == "pending" && r.emp != me && visible.contains(r.emp.as_str()) && r.can_decide.unwrap_or(!r.to_owner || owner))
                 .collect();
             inbox.sort_by(|a, z| z.created.cmp(&a.created));
             out.inbox = inbox.into_iter().map(|r| r.id.clone()).collect();
@@ -2587,14 +2592,18 @@ mod tests {
     }
 
     /// RQ-9 (§3): a correction names the person's OWN record of the shift. A
-    /// colleague's cover of it is theirs, and the server refuses it (404).
+    /// colleague's cover of it is theirs, and the server refuses it (404). A
+    /// shift nobody clocked has no record: the correction names the shift.
     #[tokio::test(flavor = "multi_thread")]
     async fn a_correction_names_my_own_record_never_a_cover_of_my_shift() {
         use crate::testkit::{StubResponse, BRANCH, TELLER};
         let d = today_cairo().to_string();
         let day = d.clone();
         let (stub, core) = cafe(&[], move |m, p, _| match (m, p) {
-            ("GET", "/staff/me/roster") => Some(StubResponse::json(200, json!({ "shifts": [{ "employee_id": TELLER, "date": day, "work_shift_id": "w1" }], "team": [], "unpublished_weeks": [] }))),
+            ("GET", "/staff/me/roster") => Some(StubResponse::json(200, json!({ "shifts": [
+                { "employee_id": TELLER, "date": day, "work_shift_id": "w1" },
+                { "employee_id": TELLER, "date": day, "work_shift_id": "w2" }
+            ], "team": [], "unpublished_weeks": [] }))),
             // The cover row comes first, as the old match would have taken it.
             ("GET", "/staff/me/attendance") => Some(StubResponse::json(200, json!([
                 { "id": "cover", "employee_id": "e4", "covered_employee_id": TELLER, "business_date": day, "work_shift_id": "w1", "branch_id": BRANCH, "status": "present" },
@@ -2613,7 +2622,14 @@ mod tests {
         // Only the time that changed goes (§3): the check-in is left as it is.
         assert_eq!(body["to_time"], "12:30");
         assert!(body.get("from_time").is_none(), "an unchanged check-in is not proposed: {body}");
-        assert!(body.get("work_shift_id").is_none(), "the server refuses a shift on a correction");
+        assert!(body.get("work_shift_id").is_none(), "a record, not the shift, when there is one");
+        // The evening shift has no record: the shift goes instead.
+        let evening = format!("{TELLER}|{d}|w2");
+        let act = json!({ "action": "file", "kind": "correction", "from": d, "shift": evening, "time": 18 * 60, "time2": 23 * 60 }).to_string();
+        core.dawam_do(act).await.unwrap();
+        let body = posted(&stub, "/staff/me/requests");
+        assert_eq!(body["work_shift_id"], "w2");
+        assert!(body.get("attendance_record_id").is_none(), "never a record of another shift: {body}");
         // A correction that changes nothing never leaves the phone.
         let act = json!({ "action": "file", "kind": "correction", "from": d, "shift": shift }).to_string();
         let err = core.dawam_do(act).await.unwrap_err();
@@ -2704,7 +2720,10 @@ mod tests {
                 // A manager's own request, routed above them by the server.
                 { "id": "mgr", "kind": "leave", "employee_id": "m2", "status": "pending", "on_date": day, "to_owner": true, "created_at": "2026-09-22T08:03:00Z" },
                 // An employee whose role reads "manager" in no list: the server says who decides.
-                { "id": "emp", "kind": "leave", "employee_id": "e4", "status": "pending", "on_date": day, "to_owner": false, "created_at": "2026-09-22T08:04:00Z" }
+                { "id": "emp", "kind": "leave", "employee_id": "e4", "status": "pending", "on_date": day, "to_owner": false, "created_at": "2026-09-22T08:04:00Z" },
+                // The server's own answer wins when it sends one.
+                { "id": "said_yes", "kind": "leave", "employee_id": "m2", "status": "pending", "on_date": day, "to_owner": true, "can_decide": true, "created_at": "2026-09-22T08:05:00Z" },
+                { "id": "said_no", "kind": "leave", "employee_id": "e4", "status": "pending", "on_date": day, "to_owner": false, "can_decide": false, "created_at": "2026-09-22T08:06:00Z" }
             ]))),
             ("PATCH", _) => Some(StubResponse::json(200, json!({}))),
             _ => None,
@@ -2719,6 +2738,7 @@ mod tests {
         let inbox: Vec<&str> = snap["inbox"].as_array().unwrap().iter().filter_map(Value::as_str).collect();
         assert!(!inbox.contains(&"q|mgr"), "a peer manager's own request waits for someone above: {inbox:?}");
         assert!(inbox.contains(&"q|emp"));
+        assert!(inbox.contains(&"q|said_yes") && !inbox.contains(&"q|said_no"), "{inbox:?}");
 
         let decide = |id: &str, paid: bool| json!({ "action": "decide", "req": format!("q|{id}"), "approve": true, "paid": paid }).to_string();
         core.dawam_do(decide("late", true)).await.unwrap();
