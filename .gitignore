@@ -56,6 +56,8 @@ openpgp-revocs.d/
 **/firebase.json
 **/AuthKey_*.p8
 *service-account*.json
+# What the Firebase console actually names the server key it hands you.
+*firebase-adminsdk*.json
 
 # Kotlin build cache.
 **/.kotlin/

@@ -1,4 +1,4 @@
-package com.madar.madar_staff
+package com.madar.dawam
 
 import io.flutter.embedding.android.FlutterActivity
 
