@@ -41,7 +41,7 @@ app's tests; a device build wants the files back:
     cd apps/staff
     flutterfire configure --project=dawam-by-madar \
       --platforms=android,ios \
-      --ios-bundle-id=com.madar.madarStaff --android-package-name=com.madar.madar_staff
+      --ios-bundle-id=com.madar.dawam --android-package-name=com.madar.dawam
 
 That writes `lib/firebase_options.dart`, `android/app/google-services.json`,
 `ios/Runner/GoogleService-Info.plist` and `firebase.json`, all git-ignored. The

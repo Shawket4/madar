@@ -2,7 +2,7 @@ name: Staff release
 
 # Dawam by Madar (apps/staff), release-signed and built by CI on every release
 # tag (SA-7). Same shape as deploy.yml, with the staff app's own identity:
-# package com.madar.madar_staff / bundle com.madar.madarStaff.
+# identifier com.madar.dawam on Android and iOS alike.
 #
 # Tag it:  git tag staff-v1.0.0 && git push origin staff-v1.0.0
 # A tag with a suffix (staff-v1.0.0-beta.1) publishes as a pre-release.
