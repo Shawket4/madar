@@ -53,7 +53,11 @@ class DawamApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final lang = ref.watch(localeProvider);
     final theme = ref.watch(themeChoiceProvider);
-    final signedIn = ref.watch(dawamProvider.select((d) => d.me != null));
+    // The tabs open only once this phone accepted the location notice on
+    // the server (AT-5); a signed-in person who has not sees the notice.
+    final signedIn = ref.watch(
+      dawamProvider.select((d) => d.me != null && d.privacyAccepted),
+    );
     return MaterialApp(
       title: tr('staff.dawam_by_madar'),
       debugShowCheckedModeBanner: false,

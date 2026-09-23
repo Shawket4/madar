@@ -211,9 +211,6 @@ class _TeamTabState extends ConsumerState<TeamTab> {
     builder: (ctx, ref, store) {
       final e = store.emp(f.emp);
       final suggest = store.suggestedAway(f);
-      final amount = TextEditingController(
-        text: (suggest / 100).toStringAsFixed(0),
-      );
       Future<void> done(String how, {int deduct = 0}) async {
         final ok = await attempt(
           ref,
@@ -278,33 +275,10 @@ class _TeamTabState extends ConsumerState<TeamTab> {
                 ),
               ],
             ),
-            MadarField(
-              controller: amount,
-              placeholder: tr('staff.deduction_egp'),
-              kind: MadarFieldKind.decimal,
-            ),
-            Text(
-              tr('staff.suggested_min_minute_rate', {
-                'minutes_away': f.minutesAway,
-                'amount': egp(suggest),
-              }),
-              style: MadarType.bodySm.copyWith(
-                color: ctx.madarColors.textMuted,
-              ),
-            ),
-            MadarButton(
-              label: tr('staff.deduct'),
-              variant: MadarButtonVariant.danger,
-              onTap: () async {
-                final v = readMoney(amount);
-                if (v == null) {
-                  ref
-                      .read(toastProvider.notifier)
-                      .show(tr('staff.type_an_amount'), tone: ChipTone.danger);
-                  return;
-                }
-                await done('deduct', deduct: v);
-              },
+            _DeductForm(
+              flag: f,
+              suggested: suggest,
+              onDeduct: (v) => done('deduct', deduct: v),
             ),
           ],
           if (f.kind == FlagKind.newPhone)
@@ -463,4 +437,69 @@ class _TeamTabState extends ConsumerState<TeamTab> {
       ),
     );
   }
+}
+
+/// The typed deduction for a left-mid-shift flag (CL-7), prefilled with the
+/// server's suggestion. Its field lives in this State, so the text the
+/// manager is typing survives the sheet rebuilding when the store changes
+/// (06 B10).
+class _DeductForm extends ConsumerStatefulWidget {
+  const _DeductForm({
+    required this.flag,
+    required this.suggested,
+    required this.onDeduct,
+  });
+
+  final Flag flag;
+  final int suggested;
+  final Future<void> Function(int piastres) onDeduct;
+
+  @override
+  ConsumerState<_DeductForm> createState() => _DeductFormState();
+}
+
+class _DeductFormState extends ConsumerState<_DeductForm> {
+  late final TextEditingController _amount = TextEditingController(
+    text: (widget.suggested / 100).toStringAsFixed(0),
+  );
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    spacing: Space.md,
+    children: [
+      MadarField(
+        controller: _amount,
+        placeholder: tr('staff.deduction_egp'),
+        kind: MadarFieldKind.decimal,
+      ),
+      Text(
+        tr('staff.suggested_min_minute_rate', {
+          'minutes_away': widget.flag.minutesAway,
+          'amount': egp(widget.suggested),
+        }),
+        style: MadarType.bodySm.copyWith(color: context.madarColors.textMuted),
+      ),
+      MadarButton(
+        label: tr('staff.deduct'),
+        variant: MadarButtonVariant.danger,
+        onTap: () async {
+          final v = readMoney(_amount);
+          if (v == null) {
+            ref
+                .read(toastProvider.notifier)
+                .show(tr('staff.type_an_amount'), tone: ChipTone.danger);
+            return;
+          }
+          await widget.onDeduct(v);
+        },
+      ),
+    ],
+  );
 }

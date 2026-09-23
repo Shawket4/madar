@@ -207,4 +207,125 @@ void main() {
     expect(find.text('الرئيسية'), findsWidgets);
     await finish(t);
   });
+
+  // ── clocking (audit 03 / 06: AT-5, B4, B10, CL-4) ─────────────────────
+
+  for (final lang in ['en', 'ar']) {
+    testWidgets('a new phone sees the notice until the server records it · '
+        '$lang (AT-5)', (t) async {
+      final c = await pumpApp(t, lang: lang, core: (f) => f.accepted = false);
+      await t.enterText(find.byType(EditableText), '01001234567');
+      await tapText(t, tr('staff.send_code'));
+      await t.enterText(find.byType(EditableText), '123456');
+      await tapText(t, tr('staff.verify'));
+      expect(c.read(dawamProvider).me, 'e1', reason: 'signed in');
+      expect(find.text(tr('staff.i_agree')), findsOneWidget, reason: 'notice');
+      expect(find.text(tr('staff.clock_in')), findsNothing, reason: 'no tabs');
+      expect(
+        testCore.acts.where((a) => a['action'] == 'accept_privacy'),
+        isEmpty,
+        reason: 'nothing accepted for them',
+      );
+      await tapText(t, tr('staff.i_agree'));
+      expect(testCore.acts.first, {'action': 'accept_privacy'});
+      expect(find.text(tr('staff.clock_in')), findsOneWidget, reason: 'in');
+      await finish(t);
+    });
+
+    testWidgets('a session restored on the notice opens at the notice · '
+        '$lang (AT-5)', (t) async {
+      await pumpApp(
+        t,
+        lang: lang,
+        who: 'e1',
+        core: (f) => f
+          ..restored = 'e1'
+          ..accepted = false,
+      );
+      await frames(t);
+      expect(find.text(tr('staff.i_agree')), findsOneWidget);
+      expect(find.text(tr('staff.clock_in')), findsNothing);
+      await tapText(t, tr('staff.i_agree'));
+      expect(find.text(tr('staff.clock_in')), findsOneWidget);
+      await finish(t);
+    });
+
+    testWidgets('Home says where you are from a fresh reading · $lang '
+        '(06 B4)', (t) async {
+      await pumpApp(t, lang: lang, who: 'e1');
+      await frames(t);
+      final noted = testCore.acts.where((a) => a['action'] == 'note_fix');
+      expect(noted, isNotEmpty, reason: 'a reading is taken when Home opens');
+      expect(noted.last['fix'], containsPair('latitude', 30.0609));
+      // No fresh reading: "not known yet", never "inside".
+      expect(find.text(tr('staff.fence_unknown')), findsOneWidget);
+      final branch = lang == 'ar' ? 'Zamalek' : 'Zamalek';
+      for (final (state, distance) in [('inside', 150), ('outside', 612)]) {
+        testCore.fences = {
+          'b1': {'state': state, 'distance_m': distance, 'radius': 200},
+        };
+        testContainer.read(dawamProvider).sync();
+        await frames(t);
+        expect(
+          find.text(
+            tr('staff.fence_$state', {
+              'name': branch,
+              'distance': distance,
+              'radius': 200,
+            }),
+          ),
+          findsOneWidget,
+          reason: '$state $distance',
+        );
+        expect(find.textContaining('$distance'), findsWidgets);
+      }
+      await finish(t);
+    });
+  }
+
+  testWidgets('the typed deduction survives the store changing (06 B10)', (
+    t,
+  ) async {
+    await pumpApp(t, lang: 'en', who: 'e2', manage: true);
+    await tapText(t, 'Youssef Adel · Left mid-shift');
+    final field = find.byType(EditableText).last;
+    await t.enterText(field, '123');
+    await frames(t);
+    // The 2-minute poll, a push, a ping: the store notifies meanwhile.
+    testContainer.read(dawamProvider).sync();
+    await frames(t);
+    expect(t.widget<EditableText>(field).controller.text, '123');
+    await tapText(t, 'Deduct');
+    expect(lastAct(), containsPair('deduct', 12300));
+    await finish(t);
+  });
+
+  testWidgets('background tracking follows the shift (CL-4, CL-17)', (t) async {
+    await pumpApp(
+      t,
+      lang: 'en',
+      who: 'e1',
+      core: (f) => f.edit = (v) {
+        final id = (v['my_now'] as List<dynamic>).first as String;
+        v['active_shift'] = id;
+        for (final s
+            in (v['shifts'] as List<dynamic>).cast<Map<String, dynamic>>()) {
+          if (s['id'] == id) s['in_at'] = '${s['date']}T09:02:00+03:00';
+        }
+      },
+    );
+    await frames(t);
+    expect(testCore.trackingCalls, [true], reason: 'on shift: started once');
+    testContainer.read(dawamProvider).sync();
+    await frames(t);
+    expect(testCore.trackingCalls, [true], reason: 'not again while on');
+    testCore.edit = null; // clocked out
+    testContainer.read(dawamProvider).sync();
+    await frames(t);
+    expect(testCore.trackingCalls, [
+      true,
+      false,
+    ], reason: 'stopped at clock-out');
+    await finish(t);
+  });
 }

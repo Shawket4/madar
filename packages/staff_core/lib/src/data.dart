@@ -444,6 +444,21 @@ class DawamSignedOut extends DawamError {
   DawamSignedOut(super.en, super.ar);
 }
 
+/// Where the phone is against a branch's fence (06 B4), as the core read it
+/// from a FRESH reading. [FenceState.unknown] is never "inside".
+enum FenceState { inside, outside, unknown }
+
+class Fence {
+  const Fence(this.state, this.distance, this.radius);
+  final FenceState state;
+
+  /// Metres from the branch; null when unknown.
+  final int? distance;
+  final int radius;
+
+  static const unknown = Fence(FenceState.unknown, null, 200);
+}
+
 /// A position reading the host takes; the core decides what it means.
 typedef DawamFix = ({
   double lat,
@@ -481,6 +496,12 @@ abstract interface class DawamBackend {
   /// Ask for "Always" location; false when refused (CL-5).
   Future<bool> alwaysLocation();
 
+  /// On shift or not (CL-4, CL-17): the host keeps the background pings
+  /// going when [on] — on Android a native location service that survives
+  /// the app being closed and the phone restarting, on iOS significant-change
+  /// monitoring that relaunches the app — and stops them when not.
+  Future<void> tracking({required bool on});
+
   /// The signed-in user from the core's saved session, if any.
   String? restoredUser();
 
@@ -500,7 +521,11 @@ class DawamStore extends ChangeNotifier {
   // ── session ──
   String? me;
   String? pendingUser;
-  final Set<String> privacyAccepted = {};
+
+  /// This phone accepted the location notice, as the server recorded it
+  /// (AT-5). Until then the app shows the notice, never the tabs; a
+  /// restored session does not accept it by itself.
+  bool privacyAccepted = false;
 
   /// "Always" location was granted (CL-5), and the battery level (CL-12):
   /// the host keeps both current.
@@ -538,6 +563,10 @@ class DawamStore extends ChangeNotifier {
   bool canSchedule = false;
   bool? insideNow;
   double? distance;
+
+  /// Where I am against each branch's fence, from a fresh reading (06 B4).
+  Map<String, Fence> fences = const {};
+  Fence fenceAt(String branch) => fences[branch] ?? Fence.unknown;
   List<String> myBranches = const [];
 
   final branches = <String, Branch>{};
@@ -571,10 +600,11 @@ class DawamStore extends ChangeNotifier {
   int managerBonusLimit = 1 << 40;
   int managerDeductLimit = 1 << 40;
 
-  Timer? _pings;
   Timer? _poll;
   StreamSubscription<DawamFix>? _track;
   DateTime? _lastPing;
+  String? _lastGood;
+  bool? _trackingOn;
 
   Emp get user => emp(me ?? '');
   // Requests, flags and shifts can name someone the snapshot doesn't carry — a
@@ -594,7 +624,6 @@ class DawamStore extends ChangeNotifier {
         DateTime(2000),
         PayMethod.cash,
       );
-  bool get inside => insideNow ?? true;
 
   // ── reading the core ──
   void _apply(String json) {
@@ -635,6 +664,18 @@ class DawamStore extends ChangeNotifier {
     myBranches = (v['my_branches'] as List<dynamic>).cast<String>();
     insideNow = v['inside'] as bool?;
     distance = (v['distance_m'] as num?)?.toDouble();
+    privacyAccepted = v['privacy_accepted'] == true;
+    fences = ((v['fences'] as J?) ?? const {}).map((k, f) {
+      final x = f as J;
+      return MapEntry(
+        k,
+        Fence(
+          _enum(FenceState.values, x['state'], FenceState.unknown),
+          (x['distance_m'] as num?)?.round(),
+          _int(x['radius']),
+        ),
+      );
+    });
     chargePhone = v['charge_phone'] == true;
     modules = ((v['modules'] as List<dynamic>?) ?? const ['pos', 'dawam'])
         .cast<String>();
@@ -1001,14 +1042,31 @@ class DawamStore extends ChangeNotifier {
     return null;
   }
 
-  /// Past the privacy notice: load the picture and open the app.
+  /// Signed in: load the picture. The app opens once [privacyAccepted]
+  /// (the server's record for this phone); until then the notice shows.
   Future<void> enter() => refresh();
 
-  /// Cold start with the core's saved session (stay signed in).
+  /// "I agree" on the location notice (AT-5): recorded on the server for
+  /// this phone, then the app opens. Needs a connection; a refusal is thrown
+  /// to the screen.
+  Future<void> acceptPrivacy() async {
+    final json = await backend.act({'action': 'accept_privacy'});
+    _applySafely(json);
+  }
+
+  /// Take a fresh reading for the fence line (Home opening, a resume). The
+  /// core keeps it with its time; nothing is sent (06 B4).
+  Future<void> noteFix() async {
+    final fix = await backend.locate();
+    if (fix == null || me == null) return;
+    await _run(() => backend.act({'action': 'note_fix', 'fix': _fixJson(fix)}));
+  }
+
+  /// Cold start with the core's saved session (stay signed in). The notice
+  /// is NOT accepted by restoring: the server's record decides.
   Future<void> restore() async {
     final u = backend.restoredUser();
     if (u == null) return;
-    privacyAccepted.add(u);
     try {
       _applySafely(await backend.snapshot(refresh: false));
       unawaited(refresh());
@@ -1019,7 +1077,10 @@ class DawamStore extends ChangeNotifier {
   }
 
   void signOut() {
-    _pings?.cancel();
+    unawaited(_track?.cancel());
+    _track = null;
+    _trackingOn = false;
+    unawaited(backend.tracking(on: false));
     _poll?.cancel();
     _poll = null;
     unawaited(backend.signOut());
@@ -1029,7 +1090,8 @@ class DawamStore extends ChangeNotifier {
   }
 
   void stop() {
-    _pings?.cancel();
+    unawaited(_track?.cancel());
+    _track = null;
     _poll?.cancel();
   }
 
@@ -1065,21 +1127,22 @@ class DawamStore extends ChangeNotifier {
   void sync() => unawaited(_run(backend.sync));
 
   /// While on shift, a ping every 15 minutes, queued by the core offline
-  /// (CL-4): from the background position stream, with a timer as the
-  /// fallback while the app is open. Stops at clock-out (CL-17).
+  /// (CL-4): the host's background tracking (which outlives the app) and,
+  /// while the app runs, its position stream. Stops at clock-out (CL-17).
   void _schedulePings() {
-    if (activeShift == null) {
-      _pings?.cancel();
-      _pings = null;
+    final on = activeShift != null;
+    // The host's background tracking follows the shift, told once per change
+    // (and once at start, so a service left running off shift is stopped).
+    if (_trackingOn != on) {
+      _trackingOn = on;
+      unawaited(backend.tracking(on: on));
+    }
+    if (!on) {
       unawaited(_track?.cancel());
       _track = null;
       return;
     }
     _track ??= backend.track().listen(_onFix, onError: (Object _) {});
-    _pings ??= Timer.periodic(const Duration(minutes: 15), (_) async {
-      final fix = await backend.locate();
-      if (fix != null) _onFix(fix);
-    });
   }
 
   void _onFix(DawamFix fix) {
@@ -1128,7 +1191,17 @@ class DawamStore extends ChangeNotifier {
   void _applySafely(String json) {
     try {
       _apply(json);
+      _lastGood = json;
     } on Object catch (e, st) {
+      // `_apply` clears as it reads: put the last good picture back.
+      final good = _lastGood;
+      if (good != null) {
+        try {
+          _apply(good);
+        } on Object {
+          // it was good once; nothing better to show
+        }
+      }
       FlutterError.reportError(
         FlutterErrorDetails(
           exception: e,
@@ -1143,20 +1216,19 @@ class DawamStore extends ChangeNotifier {
 
   Future<void> _act(J action) => _run(() => backend.act(action));
 
+  static J _fixJson(DawamFix fix) => {
+    'latitude': fix.lat,
+    'longitude': fix.lng,
+    'accuracy': fix.accuracy,
+    'mock': fix.mock,
+    'gps_time': fix.gpsTime?.toUtc().toIso8601String(),
+    'battery': fix.battery,
+  };
+
   Future<void> _actAt(J action) async {
     final fix = await backend.locate();
     await _run(
-      () => backend.act({
-        ...action,
-        if (fix != null)
-          'fix': {
-            'latitude': fix.lat,
-            'longitude': fix.lng,
-            'accuracy': fix.accuracy,
-            'mock': fix.mock,
-            'gps_time': fix.gpsTime?.toUtc().toIso8601String(),
-          },
-      }),
+      () => backend.act({...action, if (fix != null) 'fix': _fixJson(fix)}),
     );
   }
 
