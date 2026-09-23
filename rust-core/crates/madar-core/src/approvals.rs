@@ -155,15 +155,26 @@ impl MadarCore {
     /// Whose sale `order_id` is and how old, from the local ledger: the
     /// figures an `own` / `max_age_minutes` limit is checked against.
     /// `(None, None)` when the sale is not held here.
+    ///
+    /// "Own" is the ORDER's teller — the person who rang it, which the feed
+    /// row and a locally rung sale both carry — exactly as the server judges
+    /// it (`orders.teller_id == actor`). It used to be the till's OPENER: a
+    /// teller then voided a manager's sale rung in their till with no
+    /// approval, which the server refused on replay, and a manager was asked
+    /// for a PIN to void their own sale in a colleague's till. Only a row
+    /// that names no teller at all (a pre-ledger migration) falls back to
+    /// the opener.
     pub(crate) fn order_facts(&self, order_id: &str) -> (Option<bool>, Option<i64>) {
         let me = self.current_session().map(|s| s.user_id).unwrap_or_default();
-        let row: Option<(String, String)> = self
+        let row: Option<(String, Option<String>)> = self
             .store
             .with_conn(|c| {
                 use rusqlite::OptionalExtension;
                 Ok(c.query_row(
-                    "SELECT o.created_at, t.teller_id FROM ledger_orders o
-                       JOIN ledger_tills t ON t.id = o.till_id
+                    "SELECT o.created_at,
+                            COALESCE(NULLIF(json_extract(o.raw, '$.teller_id'), ''), t.teller_id)
+                       FROM ledger_orders o
+                       LEFT JOIN ledger_tills t ON t.id = o.till_id
                       WHERE o.okey = ?1 OR o.server_id = ?1",
                     [order_id],
                     |r| Ok((r.get(0)?, r.get(1)?)),
@@ -176,7 +187,7 @@ impl MadarCore {
         let age = chrono::DateTime::parse_from_rfc3339(&created)
             .ok()
             .map(|t| (self.corrected_now().timestamp() - t.timestamp()).max(0) / 60);
-        (Some(teller == me), age)
+        (Some(teller.is_some_and(|t| t == me)), age)
     }
 
     /// [`Self::decide_act`] for an act on one sale (void, refund): whose sale
@@ -320,5 +331,105 @@ mod tests {
         assert_eq!(can_approve(&manager, "t", "t", &not_mine), Err(Why::SamePerson));
         let other_teller = teller.clone();
         assert!(can_approve(&other_teller, "t2", "t", &not_mine).is_err());
+    }
+}
+
+/// A2 (madar-shared discovery): whose sale it is comes from the ORDER's
+/// teller, as the server judges it (`authz/acts.rs`: `orders.teller_id ==
+/// actor`) — never from whoever opened the till the sale was rung in.
+#[cfg(test)]
+mod own_sale_tests {
+    use crate::session::{AuthzGrants, PermissionEntry, SessionSnapshot, SessionState};
+    use crate::{MadarConfig, MadarCore};
+    use madar_authz::Limits;
+    use std::sync::Arc;
+
+    const BRANCH: &str = "00000000-0000-0000-0000-000000000001";
+    const TELLER: &str = "00000000-0000-0000-0000-0000000000a1";
+    const MANAGER: &str = "00000000-0000-0000-0000-0000000000c3";
+    const COLLEAGUE: &str = "00000000-0000-0000-0000-0000000000b2";
+    const TILL: &str = "00000000-0000-0000-0000-00000000t111";
+    const SALE: &str = "00000000-0000-0000-0000-00000000s111";
+
+    fn core() -> Arc<MadarCore> {
+        MadarCore::new(MadarConfig {
+            base_url: "http://127.0.0.1:1".into(),
+            environment: "dev".into(),
+            db_path: String::new(),
+            locale: "en".into(),
+            app_version: None,
+        })
+        .unwrap()
+    }
+
+    /// `who` is signed in, and may void only their own sales, within 10 minutes.
+    fn sign_in(core: &MadarCore, who: &str) {
+        core.persist_and_set(SessionState {
+            snapshot: SessionSnapshot {
+                user_id: who.into(),
+                display_name: "x".into(),
+                role: "teller".into(),
+                org_id: Some("00000000-0000-0000-0000-0000000000aa".into()),
+                branch_id: Some(BRANCH.into()),
+                currency_code: "EGP".into(),
+                tax_rate: 0.14,
+                tax_inclusive: false,
+                service_charge_rate: 0.0,
+                service_charge_taxable: true,
+                require_table_for_orders: false,
+                online: false,
+                permissions_loaded: true,
+            },
+            permissions: vec![PermissionEntry { resource: "orders".into(), action: "create".into(), granted: true }],
+            token: None,
+            authz: Some(AuthzGrants {
+                capabilities: vec!["orders.void".into()],
+                ask_manager: vec![],
+                limits: [(
+                    "orders.void".to_string(),
+                    Limits { own: true, max_age_minutes: Some(10), ..Default::default() },
+                )]
+                .into_iter()
+                .collect(),
+                owner: false,
+            }),
+        });
+    }
+
+    /// A till `opener` opened, holding one sale `rung_by` rang 5 minutes ago —
+    /// both as the changefeed brings them.
+    fn till_with_sale(core: &MadarCore, opener: &str, rung_by: &str) {
+        use crate::ledger::{write_row, Origin, T_ORDER, T_TILL};
+        let at = (chrono::Utc::now() - chrono::Duration::minutes(5)).to_rfc3339();
+        core.store
+            .with_tx(|tx| {
+                write_row(tx, T_TILL, TILL, &serde_json::json!({"id": TILL, "branch_id": BRANCH,
+                    "teller_id": opener, "status": "open", "opening_cash": 0, "opened_at": at}), Origin::Feed(1), None)?;
+                write_row(tx, T_ORDER, SALE, &serde_json::json!({"id": SALE, "branch_id": BRANCH, "till_id": TILL,
+                    "teller_id": rung_by, "status": "completed", "payment_method": "cash", "total_amount": 5000,
+                    "created_at": at, "payment_legs": []}), Origin::Feed(2), None)?;
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn a_teller_voiding_a_managers_sale_in_their_own_till_needs_a_manager() {
+        let core = core();
+        till_with_sale(&core, TELLER, MANAGER);
+        sign_in(&core, TELLER);
+        assert_eq!(core.order_facts(SALE).0, Some(false), "the manager rang it");
+        let d = core.decide_order_act("orders.void".into(), SALE.into(), None);
+        assert_eq!(d.outcome, "needs_approval", "{d:?}");
+    }
+
+    #[test]
+    fn a_manager_voiding_their_own_sale_in_a_colleagues_till_is_own() {
+        let core = core();
+        till_with_sale(&core, COLLEAGUE, MANAGER);
+        sign_in(&core, MANAGER);
+        assert_eq!(core.order_facts(SALE).0, Some(true), "they rang it themselves");
+        let d = core.decide_order_act("orders.void".into(), SALE.into(), None);
+        assert_eq!(d.outcome, "allow", "{d:?}");
     }
 }
