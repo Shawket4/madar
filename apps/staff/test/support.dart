@@ -58,19 +58,29 @@ class FakeCore implements DawamBackend {
     who = _phones[phone]!;
   }
 
+  /// What the code check answers, when a test wants something else (a
+  /// person in two businesses, an answer with no person).
+  Map<String, dynamic>? Function(String? orgId)? verifyAnswer;
+
   @override
   Future<Map<String, dynamic>> otpVerify(
     String phone,
     String code, {
     String? orgId,
-  }) async => {'employee_id': who, 'token': 't', 'device_token': 'd'};
+  }) async =>
+      verifyAnswer?.call(orgId) ??
+      {'employee_id': who, 'token': 't', 'device_token': 'd'};
 
   @override
   Future<String> snapshot({required bool refresh}) async => fixture(who);
 
+  /// When set, every action is refused with it (the server's answer).
+  DawamError? refuse;
+
   @override
   Future<String> act(Map<String, dynamic> action) async {
     acts.add(action);
+    if (refuse != null) throw refuse!;
     return fixture(who);
   }
 

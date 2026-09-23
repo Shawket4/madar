@@ -998,7 +998,15 @@ class DawamStore extends ChangeNotifier {
           ),
       ];
     }
-    pendingUser = v['employee_id'] as String?;
+    final who = v['employee_id'];
+    // An answer with no person would crash the privacy step (06 B13).
+    if (who is! String || who.isEmpty) {
+      throw DawamError(
+        trIn('en', 'staff.sign_in_no_person'),
+        trIn('ar', 'staff.sign_in_no_person'),
+      );
+    }
+    pendingUser = who;
     return null;
   }
 
