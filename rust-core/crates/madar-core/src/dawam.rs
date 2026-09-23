@@ -2701,8 +2701,8 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
         let id = s(l, "id");
         lines.push(LineV {
             key: if carry { "carry".into() } else { format!("d|{id}") },
-            en: if carry { "Carried from the last payslip".into() } else { s(l, "reason") },
-            ar: if carry { "مُرحّل من القسيمة اللي فاتت".into() } else { s(l, "reason") },
+            en: if carry { "Carried from the last payslip".into() } else { rule_words(l, "en") },
+            ar: if carry { "مُرحّل من القسيمة اللي فاتت".into() } else { rule_words(l, "ar") },
             amount: -i(l, "piastres"),
             rule: !carry && !manual,
             manual: manual.then(|| format!("a|deduction|{id}")),
@@ -2720,6 +2720,22 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
         lines.push(LineV { key: format!("adv|{}", s(a, "id")), en: "Advance installment".into(), ar: "قسط سلفة".into(), amount: -take, rule: false, manual: None, waived: false, date: None });
     }
     SlipV { emp: s(s_, "employee_id"), start: p.start.clone(), end: p.end.clone(), lines, net: i(s_, "net_piastres"), carry_out: i(s_, "carry_out_piastres"), collected, frozen }
+}
+
+/// A deduction's words in [lang]: a rule-made line by the server's
+/// `reason_code` + `reason_vars` (so Arabic reads Arabic), else the server's
+/// `reason` — a person's own words, or a code this build doesn't know.
+fn rule_words(l: &Value, lang: &str) -> String {
+    const CODES: [&str; 7] = ["late", "absent_no_punch", "unpaid_leave", "absent_half_unpaid_leave", "unpaid_excused_minutes", "unpaid_excuse", "left_mid_shift"];
+    match l.get("reason_code").and_then(Value::as_str).filter(|c| CODES.contains(c)) {
+        Some(code) => {
+            let vars: BTreeMap<String, String> = l.get("reason_vars").and_then(Value::as_object).into_iter().flatten()
+                .map(|(k, v)| (k.clone(), v.as_str().map_or_else(|| v.to_string(), str::to_string)))
+                .collect();
+            fill(&crate::i18n::tr(lang, &format!("staff.pay_reason_{code}")), &vars)
+        }
+        None => s(l, "reason"),
+    }
 }
 
 /// At or under this on shift, the phone says charge (CL-12, the server's figure).
@@ -2987,6 +3003,19 @@ mod tests {
         assert!(sl.lines.iter().any(|l| l.key == "d|d1" && l.rule), "a rule line is waivable, not deletable");
         assert!(sl.lines.iter().any(|l| l.manual.as_deref() == Some("a|deduction|d2")));
         assert_eq!(sl.collected["v1"], 50_000);
+        // A rule line reads in each language by its code; a person's words stay theirs.
+        let coded = json!({ "employee_id": "u", "net_piastres": 0, "breakdown": { "deductions": [
+            { "id": "d9", "reason": "Late by 55 minutes", "piastres": 12_500, "source": "late_penalty", "reason_code": "late", "reason_vars": { "minutes": 55 } },
+            { "id": "d8", "reason": "Left early", "piastres": 100, "source": "flag", "reason_code": "left_mid_shift", "reason_vars": null },
+            { "id": "d7", "reason": "Absent", "piastres": 100, "source": "absence", "reason_code": "something_new" },
+            { "id": "d6", "reason": "Broke a glass", "piastres": 100, "source": "manual", "reason_code": null }
+        ] } });
+        let w = slip_of(&coded, &p, 0, false);
+        let words = |k: &str| w.lines.iter().find(|l| l.key == k).map(|l| (l.en.clone(), l.ar.clone())).unwrap();
+        assert_eq!(words("d|d9"), ("Late by 55 minutes".into(), "تأخير 55 دقيقة".into()));
+        assert_eq!(words("d|d8"), ("Left mid-shift".into(), "خرج أثناء الوردية".into()));
+        assert_eq!(words("d|d7"), ("Absent".into(), "Absent".into()), "an unknown code keeps the server's words");
+        assert_eq!(words("d|d6"), ("Broke a glass".into(), "Broke a glass".into()), "a person's own words are never translated");
         // AD-6: each bonus and deduction carries its day.
         assert_eq!(sl.lines.iter().find(|l| l.key == "d|d1").unwrap().date.as_deref(), Some("2026-09-17"));
         assert_eq!(sl.lines[0].date, None, "the salary line has no day");
