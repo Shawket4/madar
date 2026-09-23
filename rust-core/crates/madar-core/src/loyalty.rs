@@ -648,14 +648,15 @@ fn unit_cost_for(line: &RewardLineInput, scan: &LoyaltyScanView) -> Option<i64> 
 }
 
 /// Minor units covering `units` of a line: whole units at the line's charged
-/// per-unit price, never more than the line. Same rule as the server's
-/// `redeem::covered_minor`, pinned by `loyalty_reward_vectors.json`.
+/// per-unit price, never more than the line. The rule is madar-shared's
+/// `madar_money::loyalty::covered_minor` (the server's too), pinned by its
+/// `loyalty_reward_vectors.json`; the till states a line by its total and
+/// quantity, so the per-unit price is `line_total / qty`.
 pub fn covered_minor(line_total_minor: i64, qty: i64, units: i64) -> i64 {
     if qty <= 0 {
         return 0;
     }
-    let per_unit = line_total_minor / qty;
-    (per_unit.max(0) * units.max(0)).min(line_total_minor.max(0))
+    madar_money::loyalty::covered_minor(line_total_minor / qty, line_total_minor, units)
 }
 
 /// Apply the rules to the asked picks and describe every line.
