@@ -532,21 +532,6 @@ impl MadarBridge {
             .map_err(MadarError::from)
     }
 
-    /// Add a bonus or a manual deduction.
-    pub async fn manager_create_adjustment(
-        &self,
-        deductions: bool,
-        user_id: String,
-        amount_minor: i64,
-        reason: String,
-        effective_date: String,
-    ) -> Result<AdjustmentView, MadarError> {
-        self.inner
-            .manager_create_adjustment(deductions, user_id, amount_minor, reason, effective_date)
-            .await
-            .map_err(MadarError::from)
-    }
-
     /// Delete a hand-entered adjustment (never a rule-generated one).
     pub async fn manager_delete_adjustment(
         &self,
@@ -592,16 +577,4 @@ impl MadarBridge {
             .map_err(MadarError::from)
     }
 
-    /// Approve or reject an advance request.
-    pub async fn manager_decide_advance(
-        &self,
-        advance_id: String,
-        approve: bool,
-        note: Option<String>,
-    ) -> Result<SalaryAdvanceView, MadarError> {
-        self.inner
-            .manager_decide_advance(advance_id, approve, note)
-            .await
-            .map_err(MadarError::from)
-    }
 }

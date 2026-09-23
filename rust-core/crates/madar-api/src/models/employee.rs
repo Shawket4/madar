@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Employee {
+    /// The owner's cap on what this person may owe in salary advances, in piastres (AV-5): the server's figure, so no client recomputes it. Hidden with the salary.
+    #[serde(
+        rename = "advance_cap_piastres",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub advance_cap_piastres: Option<Option<i64>>,
     /// May sign in to the staff app with a WhatsApp code.
     #[serde(rename = "app_access")]
     pub app_access: bool,
@@ -142,6 +150,9 @@ pub struct Employee {
         skip_serializing_if = "Option::is_none"
     )]
     pub notes: Option<Option<String>>,
+    /// Paid through Dawam (the default). Off for someone who uses the app and is rostered but is not paid here (an owner, say): the payroll run, the estimate and the payslips skip them.
+    #[serde(rename = "on_payroll")]
+    pub on_payroll: bool,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
     #[serde(
@@ -213,11 +224,13 @@ impl Employee {
         id: uuid::Uuid,
         kind: String,
         name: String,
+        on_payroll: bool,
         org_id: uuid::Uuid,
         pay_method: String,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
     ) -> Employee {
         Employee {
+            advance_cap_piastres: None,
             app_access,
             base_salary_piastres: None,
             branch_ids,
@@ -241,6 +254,7 @@ impl Employee {
             name,
             national_id: None,
             notes: None,
+            on_payroll,
             org_id,
             pay_account: None,
             pay_method,

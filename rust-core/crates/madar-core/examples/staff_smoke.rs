@@ -61,16 +61,10 @@ async fn main() {
     } }
     probe!("manager_adjustments(ded)", core.manager_adjustments(true, None, None, None, 0));
     probe!("manager_adjustments(bon)", core.manager_adjustments(false, None, None, None, 0));
-    if let Some(e) = emps.and_then(|v| v.into_iter().next()) {
-        if let Some(a) = probe!("create_adjustment(bonus)", core.manager_create_adjustment(false, e.user_id.clone(), 5000, "probe".into(), "2026-09-21".into())) {
-            probe!("delete_adjustment(bonus)", core.manager_delete_adjustment(false, a.id));
-        }
-        if let Some(a) = probe!("create_adjustment(ded)", core.manager_create_adjustment(true, e.user_id, 5000, "probe".into(), "2026-09-21".into())) {
-            probe!("override_deduction", core.manager_override_deduction(a.id.clone(), 2500, "probe".into()));
-            probe!("waive_deduction", core.manager_waive_deduction(a.id, "probe".into()));
-        }
-    }
+    // Creating adjustments and deciding advances moved to the Dawam acts
+    // (`/staff/adjustments`, `/staff/advances/record`); see dawam.rs.
+    let _ = emps;
     let adv = probe!("manager_advances", core.manager_advances());
-    if let Some(a) = adv.and_then(|v| v.into_iter().find(|a| a.status == "pending")) { probe!("manager_decide_advance", core.manager_decide_advance(a.id, false, Some("probe".into()))); }
+    let _ = adv;
     let _ = std::fs::remove_file(db);
 }

@@ -21,6 +21,9 @@ pub struct StaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub attendance_record_id: Option<Option<uuid::Uuid>>,
+    /// The caller may approve or reject it now: it is pending, not their own, at one of their branches, and — a manager's request — they outrank the requester (RQ-5). The same checks the decision makes.
+    #[serde(rename = "can_decide", skip_serializing_if = "Option::is_none")]
+    pub can_decide: Option<bool>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(
@@ -53,7 +56,7 @@ pub struct StaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub employee_name: Option<Option<String>>,
-    /// Set for `leave` and `mission`; the span's last day.
+    /// Set for `leave` and `mission`: the span's last day. For an `excuse` that runs past midnight, the next day (its end is then on that day).
     #[serde(
         rename = "end_date",
         default,
@@ -61,7 +64,7 @@ pub struct StaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub end_date: Option<Option<chrono::NaiveDate>>,
-    /// Start of the excused window. `None` = open to the shift's start.
+    /// Start of the excused window. `None` = open to the shift's start. For a `correction`: the proposed check-in, branch-local.
     #[serde(
         rename = "from_time",
         default,
@@ -73,6 +76,9 @@ pub struct StaffRequest {
     pub id: uuid::Uuid,
     #[serde(rename = "is_half_day")]
     pub is_half_day: bool,
+    /// The request is the CALLER's own (worked out for whoever asks).
+    #[serde(rename = "is_own", skip_serializing_if = "Option::is_none")]
+    pub is_own: Option<bool>,
     /// Whether the excused time is paid. `None` until decided.
     #[serde(
         rename = "is_paid",
@@ -81,9 +87,18 @@ pub struct StaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub is_paid: Option<Option<bool>>,
-    /// `leave` | `late_arrival` | `early_departure` | `excuse` | `mission`.
+    /// `leave` | `late_arrival` | `early_departure` | `excuse` | `mission` | `correction`.
     #[serde(rename = "kind")]
     pub kind: String,
+    /// A half-day leave: `first` or `second` half of the day off (RQ-8).
+    #[serde(
+        rename = "leave_half",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub leave_half: Option<Option<String>>,
+    /// Deprecated (RQ-2): older rows only; never set on new requests.
     #[serde(
         rename = "leave_type_id",
         default,
@@ -109,6 +124,14 @@ pub struct StaffRequest {
     pub on_date: chrono::NaiveDate,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
+    /// For a pending excuse or early departure: the business's (or branch's) rule, which the approve dialog starts from (RQ-7).
+    #[serde(
+        rename = "paid_default",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub paid_default: Option<Option<bool>>,
     #[serde(
         rename = "reason",
         default,
@@ -116,6 +139,21 @@ pub struct StaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub reason: Option<Option<String>>,
+    /// For a correction: the record's current punches, so an approver sees what the proposal changes.
+    #[serde(
+        rename = "record_check_in_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub record_check_in_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    #[serde(
+        rename = "record_check_out_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub record_check_out_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "status")]
     pub status: String,
     #[serde(
@@ -125,7 +163,10 @@ pub struct StaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub title: Option<Option<String>>,
-    /// End of the excused window. `None` = open to the shift's end.
+    /// A manager's own request waiting for someone above them (RQ-5): the owner decides it. Worked out by the server from capabilities.
+    #[serde(rename = "to_owner", skip_serializing_if = "Option::is_none")]
+    pub to_owner: Option<bool>,
+    /// End of the excused window. `None` = open to the shift's end. For a `correction`: the proposed check-out, branch-local (earlier on the clock than the check-in = the next morning, a night shift).
     #[serde(
         rename = "to_time",
         default,
@@ -135,6 +176,14 @@ pub struct StaffRequest {
     pub to_time: Option<Option<String>>,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
+    /// The shift a late arrival, early departure or excuse is for (split days).
+    #[serde(
+        rename = "work_shift_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub work_shift_id: Option<Option<uuid::Uuid>>,
 }
 
 impl StaffRequest {
@@ -151,6 +200,7 @@ impl StaffRequest {
     ) -> StaffRequest {
         StaffRequest {
             attendance_record_id: None,
+            can_decide: None,
             created_at,
             decided_at: None,
             decided_by: None,
@@ -161,18 +211,25 @@ impl StaffRequest {
             from_time: None,
             id,
             is_half_day,
+            is_own: None,
             is_paid: None,
             kind,
+            leave_half: None,
             leave_type_id: None,
             leave_type_name: None,
             location: None,
             on_date,
             org_id,
+            paid_default: None,
             reason: None,
+            record_check_in_at: None,
+            record_check_out_at: None,
             status,
             title: None,
+            to_owner: None,
             to_time: None,
             updated_at,
+            work_shift_id: None,
         }
     }
 }

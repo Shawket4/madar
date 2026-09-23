@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StaffContext {
-    /// My ceiling on a bonus/deduction before it waits for the owner; null = none.
+    /// My ceiling on a bonus before it waits for the owner; null = none.
     #[serde(
         rename = "adjustment_limit_piastres",
         default,
@@ -33,6 +33,14 @@ pub struct StaffContext {
     /// The HR capabilities I hold (`hr.*` keys) — through my Madar account; empty for an employee with none. The app gates tabs on these (PM-4).
     #[serde(rename = "caps")]
     pub caps: Vec<String>,
+    /// My ceiling on a deduction (AD-5: separate from the bonus limit).
+    #[serde(
+        rename = "deduction_limit_piastres",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub deduction_limit_piastres: Option<Option<i64>>,
     /// Who is signed in: the employee.
     #[serde(rename = "employee_id")]
     pub employee_id: uuid::Uuid,
@@ -47,6 +55,14 @@ pub struct StaffContext {
     pub org_name: String,
     #[serde(rename = "people")]
     pub people: Vec<models::ContextPerson>,
+    /// When THIS phone accepted the location notice; null = show it before any location is taken (AT-5). A new phone, or a restored session on one that never accepted, starts null.
+    #[serde(
+        rename = "privacy_accepted_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub privacy_accepted_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     /// `owner` · `manager` · `employee`
     #[serde(rename = "role")]
     pub role: String,
@@ -83,12 +99,14 @@ impl StaffContext {
             advance_limit_percent: None,
             branches,
             caps,
+            deduction_limit_piastres: None,
             employee_id,
             modules,
             name,
             org_id,
             org_name,
             people,
+            privacy_accepted_at: None,
             role,
             settings: Box::new(settings),
             user_id: None,

@@ -13,13 +13,24 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PeriodStatusRequest {
-    /// `draft` | `generated` | `paid` | `closed`.
+    /// Why (AD-9). Required to reopen.
+    #[serde(
+        rename = "reason",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reason: Option<Option<String>>,
+    /// `draft` (reopen an approved month, before anyone is paid) or `closed` (archive a paid month). Approving is `POST …/generate`; Paid is reached by marking everyone paid (PAY-7), never by hand.
     #[serde(rename = "status")]
     pub status: String,
 }
 
 impl PeriodStatusRequest {
     pub fn new(status: String) -> PeriodStatusRequest {
-        PeriodStatusRequest { status }
+        PeriodStatusRequest {
+            reason: None,
+            status,
+        }
     }
 }

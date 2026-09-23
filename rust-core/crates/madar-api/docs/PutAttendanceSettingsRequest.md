@@ -13,6 +13,7 @@ Name | Type | Description | Notes
 **gender_mode** | Option<**String**> | `off` · `soft` · `hard`; owner only (`hr.roster.settings`). | [optional]
 **half_day_leave_counts** | Option<**String**> | `half_shift` · `whole_day`. | [optional]
 **holiday_multiplier** | Option<**f64**> |  | [optional]
+**inherit** | Option<**Vec<String>**> | Branch only: rules to take from the business again (field names, as in `overridden`). | [optional]
 **late_deduction_tiers** | Option<[**Vec<models::LateTier>**](LateTier.md)> |  | [optional]
 **limit_day_hours** | Option<**f64**> |  | [optional]
 **limit_overtime_day_hours** | Option<**f64**> |  | [optional]

@@ -22,7 +22,10 @@ Name | Type | Description | Notes
 **overtime_minutes** | **i32** |  | 
 **overtime_piastres** | **i64** |  | 
 **paid_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
-**paid_method** | Option<**String**> | Paid by `cash` · `bank` · `wallet` (PAY-7); null until marked paid. | [optional]
+**paid_by** | Option<**uuid::Uuid**> | Who marked it paid (AT-10). | [optional]
+**paid_method** | Option<**String**> | Paid by `cash` · `bank` · `wallet` (PAY-7), or `none` for a payslip with nothing to pay, marked by the run itself; null until marked paid. | [optional]
+**pay_account** | Option<**String**> |  | [optional]
+**pay_method** | Option<**String**> | The person's pay method and account at the time of reading, for the bank and wallet lists (PAY-8). | [optional]
 **payroll_period_id** | **uuid::Uuid** |  | 
 **period_end** | Option<**chrono::NaiveDate**> |  | [optional]
 **period_name** | Option<**String**> | The period this covers, denormalised. A payslip identified only by its generation timestamp is unreadable — two months run on the same day would be indistinguishable to the employee looking at them. | [optional]

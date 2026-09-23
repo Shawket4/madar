@@ -15,6 +15,9 @@ use serde::{Deserialize, Serialize};
 pub struct RosterView {
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
+    /// The dates that hold their own set (a date change), a day off included: the ones \"back to the pattern\" applies to.
+    #[serde(rename = "date_sets", skip_serializing_if = "Option::is_none")]
+    pub date_sets: Option<Vec<models::DateSet>>,
     #[serde(rename = "from")]
     pub from: chrono::NaiveDate,
     #[serde(rename = "holidays")]
@@ -56,6 +59,7 @@ impl RosterView {
     ) -> RosterView {
         RosterView {
             branch_id,
+            date_sets: None,
             from,
             holidays,
             limits_unconfirmed,

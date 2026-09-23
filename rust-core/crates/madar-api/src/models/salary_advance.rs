@@ -15,6 +15,9 @@ use serde::{Deserialize, Serialize};
 pub struct SalaryAdvance {
     #[serde(rename = "amount_piastres")]
     pub amount_piastres: i64,
+    /// The owner's cap on what this person may owe in advances, in piastres (AV-5) — the server's figure, so no client recomputes it.
+    #[serde(rename = "cap_piastres")]
+    pub cap_piastres: i64,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(
@@ -55,6 +58,9 @@ pub struct SalaryAdvance {
     pub monthly_installment_piastres: i64,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
+    /// What the person owes across their live advances (pending ones count).
+    #[serde(rename = "outstanding_piastres")]
+    pub outstanding_piastres: i64,
     #[serde(
         rename = "reason",
         default,
@@ -62,6 +68,7 @@ pub struct SalaryAdvance {
         skip_serializing_if = "Option::is_none"
     )]
     pub reason: Option<Option<String>>,
+    /// Derived from the collection ledger (AV-6).
     #[serde(rename = "remaining_piastres")]
     pub remaining_piastres: i64,
     #[serde(rename = "status")]
@@ -73,18 +80,21 @@ pub struct SalaryAdvance {
 impl SalaryAdvance {
     pub fn new(
         amount_piastres: i64,
+        cap_piastres: i64,
         created_at: chrono::DateTime<chrono::FixedOffset>,
         employee_id: uuid::Uuid,
         id: uuid::Uuid,
         installments: i32,
         monthly_installment_piastres: i64,
         org_id: uuid::Uuid,
+        outstanding_piastres: i64,
         remaining_piastres: i64,
         status: String,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
     ) -> SalaryAdvance {
         SalaryAdvance {
             amount_piastres,
+            cap_piastres,
             created_at,
             decided_at: None,
             decided_by: None,
@@ -95,6 +105,7 @@ impl SalaryAdvance {
             installments,
             monthly_installment_piastres,
             org_id,
+            outstanding_piastres,
             reason: None,
             remaining_piastres,
             status,

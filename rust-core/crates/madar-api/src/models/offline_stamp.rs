@@ -13,10 +13,18 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OfflineStamp {
+    /// The `X-Dawam-Time` value of the last response the phone saw (signed).
+    #[serde(
+        rename = "anchor",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub anchor: Option<Option<String>>,
     /// Time-since-boot elapsed from `server_time` to the event, in ms.
     #[serde(rename = "elapsed_ms")]
     pub elapsed_ms: i64,
-    /// The GPS fix's own satellite time, when it had one.
+    /// The GPS fix's own satellite time, when the platform gives one (Android's GNSS provider; iOS gives none).
     #[serde(
         rename = "gps_time",
         default,
@@ -27,7 +35,7 @@ pub struct OfflineStamp {
     /// The phone restarted after `server_time`, so `elapsed_ms` means nothing.
     #[serde(rename = "rebooted", skip_serializing_if = "Option::is_none")]
     pub rebooted: Option<bool>,
-    /// The last server time the phone saw (a response's `Date`).
+    /// The last server time the phone saw. Only a guide: a valid `anchor` replaces it, and without one the punch is marked unverified.
     #[serde(rename = "server_time")]
     pub server_time: chrono::DateTime<chrono::FixedOffset>,
 }
@@ -38,6 +46,7 @@ impl OfflineStamp {
         server_time: chrono::DateTime<chrono::FixedOffset>,
     ) -> OfflineStamp {
         OfflineStamp {
+            anchor: None,
             elapsed_ms,
             gps_time: None,
             rebooted: None,

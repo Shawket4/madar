@@ -1700,13 +1700,13 @@ impl MadarCore {
             Act::Assign { shift, emp } => {
                 if let Some(open) = shift.strip_prefix("open|") {
                     // An open shift given to someone: theirs, and no longer open.
-                    let Some(e) = emp else { return Ok(()) };
-                    let Some(sh) = snap.shifts.iter().find(|x| x.id == shift) else { return Ok(()) };
+                    let Some(e) = emp else { return Ok(None) };
+                    let Some(sh) = snap.shifts.iter().find(|x| x.id == shift) else { return Ok(None) };
                     let mut blocks = day_set(&snap, &e, &sh.date);
                     blocks.push(BlockA { tpl: sh.tpl.clone(), start: None, end: None });
                     self.dawam_put_day(&e, &sh.date, &blocks).await?;
                     self.dawam_srv("POST", &format!("/staff/open-shifts/{open}/cancel"), Some(json!({}))).await?;
-                    return Ok(());
+                    return Ok(None);
                 }
                 let (owner, d, tpl) = parts(&shift);
                 let branch = snap.templates.iter().find(|t| t.id == tpl).map(|t| t.branch.clone()).unwrap_or_default();
@@ -3633,6 +3633,8 @@ mod tests {
         // The server's notice arguments fill in.
         let t = notice_text("en", "staff.n_fairness_flagged", &json!({ "branch": "Arkan", "month": "2026-08-01", "gap": 35 }));
         assert!(t.contains("Arkan") && t.contains("35"), "{t}");
+    }
+
     // ── requests and rules (phase B): the wire the server now expects ──
 
     /// A one-branch café as `role` sees it (`caps` decide the manager side),

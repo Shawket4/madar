@@ -8,6 +8,7 @@ Name | Type | Description | Notes
 **from** | **chrono::NaiveDate** |  | 
 **open_shifts** | [**Vec<models::OpenShift>**](OpenShift.md) | Open shifts at my branches, in published weeks (SC-9). | 
 **pref_time** | Option<**String**> |  | [optional]
+**prefs_set_by** | **String** | `employee` or `manager`: who set my preferences last. | 
 **shifts** | [**Vec<models::RosterShift>**](RosterShift.md) | Only shifts in published weeks (SC-3). | 
 **swaps** | [**Vec<models::Swap>**](Swap.md) |  | 
 **team** | [**Vec<models::RosterShift>**](RosterShift.md) | Colleagues' published shifts at my branches — what a swap can be with. | 

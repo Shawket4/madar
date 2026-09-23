@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RequestDecision {
-    /// Whether the excused time is paid. Applies to `excuse` and `early_departure`; omitted falls back to the org's `excused_time_paid_default`.
+    /// Paid or unpaid. REQUIRED when approving leave (RQ-2). For `excuse` and `early_departure`, omitted falls back to the rule (`excused_time_paid_default`, branch then business, RQ-7).
     #[serde(
         rename = "is_paid",
         default,
@@ -21,6 +21,7 @@ pub struct RequestDecision {
         skip_serializing_if = "Option::is_none"
     )]
     pub is_paid: Option<Option<bool>>,
+    /// Required when cancelling someone else's request, or any approved one (AT-7).
     #[serde(
         rename = "note",
         default,

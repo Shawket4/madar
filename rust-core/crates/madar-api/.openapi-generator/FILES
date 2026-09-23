@@ -19,7 +19,6 @@ docs/AddonSalesRow.md
 docs/AddonSlot.md
 docs/AdjustRequest.md
 docs/Adjustment.md
-docs/AdvanceDecision.md
 docs/AdvancesReport.md
 docs/AiApi.md
 docs/AiChatKind.md
@@ -49,6 +48,7 @@ docs/AttendanceStatus.md
 docs/AttendanceSummary.md
 docs/AuditBreakdownEntry.md
 docs/AuditReport.md
+docs/AuditRow.md
 docs/AuthApi.md
 docs/AuthPermissionsResponse.md
 docs/AuthzApi.md
@@ -70,9 +70,11 @@ docs/BranchAddonOverrideInput.md
 docs/BranchAvailabilityOut.md
 docs/BranchComparison.md
 docs/BranchDeliverySettings.md
+docs/BranchFairness.md
 docs/BranchMenuOverride.md
 docs/BranchMenuOverrideInput.md
 docs/BranchPerson.md
+docs/BranchRules.md
 docs/BranchSalesReport.md
 docs/BranchSettingsInput.md
 docs/BranchSizeOverride.md
@@ -154,7 +156,6 @@ docs/CoverageView.md
 docs/CreateActivationCodeRequest.md
 docs/CreateAddonItemRequest.md
 docs/CreateAddonSlotRequest.md
-docs/CreateAdjustmentRequest.md
 docs/CreateAdvanceRequest.md
 docs/CreateAssignmentRequest.md
 docs/CreateBookingRequest.md
@@ -206,6 +207,10 @@ docs/CustomerDetail.md
 docs/CustomerOrder.md
 docs/CustomersApi.md
 docs/DatasetInfo.md
+docs/DateSet.md
+docs/DayBlock.md
+docs/DayTime.md
+docs/DayView.md
 docs/Decide.md
 docs/DecidePay.md
 docs/DecideRoster.md
@@ -250,6 +255,7 @@ docs/ExpenseAdvanceRow.md
 docs/ExplainStep.md
 docs/Explanation.md
 docs/ExportResponse.md
+docs/FairnessAudit.md
 docs/FairnessRow.md
 docs/FairnessView.md
 docs/FieldInfo.md
@@ -305,7 +311,6 @@ docs/LastTillWarning.md
 docs/LateDeductionKind.md
 docs/LateTier.md
 docs/LeaveBalance.md
-docs/LeaveType.md
 docs/LedgerEntry.md
 docs/LedgerTotals.md
 docs/LedgerWindow.md
@@ -351,7 +356,9 @@ docs/MetricsQueryRequest.md
 docs/MetricsQueryResponse.md
 docs/ModifierGroupOut.md
 docs/ModifierOptionOut.md
+docs/MoveShiftRequest.md
 docs/MoveTicketTableRequest.md
+docs/MoveView.md
 docs/MyAttendanceToday.md
 docs/MyAuthz.md
 docs/MyRosterView.md
@@ -437,6 +444,7 @@ docs/PaymentSummaryRow.md
 docs/PayrollAdjustment.md
 docs/PayrollHistoryRow.md
 docs/PayrollPeriod.md
+docs/PayrollTotals.md
 docs/Payslip.md
 docs/PeakDayPoint.md
 docs/PeakHourPoint.md
@@ -460,6 +468,7 @@ docs/PosMetricsItem.md
 docs/PosMetricsReport.md
 docs/PosMetricsTender.md
 docs/PostOpenShift.md
+docs/PreferenceChange.md
 docs/Preferences.md
 docs/PrepTimeInput.md
 docs/PresenceRow.md
@@ -476,6 +485,7 @@ docs/PreviewResponse.md
 docs/PriceOverrideOut.md
 docs/PriceOverrideRequest.md
 docs/PrinterBrand.md
+docs/PrivacyAccepted.md
 docs/ProcessingGroupRef.md
 docs/ProvisionBranch.md
 docs/ProvisionOrgRequest.md
@@ -509,8 +519,8 @@ docs/PushApi.md
 docs/PushToken.md
 docs/PutAllowedAddonsRequest.md
 docs/PutAttendanceSettingsRequest.md
-docs/PutBalanceRequest.md
 docs/PutCoverage.md
+docs/PutDayRequest.md
 docs/PutEarningItems.md
 docs/PutEmployeeRequest.md
 docs/PutItemOptionsRequest.md
@@ -523,6 +533,7 @@ docs/PutRewardItems.md
 docs/PutSizeBaseRequest.md
 docs/PutSizesRequest.md
 docs/PutTargetRequest.md
+docs/PutTimesRequest.md
 docs/QrApi.md
 docs/QrResponse.md
 docs/QuerySpec.md
@@ -547,6 +558,7 @@ docs/RecipeStepInput.md
 docs/RecipeStepPreset.md
 docs/RecipesApi.md
 docs/ReconciliationInput.md
+docs/RecordAdvance.md
 docs/RecordStaffDrinkRequest.md
 docs/RecordWasteRequest.md
 docs/Refund.md
@@ -654,6 +666,7 @@ docs/Stocktake.md
 docs/StocktakeFull.md
 docs/StocktakeItem.md
 docs/StocktakesApi.md
+docs/StopAdjustment.md
 docs/StoredTurn.md
 docs/StudioAggregate.md
 docs/SuggestedComponent.md
@@ -731,7 +744,6 @@ docs/UpsertAddonOverrideRequest.md
 docs/UpsertDepartmentRequest.md
 docs/UpsertDrinkRecipeRequest.md
 docs/UpsertItemsRequest.md
-docs/UpsertLeaveTypeRequest.md
 docs/UpsertPermissionRequest.md
 docs/UpsertRolePermissionRequest.md
 docs/UpsertSizeRequest.md
@@ -839,7 +851,6 @@ src/models/addon_sales_row.rs
 src/models/addon_slot.rs
 src/models/adjust_request.rs
 src/models/adjustment.rs
-src/models/advance_decision.rs
 src/models/advances_report.rs
 src/models/ai_chat_kind.rs
 src/models/ai_chat_kind_one_of.rs
@@ -867,6 +878,7 @@ src/models/attendance_status.rs
 src/models/attendance_summary.rs
 src/models/audit_breakdown_entry.rs
 src/models/audit_report.rs
+src/models/audit_row.rs
 src/models/auth_permissions_response.rs
 src/models/authz_public_key.rs
 src/models/availability_out.rs
@@ -884,9 +896,11 @@ src/models/branch_addon_override_input.rs
 src/models/branch_availability_out.rs
 src/models/branch_comparison.rs
 src/models/branch_delivery_settings.rs
+src/models/branch_fairness.rs
 src/models/branch_menu_override.rs
 src/models/branch_menu_override_input.rs
 src/models/branch_person.rs
+src/models/branch_rules.rs
 src/models/branch_sales_report.rs
 src/models/branch_settings_input.rs
 src/models/branch_size_override.rs
@@ -965,7 +979,6 @@ src/models/coverage_view.rs
 src/models/create_activation_code_request.rs
 src/models/create_addon_item_request.rs
 src/models/create_addon_slot_request.rs
-src/models/create_adjustment_request.rs
 src/models/create_advance_request.rs
 src/models/create_assignment_request.rs
 src/models/create_booking_request.rs
@@ -1016,6 +1029,10 @@ src/models/customer_address.rs
 src/models/customer_detail.rs
 src/models/customer_order.rs
 src/models/dataset_info.rs
+src/models/date_set.rs
+src/models/day_block.rs
+src/models/day_time.rs
+src/models/day_view.rs
 src/models/decide.rs
 src/models/decide_pay.rs
 src/models/decide_roster.rs
@@ -1056,6 +1073,7 @@ src/models/expense_advance_row.rs
 src/models/explain_step.rs
 src/models/explanation.rs
 src/models/export_response.rs
+src/models/fairness_audit.rs
 src/models/fairness_row.rs
 src/models/fairness_view.rs
 src/models/field_info.rs
@@ -1105,7 +1123,6 @@ src/models/last_till_warning.rs
 src/models/late_deduction_kind.rs
 src/models/late_tier.rs
 src/models/leave_balance.rs
-src/models/leave_type.rs
 src/models/ledger_entry.rs
 src/models/ledger_totals.rs
 src/models/ledger_window.rs
@@ -1148,7 +1165,9 @@ src/models/metrics_query_response.rs
 src/models/mod.rs
 src/models/modifier_group_out.rs
 src/models/modifier_option_out.rs
+src/models/move_shift_request.rs
 src/models/move_ticket_table_request.rs
+src/models/move_view.rs
 src/models/my_attendance_today.rs
 src/models/my_authz.rs
 src/models/my_roster_view.rs
@@ -1229,6 +1248,7 @@ src/models/payment_summary_row.rs
 src/models/payroll_adjustment.rs
 src/models/payroll_history_row.rs
 src/models/payroll_period.rs
+src/models/payroll_totals.rs
 src/models/payslip.rs
 src/models/peak_day_point.rs
 src/models/peak_hour_point.rs
@@ -1251,6 +1271,7 @@ src/models/pos_metrics_item.rs
 src/models/pos_metrics_report.rs
 src/models/pos_metrics_tender.rs
 src/models/post_open_shift.rs
+src/models/preference_change.rs
 src/models/preferences.rs
 src/models/prep_time_input.rs
 src/models/presence_row.rs
@@ -1267,6 +1288,7 @@ src/models/preview_response.rs
 src/models/price_override_out.rs
 src/models/price_override_request.rs
 src/models/printer_brand.rs
+src/models/privacy_accepted.rs
 src/models/processing_group_ref.rs
 src/models/provision_branch.rs
 src/models/provision_org_request.rs
@@ -1298,8 +1320,8 @@ src/models/purchase_order_line.rs
 src/models/push_token.rs
 src/models/put_allowed_addons_request.rs
 src/models/put_attendance_settings_request.rs
-src/models/put_balance_request.rs
 src/models/put_coverage.rs
+src/models/put_day_request.rs
 src/models/put_earning_items.rs
 src/models/put_employee_request.rs
 src/models/put_item_options_request.rs
@@ -1312,6 +1334,7 @@ src/models/put_reward_items.rs
 src/models/put_size_base_request.rs
 src/models/put_sizes_request.rs
 src/models/put_target_request.rs
+src/models/put_times_request.rs
 src/models/qr_response.rs
 src/models/query_spec.rs
 src/models/quote_response.rs
@@ -1333,6 +1356,7 @@ src/models/recipe_step.rs
 src/models/recipe_step_input.rs
 src/models/recipe_step_preset.rs
 src/models/reconciliation_input.rs
+src/models/record_advance.rs
 src/models/record_staff_drink_request.rs
 src/models/record_waste_request.rs
 src/models/refund.rs
@@ -1432,6 +1456,7 @@ src/models/stock_transfer.rs
 src/models/stocktake.rs
 src/models/stocktake_full.rs
 src/models/stocktake_item.rs
+src/models/stop_adjustment.rs
 src/models/stored_turn.rs
 src/models/studio_aggregate.rs
 src/models/suggested_component.rs
@@ -1506,7 +1531,6 @@ src/models/upsert_addon_override_request.rs
 src/models/upsert_department_request.rs
 src/models/upsert_drink_recipe_request.rs
 src/models/upsert_items_request.rs
-src/models/upsert_leave_type_request.rs
 src/models/upsert_permission_request.rs
 src/models/upsert_role_permission_request.rs
 src/models/upsert_size_request.rs

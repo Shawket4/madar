@@ -5,6 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **branch_id** | **uuid::Uuid** |  | 
+**date_sets** | Option<[**Vec<models::DateSet>**](DateSet.md)> | The dates that hold their own set (a date change), a day off included: the ones \"back to the pattern\" applies to. | [optional]
 **from** | **chrono::NaiveDate** |  | 
 **holidays** | [**Vec<models::HolidayView>**](HolidayView.md) |  | 
 **limits_unconfirmed** | **bool** | The limits are not yet confirmed by a lawyer; say so beside them. | 

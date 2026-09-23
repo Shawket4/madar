@@ -27,6 +27,9 @@ pub struct MyRosterView {
         skip_serializing_if = "Option::is_none"
     )]
     pub pref_time: Option<Option<String>>,
+    /// `employee` or `manager`: who set my preferences last.
+    #[serde(rename = "prefs_set_by")]
+    pub prefs_set_by: String,
     /// Only shifts in published weeks (SC-3).
     #[serde(rename = "shifts")]
     pub shifts: Vec<models::RosterShift>,
@@ -47,6 +50,7 @@ impl MyRosterView {
         cant_work_days: Vec<i32>,
         from: chrono::NaiveDate,
         open_shifts: Vec<models::OpenShift>,
+        prefs_set_by: String,
         shifts: Vec<models::RosterShift>,
         swaps: Vec<models::Swap>,
         team: Vec<models::RosterShift>,
@@ -58,6 +62,7 @@ impl MyRosterView {
             from,
             open_shifts,
             pref_time: None,
+            prefs_set_by,
             shifts,
             swaps,
             team,

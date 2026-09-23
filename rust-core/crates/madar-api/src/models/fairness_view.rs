@@ -15,15 +15,18 @@ use serde::{Deserialize, Serialize};
 pub struct FairnessView {
     #[serde(rename = "accepted_4w")]
     pub accepted_4w: i64,
+    /// The same, branch by branch, each with its own gap flag.
+    #[serde(rename = "branches")]
+    pub branches: Vec<models::BranchFairness>,
     /// Suggestions managers decided in the last 4 weeks, and how many they accepted.
     #[serde(rename = "decided_4w")]
     pub decided_4w: i64,
-    /// Learning is paused: under 40% accepted over 4 weeks.
+    /// Learning is paused at some branch.
     #[serde(rename = "learning_frozen")]
     pub learning_frozen: bool,
     #[serde(rename = "month")]
     pub month: chrono::NaiveDate,
-    /// Night share by gender against stated willingness.
+    /// Night share by gender against stated willingness, the whole business.
     #[serde(rename = "rows")]
     pub rows: Vec<models::FairnessRow>,
 }
@@ -31,6 +34,7 @@ pub struct FairnessView {
 impl FairnessView {
     pub fn new(
         accepted_4w: i64,
+        branches: Vec<models::BranchFairness>,
         decided_4w: i64,
         learning_frozen: bool,
         month: chrono::NaiveDate,
@@ -38,6 +42,7 @@ impl FairnessView {
     ) -> FairnessView {
         FairnessView {
             accepted_4w,
+            branches,
             decided_4w,
             learning_frozen,
             month,

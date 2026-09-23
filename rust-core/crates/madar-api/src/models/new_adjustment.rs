@@ -20,6 +20,7 @@ pub struct NewAdjustment {
         skip_serializing_if = "Option::is_none"
     )]
     pub amount_piastres: Option<Option<i64>>,
+    /// The month it lands in (AD-1): any day of that month; the first month of a recurring line (AD-3). Defaults to today. Must be an open month.
     #[serde(
         rename = "effective_date",
         default,

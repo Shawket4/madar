@@ -24,7 +24,10 @@ pub struct ScheduledDay {
     pub branch_name: Option<Option<String>>,
     #[serde(rename = "date")]
     pub date: chrono::NaiveDate,
-    /// Empty = a rest day.
+    /// The week is published at the person's branch. Unpublished weeks are drafts: they come back empty (SC-3).
+    #[serde(rename = "published", skip_serializing_if = "Option::is_none")]
+    pub published: Option<bool>,
+    /// Empty = a rest day, or a week not published yet.
     #[serde(rename = "shifts")]
     pub shifts: Vec<models::ResolvedShift>,
 }
@@ -35,6 +38,7 @@ impl ScheduledDay {
         ScheduledDay {
             branch_name: None,
             date,
+            published: None,
             shifts,
         }
     }

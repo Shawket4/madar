@@ -12,37 +12,34 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PutBalanceRequest {
+pub struct PutDayRequest {
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(rename = "on_date")]
+    pub on_date: chrono::NaiveDate,
     #[serde(
-        rename = "carried_over_days",
+        rename = "reason",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub carried_over_days: Option<Option<f64>>,
-    #[serde(rename = "employee_id")]
-    pub employee_id: uuid::Uuid,
-    #[serde(rename = "entitled_days")]
-    pub entitled_days: f64,
-    #[serde(rename = "leave_type_id")]
-    pub leave_type_id: uuid::Uuid,
-    #[serde(rename = "year")]
-    pub year: i32,
+    pub reason: Option<Option<String>>,
+    /// Every shift the person works that date; empty = a day off.
+    #[serde(rename = "shifts")]
+    pub shifts: Vec<models::DayBlock>,
 }
 
-impl PutBalanceRequest {
+impl PutDayRequest {
     pub fn new(
         employee_id: uuid::Uuid,
-        entitled_days: f64,
-        leave_type_id: uuid::Uuid,
-        year: i32,
-    ) -> PutBalanceRequest {
-        PutBalanceRequest {
-            carried_over_days: None,
+        on_date: chrono::NaiveDate,
+        shifts: Vec<models::DayBlock>,
+    ) -> PutDayRequest {
+        PutDayRequest {
             employee_id,
-            entitled_days,
-            leave_type_id,
-            year,
+            on_date,
+            reason: None,
+            shifts,
         }
     }
 }

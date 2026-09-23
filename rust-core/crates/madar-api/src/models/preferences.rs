@@ -16,6 +16,14 @@ pub struct Preferences {
     /// Days I can't work: 0 = Sunday … 6 = Saturday.
     #[serde(rename = "cant_work_days", skip_serializing_if = "Option::is_none")]
     pub cant_work_days: Option<Vec<i32>>,
+    /// Why (a manager's override).
+    #[serde(
+        rename = "note",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub note: Option<Option<String>>,
     /// `morning` · `evening` · null
     #[serde(
         rename = "pref_time",
@@ -30,6 +38,7 @@ impl Preferences {
     pub fn new() -> Preferences {
         Preferences {
             cant_work_days: None,
+            note: None,
             pref_time: None,
         }
     }

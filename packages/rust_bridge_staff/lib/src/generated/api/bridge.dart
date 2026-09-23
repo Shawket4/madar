@@ -78,22 +78,6 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Every salary advance in the org.
   Future<List<SalaryAdvanceView>> managerAdvances();
 
-  /// Add a bonus or a manual deduction.
-  Future<AdjustmentView> managerCreateAdjustment({
-    required bool deductions,
-    required String userId,
-    required PlatformInt64 amountMinor,
-    required String reason,
-    required String effectiveDate,
-  });
-
-  /// Approve or reject an advance request.
-  Future<SalaryAdvanceView> managerDecideAdvance({
-    required String advanceId,
-    required bool approve,
-    String? note,
-  });
-
   /// Approve or reject a request.
   Future<StaffRequestView> managerDecideRequest({
     required String requestId,
@@ -153,6 +137,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
   // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
   /// Open the store (SQLite + migrations) + build the HTTP client. Session
   /// restore is a separate explicit step.
+  ///
+  /// ONE core per store in the process: on Android the app and its
+  /// background location service (CL-4) are two Flutter engines in one
+  /// process, and both must work through the same core — one outbox drain,
+  /// one mirror, one session — never two over the same SQLite file.
   static Future<MadarBridge> newInstance({required MadarConfig config}) =>
       StaffBridge.instance.api.crateApiBridgeMadarBridgeNew(config: config);
 

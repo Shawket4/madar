@@ -13,8 +13,24 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CheckInRequest {
+    /// The fix's reported accuracy, metres (CL-9: a perfect one is suspicious).
+    #[serde(
+        rename = "accuracy_meters",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub accuracy_meters: Option<Option<f64>>,
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
+    /// The OS's mock-location marker for this fix (CL-9).
+    #[serde(
+        rename = "is_mock",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub is_mock: Option<Option<bool>>,
     /// Device coordinates. Required whenever the org enforces the geofence.
     #[serde(
         rename = "latitude",
@@ -51,7 +67,9 @@ pub struct CheckInRequest {
 impl CheckInRequest {
     pub fn new(branch_id: uuid::Uuid) -> CheckInRequest {
         CheckInRequest {
+            accuracy_meters: None,
             branch_id,
+            is_mock: None,
             latitude: None,
             longitude: None,
             offline: None,

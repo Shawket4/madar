@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**advance_cap_piastres** | Option<**i64**> | The owner's cap on what this person may owe in salary advances, in piastres (AV-5): the server's figure, so no client recomputes it. Hidden with the salary. | [optional]
 **app_access** | **bool** | May sign in to the staff app with a WhatsApp code. | 
 **base_salary_piastres** | Option<**i64**> | `None` when the caller may not read this person's pay — see the module docs. | [optional]
 **branch_ids** | **Vec<uuid::Uuid>** | Where they work; managers see the people of their branches (RO-6). | 
@@ -27,6 +28,7 @@ Name | Type | Description | Notes
 **name** | **String** |  | 
 **national_id** | Option<**String**> |  | [optional]
 **notes** | Option<**String**> |  | [optional]
+**on_payroll** | **bool** | Paid through Dawam (the default). Off for someone who uses the app and is rostered but is not paid here (an owner, say): the payroll run, the estimate and the payslips skip them. | 
 **org_id** | **uuid::Uuid** |  | 
 **pay_account** | Option<**String**> |  | [optional]
 **pay_method** | **String** | `cash` · `bank` · `wallet` | 

@@ -117,6 +117,14 @@ pub struct PutEmployeeRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub notes: Option<Option<String>>,
+    /// Paid through Dawam. Like the salary, ignored unless the caller has `hr.payroll.edit` for every branch.
+    #[serde(
+        rename = "on_payroll",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub on_payroll: Option<Option<bool>>,
     #[serde(
         rename = "pay_account",
         default,
@@ -174,6 +182,7 @@ impl PutEmployeeRequest {
             name: None,
             national_id: None,
             notes: None,
+            on_payroll: None,
             pay_account: None,
             pay_method: None,
             phone: None,

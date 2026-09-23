@@ -36,6 +36,7 @@ Name | Type | Description | Notes
 **scheduled_end_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **scheduled_start_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **status** | **String** |  | 
+**status_overridden** | Option<**bool**> | A manager set this day's status by hand; automation keeps it (AT-7). | [optional]
 **tracking_off** | **bool** |  | 
 **updated_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **work_shift_id** | Option<**uuid::Uuid**> |  | [optional]

@@ -19,9 +19,10 @@ pub struct ComputedPayslip {
     /// What the advances WANT versus what the payslip can afford differ when net pay would go negative; this is the affordable figure, the one collected.
     #[serde(rename = "advance_installment_piastres")]
     pub advance_installment_piastres: i64,
-    /// After the attendance proration — what the days actually worked earn.
+    /// After the calendar-day proration — what the days employed earn, at each day's salary (PAY-13).
     #[serde(rename = "base_piastres")]
     pub base_piastres: i64,
+    /// The monthly salary in force at the end of the window.
     #[serde(rename = "base_salary_piastres")]
     pub base_salary_piastres: i64,
     #[serde(rename = "bonuses_piastres")]

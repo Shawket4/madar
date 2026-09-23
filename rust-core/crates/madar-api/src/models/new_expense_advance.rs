@@ -15,11 +15,27 @@ use serde::{Deserialize, Serialize};
 pub struct NewExpenseAdvance {
     #[serde(rename = "amount_piastres")]
     pub amount_piastres: i64,
+    /// Where it was handed over; defaults to the person's first branch. Must be a branch the caller may log at.
+    #[serde(
+        rename = "branch_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub branch_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "employee_id")]
     pub employee_id: uuid::Uuid,
+    /// When the cash changed hands; defaults to today (AV-7).
+    #[serde(
+        rename = "given_on",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub given_on: Option<Option<chrono::NaiveDate>>,
     #[serde(rename = "purpose")]
     pub purpose: String,
-    /// `safe` · `bank` · `till`
+    /// `safe` · `bank`. A till pay-out is tagged on the POS (AV-8), never logged here by hand (AV-10).
     #[serde(rename = "via")]
     pub via: String,
 }
@@ -33,7 +49,9 @@ impl NewExpenseAdvance {
     ) -> NewExpenseAdvance {
         NewExpenseAdvance {
             amount_piastres,
+            branch_id: None,
             employee_id,
+            given_on: None,
             purpose,
             via,
         }

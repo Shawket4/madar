@@ -13291,61 +13291,6 @@ impl MadarCore {
             .collect())
     }
 
-    /// Add a bonus or a manual deduction.
-    pub async fn manager_create_adjustment(
-        &self,
-        deductions: bool,
-        user_id: String,
-        amount_minor: i64,
-        reason: String,
-        effective_date: String,
-    ) -> Result<staff::AdjustmentView, CoreError> {
-        use madar_api::apis::staff_api;
-        if amount_minor <= 0 {
-            return Err(CoreError::Validation {
-                field: "amount".into(),
-                detail: "must be greater than zero".into(),
-            });
-        }
-        if reason.trim().is_empty() {
-            return Err(CoreError::Validation {
-                field: "reason".into(),
-                detail: "required".into(),
-            });
-        }
-        let user = uuid::Uuid::parse_str(&user_id).map_err(|_| CoreError::Validation {
-            field: "user_id".into(),
-            detail: "not a valid id".into(),
-        })?;
-        let mut body = madar_api::models::CreateAdjustmentRequest::new(
-            parse_ymd(&effective_date, "effective_date")?,
-            user,
-            reason,
-        );
-        body.amount_piastres = Some(Some(amount_minor));
-
-        let row = if deductions {
-            staff_api::create_deduction(
-                &self.api.config(),
-                staff_api::CreateDeductionParams {
-                    create_adjustment_request: body,
-                },
-            )
-            .await
-            .map_err(net::map_api_error)?
-        } else {
-            staff_api::create_bonus(
-                &self.api.config(),
-                staff_api::CreateBonusParams {
-                    create_adjustment_request: body,
-                },
-            )
-            .await
-            .map_err(net::map_api_error)?
-        };
-        Ok(staff::adjustment_view(row, 0))
-    }
-
     /// Delete a hand-entered adjustment. The server refuses on rule-generated
     /// rows — those are waived or overridden, never erased.
     pub async fn manager_delete_adjustment(
@@ -13440,29 +13385,6 @@ impl MadarCore {
         Ok(rows.into_iter().map(staff::advance_view).collect())
     }
 
-    /// Approve or reject an advance request.
-    pub async fn manager_decide_advance(
-        &self,
-        advance_id: String,
-        approve: bool,
-        note: Option<String>,
-    ) -> Result<staff::SalaryAdvanceView, CoreError> {
-        use madar_api::apis::staff_api;
-        let mut body = madar_api::models::AdvanceDecision::new(
-            if approve { "approved" } else { "rejected" }.to_string(),
-        );
-        body.note = note.map(Some);
-        let row = staff_api::decide_advance(
-            &self.api.config(),
-            staff_api::DecideAdvanceParams {
-                id: advance_id,
-                advance_decision: body,
-            },
-        )
-        .await
-        .map_err(net::map_api_error)?;
-        Ok(staff::advance_view(row))
-    }
 }
 
 /// `yyyy-mm-dd` → a date, with a field-named error the UI can show.

@@ -18,6 +18,7 @@ Name | Type | Description | Notes
 **name** | Option<**String**> |  | [optional]
 **national_id** | Option<**String**> |  | [optional]
 **notes** | Option<**String**> |  | [optional]
+**on_payroll** | Option<**bool**> | Paid through Dawam. Like the salary, ignored unless the caller has `hr.payroll.edit` for every branch. | [optional]
 **pay_account** | Option<**String**> |  | [optional]
 **pay_method** | Option<**String**> | `cash` · `bank` · `wallet`; omitted keeps what is there. | [optional]
 **phone** | Option<**String**> | A new number signs the old phone out (RO-10). Empty clears it. | [optional]

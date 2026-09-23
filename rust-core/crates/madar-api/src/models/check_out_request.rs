@@ -13,6 +13,22 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CheckOutRequest {
+    /// The fix's reported accuracy, metres (CL-9).
+    #[serde(
+        rename = "accuracy_meters",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub accuracy_meters: Option<Option<f64>>,
+    /// The OS's mock-location marker for this fix (CL-9).
+    #[serde(
+        rename = "is_mock",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub is_mock: Option<Option<bool>>,
     #[serde(
         rename = "latitude",
         default,
@@ -40,6 +56,8 @@ pub struct CheckOutRequest {
 impl CheckOutRequest {
     pub fn new() -> CheckOutRequest {
         CheckOutRequest {
+            accuracy_meters: None,
+            is_mock: None,
             latitude: None,
             longitude: None,
             offline: None,

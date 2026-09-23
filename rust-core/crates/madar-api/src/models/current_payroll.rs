@@ -16,6 +16,9 @@ pub struct CurrentPayroll {
     /// Earlier periods, newest first.
     #[serde(rename = "history")]
     pub history: Vec<models::PayrollPeriod>,
+    /// How many payslips are marked paid (a 'none' mark counts).
+    #[serde(rename = "paid_count")]
+    pub paid_count: i64,
     /// The frozen payslips once it has been generated.
     #[serde(rename = "payslips")]
     pub payslips: Vec<models::Payslip>,
@@ -24,20 +27,27 @@ pub struct CurrentPayroll {
     /// A live computation while the period is still a draft.
     #[serde(rename = "preview")]
     pub preview: Vec<models::ComputedPayslip>,
+    /// The run added up by the server (AT-3).
+    #[serde(rename = "totals")]
+    pub totals: Box<models::PayrollTotals>,
 }
 
 impl CurrentPayroll {
     pub fn new(
         history: Vec<models::PayrollPeriod>,
+        paid_count: i64,
         payslips: Vec<models::Payslip>,
         period: models::PayrollPeriod,
         preview: Vec<models::ComputedPayslip>,
+        totals: models::PayrollTotals,
     ) -> CurrentPayroll {
         CurrentPayroll {
             history,
+            paid_count,
             payslips,
             period: Box::new(period),
             preview,
+            totals: Box::new(totals),
         }
     }
 }

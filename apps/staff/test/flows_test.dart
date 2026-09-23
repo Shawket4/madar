@@ -71,7 +71,10 @@ void main() {
     await pumpApp(t, lang: 'en', who: 'e2', manage: true);
     await tapText(t, 'Youssef Adel · Left mid-shift');
     await t.enterText(
-      find.widgetWithText(TextField, 'Reason — the employee sees it on the pay line'),
+      find.widgetWithText(
+        TextField,
+        'Reason — the employee sees it on the pay line',
+      ),
       'Left for a delivery',
     );
     await tapText(t, 'Deduct');
@@ -309,7 +312,9 @@ void main() {
   ) async {
     await pumpApp(t, lang: 'en', who: 'e2', manage: true);
     await tapText(t, 'Youssef Adel · Left mid-shift');
-    final field = find.byType(EditableText).last;
+    // The amount, above the reason the employee reads.
+    final fields = find.byType(EditableText);
+    final field = fields.at(fields.evaluate().length - 2);
     await t.enterText(field, '123');
     await frames(t);
     // The 2-minute poll, a push, a ping: the store notifies meanwhile.

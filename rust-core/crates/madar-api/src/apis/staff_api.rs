@@ -50,6 +50,18 @@ pub struct BranchPeopleParams {
     pub branch_id: String,
 }
 
+/// struct for passing parameters to the method [`cancel_open_shift`]
+#[derive(Clone, Debug)]
+pub struct CancelOpenShiftParams {
+    pub id: String,
+}
+
+/// struct for passing parameters to the method [`cancel_swap`]
+#[derive(Clone, Debug)]
+pub struct CancelSwapParams {
+    pub id: String,
+}
+
 /// struct for passing parameters to the method [`check_in`]
 #[derive(Clone, Debug)]
 pub struct CheckInParams {
@@ -94,18 +106,6 @@ pub struct CreateAssignmentParams {
     pub create_assignment_request: models::CreateAssignmentRequest,
 }
 
-/// struct for passing parameters to the method [`create_bonus`]
-#[derive(Clone, Debug)]
-pub struct CreateBonusParams {
-    pub create_adjustment_request: models::CreateAdjustmentRequest,
-}
-
-/// struct for passing parameters to the method [`create_deduction`]
-#[derive(Clone, Debug)]
-pub struct CreateDeductionParams {
-    pub create_adjustment_request: models::CreateAdjustmentRequest,
-}
-
 /// struct for passing parameters to the method [`create_department`]
 #[derive(Clone, Debug)]
 pub struct CreateDepartmentParams {
@@ -124,12 +124,6 @@ pub struct CreateDocumentParams {
 #[derive(Clone, Debug)]
 pub struct CreateEmployeeParams {
     pub create_employee_request: models::CreateEmployeeRequest,
-}
-
-/// struct for passing parameters to the method [`create_leave_type`]
-#[derive(Clone, Debug)]
-pub struct CreateLeaveTypeParams {
-    pub upsert_leave_type_request: models::UpsertLeaveTypeRequest,
 }
 
 /// struct for passing parameters to the method [`create_manual_record`]
@@ -174,14 +168,6 @@ pub struct DecideAdjustmentParams {
     pub kind: String,
     pub id: String,
     pub decide_pay: models::DecidePay,
-}
-
-/// struct for passing parameters to the method [`decide_advance`]
-#[derive(Clone, Debug)]
-pub struct DecideAdvanceParams {
-    /// Advance ID
-    pub id: String,
-    pub advance_decision: models::AdvanceDecision,
 }
 
 /// struct for passing parameters to the method [`decide_claim`]
@@ -247,6 +233,13 @@ pub struct DeleteBonusParams {
     pub id: String,
 }
 
+/// struct for passing parameters to the method [`delete_branch_rules`]
+#[derive(Clone, Debug)]
+pub struct DeleteBranchRulesParams {
+    /// Branch whose overrides go
+    pub branch_id: String,
+}
+
 /// struct for passing parameters to the method [`delete_deduction`]
 #[derive(Clone, Debug)]
 pub struct DeleteDeductionParams {
@@ -275,13 +268,6 @@ pub struct DeleteEmployeeParams {
     pub employee_id: String,
 }
 
-/// struct for passing parameters to the method [`delete_leave_type`]
-#[derive(Clone, Debug)]
-pub struct DeleteLeaveTypeParams {
-    /// Leave type ID
-    pub id: String,
-}
-
 /// struct for passing parameters to the method [`delete_override`]
 #[derive(Clone, Debug)]
 pub struct DeleteOverrideParams {
@@ -301,6 +287,8 @@ pub struct DeletePeriodParams {
 pub struct DeleteRecordParams {
     /// Attendance record ID
     pub id: String,
+    /// Why the day goes (kept with the tombstone the absence sweep honours).
+    pub reason: Option<String>,
 }
 
 /// struct for passing parameters to the method [`delete_work_shift`]
@@ -324,6 +312,8 @@ pub struct DisciplineReportParams {
 pub struct ExportPeriodCsvParams {
     /// Period ID
     pub id: String,
+    /// `bank` (a transfer file: name, account, amount) · `wallet` (numbers and amounts) · `cash`; omitted = everyone, every figure (PAY-8).
+    pub method: Option<String>,
 }
 
 /// struct for passing parameters to the method [`fairness`]
@@ -331,6 +321,8 @@ pub struct ExportPeriodCsvParams {
 pub struct FairnessParams {
     /// Any day of the month.
     pub month: chrono::NaiveDate,
+    /// One branch; omit for every branch and the business as a whole.
+    pub branch_id: Option<String>,
 }
 
 /// struct for passing parameters to the method [`generate_period`]
@@ -416,12 +408,11 @@ pub struct ListAttendanceFlagsParams {
     pub all: Option<bool>,
 }
 
-/// struct for passing parameters to the method [`list_balances`]
+/// struct for passing parameters to the method [`list_audit`]
 #[derive(Clone, Debug)]
-pub struct ListBalancesParams {
+pub struct ListAuditParams {
     pub employee_id: Option<String>,
-    /// Defaults to the current calendar year.
-    pub year: Option<i32>,
+    pub period_id: Option<String>,
 }
 
 /// struct for passing parameters to the method [`list_bonuses`]
@@ -511,6 +502,12 @@ pub struct MarkPaidParams {
     pub mark_paid: models::MarkPaid,
 }
 
+/// struct for passing parameters to the method [`move_shift`]
+#[derive(Clone, Debug)]
+pub struct MoveShiftParams {
+    pub move_shift_request: models::MoveShiftRequest,
+}
+
 /// struct for passing parameters to the method [`my_attendance`]
 #[derive(Clone, Debug)]
 pub struct MyAttendanceParams {
@@ -574,6 +571,12 @@ pub struct PostOpenShiftParams {
     pub post_open_shift: models::PostOpenShift,
 }
 
+/// struct for passing parameters to the method [`preference_log`]
+#[derive(Clone, Debug)]
+pub struct PreferenceLogParams {
+    pub id: String,
+}
+
 /// struct for passing parameters to the method [`preview_period`]
 #[derive(Clone, Debug)]
 pub struct PreviewPeriodParams {
@@ -599,16 +602,16 @@ pub struct PutAttendanceSettingsParams {
     pub put_attendance_settings_request: models::PutAttendanceSettingsRequest,
 }
 
-/// struct for passing parameters to the method [`put_balance`]
-#[derive(Clone, Debug)]
-pub struct PutBalanceParams {
-    pub put_balance_request: models::PutBalanceRequest,
-}
-
 /// struct for passing parameters to the method [`put_coverage`]
 #[derive(Clone, Debug)]
 pub struct PutCoverageParams {
     pub put_coverage: models::PutCoverage,
+}
+
+/// struct for passing parameters to the method [`put_day`]
+#[derive(Clone, Debug)]
+pub struct PutDayParams {
+    pub put_day_request: models::PutDayRequest,
 }
 
 /// struct for passing parameters to the method [`put_employee`]
@@ -617,6 +620,13 @@ pub struct PutEmployeeParams {
     /// The employee's id
     pub employee_id: String,
     pub put_employee_request: models::PutEmployeeRequest,
+}
+
+/// struct for passing parameters to the method [`put_employee_preferences`]
+#[derive(Clone, Debug)]
+pub struct PutEmployeePreferencesParams {
+    pub id: String,
+    pub preferences: models::Preferences,
 }
 
 /// struct for passing parameters to the method [`put_override`]
@@ -631,10 +641,29 @@ pub struct PutPreferencesParams {
     pub preferences: models::Preferences,
 }
 
+/// struct for passing parameters to the method [`put_times`]
+#[derive(Clone, Debug)]
+pub struct PutTimesParams {
+    pub put_times_request: models::PutTimesRequest,
+}
+
 /// struct for passing parameters to the method [`read_notifications`]
 #[derive(Clone, Debug)]
 pub struct ReadNotificationsParams {
     pub read_notifications: models::ReadNotifications,
+}
+
+/// struct for passing parameters to the method [`record_advance`]
+#[derive(Clone, Debug)]
+pub struct RecordAdvanceParams {
+    pub record_advance: models::RecordAdvance,
+}
+
+/// struct for passing parameters to the method [`reset_day`]
+#[derive(Clone, Debug)]
+pub struct ResetDayParams {
+    pub employee_id: String,
+    pub on_date: chrono::NaiveDate,
 }
 
 /// struct for passing parameters to the method [`resolve_flag`]
@@ -684,6 +713,7 @@ pub struct SetStaffPushTokenParams {
 pub struct StopAdjustmentParams {
     pub kind: String,
     pub id: String,
+    pub stop_adjustment: models::StopAdjustment,
 }
 
 /// struct for passing parameters to the method [`suggestions`]
@@ -703,7 +733,19 @@ pub struct TeamPresenceParams {
 /// struct for passing parameters to the method [`till_punch`]
 #[derive(Clone, Debug)]
 pub struct TillPunchParams {
+    /// The till's device id
+    pub x_madar_device: String,
     pub till_punch: models::TillPunch,
+    /// The device credential, when it has one
+    pub x_madar_device_token: Option<String>,
+}
+
+/// struct for passing parameters to the method [`unwaive_deduction`]
+#[derive(Clone, Debug)]
+pub struct UnwaiveDeductionParams {
+    /// Deduction ID
+    pub id: String,
+    pub waive_deduction_request: models::WaiveDeductionRequest,
 }
 
 /// struct for passing parameters to the method [`update_department`]
@@ -712,14 +754,6 @@ pub struct UpdateDepartmentParams {
     /// Department ID
     pub id: String,
     pub upsert_department_request: models::UpsertDepartmentRequest,
-}
-
-/// struct for passing parameters to the method [`update_leave_type`]
-#[derive(Clone, Debug)]
-pub struct UpdateLeaveTypeParams {
-    /// Leave type ID
-    pub id: String,
-    pub upsert_leave_type_request: models::UpsertLeaveTypeRequest,
 }
 
 /// struct for passing parameters to the method [`update_work_shift`]
@@ -736,6 +770,19 @@ pub struct WaiveDeductionParams {
     /// Deduction ID
     pub id: String,
     pub waive_deduction_request: models::WaiveDeductionRequest,
+}
+
+/// struct for typed errors of method [`accept_staff_privacy`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AcceptStaffPrivacyError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
 }
 
 /// struct for typed errors of method [`advances`]
@@ -794,6 +841,32 @@ pub enum AttendanceSummaryError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BranchPeopleError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`cancel_open_shift`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CancelOpenShiftError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`cancel_swap`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CancelSwapError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -894,32 +967,6 @@ pub enum CreateAssignmentError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`create_bonus`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum CreateBonusError {
-    Status400(models::ErrorBody),
-    Status401(models::ErrorBody),
-    Status403(models::ErrorBody),
-    Status404(models::ErrorBody),
-    Status409(models::ErrorBody),
-    Status500(models::ErrorBody),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`create_deduction`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum CreateDeductionError {
-    Status400(models::ErrorBody),
-    Status401(models::ErrorBody),
-    Status403(models::ErrorBody),
-    Status404(models::ErrorBody),
-    Status409(models::ErrorBody),
-    Status500(models::ErrorBody),
-    UnknownValue(serde_json::Value),
-}
-
 /// struct for typed errors of method [`create_department`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -950,19 +997,6 @@ pub enum CreateDocumentError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CreateEmployeeError {
-    Status400(models::ErrorBody),
-    Status401(models::ErrorBody),
-    Status403(models::ErrorBody),
-    Status404(models::ErrorBody),
-    Status409(models::ErrorBody),
-    Status500(models::ErrorBody),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`create_leave_type`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum CreateLeaveTypeError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1067,19 +1101,6 @@ pub enum CurrentError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DecideAdjustmentError {
-    Status400(models::ErrorBody),
-    Status401(models::ErrorBody),
-    Status403(models::ErrorBody),
-    Status404(models::ErrorBody),
-    Status409(models::ErrorBody),
-    Status500(models::ErrorBody),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`decide_advance`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum DecideAdvanceError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1206,6 +1227,19 @@ pub enum DeleteBonusError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`delete_branch_rules`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteBranchRulesError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`delete_deduction`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -1249,19 +1283,6 @@ pub enum DeleteDocumentError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteEmployeeError {
-    Status400(models::ErrorBody),
-    Status401(models::ErrorBody),
-    Status403(models::ErrorBody),
-    Status404(models::ErrorBody),
-    Status409(models::ErrorBody),
-    Status500(models::ErrorBody),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`delete_leave_type`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum DeleteLeaveTypeError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1353,6 +1374,19 @@ pub enum ExportPeriodCsvError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum FairnessError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`fairness_audits`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum FairnessAuditsError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1518,10 +1552,10 @@ pub enum ListAttendanceFlagsError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`list_balances`]
+/// struct for typed errors of method [`list_audit`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum ListBalancesError {
+pub enum ListAuditError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1535,6 +1569,19 @@ pub enum ListBalancesError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListBonusesError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`list_branch_rules`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListBranchRulesError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1600,19 +1647,6 @@ pub enum ListEmployeesError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListExpenseAdvancesError {
-    Status400(models::ErrorBody),
-    Status401(models::ErrorBody),
-    Status403(models::ErrorBody),
-    Status404(models::ErrorBody),
-    Status409(models::ErrorBody),
-    Status500(models::ErrorBody),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`list_leave_types`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ListLeaveTypesError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1717,6 +1751,19 @@ pub enum LogExpenseAdvanceError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum MarkPaidError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`move_shift`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum MoveShiftError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1973,6 +2020,19 @@ pub enum PostOpenShiftError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`preference_log`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PreferenceLogError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`preview_period`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -2025,19 +2085,6 @@ pub enum PutAttendanceSettingsError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`put_balance`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum PutBalanceError {
-    Status400(models::ErrorBody),
-    Status401(models::ErrorBody),
-    Status403(models::ErrorBody),
-    Status404(models::ErrorBody),
-    Status409(models::ErrorBody),
-    Status500(models::ErrorBody),
-    UnknownValue(serde_json::Value),
-}
-
 /// struct for typed errors of method [`put_coverage`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -2051,10 +2098,36 @@ pub enum PutCoverageError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`put_day`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PutDayError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`put_employee`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PutEmployeeError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`put_employee_preferences`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PutEmployeePreferencesError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -2090,10 +2163,49 @@ pub enum PutPreferencesError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`put_times`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PutTimesError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`read_notifications`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ReadNotificationsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`record_advance`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RecordAdvanceError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`reset_day`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ResetDayError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -2181,6 +2293,19 @@ pub enum SetStaffPushTokenError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`staff_sign_out`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum StaffSignOutError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`stop_adjustment`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -2233,10 +2358,10 @@ pub enum TillPunchError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`update_department`]
+/// struct for typed errors of method [`unwaive_deduction`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum UpdateDepartmentError {
+pub enum UnwaiveDeductionError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -2246,10 +2371,10 @@ pub enum UpdateDepartmentError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`update_leave_type`]
+/// struct for typed errors of method [`update_department`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum UpdateLeaveTypeError {
+pub enum UpdateDepartmentError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -2283,6 +2408,50 @@ pub enum WaiveDeductionError {
     Status409(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
+}
+
+pub async fn accept_staff_privacy(
+    configuration: &configuration::Configuration,
+) -> Result<models::PrivacyAccepted, Error<AcceptStaffPrivacyError>> {
+    let uri_str = format!("{}/staff/me/privacy", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PrivacyAccepted`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PrivacyAccepted`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<AcceptStaffPrivacyError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
 }
 
 pub async fn advances(
@@ -2522,6 +2691,93 @@ pub async fn branch_people(
     } else {
         let content = resp.text().await?;
         let entity: Option<BranchPeopleError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn cancel_open_shift(
+    configuration: &configuration::Configuration,
+    params: CancelOpenShiftParams,
+) -> Result<(), Error<CancelOpenShiftError>> {
+    let uri_str = format!(
+        "{}/staff/open-shifts/{id}/cancel",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<CancelOpenShiftError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn cancel_swap(
+    configuration: &configuration::Configuration,
+    params: CancelSwapParams,
+) -> Result<models::Swap, Error<CancelSwapError>> {
+    let uri_str = format!(
+        "{}/staff/me/swaps/{id}/cancel",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::Swap`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::Swap`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<CancelSwapError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -2859,98 +3115,6 @@ pub async fn create_assignment(
     }
 }
 
-pub async fn create_bonus(
-    configuration: &configuration::Configuration,
-    params: CreateBonusParams,
-) -> Result<models::PayrollAdjustment, Error<CreateBonusError>> {
-    let uri_str = format!("{}/staff/payroll/bonuses", configuration.base_path);
-    let mut req_builder = configuration
-        .client
-        .request(reqwest::Method::POST, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-    req_builder = req_builder.json(&params.create_adjustment_request);
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PayrollAdjustment`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PayrollAdjustment`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<CreateBonusError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
-pub async fn create_deduction(
-    configuration: &configuration::Configuration,
-    params: CreateDeductionParams,
-) -> Result<models::PayrollAdjustment, Error<CreateDeductionError>> {
-    let uri_str = format!("{}/staff/payroll/deductions", configuration.base_path);
-    let mut req_builder = configuration
-        .client
-        .request(reqwest::Method::POST, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-    req_builder = req_builder.json(&params.create_adjustment_request);
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PayrollAdjustment`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PayrollAdjustment`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<CreateDeductionError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
 pub async fn create_department(
     configuration: &configuration::Configuration,
     params: CreateDepartmentParams,
@@ -3085,52 +3249,6 @@ pub async fn create_employee(
     } else {
         let content = resp.text().await?;
         let entity: Option<CreateEmployeeError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
-pub async fn create_leave_type(
-    configuration: &configuration::Configuration,
-    params: CreateLeaveTypeParams,
-) -> Result<models::LeaveType, Error<CreateLeaveTypeError>> {
-    let uri_str = format!("{}/staff/leave/types", configuration.base_path);
-    let mut req_builder = configuration
-        .client
-        .request(reqwest::Method::POST, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-    req_builder = req_builder.json(&params.upsert_leave_type_request);
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::LeaveType`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::LeaveType`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<CreateLeaveTypeError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -3500,56 +3618,6 @@ pub async fn decide_adjustment(
     } else {
         let content = resp.text().await?;
         let entity: Option<DecideAdjustmentError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
-pub async fn decide_advance(
-    configuration: &configuration::Configuration,
-    params: DecideAdvanceParams,
-) -> Result<models::SalaryAdvance, Error<DecideAdvanceError>> {
-    let uri_str = format!(
-        "{}/staff/payroll/advances/{id}/decision",
-        configuration.base_path,
-        id = crate::apis::urlencode(params.id)
-    );
-    let mut req_builder = configuration
-        .client
-        .request(reqwest::Method::PATCH, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-    req_builder = req_builder.json(&params.advance_decision);
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::SalaryAdvance`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::SalaryAdvance`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<DecideAdvanceError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -3948,6 +4016,44 @@ pub async fn delete_bonus(
     }
 }
 
+pub async fn delete_branch_rules(
+    configuration: &configuration::Configuration,
+    params: DeleteBranchRulesParams,
+) -> Result<(), Error<DeleteBranchRulesError>> {
+    let uri_str = format!(
+        "{}/staff/attendance/settings/branches/{branch_id}",
+        configuration.base_path,
+        branch_id = crate::apis::urlencode(params.branch_id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::DELETE, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DeleteBranchRulesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn delete_deduction(
     configuration: &configuration::Configuration,
     params: DeleteDeductionParams,
@@ -4100,44 +4206,6 @@ pub async fn delete_employee(
     }
 }
 
-pub async fn delete_leave_type(
-    configuration: &configuration::Configuration,
-    params: DeleteLeaveTypeParams,
-) -> Result<(), Error<DeleteLeaveTypeError>> {
-    let uri_str = format!(
-        "{}/staff/leave/types/{id}",
-        configuration.base_path,
-        id = crate::apis::urlencode(params.id)
-    );
-    let mut req_builder = configuration
-        .client
-        .request(reqwest::Method::DELETE, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-
-    if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<DeleteLeaveTypeError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
 pub async fn delete_override(
     configuration: &configuration::Configuration,
     params: DeleteOverrideParams,
@@ -4227,6 +4295,9 @@ pub async fn delete_record(
         .client
         .request(reqwest::Method::DELETE, &uri_str);
 
+    if let Some(ref param_value) = params.reason {
+        req_builder = req_builder.query(&[("reason", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -4350,6 +4421,9 @@ pub async fn export_period_csv(
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
+    if let Some(ref param_value) = params.method {
+        req_builder = req_builder.query(&[("method", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -4383,6 +4457,9 @@ pub async fn fairness(
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     req_builder = req_builder.query(&[("month", &params.month.to_string())]);
+    if let Some(ref param_value) = params.branch_id {
+        req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -4411,6 +4488,48 @@ pub async fn fairness(
     } else {
         let content = resp.text().await?;
         let entity: Option<FairnessError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn fairness_audits(
+    configuration: &configuration::Configuration,
+) -> Result<Vec<models::FairnessAudit>, Error<FairnessAuditsError>> {
+    let uri_str = format!("{}/staff/roster/fairness/audits", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::FairnessAudit&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::FairnessAudit&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<FairnessAuditsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -4993,18 +5112,18 @@ pub async fn list_attendance_flags(
     }
 }
 
-pub async fn list_balances(
+pub async fn list_audit(
     configuration: &configuration::Configuration,
-    params: ListBalancesParams,
-) -> Result<Vec<models::LeaveBalance>, Error<ListBalancesError>> {
-    let uri_str = format!("{}/staff/leave/balances", configuration.base_path);
+    params: ListAuditParams,
+) -> Result<Vec<models::AuditRow>, Error<ListAuditError>> {
+    let uri_str = format!("{}/staff/payroll/audit", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     if let Some(ref param_value) = params.employee_id {
         req_builder = req_builder.query(&[("employee_id", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = params.year {
-        req_builder = req_builder.query(&[("year", &param_value.to_string())]);
+    if let Some(ref param_value) = params.period_id {
+        req_builder = req_builder.query(&[("period_id", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -5028,12 +5147,12 @@ pub async fn list_balances(
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::LeaveBalance&gt;`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::LeaveBalance&gt;`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::AuditRow&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::AuditRow&gt;`")))),
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<ListBalancesError> = serde_json::from_str(&content).ok();
+        let entity: Option<ListAuditError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -5086,6 +5205,51 @@ pub async fn list_bonuses(
     } else {
         let content = resp.text().await?;
         let entity: Option<ListBonusesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn list_branch_rules(
+    configuration: &configuration::Configuration,
+) -> Result<Vec<models::BranchRules>, Error<ListBranchRulesError>> {
+    let uri_str = format!(
+        "{}/staff/attendance/settings/branches",
+        configuration.base_path
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::BranchRules&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::BranchRules&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ListBranchRulesError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -5331,48 +5495,6 @@ pub async fn list_expense_advances(
     } else {
         let content = resp.text().await?;
         let entity: Option<ListExpenseAdvancesError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
-pub async fn list_leave_types(
-    configuration: &configuration::Configuration,
-) -> Result<Vec<models::LeaveType>, Error<ListLeaveTypesError>> {
-    let uri_str = format!("{}/staff/leave/types", configuration.base_path);
-    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::LeaveType&gt;`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::LeaveType&gt;`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<ListLeaveTypesError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -5750,6 +5872,52 @@ pub async fn mark_paid(
     } else {
         let content = resp.text().await?;
         let entity: Option<MarkPaidError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn move_shift(
+    configuration: &configuration::Configuration,
+    params: MoveShiftParams,
+) -> Result<models::MoveView, Error<MoveShiftError>> {
+    let uri_str = format!("{}/staff/schedules/days/move", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.move_shift_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::MoveView`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::MoveView`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<MoveShiftError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -6599,6 +6767,53 @@ pub async fn post_open_shift(
     }
 }
 
+pub async fn preference_log(
+    configuration: &configuration::Configuration,
+    params: PreferenceLogParams,
+) -> Result<Vec<models::PreferenceChange>, Error<PreferenceLogError>> {
+    let uri_str = format!(
+        "{}/staff/employees/{id}/preferences/log",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::PreferenceChange&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::PreferenceChange&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PreferenceLogError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn preview_period(
     configuration: &configuration::Configuration,
     params: PreviewPeriodParams,
@@ -6771,50 +6986,6 @@ pub async fn put_attendance_settings(
     }
 }
 
-pub async fn put_balance(
-    configuration: &configuration::Configuration,
-    params: PutBalanceParams,
-) -> Result<models::LeaveBalance, Error<PutBalanceError>> {
-    let uri_str = format!("{}/staff/leave/balances", configuration.base_path);
-    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-    req_builder = req_builder.json(&params.put_balance_request);
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::LeaveBalance`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::LeaveBalance`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<PutBalanceError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
 pub async fn put_coverage(
     configuration: &configuration::Configuration,
     params: PutCoverageParams,
@@ -6840,6 +7011,50 @@ pub async fn put_coverage(
     } else {
         let content = resp.text().await?;
         let entity: Option<PutCoverageError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn put_day(
+    configuration: &configuration::Configuration,
+    params: PutDayParams,
+) -> Result<models::DayView, Error<PutDayError>> {
+    let uri_str = format!("{}/staff/schedules/days", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.put_day_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::DayView`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::DayView`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PutDayError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -6888,6 +7103,43 @@ pub async fn put_employee(
     } else {
         let content = resp.text().await?;
         let entity: Option<PutEmployeeError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn put_employee_preferences(
+    configuration: &configuration::Configuration,
+    params: PutEmployeePreferencesParams,
+) -> Result<(), Error<PutEmployeePreferencesError>> {
+    let uri_str = format!(
+        "{}/staff/employees/{id}/preferences",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.preferences);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PutEmployeePreferencesError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -6973,6 +7225,50 @@ pub async fn put_preferences(
     }
 }
 
+pub async fn put_times(
+    configuration: &configuration::Configuration,
+    params: PutTimesParams,
+) -> Result<models::DayView, Error<PutTimesError>> {
+    let uri_str = format!("{}/staff/schedules/days/times", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.put_times_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::DayView`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::DayView`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PutTimesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn read_notifications(
     configuration: &configuration::Configuration,
     params: ReadNotificationsParams,
@@ -7000,6 +7296,99 @@ pub async fn read_notifications(
     } else {
         let content = resp.text().await?;
         let entity: Option<ReadNotificationsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn record_advance(
+    configuration: &configuration::Configuration,
+    params: RecordAdvanceParams,
+) -> Result<models::SalaryAdvance, Error<RecordAdvanceError>> {
+    let uri_str = format!("{}/staff/advances/record", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.record_advance);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::SalaryAdvance`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::SalaryAdvance`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<RecordAdvanceError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn reset_day(
+    configuration: &configuration::Configuration,
+    params: ResetDayParams,
+) -> Result<models::DayView, Error<ResetDayError>> {
+    let uri_str = format!("{}/staff/schedules/days", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::DELETE, &uri_str);
+
+    req_builder = req_builder.query(&[("employee_id", &params.employee_id.to_string())]);
+    req_builder = req_builder.query(&[("on_date", &params.on_date.to_string())]);
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::DayView`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::DayView`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ResetDayError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -7192,6 +7581,7 @@ pub async fn roster(
     }
 }
 
+/// Reopening DROPS the frozen payslips: their advance collections go with them (the ledger trigger refunds), so the live preview reads exactly what re-approving will collect (PAY-2, PAY-6, audit B7).
 pub async fn set_period_status(
     configuration: &configuration::Configuration,
     params: SetPeriodStatusParams,
@@ -7275,6 +7665,39 @@ pub async fn set_staff_push_token(
     }
 }
 
+pub async fn staff_sign_out(
+    configuration: &configuration::Configuration,
+) -> Result<(), Error<StaffSignOutError>> {
+    let uri_str = format!("{}/staff/me/sign-out", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<StaffSignOutError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn stop_adjustment(
     configuration: &configuration::Configuration,
     params: StopAdjustmentParams,
@@ -7295,6 +7718,7 @@ pub async fn stop_adjustment(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
+    req_builder = req_builder.json(&params.stop_adjustment);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -7429,6 +7853,10 @@ pub async fn till_punch(
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
+    req_builder = req_builder.header("X-Madar-Device", params.x_madar_device.to_string());
+    if let Some(param_value) = params.x_madar_device_token {
+        req_builder = req_builder.header("X-Madar-Device-Token", param_value.to_string());
+    }
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
@@ -7455,6 +7883,56 @@ pub async fn till_punch(
     } else {
         let content = resp.text().await?;
         let entity: Option<TillPunchError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn unwaive_deduction(
+    configuration: &configuration::Configuration,
+    params: UnwaiveDeductionParams,
+) -> Result<models::PayrollAdjustment, Error<UnwaiveDeductionError>> {
+    let uri_str = format!(
+        "{}/staff/payroll/deductions/{id}/unwaive",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::PATCH, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.waive_deduction_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PayrollAdjustment`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PayrollAdjustment`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<UnwaiveDeductionError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -7505,56 +7983,6 @@ pub async fn update_department(
     } else {
         let content = resp.text().await?;
         let entity: Option<UpdateDepartmentError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
-pub async fn update_leave_type(
-    configuration: &configuration::Configuration,
-    params: UpdateLeaveTypeParams,
-) -> Result<models::LeaveType, Error<UpdateLeaveTypeError>> {
-    let uri_str = format!(
-        "{}/staff/leave/types/{id}",
-        configuration.base_path,
-        id = crate::apis::urlencode(params.id)
-    );
-    let mut req_builder = configuration
-        .client
-        .request(reqwest::Method::PATCH, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-    req_builder = req_builder.json(&params.upsert_leave_type_request);
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::LeaveType`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::LeaveType`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<UpdateLeaveTypeError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

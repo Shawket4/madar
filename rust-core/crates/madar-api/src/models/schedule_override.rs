@@ -24,6 +24,13 @@ pub struct ScheduleOverride {
     pub created_by: Option<Option<uuid::Uuid>>,
     #[serde(rename = "employee_id")]
     pub employee_id: uuid::Uuid,
+    #[serde(
+        rename = "end_time",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub end_time: Option<Option<String>>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(rename = "on_date")]
@@ -37,6 +44,17 @@ pub struct ScheduleOverride {
         skip_serializing_if = "Option::is_none"
     )]
     pub reason: Option<Option<String>>,
+    /// This assignment's own from/to, when it has one (the block is unchanged).
+    #[serde(
+        rename = "start_time",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub start_time: Option<Option<String>>,
+    /// Labour limits the person's week now goes past. Warnings, never blocks.
+    #[serde(rename = "warnings", skip_serializing_if = "Option::is_none")]
+    pub warnings: Option<Vec<models::LabourWarning>>,
     /// `None` = an explicit day off.
     #[serde(
         rename = "work_shift_id",
@@ -66,10 +84,13 @@ impl ScheduleOverride {
             created_at,
             created_by: None,
             employee_id,
+            end_time: None,
             id,
             on_date,
             org_id,
             reason: None,
+            start_time: None,
+            warnings: None,
             work_shift_id: None,
             work_shift_name: None,
         }

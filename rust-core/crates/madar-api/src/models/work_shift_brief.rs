@@ -22,6 +22,9 @@ pub struct WorkShiftBrief {
     pub branch_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "crosses_midnight")]
     pub crosses_midnight: bool,
+    /// Its own times on some weekdays; show that day's times.
+    #[serde(rename = "day_times")]
+    pub day_times: Vec<models::DayTime>,
     #[serde(rename = "end_time")]
     pub end_time: String,
     #[serde(rename = "grace_minutes")]
@@ -32,25 +35,32 @@ pub struct WorkShiftBrief {
     pub name: String,
     #[serde(rename = "start_time")]
     pub start_time: String,
+    /// Weekdays it may be rostered on (0 = Sunday … 6 = Saturday): offer it only on those.
+    #[serde(rename = "valid_days")]
+    pub valid_days: Vec<i32>,
 }
 
 impl WorkShiftBrief {
     pub fn new(
         crosses_midnight: bool,
+        day_times: Vec<models::DayTime>,
         end_time: String,
         grace_minutes: i32,
         id: uuid::Uuid,
         name: String,
         start_time: String,
+        valid_days: Vec<i32>,
     ) -> WorkShiftBrief {
         WorkShiftBrief {
             branch_id: None,
             crosses_midnight,
+            day_times,
             end_time,
             grace_minutes,
             id,
             name,
             start_time,
+            valid_days,
         }
     }
 }

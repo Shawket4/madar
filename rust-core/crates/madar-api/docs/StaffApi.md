@@ -4,24 +4,24 @@ All URIs are relative to *http://localhost:8080*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
+[**accept_staff_privacy**](StaffApi.md#accept_staff_privacy) | **POST** /staff/me/privacy | The employee accepted the location notice on this phone (AT-5). Kept on the device row: a new phone asks again.
 [**advances**](StaffApi.md#advances) | **GET** /staff/reports/advances | Advances given in range, and what is still owed.
 [**answer_swap**](StaffApi.md#answer_swap) | **PATCH** /staff/me/swaps/{id} | The colleague agrees or declines.
-[**ask_swap**](StaffApi.md#ask_swap) | **POST** /staff/me/swaps | Ask a colleague to swap: they agree first, then the manager (SC-8).
+[**ask_swap**](StaffApi.md#ask_swap) | **POST** /staff/me/swaps | Ask a colleague to swap: they agree first, then the manager (SC-8). Both shifts must be on the published roster, ahead, at a branch both work at, and must fit where they land.
 [**attendance_summary**](StaffApi.md#attendance_summary) | **GET** /staff/attendance/summary | 
 [**branch_people**](StaffApi.md#branch_people) | **GET** /staff/branches/{branch_id}/people | Active employees at a branch, names only: what a till shows to tag a pay-out as someone's expense advance (AV-8). Anyone who works the branch may read it; nothing about pay is in it.
+[**cancel_open_shift**](StaffApi.md#cancel_open_shift) | **POST** /staff/open-shifts/{id}/cancel | Take an open shift back (open or claimed, never filled). A claimer hears.
+[**cancel_swap**](StaffApi.md#cancel_swap) | **POST** /staff/me/swaps/{id}/cancel | The one who asked takes it back before the manager decides.
 [**check_in**](StaffApi.md#check_in) | **POST** /staff/me/check-in | 
 [**check_out**](StaffApi.md#check_out) | **POST** /staff/me/check-out | 
-[**claim_open_shift**](StaffApi.md#claim_open_shift) | **POST** /staff/open-shifts/{id}/claim | Claim an open shift; the manager approves the claim (SC-9).
+[**claim_open_shift**](StaffApi.md#claim_open_shift) | **POST** /staff/open-shifts/{id}/claim | Claim an open shift; the manager approves the claim (SC-9). Only a published week's, and only one that fits beside the person's own shifts.
 [**correct_record**](StaffApi.md#correct_record) | **PATCH** /staff/attendance/{id} | 
-[**create_adjustment**](StaffApi.md#create_adjustment) | **POST** /staff/adjustments | Add a bonus or deduction. Over the caller's limit it is created pending and waits for the owner (AD-5).
-[**create_advance_admin**](StaffApi.md#create_advance_admin) | **POST** /staff/payroll/advances | 
+[**create_adjustment**](StaffApi.md#create_adjustment) | **POST** /staff/adjustments | Add a bonus or deduction. Over the caller's limit it is created pending and waits for the owner (AD-5). Bonuses and deductions have separate limits.
+[**create_advance_admin**](StaffApi.md#create_advance_admin) | **POST** /staff/payroll/advances | Record an ask on someone's behalf: it still waits for a decision (`PATCH /staff/advances/{id}/review`). To hand one over at once, use `POST /staff/advances/record`.
 [**create_assignment**](StaffApi.md#create_assignment) | **POST** /staff/schedules | 
-[**create_bonus**](StaffApi.md#create_bonus) | **POST** /staff/payroll/bonuses | 
-[**create_deduction**](StaffApi.md#create_deduction) | **POST** /staff/payroll/deductions | 
 [**create_department**](StaffApi.md#create_department) | **POST** /staff/departments | 
 [**create_document**](StaffApi.md#create_document) | **POST** /staff/employees/{employee_id}/documents | 
 [**create_employee**](StaffApi.md#create_employee) | **POST** /staff/employees | Add an employee: linked to an existing user, or without one (with or without the staff app). Used by the Employees page, the set-up wizard and the spreadsheet import (DSH-7). Never creates a login.
-[**create_leave_type**](StaffApi.md#create_leave_type) | **POST** /staff/leave/types | 
 [**create_manual_record**](StaffApi.md#create_manual_record) | **POST** /staff/attendance | 
 [**create_my_advance**](StaffApi.md#create_my_advance) | **POST** /staff/me/advances | 
 [**create_my_request**](StaffApi.md#create_my_request) | **POST** /staff/me/requests | 
@@ -29,30 +29,30 @@ Method | HTTP request | Description
 [**create_request_admin**](StaffApi.md#create_request_admin) | **POST** /staff/requests | 
 [**create_work_shift**](StaffApi.md#create_work_shift) | **POST** /staff/work-shifts | 
 [**current**](StaffApi.md#current) | **GET** /staff/payroll/current | The running period with everyone's pay (PAY-1..PAY-5).
-[**decide_adjustment**](StaffApi.md#decide_adjustment) | **PATCH** /staff/adjustments/{kind}/{id}/decision | The owner (or anyone whose limit covers it) decides a pending line.
-[**decide_advance**](StaffApi.md#decide_advance) | **PATCH** /staff/payroll/advances/{id}/decision | 
-[**decide_claim**](StaffApi.md#decide_claim) | **PATCH** /staff/open-shifts/{id}/decision | Approve a claim: the shift becomes theirs for that date. Rejecting reopens it.
+[**decide_adjustment**](StaffApi.md#decide_adjustment) | **PATCH** /staff/adjustments/{kind}/{id}/decision | The owner (or anyone whose limit covers it) decides a pending line. A percent line is judged at its value in piastres (audit B5).
+[**decide_claim**](StaffApi.md#decide_claim) | **PATCH** /staff/open-shifts/{id}/decision | Approve a claim: the shift becomes theirs for that date, beside the rest of their day. Rejecting reopens it. One decision only.
 [**decide_cover**](StaffApi.md#decide_cover) | **PATCH** /staff/attendance/{id}/cover | Confirm or reject a cover. Rejecting pays nothing (CV-5); the confirmer is neither person involved.
 [**decide_holiday**](StaffApi.md#decide_holiday) | **PUT** /staff/holidays/{date} | 
 [**decide_overtime**](StaffApi.md#decide_overtime) | **PATCH** /staff/attendance/{id}/overtime | Approve or reject a shift's overtime, within the approver's money limit.
 [**decide_request**](StaffApi.md#decide_request) | **PATCH** /staff/requests/{id}/decision | 
-[**decide_suggestion**](StaffApi.md#decide_suggestion) | **POST** /staff/roster/suggestions/decide | Accept (changes that date only) or reject; either way it is remembered.
-[**decide_swap**](StaffApi.md#decide_swap) | **PATCH** /staff/swaps/{id}/decision | The manager approves: both rosters update for those dates (SC-8).
+[**decide_suggestion**](StaffApi.md#decide_suggestion) | **POST** /staff/roster/suggestions/decide | Accept (changes that date only) or reject; either way it is remembered. Only a suggestion the engine actually made for that branch-week is taken (a crafted id is refused), and accepting touches only the block it names.
+[**decide_swap**](StaffApi.md#decide_swap) | **PATCH** /staff/swaps/{id}/decision | The manager approves: both rosters update for those dates (SC-8), in one transaction, once, and only if both shifts are still where they were.
 [**delete_assignment**](StaffApi.md#delete_assignment) | **DELETE** /staff/schedules/{id} | 
 [**delete_bonus**](StaffApi.md#delete_bonus) | **DELETE** /staff/payroll/bonuses/{id} | 
+[**delete_branch_rules**](StaffApi.md#delete_branch_rules) | **DELETE** /staff/attendance/settings/branches/{branch_id} | 
 [**delete_deduction**](StaffApi.md#delete_deduction) | **DELETE** /staff/payroll/deductions/{id} | 
 [**delete_department**](StaffApi.md#delete_department) | **DELETE** /staff/departments/{id} | 
 [**delete_document**](StaffApi.md#delete_document) | **DELETE** /staff/documents/{id} | 
 [**delete_employee**](StaffApi.md#delete_employee) | **DELETE** /staff/employees/{employee_id} | 
-[**delete_leave_type**](StaffApi.md#delete_leave_type) | **DELETE** /staff/leave/types/{id} | 
-[**delete_override**](StaffApi.md#delete_override) | **DELETE** /staff/schedules/overrides/{id} | 
-[**delete_period**](StaffApi.md#delete_period) | **DELETE** /staff/payroll/periods/{id} | 
+[**delete_override**](StaffApi.md#delete_override) | **DELETE** /staff/schedules/overrides/{id} | Remove one row of a date's set: one block of a split day, or the date's last change (back to the pattern).
+[**delete_period**](StaffApi.md#delete_period) | **DELETE** /staff/payroll/periods/{id} | Delete a DRAFT period. An approved month is reopened first (which is refused once anyone is paid), so a paid payslip can never be wiped (B3).
 [**delete_record**](StaffApi.md#delete_record) | **DELETE** /staff/attendance/{id} | 
 [**delete_work_shift**](StaffApi.md#delete_work_shift) | **DELETE** /staff/work-shifts/{id} | 
 [**discipline_report**](StaffApi.md#discipline_report) | **GET** /staff/discipline-report | 
-[**export_period_csv**](StaffApi.md#export_period_csv) | **GET** /staff/payroll/periods/{id}/export.csv | The generated period as a bank-ready CSV.
-[**fairness**](StaffApi.md#fairness) | **GET** /staff/roster/fairness | Owner only, monthly: who works the nights, by gender, against who said they want them.
-[**generate_period**](StaffApi.md#generate_period) | **POST** /staff/payroll/periods/{id}/generate | 
+[**export_period_csv**](StaffApi.md#export_period_csv) | **GET** /staff/payroll/periods/{id}/export.csv | The generated period as a CSV: the bank file, the wallet list, or the whole run.
+[**fairness**](StaffApi.md#fairness) | **GET** /staff/roster/fairness | Owner only, monthly: who works the nights, by gender, against who said they want them — for the business and branch by branch.
+[**fairness_audits**](StaffApi.md#fairness_audits) | **GET** /staff/roster/fairness/audits | The kept monthly audits, newest first (owner).
+[**generate_period**](StaffApi.md#generate_period) | **POST** /staff/payroll/periods/{id}/generate | Approve a DRAFT month: freeze every payslip and collect the advance installments in the ledger. An approved month is not regenerated — it is reopened (before anyone is paid) and approved again.
 [**get_attendance_settings**](StaffApi.md#get_attendance_settings) | **GET** /staff/attendance/settings | 
 [**get_coverage**](StaffApi.md#get_coverage) | **GET** /staff/roster/coverage | 
 [**get_employee**](StaffApi.md#get_employee) | **GET** /staff/employees/{employee_id} | 
@@ -64,14 +64,14 @@ Method | HTTP request | Description
 [**list_assignments**](StaffApi.md#list_assignments) | **GET** /staff/schedules | 
 [**list_attendance**](StaffApi.md#list_attendance) | **GET** /staff/attendance | 
 [**list_attendance_flags**](StaffApi.md#list_attendance_flags) | **GET** /staff/flags | The flags a manager should look at, for their branches (RO-6).
-[**list_balances**](StaffApi.md#list_balances) | **GET** /staff/leave/balances | 
+[**list_audit**](StaffApi.md#list_audit) | **GET** /staff/payroll/audit | The money audit log: every delete, stop, waive, override, reopen and payment, with who and why (AD-9, AT-10).
 [**list_bonuses**](StaffApi.md#list_bonuses) | **GET** /staff/payroll/bonuses | 
+[**list_branch_rules**](StaffApi.md#list_branch_rules) | **GET** /staff/attendance/settings/branches | 
 [**list_deductions**](StaffApi.md#list_deductions) | **GET** /staff/payroll/deductions | 
 [**list_departments**](StaffApi.md#list_departments) | **GET** /staff/departments | 
 [**list_documents**](StaffApi.md#list_documents) | **GET** /staff/employees/{employee_id}/documents | 
 [**list_employees**](StaffApi.md#list_employees) | **GET** /staff/employees | 
 [**list_expense_advances**](StaffApi.md#list_expense_advances) | **GET** /staff/expense-advances | 
-[**list_leave_types**](StaffApi.md#list_leave_types) | **GET** /staff/leave/types | 
 [**list_open_shifts**](StaffApi.md#list_open_shifts) | **GET** /staff/open-shifts | Open shifts and their claims at the branches I run (SC-9) — the dashboard's approvals queue and schedule.
 [**list_payslips**](StaffApi.md#list_payslips) | **GET** /staff/payroll/periods/{id}/payslips | 
 [**list_periods**](StaffApi.md#list_periods) | **GET** /staff/payroll/periods | 
@@ -80,6 +80,7 @@ Method | HTTP request | Description
 [**list_work_shifts**](StaffApi.md#list_work_shifts) | **GET** /staff/work-shifts | 
 [**log_expense_advance**](StaffApi.md#log_expense_advance) | **POST** /staff/expense-advances | 
 [**mark_paid**](StaffApi.md#mark_paid) | **PATCH** /staff/payroll/periods/{id}/payslips/{employee_id}/paid | Mark one payslip paid; the period is paid once everyone is (PAY-7).
+[**move_shift**](StaffApi.md#move_shift) | **POST** /staff/schedules/days/move | Give one person's shift on a date to someone else; both keep the rest of their day.
 [**my_adjustments**](StaffApi.md#my_adjustments) | **GET** /staff/me/adjustments | 
 [**my_advances**](StaffApi.md#my_advances) | **GET** /staff/me/advances | 
 [**my_attendance**](StaffApi.md#my_attendance) | **GET** /staff/me/attendance | 
@@ -87,43 +88,74 @@ Method | HTTP request | Description
 [**my_coverable**](StaffApi.md#my_coverable) | **GET** /staff/me/coverable | 
 [**my_estimate**](StaffApi.md#my_estimate) | **GET** /staff/me/pay/estimate | What I've earned so far this period.
 [**my_expense_advances**](StaffApi.md#my_expense_advances) | **GET** /staff/me/expense-advances | 
-[**my_leave_balances**](StaffApi.md#my_leave_balances) | **GET** /staff/me/leave-balances | 
+[**my_leave_balances**](StaffApi.md#my_leave_balances) | **GET** /staff/me/leave-balances | Deprecated (RQ-3): Dawam has no leave balances. This shows what older data holds and is never written any more.
 [**my_notifications**](StaffApi.md#my_notifications) | **GET** /staff/me/notifications | 
 [**my_payslips**](StaffApi.md#my_payslips) | **GET** /staff/me/payslips | 
 [**my_requests**](StaffApi.md#my_requests) | **GET** /staff/me/requests | 
 [**my_roster**](StaffApi.md#my_roster) | **GET** /staff/me/roster | My published shifts, open shifts to claim, and my swaps.
-[**my_schedule**](StaffApi.md#my_schedule) | **GET** /staff/me/schedule | The employee's OWN roster for a date range — what the app's Shifts tab shows.
+[**my_schedule**](StaffApi.md#my_schedule) | **GET** /staff/me/schedule | The employee's OWN roster for a date range, published weeks only (SC-3).
 [**my_today**](StaffApi.md#my_today) | **GET** /staff/me/today | 
 [**open_cover**](StaffApi.md#open_cover) | **POST** /staff/me/cover | Open a colleague's missed shift as a cover: the same phone and geofence checks as a clock-in; flagged for the manager; paid only once confirmed (CV-1..CV-5, CV-7).
 [**override_deduction**](StaffApi.md#override_deduction) | **PATCH** /staff/payroll/deductions/{id}/override | 
 [**payroll_history**](StaffApi.md#payroll_history) | **GET** /staff/reports/payroll-history | Overtime and payroll history: one row per pay period in range.
 [**ping**](StaffApi.md#ping) | **POST** /staff/me/pings | A location every 15 minutes between clock-in and clock-out (CL-4, CL-17).
 [**post_open_shift**](StaffApi.md#post_open_shift) | **POST** /staff/open-shifts | 
+[**preference_log**](StaffApi.md#preference_log) | **GET** /staff/employees/{id}/preferences/log | Who changed someone's preferences, and when (SC-12, newest first).
 [**preview_period**](StaffApi.md#preview_period) | **GET** /staff/payroll/periods/{id}/preview | 
-[**publish**](StaffApi.md#publish) | **POST** /staff/roster/publish | Publish a week: staff see it and are told (SC-3).
-[**punch_for**](StaffApi.md#punch_for) | **POST** /staff/attendance/punch | Clock someone in, or out if they are in, now; marked as made by the manager with the reason (CL-13, CL-16).
+[**publish**](StaffApi.md#publish) | **POST** /staff/roster/publish | Publish a week: staff see it and are told (SC-3), and the week's open shifts are announced now that people can see them (SC-9).
+[**punch_for**](StaffApi.md#punch_for) | **POST** /staff/attendance/punch | Clock someone in, or out if they are in; marked as made by the manager (`manager`) with the reason (CL-13, CL-16). The check-in window, the night shift's business date and the shift's own branch apply exactly as for the app.
 [**put_attendance_settings**](StaffApi.md#put_attendance_settings) | **PUT** /staff/attendance/settings | 
-[**put_balance**](StaffApi.md#put_balance) | **PUT** /staff/leave/balances | 
 [**put_coverage**](StaffApi.md#put_coverage) | **PUT** /staff/roster/coverage | 
+[**put_day**](StaffApi.md#put_day) | **PUT** /staff/schedules/days | Set every shift a person works on a date: a split day, one shift with its own times, or a day off (SC-5, SC-11).
 [**put_employee**](StaffApi.md#put_employee) | **PUT** /staff/employees/{employee_id} | 
-[**put_override**](StaffApi.md#put_override) | **PUT** /staff/schedules/overrides | 
-[**put_preferences**](StaffApi.md#put_preferences) | **PUT** /staff/me/preferences | Preferred times and days I can't work; managers see them (SC-12).
+[**put_employee_preferences**](StaffApi.md#put_employee_preferences) | **PUT** /staff/employees/{id}/preferences | A manager overrides someone's preferences (SC-12). Logged, and the person is told.
+[**put_override**](StaffApi.md#put_override) | **PUT** /staff/schedules/overrides | Set a date to exactly one shift, or a day off (the older single-shift form of `PUT /staff/schedules/days`).
+[**put_preferences**](StaffApi.md#put_preferences) | **PUT** /staff/me/preferences | Preferred times and days I can't work; managers see them (SC-12). Logged.
+[**put_times**](StaffApi.md#put_times) | **PUT** /staff/schedules/days/times | One assignment's own from/to (one person, one date, one block), without changing the block. Both null = back to the block's times.
 [**read_notifications**](StaffApi.md#read_notifications) | **POST** /staff/me/notifications/read | 
+[**record_advance**](StaffApi.md#record_advance) | **POST** /staff/advances/record | A manager hands an advance over directly (AV-2): recorded and approved in ONE call under the same cap and limit as a review, so a refusal never leaves a stray pending advance behind (audit B10).
+[**reset_day**](StaffApi.md#reset_day) | **DELETE** /staff/schedules/days | Put a date back on the standing pattern.
 [**resolve_flag**](StaffApi.md#resolve_flag) | **PATCH** /staff/flags/{id} | Handle a flag. Nothing is ever charged automatically (CL-6).
-[**review_advance**](StaffApi.md#review_advance) | **PATCH** /staff/advances/{id}/review | Decide an advance within the cap: the approver's limit is a % of the employee's salary (AV-4, AV-5).
+[**review_advance**](StaffApi.md#review_advance) | **PATCH** /staff/advances/{id}/review | Decide an advance within the cap: the approver's limit is a % of the employee's salary owed after this one (AV-4, AV-5).
 [**revoke_device**](StaffApi.md#revoke_device) | **DELETE** /staff/employees/{employee_id}/device | Sign a person's phone out now (RO-4): the device, every staff token minted for it, and its pushes.
 [**roster**](StaffApi.md#roster) | **GET** /staff/roster | The manager's roster for one branch (SC-7, RO-6).
-[**set_period_status**](StaffApi.md#set_period_status) | **PATCH** /staff/payroll/periods/{id}/status | 
+[**set_period_status**](StaffApi.md#set_period_status) | **PATCH** /staff/payroll/periods/{id}/status | Reopen an approved month (before anyone is paid) or close a paid one.
 [**set_staff_push_token**](StaffApi.md#set_staff_push_token) | **PUT** /staff/me/push-token | `PUT /staff/me/push-token` — the staff app registers its phone for the employee through the same `push_devices` table as `PUT /push/token` (app = `\"dawam\"`).
+[**staff_sign_out**](StaffApi.md#staff_sign_out) | **POST** /staff/me/sign-out | `POST /staff/me/sign-out` — the staff app signs out (APP-6, 06 B3): this phone's device is revoked, so its token can't be refreshed again, and the employee's Dawam pushes stop at once — a signed-out phone never shows the next person's names or amounts. Idempotent.
 [**stop_adjustment**](StaffApi.md#stop_adjustment) | **POST** /staff/adjustments/{kind}/{id}/stop | Stop a monthly line from the next period on; past payslips keep it (AD-3).
 [**suggestions**](StaffApi.md#suggestions) | **GET** /staff/roster/suggestions | 
 [**team_presence**](StaffApi.md#team_presence) | **GET** /staff/team/presence | Who is in, late, absent or on leave right now.
-[**till_punch**](StaffApi.md#till_punch) | **POST** /staff/attendance/till-punch | A dead or forgotten phone in a Madar org: the person clocks in or out on the branch till with their till PIN (CL-13). Marked `till` (CL-16). The till is at the branch, so there is no geofence to check. Online only: a PIN is never queued.
+[**till_punch**](StaffApi.md#till_punch) | **POST** /staff/attendance/till-punch | A dead or forgotten phone in a Madar org: the person clocks in or out on the branch till with their till PIN (CL-13). Marked `till` (CL-16). The till is at the branch, so there is no geofence to check — which is why it is accepted ONLY from a real till (audit 03 P0): a POS session (never the Dawam app's) on the branch's registered POS device, proven by its credential when it has one, with a till session open on that device at that branch. Online only: a PIN is never queued. Wrong PINs slow down like the till's own sign-in, and the branch's managers are told.
+[**unwaive_deduction**](StaffApi.md#unwaive_deduction) | **PATCH** /staff/payroll/deductions/{id}/unwaive | Undo a waiver, with a reason (AT-7): the line counts again at the amount it had. Only while the month is open.
 [**update_department**](StaffApi.md#update_department) | **PATCH** /staff/departments/{id} | 
-[**update_leave_type**](StaffApi.md#update_leave_type) | **PATCH** /staff/leave/types/{id} | 
 [**update_work_shift**](StaffApi.md#update_work_shift) | **PATCH** /staff/work-shifts/{id} | 
 [**waive_deduction**](StaffApi.md#waive_deduction) | **PATCH** /staff/payroll/deductions/{id}/waive | 
 
+
+
+## accept_staff_privacy
+
+> models::PrivacyAccepted accept_staff_privacy()
+The employee accepted the location notice on this phone (AT-5). Kept on the device row: a new phone asks again.
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**models::PrivacyAccepted**](PrivacyAccepted.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
 ## advances
@@ -188,7 +220,7 @@ Name | Type | Description  | Required | Notes
 ## ask_swap
 
 > models::Swap ask_swap(ask_swap)
-Ask a colleague to swap: they agree first, then the manager (SC-8).
+Ask a colleague to swap: they agree first, then the manager (SC-8). Both shifts must be on the published roster, ahead, at a branch both work at, and must fit where they land.
 
 ### Parameters
 
@@ -273,6 +305,62 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## cancel_open_shift
+
+> cancel_open_shift(id)
+Take an open shift back (open or claimed, never filled). A claimer hears.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** |  | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## cancel_swap
+
+> models::Swap cancel_swap(id)
+The one who asked takes it back before the manager decides.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** |  | [required] |
+
+### Return type
+
+[**models::Swap**](Swap.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## check_in
 
 > models::AttendanceRecord check_in(check_in_request)
@@ -332,7 +420,7 @@ Name | Type | Description  | Required | Notes
 ## claim_open_shift
 
 > models::OpenShift claim_open_shift(id)
-Claim an open shift; the manager approves the claim (SC-9).
+Claim an open shift; the manager approves the claim (SC-9). Only a published week's, and only one that fits beside the person's own shifts.
 
 ### Parameters
 
@@ -389,7 +477,7 @@ Name | Type | Description  | Required | Notes
 ## create_adjustment
 
 > models::Adjustment create_adjustment(new_adjustment)
-Add a bonus or deduction. Over the caller's limit it is created pending and waits for the owner (AD-5).
+Add a bonus or deduction. Over the caller's limit it is created pending and waits for the owner (AD-5). Bonuses and deductions have separate limits.
 
 ### Parameters
 
@@ -417,7 +505,7 @@ Name | Type | Description  | Required | Notes
 ## create_advance_admin
 
 > models::SalaryAdvance create_advance_admin(create_advance_request)
-
+Record an ask on someone's behalf: it still waits for a decision (`PATCH /staff/advances/{id}/review`). To hand one over at once, use `POST /staff/advances/record`.
 
 ### Parameters
 
@@ -457,62 +545,6 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::ScheduleAssignment**](ScheduleAssignment.md)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: application/json
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## create_bonus
-
-> models::PayrollAdjustment create_bonus(create_adjustment_request)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**create_adjustment_request** | [**CreateAdjustmentRequest**](CreateAdjustmentRequest.md) |  | [required] |
-
-### Return type
-
-[**models::PayrollAdjustment**](PayrollAdjustment.md)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: application/json
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## create_deduction
-
-> models::PayrollAdjustment create_deduction(create_adjustment_request)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**create_adjustment_request** | [**CreateAdjustmentRequest**](CreateAdjustmentRequest.md) |  | [required] |
-
-### Return type
-
-[**models::PayrollAdjustment**](PayrollAdjustment.md)
 
 ### Authorization
 
@@ -598,34 +630,6 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::Employee**](Employee.md)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: application/json
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## create_leave_type
-
-> models::LeaveType create_leave_type(upsert_leave_type_request)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**upsert_leave_type_request** | [**UpsertLeaveTypeRequest**](UpsertLeaveTypeRequest.md) |  | [required] |
-
-### Return type
-
-[**models::LeaveType**](LeaveType.md)
 
 ### Authorization
 
@@ -835,7 +839,7 @@ This endpoint does not need any parameter.
 ## decide_adjustment
 
 > models::Adjustment decide_adjustment(kind, id, decide_pay)
-The owner (or anyone whose limit covers it) decides a pending line.
+The owner (or anyone whose limit covers it) decides a pending line. A percent line is judged at its value in piastres (audit B5).
 
 ### Parameters
 
@@ -862,39 +866,10 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
-## decide_advance
-
-> models::SalaryAdvance decide_advance(id, advance_decision)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**id** | **uuid::Uuid** | Advance ID | [required] |
-**advance_decision** | [**AdvanceDecision**](AdvanceDecision.md) |  | [required] |
-
-### Return type
-
-[**models::SalaryAdvance**](SalaryAdvance.md)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: application/json
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
 ## decide_claim
 
 > decide_claim(id, decide_roster)
-Approve a claim: the shift becomes theirs for that date. Rejecting reopens it.
+Approve a claim: the shift becomes theirs for that date, beside the rest of their day. Rejecting reopens it. One decision only.
 
 ### Parameters
 
@@ -1039,7 +1014,7 @@ Name | Type | Description  | Required | Notes
 ## decide_suggestion
 
 > decide_suggestion(decide_suggestion)
-Accept (changes that date only) or reject; either way it is remembered.
+Accept (changes that date only) or reject; either way it is remembered. Only a suggestion the engine actually made for that branch-week is taken (a crafted id is refused), and accepting touches only the block it names.
 
 ### Parameters
 
@@ -1067,7 +1042,7 @@ Name | Type | Description  | Required | Notes
 ## decide_swap
 
 > decide_swap(id, decide_roster)
-The manager approves: both rosters update for those dates (SC-8).
+The manager approves: both rosters update for those dates (SC-8), in one transaction, once, and only if both shifts are still where they were.
 
 ### Parameters
 
@@ -1132,6 +1107,34 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **id** | **uuid::Uuid** | Bonus ID | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## delete_branch_rules
+
+> delete_branch_rules(branch_id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**branch_id** | **uuid::Uuid** | Branch whose overrides go | [required] |
 
 ### Return type
 
@@ -1261,38 +1264,10 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
-## delete_leave_type
-
-> delete_leave_type(id)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**id** | **uuid::Uuid** | Leave type ID | [required] |
-
-### Return type
-
- (empty response body)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
 ## delete_override
 
 > delete_override(id)
-
+Remove one row of a date's set: one block of a split day, or the date's last change (back to the pattern).
 
 ### Parameters
 
@@ -1320,7 +1295,7 @@ Name | Type | Description  | Required | Notes
 ## delete_period
 
 > delete_period(id)
-
+Delete a DRAFT period. An approved month is reopened first (which is refused once anyone is paid), so a paid payslip can never be wiped (B3).
 
 ### Parameters
 
@@ -1347,7 +1322,7 @@ Name | Type | Description  | Required | Notes
 
 ## delete_record
 
-> delete_record(id)
+> delete_record(id, reason)
 
 
 ### Parameters
@@ -1356,6 +1331,7 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **id** | **uuid::Uuid** | Attendance record ID | [required] |
+**reason** | Option<**String**> | Why the day goes (kept with the tombstone the absence sweep honours). |  |
 
 ### Return type
 
@@ -1433,8 +1409,8 @@ Name | Type | Description  | Required | Notes
 
 ## export_period_csv
 
-> export_period_csv(id)
-The generated period as a bank-ready CSV.
+> export_period_csv(id, method)
+The generated period as a CSV: the bank file, the wallet list, or the whole run.
 
 Deliberately serves the PAYSLIPS, not a fresh computation: the file handed to a bank must be exactly what was approved, even if a deduction has been edited since. A period that has not been generated has nothing to export.
 
@@ -1444,6 +1420,7 @@ Deliberately serves the PAYSLIPS, not a fresh computation: the file handed to a 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **id** | **uuid::Uuid** | Period ID | [required] |
+**method** | Option<**String**> | `bank` (a transfer file: name, account, amount) · `wallet` (numbers and amounts) · `cash`; omitted = everyone, every figure (PAY-8). |  |
 
 ### Return type
 
@@ -1463,8 +1440,8 @@ Name | Type | Description  | Required | Notes
 
 ## fairness
 
-> models::FairnessView fairness(month)
-Owner only, monthly: who works the nights, by gender, against who said they want them.
+> models::FairnessView fairness(month, branch_id)
+Owner only, monthly: who works the nights, by gender, against who said they want them — for the business and branch by branch.
 
 ### Parameters
 
@@ -1472,6 +1449,7 @@ Owner only, monthly: who works the nights, by gender, against who said they want
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **month** | **chrono::NaiveDate** | Any day of the month. | [required] |
+**branch_id** | Option<**uuid::Uuid**> | One branch; omit for every branch and the business as a whole. |  |
 
 ### Return type
 
@@ -1489,10 +1467,35 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## fairness_audits
+
+> Vec<models::FairnessAudit> fairness_audits()
+The kept monthly audits, newest first (owner).
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**Vec<models::FairnessAudit>**](FairnessAudit.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## generate_period
 
 > Vec<models::Payslip> generate_period(id)
-
+Approve a DRAFT month: freeze every payslip and collect the advance installments in the ledger. An approved month is not regenerated — it is reopened (before anyone is paid) and approved again.
 
 ### Parameters
 
@@ -1834,10 +1837,10 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
-## list_balances
+## list_audit
 
-> Vec<models::LeaveBalance> list_balances(employee_id, year)
-
+> Vec<models::AuditRow> list_audit(employee_id, period_id)
+The money audit log: every delete, stop, waive, override, reopen and payment, with who and why (AD-9, AT-10).
 
 ### Parameters
 
@@ -1845,11 +1848,11 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **employee_id** | Option<**uuid::Uuid**> |  |  |
-**year** | Option<**i32**> | Defaults to the current calendar year. |  |
+**period_id** | Option<**uuid::Uuid**> |  |  |
 
 ### Return type
 
-[**Vec<models::LeaveBalance>**](LeaveBalance.md)
+[**Vec<models::AuditRow>**](AuditRow.md)
 
 ### Authorization
 
@@ -1880,6 +1883,31 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::PayrollAdjustment>**](PayrollAdjustment.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## list_branch_rules
+
+> Vec<models::BranchRules> list_branch_rules()
+
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**Vec<models::BranchRules>**](BranchRules.md)
 
 ### Authorization
 
@@ -2023,31 +2051,6 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::ExpenseAdvance>**](ExpenseAdvance.md)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## list_leave_types
-
-> Vec<models::LeaveType> list_leave_types()
-
-
-### Parameters
-
-This endpoint does not need any parameter.
-
-### Return type
-
-[**Vec<models::LeaveType>**](LeaveType.md)
 
 ### Authorization
 
@@ -2286,6 +2289,34 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## move_shift
+
+> models::MoveView move_shift(move_shift_request)
+Give one person's shift on a date to someone else; both keep the rest of their day.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**move_shift_request** | [**MoveShiftRequest**](MoveShiftRequest.md) |  | [required] |
+
+### Return type
+
+[**models::MoveView**](MoveView.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## my_adjustments
 
 > Vec<models::Adjustment> my_adjustments()
@@ -2468,7 +2499,7 @@ This endpoint does not need any parameter.
 ## my_leave_balances
 
 > Vec<models::LeaveBalance> my_leave_balances(employee_id, year)
-
+Deprecated (RQ-3): Dawam has no leave balances. This shows what older data holds and is never written any more.
 
 ### Parameters
 
@@ -2601,7 +2632,7 @@ Name | Type | Description  | Required | Notes
 ## my_schedule
 
 > Vec<models::ScheduledDay> my_schedule(from, to)
-The employee's OWN roster for a date range — what the app's Shifts tab shows.
+The employee's OWN roster for a date range, published weeks only (SC-3).
 
 Own-row scoped like the rest of `/staff/me/_*`: it needs no permission grant, because seeing when you are expected at work is not an admin capability.
 
@@ -2797,6 +2828,34 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## preference_log
+
+> Vec<models::PreferenceChange> preference_log(id)
+Who changed someone's preferences, and when (SC-12, newest first).
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** |  | [required] |
+
+### Return type
+
+[**Vec<models::PreferenceChange>**](PreferenceChange.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## preview_period
 
 > Vec<models::ComputedPayslip> preview_period(id)
@@ -2828,7 +2887,7 @@ Name | Type | Description  | Required | Notes
 ## publish
 
 > publish(publish_week)
-Publish a week: staff see it and are told (SC-3).
+Publish a week: staff see it and are told (SC-3), and the week's open shifts are announced now that people can see them (SC-9).
 
 ### Parameters
 
@@ -2856,7 +2915,7 @@ Name | Type | Description  | Required | Notes
 ## punch_for
 
 > models::AttendanceRecord punch_for(punch_for)
-Clock someone in, or out if they are in, now; marked as made by the manager with the reason (CL-13, CL-16).
+Clock someone in, or out if they are in; marked as made by the manager (`manager`) with the reason (CL-13, CL-16). The check-in window, the night shift's business date and the shift's own branch apply exactly as for the app.
 
 ### Parameters
 
@@ -2909,34 +2968,6 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
-## put_balance
-
-> models::LeaveBalance put_balance(put_balance_request)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**put_balance_request** | [**PutBalanceRequest**](PutBalanceRequest.md) |  | [required] |
-
-### Return type
-
-[**models::LeaveBalance**](LeaveBalance.md)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: application/json
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
 ## put_coverage
 
 > put_coverage(put_coverage)
@@ -2952,6 +2983,34 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
  (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## put_day
+
+> models::DayView put_day(put_day_request)
+Set every shift a person works on a date: a split day, one shift with its own times, or a day off (SC-5, SC-11).
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**put_day_request** | [**PutDayRequest**](PutDayRequest.md) |  | [required] |
+
+### Return type
+
+[**models::DayView**](DayView.md)
 
 ### Authorization
 
@@ -2994,10 +3053,39 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## put_employee_preferences
+
+> put_employee_preferences(id, preferences)
+A manager overrides someone's preferences (SC-12). Logged, and the person is told.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** |  | [required] |
+**preferences** | [**Preferences**](Preferences.md) |  | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## put_override
 
 > models::ScheduleOverride put_override(put_override_request)
-
+Set a date to exactly one shift, or a day off (the older single-shift form of `PUT /staff/schedules/days`).
 
 ### Parameters
 
@@ -3025,7 +3113,7 @@ Name | Type | Description  | Required | Notes
 ## put_preferences
 
 > put_preferences(preferences)
-Preferred times and days I can't work; managers see them (SC-12).
+Preferred times and days I can't work; managers see them (SC-12). Logged.
 
 ### Parameters
 
@@ -3037,6 +3125,34 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
  (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## put_times
+
+> models::DayView put_times(put_times_request)
+One assignment's own from/to (one person, one date, one block), without changing the block. Both null = back to the block's times.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**put_times_request** | [**PutTimesRequest**](PutTimesRequest.md) |  | [required] |
+
+### Return type
+
+[**models::DayView**](DayView.md)
 
 ### Authorization
 
@@ -3078,6 +3194,63 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## record_advance
+
+> models::SalaryAdvance record_advance(record_advance)
+A manager hands an advance over directly (AV-2): recorded and approved in ONE call under the same cap and limit as a review, so a refusal never leaves a stray pending advance behind (audit B10).
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**record_advance** | [**RecordAdvance**](RecordAdvance.md) |  | [required] |
+
+### Return type
+
+[**models::SalaryAdvance**](SalaryAdvance.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## reset_day
+
+> models::DayView reset_day(employee_id, on_date)
+Put a date back on the standing pattern.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**employee_id** | **uuid::Uuid** |  | [required] |
+**on_date** | **chrono::NaiveDate** |  | [required] |
+
+### Return type
+
+[**models::DayView**](DayView.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## resolve_flag
 
 > models::AttendanceFlag resolve_flag(id, resolve_flag)
@@ -3110,7 +3283,7 @@ Name | Type | Description  | Required | Notes
 ## review_advance
 
 > models::SalaryAdvance review_advance(id, review_advance)
-Decide an advance within the cap: the approver's limit is a % of the employee's salary (AV-4, AV-5).
+Decide an advance within the cap: the approver's limit is a % of the employee's salary owed after this one (AV-4, AV-5).
 
 ### Parameters
 
@@ -3197,7 +3370,9 @@ Name | Type | Description  | Required | Notes
 ## set_period_status
 
 > models::PayrollPeriod set_period_status(id, period_status_request)
+Reopen an approved month (before anyone is paid) or close a paid one.
 
+Reopening DROPS the frozen payslips: their advance collections go with them (the ledger trigger refunds), so the live preview reads exactly what re-approving will collect (PAY-2, PAY-6, audit B7).
 
 ### Parameters
 
@@ -3251,9 +3426,34 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## staff_sign_out
+
+> staff_sign_out()
+`POST /staff/me/sign-out` — the staff app signs out (APP-6, 06 B3): this phone's device is revoked, so its token can't be refreshed again, and the employee's Dawam pushes stop at once — a signed-out phone never shows the next person's names or amounts. Idempotent.
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## stop_adjustment
 
-> models::Adjustment stop_adjustment(kind, id)
+> models::Adjustment stop_adjustment(kind, id, stop_adjustment)
 Stop a monthly line from the next period on; past payslips keep it (AD-3).
 
 ### Parameters
@@ -3263,6 +3463,7 @@ Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **kind** | **String** |  | [required] |
 **id** | **uuid::Uuid** |  | [required] |
+**stop_adjustment** | [**StopAdjustment**](StopAdjustment.md) |  | [required] |
 
 ### Return type
 
@@ -3274,7 +3475,7 @@ Name | Type | Description  | Required | Notes
 
 ### HTTP request headers
 
-- **Content-Type**: Not defined
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
@@ -3341,19 +3542,50 @@ Name | Type | Description  | Required | Notes
 
 ## till_punch
 
-> models::TillPunchResult till_punch(till_punch)
-A dead or forgotten phone in a Madar org: the person clocks in or out on the branch till with their till PIN (CL-13). Marked `till` (CL-16). The till is at the branch, so there is no geofence to check. Online only: a PIN is never queued.
+> models::TillPunchResult till_punch(x_madar_device, till_punch, x_madar_device_token)
+A dead or forgotten phone in a Madar org: the person clocks in or out on the branch till with their till PIN (CL-13). Marked `till` (CL-16). The till is at the branch, so there is no geofence to check — which is why it is accepted ONLY from a real till (audit 03 P0): a POS session (never the Dawam app's) on the branch's registered POS device, proven by its credential when it has one, with a till session open on that device at that branch. Online only: a PIN is never queued. Wrong PINs slow down like the till's own sign-in, and the branch's managers are told.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
+**x_madar_device** | **String** | The till's device id | [required] |
 **till_punch** | [**TillPunch**](TillPunch.md) |  | [required] |
+**x_madar_device_token** | Option<**String**> | The device credential, when it has one |  |
 
 ### Return type
 
 [**models::TillPunchResult**](TillPunchResult.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## unwaive_deduction
+
+> models::PayrollAdjustment unwaive_deduction(id, waive_deduction_request)
+Undo a waiver, with a reason (AT-7): the line counts again at the amount it had. Only while the month is open.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Deduction ID | [required] |
+**waive_deduction_request** | [**WaiveDeductionRequest**](WaiveDeductionRequest.md) |  | [required] |
+
+### Return type
+
+[**models::PayrollAdjustment**](PayrollAdjustment.md)
 
 ### Authorization
 
@@ -3383,35 +3615,6 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::Department**](Department.md)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: application/json
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## update_leave_type
-
-> models::LeaveType update_leave_type(id, upsert_leave_type_request)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**id** | **uuid::Uuid** | Leave type ID | [required] |
-**upsert_leave_type_request** | [**UpsertLeaveTypeRequest**](UpsertLeaveTypeRequest.md) |  | [required] |
-
-### Return type
-
-[**models::LeaveType**](LeaveType.md)
 
 ### Authorization
 

@@ -24,6 +24,14 @@ pub struct ResolveFlag {
         skip_serializing_if = "Option::is_none"
     )]
     pub amount_piastres: Option<Option<i64>>,
+    /// For `deduct`: why, on the pay line the employee sees (AD-9).
+    #[serde(
+        rename = "reason",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reason: Option<Option<String>>,
 }
 
 impl ResolveFlag {
@@ -31,6 +39,7 @@ impl ResolveFlag {
         ResolveFlag {
             action,
             amount_piastres: None,
+            reason: None,
         }
     }
 }

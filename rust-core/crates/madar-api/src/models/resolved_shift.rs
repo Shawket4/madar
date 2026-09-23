@@ -14,10 +14,29 @@ use serde::{Deserialize, Serialize};
 /// ResolvedShift : A work shift resolved onto a concrete calendar date, with its window already converted to UTC instants.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ResolvedShift {
+    /// The branch it is worked at (the block's, else the person's first).
+    #[serde(
+        rename = "branch_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub branch_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "break_minutes")]
     pub break_minutes: i32,
     #[serde(rename = "checkin_window_minutes")]
     pub checkin_window_minutes: i32,
+    /// Ends on the following date.
+    #[serde(rename = "crosses_midnight")]
+    pub crosses_midnight: bool,
+    /// Whose assignment this is.
+    #[serde(rename = "employee_id")]
+    pub employee_id: uuid::Uuid,
+    #[serde(rename = "end_time")]
+    pub end_time: String,
+    /// The date holds its own set (a date change), not the pattern.
+    #[serde(rename = "from_override")]
+    pub from_override: bool,
     #[serde(rename = "grace_minutes")]
     pub grace_minutes: i32,
     #[serde(
@@ -29,6 +48,9 @@ pub struct ResolvedShift {
     pub half_day_threshold_minutes: Option<Option<i32>>,
     #[serde(rename = "name")]
     pub name: String,
+    /// The business date: the day the shift starts on (SC-10).
+    #[serde(rename = "on_date")]
+    pub on_date: chrono::NaiveDate,
     #[serde(rename = "overtime_multiplier")]
     pub overtime_multiplier: f64,
     #[serde(rename = "overtime_threshold_minutes")]
@@ -37,8 +59,15 @@ pub struct ResolvedShift {
     pub paid_break: bool,
     #[serde(rename = "scheduled_end_at")]
     pub scheduled_end_at: chrono::DateTime<chrono::FixedOffset>,
+    /// The EFFECTIVE window: the assignment's own times, else the block's time for that weekday, else its default.
     #[serde(rename = "scheduled_start_at")]
     pub scheduled_start_at: chrono::DateTime<chrono::FixedOffset>,
+    /// Effective wall-clock times in the branch's zone.
+    #[serde(rename = "start_time")]
+    pub start_time: String,
+    /// This assignment has its own from/to (shown as edited).
+    #[serde(rename = "times_edited")]
+    pub times_edited: bool,
     #[serde(rename = "work_shift_id")]
     pub work_shift_id: uuid::Uuid,
 }
@@ -48,26 +77,41 @@ impl ResolvedShift {
     pub fn new(
         break_minutes: i32,
         checkin_window_minutes: i32,
+        crosses_midnight: bool,
+        employee_id: uuid::Uuid,
+        end_time: String,
+        from_override: bool,
         grace_minutes: i32,
         name: String,
+        on_date: chrono::NaiveDate,
         overtime_multiplier: f64,
         overtime_threshold_minutes: i32,
         paid_break: bool,
         scheduled_end_at: chrono::DateTime<chrono::FixedOffset>,
         scheduled_start_at: chrono::DateTime<chrono::FixedOffset>,
+        start_time: String,
+        times_edited: bool,
         work_shift_id: uuid::Uuid,
     ) -> ResolvedShift {
         ResolvedShift {
+            branch_id: None,
             break_minutes,
             checkin_window_minutes,
+            crosses_midnight,
+            employee_id,
+            end_time,
+            from_override,
             grace_minutes,
             half_day_threshold_minutes: None,
             name,
+            on_date,
             overtime_multiplier,
             overtime_threshold_minutes,
             paid_break,
             scheduled_end_at,
             scheduled_start_at,
+            start_time,
+            times_edited,
             work_shift_id,
         }
     }

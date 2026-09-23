@@ -13,14 +13,21 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PayEstimate {
+    /// The owner's cap on what this person may owe (AV-5), server-computed.
+    #[serde(rename = "advance_cap_piastres")]
+    pub advance_cap_piastres: i64,
+    #[serde(rename = "advance_outstanding_piastres")]
+    pub advance_outstanding_piastres: i64,
     /// How much more can be asked for as an advance (AV-5).
     #[serde(rename = "advance_room_piastres")]
     pub advance_room_piastres: i64,
+    #[serde(rename = "on_payroll")]
+    pub on_payroll: bool,
     #[serde(rename = "period_end")]
     pub period_end: chrono::NaiveDate,
     #[serde(rename = "period_start")]
     pub period_start: chrono::NaiveDate,
-    /// So far this period, from the same engine payroll uses (PAY-11).
+    /// So far this period, from the same engine payroll uses (PAY-9). Null for someone not on payroll.
     #[serde(
         rename = "slip",
         default,
@@ -32,12 +39,18 @@ pub struct PayEstimate {
 
 impl PayEstimate {
     pub fn new(
+        advance_cap_piastres: i64,
+        advance_outstanding_piastres: i64,
         advance_room_piastres: i64,
+        on_payroll: bool,
         period_end: chrono::NaiveDate,
         period_start: chrono::NaiveDate,
     ) -> PayEstimate {
         PayEstimate {
+            advance_cap_piastres,
+            advance_outstanding_piastres,
             advance_room_piastres,
+            on_payroll,
             period_end,
             period_start,
             slip: None,

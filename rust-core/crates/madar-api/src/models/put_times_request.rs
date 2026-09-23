@@ -12,42 +12,42 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CreateAdjustmentRequest {
-    /// Exactly one of `amount_piastres` or `percent_of_base`.
-    #[serde(
-        rename = "amount_piastres",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub amount_piastres: Option<Option<i64>>,
-    #[serde(rename = "effective_date")]
-    pub effective_date: chrono::NaiveDate,
+pub struct PutTimesRequest {
     #[serde(rename = "employee_id")]
     pub employee_id: uuid::Uuid,
     #[serde(
-        rename = "percent_of_base",
+        rename = "end_time",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub percent_of_base: Option<Option<f64>>,
-    #[serde(rename = "reason")]
-    pub reason: String,
+    pub end_time: Option<Option<String>>,
+    #[serde(rename = "on_date")]
+    pub on_date: chrono::NaiveDate,
+    /// Both, or neither to go back to the block's own times.
+    #[serde(
+        rename = "start_time",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub start_time: Option<Option<String>>,
+    #[serde(rename = "work_shift_id")]
+    pub work_shift_id: uuid::Uuid,
 }
 
-impl CreateAdjustmentRequest {
+impl PutTimesRequest {
     pub fn new(
-        effective_date: chrono::NaiveDate,
         employee_id: uuid::Uuid,
-        reason: String,
-    ) -> CreateAdjustmentRequest {
-        CreateAdjustmentRequest {
-            amount_piastres: None,
-            effective_date,
+        on_date: chrono::NaiveDate,
+        work_shift_id: uuid::Uuid,
+    ) -> PutTimesRequest {
+        PutTimesRequest {
             employee_id,
-            percent_of_base: None,
-            reason,
+            end_time: None,
+            on_date,
+            start_time: None,
+            work_shift_id,
         }
     }
 }

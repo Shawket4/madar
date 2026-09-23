@@ -15,6 +15,13 @@ use serde::{Deserialize, Serialize};
 pub struct PutOverrideRequest {
     #[serde(rename = "employee_id")]
     pub employee_id: uuid::Uuid,
+    #[serde(
+        rename = "end_time",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub end_time: Option<Option<String>>,
     #[serde(rename = "on_date")]
     pub on_date: chrono::NaiveDate,
     #[serde(
@@ -24,7 +31,15 @@ pub struct PutOverrideRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub reason: Option<Option<String>>,
-    /// Omit (or send null) to mark the date an explicit day off.
+    /// This assignment's own from/to (both or neither).
+    #[serde(
+        rename = "start_time",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub start_time: Option<Option<String>>,
+    /// Omit (or send null) to mark the date an explicit day off. Otherwise the whole date becomes this one shift; `PUT /staff/schedules/days` sets a split day.
     #[serde(
         rename = "work_shift_id",
         default,
@@ -38,8 +53,10 @@ impl PutOverrideRequest {
     pub fn new(employee_id: uuid::Uuid, on_date: chrono::NaiveDate) -> PutOverrideRequest {
         PutOverrideRequest {
             employee_id,
+            end_time: None,
             on_date,
             reason: None,
+            start_time: None,
             work_shift_id: None,
         }
     }

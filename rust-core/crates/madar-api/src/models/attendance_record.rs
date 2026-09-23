@@ -186,6 +186,9 @@ pub struct AttendanceRecord {
     pub scheduled_start_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "status")]
     pub status: String,
+    /// A manager set this day's status by hand; automation keeps it (AT-7).
+    #[serde(rename = "status_overridden", skip_serializing_if = "Option::is_none")]
+    pub status_overridden: Option<bool>,
     #[serde(rename = "tracking_off")]
     pub tracking_off: bool,
     #[serde(rename = "updated_at")]
@@ -258,6 +261,7 @@ impl AttendanceRecord {
             scheduled_end_at: None,
             scheduled_start_at: None,
             status,
+            status_overridden: None,
             tracking_off,
             updated_at,
             work_shift_id: None,

@@ -18,6 +18,9 @@ pub struct RosterShift {
     /// Changed after its week was published (SC-4).
     #[serde(rename = "changed")]
     pub changed: bool,
+    /// Ends the next day.
+    #[serde(rename = "crosses_midnight")]
+    pub crosses_midnight: bool,
     #[serde(rename = "date")]
     pub date: chrono::NaiveDate,
     #[serde(rename = "employee_id")]
@@ -26,6 +29,11 @@ pub struct RosterShift {
     pub employee_name: String,
     #[serde(rename = "end_at")]
     pub end_at: chrono::DateTime<chrono::FixedOffset>,
+    #[serde(rename = "end_time")]
+    pub end_time: String,
+    /// The date holds its own set, not the standing pattern.
+    #[serde(rename = "from_override")]
+    pub from_override: bool,
     /// On approved leave or a mission that day.
     #[serde(rename = "on_leave")]
     pub on_leave: bool,
@@ -33,6 +41,12 @@ pub struct RosterShift {
     pub shift_name: String,
     #[serde(rename = "start_at")]
     pub start_at: chrono::DateTime<chrono::FixedOffset>,
+    /// Effective wall-clock times at the branch (the assignment's own, else the block's for that weekday, else its default).
+    #[serde(rename = "start_time")]
+    pub start_time: String,
+    /// This assignment has its own from/to (show it as edited).
+    #[serde(rename = "times_edited")]
+    pub times_edited: bool,
     #[serde(rename = "work_shift_id")]
     pub work_shift_id: uuid::Uuid,
 }
@@ -41,25 +55,35 @@ impl RosterShift {
     pub fn new(
         branch_id: uuid::Uuid,
         changed: bool,
+        crosses_midnight: bool,
         date: chrono::NaiveDate,
         employee_id: uuid::Uuid,
         employee_name: String,
         end_at: chrono::DateTime<chrono::FixedOffset>,
+        end_time: String,
+        from_override: bool,
         on_leave: bool,
         shift_name: String,
         start_at: chrono::DateTime<chrono::FixedOffset>,
+        start_time: String,
+        times_edited: bool,
         work_shift_id: uuid::Uuid,
     ) -> RosterShift {
         RosterShift {
             branch_id,
             changed,
+            crosses_midnight,
             date,
             employee_id,
             employee_name,
             end_at,
+            end_time,
+            from_override,
             on_leave,
             shift_name,
             start_at,
+            start_time,
+            times_edited,
             work_shift_id,
         }
     }

@@ -25,12 +25,14 @@ Name | Type | Description | Notes
 **night_start** | **String** | Night for the night overtime rate and for suggestions (RU-8, RU-9). | 
 **orders_per_staff** | **i32** | POS-derived coverage: one person per this many orders an hour. | 
 **org_id** | **uuid::Uuid** |  | 
+**overridden** | Option<**Vec<String>**> | For a branch: the rules it sets itself (every other field is the business's, RU-2). Empty for the business. | [optional]
 **overtime_day_multiplier** | **f64** |  | 
 **overtime_mode** | **String** | `off` · `automatic` · `approval` (RU-7). | 
 **overtime_night_multiplier** | **f64** |  | 
 **period_start_day** | **i32** | Day of the month a pay period opens (PAY-1): 26 = a 26th–25th cycle. | 
 **require_geofence** | **bool** |  | 
 **rules_saved_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> | When the business saved its rules; nobody clocks in before (RU-1). | [optional]
+**suggested_tiers** | Option<[**Vec<models::LateTier>**](LateTier.md)> | The ladder the set-up step suggests (RU-1). Never used for pricing. | [optional]
 **updated_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **working_days_per_month** | **f64** |  | 
 

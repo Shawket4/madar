@@ -15,6 +15,15 @@ use serde::{Deserialize, Serialize};
 pub struct DisciplineRow {
     #[serde(rename = "absent_days")]
     pub absent_days: i64,
+    /// Their own shifts a colleague covered (not rejected): the absence stays theirs (CV-6), this says someone stepped in.
+    #[serde(rename = "covered_by_others", skip_serializing_if = "Option::is_none")]
+    pub covered_by_others: Option<i64>,
+    /// Colleagues' shifts this person covered, confirmed by a manager (CV-7). A cover is never a present day of the coverer's own.
+    #[serde(rename = "covers_given", skip_serializing_if = "Option::is_none")]
+    pub covers_given: Option<i64>,
+    /// Covers still waiting for the manager.
+    #[serde(rename = "covers_pending", skip_serializing_if = "Option::is_none")]
+    pub covers_pending: Option<i64>,
     /// `None` for a person with no department set — grouped as \"Unassigned\".
     #[serde(
         rename = "department_id",
@@ -57,6 +66,9 @@ impl DisciplineRow {
     ) -> DisciplineRow {
         DisciplineRow {
             absent_days,
+            covered_by_others: None,
+            covers_given: None,
+            covers_pending: None,
             department_id: None,
             department_name: None,
             employee_id,

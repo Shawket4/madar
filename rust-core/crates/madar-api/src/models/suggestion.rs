@@ -13,10 +13,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Suggestion {
-    /// The gender default decided it (it says so).
+    /// The gender default decided it: without it someone else would have been suggested (it says so).
     #[serde(rename = "by_default")]
     pub by_default: bool,
-    /// 0–100.
+    /// 0–100. Low (≤ 40) whenever the gender default decided it.
     #[serde(rename = "confidence")]
     pub confidence: i32,
     #[serde(rename = "date")]
@@ -26,6 +26,13 @@ pub struct Suggestion {
     pub employee_id: uuid::Uuid,
     #[serde(rename = "employee_name")]
     pub employee_name: String,
+    #[serde(
+        rename = "end_time",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub end_time: Option<Option<String>>,
     /// Who it takes off it, for a reassignment.
     #[serde(
         rename = "from_employee_id",
@@ -51,6 +58,14 @@ pub struct Suggestion {
     pub reason_key: String,
     #[serde(rename = "shift_name")]
     pub shift_name: String,
+    /// The shift's times that day (a day-scoped block's own, else its default).
+    #[serde(
+        rename = "start_time",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub start_time: Option<Option<String>>,
     #[serde(rename = "work_shift_id")]
     pub work_shift_id: uuid::Uuid,
 }
@@ -74,12 +89,14 @@ impl Suggestion {
             date,
             employee_id,
             employee_name,
+            end_time: None,
             from_employee_id: None,
             from_employee_name: None,
             id,
             reason_args,
             reason_key,
             shift_name,
+            start_time: None,
             work_shift_id,
         }
     }

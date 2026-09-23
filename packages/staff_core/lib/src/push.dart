@@ -31,7 +31,18 @@ PushTarget pushTarget(String? key) {
     'swap_approved' ||
     'swap_rejected' ||
     'claim_approved' ||
-    'claim_rejected' => (manage: false, tab: 'shifts'),
+    'claim_rejected' ||
+    'open_shift_cancelled' ||
+    'swap_cancelled' ||
+    'prefs_changed' => (manage: false, tab: 'shifts'),
+    // The roster board: suggestion learning and the fairness audit (owners
+    // and managers).
+    'learning_frozen' ||
+    'learning_resumed' ||
+    'fairness_ready' ||
+    'fairness_flagged' => (manage: true, tab: 'schedule'),
+    // A colleague punched on the till with their PIN (CL-13).
+    'till_punch_in' || 'till_punch_out' => (manage: true, tab: 'team'),
     'request_approved' ||
     'request_rejected' => (manage: false, tab: 'requests'),
     // My money.

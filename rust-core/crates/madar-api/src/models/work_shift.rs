@@ -30,6 +30,9 @@ pub struct WorkShift {
     /// Derived by the database from `end_time <= start_time`.
     #[serde(rename = "crosses_midnight")]
     pub crosses_midnight: bool,
+    /// Its own times on some weekdays; other valid days use the default.
+    #[serde(rename = "day_times", skip_serializing_if = "Option::is_none")]
+    pub day_times: Option<Vec<models::DayTime>>,
     #[serde(rename = "end_time")]
     pub end_time: String,
     #[serde(rename = "grace_minutes")]
@@ -49,6 +52,25 @@ pub struct WorkShift {
     pub name: String,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
+    /// This block's own day-overtime rate; `None` = the branch's rules (RU-8).
+    #[serde(
+        rename = "ot_day_multiplier",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ot_day_multiplier: Option<Option<f64>>,
+    /// This block's own night-overtime rate; `None` = the branch's rules.
+    #[serde(
+        rename = "ot_night_multiplier",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ot_night_multiplier: Option<Option<f64>>,
+    /// Some version of it (default or a weekday's) is longer than the labour presence cap. A warning, never a block (RU-13).
+    #[serde(rename = "over_presence_cap", skip_serializing_if = "Option::is_none")]
+    pub over_presence_cap: Option<bool>,
     #[serde(rename = "overtime_multiplier")]
     pub overtime_multiplier: f64,
     #[serde(rename = "overtime_threshold_minutes")]
@@ -59,6 +81,9 @@ pub struct WorkShift {
     pub start_time: String,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
+    /// The weekdays the block may be rostered on (0 = Sunday … 6 = Saturday).
+    #[serde(rename = "valid_days")]
+    pub valid_days: Vec<i32>,
 }
 
 impl WorkShift {
@@ -78,6 +103,7 @@ impl WorkShift {
         paid_break: bool,
         start_time: String,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
+        valid_days: Vec<i32>,
     ) -> WorkShift {
         WorkShift {
             branch_id: None,
@@ -85,6 +111,7 @@ impl WorkShift {
             checkin_window_minutes,
             created_at,
             crosses_midnight,
+            day_times: None,
             end_time,
             grace_minutes,
             half_day_threshold_minutes: None,
@@ -92,11 +119,15 @@ impl WorkShift {
             is_active,
             name,
             org_id,
+            ot_day_multiplier: None,
+            ot_night_multiplier: None,
+            over_presence_cap: None,
             overtime_multiplier,
             overtime_threshold_minutes,
             paid_break,
             start_time,
             updated_at,
+            valid_days,
         }
     }
 }

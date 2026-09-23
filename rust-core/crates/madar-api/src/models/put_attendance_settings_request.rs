@@ -79,6 +79,14 @@ pub struct PutAttendanceSettingsRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub holiday_multiplier: Option<Option<f64>>,
+    /// Branch only: rules to take from the business again (field names, as in `overridden`).
+    #[serde(
+        rename = "inherit",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub inherit: Option<Option<Vec<String>>>,
     #[serde(
         rename = "late_deduction_tiers",
         default,
@@ -199,6 +207,7 @@ impl PutAttendanceSettingsRequest {
             gender_mode: None,
             half_day_leave_counts: None,
             holiday_multiplier: None,
+            inherit: None,
             late_deduction_tiers: None,
             limit_day_hours: None,
             limit_overtime_day_hours: None,

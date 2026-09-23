@@ -36,6 +36,7 @@ pub struct CreateStaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub end_date: Option<Option<chrono::NaiveDate>>,
+    /// Branch-local wall clock.
     #[serde(
         rename = "from_time",
         default,
@@ -50,9 +51,26 @@ pub struct CreateStaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub is_half_day: Option<Option<bool>>,
+    /// Only when the request is approved as it is filed (the filer holds `hr.requests.self_approve`): leave paid or unpaid, an excuse's pay. Omitted: leave is paid, an excuse follows the rule.
+    #[serde(
+        rename = "is_paid",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub is_paid: Option<Option<bool>>,
     /// One of `leave`, `late_arrival`, `early_departure`, `excuse`, `mission`, `correction`.
     #[serde(rename = "kind")]
     pub kind: String,
+    /// `first` | `second`: which half of the day a half-day leave takes off. Omitted on a half day = the first.
+    #[serde(
+        rename = "leave_half",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub leave_half: Option<Option<String>>,
+    /// Deprecated (RQ-2): ignored. Leave has no types.
     #[serde(
         rename = "leave_type_id",
         default,
@@ -76,6 +94,7 @@ pub struct CreateStaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub reason: Option<Option<String>>,
+    /// A mission's title; when omitted the note is used.
     #[serde(
         rename = "title",
         default,
@@ -83,6 +102,7 @@ pub struct CreateStaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub title: Option<Option<String>>,
+    /// Branch-local wall clock. An excuse ending at or before it starts runs past midnight.
     #[serde(
         rename = "to_time",
         default,
@@ -90,6 +110,14 @@ pub struct CreateStaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub to_time: Option<Option<String>>,
+    /// The shift a late arrival, early departure or excuse is for. Omitted = the shift of the day its time falls in.
+    #[serde(
+        rename = "work_shift_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub work_shift_id: Option<Option<uuid::Uuid>>,
 }
 
 impl CreateStaffRequest {
@@ -100,13 +128,16 @@ impl CreateStaffRequest {
             end_date: None,
             from_time: None,
             is_half_day: None,
+            is_paid: None,
             kind,
+            leave_half: None,
             leave_type_id: None,
             location: None,
             on_date,
             reason: None,
             title: None,
             to_time: None,
+            work_shift_id: None,
         }
     }
 }

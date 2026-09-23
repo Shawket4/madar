@@ -13,9 +13,25 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OpenCover {
+    /// The fix's reported accuracy, metres (CL-9).
+    #[serde(
+        rename = "accuracy_meters",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub accuracy_meters: Option<Option<f64>>,
     /// Whose shift.
     #[serde(rename = "employee_id")]
     pub employee_id: uuid::Uuid,
+    /// The OS's mock-location marker for this fix (CL-9).
+    #[serde(
+        rename = "is_mock",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub is_mock: Option<Option<bool>>,
     #[serde(
         rename = "latitude",
         default,
@@ -30,6 +46,14 @@ pub struct OpenCover {
         skip_serializing_if = "Option::is_none"
     )]
     pub longitude: Option<Option<f64>>,
+    /// Set when the cover was queued offline: it starts at its own time, not when the phone got a signal back (CL-11, audit 03 bug 6).
+    #[serde(
+        rename = "offline",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub offline: Option<Option<Box<models::OfflineStamp>>>,
     #[serde(rename = "work_shift_id")]
     pub work_shift_id: uuid::Uuid,
 }
@@ -37,9 +61,12 @@ pub struct OpenCover {
 impl OpenCover {
     pub fn new(employee_id: uuid::Uuid, work_shift_id: uuid::Uuid) -> OpenCover {
         OpenCover {
+            accuracy_meters: None,
             employee_id,
+            is_mock: None,
             latitude: None,
             longitude: None,
+            offline: None,
             work_shift_id,
         }
     }

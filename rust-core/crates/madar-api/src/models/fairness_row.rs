@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FairnessRow {
+    #[serde(rename = "accepted", skip_serializing_if = "Option::is_none")]
+    pub accepted: Option<i64>,
     /// `m` · `f` · null (not set)
     #[serde(
         rename = "gender",
@@ -27,6 +29,9 @@ pub struct FairnessRow {
     pub people: i64,
     #[serde(rename = "shifts")]
     pub shifts: i64,
+    /// Suggestions for people of this gender decided in the month, and accepted.
+    #[serde(rename = "suggested", skip_serializing_if = "Option::is_none")]
+    pub suggested: Option<i64>,
     /// Said they prefer evenings.
     #[serde(rename = "willing")]
     pub willing: i64,
@@ -35,10 +40,12 @@ pub struct FairnessRow {
 impl FairnessRow {
     pub fn new(night_shifts: i64, people: i64, shifts: i64, willing: i64) -> FairnessRow {
         FairnessRow {
+            accepted: None,
             gender: None,
             night_shifts,
             people,
             shifts,
+            suggested: None,
             willing,
         }
     }

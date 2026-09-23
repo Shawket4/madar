@@ -71,6 +71,9 @@ pub struct AttendanceSettings {
     pub orders_per_staff: i32,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
+    /// For a branch: the rules it sets itself (every other field is the business's, RU-2). Empty for the business.
+    #[serde(rename = "overridden", skip_serializing_if = "Option::is_none")]
+    pub overridden: Option<Vec<String>>,
     #[serde(rename = "overtime_day_multiplier")]
     pub overtime_day_multiplier: f64,
     /// `off` · `automatic` · `approval` (RU-7).
@@ -91,6 +94,9 @@ pub struct AttendanceSettings {
         skip_serializing_if = "Option::is_none"
     )]
     pub rules_saved_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// The ladder the set-up step suggests (RU-1). Never used for pricing.
+    #[serde(rename = "suggested_tiers", skip_serializing_if = "Option::is_none")]
+    pub suggested_tiers: Option<Vec<models::LateTier>>,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "working_days_per_month")]
@@ -149,12 +155,14 @@ impl AttendanceSettings {
             night_start,
             orders_per_staff,
             org_id,
+            overridden: None,
             overtime_day_multiplier,
             overtime_mode,
             overtime_night_multiplier,
             period_start_day,
             require_geofence,
             rules_saved_at: None,
+            suggested_tiers: None,
             updated_at,
             working_days_per_month,
         }

@@ -15,6 +15,14 @@ use serde::{Deserialize, Serialize};
 pub struct PunchFor {
     #[serde(rename = "employee_id")]
     pub employee_id: uuid::Uuid,
+    /// Set when the manager's phone queued the punch offline: it is dated at its own time, not when the phone got a signal back (audit 03 bug 6).
+    #[serde(
+        rename = "offline",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub offline: Option<Option<Box<models::OfflineStamp>>>,
     /// Required (CL-13): a dead phone, a forgotten one.
     #[serde(rename = "reason")]
     pub reason: String,
@@ -24,6 +32,7 @@ impl PunchFor {
     pub fn new(employee_id: uuid::Uuid, reason: String) -> PunchFor {
         PunchFor {
             employee_id,
+            offline: None,
             reason,
         }
     }

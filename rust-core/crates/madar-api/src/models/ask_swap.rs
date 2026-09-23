@@ -13,14 +13,18 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AskSwap {
+    /// The date of MY shift I give away.
     #[serde(rename = "my_date")]
     pub my_date: chrono::NaiveDate,
+    /// MY shift (a block I'm rostered on that date).
     #[serde(rename = "my_shift_id")]
     pub my_shift_id: uuid::Uuid,
+    /// The date of the colleague's shift I take.
     #[serde(rename = "peer_date")]
     pub peer_date: chrono::NaiveDate,
     #[serde(rename = "peer_id")]
     pub peer_id: uuid::Uuid,
+    /// The COLLEAGUE's shift.
     #[serde(rename = "peer_shift_id")]
     pub peer_shift_id: uuid::Uuid,
 }

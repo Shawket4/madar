@@ -1,14 +1,13 @@
-# PutBalanceRequest
+# MoveShiftRequest
 
 ## Properties
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**carried_over_days** | Option<**f64**> |  | [optional]
-**employee_id** | **uuid::Uuid** |  | 
-**entitled_days** | **f64** |  | 
-**leave_type_id** | **uuid::Uuid** |  | 
-**year** | **i32** |  | 
+**employee_id** | **uuid::Uuid** | Who has the shift now. | 
+**on_date** | **chrono::NaiveDate** |  | 
+**to_employee_id** | **uuid::Uuid** | Who gets it. | 
+**work_shift_id** | **uuid::Uuid** |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

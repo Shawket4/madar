@@ -60,7 +60,15 @@ pub struct Payslip {
         skip_serializing_if = "Option::is_none"
     )]
     pub paid_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
-    /// Paid by `cash` · `bank` · `wallet` (PAY-7); null until marked paid.
+    /// Who marked it paid (AT-10).
+    #[serde(
+        rename = "paid_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub paid_by: Option<Option<uuid::Uuid>>,
+    /// Paid by `cash` · `bank` · `wallet` (PAY-7), or `none` for a payslip with nothing to pay, marked by the run itself; null until marked paid.
     #[serde(
         rename = "paid_method",
         default,
@@ -68,6 +76,21 @@ pub struct Payslip {
         skip_serializing_if = "Option::is_none"
     )]
     pub paid_method: Option<Option<String>>,
+    #[serde(
+        rename = "pay_account",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub pay_account: Option<Option<String>>,
+    /// The person's pay method and account at the time of reading, for the bank and wallet lists (PAY-8).
+    #[serde(
+        rename = "pay_method",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub pay_method: Option<Option<String>>,
     #[serde(rename = "payroll_period_id")]
     pub payroll_period_id: uuid::Uuid,
     #[serde(
@@ -136,7 +159,10 @@ impl Payslip {
             overtime_minutes,
             overtime_piastres,
             paid_at: None,
+            paid_by: None,
             paid_method: None,
+            pay_account: None,
+            pay_method: None,
             payroll_period_id,
             period_end: None,
             period_name: None,

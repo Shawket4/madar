@@ -40,10 +40,18 @@ pub struct RosterPerson {
         skip_serializing_if = "Option::is_none"
     )]
     pub pref_time: Option<Option<String>>,
+    /// Who set the preferences last: `employee` or `manager` (SC-12).
+    #[serde(rename = "prefs_set_by")]
+    pub prefs_set_by: String,
 }
 
 impl RosterPerson {
-    pub fn new(cant_work_days: Vec<i32>, employee_id: uuid::Uuid, name: String) -> RosterPerson {
+    pub fn new(
+        cant_work_days: Vec<i32>,
+        employee_id: uuid::Uuid,
+        name: String,
+        prefs_set_by: String,
+    ) -> RosterPerson {
         RosterPerson {
             cant_work_days,
             department_id: None,
@@ -51,6 +59,7 @@ impl RosterPerson {
             gender: None,
             name,
             pref_time: None,
+            prefs_set_by,
         }
     }
 }

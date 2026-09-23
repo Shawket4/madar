@@ -34,6 +34,14 @@ pub struct UpsertWorkShiftRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub checkin_window_minutes: Option<Option<i32>>,
+    /// Its own times on some weekdays (each must be a valid day). Omit to keep them; an empty list clears them.
+    #[serde(
+        rename = "day_times",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub day_times: Option<Option<Vec<models::DayTime>>>,
     #[serde(rename = "end_time")]
     pub end_time: String,
     #[serde(
@@ -59,6 +67,22 @@ pub struct UpsertWorkShiftRequest {
     pub is_active: Option<Option<bool>>,
     #[serde(rename = "name")]
     pub name: String,
+    /// The block's own day-overtime rate (RU-8). Omit to keep it, null to go back to the branch's rules.
+    #[serde(
+        rename = "ot_day_multiplier",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ot_day_multiplier: Option<Option<f64>>,
+    /// The block's own night-overtime rate. Omit to keep, null to clear.
+    #[serde(
+        rename = "ot_night_multiplier",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ot_night_multiplier: Option<Option<f64>>,
     #[serde(
         rename = "overtime_multiplier",
         default,
@@ -82,6 +106,14 @@ pub struct UpsertWorkShiftRequest {
     pub paid_break: Option<Option<bool>>,
     #[serde(rename = "start_time")]
     pub start_time: String,
+    /// Weekdays it may be rostered on (0 = Sunday … 6 = Saturday). Omit to keep them (all days for a new block).
+    #[serde(
+        rename = "valid_days",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub valid_days: Option<Option<Vec<i32>>>,
 }
 
 impl UpsertWorkShiftRequest {
@@ -90,15 +122,19 @@ impl UpsertWorkShiftRequest {
             branch_id: None,
             break_minutes: None,
             checkin_window_minutes: None,
+            day_times: None,
             end_time,
             grace_minutes: None,
             half_day_threshold_minutes: None,
             is_active: None,
             name,
+            ot_day_multiplier: None,
+            ot_night_multiplier: None,
             overtime_multiplier: None,
             overtime_threshold_minutes: None,
             paid_break: None,
             start_time,
+            valid_days: None,
         }
     }
 }

@@ -29,6 +29,7 @@ pub struct Adjustment {
         skip_serializing_if = "Option::is_none"
     )]
     pub created_by: Option<Option<uuid::Uuid>>,
+    /// The month it lands in (the first day of a recurring line, AD-1/AD-3).
     #[serde(rename = "effective_date")]
     pub effective_date: chrono::NaiveDate,
     #[serde(rename = "employee_id")]
@@ -48,6 +49,20 @@ pub struct Adjustment {
     #[serde(rename = "kind")]
     pub kind: String,
     #[serde(
+        rename = "original_amount_piastres",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub original_amount_piastres: Option<Option<i64>>,
+    #[serde(
+        rename = "overridden_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub overridden_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    #[serde(
         rename = "percent_of_base",
         default,
         with = "::serde_with::rust::double_option",
@@ -63,6 +78,31 @@ pub struct Adjustment {
     /// `pending` (waits for the owner) · `approved` · `rejected`
     #[serde(rename = "status")]
     pub status: String,
+    #[serde(
+        rename = "stop_reason",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub stop_reason: Option<Option<String>>,
+    #[serde(
+        rename = "stopped_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub stopped_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// A percent line valued against the salary, in piastres — the server's figure (AT-3); equals `amount_piastres` for a flat line.
+    #[serde(rename = "value_piastres")]
+    pub value_piastres: i64,
+    /// A rule-made deduction the manager forgave: shown, counted for nothing (AD-6/AD-8).
+    #[serde(
+        rename = "waived_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub waived_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
 }
 
 impl Adjustment {
@@ -77,6 +117,7 @@ impl Adjustment {
         recurring: bool,
         source: String,
         status: String,
+        value_piastres: i64,
     ) -> Adjustment {
         Adjustment {
             amount_piastres: None,
@@ -88,11 +129,17 @@ impl Adjustment {
             ends_on: None,
             id,
             kind,
+            original_amount_piastres: None,
+            overridden_at: None,
             percent_of_base: None,
             reason,
             recurring,
             source,
             status,
+            stop_reason: None,
+            stopped_at: None,
+            value_piastres,
+            waived_at: None,
         }
     }
 }

@@ -1,14 +1,13 @@
-# CreateAdjustmentRequest
+# PutDayRequest
 
 ## Properties
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**amount_piastres** | Option<**i64**> | Exactly one of `amount_piastres` or `percent_of_base`. | [optional]
-**effective_date** | **chrono::NaiveDate** |  | 
 **employee_id** | **uuid::Uuid** |  | 
-**percent_of_base** | Option<**f64**> |  | [optional]
-**reason** | **String** |  | 
+**on_date** | **chrono::NaiveDate** |  | 
+**reason** | Option<**String**> |  | [optional]
+**shifts** | [**Vec<models::DayBlock>**](DayBlock.md) | Every shift the person works that date; empty = a day off. | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 
