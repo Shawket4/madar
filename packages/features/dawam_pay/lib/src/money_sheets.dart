@@ -18,7 +18,9 @@ Future<void> adjustmentSheet(BuildContext context, {String? emp}) {
     builder: (ctx, ref, store) => StatefulBuilder(
       builder: (ctx, setS) {
         final people = store.visibleEmps.where((e) => e.id != store.me);
-        who ??= people.first.id;
+        who ??= people.firstOrNull?.id;
+        // Nobody I can add this for (06 B6): say so, never crash.
+        if (who == null) return const _NoOneHere();
         final limit = bonus
             ? store.managerBonusLimit
             : store.managerDeductLimit;
@@ -213,7 +215,8 @@ Future<void> expenseSheet(BuildContext context, {String? emp}) {
     builder: (ctx, ref, store) => StatefulBuilder(
       builder: (ctx, setS) {
         final people = store.visibleEmps.toList();
-        who ??= people.first.id;
+        who ??= people.firstOrNull?.id;
+        if (who == null) return const _NoOneHere();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.md,
@@ -305,5 +308,17 @@ class _PersonPicker extends StatelessWidget {
           ),
       ],
     ),
+  );
+}
+
+/// A money sheet opened with nobody visible to pick (a manager whose
+/// branches have no one else yet).
+class _NoOneHere extends StatelessWidget {
+  const _NoOneHere();
+
+  @override
+  Widget build(BuildContext context) => Text(
+    tr('staff.no_one_to_pick'),
+    style: MadarType.body.copyWith(color: context.madarColors.textMuted),
   );
 }

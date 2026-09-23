@@ -128,7 +128,7 @@ class StaffShell extends ConsumerWidget {
           tabs: [for (final t in tabs) t.$1],
           selectedIndex: i,
           onSelect: ref.read(shellProvider.notifier).select,
-          person: MadarPerson(name: name(u), initial: name(u).characters.first),
+          person: MadarPerson(name: name(u), initial: initialOf(name(u))),
           onPersonTap: () => _settings(context),
           onMarkTap: () => _settings(context),
           topBar: MadarTopBar(

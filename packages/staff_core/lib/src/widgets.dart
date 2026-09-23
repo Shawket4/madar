@@ -202,7 +202,7 @@ final TextStyle timeStyle = MadarType.title.copyWith(
 );
 
 Widget personAvatar(Emp e, {double size = 40}) => MadarAvatar(
-  person: MadarPerson(name: name(e), initial: name(e).characters.first),
+  person: MadarPerson(name: name(e), initial: initialOf(name(e))),
   size: size,
 );
 
@@ -330,4 +330,10 @@ Future<int?> pickTime(BuildContext context, int initial) async {
     initialTime: TimeOfDay(hour: initial ~/ 60, minute: initial % 60),
   );
   return r == null ? null : r.hour * 60 + r.minute;
+}
+
+/// The first letter of a name for an avatar; an empty name never crashes.
+String initialOf(String name) {
+  final n = name.trim().characters;
+  return n.isEmpty ? '·' : n.first;
 }

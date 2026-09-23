@@ -386,7 +386,7 @@ class _ShiftCalendarState extends State<ShiftCalendar> {
               // Too narrow for words (a busy week): the person's initial.
               ? Center(
                   child: Text(
-                    widget.titleOf(s).characters.first,
+                    initialOf(widget.titleOf(s)),
                     style: MadarType.label.copyWith(color: hue),
                   ),
                 )
