@@ -349,10 +349,12 @@ pub(crate) fn reprice_with(
         service_charge_rate: dec(b.service_charge_rate),
         service_charge_taxable: b.service_charge_taxable,
     };
-    let discount = match (discount_type, discount_value) {
-        (Some("percentage"), Some(val)) => crate::tax::Discount::Percentage(dec(val)),
-        (Some("fixed"), Some(val)) => crate::tax::Discount::Fixed(dec(val)),
-        _ => crate::tax::Discount::None,
+    // The rule is read as the server reads a stored one (madar-shared's
+    // `bill::rule_of`: a percentage is a fraction, a fixed discount minor
+    // units); no value is no discount.
+    let discount = match discount_value {
+        Some(val) => madar_money::bill::rule_of(discount_type, dec(val)),
+        None => crate::tax::Discount::None,
     };
     // A table's bill is dine-in: the shared engine's channel rule keeps its
     // service charge unless someone holding `orders:waive_service` removed it.
