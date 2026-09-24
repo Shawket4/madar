@@ -38,6 +38,9 @@ madar-till = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.1.0" 
 # Inventory units and conversion, the server's rule (a waste is converted and
 # judged with it), same tag.
 madar-units = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.1.0" }
+# The canonical phone, order-ref formats and the member card token, the
+# server's, same tag.
+madar-ids = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.1.0" }
 # Proc-macro UniFFI (no .udl). "cli" gates uniffi_bindgen_main for the bin below;
 # "tokio" lets us export `async fn`s with `async_runtime = "tokio"`.
 uniffi = { version = "0.32", features = ["cli", "tokio"], optional = true }
