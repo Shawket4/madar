@@ -133,19 +133,29 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
             )
           : Column(spacing: Space.md, children: [search, segments]),
       overlay: const _HistoryToastHost(),
-      body: Padding(
-        padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final roomBeside =
-                layout.isTablet &&
-                constraints.maxWidth - _detailWidth - Space.lg >=
-                    _tableMinWidth;
-            return _Body(
-              split: roomBeside,
-              onOpen: roomBeside ? notifier.select : (o) => _push(context, o),
-            );
-          },
+      // Pulled: the manual sync, then the scope re-read (This till from the
+      // local rows; All searches the server again, as a person asked).
+      body: MadarRefresh(
+        nested: true,
+        onRefresh: () => pullThenReread(ref, notifier.load),
+        child: MadarPullable(
+          child: Padding(
+            padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final roomBeside =
+                    layout.isTablet &&
+                    constraints.maxWidth - _detailWidth - Space.lg >=
+                        _tableMinWidth;
+                return _Body(
+                  split: roomBeside,
+                  onOpen: roomBeside
+                      ? notifier.select
+                      : (o) => _push(context, o),
+                );
+              },
+            ),
+          ),
         ),
       ),
     );
@@ -377,6 +387,8 @@ class _Master extends ConsumerWidget {
         ?notice,
         Flexible(
           child: OrdersTable(
+            // A short or empty list still pulls to refresh.
+            physics: MadarRefresh.physics,
             bridge: bridge,
             currency: currency,
             state: state,
