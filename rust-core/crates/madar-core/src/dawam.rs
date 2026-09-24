@@ -1500,7 +1500,7 @@ impl MadarCore {
         match act {
             Act::ClockIn { shift, fix, tracking_off } => {
                 if snap.active_shift.is_some() {
-                    return Err(CoreError::Validation { field: "shift".into(), detail: i18n::tr(&self.current_locale(), "staff.clock_out_first") });
+                    return Err(CoreError::Validation { field: String::new(), detail: i18n::tr(&self.current_locale(), "staff.clock_out_first") });
                 }
                 noted(&fix);
                 let mut body = fix_body(&fix);
@@ -1623,7 +1623,7 @@ impl MadarCore {
             }
             Act::Cancel { req, note } => {
                 if !req.starts_with("q|") {
-                    return Err(CoreError::Validation { field: "req".into(), detail: i18n::tr(&locale, "staff.ask_manager_to_cancel") });
+                    return Err(CoreError::Validation { field: String::new(), detail: i18n::tr(&locale, "staff.ask_manager_to_cancel") });
                 }
                 let note = note.map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
                 // AT-7: undoing an approved request says why.
@@ -1816,7 +1816,7 @@ impl MadarCore {
             // Without a period id there is nothing to approve or reopen: say so
             // rather than POST to `/periods//generate` (audit 06 B14).
             Act::ApprovePayroll | Act::ReopenPayroll { .. } if period_id.is_empty() => {
-                return Err(CoreError::Validation { field: "period".into(), detail: i18n::tr(&self.current_locale(), "staff.no_period_yet") });
+                return Err(CoreError::Validation { field: String::new(), detail: i18n::tr(&self.current_locale(), "staff.no_period_yet") });
             }
             Act::ApprovePayroll => {
                 self.dawam_srv("POST", &format!("/staff/payroll/periods/{period_id}/generate"), Some(json!({}))).await?;
@@ -4273,6 +4273,32 @@ mod tests {
         assert_eq!(posted(&stub, "/staff/requests/a/decision"), json!({ "status": "cancelled", "note": "Plans changed" }));
         core.dawam_do(json!({ "action": "cancel", "req": "q|p" }).to_string()).await.unwrap();
         assert_eq!(posted(&stub, "/staff/requests/p/decision"), json!({ "status": "cancelled" }));
+    }
+
+    /// A refusal the core words itself is a whole sentence: no field name in
+    /// front of it (E2E requests: "req Ask your manager to cancel this one.",
+    /// the raw "req" even on an Arabic phone).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_refusal_in_words_carries_no_field_name() {
+        use crate::testkit::{StubResponse, TELLER};
+        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("GET", "/staff/me/advances") => Some(StubResponse::json(200, json!([
+                { "id": "v1", "employee_id": TELLER, "amount_piastres": 120000, "installments": 3, "status": "pending", "created_at": "2026-09-22T08:00:00Z" }
+            ]))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            match core.dawam_do(json!({ "action": "cancel", "req": "v|v1" }).to_string()).await {
+                Err(CoreError::Validation { field, detail }) => {
+                    assert_eq!(field, "", "a worded refusal names no field");
+                    assert_eq!(detail, i18n::tr(lang, "staff.ask_manager_to_cancel"));
+                }
+                other => panic!("expected the refusal, got {other:?}"),
+            }
+        }
     }
 
     #[test]
