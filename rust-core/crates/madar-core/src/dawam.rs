@@ -1751,12 +1751,15 @@ impl MadarCore {
                 if emp != "open" {
                     let from: Vec<BlockA> = day_set(&snap, emp, from_day).into_iter().filter(|b| b.tpl != from_tpl).collect();
                     let mut to = if to_day == from_day { from.clone() } else { day_set(&snap, emp, &to_day) };
+                    to.retain(|b| b.tpl != tpl);
+                    to.push(BlockA { tpl, start: None, end: None });
+                    // The day it goes to first (E2E roster): a refusal there — a
+                    // block not worked that weekday, an overlap — must leave both
+                    // days as they were, not take the shift off its own day.
+                    self.dawam_put_day(emp, &to_day, &to).await?;
                     if to_day != from_day {
                         self.dawam_put_day(emp, from_day, &from).await?;
                     }
-                    to.retain(|b| b.tpl != tpl);
-                    to.push(BlockA { tpl, start: None, end: None });
-                    self.dawam_put_day(emp, &to_day, &to).await?;
                 }
             }
             Act::Assign { shift, emp } => {
@@ -3665,10 +3668,18 @@ mod tests {
     /// branch; Omar (`P`) has a split day on `day` — Morning, and an Evening
     /// with its own times running past midnight; one open shift.
     async fn roster_stub(day: String) -> crate::testkit::Stub {
+        roster_stub_refusing(day, None).await
+    }
+
+    /// [`roster_stub`], whose day writes on [refuse] are refused: the block
+    /// isn't worked that weekday (`SHIFT_NOT_ON_DAY`).
+    async fn roster_stub_refusing(day: String, refuse: Option<String>) -> crate::testkit::Stub {
         use crate::testkit::{Stub, StubResponse, BRANCH, TELLER};
         Stub::start(move |r| {
             let path = r.path.split('?').next().unwrap_or_default();
             Some(match (r.method.as_str(), path) {
+                ("PUT", "/staff/schedules/days") if refuse.as_deref().is_some_and(|d| r.json()["on_date"] == d) => StubResponse::json(400, json!({
+                    "error": "Evening isn't a shift on that day.", "code": "SHIFT_NOT_ON_DAY" })),
                 ("GET", "/staff/me/context") => StubResponse::json(200, json!({
                     "role": "owner", "org_name": "Nile Café",
                     "caps": ["hr.schedule.read", "hr.schedule.edit", "hr.schedule.publish"],
@@ -3816,6 +3827,31 @@ mod tests {
         assert_eq!(put.json()["note"], "Opens");
         act(json!({ "action": "set_prefs", "time": null, "cant": [7] })).await.unwrap();
         assert_eq!(last("PUT", "/staff/me/preferences").json()["cant_work_days"], json!([0]), "ISO Sunday → the server's 0");
+    }
+
+    /// E2E roster (the iPad board's drag, S-256): a shift dragged to a day its
+    /// block isn't worked on is refused by the server — but the core had
+    /// already written its own day without it, so the person lost the shift.
+    /// The day it goes to is written first; a refusal there leaves both days
+    /// as they were.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_refused_move_to_another_day_loses_nothing() {
+        let day = the_day();
+        let next = (NaiveDate::parse_from_str(&day, "%Y-%m-%d").unwrap() + Duration::days(1)).to_string();
+        let stub = roster_stub_refusing(day.clone(), Some(next.clone())).await;
+        let core = crate::testkit::online_core(&stub.base, "").await;
+        core.set_online(true);
+        core.dawam_snapshot(true).await.unwrap();
+        let err = core
+            .dawam_do(json!({ "action": "move_shift", "shift": format!("P|{day}|w2"), "day": next, "tpl": "w2" }).to_string())
+            .await
+            .unwrap_err();
+        assert!(matches!(&err, CoreError::Server { code, .. } if code == "SHIFT_NOT_ON_DAY"), "{err:?}");
+        let puts: Vec<Value> = stub.requests("/staff/schedules/days").into_iter().filter(|r| r.method == "PUT").map(|r| r.json()).collect();
+        assert!(
+            !puts.iter().any(|b| b["on_date"] == day.as_str()),
+            "the shift's own day must not be rewritten when the move is refused: {puts:?}"
+        );
     }
 
     /// 06 B2: a swap names MY shift as mine. The old app sent them reversed
