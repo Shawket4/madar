@@ -63,6 +63,9 @@ String hmMin(int minuteOfDay) =>
     hm(DateTime(2000).add(Duration(minutes: minuteOfDay)));
 
 String weekday(int w) => tr('staff.day_$w');
+
+/// A weekday that recurs: "Fridays" ("can't work on Fridays").
+String weekdays(int w) => tr('staff.weekdays_$w');
 String dayMonth(DateTime d) => '${d.day} ${tr('staff.month_${d.month}')}';
 String dayLabel(DateTime d) => '${weekday(d.weekday)} ${dayMonth(d)}';
 String mins(int m) => m >= 60
