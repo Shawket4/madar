@@ -2470,12 +2470,27 @@ impl MadarCore {
         // Absent past its end with nothing to excuse it (the sweep's rule,
         // read ahead of the sweep so the day shows at once).
         let holiday_days: HashSet<String> = rows("dawam_holidays").iter().filter(|h| s(h, "decision") == "holiday").map(|h| s(h, "on_date")).collect();
+        // Nobody is absent before the business saved its rules (B-ONB-1):
+        // not while they are unsaved, nor on a shift that started before the
+        // first save. A server that doesn't send the save time: the plain rule.
+        let judged = |sh: &ShiftV| -> bool {
+            if !out.settings.rules_saved {
+                return false;
+            }
+            match st.get("rules_saved_at") {
+                None => true,
+                Some(v) => {
+                    let saved = v.as_str().and_then(|x| DateTime::parse_from_rfc3339(x).ok()).map(|d| d.with_timezone(&Utc));
+                    saved.zip(shift_start(sh, &tz)).is_some_and(|(saved, start)| start >= saved)
+                }
+            }
+        };
         for sh in shifts.iter_mut() {
             if tpl(&sh.tpl).is_none() {
                 continue;
             }
             let end = shift_end(sh, &tz);
-            if sh.emp.is_some() && sh.published && sh.in_at.is_none() && sh.leave.is_none() && !sh.mission && !holiday_days.contains(&sh.date) && end.is_some_and(|e| e < now) {
+            if sh.emp.is_some() && sh.published && sh.in_at.is_none() && sh.leave.is_none() && !sh.mission && !holiday_days.contains(&sh.date) && end.is_some_and(|e| e < now) && judged(sh) {
                 sh.absent = true;
             }
             if sh.cover_by.is_some() && sh.cover_by.as_deref() != sh.emp.as_deref() {
@@ -4513,6 +4528,63 @@ mod tests {
 
     fn posted(stub: &crate::testkit::Stub, path: &str) -> Value {
         stub.seen.lock().unwrap().iter().rev().find(|r| r.method != "GET" && r.path.starts_with(path)).expect(path).json()
+    }
+
+    /// B-ONB-1: nobody is absent before the business saved its rules. The
+    /// read-ahead marked a missed shift absent from before the first save,
+    /// so the app showed Youssef 6 absences where the server had 5. A shift
+    /// that started before `rules_saved_at` is never absent; while that is
+    /// null (or `rules_saved` is false) none is. A server that doesn't send
+    /// the field keeps the plain rule.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn no_shift_is_absent_before_the_rules_were_saved() {
+        use crate::testkit::{online_core, Stub, StubResponse, BRANCH, TELLER};
+        use std::sync::{Arc, Mutex};
+        let today = today_cairo();
+        let (before, after) = ((today - Duration::days(3)).to_string(), (today - Duration::days(1)).to_string());
+        let saved_at = format!("{}T10:00:00+03:00", today - Duration::days(2));
+        let settings = Arc::new(Mutex::new(json!({ "period_start_day": 26, "rules_saved": true, "rules_saved_at": saved_at })));
+        let answer = settings.clone();
+        let (b, a) = (before.clone(), after.clone());
+        let stub = Stub::start(move |r| {
+            let path = r.path.split('?').next().unwrap_or_default();
+            Some(match path {
+                "/staff/me/context" => StubResponse::json(200, json!({
+                    "role": "employee", "org_name": "Nile Café", "caps": [],
+                    "branches": [{ "id": BRANCH, "name": "Zamalek", "timezone": "Africa/Cairo" }],
+                    "work_shifts": [{ "id": "w1", "name": "Morning", "branch_id": BRANCH, "start_time": "08:00:00", "end_time": "12:00:00" }],
+                    "people": [{ "employee_id": TELLER, "name": "Youssef", "role": "employee", "branch_ids": [BRANCH] }],
+                    "settings": answer.lock().unwrap().clone(),
+                })),
+                "/staff/me/roster" => StubResponse::json(200, json!({
+                    "shifts": [{ "employee_id": TELLER, "date": b, "work_shift_id": "w1" },
+                               { "employee_id": TELLER, "date": a, "work_shift_id": "w1" }],
+                    "team": [], "open_shifts": [], "swaps": [], "unpublished_weeks": [],
+                })),
+                "/health" => StubResponse::text(200, "ok"),
+                p if p.ends_with("estimate") => StubResponse::json(200, json!({})),
+                _ => StubResponse::json(200, json!([])),
+            })
+        })
+        .await;
+        let core = online_core(&stub.base, "").await;
+        core.set_online(true);
+        let absent = |snap: &Value, d: &str| {
+            snap["shifts"].as_array().unwrap().iter().find(|x| x["date"] == d).map(|x| x["absent"].clone()).unwrap()
+        };
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(absent(&snap, &before), json!(false), "before the rules were saved: not absent");
+        assert_eq!(absent(&snap, &after), json!(true), "after: absent");
+
+        *settings.lock().unwrap() = json!({ "period_start_day": 26, "rules_saved": false, "rules_saved_at": null });
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!((absent(&snap, &before), absent(&snap, &after)), (json!(false), json!(false)), "rules never saved: nobody is absent");
+        *settings.lock().unwrap() = json!({ "period_start_day": 26, "rules_saved": true, "rules_saved_at": null });
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!((absent(&snap, &before), absent(&snap, &after)), (json!(false), json!(false)), "no save time yet: nobody is absent");
+        *settings.lock().unwrap() = json!({ "period_start_day": 26, "rules_saved": true });
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!((absent(&snap, &before), absent(&snap, &after)), (json!(true), json!(true)), "an older server: the plain rule");
     }
 
     /// Owner decision #3 (D3): public holidays are the owner's, like the
