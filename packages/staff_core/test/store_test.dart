@@ -33,11 +33,16 @@ class _Backend implements DawamBackend {
 
   /// What the core says about the connection in the next picture.
   bool online = true;
+
+  /// Any other change to the picture a snapshot answers.
+  void Function(Map<String, dynamic>)? edit;
+
   @override
   Future<String> snapshot({required bool refresh}) async {
     if (refresh) refreshes++;
     final v = jsonDecode(_fixture()) as Map<String, dynamic>;
     v['online'] = online;
+    edit?.call(v);
     return jsonEncode(v);
   }
 
@@ -129,9 +134,9 @@ void main() {
       backend
         ..online = false
         ..answer = () async => throw DawamError(
-        'This needs a connection.',
-        'This needs a connection.',
-      );
+          'This needs a connection.',
+          'This needs a connection.',
+        );
       final results = <bool>[];
       await t.pumpWidget(
         _screen(
@@ -319,6 +324,52 @@ void main() {
       });
     },
   );
+
+  test('a screen asks the core only for dates the phone does not hold, one '
+      'ask at a time (H2-01)', () async {
+    final (store, backend) = await _store();
+    expect(
+      store.holds(DateTime(2000), DateTime(2100)),
+      isTrue,
+      reason: 'a core that says nothing holds whatever it shows',
+    );
+    final ws = weekStart(store.today);
+    DateTime at(int n) => DateTime(ws.year, ws.month, ws.day + n);
+    String d(DateTime x) =>
+        '${x.year}-${x.month.toString().padLeft(2, '0')}-'
+        '${x.day.toString().padLeft(2, '0')}';
+    final base = [d(at(-28)), d(at(27))];
+    String held(List<List<String>> spans) {
+      final v = jsonDecode(_fixture()) as Map<String, dynamic>;
+      v['loaded'] = spans;
+      return jsonEncode(v);
+    }
+
+    backend.edit = (v) => v['loaded'] = [base];
+    await store.refresh();
+    expect(store.holds(at(0), at(6)), isTrue);
+    expect(store.holds(at(21), at(34)), isFalse, reason: 'straddles the end');
+    await store.viewRange(at(0), at(6));
+    expect(backend.acts, isEmpty, reason: 'held already: nothing to ask');
+
+    final gate = Completer<String>();
+    backend.answer = () => gate.future;
+    final first = store.viewRange(at(28), at(34));
+    expect(store.viewing, isTrue);
+    unawaited(store.viewRange(at(28), at(34)));
+    expect(backend.acts, [
+      {'action': 'view_range', 'from': d(at(28)), 'to': d(at(34))},
+    ], reason: 'the same ask while the first is out goes once');
+    gate.complete(
+      held([
+        base,
+        [d(at(28)), d(at(34))],
+      ]),
+    );
+    await first;
+    expect(store.viewing, isFalse);
+    expect(store.holds(at(28), at(34)), isTrue);
+  });
 
   test('the server says who is on payroll and both pay-line limits', () async {
     final (store, _) = await _store();

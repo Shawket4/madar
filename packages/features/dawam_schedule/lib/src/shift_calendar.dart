@@ -85,7 +85,9 @@ class ShiftCalendar extends StatefulWidget {
   final void Function(Shift)? onTapShift;
   final void Function(Shift, DateTime start)? onMove;
   final void Function(DateTime)? onTapSlot;
-  final void Function(DateTime start)? onRangeChanged;
+
+  /// A page turned (day, week, month views): its first and last moment.
+  final void Function(DateTime start, DateTime end)? onRangeChanged;
   final bool editable;
   final CalendarView phoneView;
   final CalendarView tabletView;
@@ -320,8 +322,10 @@ class _ShiftCalendarState extends State<ShiftCalendar> {
                     _wall(updated.start),
                   ),
                   onTapped: (d) => widget.onTapSlot?.call(_wall(d)),
-                  onPageChanged: (r) =>
-                      widget.onRangeChanged?.call(_wall(r.start)),
+                  onPageChanged: (r) => widget.onRangeChanged?.call(
+                    _wall(r.start),
+                    _wall(r.end).subtract(const Duration(minutes: 1)),
+                  ),
                 ),
                 components: _components,
                 header: KalenderHeader(

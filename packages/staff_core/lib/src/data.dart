@@ -685,6 +685,15 @@ class DawamStore extends ChangeNotifier {
   final suggestions = <Suggestion>[];
   final holidays = <Holiday>[];
   final published = <String>{};
+
+  /// The dates the picture holds in full, from–to (H2-01): this week, four
+  /// back and three ahead, and what a screen asked for. Null from a core
+  /// that doesn't say: it holds whatever it shows.
+  List<(DateTime, DateTime)>? loaded;
+
+  /// A screen is fetching the dates it shows ([viewRange]).
+  bool viewing = false;
+  String? _viewingKey;
   final history = <Period>[];
   Period period = Period(DateTime(2000), DateTime(2000));
   final _slips = <String, Slip>{};
@@ -932,6 +941,22 @@ class DawamStore extends ChangeNotifier {
         published.add('${sh.template.branch}|${weekStart(sh.date)}');
       }
     }
+    // The weeks the server published, shifts in them or not (H2-03).
+    for (final w in (v['published_weeks'] as List<dynamic>?) ?? const []) {
+      final s = w as String;
+      final i = s.lastIndexOf('|');
+      if (i > 0) {
+        published.add('${s.substring(0, i)}|${_date(s.substring(i + 1))}');
+      }
+    }
+    final held = v['loaded'];
+    loaded = held is List<dynamic>
+        ? [
+            for (final r in held)
+              if (r is List<dynamic> && r.length == 2)
+                (_date(r[0]), _date(r[1])),
+          ]
+        : null;
     _myNow = (v['my_now'] as List<dynamic>).cast<String>();
     _active = v['active_shift'] as String?;
     _coverable = (v['coverable'] as List<dynamic>).cast<String>();
@@ -1161,6 +1186,32 @@ class DawamStore extends ChangeNotifier {
   };
 
   // ── what the screens read ──
+  /// The picture holds every date from [from] to [to] (H2-01). A screen
+  /// showing other dates asks for them ([viewRange]) and edits nothing there.
+  bool holds(DateTime from, DateTime to) {
+    final held = loaded;
+    if (held == null) return true;
+    for (
+      var d = dateOnly(from);
+      !d.isAfter(to);
+      d = DateTime(d.year, d.month, d.day + 1)
+    ) {
+      if (!held.any((r) => !d.isBefore(r.$1) && !d.isAfter(r.$2))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Why [from]–[to] can't be shown or edited, in words: the phone doesn't
+  /// hold it yet (H2-01). Null when it does.
+  String? notHeld(DateTime from, DateTime to) {
+    if (holds(from, to)) return null;
+    if (viewing) return tr('staff.week_loading');
+    if (offline) return tr('staff.week_needs_connection');
+    return tr('staff.week_couldnt_load');
+  }
+
   Iterable<Emp> get visibleEmps => emps.values; // the server scoped them (RO-6)
   bool isPublished(Shift s) => s.published;
   List<Shift> shiftsOn(String emp, DateTime d) =>
@@ -1511,6 +1562,34 @@ class DawamStore extends ChangeNotifier {
     await _run(
       () => backend.act({...action, if (fix != null) 'fix': _fixJson(fix)}),
     );
+  }
+
+  /// A screen shows [from]–[to] (the board's week, a calendar page): dates
+  /// the picture doesn't hold are fetched and kept for later refreshes
+  /// (H2-01). [viewing] while they come; a refusal arrives on [failures].
+  Future<void> viewRange(DateTime from, DateTime to) async {
+    final a = dateOnly(from);
+    var z = dateOnly(to);
+    // One read spans at most 62 days (the server's limit).
+    final most = DateTime(a.year, a.month, a.day + 62);
+    if (z.isAfter(most)) z = most;
+    if (me == null || holds(a, z)) return;
+    final key = '${_d(a)}|${_d(z)}';
+    if (_viewingKey == key) return;
+    _viewingKey = key;
+    viewing = true;
+    notifyListeners();
+    try {
+      await _run(
+        () => backend.act({'action': 'view_range', 'from': _d(a), 'to': _d(z)}),
+      );
+    } finally {
+      if (_viewingKey == key) {
+        _viewingKey = null;
+        viewing = false;
+      }
+      notifyListeners();
+    }
   }
 
   // ── what the screens do: each is one core action ──
