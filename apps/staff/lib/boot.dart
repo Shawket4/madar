@@ -489,7 +489,10 @@ String dawamErrorText(
   required String Function(String key) word,
   required String Function(MadarError) human,
 }) => switch (e) {
-  MadarError_Forbidden(:final action) when action.isNotEmpty => action,
+  // The sentence only: the server's error kind in front ("Forbidden: This
+  // needs …") is not for the person (E2E roster, a manager's holiday tap).
+  MadarError_Forbidden(:final action) when action.isNotEmpty =>
+    action.startsWith('Forbidden: ') ? action.substring(11) : action,
   MadarError_Offline() => word('staff.needs_connection'),
   _ => human(e),
 };

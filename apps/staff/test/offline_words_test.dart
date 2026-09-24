@@ -23,6 +23,21 @@ void main() {
     );
   });
 
+  test('a 403 keeps the server\'s sentence, without its kind', () {
+    expect(
+      dawamErrorText(
+        const MadarError.forbidden(
+          resource: 'holidays',
+          action:
+              "Forbidden: This needs Publish the week's roster for every branch (hr.schedule.publish).",
+        ),
+        word: word,
+        human: human,
+      ),
+      "This needs Publish the week's roster for every branch (hr.schedule.publish).",
+    );
+  });
+
   test('a 403 keeps the server\'s sentence; the rest as before', () {
     expect(
       dawamErrorText(
