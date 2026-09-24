@@ -354,13 +354,20 @@ pub(crate) fn reprice_with(
         (Some("fixed"), Some(val)) => crate::tax::Discount::Fixed(dec(val)),
         _ => crate::tax::Discount::None,
     };
-    let discount = crate::tax::discount_amount(subtotal, discount);
     // A table's bill is dine-in: the shared engine's channel rule keeps its
     // service charge unless someone holding `orders:waive_service` removed it.
+    // The preview itself is madar-shared's `bill::price_open_bill`, the
+    // server's `price_bill_under`: a negative subtotal is floored to zero (the
+    // settle refuses it), the discount rule resolved on it, then the engine.
     let channel = crate::tax::SaleChannel::DineIn;
-    let out = crate::tax::compute(subtotal, discount, &policy.for_sale(channel, waive_service));
+    let out = madar_money::bill::price_open_bill(
+        subtotal,
+        discount,
+        &policy.for_sale(channel, waive_service),
+    );
     let waived = if waive_service {
-        crate::tax::compute(subtotal, discount, &policy.for_sale(channel, false)).service_charge
+        madar_money::bill::price_open_bill(subtotal, discount, &policy.for_sale(channel, false))
+            .service_charge
     } else {
         0
     };

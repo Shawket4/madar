@@ -752,12 +752,22 @@ pub(crate) fn prepare(
     // A split leg of its own. The sum check below floors each leg at zero, so a
     // leg of -500 beside one of +500 would fail it with an arithmetic message
     // about a total that looks right on screen.
-    if let Some(bad) = input.splits.iter().find(|l| l.amount_minor < 0) {
+    // Each leg as madar-shared's tender rules read it (`bill::Leg`); whether a
+    // leg is cash does not matter to the checks made here.
+    let legs: Vec<madar_money::bill::Leg> = input
+        .splits
+        .iter()
+        .map(|l| madar_money::bill::Leg {
+            amount: l.amount_minor,
+            is_cash: false,
+        })
+        .collect();
+    if let Some(bad) = madar_money::bill::negative_leg(&legs) {
         return Err(CoreError::Validation {
             field: "splits".into(),
             detail: format!(
                 "a payment of {} is less than nothing — check the split",
-                bad.amount_minor
+                bad.amount
             ),
         });
     }
@@ -796,8 +806,7 @@ pub(crate) fn prepare(
     // Split legs must cover the bill exactly, or the server refuses the sale
     // after it has left the till (a queued one dead-letters).
     if is_split {
-        let legs: i64 = input.splits.iter().map(|l| l.amount_minor.max(0)).sum();
-        if legs != priced.total_minor {
+        if let Err(legs) = madar_money::bill::legs_cover(&legs, priced.total_minor) {
             return Err(CoreError::Validation {
                 field: "splits".into(),
                 detail: format!("split payments ({legs}) must sum to the total ({})", priced.total_minor),
