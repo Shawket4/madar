@@ -188,6 +188,9 @@ pub struct Snapshot {
     pub stuck: Vec<String>,
     pub can_manage: bool,
     pub can_payroll: bool,
+    /// My own requests are approved as I file them (`hr.requests.self_approve`,
+    /// RQ-5): a leave then needs its paid/unpaid choice at filing (RQ-2).
+    pub self_approves: bool,
     /// Which manager tabs show, from `caps` (PM-4).
     pub tabs: ManageTabs,
     pub caps: Vec<String>,
@@ -596,6 +599,9 @@ pub enum Act {
         #[serde(default)] half: bool,
         /// A half day's half: `first` (default) or `second` (RQ-8).
         #[serde(default)] leave_half: Option<String>,
+        /// A leave approved as it is filed (a self-approver's): paid or unpaid,
+        /// required by the server (RQ-2, `LEAVE_PAY_REQUIRED`).
+        #[serde(default)] paid: Option<bool>,
         #[serde(default)] time: Option<i64>,
         #[serde(default)] time2: Option<i64>,
         #[serde(default)] note: String,
@@ -1533,7 +1539,7 @@ impl MadarCore {
         let mut filed: Option<Value> = None;
         let period_id = snap.period.id.clone().unwrap_or_default();
         match act {
-            Act::File { kind, from, to, half, leave_half, time, time2, note, amount, installments, shift, shift2, peer } => {
+            Act::File { kind, from, to, half, leave_half, paid, time, time2, note, amount, installments, shift, shift2, peer } => {
                 let d = from.unwrap_or_else(|| self.dawam_today().to_string());
                 match kind.as_str() {
                     "salaryAdvance" => {
@@ -1570,6 +1576,9 @@ impl MadarCore {
                             .flatten();
                         let mut body = json!({ "kind": server, "on_date": d, "is_half_day": half });
                         if let Some(t) = to { body["end_date"] = json!(t); }
+                        if let (true, Some(p)) = (server == "leave", paid) {
+                            body["is_paid"] = json!(p);
+                        }
                         if server == "leave" && half {
                             body["leave_half"] = json!(match leave_half.as_deref() {
                                 Some("second") => "second",
@@ -1915,6 +1924,7 @@ impl MadarCore {
             stuck,
             can_manage: manages(&ctx),
             can_payroll: manage_tabs(&caps).payroll,
+            self_approves: caps.iter().any(|c| c == "hr.requests.self_approve"),
             tabs: manage_tabs(&caps),
             caps,
             fetched_at,
@@ -4046,6 +4056,11 @@ mod tests {
         let act = json!({ "action": "file", "kind": "leave", "from": d }).to_string();
         core.dawam_do(act).await.unwrap();
         assert!(posted(&stub, "/staff/me/requests").get("leave_half").is_none(), "a whole day names no half");
+        assert!(posted(&stub, "/staff/me/requests").get("is_paid").is_none(), "no choice made, none sent");
+        // A self-approver's leave carries the pay choice (QUESTIONS #19, RQ-2).
+        let act = json!({ "action": "file", "kind": "leave", "from": d, "paid": false }).to_string();
+        core.dawam_do(act).await.unwrap();
+        assert_eq!(posted(&stub, "/staff/me/requests")["is_paid"], json!(false));
 
         // The evening shift of a split day, by name; no record on a late arrival.
         let evening = format!("{TELLER}|{d}|w2");

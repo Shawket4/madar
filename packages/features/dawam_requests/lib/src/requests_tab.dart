@@ -113,6 +113,9 @@ String reqWhen(Req r) {
     if (time != null) hmMin(time),
     if (time2 != null) hmMin(time2),
   ].join(' – ');
+  // Isolated left-to-right, so an Arabic row reads "23:30 – 00:30" in time
+  // order like every other time on the screen (E2E, QUESTIONS #27).
+  final ltrWindow = window.isEmpty ? '' : '\u2066$window\u2069';
   return switch (r.kind) {
     ReqKind.leave || ReqKind.mission =>
       to != null && from != null && !sameDay(to, from)
@@ -123,7 +126,7 @@ String reqWhen(Req r) {
     ReqKind.earlyDeparture when time != null =>
       '$d · ${tr('staff.from_inline')} ${hmMin(time)}',
     ReqKind.excuse ||
-    ReqKind.correction when window.isNotEmpty => '$d · $window',
+    ReqKind.correction when window.isNotEmpty => '$d · $ltrWindow',
     ReqKind.salaryAdvance =>
       '${egp(r.amount)} · '
           '${r.installments == 1 ? tr('staff.next_payslip') : tr('staff.months', {'installments': r.installments})}',
@@ -221,6 +224,9 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
   DateTime? to;
   var half = false;
   var leaveHalf = 'first';
+  // Paid or unpaid — asked only when my leave is approved as I file it
+  // (QUESTIONS #19, RQ-2); null until chosen.
+  bool? paid;
   String? shift;
   var time = switch (k) {
     ReqKind.lateArrival => 10 * 60,
@@ -295,6 +301,17 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
                 value: leaveHalf,
                 onChanged: (v) => setS(() => leaveHalf = v),
               ),
+            if (k == ReqKind.leave && store.selfApproves) ...[
+              Text(tr('staff.leave_pay_question'), style: MadarType.bodySm),
+              MadarSegmented<bool?>(
+                items: [
+                  MadarSegmentItem(true, tr('staff.leave_paid')),
+                  MadarSegmentItem(false, tr('staff.leave_unpaid')),
+                ],
+                value: paid,
+                onChanged: (v) => setS(() => paid = v),
+              ),
+            ],
             if (dayShifts.length > 1) ...[
               Text(tr('staff.for_the_shift'), style: MadarType.bodySm),
               MadarSegmented<String>(
@@ -352,6 +369,15 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
               onTap: () async {
                 // What a request needs (a mission's note, a window that
                 // isn't empty) is checked by the core, in its words.
+                if (k == ReqKind.leave && store.selfApproves && paid == null) {
+                  ref
+                      .read(toastProvider.notifier)
+                      .show(
+                        tr('staff.err_leave_pay_required'),
+                        tone: ChipTone.danger,
+                      );
+                  return;
+                }
                 Filed? filed;
                 final sent = await attempt(
                   ref,
@@ -361,6 +387,7 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
                     to: to,
                     half: half && to == null,
                     leaveHalf: leaveHalf,
+                    paid: k == ReqKind.leave ? paid : null,
                     time: multi ? null : time,
                     time2: k == ReqKind.excuse ? time2 : null,
                     note: note.text,

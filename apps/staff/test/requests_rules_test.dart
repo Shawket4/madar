@@ -3,6 +3,7 @@
 // the screen hands the core; what the core sends the server is tested in
 // madar-core (`dawam.rs`), and what the server does in tests/dawam_rules.rs.
 import 'package:design_system/design_system.dart';
+import 'package:feature_dawam_requests/feature_dawam_requests.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -79,6 +80,57 @@ void main() {
         // The list already shows two approved requests; the third is the toast.
         expect(find.text(w('staff.approved')), findsNWidgets(3));
         expect(find.text(w('staff.sent_to_your_manager')), findsNothing);
+        await finish(t);
+      });
+
+      // QUESTIONS #19 (RQ-2): a leave approved as it is filed has nobody to
+      // choose paid or unpaid, so the filer does — before anything is sent.
+      testWidgets('a self-approver’s leave asks paid or unpaid first', (
+        t,
+      ) async {
+        await pumpApp(
+          t,
+          lang: lang,
+          who: 'e1',
+          tab: _requests,
+          core: (f) => f.edit = (v) => v['self_approves'] = true,
+        );
+        await t.tap(find.text(w('staff.kind_leave')).first);
+        await frames(t);
+        expect(find.text(w('staff.leave_pay_question')), findsOneWidget);
+        final before = testCore.acts.length;
+        await tapText(t, w('staff.send'));
+        expect(testCore.acts.length, before, reason: 'nothing sent without it');
+        expect(find.text(w('staff.err_leave_pay_required')), findsOneWidget);
+        await tapText(t, w('staff.leave_unpaid'));
+        await tapText(t, w('staff.send'));
+        expect(lastAct()['action'], 'file');
+        expect(lastAct()['paid'], isFalse);
+        await finish(t);
+      });
+
+      testWidgets('someone who waits for an approver isn’t asked', (t) async {
+        await openKind(t, 'staff.kind_leave');
+        expect(find.text(w('staff.leave_pay_question')), findsNothing);
+        await tapText(t, w('staff.send'));
+        expect(lastAct().containsKey('paid'), isFalse);
+        await finish(t);
+      });
+
+      // QUESTIONS #27: an Arabic row read "00:30 – 23:30" for an excuse from
+      // 23:30 to 00:30; the window is now isolated left-to-right.
+      testWidgets('a request’s time window reads in time order', (t) async {
+        await pumpApp(t, lang: lang, who: 'e1', tab: _requests);
+        final r = Req('q|x', ReqKind.excuse, 'e1', DateTime(2026, 9, 24))
+          ..from = DateTime(2026, 9, 24)
+          ..time = 23 * 60 + 30
+          ..time2 = 30;
+        final when = reqWhen(r);
+        // Isolated left-to-right, start before end, in either language's clock.
+        expect(
+          when,
+          contains('\u2066${hmMin(23 * 60 + 30)} – ${hmMin(30)}\u2069'),
+        );
         await finish(t);
       });
 

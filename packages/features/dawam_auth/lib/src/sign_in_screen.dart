@@ -257,7 +257,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       ],
     ),
     MadarButton(
-      label: tr('staff.i_agree'),
+      // After a failed attempt (shown in the banner above) it says so.
+      label: _error == null ? tr('staff.i_agree') : tr('staff.try_again'),
       onTap: () => _step$(_store.acceptPrivacy),
     ),
     MadarButton(

@@ -320,6 +320,7 @@ class Adj {
   final String by;
   final bool bonus;
   final bool recurring;
+
   /// A waived rule deduction: struck through, charged nothing (AD-6, AD-8).
   final bool waived;
   final int amount;
@@ -639,6 +640,10 @@ class DawamStore extends ChangeNotifier {
   bool canManage = false;
   bool canPayroll = false;
 
+  /// My own requests are approved as I file them (RQ-5): a leave then needs
+  /// its paid/unpaid choice at filing (RQ-2), as the server says.
+  bool selfApproves = false;
+
   /// The manager tabs, from the capabilities the server says I hold (PM-4).
   bool canTeam = false;
   bool canApprove = false;
@@ -745,6 +750,7 @@ class DawamStore extends ChangeNotifier {
     orgName = v['org_name'] as String;
     canManage = v['can_manage'] == true;
     canPayroll = v['can_payroll'] == true;
+    selfApproves = v['self_approves'] == true;
     final tabs = (v['tabs'] as J?) ?? const {};
     canTeam = tabs['team'] == true;
     canApprove = tabs['approvals'] == true;
@@ -1136,6 +1142,7 @@ class DawamStore extends ChangeNotifier {
   ];
   int suggestedAway(Flag f) => f.suggested;
   int outstandingAdvances(String emp) => _outstanding[emp] ?? 0;
+
   /// The server's cap on what [emp] may owe (AV-5), or null when the server
   /// sent none (their pay is hidden from me). It is never worked out here.
   int? advanceCap(String emp) => _cap[emp];
@@ -1202,8 +1209,24 @@ class DawamStore extends ChangeNotifier {
   /// this phone, then the app opens. Needs a connection; a refusal is thrown
   /// to the screen.
   Future<void> acceptPrivacy() async {
-    final json = await backend.act({'action': 'accept_privacy'});
+    // Any failure — the acceptance refused, the connection lost, or the app's
+    // picture failing to load after the server recorded it (E2E S11: the
+    // owner's context 500) — comes back to the notice in words, so the screen
+    // shows it with Try again instead of staying silent.
+    DawamError failed() => DawamError(
+      trIn('en', 'staff.privacy_open_failed'),
+      trIn('ar', 'staff.privacy_open_failed'),
+    );
+    final String json;
+    try {
+      json = await backend.act({'action': 'accept_privacy'});
+    } on DawamError {
+      rethrow;
+    } on Object {
+      throw failed();
+    }
     _applySafely(json);
+    if (!privacyAccepted) throw failed();
   }
 
   /// Take a fresh reading for the fence line (Home opening, a resume). The
@@ -1408,6 +1431,7 @@ class DawamStore extends ChangeNotifier {
     DateTime? to,
     bool half = false,
     String? leaveHalf,
+    bool? paid,
     int? time,
     int? time2,
     String note = '',
@@ -1425,6 +1449,7 @@ class DawamStore extends ChangeNotifier {
       if (to != null) 'to': _d(to),
       'half': half,
       if (half) 'leave_half': ?leaveHalf,
+      'paid': ?paid,
       'time': ?time,
       'time2': ?time2,
       'note': note,
@@ -1462,18 +1487,14 @@ class DawamStore extends ChangeNotifier {
   });
 
   /// [how]: `excuse_paid` · `excuse_unpaid` · `deduct` · `revoke` · `ignore`.
-  Future<void> resolve(
-    Flag f,
-    String how, {
-    int deduct = 0,
-    String? reason,
-  }) => _act({
-    'action': 'resolve',
-    'flag': f.id,
-    'how': f.kind == FlagKind.cover && how == 'ignore' ? 'confirm' : how,
-    'deduct': deduct,
-    if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
-  });
+  Future<void> resolve(Flag f, String how, {int deduct = 0, String? reason}) =>
+      _act({
+        'action': 'resolve',
+        'flag': f.id,
+        'how': f.kind == FlagKind.cover && how == 'ignore' ? 'confirm' : how,
+        'deduct': deduct,
+        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      });
   Future<void> addAdjustment(
     String emp, {
     required bool bonus,
@@ -1497,6 +1518,7 @@ class DawamStore extends ChangeNotifier {
   Future<void> stopAdj(Adj a) => _act({'action': 'stop_adj', 'adj': a.id});
   Future<void> waive(String key, String reason) =>
       _act({'action': 'waive', 'key': key, 'reason': reason});
+
   /// Undo a waiver with a reason (AT-7): the rule's figure comes back.
   Future<void> unwaive(String key, String reason) =>
       _act({'action': 'unwaive', 'key': key, 'reason': reason});
@@ -1597,6 +1619,7 @@ class DawamStore extends ChangeNotifier {
   });
   Future<void> readAll() => _act({'action': 'read_all'});
   Future<void> approvePayroll() => _act({'action': 'approve_payroll'});
+
   /// Back to a live preview; the reason goes to the audit log (AD-9).
   Future<void> reopenPayroll(String reason) =>
       _act({'action': 'reopen_payroll', 'reason': reason});

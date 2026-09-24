@@ -119,11 +119,29 @@ class FakeCore implements DawamBackend {
   /// the picture the action returns.
   Map<String, dynamic>? filed;
 
+  /// The next "I agree" fails in transit (not a server refusal) — once.
+  Object? acceptError;
+
+  /// The next "I agree" is recorded, but the app's picture still says not
+  /// accepted (E2E S11: the owner's context failed after the server stored it).
+  bool acceptLeavesNotice = false;
+
   @override
   Future<String> act(Map<String, dynamic> action) async {
     acts.add(action);
     if (refuse != null) throw refuse!;
-    if (action['action'] == 'accept_privacy') accepted = true;
+    if (action['action'] == 'accept_privacy') {
+      final e = acceptError;
+      if (e != null) {
+        acceptError = null;
+        throw e;
+      }
+      if (acceptLeavesNotice) {
+        acceptLeavesNotice = false;
+        return picture();
+      }
+      accepted = true;
+    }
     final f = filed;
     if (f == null) return picture();
     final v = jsonDecode(picture()) as Map<String, dynamic>;

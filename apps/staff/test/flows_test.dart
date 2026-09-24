@@ -274,6 +274,38 @@ void main() {
       await finish(t);
     });
 
+    // E2E S11 (QUESTIONS #26): after "I agree", a failure to open the app
+    // said nothing and left the notice up. It now says so, offers Try again,
+    // and Try again opens the app.
+    for (final how in ['lost in transit', 'accepted but the app failed']) {
+      testWidgets('a failed "I agree" says so and Try again opens · $how · '
+          '$lang (S11)', (t) async {
+        await pumpApp(
+          t,
+          lang: lang,
+          who: 'e1',
+          core: (f) {
+            f
+              ..restored = 'e1'
+              ..accepted = false;
+            if (how == 'lost in transit') {
+              f.acceptError = Exception('socket closed');
+            } else {
+              f.acceptLeavesNotice = true;
+            }
+          },
+        );
+        await frames(t);
+        await tapText(t, tr('staff.i_agree'));
+        expect(find.text(tr('staff.privacy_open_failed')), findsOneWidget);
+        expect(find.text(tr('staff.try_again')), findsOneWidget);
+        expect(find.text(tr('staff.clock_in')), findsNothing);
+        await tapText(t, tr('staff.try_again'));
+        expect(find.text(tr('staff.clock_in')), findsOneWidget);
+        await finish(t);
+      });
+    }
+
     testWidgets('Home says where you are from a fresh reading · $lang '
         '(06 B4)', (t) async {
       await pumpApp(t, lang: lang, who: 'e1');
