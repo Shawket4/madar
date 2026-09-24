@@ -16,6 +16,8 @@ import 'package:rust_bridge_staff/rust_bridge_staff.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:staff_core/staff_core.dart';
 
+import 'always_location.dart';
+
 /// Backend base URL. Override with
 /// `--dart-define=MADAR_API=http://192.168.1.10:8082`.
 const _apiBase = String.fromEnvironment(
@@ -35,7 +37,7 @@ Future<List<Override>> boot() async {
   words = (key) => core.bridge.tr(key: key);
   wordsIn = (lang, key) => core.bridge.trIn(locale: lang, key: key);
   final lang = core.bridge.locale().startsWith('ar') ? 'ar' : 'en';
-  final backend = _BridgeBackend(core.bridge);
+  final backend = _BridgeBackend(core.bridge, prefs);
   final store = DawamStore(backend);
   await store.restore();
   // An older build kept the device token in the core's store: it moves to
@@ -246,9 +248,10 @@ class _Push {
 /// The staff bridge behind the store: madar-core does every figure and
 /// every action; this only carries calls across and reads the phone's GPS.
 class _BridgeBackend implements DawamBackend {
-  _BridgeBackend(this.bridge);
+  _BridgeBackend(this.bridge, this.prefs);
 
   final MadarBridge bridge;
+  final SharedPreferences prefs;
 
   /// Runs before the core signs out (the push token is forgotten).
   Future<void> Function()? beforeSignOut;
@@ -362,13 +365,27 @@ class _BridgeBackend implements DawamBackend {
     battery: battery,
   );
 
+  static const _askedAlways = 'dawam.asked_always';
+
   @override
   Future<bool> alwaysLocation() async {
     try {
+      if (Platform.isIOS) {
+        // geolocator never asks iOS for "Always" once "While Using" is set:
+        // the upgrade is the host's ask, once per install (AlwaysLocation).
+        return await AlwaysLocation(
+          check: Geolocator.checkPermission,
+          request: Geolocator.requestPermission,
+          askAlways: () => _tracking
+              .invokeMethod<bool>('requestAlways')
+              .timeout(const Duration(seconds: 30), onTimeout: () => null),
+          asked: () => prefs.getBool(_askedAlways) ?? false,
+          markAsked: () => prefs.setBool(_askedAlways, true),
+        )();
+      }
       var p = await Geolocator.checkPermission();
       if (p == LocationPermission.denied ||
           p == LocationPermission.whileInUse) {
-        // On iOS a second request upgrades "while in use" to "Always".
         p = await Geolocator.requestPermission();
       }
       return p == LocationPermission.always;
