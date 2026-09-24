@@ -47,4 +47,38 @@ void main() {
       expect(style?.fontFamily, isNot('monospace'));
     }
   });
+
+  testWidgets('a toast at the app root stays above the keyboard', (
+    tester,
+  ) async {
+    // E2E requests (iPad and iPhone): a refusal while typing a note was
+    // shown under the keyboard — the person tapped Send and saw nothing.
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: MadarTheme.light(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(viewInsets: const EdgeInsets.only(bottom: 400)),
+          child: Stack(
+            children: [
+              child!,
+              const ToastHost(ToastData(id: 1, text: 'Refused')),
+            ],
+          ),
+        ),
+        home: const Scaffold(body: SizedBox.expand()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final pill = tester.getRect(find.text('Refused'));
+    expect(
+      pill.bottom,
+      lessThanOrEqualTo(1200 - 400),
+      reason: 'the toast is drawn above the keyboard, not under it',
+    );
+  });
 }

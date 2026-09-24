@@ -199,7 +199,12 @@ class _ToastHostState extends State<ToastHost>
           child: SlideTransition(
             position: _slide,
             child: Padding(
-              padding: const EdgeInsets.only(bottom: _bottomOffset),
+              // Above the keyboard when one is up: a refusal while typing
+              // must not land under it (E2E requests). Inside a Scaffold that
+              // already resized for the keyboard the inset is 0.
+              padding: EdgeInsets.only(
+                bottom: _bottomOffset + MediaQuery.viewInsetsOf(context).bottom,
+              ),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: _maxWidth),
                 // The host sits at the app root, outside every Material,
