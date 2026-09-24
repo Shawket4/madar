@@ -1890,7 +1890,8 @@ impl MadarCore {
         seq_out: &mut Option<i64>,
     ) -> SendOutcome {
         // Dawam punches and pings go to their own `/staff/*` endpoint. A 409
-        // is the server already holding it (a resend after a lost answer).
+        // is the server already holding it only for a resend after a lost
+        // answer, or a check-out / ping with nothing open (`conflict_means_held`).
         if item.op_type.starts_with(dawam::OP_PREFIX) {
             // A punch is a claim about one person: it only ever goes under
             // their own token, so it waits for them to sign in again.
@@ -1907,6 +1908,12 @@ impl MadarCore {
                 // the punch is kept for when it is, never dropped.
                 Err(CoreError::Forbidden { resource, action }) if resource == dawam::PRIVACY_NOT_ACCEPTED => {
                     SendOutcome::Held(action)
+                }
+                // A first try refused with 409 (rules not saved, a closed
+                // month, a shift that can't be covered) is a refusal, shown
+                // once in the server's words — never a silent "done".
+                Err(CoreError::Server { status: 409, detail, .. }) if !dawam::conflict_means_held(item) => {
+                    SendOutcome::Dead(detail)
                 }
                 Err(e) => classify_send(e, Idem::Yes),
             };

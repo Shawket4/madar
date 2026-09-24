@@ -866,6 +866,16 @@ fn shift_id(user: &str, d: NaiveDate, tpl: &str) -> String {
 fn tail(id: &str) -> &str {
     id.rsplit('|').next().unwrap_or(id)
 }
+/// A 409 on a queued op means "the server already holds this" only when
+/// an earlier try may have landed (a resend after a lost answer: a
+/// counted retry) or when what it asked for is already so — a check-out
+/// or a ping with nothing open. A first try refused with 409 (rules not
+/// saved, a closed month, a shift that can't be covered, clock out
+/// first) is a refusal (E2E clocking C2).
+pub(crate) fn conflict_means_held(item: &store::OutboxItem) -> bool {
+    item.attempts > 0 || matches!(item.op_type.as_str(), "dawam_check_out" | "dawam_ping")
+}
+
 fn needs_connection(locale: &str) -> CoreError {
     CoreError::Offline { detail: i18n::tr(locale, "staff.needs_connection") }
 }
@@ -3171,6 +3181,97 @@ mod tests {
         assert_eq!(body["offline"]["rebooted"], false);
         assert!(body["offline"]["server_time"].is_string() && body["offline"]["elapsed_ms"].as_i64().unwrap() >= 0);
         assert!(seen[1].json()["offline"].is_object());
+    }
+
+    /// E2E (clocking C2): the server refuses a punch with 409 for real
+    /// reasons — the owner hasn't saved the rules, the month is closed, the
+    /// shift can't be covered now. A first send refused that way is a
+    /// refusal: the screen gets the server's words and the queue drops it.
+    /// It was acked as "the server already holds it", so the phone showed
+    /// "Clocked in at 3:10 PM" and nothing was recorded. A 409 still means
+    /// "already held" for a resend (an earlier try may have landed) and for a
+    /// check-out or a ping (nothing is open: what it asked for is so).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_punch_refused_with_409_is_a_refusal_not_a_silent_done() {
+        use crate::testkit::{online_core, Stub, StubResponse, BRANCH, TELLER};
+        use std::sync::{Arc, Mutex};
+
+        let check_in = Arc::new(Mutex::new((409_u16, json!({
+            "error": "Your business hasn't set its attendance rules yet — ask the owner to finish set-up.",
+            "code": "RULES_NOT_SET",
+        }))));
+        let answer = check_in.clone();
+        let cairo = Utc::now().with_timezone(&chrono_tz::Africa::Cairo);
+        let today = cairo.date_naive().to_string();
+        let hms = |t: NaiveTime| format!("{}:00", hhmm((t.hour() * 60 + t.minute()) as i64));
+        let (start, end) = (hms(cairo.time() - Duration::hours(1)), hms(cairo.time() + Duration::hours(3)));
+        let stub = Stub::start(move |r| {
+            let path = r.path.split('?').next().unwrap_or_default();
+            Some(match path {
+                "/staff/me/context" => StubResponse::json(200, json!({
+                    "role": "employee", "org_name": "Nile Café", "caps": [],
+                    "branches": [{ "id": BRANCH, "name": "Zamalek", "geo_radius_meters": 200,
+                                   "latitude": 30.0609, "longitude": 31.2197, "timezone": "Africa/Cairo" }],
+                    "work_shifts": [{ "id": "w1", "name": "Morning", "branch_id": BRANCH,
+                                      "start_time": start, "end_time": end, "grace_minutes": 10 }],
+                    "people": [{ "employee_id": TELLER, "name": "Sara", "role": "employee", "branch_ids": [BRANCH],
+                                 "base_salary_piastres": 900000, "pay_method": "cash", "cant_work_days": [] }],
+                    "settings": { "period_start_day": 26, "advance_cap_percent": "50", "rules_saved": false },
+                })),
+                "/staff/me/roster" => StubResponse::json(200, json!({
+                    "shifts": [{ "employee_id": TELLER, "date": today, "work_shift_id": "w1" }],
+                    "team": [], "open_shifts": [], "swaps": [], "unpublished_weeks": [],
+                })),
+                "/staff/me/check-in" => {
+                    let (status, body) = answer.lock().unwrap().clone();
+                    StubResponse::json(status, body)
+                }
+                "/staff/me/check-out" => StubResponse::json(409, json!({ "error": "You are not clocked in." })),
+                "/health" => StubResponse::text(200, "ok"),
+                p if p.ends_with("estimate") || p.ends_with("context") => StubResponse::json(200, json!({})),
+                _ => StubResponse::json(200, json!([])),
+            })
+        })
+        .await;
+        let core = online_core(&stub.base, "").await;
+        core.set_online(true);
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let shift = snap["my_now"][0].as_str().expect("today's shift is mine").to_string();
+        let fix = DawamFix { latitude: 30.0609, longitude: 31.2197, accuracy: Some(8.0), ..Default::default() };
+        let clock_in = json!({ "action": "clock_in", "shift": shift, "fix": fix }).to_string();
+
+        // Rules not saved: refused in the server's words, nothing shown as in.
+        let err = core.dawam_do(clock_in.clone()).await.expect_err("a refused clock-in is not a success");
+        assert!(format!("{err:?}").contains("hasn't set its attendance rules"), "{err:?}");
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(false).await.unwrap()).unwrap();
+        assert_eq!(snap["active_shift"], Value::Null, "nothing is clocked in");
+        assert_eq!(snap["queued"], 0, "the refused punch left the queue");
+        let acked: i64 = core.store
+            .with_conn(|c| Ok(c.query_row("SELECT COUNT(*) FROM outbox WHERE status = 'acked' AND op_type LIKE 'dawam_%'", [], |r| r.get(0))?))
+            .unwrap();
+        assert_eq!(acked, 0, "a refusal is never acked");
+
+        // A stale screen on a shift already punched (S-075): its words.
+        *check_in.lock().unwrap() = (409, json!({
+            "error": "You have already checked in for this shift", "code": "ALREADY_CHECKED_IN", "vars": {},
+        }));
+        let err = core.dawam_do(clock_in.clone()).await.expect_err("already in: said so");
+        assert!(format!("{err:?}").contains(&i18n::tr("en", "staff.err_already_checked_in")), "{err:?}");
+
+        // A resend after a lost answer (the first try hit a 5xx): 409 = held.
+        *check_in.lock().unwrap() = (503, json!({ "error": "busy" }));
+        core.dawam_do(clock_in.clone()).await.expect("a 5xx keeps it queued");
+        *check_in.lock().unwrap() = (409, json!({
+            "error": "You have already checked in for this shift", "code": "ALREADY_CHECKED_IN", "vars": {},
+        }));
+        core.store.with_conn(|c| Ok(c.execute("UPDATE outbox SET next_attempt_at = 0", [])?)).unwrap();
+        let snap: Value = serde_json::from_str(&core.dawam_sync().await.unwrap()).unwrap();
+        assert_eq!(snap["queued"], 0, "the resend is held by the server");
+        assert_eq!(dead_dawam_ops(&core), 0, "a resend's 409 is not a refusal");
+
+        // A check-out with nothing open: what it asked for is already so.
+        core.dawam_do(json!({ "action": "clock_out", "fix": fix }).to_string()).await.expect("nothing open is not an error");
+        assert_eq!(dead_dawam_ops(&core), 0);
     }
 
     /// A punch queued while the staff token lapsed is sent after a refresh,
