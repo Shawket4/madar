@@ -248,11 +248,11 @@ impl LoyaltyScanInput {
     }
 }
 
-/// A member token is `M` + 22 base64url characters — the shape
-/// `loyalty::mint_member_token` produces on the server (one v4 UUID's 16 bytes,
-/// base64url, unpadded). Pinned here so a half-typed buffer is never mistaken
-/// for a whole card.
-const TOKEN_LEN: usize = 23;
+/// A member token is `M` + 22 base64url characters — the shape the server
+/// mints (madar-shared's `madar_ids::member`). A half-typed buffer is never
+/// mistaken for a whole card.
+#[cfg(test)]
+const TOKEN_LEN: usize = madar_ids::member::TOKEN_LEN;
 
 /// Classify a captured string. Never panics and never allocates on the hot
 /// path's common answer (a partial buffer).
@@ -263,12 +263,7 @@ pub fn classify_scan_input(raw: &str) -> LoyaltyScanInput {
     }
 
     // A card: exact length, the `M` sentinel, and a base64url tail.
-    if s.len() == TOKEN_LEN
-        && s.starts_with('M')
-        && s[1..]
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-    {
+    if madar_ids::member::is_member_token(s) {
         return LoyaltyScanInput::token(s.to_string());
     }
 

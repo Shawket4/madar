@@ -131,32 +131,30 @@ pub(crate) fn capability_for_op(op_type: &str, payload: &str) -> Option<&'static
 ///
 /// Both payloads are `{"request": …}` with the request's FLAT `discount_*`
 /// fields (`CheckoutCommand` → `CreateOrderRequest`, `SettleTicketCommand` →
-/// `SettleOpenTicketRequest`). The rule is the server's
-/// `discount_authz::ask_from`: a sale carries a discount when it names a
-/// preset, takes an amount off, or has a percentage/fixed type with a value
-/// above zero; an explicit kind wins, else a preset id means preset, else a
+/// `SettleOpenTicketRequest`). The rule is madar-shared's
+/// `madar_money::discount::ask_from`, the one the server judges with: a sale
+/// carries a discount when it names a preset, takes an amount off, or has a
+/// percentage/fixed type with a value above zero; an explicit kind wins, else a preset id means preset, else a
 /// percentage means manual percent, else manual amount.
 fn discount_cap(payload: &str) -> Option<&'static str> {
     let v: Value = serde_json::from_str(payload).ok()?;
     let r = v.get("request").filter(|r| r.is_object()).unwrap_or(&v);
     let text = |k: &str| r.get(k).and_then(Value::as_str).filter(|s| !s.is_empty());
-    let dtype = text("discount_type");
-    let value = r.get("discount_value").and_then(Value::as_f64).unwrap_or(0.0);
-    let amount = r.get("discount_amount").and_then(Value::as_i64).filter(|a| *a > 0);
-    let has_preset = text("discount_id").is_some();
-    let is_percent = dtype == Some("percentage");
-    let is_fixed = dtype == Some("fixed");
-    if !(has_preset || amount.is_some() || ((is_percent || is_fixed) && value > 0.0)) {
-        return None;
-    }
-    Some(match text("discount_kind") {
-        Some("preset") => "orders.discount.preset",
-        Some("manual_percent") => "orders.discount.manual_percent",
-        Some("manual_amount") => "orders.discount.manual_amount",
-        _ if has_preset => "orders.discount.preset",
-        _ if is_percent => "orders.discount.manual_percent",
-        _ => "orders.discount.manual_amount",
-    })
+    let fields = madar_money::discount::DiscountFields {
+        has_preset: text("discount_id").is_some(),
+        discount_type: text("discount_type"),
+        discount_value: r
+            .get("discount_value")
+            .and_then(Value::as_f64)
+            .map(madar_money::discount::decimal_of),
+        discount_amount: r
+            .get("discount_amount")
+            .and_then(Value::as_i64)
+            .map(|a| a.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32),
+        discount_kind: text("discount_kind"),
+        discount_percent_bps: None,
+    };
+    madar_money::discount::ask_from(&fields, None).map(|a| a.cap.key())
 }
 
 /// The money an op moved, for the approval's `max_amount` check.

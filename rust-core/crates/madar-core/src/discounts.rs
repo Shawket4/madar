@@ -8,6 +8,7 @@
 //! and carried on the order's replay envelope, where the server re-checks it.
 
 use madar_authz::{Cap, Decision, Request};
+use madar_money::discount::decimal_of;
 
 use crate::approvals::{decision_view, ActDecisionView, ApprovalView};
 use crate::cart::{self, ManualDiscount};
@@ -15,9 +16,11 @@ use crate::error::CoreError;
 use madar_api::models;
 use crate::MadarCore;
 
-pub const KIND_PRESET: &str = "preset";
-pub const KIND_MANUAL_AMOUNT: &str = "manual_amount";
-pub const KIND_MANUAL_PERCENT: &str = "manual_percent";
+// The discount act, its capability and its figures are madar-shared's
+// (`madar_money::discount`), the rule the server judges a sale with — its
+// rounding included (a `Decimal` rounded to even), so this till asks for a
+// manager exactly when the server would.
+pub use madar_money::discount::{KIND_MANUAL_AMOUNT, KIND_MANUAL_PERCENT, KIND_PRESET};
 
 /// The cart's discount as the tender screen shows it.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
@@ -36,39 +39,19 @@ pub struct CartDiscountView {
     pub approved_by_name: Option<String>,
 }
 
-/// The capability for a discount act.
-pub(crate) fn cap_for(kind: &str) -> Option<Cap> {
-    match kind {
-        KIND_PRESET => Some(Cap::OrdersDiscountPreset),
-        KIND_MANUAL_AMOUNT => Some(Cap::OrdersDiscountManualAmount),
-        KIND_MANUAL_PERCENT => Some(Cap::OrdersDiscountManualPercent),
-        _ => None,
-    }
-}
-
-/// A rate (fraction) → basis points.
+/// A rate (fraction) → basis points (madar-shared's `bps_of_rate`).
 pub(crate) fn bps_of_rate(rate: f64) -> i64 {
-    (rate * 10_000.0).round().clamp(0.0, 10_000.0) as i64
+    madar_money::discount::bps_of_rate(rate)
 }
 
 /// The request `decide` answers for a discount of `kind` with these figures.
 /// `amount_minor` is what comes off; `percent_bps` the percentage, if any.
 pub(crate) fn discount_request(kind: &str, amount_minor: Option<i64>, percent_bps: Option<i64>) -> Option<Request> {
-    let cap = cap_for(kind)?;
-    let mut r = Request::of(cap);
-    match kind {
-        KIND_MANUAL_AMOUNT => r.amount = Some(amount_minor.unwrap_or(0)),
-        KIND_MANUAL_PERCENT => r.percent = Some(percent_bps.unwrap_or(0)),
-        _ => {
-            r.amount = amount_minor;
-            r.percent = percent_bps;
-        }
-    }
-    Some(r)
+    madar_money::discount::request_for(kind, amount_minor, percent_bps)
 }
 
 /// The figures a discount would have on a cart whose pre-discount subtotal is
-/// `subtotal`: `(amount off, percent bps)`.
+/// `subtotal`: `(amount off, percent bps)` (madar-shared's `figures`).
 pub(crate) fn figures(
     kind: &str,
     preset: Option<&models::Discount>,
@@ -76,25 +59,8 @@ pub(crate) fn figures(
     percent_bps: Option<i64>,
     subtotal: i64,
 ) -> (Option<i64>, Option<i64>) {
-    let pct_off = |bps: i64| ((subtotal as f64) * (bps as f64) / 10_000.0).round() as i64;
-    match kind {
-        KIND_MANUAL_AMOUNT => (Some(amount_minor.unwrap_or(0).clamp(0, subtotal.max(0))), None),
-        KIND_MANUAL_PERCENT => {
-            let bps = percent_bps.unwrap_or(0).clamp(0, 10_000);
-            (Some(pct_off(bps)), Some(bps))
-        }
-        _ => match preset {
-            Some(d) if d.dtype == "percentage" => {
-                let bps = bps_of_rate(cart::discount_rate(d));
-                (Some(pct_off(bps)), Some(bps))
-            }
-            Some(d) => (
-                Some((cart::discount_rate(d).round() as i64).clamp(0, subtotal.max(0))),
-                None,
-            ),
-            None => (None, None),
-        },
-    }
+    let preset = preset.map(|d| (d.dtype.as_str(), decimal_of(cart::discount_rate(d))));
+    madar_money::discount::figures(kind, preset, amount_minor, percent_bps, subtotal)
 }
 
 impl MadarCore {
@@ -325,7 +291,13 @@ pub(crate) fn bill_figures(
         KIND_MANUAL_PERCENT => {
             figures(KIND_MANUAL_PERCENT, None, None, Some(bps_of_rate(dvalue.unwrap_or(0.0))), ceiling)
         }
-        _ => figures(KIND_MANUAL_AMOUNT, None, Some(dvalue.unwrap_or(0.0).round() as i64), None, ceiling),
+        _ => figures(
+            KIND_MANUAL_AMOUNT,
+            None,
+            Some(madar_money::discount::fixed_minor(decimal_of(dvalue.unwrap_or(0.0)))),
+            None,
+            ceiling,
+        ),
     }
 }
 

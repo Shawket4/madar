@@ -135,11 +135,11 @@ its outbox op commit in ONE transaction; acks fold the server's answer in.
 - **A new POS-visible backend table needs a changefeed trigger** (MadarRust:
   `sync_emit` trigger + a `sync_source_tables()` entry + the migration header;
   the migration tests enforce it). Without one the POS silently never sees it.
-- **Report formula changes regenerate the shared vectors.** A change to the
-  till report / drawer figures (`compute_system_cash`, `report_figures`, close
-  methods) regenerates `MadarRust/tests/fixtures/till_report_vectors.json`
-  (`MADAR_WRITE_TILL_VECTORS=1`) and copies it to
-  `rust-core/crates/madar-core/tests/fixtures/`; `ledger::report` must pass it.
+- **Report formula changes regenerate the shared vectors.** The till report /
+  drawer fold is madar-shared's (`madar_till::report`); a change to the figures
+  regenerates `madar-shared/crates/madar-till/vectors/till_report_vectors.json`
+  from MadarRust (`MADAR_WRITE_TILL_VECTORS=1`), ships with a madar-shared tag,
+  and `ledger::report` must pass it (`madar_till::vectors::TILL_REPORT`).
 - **The local rows are the only read path.** No screen read waits on the network:
   it returns what the device holds at once. A till not held completely is filled
   in the background (`ledger_ops::fill_till_soon`, short timeout) and a table

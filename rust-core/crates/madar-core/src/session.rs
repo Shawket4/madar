@@ -12,7 +12,6 @@
 //! This module holds the FFI types + pure logic; the exported `MadarCore`
 //! methods that orchestrate the network live in `lib.rs`.
 
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use madar_api::models;
 use serde::{Deserialize, Serialize};
 
@@ -601,17 +600,9 @@ fn session_from_bundle_teller(
     })
 }
 
-/// argon2id PHC verification — byte-compatible with `MadarRust`
-/// `auth::offline::hash_offline_pin` (params ride in the PHC string).
-pub(crate) fn verify_offline_pin(pin: &str, phc: &str) -> bool {
-    PasswordHash::new(phc)
-        .map(|h| {
-            Argon2::default()
-                .verify_password(pin.as_bytes(), &h)
-                .is_ok()
-        })
-        .unwrap_or(false)
-}
+/// argon2id PHC verification — madar-shared's `madar_authz::pin`, the verify
+/// the server's `auth::offline` runs too (params ride in the PHC string).
+pub(crate) use madar_authz::pin::verify_offline_pin;
 
 fn nonblank(field: &Option<String>, name: &'static str) -> CoreResult<String> {
     match field.as_deref().map(str::trim) {
@@ -832,7 +823,7 @@ mod tests {
     /// brittle fixed vector. A deterministic salt avoids needing an RNG feature.
     fn backend_hash(pin: &str) -> String {
         use argon2::password_hash::SaltString;
-        use argon2::PasswordHasher;
+        use argon2::{Argon2, PasswordHasher};
         let salt = SaltString::encode_b64(b"madar-test-salt").unwrap();
         Argon2::default()
             .hash_password(pin.as_bytes(), &salt)
@@ -1519,6 +1510,15 @@ mod tests {
         assert!(verify_offline_pin("4242", &phc));
         assert!(!verify_offline_pin("0000", &phc));
         assert!(!verify_offline_pin("", &phc));
+    }
+
+    /// The one PHC string both sides verify (madar-shared's `TEST_PHC`,
+    /// derived by the server's `hash_offline_pin` under a fixed salt).
+    #[test]
+    fn verify_offline_pin_accepts_the_shared_phc_string() {
+        use madar_authz::pin::{TEST_PHC, TEST_PIN};
+        assert!(verify_offline_pin(TEST_PIN, TEST_PHC));
+        assert!(!verify_offline_pin("9999", TEST_PHC));
     }
 
     #[test]

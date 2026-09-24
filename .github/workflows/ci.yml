@@ -133,8 +133,9 @@ jobs:
       # Rust-side unit tests. They are host-independent in principle and this
       # is where a Windows-only path, separator or line-ending assumption
       # actually shows up. The shared rules (madar-authz, madar-money,
-      # madar-time, madar-sync) are git dependencies on madar-shared, pinned by
-      # tag; their own tests and vectors run in madar-shared's CI. `--locked`
+      # madar-till, madar-units, madar-ids, madar-time, madar-sync, madar-dawam)
+      # are git dependencies on madar-shared, pinned by tag; their own tests
+      # and vectors run in madar-shared's CI. `--locked`
       # fails if Cargo.lock lost its `git+…?tag=` sources (a lock built with a
       # local [patch] must never land).
       - name: Core tests

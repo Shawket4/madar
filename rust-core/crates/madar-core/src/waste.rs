@@ -103,68 +103,22 @@ pub struct WasteRecordedView {
 
 // ── pure pieces ─────────────────────────────────────────────────────────────
 
-/// (family, factor to the family's canonical unit). Mirrors MadarRust `units`.
-fn unit_spec(unit: &str) -> Option<(&'static str, f64)> {
-    match unit.trim().to_ascii_lowercase().as_str() {
-        "g" => Some(("mass", 1.0)),
-        "kg" => Some(("mass", 1000.0)),
-        "ml" => Some(("volume", 1.0)),
-        "l" => Some(("volume", 1000.0)),
-        "pcs" => Some(("count", 1.0)),
-        _ => None,
-    }
-}
+// The unit rules, the waste's value and which inputs may be recorded are
+// madar-shared's (`madar_units`, `madar_money::waste`): the server's rules,
+// so the value this till judges an approval on is the server's figure and an
+// input the server would refuse at replay is refused here first (T6).
 
 /// `qty` in `from` expressed in `to`, rounded to 3 decimals; `None` across families.
 pub(crate) fn convert(qty: f64, from: &str, to: &str) -> Option<f64> {
-    let (ff, fk) = unit_spec(from)?;
-    let (tf, tk) = unit_spec(to)?;
-    (ff == tf).then(|| ((qty * fk / tk) * 1000.0).round() / 1000.0)
+    madar_units::convert(qty, from, to).ok()
 }
 
 /// The units a quantity of an ingredient in `base` may be typed in.
 pub(crate) fn units_of(base: &str) -> Vec<String> {
-    match unit_spec(base).map(|(f, _)| f) {
-        Some("mass") => vec!["g".into(), "kg".into()],
-        Some("volume") => vec!["ml".into(), "l".into()],
-        Some(_) => vec!["pcs".into()],
-        None => vec![base.to_string()],
-    }
+    madar_units::units_of(base)
 }
 
-/// A waste whose worth is not a real, non-negative amount of money, so it must
-/// not be recorded at all. Stock is destroyed, never created: a negative
-/// quantity or unit cost is bad data, and letting it through would also make
-/// the total compare as under every `max_value` ceiling.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct BadValue;
-
-/// `Σ qty × cost`, rounded once; partial when a line has no cost.
-/// Same figure as MadarRust `inventory::waste::value_of` — keep the two in
-/// step, including the `BadValue` rules.
-pub(crate) fn value_of(lines: &[(f64, Option<f64>)]) -> Result<(Option<i64>, bool), BadValue> {
-    let mut known: Vec<f64> = Vec::with_capacity(lines.len());
-    for (q, c) in lines {
-        if !q.is_finite() || *q < 0.0 {
-            return Err(BadValue);
-        }
-        if let Some(c) = c {
-            if !c.is_finite() || *c < 0.0 {
-                return Err(BadValue);
-            }
-            known.push(q * c);
-        }
-    }
-    let partial = known.len() < lines.len();
-    if known.is_empty() {
-        return Ok((None, partial));
-    }
-    let total = known.iter().sum::<f64>().round();
-    if !total.is_finite() || total < 0.0 || total > i64::MAX as f64 {
-        return Err(BadValue);
-    }
-    Ok((Some(total as i64), partial))
-}
+pub(crate) use madar_money::waste::{value_of, BadValue};
 
 /// The recipe lines a waste of `item` at `size` takes, merged by ingredient
 /// (`(ingredient id, name, unit, qty per unit)`). No size: the first size
@@ -292,7 +246,8 @@ impl MadarCore {
     fn plan_waste(&self, input: &WasteInput) -> Result<Planned, CoreError> {
         let locale = self.current_locale();
         let tr = |k: &str| crate::i18n::tr(&locale, k);
-        if !(input.quantity.is_finite() && input.quantity > 0.0) {
+        // The server's limits (T6): a number above zero and at most 1 000 000.
+        if madar_money::waste::check_quantity(input.quantity).is_err() {
             return Err(invalid("quantity", tr("waste.qty_required")));
         }
         let branch = self.session_branch_id()?;
@@ -313,6 +268,11 @@ impl MadarCore {
                 let base = row.get("unit").and_then(|v| v.as_str()).unwrap_or("pcs").to_string();
                 let qty = convert(input.quantity, &input.unit, &base)
                     .ok_or_else(|| invalid("unit", tr("waste.unit_mismatch")))?;
+                // Nothing left once in the ingredient's unit is nothing to waste
+                // (0.0004 g of a `kg` ingredient): the server refuses it.
+                if madar_money::waste::check_converted(qty).is_err() {
+                    return Err(invalid("quantity", tr("waste.qty_required")));
+                }
                 let (value_minor, value_partial) = value_of(&[(qty, cost_of(&input.subject_id))])
                     .map_err(|BadValue| invalid("quantity", tr("waste.bad_value")))?;
                 Ok(Planned {
@@ -323,7 +283,7 @@ impl MadarCore {
                 })
             }
             "menu_item" => {
-                if input.quantity.fract() != 0.0 {
+                if madar_money::waste::check_menu_item(Some(&input.unit), input.quantity).is_err() {
                     return Err(invalid("quantity", tr("waste.whole_units")));
                 }
                 let catalog = self.catalog()?;

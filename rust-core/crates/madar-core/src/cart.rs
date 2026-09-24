@@ -428,12 +428,25 @@ fn save(store: &Store, ctx: Ctx<'_>, lines: &[StoredLine]) -> CoreResult<()> {
 
 // ── pricing helpers (the line-money rules, mirrored from cart.dart) ───────────
 
-fn addon_optional_extras(addons: &[StoredAddon], optionals: &[StoredOptional]) -> i64 {
+// The line-money rules are madar-shared's (`madar_money::line`), the server's
+// arithmetic: this module only states a stored line in that vocabulary.
+
+fn addons_of(addons: &[StoredAddon]) -> Vec<madar_money::line::Addon> {
     addons
         .iter()
-        .map(|a| a.price_modifier_minor * a.qty)
-        .sum::<i64>()
-        + optionals.iter().map(|o| o.price_minor).sum::<i64>()
+        .map(|a| madar_money::line::Addon {
+            price_modifier: a.price_modifier_minor,
+            quantity: a.qty,
+        })
+        .collect()
+}
+
+fn optionals_of(optionals: &[StoredOptional]) -> Vec<i64> {
+    optionals.iter().map(|o| o.price_minor).collect()
+}
+
+fn addon_optional_extras(addons: &[StoredAddon], optionals: &[StoredOptional]) -> i64 {
+    madar_money::line::extras_per_unit(&addons_of(addons), &optionals_of(optionals))
 }
 
 fn line_extras(l: &StoredLine) -> i64 {
@@ -443,12 +456,33 @@ fn line_extras(l: &StoredLine) -> i64 {
     addon_optional_extras(&l.addons, &l.optionals)
         + l.bundle_components
             .iter()
-            .map(|c| addon_optional_extras(&c.addons, &c.optionals) * c.qty)
+            .map(|c| {
+                madar_money::line::component_surcharge(
+                    addon_optional_extras(&c.addons, &c.optionals),
+                    c.qty,
+                    1,
+                )
+            })
             .sum::<i64>()
 }
 
 fn line_total(l: &StoredLine) -> i64 {
-    (l.unit_price_minor + line_extras(l)) * l.qty
+    madar_money::line::line_total(&madar_money::line::LineShape {
+        quantity: l.qty,
+        unit_price: l.unit_price_minor,
+        is_bundle: l.bundle_id.is_some(),
+        addons: addons_of(&l.addons),
+        optionals: optionals_of(&l.optionals),
+        bundle_components: l
+            .bundle_components
+            .iter()
+            .map(|c| madar_money::line::BundleComponent {
+                quantity: c.qty,
+                addons: addons_of(&c.addons),
+                optionals: optionals_of(&c.optionals),
+            })
+            .collect(),
+    })
 }
 
 /// What the staff pool takes off the WHOLE line: the per-unit comp times the

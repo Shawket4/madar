@@ -135,8 +135,9 @@ pub struct PricedBreakdown {
     pub change_given_minor: MoneyMinor,
 }
 
-/// Matches the cart's `clamp(0, 999999)` change ceiling.
-const CHANGE_CAP: MoneyMinor = 999_999;
+/// Matches the cart's `clamp(0, 999999)` change ceiling (madar-shared's).
+#[cfg(test)]
+const CHANGE_CAP: MoneyMinor = madar_money::bill::CHANGE_CAP;
 
 /// A rate (or a discount value) arrives as `f64` because that is what the FFI
 /// and the JSON carry. Converting through the decimal string keeps `0.145` as
@@ -147,27 +148,40 @@ fn decimal_rate(r: f64) -> rust_decimal::Decimal {
     rust_decimal::Decimal::from_str(&r.to_string()).unwrap_or_default()
 }
 
-fn line_total(line: &CartLine) -> MoneyMinor {
-    let extras: MoneyMinor = if line.is_bundle {
-        line.bundle_components
+fn addons_of(addons: &[AddonSel]) -> Vec<madar_money::line::Addon> {
+    addons
+        .iter()
+        .map(|a| madar_money::line::Addon {
+            price_modifier: a.price_modifier,
+            quantity: a.quantity,
+        })
+        .collect()
+}
+
+/// A cart line in madar-shared's vocabulary (`madar_money::line`).
+fn shape_of(line: &CartLine) -> madar_money::line::LineShape {
+    madar_money::line::LineShape {
+        quantity: line.quantity,
+        unit_price: line.unit_price,
+        is_bundle: line.is_bundle,
+        addons: addons_of(&line.addons),
+        optionals: line.optionals.iter().map(|o| o.price).collect(),
+        bundle_components: line
+            .bundle_components
             .iter()
-            .map(|c| {
-                (c.addons
-                    .iter()
-                    .map(|a| a.price_modifier * a.quantity)
-                    .sum::<MoneyMinor>()
-                    + c.optionals.iter().map(|o| o.price).sum::<MoneyMinor>())
-                    * c.quantity
+            .map(|c| madar_money::line::BundleComponent {
+                quantity: c.quantity,
+                addons: addons_of(&c.addons),
+                optionals: c.optionals.iter().map(|o| o.price).collect(),
             })
-            .sum()
-    } else {
-        line.addons
-            .iter()
-            .map(|a| a.price_modifier * a.quantity)
-            .sum::<MoneyMinor>()
-            + line.optionals.iter().map(|o| o.price).sum::<MoneyMinor>()
-    };
-    (line.unit_price + extras) * line.quantity
+            .collect(),
+    }
+}
+
+/// What a line comes to before any reward: madar-shared's `line_total`, the
+/// server's arithmetic (a bundle component's extras per component unit, M3).
+fn line_total(line: &CartLine) -> MoneyMinor {
+    madar_money::line::line_total(&shape_of(line))
 }
 
 /// Price a cart — pure; the money source of truth (see module docs).
@@ -176,23 +190,33 @@ fn line_total(line: &CartLine) -> MoneyMinor {
 /// they submit. Send the full breakdown on every order.
 #[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
-    // Rewards first: the covered units leave the subtotal before anything is
-    // computed on it, so the discount, service charge and tax never see them.
-    let reward_covered: MoneyMinor = input
+    // The bill is assembled by madar-shared's `bill::price_bill`, in the
+    // server's order: per line the staff comp, then the reward (covered units
+    // leave the subtotal before anything is computed on it, so the discount,
+    // service charge and tax never see them), then the discount on what is
+    // left, then the engine. What THIS till decides is only which lines may
+    // carry a reward or a comp: never a bundle, and never both on one line.
+    let bill_lines: Vec<madar_money::bill::BillLine> = input
         .lines
         .iter()
-        .filter(|l| !l.is_bundle)
-        .map(|l| crate::loyalty::covered_minor(line_total(l), l.quantity, l.reward_units))
-        .sum();
-    // A staff drink's comp leaves with them, for the same reason.
-    let staff_comp: MoneyMinor = input
-        .lines
-        .iter()
-        .filter(|l| !l.is_bundle && l.reward_units == 0)
-        .map(|l| l.staff_comp_minor.clamp(0, line_total(l).max(0)))
-        .sum();
-    let subtotal: MoneyMinor =
-        input.lines.iter().map(line_total).sum::<MoneyMinor>() - reward_covered - staff_comp;
+        .map(|l| {
+            let charged = line_total(l);
+            madar_money::bill::BillLine {
+                charged,
+                per_unit: if l.quantity > 0 {
+                    charged / l.quantity
+                } else {
+                    0
+                },
+                reward_units: if l.is_bundle { 0 } else { l.reward_units },
+                staff_comp: if l.is_bundle || l.reward_units != 0 {
+                    0
+                } else {
+                    l.staff_comp_minor.clamp(0, charged.max(0))
+                },
+            }
+        })
+        .collect();
 
     // Discount, clamped to [0, subtotal] whatever its kind (doc 05 F8: a >100%
     // percentage must not drive the total negative; fixed is capped likewise).
@@ -203,18 +227,13 @@ pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
     // server's decimal 14.5 rounds to 15. One piastre, and the server refuses
     // the order over it. The value crosses the FFI as `f64`; `decimal_rate`
     // goes through the decimal string so 0.145 arrives as 0.145.
-    let discount: MoneyMinor = crate::tax::discount_amount(
-        subtotal,
-        match input.discount_kind {
-            DiscountKind::None => crate::tax::Discount::None,
-            DiscountKind::Percentage => {
-                crate::tax::Discount::Percentage(decimal_rate(input.discount_value))
-            }
-            DiscountKind::Fixed => crate::tax::Discount::Fixed(decimal_rate(input.discount_value)),
-        },
-    );
-
-    let taxable = subtotal - discount;
+    let discount = match input.discount_kind {
+        DiscountKind::None => crate::tax::Discount::None,
+        DiscountKind::Percentage => {
+            crate::tax::Discount::Percentage(decimal_rate(input.discount_value))
+        }
+        DiscountKind::Fixed => crate::tax::Discount::Fixed(decimal_rate(input.discount_value)),
+    };
 
     // The bill's arithmetic is the shared engine's, not this module's.
     //
@@ -229,20 +248,23 @@ pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
         service_charge_rate: decimal_rate(input.service_charge_rate),
         service_charge_taxable: input.service_charge_taxable,
     };
-    let b = crate::tax::compute(subtotal, discount, &policy);
+    let bill = madar_money::bill::price_bill(
+        &bill_lines,
+        madar_money::bill::BillDiscount::Rule(discount),
+        &policy,
+    );
+    let b = bill.breakdown;
     let total = b.total;
 
-    let change_given = match input.amount_tendered {
-        None => 0,
-        Some(t) => (t - total - input.cash_tip).clamp(0, CHANGE_CAP),
-    };
+    // The change the teller hands back: madar-shared's `bill::change_due`.
+    let change_given = madar_money::bill::change_due(input.amount_tendered, total, input.cash_tip);
 
     PricedBreakdown {
-        subtotal_minor: subtotal,
-        reward_covered_minor: reward_covered,
-        staff_comp_minor: staff_comp,
-        discount_minor: discount,
-        taxable_minor: taxable,
+        subtotal_minor: b.subtotal,
+        reward_covered_minor: bill.reward_covered,
+        staff_comp_minor: bill.staff_comp,
+        discount_minor: b.discount,
+        taxable_minor: b.subtotal - b.discount,
         tax_minor: b.tax,
         service_charge_minor: b.service_charge,
         total_minor: total,

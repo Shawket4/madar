@@ -24,13 +24,24 @@ fn methods_of(rows: &[Value]) -> Vec<Method> {
 }
 
 /// Shared vectors: the backend's own figures for rows exactly as the feed
-/// delivers them (MadarRust `src/tills/report_vectors_tests.rs`).
+/// delivers them (MadarRust `tests/tills_report_vectors_tests.rs`), in
+/// madar-shared (`madar_till::vectors`), through this device's ledger.
 #[test]
 fn till_report_matches_the_backend_vectors() {
-    let raw = include_str!("../../tests/fixtures/till_report_vectors.json");
+    check_till_vectors(madar_till::vectors::TILL_REPORT, 8);
+}
+
+/// The edges the fold takes the server's reading of (a method named with a
+/// tab is a method; the fallback cash method's order).
+#[test]
+fn till_report_matches_the_backend_edge_vectors() {
+    check_till_vectors(madar_till::vectors::TILL_EDGE, 3);
+}
+
+fn check_till_vectors(raw: &str, at_least: usize) {
     let doc: Value = serde_json::from_str(raw).unwrap();
     let scenarios = doc["scenarios"].as_array().unwrap();
-    assert!(scenarios.len() >= 8);
+    assert!(scenarios.len() >= at_least);
     for sc in scenarios {
         let name = sc["name"].as_str().unwrap();
         let store = Store::open("").unwrap();
