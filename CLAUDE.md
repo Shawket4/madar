@@ -140,6 +140,13 @@ its outbox op commit in ONE transaction; acks fold the server's answer in.
   regenerates `madar-shared/crates/madar-till/vectors/till_report_vectors.json`
   from MadarRust (`MADAR_WRITE_TILL_VECTORS=1`), ships with a madar-shared tag,
   and `ledger::report` must pass it (`madar_till::vectors::TILL_REPORT`).
+- **A line's price is the server's rule, madar-shared's `madar-catalog`.** The
+  size price, a swap charged over the recipe's own choice, one pick per swap
+  family, the add-ons, the optional fields offered on the size: the core runs
+  the crate over a view built from the mirror (`catalog_pricing.rs`, from the
+  `pricing` field the server ships on every menu row and add-on row). Never add
+  a swap family, a base-price or a size rule to the core; a rule change is a
+  madar-shared tag, with vectors the backend regenerates.
 - **The local rows are the only read path.** No screen read waits on the network:
   it returns what the device holds at once. A till not held completely is filled
   in the background (`ledger_ops::fill_till_soon`, short timeout) and a table

@@ -31,6 +31,7 @@ pub mod tax;
 /// Cart — client-only in-progress order state, priced via `pricing`.
 pub mod bookings;
 pub mod cart;
+pub(crate) mod catalog_pricing;
 /// Category styling (icon + gradient palette) — port of Flutter's `CatStyle`.
 pub mod catstyle;
 /// Checkout — assemble an order from the cart + place it via the outbox.
@@ -227,6 +228,8 @@ struct CatalogSnapshot {
     categories: Vec<menu::CategoryView>,
     addons: Vec<menu::AddonItemView>,
     unified: Option<menu::UnifiedDoc>,
+    /// The menu rows' and add-on rows' `pricing` (madar-catalog's view).
+    pricing: catalog_pricing::PricingMirror,
 }
 
 /// kv key persisting the dashboard's active org/branch scope override.
@@ -4175,6 +4178,7 @@ impl MadarCore {
             categories: menu::categories(&self.store, &locale)?,
             addons: menu::addons(&self.store, &locale)?,
             unified: menu::unified_doc(&self.store),
+            pricing: catalog_pricing::PricingMirror::load(&self.store),
             locale,
             items,
             bundles,
@@ -4290,6 +4294,7 @@ impl MadarCore {
             Some(cart::resolve_line(
                 item,
                 &catalog.addons,
+                &catalog.pricing,
                 None,
                 &[],
                 &[],
@@ -4350,6 +4355,7 @@ impl MadarCore {
         let line = cart::resolve_line(
             item,
             &catalog.addons,
+            &catalog.pricing,
             size_label,
             &addons,
             &optional_field_ids,
@@ -4387,6 +4393,7 @@ impl MadarCore {
         let line = cart::resolve_line(
             item,
             &catalog.addons,
+            &catalog.pricing,
             size_label,
             &addons,
             &optional_field_ids,
@@ -4418,6 +4425,7 @@ impl MadarCore {
         let line = cart::resolve_line(
             item,
             &catalog.addons,
+            &catalog.pricing,
             size_label,
             &addons,
             &optional_field_ids,
@@ -4457,8 +4465,14 @@ impl MadarCore {
                 field: "bundle".into(),
                 detail: "unknown bundle".into(),
             })?;
-        let line =
-            cart::resolve_bundle_line(bundle, &catalog.items, &catalog.addons, &components, qty);
+        let line = cart::resolve_bundle_line(
+            bundle,
+            &catalog.items,
+            &catalog.addons,
+            &catalog.pricing,
+            &components,
+            qty,
+        );
         cart::add_resolved(&self.store, table_id.as_deref(), line)
     }
     /// Active addons offered for an item, with their CHARGED price resolved (swap
@@ -4473,7 +4487,7 @@ impl MadarCore {
                 field: "item".into(),
                 detail: "unknown item".into(),
             })?;
-        Ok(cart::item_addons(item, &catalog.addons))
+        Ok(cart::item_addons(item, &catalog.addons, &catalog.pricing))
     }
     /// The item's MODIFIER GROUPS — the grouped (unified-model) projection of
     /// `list_item_addons` + the item's priced optionals: slot-configured groups
@@ -4507,11 +4521,16 @@ impl MadarCore {
             return Ok(cart::item_modifier_groups_unified(
                 item,
                 &catalog.addons,
+                &catalog.pricing,
                 unified,
                 &catalog.locale,
             ));
         }
-        Ok(cart::item_modifier_groups(item, &catalog.addons))
+        Ok(cart::item_modifier_groups(
+            item,
+            &catalog.addons,
+            &catalog.pricing,
+        ))
     }
     /// Check a selection against the item's group constraints (min/max/required).
     /// Empty result = valid; each entry is one violated group for inline display.
@@ -4554,6 +4573,7 @@ impl MadarCore {
         Ok(recipe::compute_recipe(
             item,
             &catalog.addons,
+            &catalog.pricing,
             size_label.as_deref(),
             &addons,
             &optional_field_ids,

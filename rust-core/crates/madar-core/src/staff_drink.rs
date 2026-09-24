@@ -467,8 +467,17 @@ impl MadarCore {
                     .iter()
                     .find(|i| i.id == line.item_id())
                     .ok_or(StaffMarkDrop::NotEligible)?;
-                let unified = catalog.unified.as_ref().and_then(|doc| doc.groups_for(line.item_id()));
-                let input = line.comp_input(item, &catalog.addons, unified.as_deref(), true);
+                let unified = catalog
+                    .unified
+                    .as_ref()
+                    .and_then(|doc| doc.groups_for(line.item_id()));
+                let input = line.comp_input(
+                    item,
+                    &catalog.addons,
+                    &catalog.pricing,
+                    unified.as_deref(),
+                    true,
+                );
                 Ok(crate::staff_comp::comp(&input).free_per_unit as i64)
             })
         }

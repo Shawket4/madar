@@ -4,9 +4,11 @@
 //! the core so the customization sheet can show, live and offline, how the
 //! selected size / addons / optionals change the drink's ingredients:
 //!   1. base recipe rows for the chosen size (size-agnostic rows always apply),
-//!   2. milk/coffee SWAPS — a `milk_type`/`coffee_type` addon replaces the base
-//!      line of the matching category in place (inheriting the base quantity),
-//!      unless it re-selects the default ingredient (same org-ingredient id),
+//!   2. SWAPS — an option of a swap family (milk, beans, any explicit `swaps`
+//!      group) replaces the base line of its category in place (inheriting the
+//!      base quantity), unless it is the recipe's own choice — the shared
+//!      pricing rule's decision (madar-catalog), so the preview shows the cup
+//!      the line is charged for,
 //!   3. additive addons — every other addon adds its ingredients × selected qty,
 //!   4. optional fields that carry an ingredient deduction add their line.
 //!
@@ -15,6 +17,7 @@
 //! Lines are NOT merged by ingredient — the sheet groups them by source tag.
 
 use crate::cart::AddonSelection;
+use crate::catalog_pricing::PricingMirror;
 use crate::menu::{AddonItemView, MenuItemView, RecipeLineView};
 
 /// One effective ingredient line, tagged by origin so the sheet can chip it.
@@ -31,12 +34,8 @@ pub struct ComputedRecipeLineView {
     pub is_base: bool,
 }
 
-// Categories a swap-family addon targets in the base recipe.
-const CAT_MILK: &str = "milk";
-const CAT_COFFEE: &str = "coffee_bean";
-
-// Internal working row — carries the matching keys (category / org-ingredient id)
-// the swap step needs but the host view omits.
+// Internal working row — carries the matching key (category) the swap step
+// needs but the host view omits.
 #[derive(Clone)]
 struct Row {
     name: String,
@@ -49,28 +48,28 @@ struct Row {
 }
 
 /// Compute the effective recipe for `item` given the chosen `size_label`,
-/// `addons` (id + qty) and `optional_ids`. `addon_catalog` supplies the embedded
-/// ingredient data (a milk/coffee addon's first ingredient drives the swap).
+/// `addons` (id + qty) and `optional_ids`. Which option swaps what, into
+/// which ingredient, is the shared pricing rule's decision (madar-catalog, the
+/// server's): the preview shows the cup the line is charged for.
+/// `addon_catalog` supplies the additive options' ingredient quantities.
 pub(crate) fn compute_recipe(
     item: &MenuItemView,
     addon_catalog: &[AddonItemView],
+    pricing: &PricingMirror,
     size_label: Option<&str>,
     addons: &[AddonSelection],
     optional_ids: &[String],
 ) -> Vec<ComputedRecipeLineView> {
-    // 1. Base rows for the selected size. A row with no size_label applies to
-    //    every size, so it's always included; size-specific rows match the
-    //    selection (or, with no size chosen, the first concrete size present).
-    let target_size: Option<&str> =
-        size_label.or_else(|| item.recipes.iter().find_map(|r| r.size_label.as_deref()));
+    let view = pricing.view_for(item, addon_catalog);
+
+    // 1. Base rows for the recipe size: the chosen size, else the item's
+    //    default recipe size (the server's). A row with no size_label applies
+    //    to every size.
+    let recipe_size = madar_catalog::recipe_size(&view.item, size_label);
     let base_rows: Vec<&RecipeLineView> = item
         .recipes
         .iter()
-        .filter(|r| match (r.size_label.as_deref(), target_size) {
-            (None, _) => true, // size-agnostic → always
-            (Some(rs), Some(ts)) => rs == ts,
-            (Some(_), None) => false,
-        })
+        .filter(|r| r.size_label.as_deref().is_none_or(|rs| rs == recipe_size))
         .collect();
 
     let mut rows: Vec<Row> = base_rows
@@ -85,50 +84,38 @@ pub(crate) fn compute_recipe(
         })
         .collect();
 
-    // 2 + 3. Walk the selected addons: milk/coffee types swap the base line of
-    //        the matching category; everything else is additive (× qty).
-    // One addon per swap family — a stray second milk must not describe a cup
-    // that has two (the later pick replaces the earlier, as in the cart).
-    let addons = crate::cart::normalize_swap_selections(addon_catalog, addons);
-    for sel in &addons {
-        let Some(addon) = addon_catalog.iter().find(|a| a.id == sel.addon_item_id) else {
-            continue; // unknown addon — skip (Flutter falls back to the API here)
+    // 2 + 3. The options as the rule charges them (one per swap family, the
+    //        last pick): a swap replaces the base line of its category (unless
+    //        it is the recipe's own choice); an add-on adds its ingredients.
+    let selection = madar_catalog::Selection {
+        size_label: size_label.map(str::to_string),
+        options: addons
+            .iter()
+            .filter(|a| view.option(&a.addon_item_id).is_some())
+            .map(|a| madar_catalog::Pick {
+                id: a.addon_item_id.clone(),
+                quantity: a.qty,
+            })
+            .collect(),
+        optionals: Vec::new(),
+    };
+    let priced = madar_catalog::price_options(&view, &selection).unwrap_or_default();
+    for p in &priced.options {
+        let Some(addon) = addon_catalog.iter().find(|a| a.id == p.id) else {
+            continue;
         };
-        let addon_qty = sel.qty.max(1) as f64;
-
-        let target_category = match addon.addon_type.as_str() {
-            "milk_type" => Some(CAT_MILK),
-            "coffee_type" => Some(CAT_COFFEE),
-            _ => None,
-        };
-
-        if let Some(cat) = target_category {
-            // Need the addon's ingredient to know what to swap in. With none, we
-            // can't tell a swap from the default → leave the base line untouched.
-            let Some(repl) = addon.ingredients.first() else {
-                continue;
-            };
-
-            // Only swap when there's a base line of this category to replace.
-            let base_ing_id = base_rows
-                .iter()
-                .find(|b| b.category == cat)
-                .and_then(|b| b.org_ingredient_id.clone());
-            let has_base = rows.iter().any(|r| r.is_base && r.category == cat);
-
-            // Re-selecting the default ingredient (same org-ingredient id as the
-            // base line) is NOT a swap — leave the base line as-is.
-            let is_default = match (&base_ing_id, &repl.org_ingredient_id) {
-                (Some(b), Some(a)) => b == a,
-                _ => false,
-            };
-
-            if has_base && !is_default {
+        if let Some(target) = &p.target {
+            // The recipe's own choice, or nothing to swap in: the cup is as
+            // the recipe makes it.
+            if let Some(repl) = p.replacement.as_ref().filter(|_| !p.is_base) {
                 // Replace every base line of this category in place; a swapped
                 // line inherits the base quantity (swaps never scale) and is
                 // re-tagged with the addon's name (no longer the plain base).
-                for r in rows.iter_mut().filter(|r| r.is_base && r.category == cat) {
-                    r.name = repl.ingredient_name.clone();
+                for r in rows
+                    .iter_mut()
+                    .filter(|r| r.is_base && r.category == target.slug)
+                {
+                    r.name = repl.name.clone();
                     r.unit = repl.unit.clone();
                     r.source_label = Some(addon.name.clone());
                     r.is_base = false;
@@ -142,7 +129,7 @@ pub(crate) fn compute_recipe(
             rows.push(Row {
                 name: ing.ingredient_name.clone(),
                 unit: ing.unit.clone(),
-                quantity: ing.quantity * addon_qty,
+                quantity: ing.quantity * p.quantity as f64,
                 category: "general".into(),
                 is_base: false,
                 source_label: Some("addon".into()),
@@ -281,7 +268,14 @@ mod tests {
             ],
             vec![],
         );
-        let out = compute_recipe(&it, &[], Some("M"), &[], &[]);
+        let out = compute_recipe(
+            &it,
+            &[],
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[],
+            &[],
+        );
         // M coffee row + size-agnostic water; the L row is excluded.
         assert_eq!(out.len(), 2);
         assert_eq!(out[0].ingredient_name, "Beans");
@@ -309,7 +303,14 @@ mod tests {
             "milk_type",
             vec![ing("Oat milk", "ml", 999.0, Some("o-oat"))],
         );
-        let out = compute_recipe(&it, &[oat], Some("M"), &[sel("a-oat", 1)], &[]);
+        let out = compute_recipe(
+            &it,
+            &[oat],
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[sel("a-oat", 1)],
+            &[],
+        );
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].ingredient_name, "Oat milk");
         assert_eq!(
@@ -340,7 +341,14 @@ mod tests {
             "milk_type",
             vec![ing("Whole milk", "ml", 200.0, Some("o-whole"))],
         );
-        let out = compute_recipe(&it, &[same], Some("M"), &[sel("a-whole", 1)], &[]);
+        let out = compute_recipe(
+            &it,
+            &[same],
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[sel("a-whole", 1)],
+            &[],
+        );
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].ingredient_name, "Whole milk");
         assert!(out[0].is_base, "default re-selection stays a base line");
@@ -366,7 +374,14 @@ mod tests {
             "extra",
             vec![ing("Caramel syrup", "ml", 10.0, Some("o-car"))],
         );
-        let out = compute_recipe(&it, &[syrup], Some("M"), &[sel("a-syrup", 2)], &[]);
+        let out = compute_recipe(
+            &it,
+            &[syrup],
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[sel("a-syrup", 2)],
+            &[],
+        );
         assert_eq!(out.len(), 2);
         assert_eq!(out[1].ingredient_name, "Caramel syrup");
         assert_eq!(out[1].quantity, 20.0, "10ml × 2");
@@ -403,6 +418,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[],
+            &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[],
             &["opt-shot".into(), "opt-deco".into()],
@@ -427,7 +443,14 @@ mod tests {
             vec![],
         );
         let empty = addon("a-x", "Mystery Milk", "milk_type", vec![]);
-        let out = compute_recipe(&it, &[empty], Some("M"), &[sel("a-x", 1)], &[]);
+        let out = compute_recipe(
+            &it,
+            &[empty],
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[sel("a-x", 1)],
+            &[],
+        );
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].ingredient_name, "Whole milk");
         assert!(out[0].is_base);
@@ -456,6 +479,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[shot.clone(), shot],
+            &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[sel("a-shot", 1), sel("a-shot", 1)],
             &[],
@@ -468,7 +492,14 @@ mod tests {
     #[test]
     fn empty_recipe_and_no_selection_yields_nothing() {
         let it = item(vec![], vec![]);
-        let out = compute_recipe(&it, &[], Some("M"), &[], &[]);
+        let out = compute_recipe(
+            &it,
+            &[],
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[],
+            &[],
+        );
         assert!(out.is_empty());
     }
 
@@ -482,8 +513,22 @@ mod tests {
             ],
             vec![],
         );
-        let m = compute_recipe(&it, &[], Some("M"), &[], &[]);
-        let none = compute_recipe(&it, &[], None, &[], &[]);
+        let m = compute_recipe(
+            &it,
+            &[],
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[],
+            &[],
+        );
+        let none = compute_recipe(
+            &it,
+            &[],
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &[],
+            &[],
+        );
         assert_eq!(m.len(), 2);
         assert_eq!(none.len(), 2); // no size chosen, still both agnostic rows
     }
@@ -516,7 +561,14 @@ mod tests {
             ],
             vec![],
         );
-        let out = compute_recipe(&it, &[], None, &[], &[]);
+        let out = compute_recipe(
+            &it,
+            &[],
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &[],
+            &[],
+        );
         assert_eq!(out.len(), 2); // M coffee + agnostic water
         assert_eq!(out[0].quantity, 18.0); // the M row, not L
     }
@@ -539,7 +591,14 @@ mod tests {
             ],
             vec![],
         );
-        let out = compute_recipe(&it, &[], Some("XL"), &[], &[]);
+        let out = compute_recipe(
+            &it,
+            &[],
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("XL"),
+            &[],
+            &[],
+        );
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].ingredient_name, "Water");
     }
@@ -565,7 +624,14 @@ mod tests {
             "coffee_type",
             vec![ing("Decaf beans", "g", 99.0, Some("o-decaf"))],
         );
-        let out = compute_recipe(&it, &[decaf], Some("M"), &[sel("a-decaf", 1)], &[]);
+        let out = compute_recipe(
+            &it,
+            &[decaf],
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[sel("a-decaf", 1)],
+            &[],
+        );
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].ingredient_name, "Decaf beans");
         assert_eq!(out[0].quantity, 18.0, "swap inherits base qty");
@@ -594,7 +660,14 @@ mod tests {
             "milk_type",
             vec![ing("Oat milk", "ml", 200.0, Some("o-oat"))],
         );
-        let out = compute_recipe(&it, &[oat], Some("M"), &[sel("a-oat", 1)], &[]);
+        let out = compute_recipe(
+            &it,
+            &[oat],
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[sel("a-oat", 1)],
+            &[],
+        );
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].ingredient_name, "Beans");
         assert!(out[0].is_base);
@@ -616,7 +689,14 @@ mod tests {
             "milk_type",
             vec![ing("Oat milk", "ml", 0.0, Some("o-oat"))],
         );
-        let out = compute_recipe(&it, &[oat], None, &[sel("a-oat", 1)], &[]);
+        let out = compute_recipe(
+            &it,
+            &[oat],
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &[sel("a-oat", 1)],
+            &[],
+        );
         assert_eq!(out.len(), 2);
         assert!(out.iter().all(|r| r.ingredient_name == "Oat milk"));
         assert_eq!(out[0].quantity, 150.0); // each keeps its own base qty
@@ -638,7 +718,14 @@ mod tests {
             "milk_type",
             vec![ing("Oat milk", "ml", 0.0, Some("o-oat"))],
         );
-        let out = compute_recipe(&it, &[oat], Some("M"), &[sel("a-oat", 1)], &[]);
+        let out = compute_recipe(
+            &it,
+            &[oat],
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[sel("a-oat", 1)],
+            &[],
+        );
         assert_eq!(out[0].ingredient_name, "Oat milk"); // swapped
         assert!(!out[0].is_base);
     }
@@ -659,7 +746,14 @@ mod tests {
             vec![],
         );
         // Catalog is empty → the selection's addon can't be found → skipped.
-        let out = compute_recipe(&it, &[], Some("M"), &[sel("ghost", 1)], &[]);
+        let out = compute_recipe(
+            &it,
+            &[],
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[sel("ghost", 1)],
+            &[],
+        );
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].ingredient_name, "Beans");
     }
@@ -670,7 +764,14 @@ mod tests {
             vec![recipe("Beans", "g", 18.0, Some("M"), "coffee_bean", None)],
             vec![],
         );
-        let out = compute_recipe(&it, &[], Some("M"), &[], &["no-such-optional".into()]);
+        let out = compute_recipe(
+            &it,
+            &[],
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[],
+            &["no-such-optional".into()],
+        );
         assert_eq!(out.len(), 1);
     }
 
@@ -692,7 +793,14 @@ mod tests {
             vec![recipe("Beans", "g", 18.0, Some("M"), "coffee_bean", None)],
             vec![partial],
         );
-        let out = compute_recipe(&it, &[], Some("M"), &[], &["opt-x".into()]);
+        let out = compute_recipe(
+            &it,
+            &[],
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[],
+            &["opt-x".into()],
+        );
         assert_eq!(out.len(), 1, "no quantity → no deduction line");
     }
 
@@ -708,10 +816,24 @@ mod tests {
             vec![ing("Syrup", "ml", 10.0, Some("o-car"))],
         );
         // qty 0 → clamped to 1 (10ml × 1).
-        let zero = compute_recipe(&it, &[syrup.clone()], None, &[sel("a-syrup", 0)], &[]);
+        let zero = compute_recipe(
+            &it,
+            &[syrup.clone()],
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &[sel("a-syrup", 0)],
+            &[],
+        );
         assert_eq!(zero[0].quantity, 10.0);
         // negative qty → also clamps to 1.
-        let neg = compute_recipe(&it, &[syrup], None, &[sel("a-syrup", -5)], &[]);
+        let neg = compute_recipe(
+            &it,
+            &[syrup],
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &[sel("a-syrup", -5)],
+            &[],
+        );
         assert_eq!(neg[0].quantity, 10.0);
     }
 
@@ -727,7 +849,14 @@ mod tests {
                 ing("Sugar", "g", 5.0, Some("o-sug")),
             ],
         );
-        let out = compute_recipe(&it, &[combo], None, &[sel("a-combo", 2)], &[]);
+        let out = compute_recipe(
+            &it,
+            &[combo],
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &[sel("a-combo", 2)],
+            &[],
+        );
         assert_eq!(out.len(), 2);
         assert_eq!(out[0].quantity, 60.0); // 30 × 2
         assert_eq!(out[1].quantity, 10.0); // 5 × 2
@@ -768,6 +897,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[syrup],
+            &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[sel("a-syrup", 1)],
             &["opt-shot".into()],
@@ -808,6 +938,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[oat, syrup],
+            &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[sel("a-oat", 1), sel("a-syrup", 1)],
             &[],

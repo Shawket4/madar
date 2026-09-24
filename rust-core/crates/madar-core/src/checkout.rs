@@ -2590,16 +2590,36 @@ mod tests {
                 quantity_used: None,
                 org_ingredient_id: None,
             }],
-            recipes: vec![],
+            // The recipe's milk is oat: a milk swap is charged over it (the
+            // server's rule reads the recipe's ingredient).
+            recipes: vec![menu::RecipeLineView {
+                ingredient_name: "Oat milk".into(),
+                quantity: 200.0,
+                unit: "ml".into(),
+                size_label: None,
+                category: "milk".into(),
+                org_ingredient_id: Some("ing-oat".into()),
+            }],
             recipe_steps: vec![],
         }
     }
 
+    fn cfg_milk(id: &str, price: i64) -> menu::AddonItemView {
+        let mut a = cfg_addon(id, "milk_type", price);
+        a.ingredients = vec![menu::AddonIngredientView {
+            ingredient_name: format!("{id} milk"),
+            unit: "ml".into(),
+            quantity: 200.0,
+            org_ingredient_id: Some(format!("ing-{id}")),
+        }];
+        a
+    }
+
     fn cfg_catalog() -> Vec<menu::AddonItemView> {
         vec![
-            cfg_addon("oat", "milk_type", 1500),    // default-milk base
-            cfg_addon("almond", "milk_type", 2000), // swap → +500
-            cfg_addon("shot", "extra", 800),        // additive → full
+            cfg_milk("oat", 1500),           // the recipe's milk: the base
+            cfg_milk("almond", 2000),        // swap → +500
+            cfg_addon("shot", "extra", 800), // additive → full
         ]
     }
 
@@ -2611,6 +2631,7 @@ mod tests {
         let line = cart::resolve_line(
             &cfg_item(),
             &cfg_catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
             Some("Large".into()),
             &[
                 cart::AddonSelection {
@@ -2683,8 +2704,14 @@ mod tests {
             }],
             optional_field_ids: vec!["van".into()],
         };
-        let line =
-            cart::resolve_bundle_line(&cfg_bundle(), &[cfg_item()], &cfg_catalog(), &[comp], 1);
+        let line = cart::resolve_bundle_line(
+            &cfg_bundle(),
+            &[cfg_item()],
+            &cfg_catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            &[comp],
+            1,
+        );
         cart::add_resolved(&store, None, line).unwrap();
         let p = prep(&store, CASH, 20000).unwrap();
         let rl = &p.receipt.lines[0];
@@ -2725,7 +2752,14 @@ mod tests {
             addons: vec![cart::AddonSelection { addon_item_id: "almond".into(), qty: 1 }], // +500
             optional_field_ids: vec![],
         };
-        let line = cart::resolve_bundle_line(&bundle, &[cfg_item()], &cfg_catalog(), &[comp], 1);
+        let line = cart::resolve_bundle_line(
+            &bundle,
+            &[cfg_item()],
+            &cfg_catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            &[comp],
+            1,
+        );
         cart::add_resolved(&store, None, line).unwrap();
         assert_eq!(cart::lines(&store, None).unwrap()[0].line_total_minor, 6000, "the cart's line");
         let p = prepare(&store, None, "en", BRANCH, SHIFT, &mk_input(CASH, 10000), &tax_policy_at(0.14),
@@ -2756,7 +2790,7 @@ mod tests {
     fn uuid_item() -> menu::MenuItemView {
         let mut it = cfg_item();
         it.id = ITEM_UUID.into();
-        it.default_milk_addon_id = None; // no milk base → almond charges full (simpler)
+        it.recipes.clear(); // no milk in the recipe → a milk swap charges full (simpler)
         it.optional_fields = vec![menu::OptionalFieldView {
             id: VAN_UUID.into(),
             name: "Vanilla".into(),
@@ -2794,8 +2828,14 @@ mod tests {
             }],
             optional_field_ids: vec![VAN_UUID.into()],
         };
-        let line =
-            cart::resolve_bundle_line(&uuid_bundle(), &[uuid_item()], &uuid_catalog(), &[comp], 1);
+        let line = cart::resolve_bundle_line(
+            &uuid_bundle(),
+            &[uuid_item()],
+            &uuid_catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            &[comp],
+            1,
+        );
         cart::add_resolved(&store, None, line).unwrap();
         let p = prep(&store, CASH, 20000).unwrap();
         let item = &p.command.request.items[0];
@@ -2835,6 +2875,7 @@ mod tests {
         let line = cart::resolve_line(
             &uuid_item(),
             &uuid_catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
             Some("Large".into()),
             &[],
             &[],
