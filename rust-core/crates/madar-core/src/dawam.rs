@@ -723,6 +723,8 @@ pub(crate) const PUNCH_CODES: &[&str] = &[
     "ALREADY_CHECKED_IN",
     // The till's PIN punch with POS or Dawam switched off (P-010).
     "MODULE_OFF",
+    // A clock-out with nothing open (a manager or the till closed it).
+    "NOT_CLOCKED_IN",
 ];
 
 /// A punch refusal in `locale`, from the server's body (`{error, code,
@@ -1501,22 +1503,63 @@ impl MadarCore {
     }
 
     /// Every queued Dawam op the server refused, oldest first, in the words it
-    /// was refused with; each leaves the outbox as it is taken.
+    /// was refused with; each leaves the outbox as it is taken. A refused ping
+    /// goes quietly: nobody made it, so there is nobody to tell.
     fn dawam_take_refused(&self) -> Vec<String> {
         let rows = self
             .store
             .with_conn(|c| {
-                let mut st = c.prepare("SELECT id, COALESCE(last_error, '') FROM outbox WHERE status = 'dead' AND op_type LIKE 'dawam_%' ORDER BY seq ASC")?;
-                let v = st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?.filter_map(Result::ok).collect::<Vec<_>>();
+                let mut st = c.prepare("SELECT id, op_type, COALESCE(last_error, '') FROM outbox WHERE status = 'dead' AND op_type LIKE 'dawam_%' ORDER BY seq ASC")?;
+                let v = st
+                    .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?)))?
+                    .filter_map(Result::ok)
+                    .collect::<Vec<_>>();
                 Ok(v)
             })
             .unwrap_or_default();
         rows.into_iter()
-            .filter_map(|(id, why)| {
+            .filter_map(|(id, op, why)| {
                 self.store.discard_dead(&id).ok().filter(|gone| *gone)?;
+                if op == "dawam_ping" {
+                    return None;
+                }
                 Some(if why.trim().is_empty() { i18n::tr(&self.current_locale(), "sync.refused") } else { why })
             })
             .collect()
+    }
+
+    /// What the drain makes of a queued Dawam op the server answered with an
+    /// error, worded in the phone's language: it becomes the red toast the
+    /// person reads (S-036), never the core's or the server's English.
+    pub(crate) fn dawam_refusal(&self, item: &store::OutboxItem, e: CoreError) -> crate::SendOutcome {
+        use crate::SendOutcome;
+        let loc = self.current_locale();
+        let code = match &e {
+            CoreError::Server { code, .. } => code.clone(),
+            _ => String::new(),
+        };
+        match e {
+            // A month already approved or paid takes no punch (BC-3): a
+            // refusal, not the "already holds it" of a resent punch's 409.
+            CoreError::Server { .. } if code == "PERIOD_CLOSED" => SendOutcome::Dead(i18n::tr(&loc, "staff.err_queued_period_closed")),
+            // Nothing open to close: a manager or the till closed it meanwhile.
+            CoreError::Server { .. } if code == "NOT_CLOCKED_IN" => SendOutcome::Dead(i18n::tr(&loc, "staff.err_already_clocked_out")),
+            // Worded already (the fence, the window, location…).
+            CoreError::Server { status, detail, .. } if status != 409 && PUNCH_CODES.contains(&code.as_str()) => SendOutcome::Dead(detail),
+            e => match crate::classify_send(e, crate::Idem::Yes) {
+                SendOutcome::Dead(_) | SendOutcome::Refused(_) => {
+                    let key = match item.op_type.as_str() {
+                        "dawam_check_in" => "staff.err_queued_refused_in",
+                        "dawam_check_out" => "staff.err_queued_refused_out",
+                        "dawam_cover" => "staff.err_queued_refused_cover",
+                        "dawam_punch_for" => "staff.err_queued_refused_punch",
+                        _ => "sync.refused",
+                    };
+                    SendOutcome::Dead(i18n::tr(&loc, key))
+                }
+                other => other,
+            },
+        }
     }
 
     fn dawam_queue(&self, act: Act) -> Result<(), CoreError> {
@@ -3295,6 +3338,71 @@ mod tests {
         let snap: Value = serde_json::from_str(&core.dawam_sync().await.unwrap()).unwrap();
         assert_eq!(snap["refused"], json!([]));
         assert_eq!(stub.requests("/staff/me/check-in").len(), 1, "never resent");
+    }
+
+    /// E2E posnotif (queue wording, with S-035/S-036): every way the server
+    /// can refuse a queued punch reads in the phone's language when the toast
+    /// says it. It stored classify_send's English "the server does not have
+    /// what this needs yet — You are not checked in" for a check-out with
+    /// nothing open, the server's English for an uncoded 400, and a month
+    /// already closed (409 PERIOD_CLOSED) was acked as if applied and dropped
+    /// without a word. A refused ping is dropped quietly (nobody made it).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn every_refused_queued_punch_is_said_in_the_phones_language() {
+        use crate::testkit::{online_core, Stub, StubResponse, BRANCH, TELLER};
+
+        let cairo = Utc::now().with_timezone(&chrono_tz::Africa::Cairo);
+        let today = cairo.date_naive().to_string();
+        let stub = Stub::start(move |r| {
+            let path = r.path.split('?').next().unwrap_or_default();
+            let case = r.json()["case"].as_str().unwrap_or_default().to_string();
+            Some(match (path, case.as_str()) {
+                ("/staff/me/context", _) => StubResponse::json(200, json!({
+                    "role": "employee", "org_name": "Nile Café", "caps": [],
+                    "branches": [{ "id": BRANCH, "name": "Zamalek", "geo_radius_meters": 200,
+                                   "latitude": 30.0609, "longitude": 31.2197, "timezone": "Africa/Cairo" }],
+                    "work_shifts": [], "settings": {},
+                    "people": [{ "employee_id": TELLER, "name": "Sara", "role": "employee", "branch_ids": [BRANCH] }],
+                })),
+                ("/staff/me/roster", _) => StubResponse::json(200, json!({ "shifts": [], "team": [], "open_shifts": [], "swaps": [], "unpublished_weeks": [] })),
+                ("/staff/me/check-out", "gone") => StubResponse::text(404, r#"{"error":"You are not checked in","code":"NOT_CLOCKED_IN"}"#),
+                ("/staff/me/check-out", "closed") => StubResponse::text(409, &format!(r#"{{"error":"That month's payroll is approved — a check-out dated {today} can't change it.","code":"PERIOD_CLOSED","vars":{{}}}}"#)),
+                ("/staff/me/check-in", "future") => StubResponse::text(400, r#"{"error":"That punch is dated in the future."}"#),
+                ("/staff/me/check-in", "twice") => StubResponse::text(409, r#"{"error":"Already checked in","code":"ALREADY_CHECKED_IN"}"#),
+                ("/staff/me/pings", _) => StubResponse::text(404, r#"{"error":"Not on a shift"}"#),
+                ("/health", _) => StubResponse::text(200, "ok"),
+                (p, _) if p.ends_with("estimate") || p.ends_with("context") => StubResponse::json(200, json!({})),
+                _ => StubResponse::json(200, json!([])),
+            })
+        })
+        .await;
+        let core = online_core(&stub.base, "").await;
+        core.set_online(true);
+        core.dawam_snapshot(true).await.unwrap();
+        for lang in ["ar", "en"] {
+            core.set_locale(lang.into());
+            for (path, case) in [
+                ("/staff/me/check-out", "gone"),
+                ("/staff/me/check-out", "closed"),
+                ("/staff/me/check-in", "future"),
+                ("/staff/me/check-in", "twice"),
+                ("/staff/me/pings", "ping"),
+            ] {
+                let op = if path.ends_with("pings") { "dawam_ping" } else if path.ends_with("in") { "dawam_check_in" } else { "dawam_check_out" };
+                core.dawam_enqueue(op, path, json!({ "case": case }), None).unwrap();
+            }
+            let snap: Value = serde_json::from_str(&core.dawam_sync().await.unwrap()).unwrap();
+            assert_eq!(snap["queued"], 0, "{lang}: nothing left waiting");
+            let want: Vec<String> = ["staff.err_already_clocked_out", "staff.err_queued_period_closed", "staff.err_queued_refused_in"]
+                .iter()
+                .map(|k| i18n::tr(lang, k))
+                .collect();
+            assert!(want.iter().all(|w| !w.starts_with("staff.")), "{lang}: words exist: {want:?}");
+            assert_eq!(snap["refused"], json!(want), "{lang}: the duplicate check-in is no refusal, the ping says nothing");
+            if lang == "ar" {
+                assert!(want.iter().all(|w| !w.chars().any(|c| c.is_ascii_alphabetic())), "{want:?}");
+            }
+        }
     }
 
     /// E2E posnotif S-036: a clock-out refused outside the fence, or with no

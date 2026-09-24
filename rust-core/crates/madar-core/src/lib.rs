@@ -1923,7 +1923,8 @@ impl MadarCore {
                 Err(CoreError::Forbidden { resource, action }) if resource == dawam::PRIVACY_NOT_ACCEPTED => {
                     SendOutcome::Held(action)
                 }
-                Err(e) => classify_send(e, Idem::Yes),
+                // Refusals worded in the phone's language (the toast says them).
+                Err(e) => self.dawam_refusal(item, e),
             };
         }
         let (envelope, idem) = match self.replay_envelope(item) {
