@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:app_core/app_core.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // `Override` moved to the misc library in Riverpod 3.
 import 'package:flutter_riverpod/misc.dart';
@@ -180,7 +181,28 @@ List<Override> readyScopeOverrides(BootData boot) {
 class RealtimeArmer {
   RealtimeArmer({required MadarCore core, required Ref ref})
     : _core = core,
-      _ref = ref;
+      _ref = ref {
+    _gate.attach();
+  }
+
+  /// Closes the live stream while the app is in the background and reopens
+  /// it on resume. The server pushes a new order over FCM only to a till with
+  /// no live stream (SSE first, push as the fallback), and a suspended iOS
+  /// app can keep a socket that still looks open, so the till must close it.
+  late final BackgroundRealtimeGate _gate = BackgroundRealtimeGate(
+    suspend: _suspend,
+    resume: call,
+  );
+
+  void _suspend() {
+    final rt = _realtime;
+    _realtime = null;
+    rt?.stop();
+    unawaited(_events?.cancel());
+    unawaited(_alerts?.cancel());
+    _events = null;
+    _alerts = null;
+  }
 
   final MadarCore _core;
   final Ref _ref;
@@ -252,10 +274,38 @@ class RealtimeArmer {
   }
 
   void dispose() {
+    _gate.detach();
     _lan.dispose();
     unawaited(_bonjour.stop());
     _tables.dispose();
     unawaited(_events?.cancel());
     unawaited(_alerts?.cancel());
+  }
+}
+
+/// Tells the realtime owner when the app goes to the background (`paused`)
+/// and comes back (`resumed`). Transient states (`inactive`: a call banner,
+/// Control Center) and `hidden` on their own change nothing, so a till in
+/// front keeps its stream.
+class BackgroundRealtimeGate with WidgetsBindingObserver {
+  BackgroundRealtimeGate({required this.suspend, required this.resume});
+
+  final void Function() suspend;
+  final void Function() resume;
+  bool _suspended = false;
+
+  void attach() => WidgetsBinding.instance.addObserver(this);
+
+  void detach() => WidgetsBinding.instance.removeObserver(this);
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused && !_suspended) {
+      _suspended = true;
+      suspend();
+    } else if (state == AppLifecycleState.resumed && _suspended) {
+      _suspended = false;
+      resume();
+    }
   }
 }
