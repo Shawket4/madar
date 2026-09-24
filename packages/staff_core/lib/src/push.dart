@@ -72,3 +72,24 @@ final openedPushProvider = Provider<ValueNotifier<String?>>((ref) {
   ref.onDispose(n.dispose);
   return n;
 });
+
+/// A push that arrived while the app is open on Android, where the OS draws
+/// nothing (iOS shows its own banner): the host sets it, and the shell shows
+/// it as a toast whose action opens the push's screen.
+typedef ForegroundPush = ({String text, String? key});
+
+final foregroundPushProvider = Provider<ValueNotifier<ForegroundPush?>>((ref) {
+  final n = ValueNotifier<ForegroundPush?>(null);
+  ref.onDispose(n.dispose);
+  return n;
+});
+
+/// One line from a push's title and body, as the toast shows it. The server
+/// already wrote both in the phone's language.
+String foregroundPushText(String? title, String? body) {
+  final t = (title ?? '').trim();
+  final b = (body ?? '').trim();
+  if (t.isEmpty) return b;
+  if (b.isEmpty) return t;
+  return '$t · $b';
+}

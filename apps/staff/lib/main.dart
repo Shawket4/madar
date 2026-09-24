@@ -103,6 +103,7 @@ class _Toast extends ConsumerWidget {
           padding: const EdgeInsets.only(bottom: 96),
           child: ToastHost(
             toast,
+            onAction: ref.read(toastProvider.notifier).act,
             onDismiss: (_) => ref.read(toastProvider.notifier).dismiss(),
           ),
         ),

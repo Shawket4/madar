@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:design_system/design_system.dart';
+import 'package:flutter/foundation.dart' show VoidCallback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:staff_core/src/data.dart';
@@ -78,19 +79,43 @@ class ToastNotifier extends Notifier<ToastData?> {
     return null;
   }
 
-  void show(String text, {ChipTone tone = ChipTone.accent}) {
+  VoidCallback? _action;
+
+  void show(
+    String text, {
+    ChipTone tone = ChipTone.accent,
+    String? actionLabel,
+    VoidCallback? onAction,
+    String? icon,
+  }) {
+    _action = onAction;
     state = ToastData(
       id: DateTime.now().microsecondsSinceEpoch,
       text: text,
       tone: tone,
-      icon: tone == ChipTone.danger ? 'exclamationmark.triangle' : 'checkmark',
+      actionLabel: onAction == null ? null : actionLabel,
+      icon:
+          icon ??
+          (tone == ChipTone.danger ? 'exclamationmark.triangle' : 'checkmark'),
     );
     _timer?.cancel();
-    _timer = Timer(const Duration(milliseconds: 2600), dismiss);
+    // A toast with an action stays long enough to reach for it.
+    _timer = Timer(
+      Duration(milliseconds: onAction == null ? 2600 : 6000),
+      dismiss,
+    );
+  }
+
+  /// The toast's action was tapped: run it once, then close.
+  void act() {
+    final a = _action;
+    dismiss();
+    a?.call();
   }
 
   void dismiss() {
     _timer?.cancel();
+    _action = null;
     state = null;
   }
 }

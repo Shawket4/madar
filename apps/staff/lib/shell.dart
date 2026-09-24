@@ -186,11 +186,13 @@ class _PushRouter extends ConsumerStatefulWidget {
 
 class _PushRouterState extends ConsumerState<_PushRouter> {
   late final ValueNotifier<String?> _opened;
+  late final ValueNotifier<ForegroundPush?> _foreground;
 
   @override
   void initState() {
     super.initState();
     _opened = ref.read(openedPushProvider)..addListener(_open);
+    _foreground = ref.read(foregroundPushProvider)..addListener(_arrived);
     // The push that launched the app arrives before the shell exists.
     WidgetsBinding.instance.addPostFrameCallback((_) => _open());
   }
@@ -198,7 +200,25 @@ class _PushRouterState extends ConsumerState<_PushRouter> {
   @override
   void dispose() {
     _opened.removeListener(_open);
+    _foreground.removeListener(_arrived);
     super.dispose();
+  }
+
+  /// A push that arrived with the app open (Android): a toast whose action
+  /// opens the same screen a tapped notification would.
+  void _arrived() {
+    final push = _foreground.value;
+    if (push == null || !mounted) return;
+    _foreground.value = null;
+    ref
+        .read(toastProvider.notifier)
+        .show(
+          push.text,
+          tone: ChipTone.neutral,
+          icon: 'bell',
+          actionLabel: tr('staff.push_view'),
+          onAction: push.key == null ? null : () => _opened.value = push.key,
+        );
   }
 
   void _open() {

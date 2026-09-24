@@ -308,6 +308,15 @@ void main() {
     });
   });
 
+  group('a push that arrives with the app open (Android)', () {
+    test('reads as one line of the server\'s title and body', () {
+      expect(foregroundPushText('Dawam', 'Paid'), 'Dawam · Paid');
+      expect(foregroundPushText(' Dawam ', null), 'Dawam');
+      expect(foregroundPushText(null, 'Paid'), 'Paid');
+      expect(foregroundPushText('', '  '), '');
+    });
+  });
+
   group('a tapped push opens its screen (06 B8)', () {
     test('by the key the server sent', () {
       expect(pushTarget('staff.n_flag_left_mid_shift'), (

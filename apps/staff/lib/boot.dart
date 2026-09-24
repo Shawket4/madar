@@ -42,11 +42,13 @@ Future<List<Override>> boot() async {
   // the vault now (the core deletes its copy once taken).
   await DeviceVault.keep(core.bridge);
   final opened = ValueNotifier<String?>(null);
-  final push = _Push(core.bridge, store, lang, opened);
+  final foreground = ValueNotifier<ForegroundPush?>(null);
+  final push = _Push(core.bridge, store, lang, opened, foreground);
   backend.beforeSignOut = push.forget;
   unawaited(push.start());
   return [
     openedPushProvider.overrideWithValue(opened),
+    foregroundPushProvider.overrideWithValue(foreground),
     dawamProvider.overrideWith((ref) {
       ref.onDispose(store.stop);
       return store;
@@ -136,11 +138,12 @@ abstract final class DeviceVault {
 /// push that arrives while the app is open refreshes the picture; a tapped
 /// push opens its screen; signing out forgets the token.
 class _Push {
-  _Push(this.bridge, this.store, this.lang, this.opened);
+  _Push(this.bridge, this.store, this.lang, this.opened, this.foreground);
 
   final MadarBridge bridge;
   final DawamStore store;
   final ValueNotifier<String?> opened;
+  final ValueNotifier<ForegroundPush?> foreground;
   String lang;
   String? _sent; // who|language last registered
   bool _on = false; // Firebase is configured on this build
@@ -164,7 +167,21 @@ class _Push {
       sound: true,
     );
     m.onTokenRefresh.listen((_) => unawaited(_register(force: true)));
-    FirebaseMessaging.onMessage.listen((_) => store.sync());
+    FirebaseMessaging.onMessage.listen((msg) {
+      store.sync();
+      // iOS draws the banner itself (the presentation options above); on
+      // Android nothing is shown for a push that arrives while the app is
+      // open, so the shell shows it as a toast that opens its screen.
+      if (Platform.isAndroid) {
+        final text = foregroundPushText(
+          msg.notification?.title,
+          msg.notification?.body,
+        );
+        if (text.isNotEmpty) {
+          foreground.value = (text: text, key: msg.data['key'] as String?);
+        }
+      }
+    });
     // Tapped while the app ran in the background, or the tap that launched
     // it: refresh, and open the screen the push is about (06 B8).
     FirebaseMessaging.onMessageOpenedApp.listen(_opened);
