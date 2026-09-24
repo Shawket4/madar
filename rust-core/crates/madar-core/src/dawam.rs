@@ -766,6 +766,24 @@ pub(crate) const ROSTER_CODES: &[&str] = &[
     "SUGGESTION_STALE",
 ];
 
+/// A shift given to someone already on that block: the refusal names them
+/// for the manager who gave it (E2E roster m2). The server's wording, "You're
+/// already on that shift", is the claimer's own.
+fn already_on_it(e: CoreError, snap: &Snapshot, to: &str, locale: &str) -> CoreError {
+    match e {
+        CoreError::Server { status, code, detail } if code == "ALREADY_ROSTERED" => {
+            match snap.people.iter().find(|p| p.id == to).map(|p| p.name.as_str()).filter(|n| !n.is_empty()) {
+                Some(name) => {
+                    let args = BTreeMap::from([("name".to_string(), name.to_string())]);
+                    CoreError::Server { status, code, detail: fill(&i18n::tr(locale, "staff.err_already_rostered_other"), &args) }
+                }
+                None => CoreError::Server { status, code, detail },
+            }
+        }
+        e => e,
+    }
+}
+
 /// The server's plain refusals carry its error kind in front ("Conflict:
 /// Someone already claimed that shift."): the person reads the sentence only
 /// (E2E roster: the toast said "Conflict: …").
@@ -1766,7 +1784,7 @@ impl MadarCore {
                 let (emp, d, tpl) = parts(&shift);
                 self.dawam_srv("POST", "/staff/schedules/days/move", Some(json!({
                     "employee_id": emp, "to_employee_id": to, "on_date": d, "work_shift_id": tpl,
-                }))).await?;
+                }))).await.map_err(|e| already_on_it(e, &snap, &to, &locale))?;
             }
             Act::CancelOpen { shift } => {
                 self.dawam_srv("POST", &format!("/staff/open-shifts/{}/cancel", tail(&shift)), Some(json!({}))).await?;
@@ -1807,7 +1825,7 @@ impl MadarCore {
                     Some(e) => {
                         self.dawam_srv("POST", "/staff/schedules/days/move", Some(json!({
                             "employee_id": owner, "to_employee_id": e, "on_date": d, "work_shift_id": tpl,
-                        }))).await?;
+                        }))).await.map_err(|err| already_on_it(err, &snap, &e, &locale))?;
                     }
                     None => {
                         let rest: Vec<BlockA> = day_set(&snap, owner, d).into_iter().filter(|b| b.tpl != tpl).collect();
@@ -3804,6 +3822,11 @@ mod tests {
                 ("POST", "/staff/open-shifts/taken/claim") => StubResponse::json(409, json!({ "error": "Conflict: Someone already claimed that shift." })),
                 ("POST", "/staff/open-shifts/coded/claim") => StubResponse::json(409, json!({
                     "error": "Someone already claimed that shift.", "code": "ALREADY_CLAIMED" })),
+                ("POST", "/staff/schedules/days/move") if r.json()["to_employee_id"] == TELLER => StubResponse::json(409, json!({
+                    "error": "Tasbeeh is already on Morning that day.", "code": "ALREADY_ROSTERED",
+                    "vars": { "name": "Tasbeeh", "shift": "Morning", "date": "2026-10-01" } })),
+                ("POST", "/staff/open-shifts/mine/claim") => StubResponse::json(409, json!({
+                    "error": "You're already on that shift.", "code": "ALREADY_ROSTERED" })),
                 ("POST", "/staff/me/swaps") if r.json()["peer_id"] == "Q" => StubResponse::json(409, json!({
                     "error": "You've already asked for this swap — it's waiting.", "code": "SWAP_EXISTS" })),
                 ("GET", p) if p.ends_with("estimate") || p.ends_with("coverage") => StubResponse::json(200, json!({})),
@@ -4053,6 +4076,39 @@ mod tests {
                 }
                 e => panic!("{e:?}"),
             }
+        }
+    }
+
+    /// E2E roster m2: giving a shift to someone already on it told the
+    /// MANAGER "You're already on that shift." The refusal names the person
+    /// the shift was given to; a claim of my own still says "You're".
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_shift_given_to_someone_already_on_it_names_them() {
+        use crate::testkit::TELLER;
+        let day = the_day();
+        let stub = roster_stub(day.clone()).await;
+        let core = crate::testkit::online_core(&stub.base, "").await;
+        core.set_online(true);
+        core.dawam_snapshot(true).await.unwrap();
+        let refusal = |err: CoreError| match err {
+            CoreError::Server { code, detail, .. } => (code, detail),
+            e => panic!("{e:?}"),
+        };
+        for (locale, given, mine) in [
+            ("en", "Tasbeeh is already on that shift.", "You're already on that shift."),
+            ("ar", "Tasbeeh أصلاً على الوردية دي.", "إنت أصلاً على الوردية دي."),
+        ] {
+            core.set_locale(locale.into());
+            for act in [
+                json!({ "action": "give_shift", "shift": format!("P|{day}|w1"), "to": TELLER }),
+                json!({ "action": "assign", "shift": format!("P|{day}|w1"), "emp": TELLER }),
+            ] {
+                let (code, detail) = refusal(core.dawam_do(act.to_string()).await.unwrap_err());
+                assert_eq!(code, "ALREADY_ROSTERED");
+                assert_eq!(detail, given, "{locale} {act}");
+            }
+            let (_, detail) = refusal(core.dawam_do(json!({ "action": "claim", "shift": "open|mine" }).to_string()).await.unwrap_err());
+            assert_eq!(detail, mine, "{locale}: my own claim");
         }
     }
 
