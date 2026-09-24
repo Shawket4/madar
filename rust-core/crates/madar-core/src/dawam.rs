@@ -501,6 +501,9 @@ pub struct AdjV {
     pub period: String,
     pub recurring: bool,
     pub status: String,
+    /// A stopped every-month line's last day (`YYYY-MM-DD`): the end of the
+    /// month that was open when it was stopped (decision #6).
+    pub ends_on: Option<String>,
 }
 
 #[derive(Serialize, Debug)]
@@ -2541,10 +2544,14 @@ impl MadarCore {
 
         // Adjustments, expenses, the inbox.
         for a in rows("dawam_adjustments") {
+            // Stop means from next month (decision #6): the server ends the
+            // line on the open period's last day, so it stays active on the
+            // list until that day has passed.
+            let ends_on = date(a, "ends_on");
             let status = match s(a, "status").as_str() {
                 "pending" => "pendingOwner",
                 "rejected" => "rejected",
-                _ if a.get("ends_on").is_some_and(|x| !x.is_null()) => "stopped",
+                _ if ends_on.is_some_and(|e| e < today) => "stopped",
                 _ => "active",
             };
             let pct = a.get("percent_of_base").filter(|x| !x.is_null()).map(|_| f(a, "percent_of_base"));
@@ -2566,6 +2573,7 @@ impl MadarCore {
                 period: s(a, "effective_date"),
                 recurring: b(a, "recurring"),
                 status: status.into(),
+                ends_on: ends_on.map(|d| d.to_string()),
             });
         }
         if out.role == "owner" {
@@ -4817,6 +4825,38 @@ mod tests {
         let act = json!({ "action": "stop_adj", "adj": "a|bonus|m1", "reason": "moved to a meal card" }).to_string();
         core.dawam_do(act).await.unwrap();
         assert_eq!(posted(&stub, "/staff/adjustments/bonus/m1/stop"), json!({ "reason": "moved to a meal card" }));
+    }
+
+    /// Owner decision #6 (D6): Stop means from next month. The server ends
+    /// the line at the end of the open period (`ends_on`), so this month
+    /// keeps it: the list shows it active, ending on that day, and only a
+    /// line whose end has passed reads "stopped".
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_stopped_line_stays_active_until_its_month_ends() {
+        use crate::testkit::StubResponse;
+        let (later, gone) = ((today_cairo() + Duration::days(10)).to_string(), (today_cairo() - Duration::days(3)).to_string());
+        let (l, g) = (later.clone(), gone.clone());
+        let (_stub, core) = cafe(&["hr.attendance.read", "hr.adjustments.create"], move |m, p, _| match (m, p) {
+            ("GET", "/staff/adjustments") => Some(StubResponse::json(200, json!([
+                { "id": "m1", "kind": "bonus", "employee_id": "e4", "status": "approved", "recurring": true,
+                  "amount_piastres": 30000, "reason": "Transport", "effective_date": "2026-08-26", "ends_on": l },
+                { "id": "m2", "kind": "bonus", "employee_id": "e4", "status": "approved", "recurring": true,
+                  "amount_piastres": 20000, "reason": "Meal", "effective_date": "2026-07-26", "ends_on": g },
+                { "id": "m3", "kind": "bonus", "employee_id": "e4", "status": "approved", "recurring": true,
+                  "amount_piastres": 10000, "reason": "Phone", "effective_date": "2026-07-26", "ends_on": null },
+            ]))),
+            _ => None,
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let line = |id: &str| snap["adjustments"].as_array().unwrap().iter().find(|a| a["id"] == id).cloned().unwrap();
+        assert_eq!((line("a|bonus|m1")["status"].clone(), line("a|bonus|m1")["ends_on"].clone()), (json!("active"), json!(later)), "this month keeps it");
+        assert_eq!(line("a|bonus|m2")["status"], json!("stopped"), "its last month is over");
+        assert_eq!((line("a|bonus|m3")["status"].clone(), line("a|bonus|m3")["ends_on"].clone()), (json!("active"), Value::Null));
+        for k in ["staff.stops_from_next_month", "staff.stopped_from_next_month", "staff.last_month_ends"] {
+            assert_ne!(i18n::tr("en", k), k);
+            assert_ne!(i18n::tr("ar", k), i18n::tr("en", k), "{k}");
+        }
     }
 
     #[tokio::test(flavor = "multi_thread")]

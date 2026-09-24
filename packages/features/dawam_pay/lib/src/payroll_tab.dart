@@ -231,9 +231,13 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
                   tone: MadarTone.danger,
                 ),
                 'stopped' => MadarStatus(tr('staff.stopped')),
+                // Stopped from next month: it still counts this month.
+                _ when a.endsOn != null => MadarStatus(
+                  tr('staff.last_month_ends', {'date': dayMonth(a.endsOn!)}),
+                ),
                 _ => null,
               },
-              onTap: a.recurring && a.status == 'active'
+              onTap: a.recurring && a.status == 'active' && a.endsOn == null
                   ? () => _stop(a)
                   : null,
             ),
@@ -402,6 +406,13 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
             '${name(store.emp(a.emp))} · ${a.reason}',
             style: MadarType.body,
           ),
+          // Stop means from next month (decision #6).
+          Text(
+            tr('staff.stops_from_next_month'),
+            style: MadarType.bodySm.copyWith(
+              color: ctx.madarColors.textSecondary,
+            ),
+          ),
           MadarField(
             controller: reason,
             placeholder: tr('staff.reason_required'),
@@ -424,7 +435,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
               final done = await attempt(
                 ref,
                 () => store.stopAdj(a, reason.text.trim()),
-                ok: tr('staff.stopped'),
+                ok: tr('staff.stopped_from_next_month'),
               );
               if (done && ctx.mounted) Navigator.of(ctx).maybePop();
             },

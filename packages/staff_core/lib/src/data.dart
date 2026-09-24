@@ -324,6 +324,7 @@ class Adj {
     this.recurring = false,
     this.status = 'active',
     this.waived = false,
+    this.endsOn,
   });
   final String id;
   final String emp;
@@ -331,6 +332,10 @@ class Adj {
   final String by;
   final bool bonus;
   final bool recurring;
+
+  /// A stopped every-month line's last day: it counts until then, the end
+  /// of the month that was open when it was stopped (decision #6).
+  final DateTime? endsOn;
 
   /// A waived rule deduction: struck through, charged nothing (AD-6, AD-8).
   final bool waived;
@@ -1012,6 +1017,10 @@ class DawamStore extends ChangeNotifier {
           recurring: a['recurring'] == true,
           status: a['status'] as String,
           waived: a['waived'] == true,
+          endsOn: switch (a['ends_on']) {
+            final String d => DateTime.tryParse(d),
+            _ => null,
+          },
         ),
       );
     }
@@ -1392,8 +1401,9 @@ class DawamStore extends ChangeNotifier {
   /// True when the core answered with a picture (reached the server or not).
   Future<bool> _fetch() {
     lastFetch = clock();
-    return _fetching ??= _run(backend.sync)
-        .whenComplete(() => _fetching = null);
+    return _fetching ??= _run(
+      backend.sync,
+    ).whenComplete(() => _fetching = null);
   }
 
   /// While on shift, a ping every 15 minutes, queued by the core offline
