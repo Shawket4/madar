@@ -309,7 +309,7 @@ void main() {
   });
 
   group('a push that arrives with the app open (Android)', () {
-    test('reads as one line of the server\'s title and body', () {
+    test("reads as one line of the server's title and body", () {
       expect(foregroundPushText('Dawam', 'Paid'), 'Dawam · Paid');
       expect(foregroundPushText(' Dawam ', null), 'Dawam');
       expect(foregroundPushText(null, 'Paid'), 'Paid');

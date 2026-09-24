@@ -1,7 +1,6 @@
 // A push that arrives with the app open on Android (the OS draws nothing
 // there) shows as a toast in the server's words, and its action opens the
 // same screen a tapped notification would.
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:madar_staff/shell.dart';
