@@ -257,11 +257,13 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
     final s1In = s1?.inAt;
     final from = r.from;
     final detail = switch (r.kind) {
+      // The asker's side, then the colleague's (E2E roster: the card named
+      // the asker twice, so the manager couldn't tell who the other was).
       ReqKind.swap when s1 != null && s2 != null && s1Emp != null =>
         tr('staff.s_s_both_agreed', {
           'name': name(store.emp(s1Emp)),
           'date': dayLabel(s1.date),
-          'name2': name(e),
+          'name2': name(store.emp(s2.emp ?? r.peer ?? r.emp)),
           'date2': dayLabel(s2.date),
         }),
       ReqKind.openShift when s1 != null =>
