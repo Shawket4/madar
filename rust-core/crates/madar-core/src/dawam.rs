@@ -1122,6 +1122,12 @@ impl MadarCore {
             Ok(v) => Some(Ok((p, v))),
             // Transport gone mid-refresh: keep the old mirror whole.
             Err(e @ CoreError::Offline { .. }) => Some(Err(e)),
+            // A server that failed or throttled this read (5xx, 429) said
+            // nothing about what there is to show: keep the old mirror whole
+            // rather than write that view empty ("No shift today", E2E S-301).
+            Err(e @ CoreError::Transient { .. }) => Some(Err(e)),
+            Err(CoreError::Server { status: 429, detail, .. }) => Some(Err(CoreError::Transient { detail })),
+            // A view the server refuses this person is simply left empty.
             Err(_) => None,
         })
         .collect::<Result<_, _>>()?;
@@ -4236,6 +4242,39 @@ mod tests {
         let q = |id: &str| snap["requests"].as_array().unwrap().iter().find(|q| q["id"] == json!(format!("q|{id}"))).unwrap()["month_open"].clone();
         assert_eq!(q("span"), false);
         assert_eq!(q("open"), true);
+    }
+
+    /// E2E posnotif S-301: a burst of refreshes (a push each) ran past the
+    /// server's per-person limit; the refused (429) roster read was taken as
+    /// "nothing to show", so Home said "No shift today" until the next
+    /// refresh. A throttled or failing read keeps the last picture whole.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_throttled_refresh_keeps_the_last_picture() {
+        use crate::testkit::{StubResponse, TELLER};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let d = today_cairo().to_string();
+        let calls = std::sync::Arc::new(AtomicUsize::new(0));
+        let seen = calls.clone();
+        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("GET", "/staff/me/roster") => {
+                // The first read answers; every later one is throttled.
+                if seen.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Some(StubResponse::json(200, json!({ "shifts": [
+                        { "employee_id": TELLER, "date": d, "work_shift_id": "w1" }
+                    ], "team": [], "unpublished_weeks": [] })))
+                } else {
+                    Some(StubResponse::json(429, json!({ "error": "Too many requests" })))
+                }
+            }
+            _ => None,
+        })
+        .await;
+        let mine = |snap: &Value| snap["shifts"].as_array().unwrap().iter().filter(|x| x["emp"] == json!(TELLER)).count();
+        let first: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(mine(&first), 1);
+        let again: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert!(calls.load(Ordering::SeqCst) >= 2, "the second refresh asked again");
+        assert_eq!(mine(&again), 1, "a 429 must not blank the roster");
     }
 
     /// E2E posnotif: the Payroll tab's adjustments list showed a rule line in
