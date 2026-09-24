@@ -465,6 +465,11 @@ pub struct ReqV {
     pub tpl: Option<String>,
     pub decided_by: Option<String>,
     pub decision_note: Option<String>,
+    /// Who cancelled it and why (RQ-F6): a cancel no longer overwrites the
+    /// approval above; `None` when nobody but the filer cancelled it, or
+    /// before the server kept cancels apart.
+    pub cancelled_by: Option<String>,
+    pub cancel_note: Option<String>,
     /// Every day it covers is in no approved or paid period: it can still be
     /// cancelled or changed (RQ-4, B13).
     pub month_open: bool,
@@ -2188,6 +2193,8 @@ impl MadarCore {
                 tpl: so(q, "work_shift_id"),
                 decided_by: actor(so(q, "decided_by")),
                 decision_note: so(q, "decision_note"),
+                cancelled_by: actor(so(q, "cancelled_by")),
+                cancel_note: so(q, "cancel_note"),
                 installments: 1,
                 ..Default::default()
             };
@@ -4273,6 +4280,44 @@ mod tests {
         assert_eq!(posted(&stub, "/staff/requests/a/decision"), json!({ "status": "cancelled", "note": "Plans changed" }));
         core.dawam_do(json!({ "action": "cancel", "req": "q|p" }).to_string()).await.unwrap();
         assert_eq!(posted(&stub, "/staff/requests/p/decision"), json!({ "status": "cancelled" }));
+    }
+
+    /// RQ-F6 (backend a686678): a cancel keeps the approval in decided_* and
+    /// writes cancelled_* — the app reads the canceller from cancelled_by
+    /// (the linked person), never from decided_by; the person is told.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_cancel_by_someone_else_is_read_from_cancelled_by() {
+        use crate::testkit::{StubResponse, TELLER};
+        let d = today_cairo().to_string();
+        let day = d.clone();
+        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("GET", "/staff/me/requests") => Some(StubResponse::json(200, json!([
+                { "id": "c", "kind": "leave", "employee_id": TELLER, "status": "cancelled", "on_date": day, "end_date": day,
+                  "is_paid": false, "decided_by": "u-karim", "decision_note": "Get well",
+                  "cancelled_by": "u-omar", "cancel_note": "She came in after all", "created_at": "2026-09-22T08:00:00Z" },
+                { "id": "p", "kind": "leave", "employee_id": TELLER, "status": "cancelled", "on_date": day, "end_date": day,
+                  "cancelled_by": null, "created_at": "2026-09-22T08:00:00Z" }
+            ]))),
+            ("GET", "/staff/me/context") => None,
+            _ => None,
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let q = |id: &str| snap["requests"].as_array().unwrap().iter().find(|q| q["id"] == json!(format!("q|{id}"))).unwrap().clone();
+        assert_eq!(q("c")["decided_by"], "u-karim", "the approver stays the approver");
+        assert_eq!(q("c")["decision_note"], "Get well");
+        assert_eq!(q("c")["cancelled_by"], "u-omar");
+        assert_eq!(q("c")["cancel_note"], "She came in after all");
+        assert_eq!(q("p")["cancelled_by"], Value::Null);
+        for lang in ["en", "ar"] {
+            let text = notice_text(lang, "staff.n_request_cancelled", &json!({ "kind": "leave", "date": "2026-09-23", "note": "She came in" }));
+            assert!(!text.starts_with("staff."), "{text}");
+            assert!(text.contains("She came in") && text.contains("23"), "{text}");
+        }
+        assert_eq!(
+            notice_text("en", "staff.n_request_cancelled", &json!({ "kind": "leave", "date": "2026-09-23", "note": "She came in" })),
+            "Your Leave request for 23 Sep was cancelled: She came in"
+        );
     }
 
     /// A refusal the core words itself is a whole sentence: no field name in

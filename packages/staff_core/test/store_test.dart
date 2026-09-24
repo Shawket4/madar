@@ -332,6 +332,10 @@ void main() {
         manage: false,
         tab: 'requests',
       ));
+      expect(pushTarget('staff.n_request_cancelled'), (
+        manage: false,
+        tab: 'requests',
+      ));
       expect(pushTarget('staff.n_paid'), (manage: false, tab: 'pay'));
       expect(pushTarget('staff.n_punched_for_you'), (
         manage: false,

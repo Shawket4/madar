@@ -289,6 +289,10 @@ class Req {
   String? decidedBy;
   String? decisionNote;
 
+  /// Who cancelled it and why (RQ-F6); decided_by stays the approver's.
+  String? cancelledBy;
+  String? cancelNote;
+
   /// Every day it covers can still change (RQ-4, B13), from the core.
   bool monthOpen = true;
 }
@@ -940,7 +944,9 @@ class DawamStore extends ChangeNotifier {
           ..leaveHalf = r['leave_half'] as String?
           ..monthOpen = r['month_open'] != false
           ..decidedBy = r['decided_by'] as String?
-          ..decisionNote = r['decision_note'] as String?,
+          ..decisionNote = r['decision_note'] as String?
+          ..cancelledBy = r['cancelled_by'] as String?
+          ..cancelNote = r['cancel_note'] as String?,
       );
     }
     _inbox = (v['inbox'] as List<dynamic>).cast<String>();

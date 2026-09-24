@@ -93,6 +93,18 @@ class RequestsTab extends ConsumerWidget {
   }
 }
 
+/// Who cancelled a request of mine, and why, when it wasn't me (RQ-F6):
+/// read from the cancel's own fields — decided_by stays the approver's.
+String? cancelledWords(Req r, String? me, String Function(String id) nameOf) {
+  final by = r.cancelledBy;
+  if (r.status != ReqStatus.cancelled || by == null || by == me) return null;
+  final note = r.cancelNote?.trim() ?? '';
+  return [
+    tr('staff.cancelled_by_name', {'name': nameOf(by)}),
+    if (note.isNotEmpty) note,
+  ].join(' · ');
+}
+
 /// " · half day", with its half when the server says which (RQ-8).
 String halfSuffix(String? half) => switch (half) {
   'first' => tr('staff.half_day_first_suffix'),
@@ -150,9 +162,10 @@ class _ReqRow extends ConsumerWidget {
         (r.status == ReqStatus.approved &&
             r.kind == ReqKind.leave &&
             r.monthOpen);
+    final cancelled = cancelledWords(r, store.me, (id) => name(store.emp(id)));
     return MadarListRow.bill(
       title: kindLabel(r.kind),
-      meta: [reqWhen(r), if (r.note.isNotEmpty) r.note].join(' · '),
+      meta: [reqWhen(r), if (r.note.isNotEmpty) r.note, ?cancelled].join(' · '),
       status: statusOf(r.status),
       onTap: !cancellable
           ? null
