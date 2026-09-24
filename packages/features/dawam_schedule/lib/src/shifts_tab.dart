@@ -41,8 +41,37 @@ class ShiftsTab extends ConsumerWidget {
                       store.user.branches.contains(s.template.branch))),
         )
         .toList();
-    // The calendar takes the rest of the height, so the tab does not scroll
-    // by itself: pullable, for the shell's pull to refresh.
+    final top = <Widget>[
+      for (final r in asks) _SwapAsk(r),
+      for (final r in mine) _MySwap(r),
+      if (!nextPublished)
+        NoticeBanner(
+          text: tr('staff.not_published_yet_you_ll_get'),
+          tone: ChipTone.info,
+        ),
+    ];
+    final calendar = ShiftCalendar(
+      shifts: shifts,
+      now: () => ref.read(dawamProvider).now,
+      phoneView: CalendarView.list,
+      tabletView: CalendarView.month,
+      colorOf: (s) => s.emp == null ? c.warning : c.brand,
+      // An open shift names its block in the title, so the list's second
+      // line is only the times and fits a phone (E2E roster: "4:00 PM –
+      // 12:00 AM · Eve…" on a 390-wide iPhone).
+      titleOf: (s) => s.emp == null
+          ? '${tr('staff.open_shift')} · ${tplName(s.template)}'
+          : '${tplName(s.template)} · '
+                '${branchName(store, s.template.branch)}',
+      onTapShift: (s) => _tap(context, ref, s),
+      trailing: MadarChip(
+        label: tr('staff.my_preferences'),
+        glyph: MadarGlyph.star,
+        onTap: () => _prefs(context),
+      ),
+    );
+    // Pullable too, for the shell's pull to refresh: without swap cards the
+    // calendar alone takes the height and nothing else scrolls.
     return MadarPullable(
       child: MadarContentFrame(
         child: Padding(
@@ -50,37 +79,33 @@ class ShiftsTab extends ConsumerWidget {
             top: Space.lg,
             bottom: Space.lg,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: Space.md,
-            children: [
-              for (final r in asks) _SwapAsk(r),
-              for (final r in mine) _MySwap(r),
-              if (!nextPublished)
-                NoticeBanner(
-                  text: tr('staff.not_published_yet_you_ll_get'),
-                  tone: ChipTone.info,
-                ),
-              Expanded(
-                child: ShiftCalendar(
-                  shifts: shifts,
-                  now: () => ref.read(dawamProvider).now,
-                  phoneView: CalendarView.list,
-                  tabletView: CalendarView.month,
-                  colorOf: (s) => s.emp == null ? c.warning : c.brand,
-                  titleOf: (s) => s.emp == null
-                      ? tr('staff.open_shift')
-                      : '${tplName(s.template)} · '
-                            '${branchName(store, s.template.branch)}',
-                  onTapShift: (s) => _tap(context, ref, s),
-                  trailing: MadarChip(
-                    label: tr('staff.my_preferences'),
-                    glyph: MadarGlyph.star,
-                    onTap: () => _prefs(context),
+          child: LayoutBuilder(
+            builder: (context, box) {
+              if (top.isEmpty) return calendar;
+              // The calendar keeps the whole height; the swap cards and the
+              // notice sit above it and scroll away with the page (E2E roster:
+              // two cards and the notice left the calendar a sliver — the month
+              // view overflowed every week and a shift could not be tapped).
+              // Its toolbar is not a scroller, so dragging it brings them back.
+              return CustomScrollView(
+                slivers: [
+                  SliverList.list(
+                    children: [
+                      for (final w in top)
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(
+                            bottom: Space.md,
+                          ),
+                          child: w,
+                        ),
+                    ],
                   ),
-                ),
-              ),
-            ],
+                  SliverToBoxAdapter(
+                    child: SizedBox(height: box.maxHeight, child: calendar),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),

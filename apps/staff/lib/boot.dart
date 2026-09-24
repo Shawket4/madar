@@ -267,11 +267,11 @@ class _BridgeBackend implements DawamBackend {
     try {
       return await op();
     } on MadarError catch (e) {
-      // A 403 carries the server's sentence in `action` (a limit, a scope).
-      final text = switch (e) {
-        MadarError_Forbidden(:final action) when action.isNotEmpty => action,
-        _ => bridge.humanMessage(e),
-      };
+      final text = dawamErrorText(
+        e,
+        word: (key) => bridge.tr(key: key),
+        human: bridge.humanMessage,
+      );
       if (e is MadarError_Unauthenticated) throw DawamSignedOut(text, text);
       throw DawamError(text, text);
     }
@@ -493,3 +493,23 @@ class _BridgeBackend implements DawamBackend {
     await bridge.logout(wipeOutbox: false);
   }
 }
+
+/// What a refused core call says to the person. A 403 carries the server's
+/// sentence in `action` (a limit, a scope). A lost connection reads "This
+/// needs a connection…" in the phone's language: the staff app has no
+/// offline sign-in, so the till's "this teller hasn't been set up for offline
+/// sign-in yet" (the bridge's word for any offline error) was wrong here
+/// (E2E roster: a swap, a claim or a preference tapped offline showed it).
+@visibleForTesting
+String dawamErrorText(
+  MadarError e, {
+  required String Function(String key) word,
+  required String Function(MadarError) human,
+}) => switch (e) {
+  // The sentence only: the server's error kind in front ("Forbidden: This
+  // needs …") is not for the person (E2E roster, a manager's holiday tap).
+  MadarError_Forbidden(:final action) when action.isNotEmpty =>
+    action.startsWith('Forbidden: ') ? action.substring(11) : action,
+  MadarError_Offline() => word('staff.needs_connection'),
+  _ => human(e),
+};

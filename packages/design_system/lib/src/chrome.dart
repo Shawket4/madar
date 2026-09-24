@@ -855,9 +855,11 @@ class MadarTopBar extends StatelessWidget {
                   '·',
                   style: MadarType.body.copyWith(color: colors.onChromeMuted),
                 ),
-                // Flexible too: an owner's subtitle lists every branch and
-                // overflowed an iPad bar by 524 px (E2E money CB7).
+                // A long list of branches (an owner's) gives way rather
+                // than overflow (it overflowed an iPad bar by 524 px, E2E
+                // money CB7); the title keeps most of the row.
                 Flexible(
+                  flex: 3,
                   child: Text(
                     subtitle!,
                     maxLines: 1,

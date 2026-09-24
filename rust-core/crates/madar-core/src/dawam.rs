@@ -802,8 +802,21 @@ pub(crate) const ROSTER_CODES: &[&str] = &[
     "SWAP_OTHER_BRANCH",
     "WEEK_NOT_PUBLISHED",
     "ALREADY_ROSTERED",
+    "ALREADY_CLAIMED",
+    "SWAP_EXISTS",
     "SUGGESTION_STALE",
 ];
+
+/// The server's plain refusals carry its error kind in front ("Conflict:
+/// Someone already claimed that shift."): the person reads the sentence only
+/// (E2E roster: the toast said "Conflict: …").
+fn plain_sentence(detail: &str) -> String {
+    ["Conflict: ", "Bad request: ", "Not found: ", "Forbidden: "]
+        .iter()
+        .find_map(|p| detail.strip_prefix(p))
+        .unwrap_or(detail)
+        .to_string()
+}
 
 /// `minute of the day` → the server's `HH:MM:SS`.
 fn hms_of(m: i64) -> String {
@@ -1096,6 +1109,7 @@ impl MadarCore {
                         let detail = punch_words(&self.current_locale(), &code, &detail, self.dawam_tz());
                         CoreError::Server { status, code, detail }
                     }
+                    CoreError::Server { status, code, detail } => CoreError::Server { status, code, detail: plain_sentence(&detail) },
                     e => e,
                 })
             }
@@ -1832,12 +1846,15 @@ impl MadarCore {
                 if emp != "open" {
                     let from: Vec<BlockA> = day_set(&snap, emp, from_day).into_iter().filter(|b| b.tpl != from_tpl).collect();
                     let mut to = if to_day == from_day { from.clone() } else { day_set(&snap, emp, &to_day) };
+                    to.retain(|b| b.tpl != tpl);
+                    to.push(BlockA { tpl, start: None, end: None });
+                    // The day it goes to first (E2E roster): a refusal there — a
+                    // block not worked that weekday, an overlap — must leave both
+                    // days as they were, not take the shift off its own day.
+                    self.dawam_put_day(emp, &to_day, &to).await?;
                     if to_day != from_day {
                         self.dawam_put_day(emp, from_day, &from).await?;
                     }
-                    to.retain(|b| b.tpl != tpl);
-                    to.push(BlockA { tpl, start: None, end: None });
-                    self.dawam_put_day(emp, &to_day, &to).await?;
                 }
             }
             Act::Assign { shift, emp } => {
@@ -3940,10 +3957,18 @@ mod tests {
     /// branch; Omar (`P`) has a split day on `day` — Morning, and an Evening
     /// with its own times running past midnight; one open shift.
     async fn roster_stub(day: String) -> crate::testkit::Stub {
+        roster_stub_refusing(day, None).await
+    }
+
+    /// [`roster_stub`], whose day writes on [refuse] are refused: the block
+    /// isn't worked that weekday (`SHIFT_NOT_ON_DAY`).
+    async fn roster_stub_refusing(day: String, refuse: Option<String>) -> crate::testkit::Stub {
         use crate::testkit::{Stub, StubResponse, BRANCH, TELLER};
         Stub::start(move |r| {
             let path = r.path.split('?').next().unwrap_or_default();
             Some(match (r.method.as_str(), path) {
+                ("PUT", "/staff/schedules/days") if refuse.as_deref().is_some_and(|d| r.json()["on_date"] == d) => StubResponse::json(400, json!({
+                    "error": "Evening isn't a shift on that day.", "code": "SHIFT_NOT_ON_DAY" })),
                 ("GET", "/staff/me/context") => StubResponse::json(200, json!({
                     "role": "owner", "org_name": "Nile Café",
                     "caps": ["hr.schedule.read", "hr.schedule.edit", "hr.schedule.publish"],
@@ -3977,6 +4002,11 @@ mod tests {
                                   { "employee_id": "Q", "date": day, "day_off": true }],
                 })),
                 (_, "/health") => StubResponse::text(200, "ok"),
+                ("POST", "/staff/open-shifts/taken/claim") => StubResponse::json(409, json!({ "error": "Conflict: Someone already claimed that shift." })),
+                ("POST", "/staff/open-shifts/coded/claim") => StubResponse::json(409, json!({
+                    "error": "Someone already claimed that shift.", "code": "ALREADY_CLAIMED" })),
+                ("POST", "/staff/me/swaps") if r.json()["peer_id"] == "Q" => StubResponse::json(409, json!({
+                    "error": "You've already asked for this swap — it's waiting.", "code": "SWAP_EXISTS" })),
                 ("GET", p) if p.ends_with("estimate") || p.ends_with("coverage") => StubResponse::json(200, json!({})),
                 ("GET", _) => StubResponse::json(200, json!([])),
                 ("PUT", "/staff/schedules/days") if r.json()["employee_id"] == "Q" => StubResponse::json(409, json!({
@@ -4093,6 +4123,31 @@ mod tests {
         assert_eq!(last("PUT", "/staff/me/preferences").json()["cant_work_days"], json!([0]), "ISO Sunday → the server's 0");
     }
 
+    /// E2E roster (the iPad board's drag, S-256): a shift dragged to a day its
+    /// block isn't worked on is refused by the server — but the core had
+    /// already written its own day without it, so the person lost the shift.
+    /// The day it goes to is written first; a refusal there leaves both days
+    /// as they were.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_refused_move_to_another_day_loses_nothing() {
+        let day = the_day();
+        let next = (NaiveDate::parse_from_str(&day, "%Y-%m-%d").unwrap() + Duration::days(1)).to_string();
+        let stub = roster_stub_refusing(day.clone(), Some(next.clone())).await;
+        let core = crate::testkit::online_core(&stub.base, "").await;
+        core.set_online(true);
+        core.dawam_snapshot(true).await.unwrap();
+        let err = core
+            .dawam_do(json!({ "action": "move_shift", "shift": format!("P|{day}|w2"), "day": next, "tpl": "w2" }).to_string())
+            .await
+            .unwrap_err();
+        assert!(matches!(&err, CoreError::Server { code, .. } if code == "SHIFT_NOT_ON_DAY"), "{err:?}");
+        let puts: Vec<Value> = stub.requests("/staff/schedules/days").into_iter().filter(|r| r.method == "PUT").map(|r| r.json()).collect();
+        assert!(
+            !puts.iter().any(|b| b["on_date"] == day.as_str()),
+            "the shift's own day must not be rewritten when the move is refused: {puts:?}"
+        );
+    }
+
     /// 06 B2: a swap names MY shift as mine. The old app sent them reversed
     /// and every swap was refused; the core now refuses that locally.
     #[tokio::test(flavor = "multi_thread")]
@@ -4174,6 +4229,60 @@ mod tests {
                 assert!(detail.contains("\"vars\""), "{detail}");
             }
             e => panic!("{e:?}"),
+        }
+    }
+
+    /// E2E roster (Omar, iPhone): someone claimed the open shift first and the
+    /// toast read "Conflict: Someone already claimed that shift." — the
+    /// server's error kind in front, English on an Arabic phone. The kind goes;
+    /// once the server names it (ALREADY_CLAIMED) it is worded per language.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_claim_lost_to_a_colleague_reads_as_a_sentence() {
+        let day = the_day();
+        let stub = roster_stub(day.clone()).await;
+        let core = crate::testkit::online_core(&stub.base, "").await;
+        core.set_online(true);
+        core.dawam_snapshot(true).await.unwrap();
+        let claim = |id: &str| core.dawam_do(json!({ "action": "claim", "shift": format!("open|{id}") }).to_string());
+        match claim("taken").await.unwrap_err() {
+            CoreError::Server { detail, .. } => assert_eq!(detail, "Someone already claimed that shift."),
+            e => panic!("{e:?}"),
+        }
+        for locale in ["en", "ar"] {
+            core.set_locale(locale.into());
+            match claim("coded").await.unwrap_err() {
+                CoreError::Server { code, detail, .. } => {
+                    assert_eq!(code, "ALREADY_CLAIMED");
+                    assert_eq!(detail, i18n::tr(locale, "staff.err_already_claimed"));
+                }
+                e => panic!("{e:?}"),
+            }
+        }
+    }
+
+    /// A swap asked twice (backend B-ROTA-7, SWAP_EXISTS) reads in the phone's
+    /// language, like the other roster refusals.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_swap_asked_twice_is_worded_for_the_person() {
+        use crate::testkit::TELLER;
+        let day = the_day();
+        let stub = roster_stub(day.clone()).await;
+        let core = crate::testkit::online_core(&stub.base, "").await;
+        core.set_online(true);
+        core.dawam_snapshot(true).await.unwrap();
+        for locale in ["en", "ar"] {
+            core.set_locale(locale.into());
+            let err = core
+                .dawam_do(json!({ "action": "ask_swap", "mine": format!("{TELLER}|{day}|w1"), "theirs": format!("Q|{day}|w2") }).to_string())
+                .await
+                .unwrap_err();
+            match err {
+                CoreError::Server { code, detail, .. } => {
+                    assert_eq!(code, "SWAP_EXISTS");
+                    assert_eq!(detail, i18n::tr(locale, "staff.err_swap_exists"));
+                }
+                e => panic!("{e:?}"),
+            }
         }
     }
 

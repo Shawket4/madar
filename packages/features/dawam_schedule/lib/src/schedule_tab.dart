@@ -361,20 +361,40 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
               ),
             ],
           )
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: Space.sm,
-            children: [
-              Row(
-                spacing: Space.sm,
-                children: [
-                  Expanded(child: nav),
-                  status,
-                  ...actions,
+        : LayoutBuilder(
+            // One row when it all fits; else the week's range keeps its
+            // room and the actions wrap below it (E2E roster: on an iPad in
+            // portrait the range was squeezed to nothing and overflowed).
+            builder: (context, box) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: Space.sm,
+              children: [
+                if (box.maxWidth >= 1100)
+                  Row(
+                    spacing: Space.sm,
+                    children: [
+                      Expanded(child: nav),
+                      status,
+                      ...actions,
+                    ],
+                  )
+                else ...[
+                  Row(
+                    spacing: Space.sm,
+                    children: [
+                      Expanded(child: nav),
+                      status,
+                    ],
+                  ),
+                  Wrap(
+                    spacing: Space.sm,
+                    runSpacing: Space.sm,
+                    children: actions,
+                  ),
                 ],
-              ),
-              if (branches.isNotEmpty) _Strip(branches),
-            ],
+                if (branches.isNotEmpty) _Strip(branches),
+              ],
+            ),
           );
 
     final Widget body;
