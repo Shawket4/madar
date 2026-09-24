@@ -221,7 +221,11 @@ pub struct Snapshot {
     pub history: Vec<PeriodV>,
     pub slips: Vec<SlipV>,
     /// Per person: the cap on outstanding advances, and what is outstanding (AV-5).
+    /// The cap only where the server shows it (the salary's visibility).
     pub advance_cap: BTreeMap<String, i64>,
+    /// Per person: what they owe is within the cap, the server's word for
+    /// someone whose cap I may not see (decision #7).
+    pub advance_within: BTreeMap<String, bool>,
     pub outstanding: BTreeMap<String, i64>,
     /// Paid through Dawam. Off (an app-using owner, say): no estimate, no
     /// payslips, but every other screen works.
@@ -467,6 +471,9 @@ pub struct ReqV {
     pub can_decide: Option<bool>,
     /// A half-day leave's half: `first` or `second` (RQ-8).
     pub leave_half: Option<String>,
+    /// An advance asked for: what would be owed with it is within the cap
+    /// (the server's `within_cap`, decision #7).
+    pub within_cap: Option<bool>,
     /// The work shift (template) a late arrival, early departure or excuse
     /// is for (B4); `None` = the shift its time falls in.
     pub tpl: Option<String>,
@@ -515,6 +522,8 @@ pub struct AdvanceV {
     pub date: String,
     pub by: String,
     pub collected: i64,
+    /// What they owe is within the cap (the server's `within_cap`).
+    pub within_cap: Option<bool>,
 }
 
 #[derive(Serialize, Debug)]
@@ -776,7 +785,14 @@ pub(crate) fn money_words(locale: &str, code: &str, body: &str) -> String {
     let key = format!("staff.err_{}", code.to_lowercase());
     let words = i18n::tr(locale, &key);
     let out = fill(&words, &args);
-    if words == key || out.contains('{') { server() } else { out }
+    if words != key && !out.contains('{') {
+        return out;
+    }
+    // Sent without its figures (the cap to a manager, decision #7): the
+    // same refusal with no amounts, when the core has words for that.
+    let bare = format!("{key}_no_figures");
+    let words = i18n::tr(locale, &bare);
+    if v.is_object() && words != bare && !words.contains('{') { words } else { server() }
 }
 
 /// A punch refusal in `locale`, from the server's body (`{error, code,
@@ -2441,6 +2457,7 @@ impl MadarCore {
                     installments: i(a, "installments").max(1),
                     note: s(a, "reason"),
                     decision_note: so(a, "decision_note"),
+                    within_cap: a.get("within_cap").and_then(Value::as_bool),
                     ..Default::default()
                 });
                 continue;
@@ -2456,12 +2473,16 @@ impl MadarCore {
                 date: so(a, "decided_at").unwrap_or_else(|| s(a, "created_at")),
                 by: actor(so(a, "decided_by")).unwrap_or_default(),
                 collected,
+                within_cap: a.get("within_cap").and_then(Value::as_bool),
             });
         }
         // The cap is the server's figure only (AV-5, AT-3, DW3): no percent
         // maths here — a person the server sends none for (salary hidden
         // from me) has none.
         out.advance_cap.extend(advance_caps(rows("dawam_people")));
+        out.advance_within.extend(
+            rows("dawam_people").iter().filter_map(|p| Some((s(p, "employee_id"), p.get("advance_within_cap")?.as_bool()?))),
+        );
         if let Some(cap) = estimate.get("advance_cap_piastres").and_then(Value::as_i64) {
             out.advance_cap.insert(me.clone(), cap);
         }
@@ -4341,6 +4362,57 @@ mod tests {
                 assert!(detail.contains("\"vars\""), "{detail}");
             }
             e => panic!("{e:?}"),
+        }
+    }
+
+    /// Owner decision #7 (D7): a manager never sees the cap (it gives the
+    /// salary away). The server's over-cap refusal to a manager carries no
+    /// figures (`{over_cap: true}`) and reads "only the owner can approve";
+    /// the owner's keeps the figure. The advance cards and the record sheet
+    /// read the server's `within_cap` / `advance_within_cap`, never a cap.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_manager_sees_within_or_over_the_cap_never_the_figure() {
+        use crate::testkit::StubResponse;
+        let manager = r#"{"error":"That's over the advance cap. Only the owner can approve it.","code":"ADVANCE_OVER_CAP","vars":{"over_cap":true}}"#;
+        for lang in ["en", "ar"] {
+            let w = money_words(lang, "ADVANCE_OVER_CAP", manager);
+            assert_eq!(w, i18n::tr(lang, "staff.err_advance_over_cap_no_figures"), "{lang}");
+            assert!(!w.contains('{') && !w.chars().any(|c| c.is_ascii_digit()), "no amounts: {w}");
+        }
+        assert_eq!(money_words("en", "ADVANCE_OVER_CAP", manager), "Over the advance cap: only the owner can approve it.");
+        let owner = r#"{"error":"x","code":"ADVANCE_OVER_CAP","vars":{"over_cap":true,"more_piastres":165000,"more_egp":1650}}"#;
+        assert!(money_words("en", "ADVANCE_OVER_CAP", owner).contains("EGP 1,650.00"), "the owner keeps the figure");
+
+        let (_stub, core) = cafe(&["hr.attendance.read", "hr.advances.decide"], |m, p, _| match (m, p) {
+            ("GET", "/staff/me/context") => Some(StubResponse::json(200, json!({
+                "role": "manager", "org_name": "Nile Café", "caps": ["hr.attendance.read", "hr.advances.decide"],
+                "branches": [{ "id": crate::testkit::BRANCH, "name": "Zamalek", "timezone": "Africa/Cairo" }],
+                "work_shifts": [], "settings": { "period_start_day": 26 },
+                "people": [
+                    { "employee_id": crate::testkit::TELLER, "name": "Sara", "role": "manager", "branch_ids": [crate::testkit::BRANCH] },
+                    { "employee_id": "e4", "name": "Youssef", "role": "employee", "branch_ids": [crate::testkit::BRANCH],
+                      "base_salary_piastres": null, "advance_cap_piastres": null, "advance_within_cap": false },
+                    { "employee_id": "e5", "name": "Laila", "role": "employee", "branch_ids": [crate::testkit::BRANCH],
+                      "base_salary_piastres": null, "advance_cap_piastres": null, "advance_within_cap": true },
+                ],
+            }))),
+            ("GET", "/staff/payroll/advances") => Some(StubResponse::json(200, json!([
+                { "id": "v1", "employee_id": "e4", "status": "pending", "amount_piastres": 200000, "installments": 1,
+                  "created_at": "2026-09-20T09:00:00Z", "cap_piastres": null, "outstanding_piastres": 150000, "within_cap": false },
+                { "id": "v2", "employee_id": "e5", "status": "approved", "amount_piastres": 50000, "installments": 1,
+                  "remaining_piastres": 50000, "created_at": "2026-09-01T09:00:00Z", "cap_piastres": null, "within_cap": true },
+            ]))),
+            _ => None,
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(snap["advance_cap"], json!({}), "no cap figure for a manager");
+        assert_eq!(snap["advance_within"], json!({ "e4": false, "e5": true }));
+        let v1 = snap["requests"].as_array().unwrap().iter().find(|r| r["id"] == "v|v1").unwrap();
+        assert_eq!(v1["within_cap"], json!(false), "the pending advance: over the cap");
+        assert_eq!(snap["advances"][0]["within_cap"], json!(true));
+        for k in ["staff.outstanding_within_cap", "staff.outstanding_over_cap"] {
+            assert_ne!(i18n::tr("ar", k), i18n::tr("en", k), "{k}");
         }
     }
 

@@ -292,10 +292,11 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
         'date': dayLabel(from),
         'duration': mins(r.minutes),
       }),
-      ReqKind.salaryAdvance => tr('staff.outstanding_cap', {
-        'amount': egp(store.outstandingAdvances(r.emp)),
-        'amount2': egpOrDash(store.advanceCap(r.emp)),
-      }),
+      ReqKind.salaryAdvance => advanceCapLine(
+        store,
+        r.emp,
+        within: r.withinCap,
+      ),
       _ => reqWhen(r),
     };
     return MadarCard.column(

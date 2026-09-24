@@ -292,6 +292,10 @@ class Req {
   String? decidedBy;
   String? decisionNote;
 
+  /// An advance asked for: owed with it, within the cap (the server's word;
+  /// a manager never sees the cap itself, decision #7).
+  bool? withinCap;
+
   /// Who cancelled it and why (RQ-F6); decided_by stays the approver's.
   String? cancelledBy;
   String? cancelNote;
@@ -356,8 +360,9 @@ class Advance {
     this.installments,
     this.date,
     this.by,
-    this.collected,
-  );
+    this.collected, {
+    this.withinCap,
+  });
   final String id;
   final String emp;
   final String by;
@@ -365,6 +370,9 @@ class Advance {
   final int installments;
   final DateTime date;
   final int collected;
+
+  /// What they owe is within the cap (the server's word, decision #7).
+  final bool? withinCap;
   int get outstanding => amount - collected;
   int get installment => (amount / installments).ceil();
 }
@@ -698,6 +706,7 @@ class DawamStore extends ChangeNotifier {
   Period period = Period(DateTime(2000), DateTime(2000));
   final _slips = <String, Slip>{};
   final _cap = <String, int>{};
+  final _within = <String, bool>{};
   final _outstanding = <String, int>{};
   final _warnings = <String, List<(String, Map<String, Object>)>>{};
   List<String> _myNow = const [];
@@ -987,6 +996,7 @@ class DawamStore extends ChangeNotifier {
           ..monthOpen = r['month_open'] != false
           ..decidedBy = r['decided_by'] as String?
           ..decisionNote = r['decision_note'] as String?
+          ..withinCap = r['within_cap'] as bool?
           ..cancelledBy = r['cancelled_by'] as String?
           ..cancelNote = r['cancel_note'] as String?
           ..cancelledByName = r['cancelled_by_name'] as String?,
@@ -1035,6 +1045,7 @@ class DawamStore extends ChangeNotifier {
           _at(a['date']) ?? now,
           a['by'] as String,
           _int(a['collected']),
+          withinCap: a['within_cap'] as bool?,
         ),
       );
     }
@@ -1110,7 +1121,12 @@ class DawamStore extends ChangeNotifier {
       if (slip.frozen && p != null) p.frozen[slip.emp] = slip;
       if (p == period) _slips[slip.emp] = slip;
     }
+    _cap.clear();
     (v['advance_cap'] as J).forEach((k, x) => _cap[k] = _int(x));
+    _within.clear();
+    ((v['advance_within'] as J?) ?? const {}).forEach(
+      (k, x) => _within[k] = x == true,
+    );
     _outstanding.clear();
     (v['outstanding'] as J).forEach((k, x) => _outstanding[k] = _int(x));
     for (final g in _list(v['suggestions'])) {
@@ -1203,6 +1219,10 @@ class DawamStore extends ChangeNotifier {
   /// The server's cap on what [emp] may owe (AV-5), or null when the server
   /// sent none (their pay is hidden from me). It is never worked out here.
   int? advanceCap(String emp) => _cap[emp];
+
+  /// Whether what [emp] owes is within the cap, the server's word for
+  /// someone whose cap I may not see (decision #7); null = not said.
+  bool? advanceWithin(String emp) => _within[emp];
   List<(String, Map<String, Object>)> warnings(String emp, DateTime ws) =>
       _warnings['$emp|${_d(ws)}'] ?? const [];
   Slip slip(String empId, Period p) =>

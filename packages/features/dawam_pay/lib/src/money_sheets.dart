@@ -167,10 +167,7 @@ Future<void> recordAdvanceSheet(BuildContext context, String emp) {
             kind: MadarFieldKind.decimal,
           ),
           Text(
-            tr('staff.outstanding_cap', {
-              'amount': egp(store.outstandingAdvances(emp)),
-              'amount2': egpOrDash(store.advanceCap(emp)),
-            }),
+            advanceCapLine(store, emp),
             style: MadarType.bodySm.copyWith(
               color: ctx.madarColors.textSecondary,
             ),

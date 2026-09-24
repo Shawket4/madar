@@ -381,3 +381,20 @@ String initialOf(String name) {
   final n = name.trim().characters;
   return n.isEmpty ? '·' : n.first;
 }
+
+/// What [emp] owes against the advance cap. The owner reads the cap's
+/// figure; anyone who may not see it (it gives the salary away) reads only
+/// "within cap" or "over cap: only the owner can approve" (decision #7),
+/// from [within] (an advance's own word) or the person's.
+String advanceCapLine(DawamStore store, String emp, {bool? within}) {
+  final owed = egp(store.outstandingAdvances(emp));
+  final cap = store.advanceCap(emp);
+  if (cap != null) {
+    return tr('staff.outstanding_cap', {'amount': owed, 'amount2': egp(cap)});
+  }
+  return switch (within ?? store.advanceWithin(emp)) {
+    true => tr('staff.outstanding_within_cap', {'amount': owed}),
+    false => tr('staff.outstanding_over_cap', {'amount': owed}),
+    null => tr('staff.outstanding_cap', {'amount': owed, 'amount2': '—'}),
+  };
+}
