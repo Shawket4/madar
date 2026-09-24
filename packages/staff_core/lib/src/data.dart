@@ -1357,7 +1357,10 @@ class DawamStore extends ChangeNotifier {
       failures.add(loc(e));
       return;
     } on DawamError catch (e) {
-      if (awaitingAnswer) rethrow;
+      if (awaitingAnswer) {
+        _rereadSoon();
+        rethrow;
+      }
       failures.add(loc(e));
       return;
     } on Object catch (e) {
@@ -1367,6 +1370,17 @@ class DawamStore extends ChangeNotifier {
     }
     _applySafely(json);
   }
+
+  /// After a refusal the screen waited for, the phone's own picture is read
+  /// again (no network): a refusal for want of a connection turns the
+  /// offline banner and the disabled buttons on at once (E2E S-120, S-167,
+  /// S-236), not at the next poll.
+  void _rereadSoon() => unawaited(
+    backend
+        .snapshot(refresh: false)
+        .then(_applySafely)
+        .catchError((Object _) {}),
+  );
 
   /// The screen that started this call waits for the server's answer.
   static bool get awaitingAnswer => Zone.current[awaitAnswerKey] == true;
@@ -1480,6 +1494,7 @@ class DawamStore extends ChangeNotifier {
   /// [note]: why, required once it was approved (AT-7).
   Future<void> cancel(Req r, {String? note}) =>
       _act({'action': 'cancel', 'req': r.id, 'note': ?note});
+
   /// A refused decision (decided elsewhere, a closed month, over a limit)
   /// reloads the queue, so a card someone else settled goes (E2E S-235).
   Future<void> decide(
@@ -1501,7 +1516,7 @@ class DawamStore extends ChangeNotifier {
         'note': ?note,
       });
     } on DawamError {
-      unawaited(Zone.root.run(refresh));
+      unawaited(refresh());
       rethrow;
     }
   }

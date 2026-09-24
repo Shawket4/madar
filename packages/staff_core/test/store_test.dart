@@ -30,10 +30,15 @@ class _Backend implements DawamBackend {
   }
 
   int refreshes = 0;
+
+  /// What the core says about the connection in the next picture.
+  bool online = true;
   @override
   Future<String> snapshot({required bool refresh}) async {
     if (refresh) refreshes++;
-    return _fixture();
+    final v = jsonDecode(_fixture()) as Map<String, dynamic>;
+    v['online'] = online;
+    return jsonEncode(v);
   }
   @override
   Future<String> sync() async => _fixture();
@@ -106,6 +111,39 @@ Widget _screen(
 
 void main() {
   setUp(() => currentLang = 'en');
+
+  testWidgets(
+    'a send refused for want of a connection shows the offline state (E2E S-120, S-167)',
+    (t) async {
+      final (store, backend) = await _store();
+      expect(store.offline, isFalse);
+      backend
+        ..online = false
+        ..answer = () async => throw DawamError(
+        'This needs a connection.',
+        'This needs a connection.',
+      );
+      final results = <bool>[];
+      await t.pumpWidget(
+        _screen(
+          store,
+          (s) => s.file(ReqKind.leave, from: DateTime(2026, 9, 30)),
+          results,
+        ),
+      );
+      await t.tap(find.text('go'));
+      await t.pump(const Duration(milliseconds: 50));
+      await t.pump(const Duration(milliseconds: 50));
+      expect(results, [false]);
+      expect(
+        store.offline,
+        isTrue,
+        reason: 'the banner and the disabled buttons follow at once',
+      );
+      await t.pump(const Duration(seconds: 3));
+      store.stop();
+    },
+  );
 
   testWidgets(
     'a refused decision reloads the queue (E2E S-235: decided elsewhere)',
