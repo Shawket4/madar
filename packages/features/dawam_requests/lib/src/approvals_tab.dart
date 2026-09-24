@@ -97,6 +97,20 @@ class _ApprovalsTabState extends ConsumerState<ApprovalsTab> {
   }
 }
 
+/// A swap waiting for the manager: each side names the person whose shift
+/// it is (E2E S-229: the requester was named on both sides).
+String swapWords({
+  required String requester,
+  required String requesterDay,
+  required String peer,
+  required String peerDay,
+}) => tr('staff.s_s_both_agreed', {
+  'name': requester,
+  'date': requesterDay,
+  'name2': peer,
+  'date2': peerDay,
+});
+
 class _Who extends StatelessWidget {
   const _Who(this.e, this.what, this.at, {this.flag});
 
@@ -257,13 +271,12 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
     final s1In = s1?.inAt;
     final from = r.from;
     final detail = switch (r.kind) {
-      ReqKind.swap when s1 != null && s2 != null && s1Emp != null =>
-        tr('staff.s_s_both_agreed', {
-          'name': name(store.emp(s1Emp)),
-          'date': dayLabel(s1.date),
-          'name2': name(e),
-          'date2': dayLabel(s2.date),
-        }),
+      ReqKind.swap when s1 != null && s2 != null && s1Emp != null => swapWords(
+        requester: name(store.emp(s1Emp)),
+        requesterDay: dayLabel(s1.date),
+        peer: name(store.emp(s2.emp ?? r.peer ?? r.emp)),
+        peerDay: dayLabel(s2.date),
+      ),
       ReqKind.openShift when s1 != null =>
         '${dayLabel(s1.date)} · ${tplName(s1.template)}'
             ' · ${shiftWindow(s1)}',

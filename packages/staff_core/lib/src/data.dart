@@ -1480,6 +1480,8 @@ class DawamStore extends ChangeNotifier {
   /// [note]: why, required once it was approved (AT-7).
   Future<void> cancel(Req r, {String? note}) =>
       _act({'action': 'cancel', 'req': r.id, 'note': ?note});
+  /// A refused decision (decided elsewhere, a closed month, over a limit)
+  /// reloads the queue, so a card someone else settled goes (E2E S-235).
   Future<void> decide(
     Req r, {
     required bool approve,
@@ -1487,15 +1489,22 @@ class DawamStore extends ChangeNotifier {
     int? amount,
     int? installments,
     String? note,
-  }) => _act({
-    'action': 'decide',
-    'req': r.id,
-    'approve': approve,
-    'paid': ?paid,
-    'amount': ?amount,
-    'installments': ?installments,
-    'note': ?note,
-  });
+  }) async {
+    try {
+      await _act({
+        'action': 'decide',
+        'req': r.id,
+        'approve': approve,
+        'paid': ?paid,
+        'amount': ?amount,
+        'installments': ?installments,
+        'note': ?note,
+      });
+    } on DawamError {
+      unawaited(Zone.root.run(refresh));
+      rethrow;
+    }
+  }
 
   /// [how]: `excuse_paid` · `excuse_unpaid` · `deduct` · `revoke` · `ignore`.
   Future<void> resolve(Flag f, String how, {int deduct = 0, String? reason}) =>

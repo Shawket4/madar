@@ -29,8 +29,12 @@ class _Backend implements DawamBackend {
     return answer();
   }
 
+  int refreshes = 0;
   @override
-  Future<String> snapshot({required bool refresh}) async => _fixture();
+  Future<String> snapshot({required bool refresh}) async {
+    if (refresh) refreshes++;
+    return _fixture();
+  }
   @override
   Future<String> sync() async => _fixture();
   @override
@@ -102,6 +106,39 @@ Widget _screen(
 
 void main() {
   setUp(() => currentLang = 'en');
+
+  testWidgets(
+    'a refused decision reloads the queue (E2E S-235: decided elsewhere)',
+    (t) async {
+      final (store, backend) = await _store();
+      backend.answer = () async => throw DawamError(
+        'This request is already approved',
+        'This request is already approved',
+      );
+      final before = backend.refreshes;
+      final results = <bool>[];
+      await t.pumpWidget(
+        _screen(
+          store,
+          (s) => s.decide(
+            Req('q|x', ReqKind.leave, 'e2', DateTime(2026, 9, 22)),
+            approve: true,
+          ),
+          results,
+        ),
+      );
+      await t.tap(find.text('go'));
+      await t.pump(const Duration(milliseconds: 50));
+      expect(results, [false]);
+      expect(
+        backend.refreshes,
+        greaterThan(before),
+        reason: 'the stale card goes: the picture is reloaded',
+      );
+      await t.pump(const Duration(seconds: 3));
+      store.stop();
+    },
+  );
 
   group('attempt waits for the server (06 B1)', () {
     testWidgets('a refusal is shown in the server words, never a success', (
