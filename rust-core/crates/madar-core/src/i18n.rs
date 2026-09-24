@@ -2167,7 +2167,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.n_open_shift_cancelled" => "الوردية المتاحة يوم {date} اللي حجزتها اتلغت",
         "staff.n_swap_cancelled" => "{name} لغى طلب التبديل",
         "staff.n_prefs_changed" => "مديرك غيّر تفضيلات ورديّاتك",
-        "staff.n_learning_frozen" => "اقتراحات الجدول في {branch} وقفت تتعلم: المديرين قبلوا {accepted} من {decided} في ٤ أسابيع",
+        "staff.n_learning_frozen" => "اقتراحات الجدول في {branch} وقفت تتعلم: المديرين قبلوا {accepted} من {decided} في 4 أسابيع",
         "staff.n_learning_resumed" => "اقتراحات الجدول في {branch} رجعت تتعلم",
         "staff.n_fairness_ready" => "مراجعة عدالة الورديات الليلية لـ {branch} ({month}) جاهزة",
         "staff.n_fairness_flagged" => "الورديات الليلية في {branch} ({month}) مش متوازنة بين الرجالة والستات ({gap} نقطة) — بص عليها",
@@ -4300,6 +4300,21 @@ mod tests {
             orphans.is_empty(),
             "keys present in AR but missing from EN table: {orphans:?}"
         );
+    }
+
+    #[test]
+    fn dawam_arabic_words_use_latin_digits() {
+        // APP-4: the staff app shows Latin digits in both languages, so no
+        // Arabic staff word may carry Arabic-Indic digits (the POS's own
+        // words keep theirs).
+        let src = include_str!("i18n.rs");
+        let ar_keys = keys_in_fn(src, "fn ar(key: &str) -> Option<&'static str> {");
+        let indic = |c: char| ('\u{0660}'..='\u{0669}').contains(&c) || ('\u{06F0}'..='\u{06F9}').contains(&c);
+        let bad: Vec<&str> = ar_keys
+            .into_iter()
+            .filter(|k| k.starts_with("staff.") && tr("ar", k).chars().any(indic))
+            .collect();
+        assert!(bad.is_empty(), "Arabic-Indic digits in Dawam words: {bad:?}");
     }
 
     #[test]
