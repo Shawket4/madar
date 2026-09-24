@@ -415,24 +415,28 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
       );
     }
 
-    return MadarContentFrame(
-      child: Padding(
-        padding: const EdgeInsetsDirectional.only(
-          top: Space.lg,
-          bottom: Space.lg,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.md,
-          children: [
-            bar,
-            Expanded(child: body),
-            if (!phone)
-              Text(
-                tr('staff.roster_drag_hint'),
-                style: MadarType.bodySm.copyWith(color: c.textMuted),
-              ),
-          ],
+    // The board takes the rest of the height, so the tab does not scroll
+    // by itself: pullable, for the shell's pull to refresh.
+    return MadarPullable(
+      child: MadarContentFrame(
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(
+            top: Space.lg,
+            bottom: Space.lg,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: Space.md,
+            children: [
+              bar,
+              Expanded(child: body),
+              if (!phone)
+                Text(
+                  tr('staff.roster_drag_hint'),
+                  style: MadarType.bodySm.copyWith(color: c.textMuted),
+                ),
+            ],
+          ),
         ),
       ),
     );

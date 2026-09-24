@@ -693,6 +693,24 @@ class DawamStore extends ChangeNotifier {
   /// Paid through Dawam (the server says). Off: no estimate on the Pay tab.
   bool onPayroll = true;
 
+  /// When the core last fetched the picture from the server (its
+  /// `fetched_at`, ms): a pull that did not move it never reached the server.
+  int fetchedAt = 0;
+
+  /// When the phone last ASKED the server for the whole picture (sign-in,
+  /// the poll, a push, the pill, a pull, a resume) — reached or not. A
+  /// resume soon after one skips its own.
+  DateTime? lastFetch;
+
+  /// The clock [lastFetch] is stamped and read with; a test sets it.
+  @visibleForTesting
+  DateTime Function() clock = DateTime.now;
+
+  /// A resume within this long of the last fetch does not fetch again: a
+  /// quick app switch is not a refresh storm.
+  static const resumeQuiet = Duration(seconds: 15);
+
+  Future<bool>? _fetching;
   Timer? _poll;
   StreamSubscription<DawamFix>? _track;
   DateTime? _lastPing;
@@ -744,6 +762,7 @@ class DawamStore extends ChangeNotifier {
     me = v['me'] as String;
     _skew = (_at(v['now']) ?? DateTime.now()).difference(DateTime.now());
     offline = v['online'] != true;
+    fetchedAt = _int(v['fetched_at']);
     queued = _int(v['queued']);
     stuck = (v['stuck'] as List<dynamic>).cast<String>();
     role = _enum(Role.values, v['role'], Role.employee);
@@ -1273,6 +1292,7 @@ class DawamStore extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    lastFetch = clock();
     loading = true;
     notifyListeners();
     try {
@@ -1296,12 +1316,48 @@ class DawamStore extends ChangeNotifier {
     }
     // The inbox and the team board stay current while the app is open.
     _poll ??= Timer.periodic(const Duration(minutes: 2), (_) {
-      if (me != null && !loading) unawaited(_run(backend.sync));
+      if (me != null && !loading) unawaited(_fetch());
     });
   }
 
-  /// Send what is queued, then refresh (the pill's tap; a restored link).
-  void sync() => unawaited(_run(backend.sync));
+  /// Send what is queued, then refresh (the pill's tap; a push).
+  void sync() => unawaited(_fetch());
+
+  /// Pull to refresh (every tab, the inbox, the payslip list): send what is
+  /// queued, fetch everything, and hold the spinner until the answer. When
+  /// the fetch never reached the server — offline, or the server did not
+  /// answer — the saved picture stays and the toast says so; a refusal says
+  /// why in the server's words.
+  Future<void> pull() async {
+    if (me == null) return;
+    final before = fetchedAt;
+    if (!await _fetch()) return; // refused: the toast already said why
+    if (offline) {
+      failures.add(tr('staff.refresh_offline'));
+    } else if (fetchedAt <= before) {
+      failures.add(tr('staff.refresh_failed'));
+    }
+  }
+
+  /// The app came back to the front (it may have sat in the background for
+  /// hours): fetch, unless the last fetch was under [resumeQuiet] ago.
+  /// Quiet offline — the pill already says so.
+  void resumed() {
+    if (me == null || !privacyAccepted) return;
+    final last = lastFetch;
+    if (last != null && clock().difference(last) < resumeQuiet) return;
+    unawaited(_fetch());
+  }
+
+  /// Send what is queued, then fetch everything (the core's `dawam_sync`).
+  /// One at a time: a push, the pill and a pull landing together share it.
+  /// True when the core answered with a picture (reached the server or not).
+  Future<bool> _fetch() {
+    lastFetch = clock();
+    return _fetching ??= _run(
+      backend.sync,
+    ).whenComplete(() => _fetching = null);
+  }
 
   /// While on shift, a ping every 15 minutes, queued by the core offline
   /// (CL-4): the host's background tracking (which outlives the app) and,
@@ -1335,8 +1391,8 @@ class DawamStore extends ChangeNotifier {
   /// it, so its sheet stays open with the server's words and no success is
   /// shown (B1). Anywhere else a refusal arrives on [failures]. An answer
   /// the screens can't read keeps the last picture; it is never a refusal:
-  /// the server did accept it.
-  Future<void> _run(Future<String> Function() op) async {
+  /// the server did accept it. True when the core answered with a picture.
+  Future<bool> _run(Future<String> Function() op) async {
     final String json;
     try {
       json = await op();
@@ -1344,17 +1400,18 @@ class DawamStore extends ChangeNotifier {
       signOut();
       if (awaitingAnswer) rethrow;
       failures.add(loc(e));
-      return;
+      return false;
     } on DawamError catch (e) {
       if (awaitingAnswer) rethrow;
       failures.add(loc(e));
-      return;
+      return false;
     } on Object catch (e) {
       if (awaitingAnswer) throw DawamError('$e', '$e');
       failures.add('$e');
-      return;
+      return false;
     }
     _applySafely(json);
+    return true;
   }
 
   /// The screen that started this call waits for the server's answer.
