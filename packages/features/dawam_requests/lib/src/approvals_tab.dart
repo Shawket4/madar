@@ -147,11 +147,22 @@ class _Who extends StatelessWidget {
 }
 
 class _Decide extends ConsumerWidget {
-  const _Decide({required this.yes, required this.no, this.yesLabel});
+  const _Decide({
+    required this.yes,
+    required this.no,
+    this.yesLabel,
+    this.askWhy = false,
+  });
 
   final Future<void> Function() yes;
-  final Future<void> Function() no;
+
+  /// Declines; `why` is the reason typed when [askWhy].
+  final Future<void> Function(String? why) no;
   final String? yesLabel;
+
+  /// Declining asks why first (a pay line or an advance, decision #8): the
+  /// server refuses a rejection without a reason.
+  final bool askWhy;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -166,7 +177,9 @@ class _Decide extends ConsumerWidget {
             variant: MadarButtonVariant.secondary,
             enabled: !offline,
             tooltip: tr('staff.needs_a_connection'),
-            onTap: () => attempt(ref, no, ok: tr('staff.declined')),
+            onTap: () => askWhy
+                ? declineWithReason(context, no)
+                : attempt(ref, () => no(null), ok: tr('staff.declined')),
           ),
         ),
         Expanded(
@@ -218,7 +231,8 @@ class _AdjCard extends ConsumerWidget {
         ),
         _Decide(
           yes: () => store.decideAdj(a, yes: true),
-          no: () => store.decideAdj(a, yes: false),
+          no: (why) => store.decideAdj(a, yes: false, reason: why),
+          askWhy: true,
         ),
       ],
     );
@@ -365,7 +379,8 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
                 : null,
             installments: _inst,
           ),
-          no: () => store.decide(r, approve: false),
+          no: (why) => store.decide(r, approve: false, note: why),
+          askWhy: r.kind == ReqKind.salaryAdvance,
           yesLabel: r.kind == ReqKind.cover ? tr('staff.confirm_cover') : null,
         ),
         if (r.kind == ReqKind.cover)

@@ -13218,6 +13218,7 @@ impl MadarCore {
             "REQUEST_ALREADY_DECIDED" => Some("staff.err_request_already_decided"),
             "OVERLAPPING_REQUEST" => Some("staff.err_overlapping_request"),
             "OWNER_ONLY" => Some("staff.err_owner_only"),
+            "REASON_REQUIRED" => Some("staff.err_reason_required"),
             _ => None,
         };
         let locale = self.current_locale();

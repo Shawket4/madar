@@ -129,9 +129,9 @@ void main() {
       backend
         ..online = false
         ..answer = () async => throw DawamError(
-        'This needs a connection.',
-        'This needs a connection.',
-      );
+          'This needs a connection.',
+          'This needs a connection.',
+        );
       final results = <bool>[];
       await t.pumpWidget(
         _screen(
@@ -186,6 +186,58 @@ void main() {
       store.stop();
     },
   );
+
+  // Decision #8: declining a pay line or an advance says why. The sheet
+  // sends nothing without a reason, then sends the typed one.
+  testWidgets('declining asks why and sends the reason (D8)', (t) async {
+    final (store, backend) = await _store();
+    final adj = Adj(
+      'a|bonus|b1',
+      'e2',
+      50000,
+      'Weekend',
+      'e3',
+      DateTime(2026, 9, 20),
+      DateTime(2026, 8, 26),
+      bonus: true,
+    );
+    await t.pumpWidget(
+      ProviderScope(
+        overrides: [dawamProvider.overrideWith((_) => store)],
+        child: MaterialApp(
+          theme: MadarTheme.light(),
+          home: Consumer(
+            builder: (context, ref, _) => Scaffold(
+              body: TextButton(
+                onPressed: () => declineWithReason(
+                  context,
+                  (why) => store.decideAdj(adj, yes: false, reason: why),
+                ),
+                child: const Text('decline'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.text('decline'));
+    await t.pumpAndSettle();
+    final send = find.widgetWithText(MadarButton, 'staff.decline');
+    await t.tap(send);
+    await t.pump();
+    expect(backend.acts, isEmpty, reason: 'no reason: nothing is sent');
+    await t.enterText(find.byType(TextField), '  Paid twice ');
+    await t.tap(send);
+    await t.pump(const Duration(milliseconds: 50));
+    expect(backend.acts.single, {
+      'action': 'decide_adj',
+      'adj': 'a|bonus|b1',
+      'yes': false,
+      'reason': 'Paid twice',
+    });
+    await t.pump(const Duration(seconds: 3));
+    store.stop();
+  });
 
   group('attempt waits for the server (06 B1)', () {
     testWidgets('a refusal is shown in the server words, never a success', (

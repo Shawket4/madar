@@ -791,6 +791,8 @@ pub(crate) const DAWAM_CODES: &[&str] = &[
     "OVERLAPPING_REQUEST",
     // Nobody decides their own flag (E2E B-TEAM-1).
     "OWN_DECISION",
+    // Declining a pay line or an advance says why (decision #8).
+    "REASON_REQUIRED",
 ];
 
 /// Map an HTTP status + raw body to a `CoreError` variant.

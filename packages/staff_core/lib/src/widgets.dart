@@ -398,3 +398,47 @@ String advanceCapLine(DawamStore store, String emp, {bool? within}) {
     null => tr('staff.outstanding_cap', {'amount': owed, 'amount2': '—'}),
   };
 }
+
+/// Declining a pay line or an advance says why (AD-9, decision #8): a
+/// sheet asks for the reason and sends it; an empty one is not sent.
+Future<void> declineWithReason(
+  BuildContext context,
+  Future<void> Function(String why) no,
+) {
+  final reason = TextEditingController();
+  return showDawamSheet<void>(
+    context,
+    title: tr('staff.why_decline'),
+    builder: (ctx, ref, store) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
+      children: [
+        MadarField(
+          controller: reason,
+          placeholder: tr('staff.reason_required'),
+          kind: MadarFieldKind.note,
+          autofocus: true,
+        ),
+        MadarButton(
+          label: tr('staff.decline'),
+          variant: MadarButtonVariant.danger,
+          onTap: () async {
+            final why = reason.text.trim();
+            if (why.isEmpty) {
+              ref
+                  .read(toastProvider.notifier)
+                  .show(tr('staff.say_why_you_decline'), tone: ChipTone.danger);
+              return;
+            }
+            final done = await attempt(
+              ref,
+              () => no(why),
+              ok: tr('staff.declined'),
+            );
+            if (done && ctx.mounted) Navigator.of(ctx).maybePop();
+          },
+        ),
+      ],
+    ),
+  );
+}

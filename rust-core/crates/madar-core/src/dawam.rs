@@ -658,7 +658,9 @@ pub enum Act {
         #[serde(default)] pct: Option<f64>,
         #[serde(default)] recurring: bool,
     },
-    DecideAdj { adj: String, yes: bool },
+    /// Declining says why (AD-9, decision #8): the server refuses a
+    /// rejection without a reason.
+    DecideAdj { adj: String, yes: bool, #[serde(default)] reason: Option<String> },
     DeleteAdj { adj: String },
     /// [reason]: why it stops (AD-9); the server refuses a stop without one.
     StopAdj {
@@ -1762,6 +1764,11 @@ impl MadarCore {
             }
             Act::Decide { req, approve, paid, amount, installments, note } => {
                 let id = tail(&req);
+                // Declining an advance says why (decision #8).
+                let note = note.map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
+                if !approve && req.starts_with("v|") && note.is_none() {
+                    return Err(invalid("staff.say_why_you_decline"));
+                }
                 // Pay is asked only of leave, an excuse and an early departure
                 // (RQ-7); any other kind's decision carries none.
                 let kind = snap.requests.iter().find(|r| r.id == req).map(|r| r.kind.clone()).unwrap_or_default();
@@ -1774,7 +1781,10 @@ impl MadarCore {
                         }
                         (format!("/staff/requests/{id}/decision"), body)
                     }
-                    "v" => (format!("/staff/advances/{id}/review"), json!({ "approve": approve, "amount_piastres": amount, "installments": installments, "note": note })),
+                    "v" => (
+                        format!("/staff/advances/{id}/review"),
+                        json!({ "approve": approve, "amount_piastres": amount, "installments": installments, "reason": note, "note": note }),
+                    ),
                     "w" => (format!("/staff/swaps/{id}/decision"), json!({ "approve": approve })),
                     "o" => (format!("/staff/open-shifts/{id}/decision"), json!({ "approve": approve })),
                     "c" => (format!("/staff/attendance/{id}/cover"), json!({ "approve": approve })),
@@ -1800,9 +1810,14 @@ impl MadarCore {
                 // waits for the owner, and the screen must say so, not "Added".
                 filed = Some(filed_of(if bonus { "a|bonus" } else { "a|deduction" }, &row));
             }
-            Act::DecideAdj { adj, yes } => {
+            Act::DecideAdj { adj, yes, reason } => {
                 let (_, kind, id) = parts(&adj);
-                self.dawam_srv("PATCH", &format!("/staff/adjustments/{kind}/{id}/decision"), Some(json!({ "approve": yes }))).await?;
+                let mut body = json!({ "approve": yes });
+                if !yes {
+                    let why = reason.map(|r| r.trim().to_string()).filter(|r| !r.is_empty()).ok_or_else(|| invalid("staff.say_why_you_decline"))?;
+                    body["reason"] = json!(why);
+                }
+                self.dawam_srv("PATCH", &format!("/staff/adjustments/{kind}/{id}/decision"), Some(body)).await?;
             }
             Act::DeleteAdj { adj } => {
                 let (_, kind, id) = parts(&adj);
@@ -4897,6 +4912,60 @@ mod tests {
         let act = json!({ "action": "stop_adj", "adj": "a|bonus|m1", "reason": "moved to a meal card" }).to_string();
         core.dawam_do(act).await.unwrap();
         assert_eq!(posted(&stub, "/staff/adjustments/bonus/m1/stop"), json!({ "reason": "moved to a meal card" }));
+    }
+
+    /// Owner decision #8 (D8): declining a pay line or an advance says why.
+    /// The core asks before sending (no call without a reason), sends it
+    /// (`reason` for a pay line; `note` and `reason` for an advance), and
+    /// the server's 400 REASON_REQUIRED reads in the phone's language.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn declining_a_pay_line_or_an_advance_needs_a_reason() {
+        use crate::testkit::StubResponse;
+        let (stub, core) = cafe(&["hr.attendance.read", "hr.payroll.run", "hr.advances.decide"], |m, p, _| match (m, p) {
+            ("GET", "/staff/payroll/advances") => Some(StubResponse::json(200, json!([
+                { "id": "v1", "employee_id": "e4", "status": "pending", "amount_piastres": 200000, "installments": 1,
+                  "created_at": "2026-09-20T09:00:00Z" },
+            ]))),
+            ("PATCH", _) => Some(StubResponse::json(200, json!({}))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        let patches = |stub: &crate::testkit::Stub| stub.seen.lock().unwrap().iter().filter(|r| r.method == "PATCH").count();
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            for act in [
+                json!({ "action": "decide_adj", "adj": "a|bonus|b1", "yes": false }),
+                json!({ "action": "decide_adj", "adj": "a|bonus|b1", "yes": false, "reason": "  " }),
+                json!({ "action": "decide", "req": "v|v1", "approve": false }),
+            ] {
+                match core.dawam_do(act.to_string()).await.unwrap_err() {
+                    CoreError::Validation { detail, .. } => assert_eq!(detail, i18n::tr(lang, "staff.say_why_you_decline"), "{lang} {act}"),
+                    e => panic!("{e:?}"),
+                }
+            }
+        }
+        assert_eq!(patches(&stub), 0, "nothing is sent without a reason");
+        core.dawam_do(json!({ "action": "decide_adj", "adj": "a|bonus|b1", "yes": false, "reason": " Paid twice " }).to_string()).await.unwrap();
+        assert_eq!(posted(&stub, "/staff/adjustments/bonus/b1/decision"), json!({ "approve": false, "reason": "Paid twice" }));
+        core.dawam_do(json!({ "action": "decide_adj", "adj": "a|bonus|b2", "yes": true }).to_string()).await.unwrap();
+        assert_eq!(posted(&stub, "/staff/adjustments/bonus/b2/decision"), json!({ "approve": true }), "approving needs none");
+        core.dawam_do(json!({ "action": "decide", "req": "v|v1", "approve": false, "note": "Owes too much" }).to_string()).await.unwrap();
+        let sent = posted(&stub, "/staff/advances/v1/review");
+        assert_eq!((sent["approve"].clone(), sent["note"].clone(), sent["reason"].clone()), (json!(false), json!("Owes too much"), json!("Owes too much")));
+
+        let refused = r#"{"error":"Say why you're rejecting it.","code":"REASON_REQUIRED"}"#;
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            match core.staff_error(crate::net::status_to_error(400, refused)) {
+                CoreError::Server { status, code, detail } => {
+                    assert_eq!((status, code.as_str()), (400, "REASON_REQUIRED"));
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_reason_required"));
+                }
+                e => panic!("{e:?}"),
+            }
+        }
+        assert_ne!(i18n::tr("en", "staff.err_reason_required"), i18n::tr("ar", "staff.err_reason_required"));
     }
 
     /// Owner decision #6 (D6): Stop means from next month. The server ends

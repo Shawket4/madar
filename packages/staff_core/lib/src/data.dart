@@ -1667,8 +1667,13 @@ class DawamStore extends ChangeNotifier {
     return lastFiled;
   }
 
-  Future<void> decideAdj(Adj a, {required bool yes}) =>
-      _act({'action': 'decide_adj', 'adj': a.id, 'yes': yes});
+  /// [reason]: why it is declined, required to decline (decision #8).
+  Future<void> decideAdj(Adj a, {required bool yes, String? reason}) => _act({
+    'action': 'decide_adj',
+    'adj': a.id,
+    'yes': yes,
+    'reason': ?reason,
+  });
   Future<void> deleteAdj(String adjId) =>
       _act({'action': 'delete_adj', 'adj': adjId});
 
