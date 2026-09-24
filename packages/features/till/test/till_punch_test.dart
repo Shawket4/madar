@@ -82,4 +82,30 @@ void main() {
     expect(res, isNull);
     expect(find.text('staff.till_punch_needs_connection'), findsOneWidget);
   });
+
+  testWidgets("the field asks for the person's own PIN, not a manager's", (
+    tester,
+  ) async {
+    // E2E posnotif: the till's punch sheet said "Manager PIN".
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [bridgeProvider.overrideWithValue(_Bridge())],
+        child: MaterialApp(
+          theme: MadarTheme.light(),
+          home: Builder(
+            builder: (context) => Center(
+              child: GestureDetector(
+                onTap: () => showTillPunch(context),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.text('staff.till_punch_pin'), findsOneWidget);
+    expect(find.text('approval.pin'), findsNothing);
+  });
 }
