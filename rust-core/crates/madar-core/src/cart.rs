@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use madar_api::models;
 use serde::{Deserialize, Serialize};
 
+use crate::catalog_pricing::{self, PricingMirror};
 use crate::error::{CoreError, CoreResult};
 use crate::menu;
 use crate::pricing::{self, DiscountKind, PriceCartInput};
@@ -636,215 +637,45 @@ fn view(lines: &[StoredLine]) -> Vec<CartLineView> {
         .collect()
 }
 
-/// The addon families that REPLACE part of the recipe rather than adding to it.
-///
-/// A latte has milk in it already; choosing oat does not give the cup two
-/// milks, it changes which milk. That is why these pay only the delta over the
-/// base ([adjusted_addon_price]) and why a group of them can hold exactly one
-/// selection ([item_modifier_groups]). The two rules are the same fact, so
-/// they read the same constant.
-pub(crate) const SWAP_FAMILIES: [&str; 2] = ["milk_type", "coffee_type"];
-
-/// Whether `addon_type` replaces part of the recipe instead of adding to it.
-pub(crate) fn is_swap_family(addon_type: &str) -> bool {
-    SWAP_FAMILIES.contains(&addon_type)
-}
-
-/// Collapse a selection so each swap family carries at most ONE addon at qty 1.
-///
-/// A host that still sends the recipe's default milk beside the milk the
-/// teller picked (or a milk at qty 2) describes a cup that cannot exist. The
-/// LAST pick of a family wins — a later tap replaces, it never appends — and
-/// it keeps the position of the family's first entry. Additive addons and ids
-/// the catalog doesn't know pass through untouched.
-pub(crate) fn normalize_swap_selections(
-    addon_catalog: &[menu::AddonItemView],
-    addon_sels: &[AddonSelection],
-) -> Vec<AddonSelection> {
-    let family = |id: &str| {
-        addon_catalog
-            .iter()
-            .find(|a| a.id == id)
-            .map(|a| a.addon_type.as_str())
-            .filter(|t| is_swap_family(t))
-    };
-    let mut out: Vec<AddonSelection> = Vec::with_capacity(addon_sels.len());
-    let mut slot_of: Vec<(&str, usize)> = Vec::new();
-    for sel in addon_sels {
-        match family(&sel.addon_item_id) {
-            Some(fam) => {
-                let one = AddonSelection {
-                    addon_item_id: sel.addon_item_id.clone(),
-                    qty: 1,
-                };
-                match slot_of.iter().find(|(f, _)| *f == fam) {
-                    Some((_, i)) => out[*i] = one,
-                    None => {
-                        slot_of.push((fam, out.len()));
-                        out.push(one);
-                    }
-                }
-            }
-            None => out.push(sel.clone()),
-        }
-    }
-    out
-}
-
-/// Charged addon price: SWAP families (milk_type, coffee_type) pay only the delta
-/// over the item's default base for that family (clamped ≥0) — re-selecting the
-/// default costs 0; everything else (additive) pays the full default. The backend
-/// (component_resolve) charges a coffee swap as a delta too; the POS used to charge
-/// the FULL coffee price, overstating the order total vs the recorded sale.
-fn adjusted_addon_price(a: &menu::AddonItemView, milk_base: i64, coffee_base: i64) -> i64 {
-    match a.addon_type.as_str() {
-        "milk_type" => (a.default_price_minor - milk_base).max(0),
-        "coffee_type" => (a.default_price_minor - coffee_base).max(0),
-        _ => a.default_price_minor,
-    }
-}
-
-/// The base price a coffee swap is charged ABOVE: find the item's recipe line in
-/// the `coffee_bean` category, then the coffee_type addon whose embedded ingredient
-/// matches that line's org-ingredient — its default price is the base. Recipe-driven
-/// (mirrors the backend's component_resolve; no precomputed default-coffee id).
-fn coffee_swap_base(item: &menu::MenuItemView, addon_catalog: &[menu::AddonItemView]) -> i64 {
-    swap_base_addon(item, addon_catalog, "coffee_type")
-        .map(|a| a.default_price_minor)
-        .unwrap_or(0)
-}
-
-/// The addon that IS the item's recipe for a swap family — the "as it comes"
-/// choice. Matches the recipe line of the family's ingredient category against
-/// each addon's embedded ingredient, exactly as the backend's
-/// `component_resolve` decides whether a pick is a real swap or the base.
-fn swap_base_addon<'a>(
-    item: &menu::MenuItemView,
-    addon_catalog: &'a [menu::AddonItemView],
-    family: &str,
-) -> Option<&'a menu::AddonItemView> {
-    let category = match family {
-        "milk_type" => "milk",
-        "coffee_type" => "coffee_bean",
-        _ => return None,
-    };
-    // A milk base may be authored outright; a coffee base is always derived.
-    if family == "milk_type" {
-        if let Some(id) = item.default_milk_addon_id.as_deref() {
-            if let Some(a) = addon_catalog.iter().find(|a| a.id == id) {
-                return Some(a);
-            }
-        }
-    }
-    swap_base_candidates(item, addon_catalog, family, category)
-        .into_iter()
-        .next()
-}
-
-/// The swap default for ONE group: the first catalog addon carrying the
-/// recipe's own ingredient that this group actually offers. Two groups can
-/// each hold an option for the same bean (Coffee Beans' "Colombian" and
-/// Espresso Beans' "Colombian Espresso"), so picking catalog-wide first and
-/// then checking membership left the second group with no default.
-fn swap_default_in<T>(
-    item: &menu::MenuItemView,
-    addon_catalog: &[menu::AddonItemView],
-    family: &str,
-    options: &[T],
-    id_of: impl Fn(&T) -> &str,
-) -> Option<String> {
-    let offered = |id: &str| options.iter().any(|o| id_of(o) == id);
-    if family == "milk_type" {
-        if let Some(id) = item.default_milk_addon_id.as_deref() {
-            if offered(id) && addon_catalog.iter().any(|a| a.id == id) {
-                return Some(id.to_string());
-            }
-        }
-    }
-    let category = match family {
-        "milk_type" => "milk",
-        "coffee_type" => "coffee_bean",
-        _ => return None,
-    };
-    // First OFFERED option (in the group's own order) that carries the recipe's
-    // ingredient. The group order is deterministic — the unified wire sorts by
-    // option `sort` then name; the legacy projection keeps catalog order, so
-    // the legacy result is unchanged.
-    let candidates = swap_base_candidates(item, addon_catalog, family, category);
-    options
-        .iter()
-        .map(|o| id_of(o))
-        .find(|id| candidates.iter().any(|a| a.id == *id))
-        .map(str::to_string)
-}
-
-fn swap_base_candidates<'a>(
-    item: &menu::MenuItemView,
-    addon_catalog: &'a [menu::AddonItemView],
-    family: &str,
-    category: &str,
-) -> Vec<&'a menu::AddonItemView> {
-    let base_ing = item
-        .recipes
-        .iter()
-        .find(|r| r.category == category)
-        .and_then(|r| r.org_ingredient_id.as_deref());
-    addon_catalog
-        .iter()
-        .filter(move |a| a.addon_type == family && base_ing.is_some())
-        .filter(move |a| {
-            a.ingredients
-                .iter()
-                .any(|ing| ing.org_ingredient_id.as_deref() == base_ing)
-        })
-        .collect()
-}
-
-/// Resolve a configured line's charged prices from the cached catalog. PURE so
-/// the money rules are exhaustively unit-testable. Unknown addon/optional ids
-/// are dropped (defensive — a stale cache must not wedge a sale).
+/// Resolve a configured line's charged prices from the cached catalog: the
+/// server's rule, madar-shared's `madar-catalog` (the size price; a swap —
+/// milk, beans, any explicit `swaps` group — charged as the difference over the
+/// recipe's own choice, one per family; an add-on at its price; the optional
+/// fields offered on this size). Unknown addon/optional ids are dropped
+/// (defensive — a stale cache must not wedge a sale).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn resolve_line(
     item: &menu::MenuItemView,
     addon_catalog: &[menu::AddonItemView],
+    pricing: &PricingMirror,
     size_label: Option<String>,
     addon_sels: &[AddonSelection],
     optional_ids: &[String],
     qty: i64,
     notes: Option<String>,
 ) -> StoredLine {
-    // Price lives in SIZES. An item has no price of its own: with a size label
-    // the charged price is that size's, and without one it is the LOWEST size
-    // price — the "from" price the grid shows. `base_price_minor` is only the
-    // server's mirror of that same lowest price, kept for old builds, so it is
-    // the last resort rather than the rule. Resolving it here rather than
-    // trusting the mirror is what keeps an OFFLINE sale identical to what the
-    // server would have charged, even from a catalog cached mid-edit.
-    let lowest = || {
-        item.sizes
-            .iter()
-            .map(|s| s.price_minor)
-            .min()
-            .unwrap_or(item.base_price_minor)
-    };
-    let unit_price = match &size_label {
-        Some(lbl) => item
-            .sizes
-            .iter()
-            .find(|s| &s.label == lbl)
-            .map(|s| s.price_minor)
-            // An unknown label means a stale cache, not a free drink: fall back
-            // to the same "from" price a sizeless tap would charge.
-            .unwrap_or_else(lowest),
-        None => lowest(),
-    };
+    let view = pricing.view_for(item, addon_catalog);
+    let priced = price_selection(
+        item,
+        addon_catalog,
+        &view,
+        size_label.as_deref(),
+        addon_sels,
+        optional_ids,
+    );
+    // An item with no active priced size cannot happen through the schema;
+    // should a stale cache hold one, the server refuses the sale — the till
+    // keeps selling at the mirrored item price rather than wedging the cart.
+    let unit_price = madar_catalog::unit_price(&view.item, size_label.as_deref())
+        .unwrap_or(item.base_price_minor);
     StoredLine {
         item_id: item.id.clone(),
         name: item.name.clone(),
         unit_price_minor: unit_price,
         qty: qty.max(1),
         size_label,
-        addons: resolve_addons(item, addon_catalog, addon_sels),
-        optionals: resolve_optionals(item, addon_catalog, addon_sels, optional_ids),
+        addons: priced.0,
+        optionals: priced.1,
         notes,
         bundle_id: None,
         bundle_components: vec![],
@@ -852,48 +683,74 @@ pub(crate) fn resolve_line(
     }
 }
 
-/// Resolve a selection's charged addon prices against `item` + the catalog
-/// (swap-delta vs additive). Unknown ids are dropped. Shared by normal lines and
-/// bundle components.
-fn resolve_addons(
+/// The options and optional fields of a selection, priced by the shared rule
+/// over `view`. The till's own normalisation happens first: an option the
+/// catalogue does not know is dropped, and an item-private option picked
+/// through the addon sheet is an optional field (F17).
+fn price_selection(
     item: &menu::MenuItemView,
     addon_catalog: &[menu::AddonItemView],
+    view: &madar_catalog::CatalogView,
+    size_label: Option<&str>,
     addon_sels: &[AddonSelection],
-) -> Vec<StoredAddon> {
-    let milk_base = item
-        .default_milk_addon_id
-        .as_ref()
-        .and_then(|id| addon_catalog.iter().find(|a| &a.id == id))
-        .map(|a| a.default_price_minor)
-        .unwrap_or(0);
-    let coffee_base = coffee_swap_base(item, addon_catalog);
-    normalize_swap_selections(addon_catalog, addon_sels)
+    optional_ids: &[String],
+) -> (Vec<StoredAddon>, Vec<StoredOptional>) {
+    let selection = madar_catalog::Selection {
+        size_label: size_label.map(str::to_string),
+        options: addon_sels
+            .iter()
+            .filter(|s| view.option(&s.addon_item_id).is_some())
+            .map(|s| madar_catalog::Pick {
+                id: s.addon_item_id.clone(),
+                quantity: s.qty,
+            })
+            .collect(),
+        optionals: optional_selection(item, addon_catalog, addon_sels, optional_ids),
+    };
+    // Every picked option is in the view, so the rule cannot refuse.
+    let priced = madar_catalog::price_options(view, &selection).unwrap_or_default();
+    let addons = priced
+        .options
         .iter()
-        .filter_map(|sel| {
-            let a = addon_catalog.iter().find(|x| x.id == sel.addon_item_id)?;
-            Some(StoredAddon {
-                addon_item_id: a.id.clone(),
-                name: a.name.clone(),
-                price_modifier_minor: adjusted_addon_price(a, milk_base, coffee_base),
-                qty: sel.qty.max(1),
+        .map(|o| StoredAddon {
+            addon_item_id: o.id.clone(),
+            name: addon_catalog
+                .iter()
+                .find(|a| a.id == o.id)
+                .map(|a| a.name.clone())
+                .unwrap_or_default(),
+            price_modifier_minor: o.unit_price,
+            qty: o.quantity,
+        })
+        .collect();
+    let optionals = priced
+        .optionals
+        .iter()
+        .filter_map(|o| {
+            let f = item.optional_fields.iter().find(|f| f.id == o.id)?;
+            Some(StoredOptional {
+                optional_field_id: f.id.clone(),
+                name: f.name.clone(),
+                price_minor: o.price,
             })
         })
-        .collect()
+        .collect();
+    (addons, optionals)
 }
 
-/// Resolve selected optional-field ids to stored optionals (price + name).
+/// The optional-field ids a selection names, once each.
 ///
 /// An ADDON selection whose id is not an addon but IS one of the item's
 /// optional fields is the item-private "Options" group picked through an addon
 /// sheet (F17: `/catalog/sync` also lists that group). The server resolves it
 /// only as an optional, so it is carried in the optional slot (once) instead
 /// of being dropped or submitted as an unknown addon id.
-fn resolve_optionals(
+fn optional_selection(
     item: &menu::MenuItemView,
     addon_catalog: &[menu::AddonItemView],
     addon_sels: &[AddonSelection],
     optional_ids: &[String],
-) -> Vec<StoredOptional> {
+) -> Vec<String> {
     let mut ids: Vec<&String> = Vec::new();
     let rerouted = addon_sels
         .iter()
@@ -904,16 +761,7 @@ fn resolve_optionals(
             ids.push(id);
         }
     }
-    ids.into_iter()
-        .filter_map(|oid| {
-            let o = item.optional_fields.iter().find(|f| &f.id == oid)?;
-            Some(StoredOptional {
-                optional_field_id: o.id.clone(),
-                name: o.name.clone(),
-                price_minor: o.price_minor,
-            })
-        })
-        .collect()
+    ids.into_iter().cloned().collect()
 }
 
 /// A host-supplied configured component of a bundle (which item, its size, and
@@ -929,12 +777,14 @@ pub struct BundleComponentSelection {
 }
 
 /// Build a bundle cart line: the fixed bundle price as the unit price, plus each
-/// component with its addon/optional up-charges resolved from the catalog. The
-/// component base/size price is never charged (Flutter parity).
+/// component with its addon/optional up-charges resolved from the catalog (the
+/// shared rule, at the component's size). The component base/size price is
+/// never charged (Flutter parity).
 pub(crate) fn resolve_bundle_line(
     bundle: &menu::BundleView,
     items: &[menu::MenuItemView],
     addon_catalog: &[menu::AddonItemView],
+    pricing: &PricingMirror,
     components: &[BundleComponentSelection],
     qty: i64,
 ) -> StoredLine {
@@ -942,18 +792,22 @@ pub(crate) fn resolve_bundle_line(
         .iter()
         .filter_map(|sel| {
             let item = items.iter().find(|i| i.id == sel.item_id)?;
+            let view = pricing.view_for(item, addon_catalog);
+            let (addons, optionals) = price_selection(
+                item,
+                addon_catalog,
+                &view,
+                sel.size_label.as_deref(),
+                &sel.addons,
+                &sel.optional_field_ids,
+            );
             Some(StoredBundleComponent {
                 item_id: item.id.clone(),
                 name: item.name.clone(),
                 qty: sel.qty.max(1),
                 size_label: sel.size_label.clone(),
-                addons: resolve_addons(item, addon_catalog, &sel.addons),
-                optionals: resolve_optionals(
-                    item,
-                    addon_catalog,
-                    &sel.addons,
-                    &sel.optional_field_ids,
-                ),
+                addons,
+                optionals,
             })
         })
         .collect();
@@ -972,19 +826,15 @@ pub(crate) fn resolve_bundle_line(
     }
 }
 
-/// Every active addon offered for `item`, with its charged price resolved (the
-/// swap rule lives here, not in the UI). The host groups by `addon_type`.
+/// Every active addon offered for `item`, with the price it is charged alone
+/// on a sizeless line (the shared rule: a swap is the difference over the
+/// recipe's own choice). The host groups by `addon_type`.
 pub(crate) fn item_addons(
     item: &menu::MenuItemView,
     addon_catalog: &[menu::AddonItemView],
+    pricing: &PricingMirror,
 ) -> Vec<ItemAddonView> {
-    let milk_base = item
-        .default_milk_addon_id
-        .as_ref()
-        .and_then(|id| addon_catalog.iter().find(|a| &a.id == id))
-        .map(|a| a.default_price_minor)
-        .unwrap_or(0);
-    let coffee_base = coffee_swap_base(item, addon_catalog);
+    let view = pricing.view_for(item, addon_catalog);
     addon_catalog
         .iter()
         .filter(|a| a.is_active)
@@ -992,7 +842,8 @@ pub(crate) fn item_addons(
             addon_item_id: a.id.clone(),
             name: a.name.clone(),
             addon_type: a.addon_type.clone(),
-            charged_price_minor: adjusted_addon_price(a, milk_base, coffee_base),
+            charged_price_minor: madar_catalog::option_charge(&view, None, &a.id)
+                .unwrap_or(a.default_price_minor),
         })
         .collect()
 }
@@ -1004,7 +855,7 @@ pub(crate) fn item_addons(
 // POS-side projection of that model, assembled from the mirrored catalog
 // streams — which carry the SAME shapes whether served by the legacy tables or
 // the shim views — so it works for both old and new backends. Charged prices
-// reuse the flat sheet's swap-delta rules (`adjusted_addon_price`), keeping the
+// reuse the flat sheet's charged prices (madar-catalog's rule), keeping the
 // grouped view money-identical to the parity-proven flat path.
 
 /// How a group's selections are submitted at add-to-cart time.
@@ -1076,8 +927,18 @@ pub struct GroupViolationView {
 pub(crate) fn item_modifier_groups(
     item: &menu::MenuItemView,
     addon_catalog: &[menu::AddonItemView],
+    pricing: &PricingMirror,
 ) -> Vec<ModifierGroupView> {
-    let flat = item_addons(item, addon_catalog);
+    let view = pricing.view_for(item, addon_catalog);
+    // A type is a swap family when the type says so (milk, beans) or when any
+    // of its options replaces part of the recipe (an explicit `swaps` group).
+    let swap_family = |ty: &str, options: &[ModifierOptionView]| {
+        catalog_pricing::is_swap_type(ty)
+            || options
+                .iter()
+                .any(|o| catalog_pricing::is_swap(&view, &o.id))
+    };
+    let flat = item_addons(item, addon_catalog, pricing);
     let allowed: std::collections::HashSet<&str> =
         item.allowed_addon_ids.iter().map(|s| s.as_str()).collect();
     let offered: Vec<&ItemAddonView> = flat
@@ -1114,17 +975,16 @@ pub(crate) fn item_modifier_groups(
         // always got this right, so whether the bug appeared came down to
         // whether a shop happened to configure a slot for milk.
         //
-        // It is not the slot's call to make. `adjusted_addon_price` already
-        // charges these families as a DELTA over the base, which is only
-        // coherent when exactly one is chosen — the pricing engine has always
-        // assumed the exclusivity this now enforces.
-        let max_selections = if is_swap_family(&slot.addon_type) {
+        // It is not the slot's call to make. The shared rule charges these
+        // families as a DIFFERENCE over the recipe's own choice and keeps one
+        // pick per family, which is only coherent when exactly one is chosen.
+        let max_selections = if swap_family(&slot.addon_type, &options) {
             Some(slot.max_selections.unwrap_or(1).min(1))
         } else {
             slot.max_selections
         };
         let default_option_id =
-            swap_default_in(item, addon_catalog, &slot.addon_type, &options, |o| &o.id);
+            catalog_pricing::recipe_choice_in(&view, options.iter().map(|o| o.id.as_str()));
         groups.push(ModifierGroupView {
             group_id: slot.id.clone(),
             name: slot
@@ -1158,7 +1018,9 @@ pub(crate) fn item_modifier_groups(
     rest.sort_by(|a, b| rank(a).cmp(&rank(b)).then(a.cmp(b)));
     for ty in rest {
         let options = options_of(ty);
-        let default_option_id = swap_default_in(item, addon_catalog, ty, &options, |o| &o.id);
+        let default_option_id =
+            catalog_pricing::recipe_choice_in(&view, options.iter().map(|o| o.id.as_str()));
+        let single = swap_family(ty, &options);
         groups.push(ModifierGroupView {
             group_id: format!("type:{ty}"),
             name: ty.to_string(),
@@ -1166,7 +1028,7 @@ pub(crate) fn item_modifier_groups(
             addon_type: Some(ty.to_string()),
             is_required: false,
             min_selections: 0,
-            max_selections: if is_swap_family(ty) { Some(1) } else { None },
+            max_selections: if single { Some(1) } else { None },
             default_option_id,
             options,
         });
@@ -1230,10 +1092,12 @@ fn optionals_group(item: &menu::MenuItemView) -> Option<ModifierGroupView> {
 pub(crate) fn item_modifier_groups_unified(
     item: &menu::MenuItemView,
     addon_catalog: &[menu::AddonItemView],
+    pricing: &PricingMirror,
     unified: Vec<menu::UnifiedGroup>,
     locale: &str,
 ) -> Vec<ModifierGroupView> {
-    let flat = item_addons(item, addon_catalog);
+    let view = pricing.view_for(item, addon_catalog);
+    let flat = item_addons(item, addon_catalog, pricing);
     let charged = |id: &str, fallback: i64| {
         flat.iter()
             .find(|a| a.addon_item_id == id)
@@ -1260,39 +1124,41 @@ pub(crate) fn item_modifier_groups_unified(
             if options.is_empty() {
                 return None;
             }
-            // A swap family (milk, coffee) is ONE choice whatever the wire
-            // says. The backend backfill often writes a milk group as
-            // `multi` with no max, which rendered milk as a multi-select with
-            // a quantity stepper: the recipe's full-fat stayed selected, oat
-            // landed beside it, and the line carried two milks. Recognise the
-            // family by the group's legacy type OR by any option being a
-            // swap-family addon in the catalog (a renamed/custom milk group).
-            let swap = g.legacy_addon_type.as_deref().is_some_and(is_swap_family)
-                || g.options.iter().any(|o| {
-                    addon_catalog
-                        .iter()
-                        .any(|a| a.id == o.id && is_swap_family(&a.addon_type))
-                });
+            // A swap family (milk, coffee, any explicit `swaps` group) is ONE
+            // choice whatever the wire says. The backend backfill often wrote a
+            // milk group as `multi` with no max, which rendered milk as a
+            // multi-select with a quantity stepper: the recipe's full-fat stayed
+            // selected, oat landed beside it, and the line carried two milks.
+            // Recognise the family by the group's effect, its legacy type, or
+            // any option replacing part of the recipe (the shared rule's own
+            // test — a renamed or custom milk group included).
+            let swap = g.effect == "swaps"
+                || g.legacy_addon_type
+                    .as_deref()
+                    .is_some_and(catalog_pricing::is_swap_type)
+                || g.options
+                    .iter()
+                    .any(|o| catalog_pricing::is_swap(&view, &o.id));
             let single = swap || g.selection_type == "single" || g.max == Some(1);
             let swap_type = if swap {
                 g.legacy_addon_type.clone().or_else(|| {
                     g.options.iter().find_map(|o| {
                         addon_catalog
                             .iter()
-                            .find(|a| a.id == o.id && is_swap_family(&a.addon_type))
+                            .find(|a| a.id == o.id && catalog_pricing::is_swap(&view, &a.id))
                             .map(|a| a.addon_type.clone())
                     })
                 })
             } else {
                 g.legacy_addon_type.clone()
             };
-            // The recipe's own milk / bean, preselected — the SAME rule as the
-            // legacy projection. This path is the one every unified-catalog
-            // org actually uses, and it had been left at None, so the sheet
-            // opened blank for every coffee and milk choice.
-            let default_option_id = swap_type.as_deref().filter(|_| swap).and_then(|family| {
-                swap_default_in(item, addon_catalog, family, &options, |o| &o.id)
-            });
+            // The recipe's own choice, preselected (the option the shared rule
+            // charges nothing for) — so the sheet opens as the drink is made.
+            let default_option_id = if swap {
+                catalog_pricing::recipe_choice_in(&view, options.iter().map(|o| o.id.as_str()))
+            } else {
+                None
+            };
             Some(ModifierGroupView {
                 default_option_id,
                 group_id: g.group_id.clone(),
@@ -1906,6 +1772,7 @@ impl StaffCompLine<'_> {
         &self,
         item: &menu::MenuItemView,
         addon_catalog: &[menu::AddonItemView],
+        pricing: &PricingMirror,
         unified: Option<&[menu::UnifiedGroup]>,
         eligible: bool,
     ) -> crate::staff_comp::CompInput {
@@ -1925,17 +1792,21 @@ impl StaffCompLine<'_> {
         } else {
             Vec::new()
         };
-        let flat = item_addons(item, addon_catalog);
+        let view = pricing.view_for(item, addon_catalog);
+        let flat = item_addons(item, addon_catalog, pricing);
         let rings_at = |id: &str, fallback: i64| {
             flat.iter().find(|a| a.addon_item_id == id).map(|a| a.charged_price_minor).unwrap_or(fallback)
         };
-        let is_swap_option = |id: &str| addon_catalog.iter().any(|a| a.id == id && is_swap_family(&a.addon_type));
+        let is_swap_option = |id: &str| catalog_pricing::is_swap(&view, id);
         let groups: Vec<CompGroup> = match unified.filter(|u| !u.is_empty()) {
             Some(unified) => unified
                 .iter()
                 .filter(|g| {
                     g.effect != "swaps"
-                        && !g.legacy_addon_type.as_deref().is_some_and(is_swap_family)
+                        && !g
+                            .legacy_addon_type
+                            .as_deref()
+                            .is_some_and(catalog_pricing::is_swap_type)
                         && !g.options.iter().any(|o| is_swap_option(&o.id))
                 })
                 .filter_map(|g| {
@@ -1960,10 +1831,15 @@ impl StaffCompLine<'_> {
                 .collect(),
             // The legacy projection has no "default" flag: the cheapest active
             // option sets the allowance, which is the rule's own fallback.
-            None => item_modifier_groups(item, addon_catalog)
+            None => item_modifier_groups(item, addon_catalog, pricing)
                 .into_iter()
                 .filter(|g| g.kind == ModifierGroupKind::Addon)
-                .filter(|g| !g.addon_type.as_deref().is_some_and(is_swap_family))
+                .filter(|g| {
+                    !g.addon_type
+                        .as_deref()
+                        .is_some_and(catalog_pricing::is_swap_type)
+                        && !g.options.iter().any(|o| is_swap_option(&o.id))
+                })
                 .filter_map(|g| {
                     let required_min =
                         if g.min_selections >= 1 { g.min_selections } else { i32::from(g.is_required) };
@@ -2649,17 +2525,37 @@ mod tests {
                 quantity_used: None,
                 org_ingredient_id: None,
             }],
-            recipes: vec![],
+            // The recipe's milk is oat: the milk every swap is charged over
+            // (the server's rule — the recipe's ingredient, not a flag).
+            recipes: vec![menu::RecipeLineView {
+                ingredient_name: "Oat milk".into(),
+                quantity: 200.0,
+                unit: "ml".into(),
+                size_label: None,
+                category: "milk".into(),
+                org_ingredient_id: Some("ing-oat".into()),
+            }],
             recipe_steps: vec![],
         }
     }
 
+    fn milk(id: &str, price: i64) -> menu::AddonItemView {
+        let mut a = addon(id, "milk_type", price);
+        a.ingredients = vec![menu::AddonIngredientView {
+            ingredient_name: format!("{id} milk"),
+            unit: "ml".into(),
+            quantity: 200.0,
+            org_ingredient_id: Some(format!("ing-{id}")),
+        }];
+        a
+    }
+
     fn catalog() -> Vec<menu::AddonItemView> {
         vec![
-            addon("oat", "milk_type", 1500),    // the default-milk base
-            addon("almond", "milk_type", 2000), // swap → delta 500
-            addon("whole", "milk_type", 0),     // downgrade → 0
-            addon("shot", "extra", 800),        // additive → full
+            milk("oat", 1500),           // the recipe's milk: the base
+            milk("almond", 2000),        // swap → delta 500
+            milk("whole", 0),            // downgrade → 0
+            addon("shot", "extra", 800), // additive → full
         ]
     }
 
@@ -2689,23 +2585,23 @@ mod tests {
             category: "coffee_bean".into(),
             org_ingredient_id: Some("ing-col".into()),
         }];
+        // The recipe's own choice is madar-catalog's (the server's): an option
+        // whose ingredient IS the recipe's, charged nothing.
+        let view = crate::catalog_pricing::PricingMirror::default().view_for(&espresso, &catalog);
         let offered = ["colombian-espresso", "decaf"];
         assert_eq!(
-            swap_default_in(&espresso, &catalog, "coffee_type", &offered, |o| o),
+            crate::catalog_pricing::recipe_choice_in(&view, offered),
             Some("colombian-espresso".to_string())
         );
         let none: [&str; 1] = ["decaf"];
-        assert_eq!(
-            swap_default_in(&espresso, &catalog, "coffee_type", &none, |o| o),
-            None
-        );
+        assert_eq!(crate::catalog_pricing::recipe_choice_in(&view, none), None);
 
         // Both options in ONE group carry the bean: the GROUP's order decides
         // (the unified wire sends options by `sort`, then name), not the addon
         // catalog's arbitrary row order.
         let both = ["colombian-espresso", "colombian"];
         assert_eq!(
-            swap_default_in(&espresso, &catalog, "coffee_type", &both, |o| o),
+            crate::catalog_pricing::recipe_choice_in(&view, both),
             Some("colombian-espresso".to_string())
         );
     }
@@ -2862,6 +2758,7 @@ mod tests {
         let line = resolve_line(
             &item(),
             &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
             Some("Large".into()),
             &[
                 AddonSelection {
@@ -2902,6 +2799,7 @@ mod tests {
         let line = resolve_line(
             &item(),
             &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
             None,
             &[AddonSelection {
                 addon_item_id: "whole".into(),
@@ -2919,10 +2817,11 @@ mod tests {
     #[test]
     fn no_milk_base_treats_swap_as_full() {
         let mut it = item();
-        it.default_milk_addon_id = None; // no base → milk swap charges full
+        it.recipes.clear(); // no milk in the recipe → a milk swap charges full
         let line = resolve_line(
             &it,
             &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
             None,
             &[AddonSelection {
                 addon_item_id: "almond".into(),
@@ -2973,6 +2872,7 @@ mod tests {
         let line = resolve_line(
             &it,
             &catalog,
+            &crate::catalog_pricing::PricingMirror::default(),
             None,
             &[AddonSelection {
                 addon_item_id: "single".into(),
@@ -2990,6 +2890,7 @@ mod tests {
         let line = resolve_line(
             &it,
             &catalog,
+            &crate::catalog_pricing::PricingMirror::default(),
             None,
             &[AddonSelection {
                 addon_item_id: "house".into(),
@@ -3011,6 +2912,7 @@ mod tests {
         let line = resolve_line(
             &item(),
             &[coffee("single", 1800, "bean-single")],
+            &crate::catalog_pricing::PricingMirror::default(),
             None,
             &[AddonSelection {
                 addon_item_id: "single".into(),
@@ -3030,6 +2932,7 @@ mod tests {
             resolve_line(
                 &item(),
                 &catalog(),
+                &crate::catalog_pricing::PricingMirror::default(),
                 Some("Large".into()),
                 &[AddonSelection {
                     addon_item_id: milk.into(),
@@ -3057,6 +2960,7 @@ mod tests {
         resolve_line(
             &item(),
             &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
             Some("Large".into()),
             &[AddonSelection {
                 addon_item_id: milk.into(),
@@ -3113,6 +3017,7 @@ mod tests {
         let line = resolve_line(
             &item(),
             &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
             Some("Large".into()),
             &[
                 AddonSelection {
@@ -3146,6 +3051,7 @@ mod tests {
             resolve_line(
                 &item(),
                 &catalog(),
+                &crate::catalog_pricing::PricingMirror::default(),
                 None,
                 &[AddonSelection {
                     addon_item_id: "almond".into(),
@@ -3179,7 +3085,11 @@ mod tests {
             max_selections: Some(1),
         }];
         it.allowed_addon_ids = vec!["oat".into(), "almond".into(), "shot".into()];
-        let groups = item_modifier_groups(&it, &catalog());
+        let groups = item_modifier_groups(
+            &it,
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+        );
         assert_eq!(groups.len(), 3);
 
         let milk = &groups[0];
@@ -3194,7 +3104,11 @@ mod tests {
 
         // Grouped charged prices == flat-sheet charged prices (same swap rules) —
         // the grouped view must be money-identical to the parity-proven flat path.
-        let flat = item_addons(&it, &catalog());
+        let flat = item_addons(
+            &it,
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+        );
         for o in groups
             .iter()
             .filter(|g| g.kind == ModifierGroupKind::Addon)
@@ -3224,7 +3138,11 @@ mod tests {
     fn modifier_groups_default_when_unslotted_milk_single_select() {
         // No slots, no allowlist: milk becomes a default single-select group and
         // extras an uncapped one; group order is milk → extra → optionals.
-        let groups = item_modifier_groups(&item(), &catalog());
+        let groups = item_modifier_groups(
+            &item(),
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+        );
         let ids: Vec<&str> = groups.iter().map(|g| g.group_id.as_str()).collect();
         assert_eq!(ids, ["type:milk_type", "type:extra", "options"]);
         assert_eq!(
@@ -3256,7 +3174,11 @@ mod tests {
             min_selections: 1,
             max_selections: Some(1),
         }];
-        let groups = item_modifier_groups(&it, &catalog());
+        let groups = item_modifier_groups(
+            &it,
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+        );
 
         // Nothing selected → the required milk group is violated (0 < 1).
         let v = validate_group_selections(&groups, &[], &[]);
@@ -3319,6 +3241,7 @@ mod tests {
         let groups = item_modifier_groups_unified(
             &item(),
             &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
             vec![
                 menu::UnifiedGroup {
                     group_id: "g-milk".into(),
@@ -3397,22 +3320,24 @@ mod tests {
                 qty: 3,
             },
         ];
-        let n = normalize_swap_selections(&catalog(), &sels);
-        let got: Vec<(&str, i64)> = n
-            .iter()
-            .map(|s| (s.addon_item_id.as_str(), s.qty))
-            .collect();
-        assert_eq!(got, vec![("almond", 1), ("shot", 2)]);
-
-        let mut it = item();
-        it.default_milk_addon_id = Some("oat".into());
-        let line = resolve_line(&it, &catalog(), None, &sels, &[], 1, None);
-        let ids: Vec<&str> = line
+        // The server's rule (madar-catalog): the LAST pick of a family wins, at
+        // quantity 1, where it was picked; an add-on keeps its quantity.
+        let line = resolve_line(
+            &item(),
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &sels,
+            &[],
+            1,
+            None,
+        );
+        let got: Vec<(&str, i64)> = line
             .addons
             .iter()
-            .map(|a| a.addon_item_id.as_str())
+            .map(|a| (a.addon_item_id.as_str(), a.qty))
             .collect();
-        assert_eq!(ids, vec!["almond", "shot"]);
+        assert_eq!(got, vec![("shot", 2), ("almond", 1)]);
     }
 
     #[test]
@@ -3477,7 +3402,13 @@ mod tests {
                 }],
             },
         ];
-        let groups = item_modifier_groups_unified(&item(), &catalog(), unified, "en");
+        let groups = item_modifier_groups_unified(
+            &item(),
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            unified,
+            "en",
+        );
 
         let p = |g: &ModifierGroupView, id: &str| {
             g.options
@@ -3556,7 +3487,13 @@ mod tests {
                 }],
             },
         ];
-        let groups = item_modifier_groups_unified(&item(), &catalog(), unified, "en");
+        let groups = item_modifier_groups_unified(
+            &item(),
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            unified,
+            "en",
+        );
         // (a) exactly once, and in the Optional-kind group.
         let hits: Vec<(&ModifierGroupView, &ModifierOptionView)> = groups
             .iter()
@@ -3569,7 +3506,16 @@ mod tests {
         assert!(groups.iter().any(|g| g.group_id == "g-milk"));
 
         // (b) payload: picked through the Optional group → optional-field slot.
-        let line = resolve_line(&item(), &catalog(), None, &[], &["van".into()], 1, None);
+        let line = resolve_line(
+            &item(),
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &[],
+            &["van".into()],
+            1,
+            None,
+        );
         assert!(line.addons.is_empty());
         assert_eq!(line.optionals.len(), 1);
         assert_eq!(line.optionals[0].optional_field_id, "van");
@@ -3581,10 +3527,28 @@ mod tests {
             addon_item_id: "van".into(),
             qty: 1,
         }];
-        let line = resolve_line(&item(), &catalog(), None, &stale, &["van".into()], 1, None);
+        let line = resolve_line(
+            &item(),
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &stale,
+            &["van".into()],
+            1,
+            None,
+        );
         assert!(line.addons.is_empty());
         assert_eq!(line.optionals.len(), 1);
-        let line = resolve_line(&item(), &catalog(), None, &stale, &[], 1, None);
+        let line = resolve_line(
+            &item(),
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &stale,
+            &[],
+            1,
+            None,
+        );
         assert!(line.addons.iter().all(|a| a.addon_item_id != "van"));
         assert_eq!(
             line.optionals.iter().map(|o| o.optional_field_id.as_str()).collect::<Vec<_>>(),
@@ -3627,7 +3591,11 @@ mod tests {
 
     #[test]
     fn item_addons_resolve_charged_prices_for_display() {
-        let v = item_addons(&item(), &catalog());
+        let v = item_addons(
+            &item(),
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+        );
         let p = |id: &str| {
             v.iter()
                 .find(|a| a.addon_item_id == id)
@@ -3851,7 +3819,14 @@ mod tests {
     #[test]
     fn bundle_line_charges_fixed_price_plus_component_extras() {
         let s = store();
-        let line = resolve_bundle_line(&bundle(), &[item()], &catalog(), &[combo_component()], 1);
+        let line = resolve_bundle_line(
+            &bundle(),
+            &[item()],
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            &[combo_component()],
+            1,
+        );
         add_resolved(&s, None, line).unwrap();
         let lines = lines(&s, None).unwrap();
         assert_eq!(lines.len(), 1);
@@ -3868,10 +3843,24 @@ mod tests {
     #[test]
     fn identical_bundle_configs_merge_distinct_ones_dont() {
         let s = store();
-        let a = resolve_bundle_line(&bundle(), &[item()], &catalog(), &[combo_component()], 1);
+        let a = resolve_bundle_line(
+            &bundle(),
+            &[item()],
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            &[combo_component()],
+            1,
+        );
         add_resolved(&s, None, a).unwrap();
         // Same config again → merges (qty 2, one line).
-        let b = resolve_bundle_line(&bundle(), &[item()], &catalog(), &[combo_component()], 1);
+        let b = resolve_bundle_line(
+            &bundle(),
+            &[item()],
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            &[combo_component()],
+            1,
+        );
         add_resolved(&s, None, b).unwrap();
         assert_eq!(lines(&s, None).unwrap().len(), 1);
         assert_eq!(lines(&s, None).unwrap()[0].qty, 2);
@@ -3879,7 +3868,14 @@ mod tests {
         let mut plain = combo_component();
         plain.addons = vec![];
         plain.optional_field_ids = vec![];
-        let c = resolve_bundle_line(&bundle(), &[item()], &catalog(), &[plain], 1);
+        let c = resolve_bundle_line(
+            &bundle(),
+            &[item()],
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            &[plain],
+            1,
+        );
         add_resolved(&s, None, c).unwrap();
         assert_eq!(lines(&s, None).unwrap().len(), 2);
     }
@@ -3904,13 +3900,31 @@ mod tests {
         add_resolved(
             &s,
             None,
-            resolve_line(&item(), &catalog(), None, &[], &[], 1, None),
+            resolve_line(
+                &item(),
+                &catalog(),
+                &crate::catalog_pricing::PricingMirror::default(),
+                None,
+                &[],
+                &[],
+                1,
+                None,
+            ),
         )
         .unwrap();
         let v = add_resolved(
             &s,
             None,
-            resolve_line(&item(), &catalog(), None, &[], &[], 1, None),
+            resolve_line(
+                &item(),
+                &catalog(),
+                &crate::catalog_pricing::PricingMirror::default(),
+                None,
+                &[],
+                &[],
+                1,
+                None,
+            ),
         )
         .unwrap();
         assert_eq!(v.len(), 1);
@@ -4038,6 +4052,7 @@ mod tests {
         let a = resolve_line(
             &it,
             &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
             Some("Large".into()),
             &[
                 AddonSelection {
@@ -4056,6 +4071,7 @@ mod tests {
         let b = resolve_line(
             &it,
             &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
             Some("Large".into()),
             &[
                 AddonSelection {
@@ -4088,6 +4104,7 @@ mod tests {
             resolve_line(
                 &item(),
                 &catalog(),
+                &crate::catalog_pricing::PricingMirror::default(),
                 None,
                 &[],
                 &[],
@@ -4102,6 +4119,7 @@ mod tests {
             resolve_line(
                 &item(),
                 &catalog(),
+                &crate::catalog_pricing::PricingMirror::default(),
                 None,
                 &[],
                 &[],
@@ -4121,6 +4139,7 @@ mod tests {
             resolve_line(
                 &item(),
                 &catalog(),
+                &crate::catalog_pricing::PricingMirror::default(),
                 None,
                 &[AddonSelection {
                     addon_item_id: "shot".into(),
@@ -4142,7 +4161,16 @@ mod tests {
         add_resolved(
             &s,
             None,
-            resolve_line(&item(), &catalog(), Some("Large".into()), &[], &[], 1, None),
+            resolve_line(
+                &item(),
+                &catalog(),
+                &crate::catalog_pricing::PricingMirror::default(),
+                Some("Large".into()),
+                &[],
+                &[],
+                1,
+                None,
+            ),
         )
         .unwrap();
         // No size → falls back to the option-less item_id signature, distinct from
@@ -4150,7 +4178,16 @@ mod tests {
         add_resolved(
             &s,
             None,
-            resolve_line(&item(), &catalog(), None, &[], &[], 1, None),
+            resolve_line(
+                &item(),
+                &catalog(),
+                &crate::catalog_pricing::PricingMirror::default(),
+                None,
+                &[],
+                &[],
+                1,
+                None,
+            ),
         )
         .unwrap();
         assert_eq!(lines(&s, None).unwrap().len(), 2);
@@ -4160,9 +4197,27 @@ mod tests {
 
     #[test]
     fn resolve_line_clamps_qty_floor_to_one() {
-        let line = resolve_line(&item(), &catalog(), None, &[], &[], 0, None);
+        let line = resolve_line(
+            &item(),
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &[],
+            &[],
+            0,
+            None,
+        );
         assert_eq!(line.qty, 1);
-        let line = resolve_line(&item(), &catalog(), None, &[], &[], -3, None);
+        let line = resolve_line(
+            &item(),
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &[],
+            &[],
+            -3,
+            None,
+        );
         assert_eq!(line.qty, 1);
     }
 
@@ -4171,6 +4226,7 @@ mod tests {
         let line = resolve_line(
             &item(),
             &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
             None,
             &[AddonSelection {
                 addon_item_id: "shot".into(),
@@ -4189,6 +4245,7 @@ mod tests {
         let line = resolve_line(
             &item(),
             &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
             Some("Gigantic".into()),
             &[],
             &[],
@@ -4196,7 +4253,8 @@ mod tests {
             None,
         );
         // A label the cached catalog does not know means a stale cache, not a
-        // free drink: it charges the item's "from" price, the cheapest size.
+        // free drink: it charges what a sizeless line does — the item's own
+        // price (the branch's, else the cheapest size), as the server does.
         assert_eq!(line.unit_price_minor, 5000);
         // The bogus size label is still recorded (and so part of the signature).
         assert_eq!(line.size_label.as_deref(), Some("Gigantic"));
@@ -4205,18 +4263,39 @@ mod tests {
     // ── price lives in sizes: the POS resolves it the way the server does ──
 
     #[test]
-    fn a_sizeless_tap_charges_the_lowest_size_price() {
-        // No size chosen on a multi-size item ⇒ the "from" price. This is what
-        // the grid tile shows, so the tap charges exactly what was on screen.
-        let line = resolve_line(&item(), &catalog(), None, &[], &[], 1, None);
+    fn a_sizeless_tap_charges_the_items_own_price() {
+        // No size chosen ⇒ the server's price for a sizeless line (madar-catalog,
+        // M5): the branch's item price, else the lowest active size. From a
+        // server without `pricing` that figure is the mirrored item price —
+        // `base_price` is exactly COALESCE(branch price, lowest active size).
+        let line = resolve_line(
+            &item(),
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &[],
+            &[],
+            1,
+            None,
+        );
         assert_eq!(line.unit_price_minor, 5000);
 
-        // Make the cheapest size dearer and the "from" price follows it — the
-        // item itself has no price to fall back on.
+        // The cheapest size dearer than the item's price means the branch sells
+        // the item below it: the item's price is charged (was 5500, the lowest
+        // size, before the shared rule).
         let mut dearer = item();
         dearer.sizes[0].price_minor = 5500;
-        let line = resolve_line(&dearer, &catalog(), None, &[], &[], 1, None);
-        assert_eq!(line.unit_price_minor, 5500);
+        let line = resolve_line(
+            &dearer,
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &[],
+            &[],
+            1,
+            None,
+        );
+        assert_eq!(line.unit_price_minor, 5000);
     }
 
     #[test]
@@ -4225,7 +4304,17 @@ mod tests {
         let mut reversed = item();
         reversed.sizes.reverse();
         assert_eq!(
-            resolve_line(&reversed, &catalog(), None, &[], &[], 1, None).unit_price_minor,
+            resolve_line(
+                &reversed,
+                &catalog(),
+                &crate::catalog_pricing::PricingMirror::default(),
+                None,
+                &[],
+                &[],
+                1,
+                None
+            )
+            .unit_price_minor,
             5000
         );
     }
@@ -4237,24 +4326,53 @@ mod tests {
         let mut simple = item();
         simple.sizes.clear();
         simple.base_price_minor = 9500;
-        let line = resolve_line(&simple, &catalog(), None, &[], &[], 1, None);
+        let line = resolve_line(
+            &simple,
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &[],
+            &[],
+            1,
+            None,
+        );
         assert_eq!(line.unit_price_minor, 9500);
     }
 
     #[test]
-    fn a_stale_mirror_never_beats_the_sizes() {
-        // The till cached the catalog mid-edit: the item's mirrored price is the
-        // old one, the sizes are current. The sizes win, because they are where
-        // price lives — this is what keeps an OFFLINE sale matching the server.
-        let mut stale = item();
-        stale.base_price_minor = 4000; // stale
+    fn a_sizeless_line_is_the_branchs_item_price_a_sized_one_its_size() {
+        // The branch prices the item at 4000 (the mirrored item price) while its
+        // sizes read 5000 / 6000: a sizeless line is 4000, as the server charges
+        // it (M5; was 5000, the lowest size, before the shared rule); a sized
+        // line is its size's price.
+        let mut branch_priced = item();
+        branch_priced.base_price_minor = 4000;
         assert_eq!(
-            resolve_line(&stale, &catalog(), None, &[], &[], 1, None).unit_price_minor,
-            5000
+            resolve_line(
+                &branch_priced,
+                &catalog(),
+                &crate::catalog_pricing::PricingMirror::default(),
+                None,
+                &[],
+                &[],
+                1,
+                None
+            )
+            .unit_price_minor,
+            4000
         );
         assert_eq!(
-            resolve_line(&stale, &catalog(), Some("Large".into()), &[], &[], 1, None)
-                .unit_price_minor,
+            resolve_line(
+                &branch_priced,
+                &catalog(),
+                &crate::catalog_pricing::PricingMirror::default(),
+                Some("Large".into()),
+                &[],
+                &[],
+                1,
+                None
+            )
+            .unit_price_minor,
             6000
         );
     }
@@ -4264,6 +4382,7 @@ mod tests {
         let line = resolve_line(
             &item(),
             &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
             None,
             &[
                 AddonSelection {
@@ -4287,7 +4406,16 @@ mod tests {
 
     #[test]
     fn resolve_line_with_no_options_keys_by_item_id() {
-        let line = resolve_line(&item(), &catalog(), None, &[], &[], 1, None);
+        let line = resolve_line(
+            &item(),
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &[],
+            &[],
+            1,
+            None,
+        );
         assert_eq!(signature(&line), "latte");
     }
 
@@ -4304,7 +4432,11 @@ mod tests {
             is_active: false,
             ingredients: vec![],
         });
-        let v = item_addons(&item(), &cat);
+        let v = item_addons(
+            &item(),
+            &cat,
+            &crate::catalog_pricing::PricingMirror::default(),
+        );
         assert!(v.iter().all(|a| a.addon_item_id != "retired"));
     }
 
@@ -4312,7 +4444,14 @@ mod tests {
 
     #[test]
     fn resolve_bundle_line_uses_fixed_price_and_clamps_qty() {
-        let line = resolve_bundle_line(&bundle(), &[item()], &catalog(), &[combo_component()], 0);
+        let line = resolve_bundle_line(
+            &bundle(),
+            &[item()],
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            &[combo_component()],
+            0,
+        );
         assert_eq!(line.unit_price_minor, 10000); // fixed bundle price
         assert_eq!(line.qty, 1); // qty clamped up from 0
         assert!(line.addons.is_empty()); // bundle's own addons stay empty
@@ -4329,6 +4468,7 @@ mod tests {
             &bundle(),
             &[item()],
             &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
             &[combo_component(), ghost],
             1,
         );
@@ -4338,7 +4478,14 @@ mod tests {
 
     #[test]
     fn resolve_bundle_line_with_no_components_charges_only_base() {
-        let line = resolve_bundle_line(&bundle(), &[item()], &catalog(), &[], 2);
+        let line = resolve_bundle_line(
+            &bundle(),
+            &[item()],
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            &[],
+            2,
+        );
         assert!(line.bundle_components.is_empty());
         // (10000 base + 0 extras) × 2 = 20000.
         assert_eq!(line_total(&line), 20000);
@@ -4352,7 +4499,14 @@ mod tests {
         // (owner decision, madar-shared M3). It used to count them once.
         let mut comp = combo_component();
         comp.qty = 5;
-        let line = resolve_bundle_line(&bundle(), &[item()], &catalog(), &[comp], 1);
+        let line = resolve_bundle_line(
+            &bundle(),
+            &[item()],
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            &[comp],
+            1,
+        );
         assert_eq!(line.bundle_components[0].qty, 5);
         // 10000 base + (500 almond delta + 300 vanilla) × 5 = 14000.
         assert_eq!(line_total(&line), 14000);
@@ -4365,7 +4519,14 @@ mod tests {
         add_resolved(
             &s,
             None,
-            resolve_bundle_line(&bundle(), &[item()], &catalog(), &[combo_component()], 2),
+            resolve_bundle_line(
+                &bundle(),
+                &[item()],
+                &catalog(),
+                &crate::catalog_pricing::PricingMirror::default(),
+                &[combo_component()],
+                2,
+            ),
         )
         .unwrap();
         let t = totals(&s, None, &tax_policy_at(0.0)).unwrap();
@@ -4616,7 +4777,11 @@ mod tests {
             addon("oat", "milk_type", 1500),
             addon("full_fat", "milk_type", 1000),
         ];
-        let groups = item_modifier_groups(&i, &catalog);
+        let groups = item_modifier_groups(
+            &i,
+            &catalog,
+            &crate::catalog_pricing::PricingMirror::default(),
+        );
         let milk = groups
             .iter()
             .find(|g| g.addon_type.as_deref() == Some("milk_type"))
@@ -4640,7 +4805,11 @@ mod tests {
             addon("single_origin", "coffee_type", 800),
         ];
 
-        let unslotted = item_modifier_groups(&i, &catalog);
+        let unslotted = item_modifier_groups(
+            &i,
+            &catalog,
+            &crate::catalog_pricing::PricingMirror::default(),
+        );
         let g = unslotted
             .iter()
             .find(|g| g.addon_type.as_deref() == Some("coffee_type"))
@@ -4655,7 +4824,11 @@ mod tests {
             min_selections: 1,
             max_selections: Some(3),
         }];
-        let slotted = item_modifier_groups(&i, &catalog);
+        let slotted = item_modifier_groups(
+            &i,
+            &catalog,
+            &crate::catalog_pricing::PricingMirror::default(),
+        );
         let g = slotted
             .iter()
             .find(|g| g.addon_type.as_deref() == Some("coffee_type"))
@@ -4682,7 +4855,11 @@ mod tests {
             max_selections: None,
         }];
         let catalog = vec![addon("shot", "extra", 500), addon("syrup", "extra", 300)];
-        let groups = item_modifier_groups(&i, &catalog);
+        let groups = item_modifier_groups(
+            &i,
+            &catalog,
+            &crate::catalog_pricing::PricingMirror::default(),
+        );
         let g = groups
             .iter()
             .find(|g| g.addon_type.as_deref() == Some("extra"))
