@@ -498,7 +498,7 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.past_the_shift_end" => "{date} · {duration} past the shift end",
         "staff.outstanding_cap" => "Outstanding {amount} · cap {amount2}",
         "staff.a_manager_s_own_request" => "A manager's own request",
-        "staff.leave_paid" => "Paid",
+        "staff.approve_paid" => "Paid",
         "staff.unpaid" => "Unpaid",
         "staff.in_full_next_payslip" => "In full, next payslip",
         "staff.installments_count" => "{inst} monthly installments",
@@ -2548,7 +2548,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.past_the_shift_end" => "{date} · {duration} بعد نهاية الوردية",
         "staff.outstanding_cap" => "عليه {amount} · الحد {amount2}",
         "staff.a_manager_s_own_request" => "طلب مدير لنفسه",
-        "staff.leave_paid" => "بمرتب",
+        "staff.approve_paid" => "بمرتب",
         "staff.unpaid" => "بدون مرتب",
         "staff.in_full_next_payslip" => "مرة واحدة، القسيمة الجاية",
         "staff.installments_count" => "{inst} أقساط شهرية",
@@ -4260,6 +4260,52 @@ mod tests {
             }
         }
         keys
+    }
+
+    /// Every `"key" =>` line of a table, duplicates kept.
+    fn all_keys_in_fn<'a>(src: &'a str, fn_sig: &str) -> Vec<&'a str> {
+        let start = src.find(fn_sig).expect("function signature not found");
+        let after = &src[start + fn_sig.len()..];
+        let end = after.find("\nfn ").unwrap_or(after.len());
+        after[..end]
+            .lines()
+            .filter_map(|line| {
+                let rest = line.trim_start().strip_prefix('"')?;
+                let close = rest.find('"')?;
+                rest[close + 1..].trim_start().starts_with("=>").then(|| &rest[..close])
+            })
+            .collect()
+    }
+
+    #[test]
+    fn no_key_is_defined_twice() {
+        // A second arm for the same key is unreachable: the first one wins
+        // and the second string never shows (E2E requests: the approval
+        // card's "Paid" read "Paid leave" on an excuse).
+        let src = include_str!("i18n.rs");
+        for sig in [
+            "fn en(key: &str) -> Option<&'static str> {",
+            "fn ar(key: &str) -> Option<&'static str> {",
+        ] {
+            let mut seen = std::collections::BTreeSet::new();
+            let dups: Vec<_> = all_keys_in_fn(src, sig)
+                .into_iter()
+                .filter(|k| !seen.insert(*k))
+                .collect();
+            assert!(dups.is_empty(), "keys defined twice in {sig}: {dups:?}");
+        }
+    }
+
+    #[test]
+    fn approval_pay_choice_is_paid_not_paid_leave() {
+        // The Approvals card asks paid/unpaid for leave, an excuse and an
+        // early departure: "Paid" / "Unpaid", not "Paid leave".
+        assert_eq!(tr("en", "staff.approve_paid"), "Paid");
+        assert_eq!(tr("ar", "staff.approve_paid"), "بمرتب");
+        assert_eq!(tr("en", "staff.unpaid"), "Unpaid");
+        // The self-approved leave sheet keeps its own words.
+        assert_eq!(tr("en", "staff.leave_paid"), "Paid leave");
+        assert_eq!(tr("ar", "staff.leave_paid"), "إجازة مدفوعة");
     }
 
     #[test]

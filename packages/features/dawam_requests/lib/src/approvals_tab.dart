@@ -306,7 +306,7 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
         if (_asksPay)
           MadarSegmented<bool>(
             items: [
-              MadarSegmentItem(true, tr('staff.leave_paid')),
+              MadarSegmentItem(true, tr('staff.approve_paid')),
               MadarSegmentItem(false, tr('staff.unpaid')),
             ],
             value: _paid,
