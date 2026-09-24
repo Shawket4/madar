@@ -293,6 +293,10 @@ class Req {
   String? cancelledBy;
   String? cancelNote;
 
+  /// The canceller's name when the server sends it (someone this phone's
+  /// people list doesn't hold, e.g. the owner).
+  String? cancelledByName;
+
   /// Every day it covers can still change (RQ-4, B13), from the core.
   bool monthOpen = true;
 }
@@ -946,7 +950,8 @@ class DawamStore extends ChangeNotifier {
           ..decidedBy = r['decided_by'] as String?
           ..decisionNote = r['decision_note'] as String?
           ..cancelledBy = r['cancelled_by'] as String?
-          ..cancelNote = r['cancel_note'] as String?,
+          ..cancelNote = r['cancel_note'] as String?
+          ..cancelledByName = r['cancelled_by_name'] as String?,
       );
     }
     _inbox = (v['inbox'] as List<dynamic>).cast<String>();

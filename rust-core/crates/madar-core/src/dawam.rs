@@ -470,6 +470,8 @@ pub struct ReqV {
     /// before the server kept cancels apart.
     pub cancelled_by: Option<String>,
     pub cancel_note: Option<String>,
+    /// The canceller's name when the server sends it.
+    pub cancelled_by_name: Option<String>,
     /// Every day it covers is in no approved or paid period: it can still be
     /// cancelled or changed (RQ-4, B13).
     pub month_open: bool,
@@ -2195,6 +2197,7 @@ impl MadarCore {
                 decision_note: so(q, "decision_note"),
                 cancelled_by: actor(so(q, "cancelled_by")),
                 cancel_note: so(q, "cancel_note"),
+                cancelled_by_name: so(q, "cancelled_by_name"),
                 installments: 1,
                 ..Default::default()
             };

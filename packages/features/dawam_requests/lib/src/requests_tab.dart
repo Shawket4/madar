@@ -94,15 +94,28 @@ class RequestsTab extends ConsumerWidget {
 }
 
 /// Who cancelled a request of mine, and why, when it wasn't me (RQ-F6):
-/// read from the cancel's own fields — decided_by stays the approver's.
-String? cancelledWords(Req r, String? me, String Function(String id) nameOf) {
+/// read from the cancel's own fields — decided_by stays the approver's. A
+/// canceller the phone doesn't list (the owner, outside the branch) goes by
+/// the name the server sent, else "a manager".
+String? cancelledWords(Req r, String? me, String? Function(String id) nameOf) {
   final by = r.cancelledBy;
   if (r.status != ReqStatus.cancelled || by == null || by == me) return null;
+  final who = nameOf(by) ?? r.cancelledByName;
   final note = r.cancelNote?.trim() ?? '';
   return [
-    tr('staff.cancelled_by_name', {'name': nameOf(by)}),
+    if (who == null)
+      tr('staff.cancelled_by_manager')
+    else
+      tr('staff.cancelled_by_name', {'name': who}),
     if (note.isNotEmpty) note,
   ].join(' · ');
+}
+
+/// A request row's one line: when, then — if someone else cancelled it —
+/// who and why before my own note, so the line's cut never hides it.
+String reqMeta(Req r, String? me, String? Function(String id) nameOf) {
+  final cancelled = cancelledWords(r, me, nameOf);
+  return [reqWhen(r), ?cancelled, if (r.note.isNotEmpty) r.note].join(' · ');
 }
 
 /// " · half day", with its half when the server says which (RQ-8).
@@ -162,10 +175,12 @@ class _ReqRow extends ConsumerWidget {
         (r.status == ReqStatus.approved &&
             r.kind == ReqKind.leave &&
             r.monthOpen);
-    final cancelled = cancelledWords(r, store.me, (id) => name(store.emp(id)));
     return MadarListRow.bill(
       title: kindLabel(r.kind),
-      meta: [reqWhen(r), if (r.note.isNotEmpty) r.note, ?cancelled].join(' · '),
+      meta: reqMeta(r, store.me, (id) {
+        final e = store.emps[id];
+        return e == null ? null : name(e);
+      }),
       status: statusOf(r.status),
       onTap: !cancellable
           ? null
