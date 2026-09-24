@@ -855,11 +855,15 @@ class MadarTopBar extends StatelessWidget {
                   '·',
                   style: MadarType.body.copyWith(color: colors.onChromeMuted),
                 ),
-                Text(
-                  subtitle!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MadarType.body.copyWith(color: colors.onChromeMuted),
+                // Flexible too: an owner's subtitle lists every branch and
+                // overflowed an iPad bar by 524 px (E2E money CB7).
+                Flexible(
+                  child: Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MadarType.body.copyWith(color: colors.onChromeMuted),
+                  ),
                 ),
               ],
             ],

@@ -151,4 +151,64 @@ void main() {
     expect(find.text('Sara'), findsOneWidget);
     expect(find.text('Queued'), findsOneWidget);
   });
+
+  // E2E money CB7: on an iPad the owner's bar lists every branch as its
+  // subtitle; it overflowed by 524 px, pushing the title out and the
+  // stripes over the actions. The branch list must give way (ellipsis).
+  for (final ar in [false, true]) {
+    testWidgets('a tablet bar with every branch fits · ${ar ? 'ar' : 'en'}', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(820, 1180);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final branches = [
+        'Arkan',
+        'Maadi Branch',
+        'One Ninety',
+        'SIDI HENEISH',
+        'Test2',
+        'v050 compat 0156',
+        'v050 compat 0157',
+        'v050 compat 0158',
+        'v050 compat 0159',
+      ].join(' · ');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: MadarTheme.light(),
+          locale: Locale(ar ? 'ar' : 'en'),
+          supportedLocales: const [Locale('en'), Locale('ar')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: Scaffold(
+            body: MadarShellScaffold(
+              tabs: const [
+                MadarTab(label: 'Team', glyph: MadarGlyph.users),
+                MadarTab(label: 'Payroll', glyph: MadarGlyph.banknote),
+              ],
+              selectedIndex: 1,
+              onSelect: (_) {},
+              person: const MadarPerson(name: 'Tasbeeh', initial: 'T'),
+              onPersonTap: () {},
+              topBar: MadarTopBar(
+                title: ar ? 'دوام · الإدارة' : 'Dawam · Manage',
+                subtitle: branches,
+                actions: [_action('manage'), _action('inbox')],
+              ),
+              body: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.takeException(), isNull, reason: 'no overflow');
+      expect(
+        find.text(ar ? 'دوام · الإدارة' : 'Dawam · Manage'),
+        findsOneWidget,
+      );
+    });
+  }
 }
