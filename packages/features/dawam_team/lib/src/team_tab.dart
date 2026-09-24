@@ -286,6 +286,7 @@ class _TeamTabState extends ConsumerState<TeamTab> {
   Future<void> _person(Emp e) => showDawamSheet<void>(
     context,
     title: name(e),
+    refreshable: true,
     builder: (ctx, ref, store) {
       final today = store.rostered(e.id, store.today);
       return Column(

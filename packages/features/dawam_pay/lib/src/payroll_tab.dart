@@ -169,6 +169,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
   Future<void> _slip(String emp) => showDawamSheet<void>(
     context,
     title: name(ref.read(dawamProvider).emp(emp)),
+    refreshable: true,
     builder: (ctx, ref, store) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
@@ -320,12 +321,6 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
         ),
       ];
     }
-    final bank = slips
-        .where((s) => store.emp(s.emp).pay == PayMethod.bank)
-        .toList();
-    final wallet = slips
-        .where((s) => store.emp(s.emp).pay == PayMethod.wallet)
-        .toList();
     return [
       Row(
         spacing: Space.sm,
@@ -336,7 +331,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
               glyph: MadarGlyph.card,
               size: MadarButtonSize.compact,
               variant: MadarButtonVariant.secondary,
-              onTap: () => _list(tr('staff.bank_file'), bank),
+              onTap: () => _list(tr('staff.bank_file'), PayMethod.bank),
             ),
           ),
           Expanded(
@@ -345,7 +340,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
               glyph: MadarGlyph.phone,
               size: MadarButtonSize.compact,
               variant: MadarButtonVariant.secondary,
-              onTap: () => _list(tr('staff.wallet_list'), wallet),
+              onTap: () => _list(tr('staff.wallet_list'), PayMethod.wallet),
             ),
           ),
         ],
@@ -514,26 +509,36 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
     );
   }
 
-  Future<void> _list(String title, List<Slip> rows) => showDawamSheet<void>(
+  /// The bank file or the wallet list: this period's payslips of everyone
+  /// paid that way, read from the store while open, so a pull shows the
+  /// fresh figures.
+  Future<void> _list(String title, PayMethod method) => showDawamSheet<void>(
     context,
     title: title,
-    builder: (ctx, ref, store) => MadarCard.column(
-      spacing: 0,
-      children: [
-        for (final s in rows)
+    refreshable: true,
+    builder: (ctx, ref, store) {
+      final rows = [
+        for (final e in store.emps.values)
+          if (e.pay == method) store.slip(e.id, store.period),
+      ];
+      return MadarCard.column(
+        spacing: 0,
+        children: [
+          for (final s in rows)
+            MadarSummaryLine(
+              label: '${store.emp(s.emp).en} · ${store.emp(s.emp).account}',
+              minor: s.net,
+              currency: 'EGP',
+            ),
+          const MadarHairline(),
           MadarSummaryLine(
-            label: '${store.emp(s.emp).en} · ${store.emp(s.emp).account}',
-            minor: s.net,
+            label: '${rows.length}',
+            minor: rows.fold<int>(0, (a, s) => a + s.net),
             currency: 'EGP',
+            emphasis: true,
           ),
-        const MadarHairline(),
-        MadarSummaryLine(
-          label: '${rows.length}',
-          minor: rows.fold<int>(0, (a, s) => a + s.net),
-          currency: 'EGP',
-          emphasis: true,
-        ),
-      ],
-    ),
+        ],
+      );
+    },
   );
 }

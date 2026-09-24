@@ -41,43 +41,47 @@ class ShiftsTab extends ConsumerWidget {
                       store.user.branches.contains(s.template.branch))),
         )
         .toList();
-    return MadarContentFrame(
-      child: Padding(
-        padding: const EdgeInsetsDirectional.only(
-          top: Space.lg,
-          bottom: Space.lg,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.md,
-          children: [
-            for (final r in asks) _SwapAsk(r),
-            for (final r in mine) _MySwap(r),
-            if (!nextPublished)
-              NoticeBanner(
-                text: tr('staff.not_published_yet_you_ll_get'),
-                tone: ChipTone.info,
-              ),
-            Expanded(
-              child: ShiftCalendar(
-                shifts: shifts,
-                now: () => ref.read(dawamProvider).now,
-                phoneView: CalendarView.list,
-                tabletView: CalendarView.month,
-                colorOf: (s) => s.emp == null ? c.warning : c.brand,
-                titleOf: (s) => s.emp == null
-                    ? tr('staff.open_shift')
-                    : '${tplName(s.template)} · '
-                          '${branchName(store, s.template.branch)}',
-                onTapShift: (s) => _tap(context, ref, s),
-                trailing: MadarChip(
-                  label: tr('staff.my_preferences'),
-                  glyph: MadarGlyph.star,
-                  onTap: () => _prefs(context),
+    // The calendar takes the rest of the height, so the tab does not scroll
+    // by itself: pullable, for the shell's pull to refresh.
+    return MadarPullable(
+      child: MadarContentFrame(
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(
+            top: Space.lg,
+            bottom: Space.lg,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: Space.md,
+            children: [
+              for (final r in asks) _SwapAsk(r),
+              for (final r in mine) _MySwap(r),
+              if (!nextPublished)
+                NoticeBanner(
+                  text: tr('staff.not_published_yet_you_ll_get'),
+                  tone: ChipTone.info,
+                ),
+              Expanded(
+                child: ShiftCalendar(
+                  shifts: shifts,
+                  now: () => ref.read(dawamProvider).now,
+                  phoneView: CalendarView.list,
+                  tabletView: CalendarView.month,
+                  colorOf: (s) => s.emp == null ? c.warning : c.brand,
+                  titleOf: (s) => s.emp == null
+                      ? tr('staff.open_shift')
+                      : '${tplName(s.template)} · '
+                            '${branchName(store, s.template.branch)}',
+                  onTapShift: (s) => _tap(context, ref, s),
+                  trailing: MadarChip(
+                    label: tr('staff.my_preferences'),
+                    glyph: MadarGlyph.star,
+                    onTap: () => _prefs(context),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

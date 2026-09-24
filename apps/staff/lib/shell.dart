@@ -124,46 +124,49 @@ class StaffShell extends ConsumerWidget {
     return Material(
       color: context.madarColors.chrome,
       child: _PushRouter(
-        child: MadarShellScaffold(
-          tabs: [for (final t in tabs) t.$1],
-          selectedIndex: i,
-          onSelect: ref.read(shellProvider.notifier).select,
-          person: MadarPerson(name: name(u), initial: initialOf(name(u))),
-          onPersonTap: () => _settings(context),
-          onMarkTap: () => _settings(context),
-          topBar: MadarTopBar(
-            title: manage ? tr('staff.dawam_manage') : tr('staff.dawam'),
-            subtitle: store.myBranches
-                .map((b) => branchName(store, b))
-                .join(' · '),
-            pill: store.offline || store.queued > 0
-                ? MadarOutboxPill(
-                    state: store.offline
-                        ? OutboxState.offline
-                        : OutboxState.queued,
-                    label: store.offline
-                        ? tr('staff.offline')
-                        : tr('staff.queued'),
-                    count: store.queued,
-                    onTap: store.offline ? null : store.sync,
-                  )
-                : null,
-            actions: [
-              if (store.canManage)
+        child: _StayCurrent(
+          child: MadarShellScaffold(
+            tabs: [for (final t in tabs) t.$1],
+            selectedIndex: i,
+            onSelect: ref.read(shellProvider.notifier).select,
+            person: MadarPerson(name: name(u), initial: initialOf(name(u))),
+            onPersonTap: () => _settings(context),
+            onMarkTap: () => _settings(context),
+            topBar: MadarTopBar(
+              title: manage ? tr('staff.dawam_manage') : tr('staff.dawam'),
+              subtitle: store.myBranches
+                  .map((b) => branchName(store, b))
+                  .join(' · '),
+              pill: store.offline || store.queued > 0
+                  ? MadarOutboxPill(
+                      state: store.offline
+                          ? OutboxState.offline
+                          : OutboxState.queued,
+                      label: store.offline
+                          ? tr('staff.offline')
+                          : tr('staff.queued'),
+                      count: store.queued,
+                      onTap: store.offline ? null : store.sync,
+                    )
+                  : null,
+              actions: [
+                if (store.canManage)
+                  _ChromeAction(
+                    glyph: manage ? MadarGlyph.user : MadarGlyph.users,
+                    label: manage ? tr('staff.my_view') : tr('staff.manage'),
+                    onTap: ref.read(shellProvider.notifier).toggle,
+                  ),
                 _ChromeAction(
-                  glyph: manage ? MadarGlyph.user : MadarGlyph.users,
-                  label: manage ? tr('staff.my_view') : tr('staff.manage'),
-                  onTap: ref.read(shellProvider.notifier).toggle,
+                  glyph: MadarGlyph.bell,
+                  label: tr('staff.inbox'),
+                  badge: store.unread,
+                  onTap: () => _inbox(context, ref),
                 ),
-              _ChromeAction(
-                glyph: MadarGlyph.bell,
-                label: tr('staff.inbox'),
-                badge: store.unread,
-                onTap: () => _inbox(context, ref),
-              ),
-            ],
+              ],
+            ),
+            // Every tab pulls to refresh, whichever list the pull starts on.
+            body: DawamRefresh(child: tabs[i].$2),
           ),
-          body: tabs[i].$2,
         ),
       ),
     );
@@ -240,11 +243,50 @@ class _PushRouterState extends ConsumerState<_PushRouter> {
   Widget build(BuildContext context) => widget.child;
 }
 
-/// The inbox sheet: the newest notifications, marked read on close.
+/// Brings the picture up to date when the app comes back to the front: it
+/// may have sat in the background for hours, and the poll only runs while
+/// it is open. A resume right after a fetch skips it (the store's
+/// [DawamStore.resumeQuiet]), so switching apps back and forth is not a
+/// refresh storm.
+class _StayCurrent extends ConsumerStatefulWidget {
+  const _StayCurrent({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_StayCurrent> createState() => _StayCurrentState();
+}
+
+class _StayCurrentState extends ConsumerState<_StayCurrent>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) ref.read(dawamProvider).resumed();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+/// The inbox sheet: the newest notifications, marked read on close. Pulled,
+/// it fetches like a tab.
 Future<void> showInbox(BuildContext context, WidgetRef ref) async {
   await showDawamSheet<void>(
     context,
     title: tr('staff.inbox'),
+    refreshable: true,
     builder: (ctx, ref, store) => DawamSection(
       tr('staff.notifications'),
       children: [

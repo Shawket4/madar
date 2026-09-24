@@ -31,8 +31,17 @@ class _Backend implements DawamBackend {
 
   @override
   Future<String> snapshot({required bool refresh}) async => _fixture();
+
+  /// What a fetch (`dawam_sync`) answers, and how many were asked for.
+  Future<String> Function() fetched = () async => _fixture();
+  int syncs = 0;
+
   @override
-  Future<String> sync() async => _fixture();
+  Future<String> sync() {
+    syncs++;
+    return fetched();
+  }
+
   @override
   Future<String> ping(DawamFix fix) async => _fixture();
   @override
@@ -195,35 +204,46 @@ void main() {
     },
   );
 
-  test('un-waiving, reopening and a flag deduction carry their reason', () async {
-    final (store, backend) = await _store();
-    await store.unwaive('d|x', 'the cup was not his');
-    await store.reopenPayroll('a line was missing');
-    final flag = Flag('f1', FlagKind.leftMidShift, 'e2', DateTime(2026, 9, 2));
-    await store.resolve(flag, 'deduct', deduct: 500, reason: 'left early');
-    expect(backend.acts, [
-      {'action': 'unwaive', 'key': 'd|x', 'reason': 'the cup was not his'},
-      {'action': 'reopen_payroll', 'reason': 'a line was missing'},
-      {
-        'action': 'resolve',
-        'flag': 'f1',
-        'how': 'deduct',
-        'deduct': 500,
-        'reason': 'left early',
-      },
-    ]);
-  });
+  test(
+    'un-waiving, reopening and a flag deduction carry their reason',
+    () async {
+      final (store, backend) = await _store();
+      await store.unwaive('d|x', 'the cup was not his');
+      await store.reopenPayroll('a line was missing');
+      final flag = Flag(
+        'f1',
+        FlagKind.leftMidShift,
+        'e2',
+        DateTime(2026, 9, 2),
+      );
+      await store.resolve(flag, 'deduct', deduct: 500, reason: 'left early');
+      expect(backend.acts, [
+        {'action': 'unwaive', 'key': 'd|x', 'reason': 'the cup was not his'},
+        {'action': 'reopen_payroll', 'reason': 'a line was missing'},
+        {
+          'action': 'resolve',
+          'flag': 'f1',
+          'how': 'deduct',
+          'deduct': 500,
+          'reason': 'left early',
+        },
+      ]);
+    },
+  );
 
-  test('the record-advance act is one call with what the manager typed', () async {
-    final (store, backend) = await _store();
-    await store.recordAdvance('e2', 150000, 3);
-    expect(backend.acts.single, {
-      'action': 'record_advance',
-      'emp': 'e2',
-      'amount': 150000,
-      'installments': 3,
-    });
-  });
+  test(
+    'the record-advance act is one call with what the manager typed',
+    () async {
+      final (store, backend) = await _store();
+      await store.recordAdvance('e2', 150000, 3);
+      expect(backend.acts.single, {
+        'action': 'record_advance',
+        'emp': 'e2',
+        'amount': 150000,
+        'installments': 3,
+      });
+    },
+  );
 
   test('the server says who is on payroll and both pay-line limits', () async {
     final (store, _) = await _store();
@@ -363,6 +383,102 @@ void main() {
           reason: '$k has no screen; add it to pushTarget or to toInbox',
         );
       }
+    });
+  });
+
+  group('staying up to date: pull and resume', () {
+    /// The fixture as the core answers a fetch: [at] its `fetched_at`.
+    String answer(int at, {bool online = true}) {
+      final v = jsonDecode(_fixture()) as Map<String, dynamic>;
+      v['fetched_at'] = at;
+      v['online'] = online;
+      return jsonEncode(v);
+    }
+
+    Future<(DawamStore, _Backend, List<String>)> pulled(
+      String Function() next,
+    ) async {
+      final (store, b) = await _store();
+      b.fetched = () async => answer(100);
+      await store.pull(); // where the phone starts: fetched at 100
+      final failures = <String>[];
+      final sub = store.failures.stream.listen(failures.add);
+      addTearDown(sub.cancel);
+      b.fetched = () async => next();
+      await store.pull();
+      await Future<void>.delayed(Duration.zero);
+      return (store, b, failures);
+    }
+
+    test('a pull that reached the server says nothing', () async {
+      final (store, b, failures) = await pulled(() => answer(200));
+      expect(b.syncs, 2);
+      expect(store.fetchedAt, 200);
+      expect(failures, isEmpty);
+    });
+
+    test('offline: the toast says so', () async {
+      final (store, _, failures) = await pulled(
+        () => answer(100, online: false),
+      );
+      expect(store.offline, isTrue);
+      expect(failures, ['staff.refresh_offline']);
+    });
+
+    test('online, but the fetch never got an answer: said too', () async {
+      final (_, _, failures) = await pulled(() => answer(100));
+      expect(failures, ['staff.refresh_failed']);
+    });
+
+    test('refused: the server words, once, and the picture stays', () async {
+      final (store, _, failures) = await pulled(() => throw _refused);
+      expect(failures, ['Outside Zamalek: 340 m away.']);
+      expect(store.fetchedAt, 100);
+      expect(store.me, 'e1');
+    });
+
+    test(
+      'pulls, pushes and the pill landing together share one fetch',
+      () async {
+        final (store, b) = await _store();
+        final gate = Completer<String>();
+        b.fetched = () => gate.future;
+        final pulls = [store.pull(), store.pull()];
+        store.sync();
+        expect(b.syncs, 1);
+        gate.complete(answer(5));
+        await Future.wait(pulls);
+        expect(store.fetchedAt, 5);
+        await store.pull();
+        expect(b.syncs, 2, reason: 'the next pull fetches again');
+      },
+    );
+
+    test('a resume fetches unless the last fetch was under 15 s ago', () async {
+      final (store, b) = await _store();
+      var now = DateTime(2026, 9, 23, 10);
+      store.clock = () => now;
+      await store.pull();
+      expect(store.lastFetch, now);
+      expect(b.syncs, 1);
+
+      now = now.add(const Duration(seconds: 14));
+      store.resumed();
+      expect(b.syncs, 1, reason: 'a quick app switch');
+
+      now = now.add(const Duration(seconds: 2));
+      store.resumed();
+      expect(b.syncs, 2);
+      expect(store.lastFetch, now);
+    });
+
+    test('a resume before the notice is accepted fetches nothing', () async {
+      final (store, b) = await _store();
+      store
+        ..privacyAccepted = false
+        ..lastFetch = null
+        ..resumed();
+      expect(b.syncs, 0);
     });
   });
 

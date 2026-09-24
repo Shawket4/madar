@@ -28,19 +28,22 @@ Future<bool> attempt(
 }
 
 /// The kit's sheet with a title and a close tile, following the core while
-/// it is open so what it shows never goes stale.
+/// it is open so what it shows never goes stale. A [refreshable] sheet (a
+/// list: the inbox, the payslips) is pulled to refresh like a tab.
 Future<T?> showDawamSheet<T>(
   BuildContext context, {
   required String title,
   required Widget Function(BuildContext, WidgetRef, DawamStore) builder,
   SheetSize size = SheetSize.hug,
+  bool refreshable = false,
 }) => showMadarSheet<T>(
   context,
   size: size,
   builder: (_) => Consumer(
     builder: (ctx, ref, _) {
       final store = ref.watch(dawamProvider);
-      return SingleChildScrollView(
+      final sheet = SingleChildScrollView(
+        physics: refreshable ? MadarRefresh.physics : null,
         padding: const EdgeInsetsDirectional.all(Space.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -61,12 +64,31 @@ Future<T?> showDawamSheet<T>(
           ],
         ),
       );
+      return refreshable ? DawamRefresh(child: sheet) : sheet;
     },
   ),
 );
 
+/// Pull to refresh on Dawam: the kit's [MadarRefresh] over
+/// [DawamStore.pull] — the queue goes, then the whole picture comes back
+/// from the server. The shell wraps every tab in one (so each tab's lists,
+/// at whatever depth, pull); a list sheet wraps its own.
+class DawamRefresh extends ConsumerWidget {
+  const DawamRefresh({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => MadarRefresh(
+    nested: true,
+    onRefresh: () => ref.read(dawamProvider).pull(),
+    child: child,
+  );
+}
+
 /// A tab's page: the kit's content frame (gutters, a readable width on a
-/// tablet) around a scrolling column with the kit's section rhythm.
+/// tablet) around a scrolling column with the kit's section rhythm. It
+/// always scrolls, so a short page still pulls to refresh.
 class DawamPage extends StatelessWidget {
   const DawamPage({
     required this.children,
@@ -81,6 +103,7 @@ class DawamPage extends StatelessWidget {
   Widget build(BuildContext context) => MadarContentFrame(
     width: width,
     child: ListView(
+      physics: MadarRefresh.physics,
       padding: const EdgeInsetsDirectional.only(
         top: Space.lg,
         bottom: Space.xxl,

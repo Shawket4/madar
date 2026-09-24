@@ -72,12 +72,51 @@ class FakeCore implements DawamBackend {
   /// What the background tracking was last told (CL-4).
   final trackingCalls = <bool>[];
 
-  /// The fixture as the core would answer it now.
+  /// The fixture as the core would answer it now. Offline, the core has
+  /// only its mirror: the last picture, marked offline.
   String picture() {
+    if (!online) return _saved(offline: true);
     final v = jsonDecode(fixture(who)) as Map<String, dynamic>;
     v['privacy_accepted'] = accepted;
+    v['fetched_at'] = fetchedAt;
     if (fences != null) v['fences'] = fences;
     edit?.call(v);
+    return _last = jsonEncode(v);
+  }
+
+  /// The core's `fetched_at`: moves each time a fetch reaches the server.
+  int fetchedAt = 1;
+
+  /// The last picture handed out: what the core's mirror holds.
+  String? _last;
+
+  /// The server can be reached. Off: a fetch answers the saved picture,
+  /// marked offline, as the core does.
+  bool online = true;
+
+  /// Online, but the fetch never got an answer (a server blip the core
+  /// swallows): the saved picture, `fetched_at` unmoved.
+  bool unreachable = false;
+
+  /// When set, a fetch is refused with it (the server's answer).
+  DawamError? refuseFetch;
+
+  /// Fetches asked for: the pill, a push, the poll, a pull, a resume.
+  int syncs = 0;
+
+  /// A fetch as the core answers it: the server's picture, or the mirror.
+  String _fetched() {
+    final e = refuseFetch;
+    if (e != null) throw e;
+    if (!online || unreachable) return _saved(offline: !online);
+    fetchedAt++;
+    return picture();
+  }
+
+  /// The core's mirror: the last picture handed out.
+  String _saved({required bool offline}) {
+    final v = jsonDecode(_last ?? fixture(who)) as Map<String, dynamic>;
+    if (offline) v['online'] = false;
     return jsonEncode(v);
   }
 
@@ -110,7 +149,8 @@ class FakeCore implements DawamBackend {
   }) async => verifyAnswer?.call(orgId) ?? {'employee_id': who};
 
   @override
-  Future<String> snapshot({required bool refresh}) async => picture();
+  Future<String> snapshot({required bool refresh}) async =>
+      refresh ? _fetched() : picture();
 
   /// When set, every action is refused with it (the server's answer).
   DawamError? refuse;
@@ -153,7 +193,10 @@ class FakeCore implements DawamBackend {
   Future<String> ping(DawamFix fix) async => picture();
 
   @override
-  Future<String> sync() async => picture();
+  Future<String> sync() async {
+    syncs++;
+    return _fetched();
+  }
 
   @override
   Future<DawamFix?> locate() async => (
