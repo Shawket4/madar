@@ -242,8 +242,11 @@ class ShiftCard extends ConsumerWidget {
     final elapsed = s.inAt != null
         ? (s.outAt ?? now).difference(s.inAt!)
         : Duration.zero;
-    final progress = canOut
-        ? (elapsed.inMinutes / tp.length).clamp(0.0, 1.0)
+    // This shift's own length: its own times when it has them, never the
+    // block's default (a 18:45–22:45 evening is 4 h, not 8).
+    final length = s.endAt.difference(s.startAt).inMinutes;
+    final progress = canOut && length > 0
+        ? (elapsed.inMinutes / length).clamp(0.0, 1.0)
         : null;
 
     return MadarCard.column(
@@ -286,7 +289,7 @@ class ShiftCard extends ConsumerWidget {
                 ),
               ),
               Text(
-                mins(tp.length),
+                mins(length),
                 style: MadarType.bodySm.copyWith(color: c.textMuted),
               ),
             ],
