@@ -168,6 +168,8 @@ class _OpenTillScreenState extends ConsumerState<OpenTillScreen> {
       // the counting form — a field nobody may submit is a dead end.
       final lock = ref.watch(shellProvider.select((s) => s.lock));
       return SingleChildScrollView(
+        // The Till tab pulls to refresh, with no drawer open too.
+        physics: MadarRefresh.physics,
         padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

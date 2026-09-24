@@ -204,6 +204,8 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
 
     final table = MadarDataTable<TicketView>(
       state: tableState,
+      // A short or empty list still pulls to refresh.
+      physics: MadarRefresh.physics,
       rowKey: (b) => b.id,
       empty: MadarEmptyContent(
         title: bridge.trOr(QueueKeys.emptyBills),

@@ -426,6 +426,14 @@ class _FakeBridge implements MadarBridge {
   /// How many times the menu was read from the core.
   int menuReads = 0;
 
+  /// The open bills as the local store holds them now.
+  List<TicketView> tickets = _tickets;
+
+  /// Manual syncs asked for (a person's pull), and what landing one does to
+  /// the local rows.
+  int syncs = 0;
+  void Function()? onSync;
+
   /// How many times a cart was emptied.
   int cleared = 0;
 
@@ -717,7 +725,12 @@ class _FakeBridge implements MadarBridge {
       );
     }
     if (name == #listOpenTickets) {
-      return Future<List<TicketView>>.value(_tickets);
+      return Future<List<TicketView>>.value(tickets);
+    }
+    if (name == #syncNow) {
+      syncs++;
+      onSync?.call();
+      return Future<SyncStatusView>.value(syncStatus());
     }
     if (name == #listTransferQueue) {
       return Future<List<TransferQueueView>>.value(const []);
@@ -1180,6 +1193,37 @@ void main() {
       expect(find.text('MINE'), findsOneWidget);
       expect(find.text('OTHERS'), findsOneWidget);
       await _capture(tester, 'bills-phone');
+    });
+
+    // Pull to refresh, from the empty state: the manual sync, then the open
+    // bills re-read, so a bill fired on another till shows without a tick.
+    testWidgets('a pull syncs and shows the bills, even from empty', (
+      tester,
+    ) async {
+      final bridge = _FakeBridge(role: 'waiter')..tickets = const [];
+      await _mount(
+        tester,
+        screen: const BillsScreen(canCharge: false),
+        size: _phone,
+        bridge: bridge,
+      );
+      expect(find.text('MINE'), findsNothing);
+      bridge.onSync = () => bridge.tickets = _tickets;
+
+      final box = tester.getRect(find.byType(RefreshIndicator).first);
+      await tester.flingFrom(
+        Offset(box.center.dx, box.top + 24),
+        const Offset(0, 400),
+        1200,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(bridge.syncs, 1, reason: 'one manual sync per pull');
+      expect(find.text('MINE'), findsOneWidget, reason: 'the bills show');
     });
   });
 }

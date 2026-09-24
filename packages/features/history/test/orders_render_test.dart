@@ -263,6 +263,14 @@ class _FakeBridge implements MadarBridge {
   /// Every `attachCustomer` call, in order: (order id, customer id or null).
   final List<(String, String?)> attaches = [];
 
+  /// This till's rows as the local store holds them now.
+  List<OrderSummaryView> tillOrders = _tillOrders;
+
+  /// Manual syncs asked for (a person's pull), and what landing one does to
+  /// the local rows.
+  int syncs = 0;
+  void Function()? onSync;
+
   @override
   dynamic noSuchMethod(Invocation invocation) {
     if (invocation.memberName == #tillFiguresVisible) return !blind;
@@ -441,7 +449,12 @@ class _FakeBridge implements MadarBridge {
       return Future<TillView?>.value(_till);
     }
     if (name == #listTillOrders) {
-      return Future<List<OrderSummaryView>>.value(_tillOrders);
+      return Future<List<OrderSummaryView>>.value(tillOrders);
+    }
+    if (name == #syncNow) {
+      syncs++;
+      onSync?.call();
+      return Future<SyncStatusView>.value(syncStatus());
     }
     if (name == #tillStatsChecked && blind) {
       return Future<TillStatsView>.error(
@@ -667,6 +680,40 @@ void main() {
     expect(find.text('Reprint'), findsOneWidget);
     expect(find.text('EGP 190.00'), findsWidgets, reason: "the sale's own");
   });
+
+  // Pull to refresh: the manual sync, then this till re-read, so a sale the
+  // server had and this list did not shows without waiting for a tick.
+  for (final (tag, size) in [('phone', _phone), ('ipad', _ipad)]) {
+    testWidgets('a pull ($tag) syncs and shows the new sale', (tester) async {
+      final bridge = _FakeBridge()
+        ..tillOrders = _tillOrders.where((o) => o.id != 'o-1042').toList();
+      await _shoot(
+        tester,
+        screen: const OrderHistoryScreen(),
+        bridge: bridge,
+        size: size,
+        theme: MadarTheme.light(),
+        name: 'pull-$tag',
+      );
+      expect(_ref('#1042'), findsNothing);
+      bridge.onSync = () => bridge.tillOrders = _tillOrders;
+
+      final box = tester.getRect(find.byType(RefreshIndicator).first);
+      await tester.flingFrom(
+        Offset(box.left + 40, box.top + 24),
+        const Offset(0, 400),
+        1200,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(bridge.syncs, 1, reason: 'one manual sync per pull');
+      expect(_ref('#1042'), findsWidgets, reason: 'the new sale shows');
+    });
+  }
 
   testWidgets('the iPad: this shift beside the selected sale', (tester) async {
     await _shoot(

@@ -107,12 +107,17 @@ class _TillReportSheetState extends ConsumerState<TillReportSheet> {
         ),
       );
     } else {
-      body = SingleChildScrollView(
-        padding: EdgeInsetsDirectional.symmetric(
-          horizontal: layout.gutter,
-          vertical: Space.lg,
+      // Pulled: the manual sync, then the report re-read from local rows.
+      body = MadarRefresh(
+        onRefresh: () => pullThenReread(ref, notifier.reload),
+        child: SingleChildScrollView(
+          physics: MadarRefresh.physics,
+          padding: EdgeInsetsDirectional.symmetric(
+            horizontal: layout.gutter,
+            vertical: Space.lg,
+          ),
+          child: _Report(report: report, request: _request),
         ),
-        child: _Report(report: report, request: _request),
       );
     }
 

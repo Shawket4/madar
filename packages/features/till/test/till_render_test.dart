@@ -183,50 +183,51 @@ const _till = TillView(
   openedWhileAnotherOpen: false,
 );
 
-TillReportView _report({required bool fromServer}) => TillReportView(
-  tellerName: 'Sara',
-  openedAt: _openedAt,
-  printedAt: '2026-09-12T19:40:00Z',
-  isOpen: true,
-  // float 850 + cash sales 1,420 + paid in 200 − paid out 90
-  expectedCashMinor: 238000,
-  openingCashMinor: 85000,
-  openingCashWasEdited: false,
-  totalPaymentsMinor: 623000,
-  netPaymentsMinor: 623000,
-  voidedAmountMinor: 0,
-  refundsIssuedMinor: 0,
-  refundsIssuedCashMinor: 0,
-  refundsIssuedCount: 0,
-  cashInRefundedSalesMinor: 0,
-  cashMovementsNetMinor: 11000,
-  cashInMinor: 20000,
-  cashOutMinor: 9000,
-  paymentLines: const [
-    TillReportPaymentLine(
-      method: 'Cash',
-      isCash: true,
-      orderCount: 18,
-      totalMinor: 142000,
-    ),
-    TillReportPaymentLine(
-      method: 'Card',
-      isCash: false,
-      orderCount: 24,
-      totalMinor: 481000,
-    ),
-  ],
-  cashMovements: const [],
-  fromServer: fromServer,
-  reconciliation: const [],
-  verification: 'server',
-  spotViews: const [],
-  openedWhileAnotherOpen: false,
-  serviceChargeWaivedCount: 0,
-  serviceChargeWaivedMinor: 0,
-  totalServiceChargeMinor: 0,
-  totalTaxMinor: 0,
-);
+TillReportView _report({required bool fromServer, int expected = 238000}) =>
+    TillReportView(
+      tellerName: 'Sara',
+      openedAt: _openedAt,
+      printedAt: '2026-09-12T19:40:00Z',
+      isOpen: true,
+      // float 850 + cash sales 1,420 + paid in 200 − paid out 90
+      expectedCashMinor: expected,
+      openingCashMinor: 85000,
+      openingCashWasEdited: false,
+      totalPaymentsMinor: 623000,
+      netPaymentsMinor: 623000,
+      voidedAmountMinor: 0,
+      refundsIssuedMinor: 0,
+      refundsIssuedCashMinor: 0,
+      refundsIssuedCount: 0,
+      cashInRefundedSalesMinor: 0,
+      cashMovementsNetMinor: 11000,
+      cashInMinor: 20000,
+      cashOutMinor: 9000,
+      paymentLines: const [
+        TillReportPaymentLine(
+          method: 'Cash',
+          isCash: true,
+          orderCount: 18,
+          totalMinor: 142000,
+        ),
+        TillReportPaymentLine(
+          method: 'Card',
+          isCash: false,
+          orderCount: 24,
+          totalMinor: 481000,
+        ),
+      ],
+      cashMovements: const [],
+      fromServer: fromServer,
+      reconciliation: const [],
+      verification: 'server',
+      spotViews: const [],
+      openedWhileAnotherOpen: false,
+      serviceChargeWaivedCount: 0,
+      serviceChargeWaivedMinor: 0,
+      totalServiceChargeMinor: 0,
+      totalTaxMinor: 0,
+    );
 
 const _movements = <CashMovementView>[
   CashMovementView(
@@ -350,6 +351,11 @@ class _FakeBridge implements MadarBridge {
   final List<String> forceClosed = [];
   int opens = 0;
   int syncNows = 0;
+
+  /// The drawer's expected cash as the local rows hold it now, and what a
+  /// manual sync landing does to them (a person's pull).
+  int expectedCash = 238000;
+  void Function()? onSync;
 
   final TillView? till;
   final String role;
@@ -491,10 +497,14 @@ class _FakeBridge implements MadarBridge {
     const hidden = MadarError.forbidden(resource: 'till', action: 'spot.blind');
     if (name == #tillReport) {
       if (!figuresVisible) return Future<TillReportView>.error(hidden);
-      return Future<TillReportView>.value(_report(fromServer: online));
+      return Future<TillReportView>.value(
+        _report(fromServer: online, expected: expectedCash),
+      );
     }
     if (name == #tillReportFor) {
-      return Future<TillReportView>.value(_report(fromServer: true));
+      return Future<TillReportView>.value(
+        _report(fromServer: true, expected: expectedCash),
+      );
     }
     if (name == #listTillOrders) {
       return Future<List<OrderSummaryView>>.value(
@@ -552,6 +562,7 @@ class _FakeBridge implements MadarBridge {
     if (name == #syncOnTillOpenStatus) return sync ?? _syncDone;
     if (name == #syncNow) {
       syncNows += 1;
+      onSync?.call();
       return Future<SyncStatusView>.error(const MadarError.offline(detail: ''));
     }
     if (name == #openTill) {
@@ -680,6 +691,69 @@ void main() {
   setUpAll(() async {
     _loadWords();
     await _loadFonts();
+  });
+
+  // Pull to refresh: the manual sync, then the drawer re-read, so a movement
+  // another till made shows without waiting for a tick.
+  Future<void> pull(WidgetTester tester) async {
+    final box = tester.getRect(find.byType(RefreshIndicator).first);
+    await tester.flingFrom(
+      Offset(box.left + 40, box.top + 24),
+      const Offset(0, 400),
+      1200,
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+  }
+
+  for (final (tag, size) in [('phone', _phone), ('ipad', _ipad)]) {
+    testWidgets('a pull on the Till ($tag) syncs and re-reads the drawer', (
+      tester,
+    ) async {
+      final bridge = _FakeBridge();
+      await _shoot(
+        tester,
+        screen: TillScreen(onOpenOrders: () {}),
+        bridge: bridge,
+        size: size,
+        theme: MadarTheme.light(),
+        name: 'pull-$tag',
+      );
+      expect(find.text('EGP 2,380.00'), findsOneWidget);
+      final before = bridge.syncNows;
+      bridge.onSync = () => bridge.expectedCash = 250000;
+
+      await pull(tester);
+
+      expect(bridge.syncNows, before + 1, reason: 'one manual sync per pull');
+      expect(find.text('EGP 2,500.00'), findsOneWidget);
+      expect(find.text('EGP 2,380.00'), findsNothing);
+    });
+  }
+
+  testWidgets('a pull on the till report syncs and re-reads it', (
+    tester,
+  ) async {
+    final bridge = _FakeBridge();
+    await _shoot(
+      tester,
+      screen: const Scaffold(body: TillReportSheet()),
+      bridge: bridge,
+      size: _phone,
+      theme: MadarTheme.light(),
+      name: 'report-pull',
+    );
+    expect(find.text('EGP 2,380.00'), findsWidgets);
+    bridge.onSync = () => bridge.expectedCash = 250000;
+
+    await pull(tester);
+
+    expect(bridge.syncNows, 1, reason: 'one manual sync per pull');
+    expect(find.text('EGP 2,500.00'), findsWidgets);
+    expect(find.text('EGP 2,380.00'), findsNothing);
   });
 
   testWidgets('the Till on an iPad, mid-shift', (tester) async {

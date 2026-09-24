@@ -139,6 +139,33 @@ void main() {
     expect(pulls, 0);
   });
 
+  Widget table(List<int> rows, {ScrollPhysics? physics}) => MadarDataTable<int>(
+    columns: [MadarColumn(id: 'n', label: 'N', text: (i) => 'row $i')],
+    state: MadarTableState.data(rows),
+    rowKey: (i) => i,
+    empty: const MadarEmptyContent(title: 'Nothing yet'),
+    physics: physics,
+  );
+
+  for (final (label, rows, from) in [
+    ('a short table', [1], 'row 1'),
+    ('an empty table', <int>[], 'Nothing yet'),
+  ]) {
+    testWidgets('$label pulls with the physics', (tester) async {
+      var pulls = 0;
+      await tester.pumpWidget(
+        _app(
+          MadarRefresh(
+            onRefresh: () async => pulls++,
+            child: table(rows, physics: MadarRefresh.physics),
+          ),
+        ),
+      );
+      await _pull(tester, find.text(from));
+      expect(pulls, 1);
+    });
+  }
+
   testWidgets('the ring stays up until the refresh completes', (tester) async {
     final done = Completer<void>();
     await tester.pumpWidget(

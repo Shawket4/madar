@@ -276,6 +276,7 @@ class MadarDataTable<T> extends StatefulWidget {
     this.framed = true,
     this.scrollable = true,
     this.controller,
+    this.physics,
     this.collapse,
     this.chevron = true,
     super.key,
@@ -324,6 +325,11 @@ class MadarDataTable<T> extends StatefulWidget {
   final bool scrollable;
 
   final ScrollController? controller;
+
+  /// The table's own scroll physics. A board's main list passes
+  /// `MadarRefresh.physics`, so a short list (or an empty one) still pulls
+  /// to refresh.
+  final ScrollPhysics? physics;
 
   /// Force the phone collapse on or off; null decides by layout and width.
   final bool? collapse;
@@ -538,6 +544,7 @@ class _MadarDataTableState<T> extends State<MadarDataTable<T>> {
       constraints: BoxConstraints(maxHeight: constraints.maxHeight),
       child: SingleChildScrollView(
         controller: widget.controller,
+        physics: widget.physics,
         child: column,
       ),
     );
@@ -553,6 +560,7 @@ class _MadarDataTableState<T> extends State<MadarDataTable<T>> {
   ) {
     return CustomScrollView(
       controller: widget.controller,
+      physics: widget.physics,
       shrinkWrap: true,
       slivers: [
         if (header != null)

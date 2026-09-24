@@ -391,13 +391,18 @@ class _FakeBridge implements MadarBridge {
   });
 
   final bool arabic;
-  final List<DeliveryOrderView> orders;
-  final List<TicketView> tickets;
+  List<DeliveryOrderView> orders;
+  List<TicketView> tickets;
 
   /// `kds` · `till` · `both` · `off`, or null for a device that has never
   /// reached the server. Only `till` and `both` may show a Kitchen segment.
   final String? routingMode;
-  final List<KdsTicketView> kitchen;
+  List<KdsTicketView> kitchen;
+
+  /// Manual syncs asked for (a person's pull), and what landing one does to
+  /// the local rows (the server's changes pulled in).
+  int syncs = 0;
+  void Function()? onSync;
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -479,27 +484,13 @@ class _FakeBridge implements MadarBridge {
     if (name == #kdsListStations) {
       return Future<List<KdsStationView>>.value(const []);
     }
-    if (name == #syncStatus) {
-      return SyncStatusView(
-        repairedTypes: const [],
-        catalogFreshness: const FreshnessView(state: 'fresh'),
-        blockedClose: false,
-        online: true,
-        pendingOutbox: 0,
-        deadOutbox: 0,
-        blocked: 0,
-        freshness: const FreshnessView(state: 'fresh'),
-        authPaused: false,
-        phase: 'idle',
-        assets: AssetSyncView(
-          needed: 0,
-          missing: 0,
-          downloading: false,
-          bytesDone: BigInt.zero,
-          bytesTotal: BigInt.zero,
-        ),
-      );
+    if (name == #refreshConnectivity) return Future<bool>.value(true);
+    if (name == #syncNow) {
+      syncs++;
+      onSync?.call();
+      return Future<SyncStatusView>.value(_status());
     }
+    if (name == #syncStatus) return _status();
     if (name == #listOutbox) {
       return Future<List<OutboxItemView>>.value(const []);
     }
@@ -507,6 +498,26 @@ class _FakeBridge implements MadarBridge {
     if (name == #clockSkewMinutes) return 0;
     return null;
   }
+
+  SyncStatusView _status() => SyncStatusView(
+    repairedTypes: const [],
+    catalogFreshness: const FreshnessView(state: 'fresh'),
+    blockedClose: false,
+    online: true,
+    pendingOutbox: 0,
+    deadOutbox: 0,
+    blocked: 0,
+    freshness: const FreshnessView(state: 'fresh'),
+    authPaused: false,
+    phase: 'idle',
+    assets: AssetSyncView(
+      needed: 0,
+      missing: 0,
+      downloading: false,
+      bytesDone: BigInt.zero,
+      bytesTotal: BigInt.zero,
+    ),
+  );
 }
 
 /// Realtime "connected", so the gated fallback poll never starts a periodic
@@ -585,6 +596,22 @@ Future<void> _shoot(
   }
   expect(error, isNull, reason: '$name laid out cleanly');
   expect(overflowing, isEmpty, reason: '$name has no overflowing flex');
+}
+
+/// A pull: a fling down from just under the segments, the ring's snap, the
+/// sync and the re-read, the ring's exit.
+Future<void> _pull(WidgetTester tester) async {
+  final box = tester.getRect(find.byType(RefreshIndicator).first);
+  await tester.flingFrom(
+    Offset(box.left + 40, box.top + 24),
+    const Offset(0, 400),
+    1200,
+  );
+  await tester.pump();
+  await tester.pump(const Duration(seconds: 1));
+  for (var i = 0; i < 10; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
 }
 
 /// Loads the design system's Plex faces so the boards render real type —
@@ -752,6 +779,42 @@ void main() {
       segment: QueueSegment.bills,
     );
   });
+
+  // Pull to refresh: the manual sync, then the segment's feed re-read, so
+  // rows the server had and this till did not show without a tick.
+  for (final (segment, row, mode) in [
+    (QueueSegment.bills, 'Karim', null),
+    (QueueSegment.online, 'Mona', null),
+    (QueueSegment.kitchen, 'Flat White', 'till'),
+  ]) {
+    for (final (tag, size) in [('phone', _phone), ('ipad', _ipad)]) {
+      testWidgets('a pull on ${segment.name} ($tag) syncs and shows the rows', (
+        tester,
+      ) async {
+        final bridge = _FakeBridge(routingMode: mode);
+        await _shoot(
+          tester,
+          size: size,
+          theme: MadarTheme.light(),
+          name: 'pull-${segment.name}-$tag',
+          bridge: bridge,
+          segment: segment,
+        );
+        final shown = find.textContaining(row, findRichText: true);
+        expect(shown, findsNothing);
+        bridge.onSync = () => bridge
+          ..orders = _orders
+          ..tickets = _tickets
+          ..kitchen = _kitchen;
+
+        await _pull(tester);
+
+        expect(bridge.syncs, 1, reason: 'one manual sync per pull');
+        expect(shown, findsWidgets, reason: 'the pulled rows show');
+        expect(find.byType(RefreshProgressIndicator), findsNothing);
+      });
+    }
+  }
 
   testWidgets('an empty queue says so in one line', (tester) async {
     await _shoot(

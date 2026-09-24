@@ -219,6 +219,17 @@ class IncomingNotifier extends Notifier<IncomingState> {
     unawaited(loadFloorLabels());
   }
 
+  /// A pull to refresh, after the manual sync: every feed re-read from the
+  /// local rows, awaited, so the spinner holds until the board shows them.
+  Future<void> reload() async {
+    await Future.wait([
+      loadDeliveryOrders(),
+      loadOpenTickets(),
+      loadTill(),
+      loadFloorLabels(),
+    ]);
+  }
+
   /// Switching segment drops the banner: a failure on the online board is
   /// not the Bills segment's to show.
   void setSegment(QueueSegment segment) {

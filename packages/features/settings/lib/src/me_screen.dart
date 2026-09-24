@@ -21,6 +21,7 @@ import 'package:feature_settings/src/settings_screen.dart'
         ThemeSegment,
         confirmSignOut;
 import 'package:feature_settings/src/settings_sheets.dart';
+import 'package:feature_settings/src/sync_provider.dart';
 import 'package:feature_settings/src/sync_screen.dart';
 import 'package:feature_settings/src/sync_section.dart';
 import 'package:flutter/widgets.dart';
@@ -93,18 +94,30 @@ class _MeScreenState extends ConsumerState<MeScreen> {
       safeTop: false,
       title: ref.bridge.tr(key: 'nav.me'),
       width: MadarContentWidth.reading,
-      body: SingleChildScrollView(
-        padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.xl,
-          children: [
-            const ProfileCard(),
-            const _MyBills(),
-            SyncSection(compact: true, waiterOnly: true, onSeeAll: _openSync),
-            const _Device(),
-            const _Preferences(),
-          ],
+      // Pulled: the manual sync, then my bills and the sync card re-read
+      // from the local rows.
+      body: MadarRefresh(
+        onRefresh: () => pullThenReread(
+          ref,
+          () => Future.wait([
+            ref.read(meBillsProvider.notifier).load(),
+            ref.read(syncProvider.notifier).load(),
+          ]),
+        ),
+        child: SingleChildScrollView(
+          physics: MadarRefresh.physics,
+          padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: Space.xl,
+            children: [
+              const ProfileCard(),
+              const _MyBills(),
+              SyncSection(compact: true, waiterOnly: true, onSeeAll: _openSync),
+              const _Device(),
+              const _Preferences(),
+            ],
+          ),
         ),
       ),
     );

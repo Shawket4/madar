@@ -191,6 +191,8 @@ class _OnlineSegmentState extends ConsumerState<OnlineSegment> {
 
         final table = MadarDataTable<DeliveryOrderView>(
           state: tableState,
+          // A short or empty list still pulls to refresh.
+          physics: MadarRefresh.physics,
           rowKey: (o) => o.id,
           empty: MadarEmptyContent(
             title: bridge.trOr(QueueKeys.emptyOnline),

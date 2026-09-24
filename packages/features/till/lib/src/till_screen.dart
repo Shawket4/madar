@@ -146,7 +146,13 @@ class TillScreen extends ConsumerWidget {
       subtitle: subtitle,
       actions: actions,
       width: width,
-      body: body,
+      // Pulled: the manual sync, then the drawer re-read from the local rows.
+      body: MadarRefresh(
+        nested: true,
+        onRefresh: () =>
+            pullThenReread(ref, ref.read(tillProvider.notifier).refresh),
+        child: body,
+      ),
       overlay: ToastHost(
         toast,
         onDismiss: (id) => ref.read(tillProvider.notifier).dismissToast(id),
@@ -212,6 +218,7 @@ class _DrawerHome extends ConsumerWidget {
           // (an iPad in portrait).
           final twoUp = c.maxWidth >= Responsive.desktop - Space.xxl * 4;
           return SingleChildScrollView(
+            physics: MadarRefresh.physics,
             padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -243,6 +250,7 @@ class _DrawerHome extends ConsumerWidget {
     }
 
     return ListView(
+      physics: MadarRefresh.physics,
       padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
       children: [
         const ManagerActionsBanner(),

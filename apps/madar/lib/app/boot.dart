@@ -191,7 +191,13 @@ class RealtimeArmer {
   /// app can keep a socket that still looks open, so the till must close it.
   late final BackgroundRealtimeGate _gate = BackgroundRealtimeGate(
     suspend: _suspend,
-    resume: call,
+    resume: resumeWith(reopen: call, reread: _reread),
+  );
+
+  /// Coming back re-reads every board from the local rows, at most once per
+  /// 15 s (the server's changes arrive by the reconnect's catch-up pull).
+  late final ResumeReread _reread = ResumeReread(
+    reread: () => applyTableChanges(_ref, boardTables),
   );
 
   void _suspend() {
@@ -282,6 +288,18 @@ class RealtimeArmer {
     unawaited(_alerts?.cancel());
   }
 }
+
+/// What coming back to the front does: reopen the live stream — its connect
+/// runs the core's catch-up pull, so what the server changed meanwhile lands
+/// in the local rows — and re-read every board from those rows ([reread]:
+/// at most once per 15 s, so switching apps is not a re-read storm).
+void Function() resumeWith({
+  required void Function() reopen,
+  required ResumeReread reread,
+}) => () {
+  reopen();
+  reread.resumed();
+};
 
 /// Tells the realtime owner when the app goes to the background (`paused`)
 /// and comes back (`resumed`). Transient states (`inactive`: a call banner,

@@ -1776,6 +1776,12 @@ class TillReportNotifier extends Notifier<TillReportSheetState> {
     }
   }
 
+  /// A pull to refresh, after the manual sync: the report (and the orders,
+  /// when open) re-read from the local rows, awaited.
+  Future<void> reload() async {
+    await Future.wait([_load(), if (state.expanded) _loadOrders()]);
+  }
+
   /// Retry a failed report or orders load.
   void retry() {
     if (state.report == null) unawaited(_load());

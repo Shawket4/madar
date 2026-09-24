@@ -129,8 +129,12 @@ class OrdersTable extends StatelessWidget {
     this.framed = true,
     this.scrollable = true,
     this.collapse,
+    this.physics,
     super.key,
   });
+
+  /// The table's scroll physics (see `MadarDataTable.physics`).
+  final ScrollPhysics? physics;
 
   final MadarBridge bridge;
   final String currency;
@@ -158,6 +162,7 @@ class OrdersTable extends StatelessWidget {
       framed: framed,
       scrollable: scrollable,
       collapse: collapse,
+      physics: physics,
     );
   }
 }
