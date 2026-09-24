@@ -267,6 +267,8 @@ class _TicketGrid extends StatelessWidget {
         final columns = fit < 1 ? 1 : fit;
         final rows = (tickets.length + columns - 1) ~/ columns;
         return ListView.separated(
+          // Inside the Queue a short board still pulls to refresh.
+          physics: MadarRefresh.physics,
           padding: EdgeInsetsDirectional.all(gutter),
           itemCount: rows,
           separatorBuilder: (_, _) => const SizedBox(height: Space.lg),

@@ -64,6 +64,16 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     );
   }
 
+  /// A person's pull: the manual sync, then every feed (and the kitchen
+  /// board when the till shows it) re-read from the local rows.
+  Future<void> _pull({required bool kitchen}) => pullThenReread(
+    ref,
+    () => Future.wait([
+      ref.read(incomingProvider.notifier).reload(),
+      if (kitchen) ref.read(kdsProvider(null).notifier).load(),
+    ]),
+  );
+
   @override
   Widget build(BuildContext context) {
     // Live ticks — listened HERE (not per-segment) so both counts stay live
@@ -173,19 +183,30 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
               children: [
                 const SizedBox(height: Space.xs),
                 // Swapping widget types remounts the segment so its own
-                // init (refresh) runs on (re)entry.
+                // init (refresh) runs on (re)entry. Pulled, every segment
+                // syncs and re-reads (the segments' lists sit at different
+                // depths, and a short one does not scroll: pullable).
                 Expanded(
-                  child: switch (segment) {
-                    QueueSegment.bills => BillsSegment(
-                      onOpenBill: widget.onOpenBill,
+                  child: MadarRefresh(
+                    nested: true,
+                    onRefresh: () => _pull(kitchen: showKitchen),
+                    child: MadarPullable(
+                      child: switch (segment) {
+                        QueueSegment.bills => BillsSegment(
+                          onOpenBill: widget.onOpenBill,
+                        ),
+                        QueueSegment.online => const OnlineSegment(),
+                        // The cook's own board, minus its header — one widget
+                        // and one provider family, so the counter and the
+                        // kitchen cannot disagree about a line. Falls back to
+                        // Bills if the mode changed out from under a selected
+                        // segment.
+                        QueueSegment.kitchen => const KdsBoardBody(
+                          stationId: null,
+                        ),
+                      },
                     ),
-                    QueueSegment.online => const OnlineSegment(),
-                    // The cook's own board, minus its header — one widget and
-                    // one provider family, so the counter and the kitchen
-                    // cannot disagree about a line. Falls back to Bills if the
-                    // mode changed out from under a selected segment.
-                    QueueSegment.kitchen => const KdsBoardBody(stationId: null),
-                  },
+                  ),
                 ),
               ],
             ),
