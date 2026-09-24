@@ -1014,25 +1014,22 @@ pub(crate) fn reconcile_rows(
 /// The DRAWER's most recent declared close (the server's
 /// `last_close_declared`), from the rows. PURE.
 ///
-/// Mirrors the backend exactly: a drawer is a physical box, identified by
-/// DEVICE where one is known and by the branch otherwise — never by the
-/// person, because cash stays in the drawer when a shift changes. `rows` is
-/// already this branch's; the caller must not pass another branch's.
+/// The rule is madar-shared's (`madar_till::carryover`), the one the server's
+/// SQL is pinned to: a drawer is a physical box, identified by DEVICE where
+/// one is known and by the branch otherwise — never by the person, because
+/// cash stays in the drawer when a shift changes. `rows` is already this
+/// branch's; the caller must not pass another branch's.
 pub(crate) fn last_close_declared_rows(rows: &[TillRecord], device_id: Option<&str>) -> Option<i64> {
-    let closed = || {
-        rows.iter()
-            .filter(|t| matches!(t.status.as_str(), "closed" | "force_closed"))
-            .filter(|t| t.closing_cash_declared.is_some())
-    };
-    // This device's own last close wins; otherwise the drawer this branch ran.
-    device_id
-        .and_then(|dev| {
-            closed()
-                .filter(|t| t.device_id.as_deref() == Some(dev))
-                .max_by_key(|t| opened_instant(t))
+    let rows: Vec<madar_till::carryover::ClosedTill> = rows
+        .iter()
+        .map(|t| madar_till::carryover::ClosedTill {
+            status: t.status.clone(),
+            device_id: t.device_id.clone(),
+            opened_at: t.opened_at.clone(),
+            closing_cash_declared: t.closing_cash_declared,
         })
-        .or_else(|| closed().max_by_key(|t| opened_instant(t)))
-        .and_then(|t| t.closing_cash_declared)
+        .collect();
+    madar_till::carryover::last_close_declared(&rows, device_id)
 }
 
 // ── close: reconciliation + warnings (contract §4.8) ───────────────────────
@@ -1199,13 +1196,13 @@ pub(crate) fn reconciliation_wire(
             if i.declared_amount_minor.is_none() {
                 return Err(crate::error::CoreError::Validation {
                     field: "reconciliation.declared_amount".into(),
-                    detail: "RECONCILIATION_AMOUNT_REQUIRED".into(),
+                    detail: madar_till::reconcile::CODE_AMOUNT_REQUIRED.into(),
                 });
             }
             if note.is_none() {
                 return Err(crate::error::CoreError::Validation {
                     field: "reconciliation.note".into(),
-                    detail: "RECONCILIATION_NOTE_REQUIRED".into(),
+                    detail: madar_till::reconcile::CODE_NOTE_REQUIRED.into(),
                 });
             }
         }
@@ -1222,52 +1219,69 @@ pub(crate) fn reconciliation_wire(
     Ok(out)
 }
 
-/// The lines as recorded at close, offline: what the teller said per method,
-/// methods left out as `unreviewed`, the cash line from the count.
+/// The lines as recorded at close, offline: what the server will store for
+/// this close, planned by the server's own planner (madar-shared's
+/// `madar_till::reconcile::plan_lines`) — the cash line from the count,
+/// every other method used with what the teller said about it (`unreviewed`
+/// when nothing), and a method the teller named that the till did not use.
 pub(crate) fn local_reconciliation_lines(
     methods: &[CloseTillMethodView],
     inputs: &[models::ReconciliationInput],
     closing_cash_minor: i64,
     cash_note: Option<&str>,
 ) -> Vec<ReconciliationLineView> {
-    methods
+    // No preview, no methods: nothing to show until the server answers.
+    if methods.is_empty() {
+        return Vec::new();
+    }
+    let clamp = |v: i64| v.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+    let totals: Vec<madar_till::reconcile::MethodTotal<String>> = methods
         .iter()
-        .map(|m| {
-            if m.is_cash {
-                let matches = closing_cash_minor == m.system_total_minor;
-                return ReconciliationLineView {
-                    method: m.method.clone(),
-                    label: m.label.clone(),
-                    is_cash: true,
-                    system_total_minor: m.system_total_minor,
-                    status: if matches { "checked" } else { "disagreed" }.into(),
-                    declared_amount_minor: Some(closing_cash_minor),
-                    note: cash_note.map(str::to_string),
-                    changed_after_close: false,
-                };
-            }
-            match inputs.iter().find(|i| i.method == m.method) {
-                Some(i) => ReconciliationLineView {
-                    method: m.method.clone(),
-                    label: m.label.clone(),
-                    is_cash: false,
-                    system_total_minor: m.system_total_minor,
-                    status: i.status.clone(),
-                    declared_amount_minor: i.declared_amount.flatten().map(i64::from),
-                    note: i.note.clone().flatten(),
-                    changed_after_close: false,
-                },
-                None => ReconciliationLineView {
-                    method: m.method.clone(),
-                    label: m.label.clone(),
-                    is_cash: false,
-                    system_total_minor: m.system_total_minor,
-                    status: "unreviewed".into(),
-                    declared_amount_minor: None,
-                    note: None,
-                    changed_after_close: false,
-                },
-            }
+        .map(|m| madar_till::reconcile::MethodTotal {
+            method: m.method.clone(),
+            payment_method_id: None,
+            is_cash: m.is_cash,
+            system_total: m.system_total_minor,
+            order_count: m.order_count,
+        })
+        .collect();
+    let system_cash = methods
+        .iter()
+        .find(|m| m.is_cash)
+        .map_or(0, |m| m.system_total_minor);
+    let said: Vec<madar_till::reconcile::Input<'_>> = inputs
+        .iter()
+        .map(|i| madar_till::reconcile::Input {
+            method: &i.method,
+            status: &i.status,
+            declared_amount: i.declared_amount.flatten(),
+            note: i.note.as_ref().and_then(|n| n.as_deref()),
+        })
+        .collect();
+    // Validated already (`reconciliation_wire`); a replayed close never fails.
+    let planned = madar_till::reconcile::plan_lines(
+        &totals,
+        clamp(closing_cash_minor),
+        clamp(system_cash),
+        cash_note,
+        &said,
+        true,
+    )
+    .unwrap_or_default();
+    planned
+        .into_iter()
+        .map(|l| ReconciliationLineView {
+            label: methods
+                .iter()
+                .find(|m| m.method == l.method)
+                .map_or_else(|| l.method.clone(), |m| m.label.clone()),
+            method: l.method,
+            is_cash: l.is_cash,
+            system_total_minor: i64::from(l.system_total),
+            status: l.status.to_string(),
+            declared_amount_minor: l.declared_amount.map(i64::from),
+            note: l.note,
+            changed_after_close: false,
         })
         .collect()
 }
