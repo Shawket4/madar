@@ -47,6 +47,8 @@ madar-dawam = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.3.0"
 # How a sale line is priced from the catalogue (size, swaps, add-ons, optional
 # fields): the server's rule, run over the menu mirror, same tag.
 madar-catalog = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.3.0" }
+# Which rewards a sale may take: the server's rules, trimming here, same tag.
+madar-loyalty = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.3.0" }
 # Proc-macro UniFFI (no .udl). "cli" gates uniffi_bindgen_main for the bin below;
 # "tokio" lets us export `async fn`s with `async_runtime = "tokio"`.
 uniffi = { version = "0.32", features = ["cli", "tokio"], optional = true }

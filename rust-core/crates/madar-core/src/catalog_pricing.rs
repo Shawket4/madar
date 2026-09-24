@@ -223,6 +223,7 @@ pub(crate) fn legacy_item(item: &MenuItemView, addons: &[AddonItemView]) -> Item
                 size_label: None,
             })
             .collect(),
+        groups: Vec::new(),
     }
 }
 

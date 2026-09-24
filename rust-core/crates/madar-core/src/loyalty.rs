@@ -626,20 +626,40 @@ pub fn redemptions_from_picks(
         .collect()
 }
 
-/// What one unit of `line` costs, if this balance's programme lets it be taken.
+/// A line as madar-shared's redemption planner reads it: a bundle has no
+/// menu item.
+fn plan_line(line: &RewardLineInput) -> madar_loyalty::Line {
+    madar_loyalty::Line {
+        menu_item_id: line.menu_item_id.clone().filter(|_| !line.is_bundle),
+        quantity: i64::from(line.qty),
+        is_staff_drink: line.is_staff_drink,
+    }
+}
+
+/// This balance's programme, as the planner reads it.
+fn programme_of(scan: &LoyaltyScanView) -> madar_loyalty::Programme {
+    madar_loyalty::Programme {
+        rewards: scan
+            .rewards
+            .iter()
+            .map(|r| madar_loyalty::Reward {
+                menu_item_id: r.menu_item_id.clone(),
+                cost: r.cost_amount,
+            })
+            .collect(),
+        any_item: scan.any_item,
+        any_item_cost: scan.any_item_cost,
+        max_per_order: scan.max_rewards_per_order,
+        balance: scan.member.balance,
+    }
+}
+
+/// What one unit of `line` costs, if this balance's programme lets it be taken
+/// (madar-shared's `madar_loyalty::unit_cost`: not a bundle, not a staff drink,
+/// the first catalogue entry for the item — else the any-item cost — above
+/// zero).
 fn unit_cost_for(line: &RewardLineInput, scan: &LoyaltyScanView) -> Option<i64> {
-    if line.is_bundle || line.is_staff_drink {
-        return None;
-    }
-    let item = line.menu_item_id.as_deref()?;
-    // The first catalogue entry for the item, as the server resolves it.
-    let listed = scan.rewards.iter().find(|r| r.menu_item_id == item);
-    match listed {
-        Some(r) => Some(r.cost_amount),
-        None if scan.any_item => Some(scan.any_item_cost),
-        None => None,
-    }
-    .filter(|c| *c > 0)
+    madar_loyalty::unit_cost(&plan_line(line), &programme_of(scan))
 }
 
 /// Minor units covering `units` of a line: whole units at the line's charged
@@ -670,48 +690,41 @@ pub fn reward_board(
     let tr = |k: &str| crate::i18n::tr(locale, k);
     let balance = scan.member.balance.max(0);
     let cap = scan.max_rewards_per_order.filter(|c| *c > 0);
-    let mut picks: Vec<RewardPick> = Vec::new();
-    let mut cost = 0i64;
-    let mut claimed = 0i64;
-    let mut reason: Option<String> = None;
-    for p in asked {
-        let Some(line) = lines.get(p.line as usize) else {
-            reason.get_or_insert_with(|| tr("loyalty.reward_line_gone"));
-            continue;
-        };
-        if picks.iter().any(|q| q.line == p.line) {
-            continue;
-        }
-        let Some(unit) = unit_cost_for(line, scan) else {
-            reason.get_or_insert_with(|| tr("loyalty.reward_not_on_offer"));
-            continue;
-        };
-        let mut units = p.units.clamp(0, line.qty.max(0)) as i64;
-        if (units as i32) < p.units {
-            reason.get_or_insert_with(|| tr("loyalty.reward_line_shrank"));
-        }
-        if let Some(c) = cap {
-            let room = (c - claimed).max(0);
-            if units > room {
-                units = room;
-                reason.get_or_insert_with(|| cap_reason(c, locale));
-            }
-        }
-        let affordable = (balance - cost) / unit;
-        if units > affordable {
-            units = affordable.max(0);
-            reason.get_or_insert_with(|| tr("loyalty.reward_balance_short"));
-        }
-        if units <= 0 {
-            continue;
-        }
-        cost += unit * units;
-        claimed += units;
-        picks.push(RewardPick {
-            line: p.line,
-            units: units as i32,
-        });
-    }
+    // Which of the asked picks survive: madar-shared's planner in its TILL
+    // mode (trim, and name the first trim), the same rules the server judges
+    // the sale with strictly — so the sale Charge sends is one it takes.
+    let plan_lines: Vec<madar_loyalty::Line> = lines.iter().map(plan_line).collect();
+    let asks: Vec<madar_loyalty::Ask> = asked
+        .iter()
+        .map(|p| madar_loyalty::Ask {
+            line: Some(p.line as usize),
+            units: Some(i64::from(p.units)),
+        })
+        .collect();
+    let plan = madar_loyalty::plan(
+        &plan_lines,
+        &programme_of(scan),
+        &asks,
+        madar_loyalty::Mode::Till,
+    )
+    .unwrap_or_default();
+    let picks: Vec<RewardPick> = plan
+        .lines
+        .iter()
+        .map(|p| RewardPick {
+            line: p.line as u32,
+            units: p.units as i32,
+        })
+        .collect();
+    let cost = plan.cost;
+    let claimed = plan.units;
+    let reason: Option<String> = plan.trimmed.map(|t| match t {
+        madar_loyalty::Trim::LineGone => tr("loyalty.reward_line_gone"),
+        madar_loyalty::Trim::NotOnOffer => tr("loyalty.reward_not_on_offer"),
+        madar_loyalty::Trim::LineShrank => tr("loyalty.reward_line_shrank"),
+        madar_loyalty::Trim::OverCap => cap_reason(cap.unwrap_or(0), locale),
+        madar_loyalty::Trim::BalanceShort => tr("loyalty.reward_balance_short"),
+    });
 
     let states = lines
         .iter()
@@ -1157,5 +1170,69 @@ mod tests {
             b.adjusted_reason.as_deref(),
             Some("Not enough on the card for another")
         );
+    }
+
+    /// madar-loyalty's plan vectors (the rules the server judges a sale with)
+    /// through this till's board: every case a till can ask — a named line and
+    /// a number of units — trims to the crate's TILL plan, cost and all.
+    #[test]
+    fn the_board_trims_as_the_shared_planner_does() {
+        use madar_loyalty::plan::vectors::PlanVector;
+        let vectors: Vec<PlanVector> =
+            serde_json::from_str(madar_loyalty::vectors::PLAN).unwrap();
+        let mut checked = 0;
+        for v in vectors
+            .iter()
+            .filter(|v| v.asks.iter().all(|a| a.line.is_some() && a.units.is_some()))
+        {
+            let lines: Vec<RewardLineInput> = v
+                .lines
+                .iter()
+                .map(|l| RewardLineInput {
+                    name: "line".into(),
+                    cart_index: None,
+                    ticket_line_id: None,
+                    menu_item_id: l.menu_item_id.clone(),
+                    qty: l.quantity as i32,
+                    line_total_minor: 1_000 * l.quantity,
+                    is_bundle: l.menu_item_id.is_none(),
+                    is_staff_drink: l.is_staff_drink,
+                })
+                .collect();
+            let mut sc = scan(0, v.programme.max_per_order, v.programme.any_item);
+            sc.member.balance = v.programme.balance;
+            sc.any_item_cost = v.programme.any_item_cost;
+            sc.rewards = v
+                .programme
+                .rewards
+                .iter()
+                .map(|r| LoyaltyRewardView {
+                    menu_item_id: r.menu_item_id.clone(),
+                    name: "reward".into(),
+                    price_minor: 0,
+                    cost_currency: "points".into(),
+                    cost_amount: r.cost,
+                    cost_label: String::new(),
+                })
+                .collect();
+            let asked: Vec<RewardPick> = v
+                .asks
+                .iter()
+                .map(|a| pick(a.line.unwrap() as u32, a.units.unwrap() as i32))
+                .collect();
+            let b = reward_board(&lines, &sc, &asked, "en");
+            let want: Vec<RewardPick> = v
+                .till
+                .lines
+                .iter()
+                .map(|p| pick(p.line as u32, p.units as i32))
+                .collect();
+            assert_eq!(b.picks, want, "{}", v.name);
+            assert_eq!(b.cost, v.till.cost, "{}", v.name);
+            assert_eq!(i64::from(b.units_claimed), v.till.units, "{}", v.name);
+            assert_eq!(b.adjusted_reason.is_some(), v.till.trimmed.is_some(), "{}", v.name);
+            checked += 1;
+        }
+        assert!(checked >= 20, "checked {checked}");
     }
 }
