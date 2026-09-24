@@ -762,6 +762,7 @@ pub(crate) const ROSTER_CODES: &[&str] = &[
     "WEEK_NOT_PUBLISHED",
     "ALREADY_ROSTERED",
     "ALREADY_CLAIMED",
+    "SWAP_EXISTS",
     "SUGGESTION_STALE",
 ];
 
@@ -3729,6 +3730,8 @@ mod tests {
                 ("POST", "/staff/open-shifts/taken/claim") => StubResponse::json(409, json!({ "error": "Conflict: Someone already claimed that shift." })),
                 ("POST", "/staff/open-shifts/coded/claim") => StubResponse::json(409, json!({
                     "error": "Someone already claimed that shift.", "code": "ALREADY_CLAIMED" })),
+                ("POST", "/staff/me/swaps") if r.json()["peer_id"] == "Q" => StubResponse::json(409, json!({
+                    "error": "You've already asked for this swap — it's waiting.", "code": "SWAP_EXISTS" })),
                 ("GET", p) if p.ends_with("estimate") || p.ends_with("coverage") => StubResponse::json(200, json!({})),
                 ("GET", _) => StubResponse::json(200, json!([])),
                 ("PUT", "/staff/schedules/days") if r.json()["employee_id"] == "Q" => StubResponse::json(409, json!({
@@ -3947,6 +3950,32 @@ mod tests {
                 CoreError::Server { code, detail, .. } => {
                     assert_eq!(code, "ALREADY_CLAIMED");
                     assert_eq!(detail, i18n::tr(locale, "staff.err_already_claimed"));
+                }
+                e => panic!("{e:?}"),
+            }
+        }
+    }
+
+    /// A swap asked twice (backend B-ROTA-7, SWAP_EXISTS) reads in the phone's
+    /// language, like the other roster refusals.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_swap_asked_twice_is_worded_for_the_person() {
+        use crate::testkit::TELLER;
+        let day = the_day();
+        let stub = roster_stub(day.clone()).await;
+        let core = crate::testkit::online_core(&stub.base, "").await;
+        core.set_online(true);
+        core.dawam_snapshot(true).await.unwrap();
+        for locale in ["en", "ar"] {
+            core.set_locale(locale.into());
+            let err = core
+                .dawam_do(json!({ "action": "ask_swap", "mine": format!("{TELLER}|{day}|w1"), "theirs": format!("Q|{day}|w2") }).to_string())
+                .await
+                .unwrap_err();
+            match err {
+                CoreError::Server { code, detail, .. } => {
+                    assert_eq!(code, "SWAP_EXISTS");
+                    assert_eq!(detail, i18n::tr(locale, "staff.err_swap_exists"));
                 }
                 e => panic!("{e:?}"),
             }
