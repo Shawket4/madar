@@ -2363,7 +2363,9 @@ impl MadarCore {
                 value,
                 waived: a.get("waived_at").is_some_and(|x| !x.is_null()),
                 pct,
-                reason: s(a, "reason"),
+                // A rule line in the phone's language, like the payslip; a
+                // typed reason as typed.
+                reason: rule_words(a, &locale),
                 by: actor(so(a, "created_by")).unwrap_or_default(),
                 at: s(a, "created_at"),
                 period: s(a, "effective_date"),
@@ -4234,6 +4236,36 @@ mod tests {
         let q = |id: &str| snap["requests"].as_array().unwrap().iter().find(|q| q["id"] == json!(format!("q|{id}"))).unwrap()["month_open"].clone();
         assert_eq!(q("span"), false);
         assert_eq!(q("open"), true);
+    }
+
+    /// E2E posnotif: the Payroll tab's adjustments list showed a rule line in
+    /// the server's English ("Absent — no check-in recorded") on an Arabic
+    /// screen. A line with a reason code is worded here, as on the payslip.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_rule_line_in_the_adjustments_list_is_worded_in_the_phone_language() {
+        use crate::testkit::{StubResponse, TELLER};
+        let (_stub, core) = cafe(&["hr.attendance.read", "hr.payroll.run"], |m, p, _| match (m, p) {
+            ("GET", "/staff/adjustments") => Some(StubResponse::json(200, json!([
+                { "id": "d1", "kind": "deduction", "employee_id": TELLER, "amount_piastres": 25000, "value_piastres": 25000,
+                  "reason": "Absent — no check-in recorded", "effective_date": "2026-09-24", "source": "absence",
+                  "status": "approved", "recurring": false, "reason_code": "absent_no_punch", "reason_vars": {} },
+                { "id": "d2", "kind": "deduction", "employee_id": TELLER, "amount_piastres": 3000, "value_piastres": 3000,
+                  "reason": "Broken glass", "effective_date": "2026-09-24", "source": "manual",
+                  "status": "approved", "recurring": false, "reason_code": null, "reason_vars": null }
+            ]))),
+            _ => None,
+        })
+        .await;
+        for lang in ["ar", "en"] {
+            core.set_locale(lang.into());
+            let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+            let reason = |id: &str| {
+                snap["adjustments"].as_array().unwrap().iter().find(|a| a["id"] == json!(format!("a|deduction|{id}"))).unwrap()["reason"].clone()
+            };
+            assert_eq!(reason("d1"), json!(i18n::tr(lang, "staff.pay_reason_absent_no_punch")), "{lang}");
+            assert_eq!(reason("d2"), json!("Broken glass"), "a typed reason stays as typed");
+        }
+        assert_ne!(i18n::tr("ar", "staff.pay_reason_absent_no_punch"), "Absent — no check-in recorded");
     }
 
     /// Decision #1: a closed month is `PERIOD_CLOSED` everywhere, and the
