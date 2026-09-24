@@ -1756,18 +1756,17 @@ impl StaffCompLine<'_> {
         &self.line.item_id
     }
 
-    /// The comp rule's input for this line, built exactly as the contract's
-    /// "Interpretations" say (and as the server's `comp_input` does):
+    /// The comp rule's input for this line: madar-shared's
+    /// `madar_catalog::staff::comp_input` (the server's builder) over this
+    /// item's catalogue view — the sizes only when the line NAMES one, the
+    /// attached required groups that are not swap groups, each option at its
+    /// price with the branch's beside it, its default flag and whether it is
+    /// on; the picks, optionals and quantity as the line carries them.
     ///
-    /// * sizes only when the line NAMES a size — a sizeless line rings at the
-    ///   item's "from" price, and that price is the free amount;
-    /// * required groups = the item's attached groups whose effective minimum
-    ///   is ≥ 1 (a group flagged required with minimum 0 reads as 1), NEVER a
-    ///   swap family (milk / beans): the resolver already rings those as the
-    ///   difference over the recipe's own ingredient;
-    /// * option prices as the cart rings them; an option this branch has
-    ///   switched off is inactive; the item-private optionals are never free;
-    /// * picks at the prices the line carries.
+    /// The groups are the ones the server ships in the item's `pricing`
+    /// (its own rows, so the till judges a staff drink on exactly the server's
+    /// input). A server older than that sends none; the view then takes them
+    /// from this till's mirror ([`legacy_comp_groups`]), as it always did.
     pub fn comp_input(
         &self,
         item: &menu::MenuItemView,
@@ -1776,100 +1775,20 @@ impl StaffCompLine<'_> {
         unified: Option<&[menu::UnifiedGroup]>,
         eligible: bool,
     ) -> crate::staff_comp::CompInput {
-        use crate::staff_comp::{CompGroup, CompInput, CompOption, CompPick, CompSize};
         let m = |v: i64| v.clamp(0, i32::MAX as i64) as i32;
         let l = self.line;
-        let sizes = if l.size_label.is_some() {
-            item.sizes
-                .iter()
-                .map(|s| CompSize {
-                    label: s.label.clone(),
-                    price: m(s.price_minor),
-                    is_active: s.is_active,
-                    branch_price: None,
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
-        let view = pricing.view_for(item, addon_catalog);
-        let flat = item_addons(item, addon_catalog, pricing);
-        let rings_at = |id: &str, fallback: i64| {
-            flat.iter().find(|a| a.addon_item_id == id).map(|a| a.charged_price_minor).unwrap_or(fallback)
-        };
-        let is_swap_option = |id: &str| catalog_pricing::is_swap(&view, id);
-        let groups: Vec<CompGroup> = match unified.filter(|u| !u.is_empty()) {
-            Some(unified) => unified
-                .iter()
-                .filter(|g| {
-                    g.effect != "swaps"
-                        && !g
-                            .legacy_addon_type
-                            .as_deref()
-                            .is_some_and(catalog_pricing::is_swap_type)
-                        && !g.options.iter().any(|o| is_swap_option(&o.id))
-                })
-                .filter_map(|g| {
-                    let required_min = if g.min >= 1 { g.min } else { i32::from(g.is_required) };
-                    (required_min >= 1).then(|| CompGroup {
-                        id: g.group_id.clone(),
-                        required_min,
-                        options: g
-                            .options
-                            .iter()
-                            .filter(|o| !is_private_optional(item, addon_catalog, &o.id))
-                            .map(|o| CompOption {
-                                id: o.id.clone(),
-                                price: m(rings_at(&o.id, o.price)),
-                                branch_price: None,
-                                is_default: o.is_default,
-                                is_active: o.is_available,
-                            })
-                            .collect(),
-                    })
-                })
-                .collect(),
-            // The legacy projection has no "default" flag: the cheapest active
-            // option sets the allowance, which is the rule's own fallback.
-            None => item_modifier_groups(item, addon_catalog, pricing)
-                .into_iter()
-                .filter(|g| g.kind == ModifierGroupKind::Addon)
-                .filter(|g| {
-                    !g.addon_type
-                        .as_deref()
-                        .is_some_and(catalog_pricing::is_swap_type)
-                        && !g.options.iter().any(|o| is_swap_option(&o.id))
-                })
-                .filter_map(|g| {
-                    let required_min =
-                        if g.min_selections >= 1 { g.min_selections } else { i32::from(g.is_required) };
-                    (required_min >= 1).then(|| CompGroup {
-                        id: g.group_id,
-                        required_min,
-                        options: g
-                            .options
-                            .into_iter()
-                            .map(|o| CompOption {
-                                id: o.id,
-                                price: m(o.charged_price_minor),
-                                branch_price: None,
-                                is_default: false,
-                                is_active: true,
-                            })
-                            .collect(),
-                    })
-                })
-                .collect(),
-        };
-        CompInput {
+        let mut view = pricing.view_for(item, addon_catalog);
+        if view.item.groups.is_empty() {
+            view.item.groups = legacy_comp_groups(item, addon_catalog, pricing, &view, unified);
+        }
+        let line = madar_catalog::staff::StaffLine {
+            size_label: l.size_label.clone(),
             eligible,
             unit_price: m(l.unit_price_minor),
-            sizes,
-            groups,
             picks: l
                 .addons
                 .iter()
-                .map(|a| CompPick {
+                .map(|a| crate::staff_comp::CompPick {
                     option_id: a.addon_item_id.clone(),
                     unit_price: m(a.price_modifier_minor),
                     quantity: m(a.qty),
@@ -1877,7 +1796,79 @@ impl StaffCompLine<'_> {
                 .collect(),
             optionals_per_unit: m(l.optionals.iter().map(|o| o.price_minor).sum()),
             quantity: m(l.qty),
-        }
+        };
+        madar_catalog::staff::comp_input(&view.item, &line)
+    }
+}
+
+/// An item's choice groups as this till's mirror knows them, for a server
+/// that does not ship them in `pricing` (older than madar-shared v0.4.0). The
+/// till's reading of those rows, as before: an option at the price the cart
+/// rings it, never an item-private optional; a group holding a swap option
+/// is a swap family; the legacy projection has no "default" flag (the rule
+/// then takes the cheapest active option).
+fn legacy_comp_groups(
+    item: &menu::MenuItemView,
+    addon_catalog: &[menu::AddonItemView],
+    pricing: &PricingMirror,
+    view: &madar_catalog::CatalogView,
+    unified: Option<&[menu::UnifiedGroup]>,
+) -> Vec<madar_catalog::GroupView> {
+    use madar_catalog::{GroupOption, GroupView};
+    let flat = item_addons(item, addon_catalog, pricing);
+    let rings_at = |id: &str, fallback: i64| {
+        flat.iter().find(|a| a.addon_item_id == id).map(|a| a.charged_price_minor).unwrap_or(fallback)
+    };
+    let is_swap_option = |id: &str| catalog_pricing::is_swap(view, id);
+    match unified.filter(|u| !u.is_empty()) {
+        Some(unified) => unified
+            .iter()
+            .filter(|g| !g.options.iter().any(|o| is_swap_option(&o.id)))
+            .map(|g| GroupView {
+                id: g.group_id.clone(),
+                min: i64::from(g.min),
+                is_required: g.is_required,
+                effect: g.effect.clone(),
+                legacy_type: g.legacy_addon_type.clone(),
+                included: None,
+                options: g
+                    .options
+                    .iter()
+                    .filter(|o| !is_private_optional(item, addon_catalog, &o.id))
+                    .map(|o| GroupOption {
+                        id: o.id.clone(),
+                        price: rings_at(&o.id, o.price),
+                        branch_price: None,
+                        is_default: o.is_default,
+                        is_active: o.is_available,
+                    })
+                    .collect(),
+            })
+            .collect(),
+        None => item_modifier_groups(item, addon_catalog, pricing)
+            .into_iter()
+            .filter(|g| g.kind == ModifierGroupKind::Addon)
+            .filter(|g| !g.options.iter().any(|o| is_swap_option(&o.id)))
+            .map(|g| GroupView {
+                id: g.group_id,
+                min: i64::from(g.min_selections),
+                is_required: g.is_required,
+                effect: "adds".into(),
+                legacy_type: g.addon_type,
+                included: None,
+                options: g
+                    .options
+                    .into_iter()
+                    .map(|o| GroupOption {
+                        id: o.id,
+                        price: o.charged_price_minor,
+                        branch_price: None,
+                        is_default: false,
+                        is_active: true,
+                    })
+                    .collect(),
+            })
+            .collect(),
     }
 }
 
@@ -4983,5 +4974,58 @@ mod tests {
         clear_all(&s).unwrap();
         assert_eq!(kitchen_note(&s, None).unwrap(), None);
         assert!(lines(&s, None).unwrap().is_empty());
+    }
+
+    /// madar-catalog's staff input vectors (the SERVER's input for 75 staff
+    /// lines) through this till: the item's `pricing` row in the mirror, a
+    /// stored staff line, and the line's `comp_input` — the server's input,
+    /// groups and all.
+    #[test]
+    fn a_staff_lines_input_is_the_servers_through_the_mirror() {
+        use madar_catalog::staff::vectors::StaffInputVector;
+        let vectors: Vec<StaffInputVector> =
+            serde_json::from_str(madar_catalog::vectors::STAFF_INPUT).unwrap();
+        let template = madar_catalog::vectors::Vectors::load().items[0].menu_item.clone();
+        assert!(vectors.len() >= 50);
+        for v in &vectors {
+            let mut row = template.clone();
+            row["id"] = serde_json::json!(v.item.id);
+            row["pricing"] = serde_json::to_value(&v.item).unwrap();
+            let store = Store::open("").unwrap();
+            store
+                .kv_put(menu::K_MENU_ITEMS, &serde_json::json!([row]).to_string())
+                .unwrap();
+            let items = menu::menu_items(&store, "en").unwrap();
+            let item = items.iter().find(|i| i.id == v.item.id).unwrap();
+            let pricing = PricingMirror::load(&store);
+            let line: StoredLine = serde_json::from_value(serde_json::json!({
+                "item_id": v.item.id,
+                "name": "Staff",
+                "unit_price_minor": v.line.unit_price,
+                "qty": v.line.quantity,
+                "size_label": v.line.size_label,
+                "addons": v.line.picks.iter().map(|p| serde_json::json!({
+                    "addon_item_id": p.option_id, "name": "pick",
+                    "price_modifier_minor": p.unit_price, "qty": p.quantity
+                })).collect::<Vec<_>>(),
+                "optionals": if v.line.optionals_per_unit == 0 {
+                    serde_json::json!([])
+                } else {
+                    serde_json::json!([{
+                        "optional_field_id": "o", "name": "o",
+                        "price_minor": v.line.optionals_per_unit
+                    }])
+                },
+            }))
+            .unwrap();
+            let input = StaffCompLine { line: &line }.comp_input(
+                item,
+                &[],
+                &pricing,
+                None,
+                v.line.eligible,
+            );
+            assert_eq!(input, v.expected, "{}", v.name);
+        }
     }
 }
