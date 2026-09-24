@@ -1249,14 +1249,20 @@ impl MadarCore {
         let weeks = [week_start(today), week_start(today) + Duration::days(7)];
         // The dates a screen shows past that window (H2-01: the board paged to
         // a week never fetched, empty and "Draft"), read like the window.
-        let view = self.dawam_view().and_then(|(a, z)| beyond(a, z, from, to));
+        // Further out (H2-02): staff read their own roster 62 more days as a
+        // whole — their shifts, open shifts to claim, their claims — so the
+        // Shifts list reaches three months ahead; a manager reads only their
+        // own claims there, and the claims waiting on them.
+        let ahead_span = (to + Duration::days(1), to + Duration::days(RANGE_MAX_DAYS));
+        let ahead = format!("from={}&to={}", ahead_span.0, ahead_span.1);
+        let reach = if manager { to } else { ahead_span.1 };
+        let view = self.dawam_view().and_then(|(a, z)| beyond(a, z, from, reach));
         let spans: Vec<(NaiveDate, NaiveDate, String)> = std::iter::once((from, to))
             .chain(view)
             .map(|(a, z)| (a, z, format!("from={a}&to={z}")))
             .collect();
-        // Further out, only what is mine to follow (H2-02): my own claims,
-        // and for a manager the claims waiting on them.
-        let ahead = format!("from={}&to={}", to + Duration::days(1), to + Duration::days(RANGE_MAX_DAYS));
+        let my_spans: Vec<(NaiveDate, NaiveDate, String)> =
+            spans.iter().cloned().chain((!manager).then(|| (ahead_span.0, ahead_span.1, ahead.clone()))).collect();
         let claims_ahead = format!("/staff/open-shifts?from={}&to={}", to + Duration::days(1), today + Duration::days(366));
 
         let mut paths: Vec<String> = vec![
@@ -1370,7 +1376,7 @@ impl MadarCore {
             }
         }
         let mine_roster = g(&format!("/staff/me/roster?{range}"));
-        for (.., q) in &spans {
+        for (.., q) in &my_spans {
             let v = g(&format!("/staff/me/roster?{q}"));
             roster(&mut m, arr(&v, "shifts"));
             roster(&mut m, arr(&v, "team"));
@@ -1381,10 +1387,12 @@ impl MadarCore {
                 m.put("dawam_swaps", Row::new(s(w, "id"), w));
             }
         }
-        // My claims further out stay in my Requests (H2-02).
-        for o in arr(&g(&format!("/staff/me/roster?{ahead}")), "open_shifts") {
-            if s(o, "status") == "claimed" && s(o, "claimed_by") == me {
-                m.put("dawam_open_shifts", Row::new(s(o, "id"), o).date(so(o, "on_date")));
+        // A manager's own claims further out stay in their Requests (H2-02).
+        if manager {
+            for o in arr(&g(&format!("/staff/me/roster?{ahead}")), "open_shifts") {
+                if s(o, "status") == "claimed" && s(o, "claimed_by") == me {
+                    m.put("dawam_open_shifts", Row::new(s(o, "id"), o).date(so(o, "on_date")));
+                }
             }
         }
         if let Some(list) = g("/staff/swaps").as_array() {
@@ -1393,7 +1401,7 @@ impl MadarCore {
             }
         }
         if !manager {
-            for (a, z, q) in &spans {
+            for (a, z, q) in &my_spans {
                 let v = g(&format!("/staff/me/roster?{q}"));
                 let unpublished: HashSet<String> =
                     arr(&v, "unpublished_weeks").iter().filter_map(Value::as_str).map(str::to_string).collect();
@@ -1409,7 +1417,7 @@ impl MadarCore {
         // The dates held in full: a span whose rosters all answered — the
         // branches' for a manager (an owner may have no roster of their
         // own), my own for everyone else.
-        let loaded: Vec<[String; 2]> = spans
+        let loaded: Vec<[String; 2]> = if manager { &spans } else { &my_spans }
             .iter()
             .filter(|(.., q)| {
                 if manager {
@@ -5431,7 +5439,10 @@ mod tests {
                 Some(StubResponse::json(200, json!({
                     "shifts": [], "team": [], "swaps": [], "unpublished_weeks": [],
                     "open_shifts": if inside {
-                        vec![json!({ "id": "o8", "branch_id": BRANCH, "work_shift_id": "w1", "on_date": far, "status": "claimed", "claimed_by": TELLER })]
+                        vec![
+                            json!({ "id": "o8", "branch_id": BRANCH, "work_shift_id": "w1", "on_date": far, "status": "claimed", "claimed_by": TELLER }),
+                            json!({ "id": "o7", "branch_id": BRANCH, "work_shift_id": "w2", "on_date": far, "status": "open" }),
+                        ]
                     } else { vec![] },
                 })))
             }
@@ -5442,6 +5453,11 @@ mod tests {
         let claim = snap["requests"].as_array().unwrap().iter().find(|q| q["id"] == "o|o8").cloned();
         let claim = claim.unwrap_or_else(|| panic!("my claim eight weeks out: {}", snap["requests"]));
         assert_eq!((claim["emp"].as_str(), claim["status"].as_str()), (Some(TELLER), Some("pending")));
+        // The Shifts list reaches that far too: an open shift to claim, in a
+        // published week, on dates the picture holds.
+        let open = snap["shifts"].as_array().unwrap().iter().find(|x| x["id"] == "open|o7").cloned();
+        assert_eq!(open.map(|o| o["published"].clone()), Some(json!(true)), "{}", snap["shifts"]);
+        assert!(loaded_on(&snap, far), "{}", snap["loaded"]);
     }
 
     /// H2-02, the manager's side: a claim further out than the window waits
