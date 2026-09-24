@@ -197,6 +197,9 @@ class Shift {
   /// The date holds its own set of shifts, not the usual pattern.
   bool ownDay = false;
   String? coverBy;
+
+  /// A cover's own row (the coverer's): whose shift it covered (CV-7).
+  String? coverOf;
   DateTime? inAt;
   DateTime? outAt;
   Method? inMethod;
@@ -900,6 +903,7 @@ class DawamStore extends ChangeNotifier {
             ..edited = s['edited'] == true
             ..ownDay = s['own_day'] == true
             ..coverBy = s['cover_by'] as String?
+            ..coverOf = s['cover_of'] as String?
             ..inAt = _at(s['in_at'])
             ..outAt = _at(s['out_at'])
             ..inMethod = s['in_method'] == null

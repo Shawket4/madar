@@ -390,6 +390,9 @@ pub struct ShiftV {
     #[serde(skip)]
     pub rostered: bool,
     pub cover_by: Option<String>,
+    /// A cover's own row (`cover|<record>`, the coverer's): whose shift it
+    /// covered. The covered person's shift never takes the cover's punches.
+    pub cover_of: Option<String>,
     pub in_at: Option<String>,
     pub out_at: Option<String>,
     pub in_method: Option<String>,
@@ -2169,14 +2172,65 @@ impl MadarCore {
                 }
             }
         }
+        // A record's shift, by record id (flags and requests name records).
         let mut record_of: HashMap<String, String> = HashMap::new();
-        for r in rows("dawam_attendance") {
+        // A person's own records first, so a cover can see the shift it covers
+        // whatever order the server listed them in.
+        let mut attendance: Vec<&Value> = rows("dawam_attendance").iter().collect();
+        attendance.sort_by_key(|r| so(r, "covered_employee_id").is_some());
+        for r in attendance {
             let Some(d) = date(r, "business_date") else { continue };
             let wid = s(r, "work_shift_id");
             let Some(tp) = tpl(&wid) else { continue };
             let user = s(r, "employee_id");
-            let covered = so(r, "covered_employee_id");
-            let owner = covered.clone().unwrap_or_else(|| user.clone());
+            if let Some(owner) = so(r, "covered_employee_id") {
+                // A cover is its own row, the coverer's (CV-7): the covered
+                // person's shift never takes its punches. While it is pending
+                // or confirmed the covered shift reads covered (off its owner's
+                // Home, not coverable again); a rejected one leaves it alone.
+                let rid = s(r, "id");
+                let cid = format!("cover|{rid}");
+                let owner_sid = shift_id(&owner, d, &wid);
+                let owner_ix = shifts.iter().position(|x| x.id == owner_sid);
+                if s(r, "cover_status") != "rejected" {
+                    if let Some(ix) = owner_ix {
+                        shifts[ix].cover_by = Some(user.clone());
+                    }
+                }
+                let (start, end) = owner_ix.map_or_else(|| tp.times_on(d), |ix| (shifts[ix].start, shifts[ix].end));
+                shifts.push(ShiftV {
+                    id: cid.clone(),
+                    emp: Some(user.clone()),
+                    cover_of: Some(owner.clone()),
+                    tpl: wid.clone(),
+                    date: d.to_string(),
+                    published: true,
+                    start,
+                    end,
+                    next_day: end <= start,
+                    start_at: at(r, "scheduled_start_at").or_else(|| owner_ix.and_then(|ix| shifts[ix].start_at)),
+                    end_at: at(r, "scheduled_end_at").or_else(|| owner_ix.and_then(|ix| shifts[ix].end_at)),
+                    in_at: at(r, "check_in_at").map(|x| x.to_rfc3339()),
+                    out_at: at(r, "check_out_at").map(|x| x.to_rfc3339()),
+                    in_method: method_of(&s(r, "check_in_method")),
+                    out_method: method_of(&s(r, "check_out_method")),
+                    punch_reason: so(r, "punch_reason"),
+                    tracking_off: b(r, "tracking_off"),
+                    late_minutes: i(r, "late_minutes"),
+                    ..Default::default()
+                });
+                record_of.insert(rid.clone(), cid.clone());
+                if s(r, "cover_status") == "pending" {
+                    let created = at(r, "check_in_at").map_or_else(|| now.to_rfc3339(), |x| x.to_rfc3339());
+                    out.requests.push(ReqV { id: format!("c|{rid}"), kind: "cover".into(), emp: user.clone(), created, status: "pending".into(), from: Some(d.to_string()), shift: Some(cid.clone()), installments: 1, ..Default::default() });
+                }
+                if s(r, "overtime_status") == "pending" {
+                    let created = at(r, "check_out_at").map_or_else(|| now.to_rfc3339(), |x| x.to_rfc3339());
+                    out.requests.push(ReqV { id: format!("t|{rid}"), kind: "overtime".into(), emp: user.clone(), created, status: "pending".into(), from: Some(d.to_string()), shift: Some(cid), minutes: i(r, "overtime_minutes"), installments: 1, ..Default::default() });
+                }
+                continue;
+            }
+            let owner = user.clone();
             let sid = shift_id(&owner, d, &wid);
             let branch = tp.branch.clone();
             let idx = match shifts.iter().position(|x| x.id == sid) {
@@ -2200,14 +2254,8 @@ impl MadarCore {
             sh.punch_reason = so(r, "punch_reason");
             sh.tracking_off = b(r, "tracking_off");
             sh.late_minutes = i(r, "late_minutes");
-            sh.absent = s(r, "status") == "absent" && covered.is_none();
-            if covered.is_some() {
-                sh.cover_by = Some(user.clone());
-            }
-            record_of.insert(sid.clone(), s(r, "id"));
-            if covered.is_some() && s(r, "cover_status") == "pending" {
-                out.requests.push(ReqV { id: format!("c|{}", s(r, "id")), kind: "cover".into(), emp: user.clone(), created: sh.in_at.clone().unwrap_or_else(|| now.to_rfc3339()), status: "pending".into(), from: Some(d.to_string()), shift: Some(sid.clone()), installments: 1, ..Default::default() });
-            }
+            sh.absent = s(r, "status") == "absent";
+            record_of.insert(s(r, "id"), sid.clone());
             if s(r, "overtime_status") == "pending" {
                 out.requests.push(ReqV { id: format!("t|{}", s(r, "id")), kind: "overtime".into(), emp: user.clone(), created: sh.out_at.clone().unwrap_or_else(|| now.to_rfc3339()), status: "pending".into(), from: Some(d.to_string()), shift: Some(sid.clone()), minutes: i(r, "overtime_minutes"), installments: 1, ..Default::default() });
             }
@@ -2215,22 +2263,42 @@ impl MadarCore {
 
         // What is queued shows at once, marked queued (APP-8).
         let active_of = |shifts: &[ShiftV]| {
-            shifts.iter().position(|x| x.in_at.is_some() && x.out_at.is_none() && ((x.emp.as_deref() == Some(&me) && x.cover_by.is_none()) || x.cover_by.as_deref() == Some(&me)))
+            shifts.iter().position(|x| x.in_at.is_some() && x.out_at.is_none() && x.emp.as_deref() == Some(&me) && x.cover_by.is_none())
         };
         for q in &queued {
             let p: Value = serde_json::from_str(&q.payload).unwrap_or_default();
             let when = q.event_at.clone();
             let method = if wall_ms() - i(&p, "queued_ms") > LIVE_MS { "offline" } else { "app" };
             match q.op_type.as_str() {
-                "dawam_check_in" | "dawam_cover" => {
+                "dawam_check_in" => {
                     let sid = s(&p["body"], "shift");
                     if let Some(sh) = shifts.iter_mut().find(|x| x.id == sid) {
                         sh.in_at = Some(when);
-                        sh.in_method = Some(if q.op_type == "dawam_cover" { "cover" } else { method }.into());
+                        sh.in_method = Some(method.into());
                         sh.queued = true;
-                        if q.op_type == "dawam_cover" {
-                            sh.cover_by = Some(me.clone());
-                        }
+                    }
+                }
+                // A queued cover is my own row at once, like the server's will
+                // be; the covered shift reads covered (not offered again).
+                "dawam_cover" => {
+                    let sid = s(&p["body"], "shift");
+                    if let Some(ix) = shifts.iter().position(|x| x.id == sid) {
+                        shifts[ix].cover_by = Some(me.clone());
+                        let o = shifts[ix].clone();
+                        shifts.push(ShiftV {
+                            id: format!("cover|{}", q.id),
+                            emp: Some(me.clone()),
+                            cover_of: o.emp.clone(),
+                            cover_by: None,
+                            in_at: Some(when),
+                            in_method: Some("cover".into()),
+                            queued: true,
+                            absent: false,
+                            out_at: None,
+                            out_method: None,
+                            late_minutes: 0,
+                            ..o
+                        });
                     }
                 }
                 "dawam_check_out" => {
@@ -2278,7 +2346,7 @@ impl MadarCore {
                 time2: if kind == "lateArrival" { None } else { so(q, "to_time") }.and_then(|x| minute_of(&x)),
                 note: s(q, "reason"),
                 paid: q.get("is_paid").and_then(Value::as_bool),
-                shift: rec.and_then(|rid| record_of.iter().find(|(_, v)| **v == rid).map(|(k, _)| k.clone())),
+                shift: rec.and_then(|rid| record_of.get(&rid).cloned()),
                 to_owner: b(q, "to_owner"),
                 paid_default: q.get("paid_default").and_then(Value::as_bool),
                 can_decide: q.get("can_decide").and_then(Value::as_bool),
@@ -2411,7 +2479,8 @@ impl MadarCore {
             if tpl(&sh.tpl).is_none() {
                 continue;
             }
-            let mine = (sh.emp.as_deref() == Some(&me) && sh.cover_by.is_none()) || sh.cover_by.as_deref() == Some(&me);
+            // My own shifts not taken by a cover, and the covers I do (their own rows).
+            let mine = sh.emp.as_deref() == Some(&me) && sh.cover_by.is_none();
             let running = shift_start(sh, &tz).zip(shift_end(sh, &tz)).is_some_and(|(a, z)| a <= now && z > now);
             if sh.published && mine && (sh.date == today_s || (sh.in_at.is_some() && sh.out_at.is_none()) || running) {
                 out.my_now.push(sh.id.clone());
@@ -2426,7 +2495,7 @@ impl MadarCore {
         // Flags.
         for fl in rows("dawam_flags") {
             let rec = so(fl, "attendance_record_id");
-            let shift = rec.and_then(|rid| record_of.iter().find(|(_, v)| **v == rid).map(|(k, _)| k.clone()));
+            let shift = rec.and_then(|rid| record_of.get(&rid).cloned());
             if s(fl, "kind") == "time_unverified" {
                 if let Some(sh) = shift.as_ref().and_then(|sid| shifts.iter_mut().find(|x| &x.id == sid)) {
                     sh.time_unverified = true;
@@ -4441,6 +4510,119 @@ mod tests {
         let act = json!({ "action": "file", "kind": "correction", "from": d, "shift": shift }).to_string();
         let err = core.dawam_do(act).await.unwrap_err();
         assert!(format!("{err:?}").contains(&i18n::tr("en", "staff.change_a_time_first")), "{err:?}");
+    }
+
+    /// E2E (posnotif, requests, clocking): a cover record shared the covered
+    /// person's shift id, so whichever row the server listed last won —
+    /// the owner's Timesheet showed the coverer's punches as theirs and lost
+    /// the absence, a confirmed cover never reached the coverer's Timesheet
+    /// (CV-7), and a REJECTED cover still took the shift off the owner's Home
+    /// ("No shift today"). Now a cover is its own row (`cover|<record>`, the
+    /// coverer's, naming whose shift it covered); the owner's shift comes
+    /// only from the owner's own record, marked covered while the cover is
+    /// pending or confirmed; a rejected cover leaves the owner's shift alone.
+    /// The same in either list order.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_cover_is_its_own_row_and_never_takes_the_owners_record() {
+        use crate::testkit::{StubResponse, BRANCH, TELLER};
+        let d = today_cairo().to_string();
+        let shift_of = |snap: &Value, id: &str| snap["shifts"].as_array().unwrap().iter().find(|x| x["id"] == json!(id)).cloned();
+        let in_my_now = |snap: &Value, id: &str| snap["my_now"].as_array().unwrap().iter().any(|x| x == &json!(id));
+        let mine = format!("{TELLER}|{d}|w1");
+        for status in ["pending", "confirmed", "rejected"] {
+            for cover_first in [true, false] {
+                let tag = format!("{status}, cover {}", if cover_first { "first" } else { "last" });
+                // I am the owner: absent (the sweep), and e4 covered my shift.
+                let own = json!({ "id": "own", "employee_id": TELLER, "business_date": d, "work_shift_id": "w1", "branch_id": BRANCH, "status": "absent" });
+                let cov = json!({ "id": "cov", "employee_id": "e4", "covered_employee_id": TELLER, "business_date": d, "work_shift_id": "w1",
+                    "branch_id": BRANCH, "status": "present", "cover_status": status, "check_in_method": "cover",
+                    "check_in_at": format!("{d}T06:10:00Z"), "check_out_at": format!("{d}T08:55:00Z") });
+                let rows = if cover_first { json!([cov, own]) } else { json!([own, cov]) };
+                let day = d.clone();
+                let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+                    ("GET", "/staff/me/roster") => Some(StubResponse::json(200, json!({ "shifts": [
+                        { "employee_id": TELLER, "date": day, "work_shift_id": "w1" }
+                    ], "team": [], "unpublished_weeks": [] }))),
+                    ("GET", "/staff/me/attendance") => Some(StubResponse::json(200, rows.clone())),
+                    _ => None,
+                })
+                .await;
+                let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+                let owner = shift_of(&snap, &mine).unwrap_or_else(|| panic!("{tag}: my shift is there"));
+                assert_eq!(owner["in_at"], Value::Null, "{tag}: never the coverer's punches on my shift");
+                assert_eq!(owner["out_at"], Value::Null, "{tag}");
+                assert_eq!(owner["absent"], json!(true), "{tag}: I stay absent (CV-6)");
+                let cover = shift_of(&snap, "cover|cov").unwrap_or_else(|| panic!("{tag}: the cover is its own row"));
+                assert_eq!(cover["emp"], json!("e4"), "{tag}: the coverer's row");
+                assert_eq!(cover["cover_of"], json!(TELLER), "{tag}: naming whose shift it covered");
+                assert!(cover["in_at"].is_string() && cover["out_at"].is_string(), "{tag}: with the cover's punches");
+                assert_eq!(cover["absent"], json!(false), "{tag}");
+                if status == "rejected" {
+                    assert_eq!(owner["cover_by"], Value::Null, "{tag}: a rejected cover takes nothing");
+                    assert!(in_my_now(&snap, &mine), "{tag}: the shift stays on my Home (Missed, not 'No shift today')");
+                } else {
+                    assert_eq!(owner["cover_by"], json!("e4"), "{tag}: marked covered");
+                    assert!(!in_my_now(&snap, &mine), "{tag}: a covered shift leaves my Home, as before");
+                }
+                assert!(!in_my_now(&snap, "cover|cov"), "{tag}: someone else's cover is not mine");
+                let req = snap["requests"].as_array().unwrap().iter().find(|r| r["id"] == json!("c|cov")).cloned();
+                if status == "pending" {
+                    assert_eq!(req.expect("a pending cover to confirm")["shift"], json!("cover|cov"), "{tag}: the request names the cover");
+                } else {
+                    assert!(req.is_none(), "{tag}: only a pending cover waits");
+                }
+            }
+        }
+
+        // I am the coverer, still on the cover: it is my row, my Home card,
+        // my running shift; the covered person's shift is not mine.
+        let d2 = d.clone();
+        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("GET", "/staff/me/roster") => Some(StubResponse::json(200, json!({ "shifts": [], "team": [], "unpublished_weeks": [] }))),
+            ("GET", "/staff/me/attendance") => Some(StubResponse::json(200, json!([
+                { "id": "cov2", "employee_id": TELLER, "covered_employee_id": "e4", "business_date": d2, "work_shift_id": "w2",
+                  "branch_id": BRANCH, "status": "present", "cover_status": "pending", "check_in_method": "cover",
+                  "check_in_at": (Utc::now() - Duration::minutes(20)).to_rfc3339() }
+            ]))),
+            _ => None,
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(snap["active_shift"], json!("cover|cov2"), "my running shift is the cover");
+        assert!(in_my_now(&snap, "cover|cov2"), "the cover is on my Home");
+        assert!(!in_my_now(&snap, &format!("e4|{d}|w2")), "the covered person's shift is not mine");
+        let cover = shift_of(&snap, "cover|cov2").expect("my cover row");
+        assert_eq!((cover["emp"].clone(), cover["cover_of"].clone(), cover["cover_by"].clone()), (json!(TELLER), json!("e4"), Value::Null));
+    }
+
+    /// A cover queued offline is my own running row at once (APP-8), and the
+    /// covered shift reads covered; it never takes that shift's place.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_queued_cover_is_my_own_row_at_once() {
+        use crate::testkit::{StubResponse, TELLER};
+        let d = today_cairo().to_string();
+        let day = d.clone();
+        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("GET", "/staff/me/roster") => Some(StubResponse::json(200, json!({ "shifts": [
+                { "employee_id": "e4", "date": day, "work_shift_id": "w2" }
+            ], "team": [], "unpublished_weeks": [] }))),
+            // The signal is gone when the cover goes out.
+            ("POST", "/staff/me/cover") => Some(StubResponse::hangup()),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        let theirs = format!("e4|{d}|w2");
+        let fix = DawamFix { latitude: 30.0609, longitude: 31.2197, accuracy: Some(8.0), ..Default::default() };
+        let snap: Value = serde_json::from_str(&core.dawam_do(json!({ "action": "cover", "shift": theirs, "fix": fix }).to_string()).await.unwrap()).unwrap();
+        let active = snap["active_shift"].as_str().expect("the queued cover runs").to_string();
+        assert!(active.starts_with("cover|"), "{active}");
+        let row = snap["shifts"].as_array().unwrap().iter().find(|x| x["id"] == json!(active)).unwrap();
+        assert_eq!((row["emp"].clone(), row["cover_of"].clone(), row["queued"].clone()), (json!(TELLER), json!("e4"), json!(true)));
+        assert!(row["in_at"].is_string());
+        let covered = snap["shifts"].as_array().unwrap().iter().find(|x| x["id"] == json!(theirs)).unwrap();
+        assert_eq!((covered["cover_by"].clone(), covered["in_at"].clone()), (json!(TELLER), Value::Null), "theirs reads covered, never my punch");
+        assert!(!snap["my_now"].as_array().unwrap().iter().any(|x| x == &json!(theirs)));
     }
 
     /// RQ-8 and B4: a half day says which half, a timed request names its

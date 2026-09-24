@@ -218,7 +218,8 @@ class ShiftCard extends ConsumerWidget {
     final b = store.branches[tp.branch];
     final now = store.now;
     final opens = s.startAt.subtract(Duration(minutes: tp.window));
-    final cover = s.coverBy == store.me;
+    // A cover is my own row naming whose shift it covers (CV-7).
+    final coverOf = s.coverOf;
     final status = s.outAt != null
         ? MadarStatus(
             tr('staff.done', {'time': hm(s.inAt!), 'time2': hm(s.outAt!)}),
@@ -261,10 +262,8 @@ class ShiftCard extends ConsumerWidget {
           children: [
             Expanded(
               child: Text(
-                cover
-                    ? tr('staff.covering', {
-                        'name': name(store.emp(s.emp ?? '')),
-                      })
+                coverOf != null
+                    ? tr('staff.covering', {'name': name(store.emp(coverOf))})
                     : '${tplName(tp)}${b == null ? '' : ' · ${loc(b)}'}',
                 style: MadarType.label.copyWith(
                   color: c.textMuted,

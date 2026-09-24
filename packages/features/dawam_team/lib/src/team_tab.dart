@@ -320,7 +320,11 @@ class _TeamTabState extends ConsumerState<TeamTab> {
                               final m? => ' · ${methodLabel(m)}',
                               null => '',
                             }}',
-                  ctaLabel: s.covered || s.outAt != null || s.leave != null
+                  ctaLabel:
+                      s.covered ||
+                          s.coverOf != null ||
+                          s.outAt != null ||
+                          s.leave != null
                       ? null
                       : s.inAt == null
                       ? tr('staff.punch_in')
