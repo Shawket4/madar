@@ -154,6 +154,7 @@ class Emp implements Bilingual {
     this.pay, {
     this.account = '',
     this.device = '',
+    this.salarySet = true,
   });
   final String id;
   @override
@@ -163,7 +164,13 @@ class Emp implements Bilingual {
   final String phone;
   final Role role;
   final List<String> branches;
-  final int salary; // piastres per month
+
+  /// Piastres per month; null when not set or hidden from me (decision
+  /// #9: shown "—", never a made-up 0). [salarySet] tells which.
+  final int? salary;
+
+  /// A salary is set; false reads "Salary not set".
+  final bool salarySet;
   final String gender;
   final DateTime hired;
   final PayMethod pay;
@@ -453,6 +460,7 @@ class Slip {
     this.carryOut,
     this.collected, {
     this.frozen = false,
+    this.salaryMissing = false,
   });
   final String emp;
   final DateTime start;
@@ -462,6 +470,10 @@ class Slip {
   final int carryOut;
   final Map<String, int> collected; // advance id -> taken this slip
   final bool frozen;
+
+  /// On payroll with no salary set (decision #9): the Salary line reads
+  /// "—" and approval waits for it.
+  final bool salaryMissing;
   int get earned => lines
       .where((l) => l.amount > 0 && !l.waived)
       .fold(0, (s, l) => s + l.amount);
@@ -727,6 +739,10 @@ class DawamStore extends ChangeNotifier {
   /// Paid through Dawam (the server says). Off: no estimate on the Pay tab.
   bool onPayroll = true;
 
+  /// People on this month's payroll with no salary set (decision #9):
+  /// approval is blocked while above 0.
+  int missingSalaryCount = 0;
+
   /// When the core last fetched the picture from the server (its
   /// `fetched_at`, ms): a pull that did not move it never reached the server.
   int fetchedAt = 0;
@@ -894,12 +910,13 @@ class DawamStore extends ChangeNotifier {
               p['phone'] as String,
               _enum(Role.values, p['role'], Role.employee),
               (p['branches'] as List<dynamic>).cast<String>(),
-              _int(p['salary']),
+              (p['salary'] as num?)?.round(),
               p['gender'] as String,
               _date(p['hired']),
               _enum(PayMethod.values, p['pay'], PayMethod.cash),
               account: p['account'] as String,
               device: p['device'] as String,
+              salarySet: p['salary_set'] != false,
             )
             ..deviceSince = _at(p['device_since'])
             ..prefTime = p['pref_time'] as String?
@@ -1113,6 +1130,7 @@ class DawamStore extends ChangeNotifier {
         _int(s['carry_out']),
         (s['collected'] as J).map((k, x) => MapEntry(k, _int(x))),
         frozen: s['frozen'] == true,
+        salaryMissing: s['salary_missing'] == true,
       );
       final p = [
         period,
@@ -1175,6 +1193,7 @@ class DawamStore extends ChangeNotifier {
     managerBonusLimit = limit ?? 1 << 40;
     managerDeductLimit = (st['deduction_limit'] as int?) ?? limit ?? 1 << 40;
     onPayroll = v['on_payroll'] != false;
+    missingSalaryCount = _int(v['missing_salary_count']);
     rulesSaved = st['rules_saved'] != false;
     _schedulePings();
     notifyListeners();

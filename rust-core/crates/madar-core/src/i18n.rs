@@ -68,6 +68,11 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.err_request_already_decided" => "Someone already decided this request. The list is up to date now.",
         "staff.err_overlapping_request" => "You already have a request like this for that time.",
         "staff.err_owner_only" => "Only the owner can do this.",
+        "staff.err_salary_missing" => "Payroll can't be approved yet: no salary is set for {names}. Set it from the dashboard, or mark them not on payroll.",
+        "staff.payroll_salary_missing" => "{count} people have no salary: approval is blocked.",
+        "staff.approve_blocked_salary_missing" => "Set every salary first: approval is blocked.",
+        "staff.salary_not_set" => "Salary not set",
+        "staff.n_salary_missing" => "{name} has no salary set. Set it before payroll can be approved.",
         "staff.err_reason_required" => "Say why you're declining it.",
         "staff.say_why_you_decline" => "Say why you're declining it.",
         "staff.why_decline" => "Why are you declining it?",
@@ -2147,6 +2152,11 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.err_request_already_decided" => "حد تاني قرر في الطلب ده خلاص. القايمة اتحدّثت.",
         "staff.err_overlapping_request" => "عندك طلب زي ده في نفس الوقت خلاص.",
         "staff.err_owner_only" => "المالك بس هو اللي يقدر يعمل ده.",
+        "staff.err_salary_missing" => "المرتبات مش هتتعتمد دلوقتي: مفيش مرتب متحدد لـ{names}. حدده من لوحة التحكم، أو علّم إنهم مش على المرتبات.",
+        "staff.payroll_salary_missing" => "{count} ملهمش مرتب: الاعتماد واقف.",
+        "staff.approve_blocked_salary_missing" => "حدد كل المرتبات الأول: الاعتماد واقف.",
+        "staff.salary_not_set" => "المرتب مش متحدد",
+        "staff.n_salary_missing" => "{name} ملوش مرتب متحدد. حدده قبل ما المرتبات تتعتمد.",
         "staff.err_reason_required" => "قول ليه بترفضه.",
         "staff.say_why_you_decline" => "قول ليه بترفضه.",
         "staff.why_decline" => "بترفضه ليه؟",
@@ -4457,6 +4467,8 @@ mod tests {
             "staff.n_till_punch_in",
             "staff.n_till_punch_out",
             "staff.n_week_published",
+            // The owner is told when someone is added with no salary (decision #9).
+            "staff.n_salary_missing",
         ];
         let missing: Vec<&str> = SENT
             .iter()

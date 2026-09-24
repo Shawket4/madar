@@ -140,6 +140,8 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
   }
 
   List<Widget> _preview(DawamStore store, List<Slip> slips) => [
+    if (missingSalaryBanner(store.missingSalaryCount) case final text?)
+      NoticeBanner(text: text, tone: ChipTone.danger),
     DawamSection(
       tr('staff.payroll_payslips'),
       children: [
@@ -152,6 +154,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
                   .branches
                   .map((b) => branchName(store, b))
                   .join(' · '),
+              if (s.salaryMissing) tr('staff.salary_not_set'),
               if (s.carryOut > 0)
                 tr('staff.carries', {'amount': egp(s.carryOut)}),
               if (s.carryIn > 0)
@@ -159,7 +162,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
             ].join(' · '),
             minor: s.net,
             currency: 'EGP',
-            rail: s.carryOut > 0 ? MadarTone.danger : null,
+            rail: s.carryOut > 0 || s.salaryMissing ? MadarTone.danger : null,
             onTap: () => _slip(s.emp),
           ),
       ],
@@ -298,7 +301,10 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
     final p = store.period;
     if (p.status == PeriodStatus.open) {
       final carries = slips.where((s) => s.carryOut > 0).toList();
+      final blocked = store.missingSalaryCount > 0;
       return [
+        if (missingSalaryBanner(store.missingSalaryCount) case final text?)
+          NoticeBanner(text: text, tone: ChipTone.danger),
         if (carries.isNotEmpty)
           NoticeBanner(
             text: tr('staff.shortfall_list', {
@@ -312,6 +318,9 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
           label: tr('staff.approve_payroll'),
           amountMinor: slips.fold(0, (a, s) => a + s.net),
           currency: 'EGP',
+          // Approval is refused while someone on it has no salary (#9).
+          enabled: !blocked,
+          reason: blocked ? tr('staff.approve_blocked_salary_missing') : null,
           onTap: () async {
             final ok = await showMadarConfirm(
               context,

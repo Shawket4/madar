@@ -230,6 +230,9 @@ pub struct Snapshot {
     /// Paid through Dawam. Off (an app-using owner, say): no estimate, no
     /// payslips, but every other screen works.
     pub on_payroll: bool,
+    /// People on this month's payroll with no salary set (decision #9): the
+    /// server's count. Approval is refused while it is above 0.
+    pub missing_salary_count: i64,
     pub suggestions: Vec<SuggestionV>,
     pub holidays: Vec<HolidayV>,
     /// Labour-limit warnings (RU-13): `user|week_start` → core i18n keys + args.
@@ -358,7 +361,12 @@ pub struct PersonV {
     pub phone: String,
     pub role: String,
     pub branches: Vec<String>,
-    pub salary: i64,
+    /// Monthly salary in piastres; `None` when not set or hidden from me
+    /// (`salary_set` tells which, decision #9). Never a made-up 0.
+    pub salary: Option<i64>,
+    /// A salary is set. False: "not set" (—), payroll can't be approved
+    /// while they are on it. An older server doesn't say: set.
+    pub salary_set: bool,
     pub gender: String,
     pub hired: String,
     pub pay: String,
@@ -585,6 +593,9 @@ pub struct SlipV {
     pub collected: BTreeMap<String, i64>,
     /// The frozen payslip, not the live estimate (PAY-9).
     pub frozen: bool,
+    /// On payroll with no salary set (decision #9): its Salary line reads
+    /// "—", and approval waits until it is set.
+    pub salary_missing: bool,
 }
 
 #[derive(Serialize, Debug)]
@@ -764,7 +775,12 @@ pub(crate) const PUNCH_CODES: &[&str] = &[
 /// The server's money refusals (E2E money BB2): the body is kept, and the
 /// core words them as `staff.err_<code in lower case>` with the server's
 /// figures, a `*_piastres` figure shown as money in the phone's language.
-pub(crate) const MONEY_CODES: &[&str] = &["ADVANCE_OVER_CAP"];
+pub(crate) const MONEY_CODES: &[&str] = &[
+    "ADVANCE_OVER_CAP",
+    // Approving payroll while someone on it has no salary (decision #9),
+    // with their `names`.
+    "SALARY_MISSING",
+];
 
 /// A money refusal in `locale`, from the server's body (`{error, code,
 /// vars}`); the server's own `error` when the body can't be read or the
@@ -778,6 +794,8 @@ pub(crate) fn money_words(locale: &str, code: &str, body: &str) -> String {
                 Value::Number(n) if k.ends_with("_piastres") => n.as_i64().map_or_else(|| n.to_string(), |p| egp(p, ar)),
                 Value::Number(n) => n.to_string(),
                 Value::String(t) => t.clone(),
+                // A list of names, as a sentence lists them.
+                Value::Array(a) => a.iter().map(|x| x.as_str().map_or_else(|| x.to_string(), str::to_string)).collect::<Vec<_>>().join(if ar { "، " } else { ", " }),
                 other => other.to_string(),
             };
             (k.clone(), text)
@@ -2119,7 +2137,8 @@ impl MadarCore {
                 phone: s(p, "phone"),
                 role: role_of(&s(p, "role")).into(),
                 branches: arr(p, "branch_ids").iter().filter_map(Value::as_str).map(str::to_string).collect(),
-                salary: i(p, "base_salary_piastres"),
+                salary: p.get("base_salary_piastres").and_then(Value::as_i64),
+                salary_set: p.get("salary_set").and_then(Value::as_bool).unwrap_or(true),
                 gender: s(p, "gender"),
                 hired: so(p, "hire_date").unwrap_or_else(|| "2000-01-01".into()),
                 pay: so(p, "pay_method").unwrap_or_else(|| "cash".into()),
@@ -2673,6 +2692,11 @@ impl MadarCore {
         for c in rows("dawam_preview") {
             out.slips.push(slip_of(c, &out.period, i(c, "base_piastres"), false));
         }
+        // The server's count; an older one sends none: the flagged rows.
+        out.missing_salary_count = current
+            .get("missing_salary_count")
+            .and_then(Value::as_i64)
+            .unwrap_or_else(|| out.slips.iter().filter(|x| x.salary_missing).count() as i64);
         if let Some(sl) = estimate.get("slip").filter(|x| x.is_object()) {
             if !out.slips.iter().any(|x| x.emp == s(sl, "employee_id")) {
                 out.slips.push(slip_of(sl, &out.period, i(sl, "base_piastres"), false));
@@ -3027,7 +3051,17 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
         collected.insert(s(a, "id"), take);
         lines.push(LineV { key: format!("adv|{}", s(a, "id")), en: "Advance installment".into(), ar: "قسط سلفة".into(), amount: -take, rule: false, manual: None, waived: false, date: None });
     }
-    SlipV { emp: s(s_, "employee_id"), start: p.start.clone(), end: p.end.clone(), lines, net: i(s_, "net_piastres"), carry_out: i(s_, "carry_out_piastres"), collected, frozen }
+    SlipV {
+        emp: s(s_, "employee_id"),
+        start: p.start.clone(),
+        end: p.end.clone(),
+        lines,
+        net: i(s_, "net_piastres"),
+        carry_out: i(s_, "carry_out_piastres"),
+        collected,
+        frozen,
+        salary_missing: b(s_, "salary_missing"),
+    }
 }
 
 /// A deduction's words in [lang]: a rule-made line by the server's
@@ -4912,6 +4946,72 @@ mod tests {
         let act = json!({ "action": "stop_adj", "adj": "a|bonus|m1", "reason": "moved to a meal card" }).to_string();
         core.dawam_do(act).await.unwrap();
         assert_eq!(posted(&stub, "/staff/adjustments/bonus/m1/stop"), json!({ "reason": "moved to a meal card" }));
+    }
+
+    /// Owner decision #9 (D9): a salary can be "not set" (null), never a
+    /// silent 0. The snapshot tells "not set" (`salary_set` false) from
+    /// "hidden from me" (set, no figure); the payroll preview flags who has
+    /// none and how many, and approving while someone has none is refused
+    /// (409 SALARY_MISSING {names}) in the owner's language, naming them.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_salary_not_set_is_flagged_and_blocks_approval() {
+        use crate::testkit::{StubResponse, BRANCH, TELLER};
+        let (_stub, core) = cafe(&["hr.attendance.read", "hr.payroll.run"], |m, p, _| match (m, p) {
+            ("GET", "/staff/me/context") => Some(StubResponse::json(200, json!({
+                "role": "owner", "org_name": "Nile Café", "caps": ["hr.attendance.read", "hr.payroll.run"],
+                "branches": [{ "id": BRANCH, "name": "Zamalek", "timezone": "Africa/Cairo" }],
+                "work_shifts": [], "settings": { "period_start_day": 26 },
+                "people": [
+                    { "employee_id": TELLER, "name": "Hana", "role": "owner", "branch_ids": [BRANCH], "base_salary_piastres": 0, "salary_set": true },
+                    { "employee_id": "e4", "name": "Youssef", "role": "employee", "branch_ids": [BRANCH], "base_salary_piastres": null, "salary_set": false },
+                    { "employee_id": "e5", "name": "Laila", "role": "employee", "branch_ids": [BRANCH], "base_salary_piastres": 850000, "salary_set": true },
+                    { "employee_id": "e6", "name": "Omar", "role": "manager", "branch_ids": [BRANCH], "base_salary_piastres": null, "salary_set": true },
+                ],
+            }))),
+            ("GET", "/staff/payroll/current") => Some(StubResponse::json(200, json!({
+                "period": { "id": "p9", "start_date": "2026-08-26", "end_date": "2026-09-25", "status": "draft" },
+                "missing_salary_count": 1,
+                "totals": { "missing_salary_count": 1 },
+                "preview": [
+                    { "employee_id": "e4", "base_piastres": 0, "net_piastres": 0, "salary_missing": true, "breakdown": {} },
+                    { "employee_id": "e5", "base_piastres": 850000, "net_piastres": 850000, "salary_missing": false, "breakdown": {} },
+                ],
+                "payslips": [], "history": [],
+            }))),
+            ("POST", "/staff/payroll/periods/p9/generate") => Some(StubResponse::json(409, json!({
+                "error": "Set a salary for Youssef first.", "code": "SALARY_MISSING",
+                "vars": { "names": ["Youssef", "Mona"], "employee_ids": ["e4", "e7"] } }))),
+            _ => None,
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let person = |id: &str| snap["people"].as_array().unwrap().iter().find(|p| p["id"] == id).cloned().unwrap();
+        assert_eq!((person("e4")["salary"].clone(), person("e4")["salary_set"].clone()), (Value::Null, json!(false)), "not set");
+        assert_eq!((person("e6")["salary"].clone(), person("e6")["salary_set"].clone()), (Value::Null, json!(true)), "hidden from me");
+        assert_eq!(person("e5")["salary"], json!(850000));
+        assert_eq!(person(crate::testkit::TELLER)["salary"], json!(0), "a real 0 stays 0");
+        assert_eq!(snap["missing_salary_count"], json!(1));
+        let slip = |id: &str| snap["slips"].as_array().unwrap().iter().find(|x| x["emp"] == id).cloned().unwrap();
+        assert_eq!((slip("e4")["salary_missing"].clone(), slip("e5")["salary_missing"].clone()), (json!(true), json!(false)));
+
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            match core.dawam_do(json!({ "action": "approve_payroll" }).to_string()).await.unwrap_err() {
+                CoreError::Server { code, detail, .. } => {
+                    assert_eq!(code, "SALARY_MISSING");
+                    let sep = if lang == "ar" { "، " } else { ", " };
+                    assert!(detail.contains(&format!("Youssef{sep}Mona")), "{lang}: names them: {detail}");
+                    assert!(!detail.contains('[') && !detail.contains('{'), "{detail}");
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_salary_missing").replace("{names}", &format!("Youssef{sep}Mona")));
+                }
+                e => panic!("{e:?}"),
+            }
+        }
+        let n = notice_text("ar", "staff.n_salary_missing", &json!({ "name": "Youssef", "employee_id": "e4" }));
+        assert!(n.contains("Youssef") && n != i18n::tr("en", "staff.n_salary_missing"), "{n}");
+        for k in ["staff.payroll_salary_missing", "staff.salary_not_set", "staff.approve_blocked_salary_missing"] {
+            assert_ne!(i18n::tr("ar", k), i18n::tr("en", k), "{k}");
+        }
     }
 
     /// Owner decision #8 (D8): declining a pay line or an advance says why.

@@ -471,6 +471,11 @@ void main() {
         tab: 'team',
       ));
       expect(pushTarget('staff.n_request'), (manage: true, tab: 'approvals'));
+      // Decision #9: someone added with no salary opens the owner's Payroll.
+      expect(pushTarget('staff.n_salary_missing'), (
+        manage: true,
+        tab: 'payroll',
+      ));
       expect(pushTarget('staff.n_week_published'), (
         manage: false,
         tab: 'shifts',
