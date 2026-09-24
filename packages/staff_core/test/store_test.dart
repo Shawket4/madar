@@ -29,8 +29,17 @@ class _Backend implements DawamBackend {
     return answer();
   }
 
+  int refreshes = 0;
+
+  /// What the core says about the connection in the next picture.
+  bool online = true;
   @override
-  Future<String> snapshot({required bool refresh}) async => _fixture();
+  Future<String> snapshot({required bool refresh}) async {
+    if (refresh) refreshes++;
+    final v = jsonDecode(_fixture()) as Map<String, dynamic>;
+    v['online'] = online;
+    return jsonEncode(v);
+  }
 
   /// What a fetch (`dawam_sync`) answers, and how many were asked for.
   Future<String> Function() fetched = () async => _fixture();
@@ -111,6 +120,72 @@ Widget _screen(
 
 void main() {
   setUp(() => currentLang = 'en');
+
+  testWidgets(
+    'a send refused for want of a connection shows the offline state (E2E S-120, S-167)',
+    (t) async {
+      final (store, backend) = await _store();
+      expect(store.offline, isFalse);
+      backend
+        ..online = false
+        ..answer = () async => throw DawamError(
+        'This needs a connection.',
+        'This needs a connection.',
+      );
+      final results = <bool>[];
+      await t.pumpWidget(
+        _screen(
+          store,
+          (s) => s.file(ReqKind.leave, from: DateTime(2026, 9, 30)),
+          results,
+        ),
+      );
+      await t.tap(find.text('go'));
+      await t.pump(const Duration(milliseconds: 50));
+      await t.pump(const Duration(milliseconds: 50));
+      expect(results, [false]);
+      expect(
+        store.offline,
+        isTrue,
+        reason: 'the banner and the disabled buttons follow at once',
+      );
+      await t.pump(const Duration(seconds: 3));
+      store.stop();
+    },
+  );
+
+  testWidgets(
+    'a refused decision reloads the queue (E2E S-235: decided elsewhere)',
+    (t) async {
+      final (store, backend) = await _store();
+      backend.answer = () async => throw DawamError(
+        'This request is already approved',
+        'This request is already approved',
+      );
+      final before = backend.refreshes;
+      final results = <bool>[];
+      await t.pumpWidget(
+        _screen(
+          store,
+          (s) => s.decide(
+            Req('q|x', ReqKind.leave, 'e2', DateTime(2026, 9, 22)),
+            approve: true,
+          ),
+          results,
+        ),
+      );
+      await t.tap(find.text('go'));
+      await t.pump(const Duration(milliseconds: 50));
+      expect(results, [false]);
+      expect(
+        backend.refreshes,
+        greaterThan(before),
+        reason: 'the stale card goes: the picture is reloaded',
+      );
+      await t.pump(const Duration(seconds: 3));
+      store.stop();
+    },
+  );
 
   group('attempt waits for the server (06 B1)', () {
     testWidgets('a refusal is shown in the server words, never a success', (
@@ -349,6 +424,10 @@ void main() {
         tab: 'shifts',
       ));
       expect(pushTarget('staff.n_request_approved'), (
+        manage: false,
+        tab: 'requests',
+      ));
+      expect(pushTarget('staff.n_request_cancelled'), (
         manage: false,
         tab: 'requests',
       ));

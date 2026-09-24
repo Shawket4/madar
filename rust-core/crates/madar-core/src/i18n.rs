@@ -63,6 +63,8 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.err_period_closed" => "That month's payroll is approved, so it can't change. Ask your manager to add it to the next month.",
         "staff.err_advance_over_cap" => "That's over the advance cap: at most {more_piastres} more. Only the owner can approve it.",
         "staff.err_leave_pay_required" => "Say whether this leave is paid or unpaid: it's approved as you file it.",
+        "staff.err_request_already_decided" => "Someone already decided this request. The list is up to date now.",
+        "staff.err_overlapping_request" => "You already have a request like this for that time.",
         "staff.try_again" => "Try again",
         "staff.privacy_open_failed" => "Dawam couldn't open just now. Check your connection and try again.",
         "staff.leave_pay_question" => "Paid or unpaid? It's approved as you file it.",
@@ -164,6 +166,8 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.n_request_approved" => "Your {kind} request for {date} was approved",
         "staff.n_request_rejected" => "Your {kind} request for {date} was declined",
         "staff.n_request_cancelled" => "Your {kind} request for {date} was cancelled: {note}",
+        "staff.cancelled_by_name" => "Cancelled by {name}",
+        "staff.cancelled_by_manager" => "Cancelled by a manager",
         "staff.n_adjustment_pending" => "{by} added a pay line for {name} over the limit ({amount}) — approve it",
         "staff.n_adjustment_approved" => "The pay line for {name} was approved",
         "staff.n_adjustment_rejected" => "The pay line for {name} was declined",
@@ -501,7 +505,7 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.past_the_shift_end" => "{date} · {duration} past the shift end",
         "staff.outstanding_cap" => "Outstanding {amount} · cap {amount2}",
         "staff.a_manager_s_own_request" => "A manager's own request",
-        "staff.leave_paid" => "Paid",
+        "staff.approve_paid" => "Paid",
         "staff.unpaid" => "Unpaid",
         "staff.in_full_next_payslip" => "In full, next payslip",
         "staff.installments_count" => "{inst} monthly installments",
@@ -2121,6 +2125,8 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.err_period_closed" => "مرتبات الشهر ده اتعتمدت، فمينفعش يتغيّر. اطلب من مديرك يضيفه على الشهر اللي جاي.",
         "staff.err_advance_over_cap" => "ده فوق حد السلف: أقصى حاجة {more_piastres} كمان. المالك بس هو اللي يقدر يوافق عليه.",
         "staff.err_leave_pay_required" => "قول الإجازة دي مدفوعة ولا لأ: هتتعتمد وانت بتقدّمها.",
+        "staff.err_request_already_decided" => "حد تاني قرر في الطلب ده خلاص. القايمة اتحدّثت.",
+        "staff.err_overlapping_request" => "عندك طلب زي ده في نفس الوقت خلاص.",
         "staff.try_again" => "جرّب تاني",
         "staff.privacy_open_failed" => "دوام مقدرش يفتح دلوقتي. اتأكد من النت وجرّب تاني.",
         "staff.leave_pay_question" => "مدفوعة ولا غير مدفوعة؟ هتتعتمد وانت بتقدّمها.",
@@ -2221,6 +2227,8 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.n_request_approved" => "طلب {kind} بتاعك ليوم {date} اتوافق عليه",
         "staff.n_request_rejected" => "طلب {kind} بتاعك ليوم {date} اترفض",
         "staff.n_request_cancelled" => "طلب {kind} بتاعك ليوم {date} اتلغى: {note}",
+        "staff.cancelled_by_name" => "لغاه {name}",
+        "staff.cancelled_by_manager" => "لغاه المدير",
         "staff.n_adjustment_pending" => "{by} ضاف بند لـ{name} فوق الحد ({amount}) — وافق عليه",
         "staff.n_adjustment_approved" => "البند بتاع {name} اتوافق عليه",
         "staff.n_adjustment_rejected" => "البند بتاع {name} اترفض",
@@ -2557,7 +2565,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.past_the_shift_end" => "{date} · {duration} بعد نهاية الوردية",
         "staff.outstanding_cap" => "عليه {amount} · الحد {amount2}",
         "staff.a_manager_s_own_request" => "طلب مدير لنفسه",
-        "staff.leave_paid" => "بمرتب",
+        "staff.approve_paid" => "بمرتب",
         "staff.unpaid" => "بدون مرتب",
         "staff.in_full_next_payslip" => "مرة واحدة، القسيمة الجاية",
         "staff.installments_count" => "{inst} أقساط شهرية",
@@ -4272,6 +4280,52 @@ mod tests {
             }
         }
         keys
+    }
+
+    /// Every `"key" =>` line of a table, duplicates kept.
+    fn all_keys_in_fn<'a>(src: &'a str, fn_sig: &str) -> Vec<&'a str> {
+        let start = src.find(fn_sig).expect("function signature not found");
+        let after = &src[start + fn_sig.len()..];
+        let end = after.find("\nfn ").unwrap_or(after.len());
+        after[..end]
+            .lines()
+            .filter_map(|line| {
+                let rest = line.trim_start().strip_prefix('"')?;
+                let close = rest.find('"')?;
+                rest[close + 1..].trim_start().starts_with("=>").then(|| &rest[..close])
+            })
+            .collect()
+    }
+
+    #[test]
+    fn no_key_is_defined_twice() {
+        // A second arm for the same key is unreachable: the first one wins
+        // and the second string never shows (E2E requests: the approval
+        // card's "Paid" read "Paid leave" on an excuse).
+        let src = include_str!("i18n.rs");
+        for sig in [
+            "fn en(key: &str) -> Option<&'static str> {",
+            "fn ar(key: &str) -> Option<&'static str> {",
+        ] {
+            let mut seen = std::collections::BTreeSet::new();
+            let dups: Vec<_> = all_keys_in_fn(src, sig)
+                .into_iter()
+                .filter(|k| !seen.insert(*k))
+                .collect();
+            assert!(dups.is_empty(), "keys defined twice in {sig}: {dups:?}");
+        }
+    }
+
+    #[test]
+    fn approval_pay_choice_is_paid_not_paid_leave() {
+        // The Approvals card asks paid/unpaid for leave, an excuse and an
+        // early departure: "Paid" / "Unpaid", not "Paid leave".
+        assert_eq!(tr("en", "staff.approve_paid"), "Paid");
+        assert_eq!(tr("ar", "staff.approve_paid"), "بمرتب");
+        assert_eq!(tr("en", "staff.unpaid"), "Unpaid");
+        // The self-approved leave sheet keeps its own words.
+        assert_eq!(tr("en", "staff.leave_paid"), "Paid leave");
+        assert_eq!(tr("ar", "staff.leave_paid"), "إجازة مدفوعة");
     }
 
     #[test]

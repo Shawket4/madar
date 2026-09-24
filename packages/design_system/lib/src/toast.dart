@@ -199,57 +199,71 @@ class _ToastHostState extends State<ToastHost>
           child: SlideTransition(
             position: _slide,
             child: Padding(
-              padding: const EdgeInsets.only(bottom: _bottomOffset),
+              // Above the keyboard when one is up: a refusal while typing
+              // must not land under it (E2E requests). Inside a Scaffold that
+              // already resized for the keyboard the inset is 0.
+              padding: EdgeInsets.only(
+                bottom: _bottomOffset + MediaQuery.viewInsetsOf(context).bottom,
+              ),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: _maxWidth),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.surfaceRaised,
-                    borderRadius: BorderRadius.circular(Radii.pill),
-                    border: Border.all(color: colors.border),
-                    boxShadow: MadarElevation.raised.shadows(
-                      colors,
-                      dark: dark,
-                    ),
+                // The host sits at the app root, outside every Material,
+                // where the ambient text style is Flutter's error fallback
+                // (yellow double underline): the pill brings its own.
+                child: DefaultTextStyle(
+                  style: MadarType.bodySm.copyWith(
+                    color: colors.textPrimary,
+                    decoration: TextDecoration.none,
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: Space.lg,
-                      vertical: Space.md,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colors.surfaceRaised,
+                      borderRadius: BorderRadius.circular(Radii.pill),
+                      border: Border.all(color: colors.border),
+                      boxShadow: MadarElevation.raised.shadows(
+                        colors,
+                        dark: dark,
+                      ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (data.icon != null) ...[
-                          // The chosen new-order animation: a bell icon rings
-                          // (decaying swing + halo) as its toast presents.
-                          if (data.icon == 'bell')
-                            BellShake(
-                              trigger: data.id,
-                              child: MadarIcon(data.icon, tint: tone),
-                            )
-                          else
-                            MadarIcon(data.icon, tint: tone),
-                          const SizedBox(width: Space.sm),
-                        ],
-                        Flexible(
-                          child: Text(
-                            data.text,
-                            style: MadarType.bodySm.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: colors.textPrimary,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: Space.lg,
+                        vertical: Space.md,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (data.icon != null) ...[
+                            // The chosen new-order animation: a bell icon rings
+                            // (decaying swing + halo) as its toast presents.
+                            if (data.icon == 'bell')
+                              BellShake(
+                                trigger: data.id,
+                                child: MadarIcon(data.icon, tint: tone),
+                              )
+                            else
+                              MadarIcon(data.icon, tint: tone),
+                            const SizedBox(width: Space.sm),
+                          ],
+                          Flexible(
+                            child: Text(
+                              data.text,
+                              style: MadarType.bodySm.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: colors.textPrimary,
+                              ),
                             ),
                           ),
-                        ),
-                        if (data.actionLabel != null) ...[
-                          const SizedBox(width: Space.sm),
-                          _ToastAction(
-                            label: data.actionLabel!,
-                            color: tone,
-                            onTap: widget.onAction,
-                          ),
+                          if (data.actionLabel != null) ...[
+                            const SizedBox(width: Space.sm),
+                            _ToastAction(
+                              label: data.actionLabel!,
+                              color: tone,
+                              onTap: widget.onAction,
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),

@@ -465,6 +465,13 @@ pub struct ReqV {
     pub tpl: Option<String>,
     pub decided_by: Option<String>,
     pub decision_note: Option<String>,
+    /// Who cancelled it and why (RQ-F6): a cancel no longer overwrites the
+    /// approval above; `None` when nobody but the filer cancelled it, or
+    /// before the server kept cancels apart.
+    pub cancelled_by: Option<String>,
+    pub cancel_note: Option<String>,
+    /// The canceller's name when the server sends it.
+    pub cancelled_by_name: Option<String>,
     /// Every day it covers is in no approved or paid period: it can still be
     /// cancelled or changed (RQ-4, B13).
     pub month_open: bool,
@@ -1546,7 +1553,7 @@ impl MadarCore {
         match act {
             Act::ClockIn { shift, fix, tracking_off } => {
                 if snap.active_shift.is_some() {
-                    return Err(CoreError::Validation { field: "shift".into(), detail: i18n::tr(&self.current_locale(), "staff.clock_out_first") });
+                    return Err(CoreError::Validation { field: String::new(), detail: i18n::tr(&self.current_locale(), "staff.clock_out_first") });
                 }
                 noted(&fix);
                 let mut body = fix_body(&fix);
@@ -1669,7 +1676,7 @@ impl MadarCore {
             }
             Act::Cancel { req, note } => {
                 if !req.starts_with("q|") {
-                    return Err(CoreError::Validation { field: "req".into(), detail: i18n::tr(&locale, "staff.ask_manager_to_cancel") });
+                    return Err(CoreError::Validation { field: String::new(), detail: i18n::tr(&locale, "staff.ask_manager_to_cancel") });
                 }
                 let note = note.map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
                 // AT-7: undoing an approved request says why.
@@ -1865,7 +1872,7 @@ impl MadarCore {
             // Without a period id there is nothing to approve or reopen: say so
             // rather than POST to `/periods//generate` (audit 06 B14).
             Act::ApprovePayroll | Act::ReopenPayroll { .. } if period_id.is_empty() => {
-                return Err(CoreError::Validation { field: "period".into(), detail: i18n::tr(&self.current_locale(), "staff.no_period_yet") });
+                return Err(CoreError::Validation { field: String::new(), detail: i18n::tr(&self.current_locale(), "staff.no_period_yet") });
             }
             Act::ApprovePayroll => {
                 self.dawam_srv("POST", &format!("/staff/payroll/periods/{period_id}/generate"), Some(json!({}))).await?;
@@ -2237,6 +2244,9 @@ impl MadarCore {
                 tpl: so(q, "work_shift_id"),
                 decided_by: actor(so(q, "decided_by")),
                 decision_note: so(q, "decision_note"),
+                cancelled_by: actor(so(q, "cancelled_by")),
+                cancel_note: so(q, "cancel_note"),
+                cancelled_by_name: so(q, "cancelled_by_name"),
                 installments: 1,
                 ..Default::default()
             };
@@ -4461,6 +4471,114 @@ mod tests {
         assert_eq!(posted(&stub, "/staff/requests/a/decision"), json!({ "status": "cancelled", "note": "Plans changed" }));
         core.dawam_do(json!({ "action": "cancel", "req": "q|p" }).to_string()).await.unwrap();
         assert_eq!(posted(&stub, "/staff/requests/p/decision"), json!({ "status": "cancelled" }));
+    }
+
+    /// RQ-F6 (backend a686678): a cancel keeps the approval in decided_* and
+    /// writes cancelled_* — the app reads the canceller from cancelled_by
+    /// (the linked person), never from decided_by; the person is told.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_cancel_by_someone_else_is_read_from_cancelled_by() {
+        use crate::testkit::{StubResponse, TELLER};
+        let d = today_cairo().to_string();
+        let day = d.clone();
+        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("GET", "/staff/me/requests") => Some(StubResponse::json(200, json!([
+                { "id": "c", "kind": "leave", "employee_id": TELLER, "status": "cancelled", "on_date": day, "end_date": day,
+                  "is_paid": false, "decided_by": "u-karim", "decision_note": "Get well",
+                  "cancelled_by": "u-omar", "cancel_note": "She came in after all", "created_at": "2026-09-22T08:00:00Z" },
+                { "id": "p", "kind": "leave", "employee_id": TELLER, "status": "cancelled", "on_date": day, "end_date": day,
+                  "cancelled_by": null, "created_at": "2026-09-22T08:00:00Z" }
+            ]))),
+            ("GET", "/staff/me/context") => None,
+            _ => None,
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let q = |id: &str| snap["requests"].as_array().unwrap().iter().find(|q| q["id"] == json!(format!("q|{id}"))).unwrap().clone();
+        assert_eq!(q("c")["decided_by"], "u-karim", "the approver stays the approver");
+        assert_eq!(q("c")["decision_note"], "Get well");
+        assert_eq!(q("c")["cancelled_by"], "u-omar");
+        assert_eq!(q("c")["cancel_note"], "She came in after all");
+        assert_eq!(q("p")["cancelled_by"], Value::Null);
+        for lang in ["en", "ar"] {
+            let text = notice_text(lang, "staff.n_request_cancelled", &json!({ "kind": "leave", "date": "2026-09-23", "note": "She came in" }));
+            assert!(!text.starts_with("staff."), "{text}");
+            assert!(text.contains("She came in") && text.contains("23"), "{text}");
+        }
+        assert_eq!(
+            notice_text("en", "staff.n_request_cancelled", &json!({ "kind": "leave", "date": "2026-09-23", "note": "She came in" })),
+            "Your Leave request for 23 Sep was cancelled: She came in"
+        );
+    }
+
+    /// A request refused because someone already decided it, or because an
+    /// overlapping one exists, reads in the phone's language (E2E: English
+    /// on an Arabic phone): REQUEST_ALREADY_DECIDED, OVERLAPPING_REQUEST.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn request_refusals_read_in_the_phones_language() {
+        use crate::testkit::{StubResponse, TELLER};
+        let d = today_cairo().to_string();
+        let day = d.clone();
+        let (_stub, core) = cafe(&["hr.leave.edit"], move |m, p, _| match (m, p) {
+            ("GET", "/staff/requests") | ("GET", "/staff/me/requests") => Some(StubResponse::json(200, json!([
+                { "id": "a", "kind": "leave", "employee_id": "e4", "status": "pending", "on_date": day, "end_date": day, "created_at": "2026-09-22T08:00:00Z", "can_decide": true }
+            ]))),
+            ("PATCH", "/staff/requests/a/decision") => Some(StubResponse::json(409, json!({
+                "error": "Conflict: This request is already approved", "code": "REQUEST_ALREADY_DECIDED", "vars": { "status": "approved" }
+            }))),
+            ("POST", "/staff/me/requests") => Some(StubResponse::json(409, json!({
+                "error": "Conflict: You already have a request like this for that time.", "code": "OVERLAPPING_REQUEST"
+            }))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        let _ = TELLER;
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            match core.dawam_do(json!({ "action": "decide", "req": "q|a", "approve": true, "paid": true }).to_string()).await {
+                Err(CoreError::Server { status, code, detail }) => {
+                    assert_eq!((status, code.as_str()), (409, "REQUEST_ALREADY_DECIDED"));
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_request_already_decided"));
+                }
+                other => panic!("expected the refusal, got {other:?}"),
+            }
+            match core.dawam_do(json!({ "action": "file", "kind": "leave", "from": d }).to_string()).await {
+                Err(CoreError::Server { status, code, detail }) => {
+                    assert_eq!((status, code.as_str()), (409, "OVERLAPPING_REQUEST"));
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_overlapping_request"));
+                }
+                other => panic!("expected the refusal, got {other:?}"),
+            }
+        }
+        assert_ne!(i18n::tr("en", "staff.err_overlapping_request"), i18n::tr("ar", "staff.err_overlapping_request"));
+        assert_ne!(i18n::tr("en", "staff.err_request_already_decided"), i18n::tr("ar", "staff.err_request_already_decided"));
+    }
+
+    /// A refusal the core words itself is a whole sentence: no field name in
+    /// front of it (E2E requests: "req Ask your manager to cancel this one.",
+    /// the raw "req" even on an Arabic phone).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_refusal_in_words_carries_no_field_name() {
+        use crate::testkit::{StubResponse, TELLER};
+        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("GET", "/staff/me/advances") => Some(StubResponse::json(200, json!([
+                { "id": "v1", "employee_id": TELLER, "amount_piastres": 120000, "installments": 3, "status": "pending", "created_at": "2026-09-22T08:00:00Z" }
+            ]))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            match core.dawam_do(json!({ "action": "cancel", "req": "v|v1" }).to_string()).await {
+                Err(CoreError::Validation { field, detail }) => {
+                    assert_eq!(field, "", "a worded refusal names no field");
+                    assert_eq!(detail, i18n::tr(lang, "staff.ask_manager_to_cancel"));
+                }
+                other => panic!("expected the refusal, got {other:?}"),
+            }
+        }
     }
 
     #[test]

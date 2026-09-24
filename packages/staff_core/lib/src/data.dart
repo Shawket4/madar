@@ -289,6 +289,14 @@ class Req {
   String? decidedBy;
   String? decisionNote;
 
+  /// Who cancelled it and why (RQ-F6); decided_by stays the approver's.
+  String? cancelledBy;
+  String? cancelNote;
+
+  /// The canceller's name when the server sends it (someone this phone's
+  /// people list doesn't hold, e.g. the owner).
+  String? cancelledByName;
+
   /// Every day it covers can still change (RQ-4, B13), from the core.
   bool monthOpen = true;
 }
@@ -964,7 +972,10 @@ class DawamStore extends ChangeNotifier {
           ..leaveHalf = r['leave_half'] as String?
           ..monthOpen = r['month_open'] != false
           ..decidedBy = r['decided_by'] as String?
-          ..decisionNote = r['decision_note'] as String?,
+          ..decisionNote = r['decision_note'] as String?
+          ..cancelledBy = r['cancelled_by'] as String?
+          ..cancelNote = r['cancel_note'] as String?
+          ..cancelledByName = r['cancelled_by_name'] as String?,
       );
     }
     _inbox = (v['inbox'] as List<dynamic>).cast<String>();
@@ -1420,7 +1431,10 @@ class DawamStore extends ChangeNotifier {
       failures.add(loc(e));
       return false;
     } on DawamError catch (e) {
-      if (awaitingAnswer) rethrow;
+      if (awaitingAnswer) {
+        _rereadSoon();
+        rethrow;
+      }
       failures.add(loc(e));
       return false;
     } on Object catch (e) {
@@ -1431,6 +1445,17 @@ class DawamStore extends ChangeNotifier {
     _applySafely(json);
     return true;
   }
+
+  /// After a refusal the screen waited for, the phone's own picture is read
+  /// again (no network): a refusal for want of a connection turns the
+  /// offline banner and the disabled buttons on at once (E2E S-120, S-167,
+  /// S-236), not at the next poll.
+  void _rereadSoon() => unawaited(
+    backend
+        .snapshot(refresh: false)
+        .then(_applySafely)
+        .catchError((Object _) {}),
+  );
 
   /// The screen that started this call waits for the server's answer.
   static bool get awaitingAnswer => Zone.current[awaitAnswerKey] == true;
@@ -1544,6 +1569,9 @@ class DawamStore extends ChangeNotifier {
   /// [note]: why, required once it was approved (AT-7).
   Future<void> cancel(Req r, {String? note}) =>
       _act({'action': 'cancel', 'req': r.id, 'note': ?note});
+
+  /// A refused decision (decided elsewhere, a closed month, over a limit)
+  /// reloads the queue, so a card someone else settled goes (E2E S-235).
   Future<void> decide(
     Req r, {
     required bool approve,
@@ -1551,15 +1579,22 @@ class DawamStore extends ChangeNotifier {
     int? amount,
     int? installments,
     String? note,
-  }) => _act({
-    'action': 'decide',
-    'req': r.id,
-    'approve': approve,
-    'paid': ?paid,
-    'amount': ?amount,
-    'installments': ?installments,
-    'note': ?note,
-  });
+  }) async {
+    try {
+      await _act({
+        'action': 'decide',
+        'req': r.id,
+        'approve': approve,
+        'paid': ?paid,
+        'amount': ?amount,
+        'installments': ?installments,
+        'note': ?note,
+      });
+    } on DawamError {
+      unawaited(refresh());
+      rethrow;
+    }
+  }
 
   /// [how]: `excuse_paid` · `excuse_unpaid` · `deduct` · `revoke` · `ignore`.
   Future<void> resolve(Flag f, String how, {int deduct = 0, String? reason}) =>
