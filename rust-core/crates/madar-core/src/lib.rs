@@ -12449,6 +12449,366 @@ mod lifecycle_tests {
             "no banner on a fresh offline unlock (nothing expired)"
         );
     }
+
+    // ── The CURRENT release's /sync/replay envelopes (madar-shared S2) ─────
+    //
+    // One queued op of every kind, built into its envelope by the real
+    // `replay_envelope`, must decode as madar-shared's `madar_sync::replay::
+    // ReplayOp` (the shape the server accepts) — and the committed fixture
+    // (`madar_sync::vectors::REPLAY_CURRENT`, which the backend's CI
+    // deserializes into its own `ReplayOp`) must be what this release writes,
+    // op for op and field for field. Regenerate it into the madar-shared
+    // checkout beside this one (or `$MADAR_SHARED_DIR`):
+    //
+    //   MADAR_WRITE_REPLAY_FIXTURE=1 cargo test -p madar-core replay_fixture
+    //
+    // The typed commands are this core's own payload structs; the request
+    // bodies the core builds as JSON elsewhere (a customer, the floor ops, a
+    // booking seat, a waste, a staff drink, a spot view) mirror those builders.
+
+    /// Every field name of a JSON object, recursively as `a.b.c` paths — the
+    /// shape an envelope has, without the values that differ run to run.
+    fn shape_of(v: &serde_json::Value, at: &str, out: &mut std::collections::BTreeSet<String>) {
+        if let serde_json::Value::Object(m) = v {
+            for (k, x) in m {
+                let p = if at.is_empty() {
+                    k.clone()
+                } else {
+                    format!("{at}.{k}")
+                };
+                out.insert(p.clone());
+                shape_of(x, &p, out);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn replay_fixture() {
+        use madar_api::models;
+        let core = draining_core("http://127.0.0.1:9".into()).await;
+        let u = |n: u64| format!("00000000-0000-4000-8000-{n:012}");
+        let uu = |n: u64| uuid::Uuid::parse_str(&u(n)).unwrap();
+        let (teller, branch, device, till) = (u(1), u(2), u(3), u(4));
+        let at = "2026-09-24T09:00:00+00:00";
+        let when = || Some(Some(chrono::DateTime::parse_from_rfc3339(at).unwrap()));
+        let json = |v: serde_json::Value| v.to_string();
+        let ser = |v: &dyn erased::Ser| v.to_json();
+
+        let mut open = models::OpenTillRequest::new(50_000);
+        open.opened_at = when();
+        let mut order = models::CreateOrderRequest::new(uu(2), vec![], "Cash".into(), uu(4));
+        order.idempotency_key = Some(Some(uu(10)));
+        order.created_at = when();
+        let mut void = models::VoidOrderRequest::new("wrong_order".into());
+        void.voided_at = when();
+        let refund = models::CreateRefundRequest::new(
+            1000,
+            "Cash".into(),
+            uu(11),
+            models::RefundReason::Goodwill,
+        );
+        let award = models::AwardRequest::new(uu(2));
+        let mut cash = models::CashMovementRequest::new(-2000, "to the safe".into());
+        cash.created_at = when();
+        let fire = models::CreateOpenTicketRequest::new(uu(2), vec![]);
+        let round = models::AddRoundRequest::new(vec![]);
+        let settle = models::SettleOpenTicketRequest::new("Cash".into(), uu(4));
+        let void_ticket = models::VoidOpenTicketRequest::new();
+
+        let ops: Vec<(&str, String)> = vec![
+            (
+                "open_till",
+                ser(&till::OpenTillCommand {
+                    branch_id: branch.clone(),
+                    device_id: device.clone(),
+                    device_code: "36B".into(),
+                    verification: "server".into(),
+                    request: open,
+                }),
+            ),
+            (
+                "close_till",
+                ser(&till::CloseTillCommand {
+                    till_id: till.clone(),
+                    device_id: Some(device.clone()),
+                    request: models::CloseTillRequest::new(48_000),
+                }),
+            ),
+            (
+                "create_order",
+                ser(&checkout::CheckoutCommand {
+                    request: order,
+                    device: Some(checkout::OrderDeviceStamp {
+                        device_id: device.clone(),
+                        device_code: "36B".into(),
+                        order_number: 12,
+                        verification: "server".into(),
+                    }),
+                    started_by: None,
+                    approval: None,
+                }),
+            ),
+            (
+                "void_order",
+                ser(&orders::VoidOrderCommand {
+                    order_id: u(11),
+                    request: void,
+                    approval: None,
+                }),
+            ),
+            (
+                "create_customer",
+                json(
+                    serde_json::json!({ "id": u(12), "name": "Mona", "phone": "201001234567", "branch_id": branch }),
+                ),
+            ),
+            (
+                "attach_customer",
+                json(serde_json::json!({ "order_id": u(11), "customer_id": u(12) })),
+            ),
+            (
+                "set_ticket_customer",
+                json(serde_json::json!({ "ticket_id": u(13), "customer_id": u(12) })),
+            ),
+            (
+                "record_waste",
+                json(serde_json::json!({ "request": {
+                "id": u(14), "branch_id": branch, "subject_kind": "ingredient", "subject_id": u(15),
+                "size_label": null, "quantity": 250.0, "unit": "ml", "reason": "spoiled", "note": null,
+                "occurred_at": at, "device_id": device, "till_id": till }, "approval": null })),
+            ),
+            (
+                "record_staff_drink",
+                json(serde_json::json!({ "request": {
+                "id": u(16), "branch_id": branch, "till_id": till, "menu_item_id": u(17),
+                "item_name": "Latte", "size_label": "M", "quantity": 1, "note": "Omar", "recorded_at": at } })),
+            ),
+            (
+                "award_loyalty_points",
+                ser(&loyalty::AwardCommand { request: award }),
+            ),
+            (
+                "refund_order",
+                ser(&orders::RefundOrderCommand {
+                    request: refund,
+                    approval: None,
+                }),
+            ),
+            (
+                "spot_report_view",
+                ser(&cash_spot::SpotViewCommand {
+                    till_id: till.clone(),
+                    device_id: Some(device.clone()),
+                    request: serde_json::json!({ "id": u(18), "printed": false, "viewed_at": at }),
+                    approval: None,
+                }),
+            ),
+            (
+                "cash_movement",
+                ser(&till::CashMovementCommand {
+                    till_id: till.clone(),
+                    device_id: Some(device.clone()),
+                    request: cash,
+                }),
+            ),
+            (
+                "open_ticket",
+                ser(&tickets::FireTicketCommand {
+                    ticket_id: u(13),
+                    request: fire,
+                }),
+            ),
+            (
+                "ticket_add_round",
+                ser(&tickets::AddRoundCommand {
+                    ticket_id: u(13),
+                    round_id: u(19),
+                    request: round,
+                }),
+            ),
+            (
+                "settle_open_ticket",
+                ser(&tickets::SettleTicketCommand {
+                    ticket_id: u(13),
+                    request: settle,
+                    approval: None,
+                }),
+            ),
+            (
+                "void_ticket",
+                ser(&tickets::VoidTicketCommand {
+                    ticket_id: u(13),
+                    request: void_ticket.clone(),
+                }),
+            ),
+            (
+                "void_ticket_line",
+                ser(&tickets::VoidTicketLineCommand {
+                    ticket_id: u(13),
+                    item_id: u(20),
+                    request: void_ticket,
+                }),
+            ),
+            ("bump_kitchen", ser(&kds::BumpCommand { item_id: u(21) })),
+            ("unbump_kitchen", ser(&kds::BumpCommand { item_id: u(21) })),
+            (
+                "swap_tables",
+                ser(&held::SwapCommand {
+                    request: serde_json::json!({ "branch_id": branch, "table_a": u(22), "table_b": u(23) }),
+                }),
+            ),
+            (
+                "create_table_transfer",
+                ser(&held::CreateTransferCommand {
+                    transfer_id: u(24),
+                    request: serde_json::json!({ "id": u(24), "branch_id": branch, "occupant_kind": "ticket", "occupant_id": u(13), "target_table_id": u(23) }),
+                }),
+            ),
+            (
+                "cancel_table_transfer",
+                ser(&held::TransferOpCommand {
+                    transfer_id: u(24),
+                    request: serde_json::json!({}),
+                }),
+            ),
+            (
+                "fulfill_table_transfer",
+                ser(&held::TransferOpCommand {
+                    transfer_id: u(24),
+                    request: serde_json::json!({ "table_id": u(23) }),
+                }),
+            ),
+            (
+                "clear_table",
+                ser(&held::TableStateCommand {
+                    table_id: u(22),
+                    request: serde_json::json!({}),
+                }),
+            ),
+            (
+                "hold_table",
+                ser(&held::TableStateCommand {
+                    table_id: u(22),
+                    request: serde_json::json!({}),
+                }),
+            ),
+            (
+                "release_table",
+                ser(&held::TableStateCommand {
+                    table_id: u(22),
+                    request: serde_json::json!({ "bus": true }),
+                }),
+            ),
+            (
+                "seat_booking",
+                ser(&bookings::SeatBookingCommand {
+                    booking_id: u(25),
+                    request: serde_json::json!({ "table_ids": [u(22)] }),
+                }),
+            ),
+            (
+                "no_show_booking",
+                ser(&bookings::NoShowBookingCommand { booking_id: u(25) }),
+            ),
+        ];
+
+        let mut envelopes = Vec::new();
+        for (op_type, payload) in ops {
+            let item = store::OutboxItem {
+                seq: 0,
+                id: op_type.into(),
+                op_type: op_type.into(),
+                idempotency_key: op_type.into(),
+                payload,
+                event_at: at.into(),
+                status: "pending".into(),
+                attempts: 0,
+                last_error: None,
+                server_id: None,
+                depends_on_seq: None,
+                next_attempt_at: 0,
+                user_id: Some(teller.clone()),
+                clock_offset_ms: None,
+                till_id: Some(till.clone()),
+                device_id: Some(device.clone()),
+                entity_type: None,
+                entity_id: None,
+            };
+            let (env, _) = match core.replay_envelope(&item) {
+                Ok(x) => x,
+                Err(_) => panic!("{op_type}: no envelope"),
+            };
+            let parsed: madar_sync::replay::ReplayOp = serde_json::from_value(env.clone())
+                .unwrap_or_else(|e| {
+                    panic!("{op_type}: madar-shared cannot read the envelope: {e}\n{env}")
+                });
+            assert_eq!(parsed.op(), env["op"].as_str().unwrap(), "{op_type}");
+            envelopes.push(env);
+        }
+        let ops_sent: std::collections::BTreeSet<&str> = envelopes
+            .iter()
+            .map(|e| e["op"].as_str().unwrap())
+            .collect();
+        for op in madar_sync::replay::OPS {
+            assert!(ops_sent.contains(op), "the fixture lacks {op}");
+        }
+
+        // The device id is this install's; pin the file to a fixed one.
+        let lan = core.lan_device_id();
+        let mut doc = serde_json::json!({
+            "about": "One /sync/replay envelope per op, as the CURRENT madar-core writes them \
+                      (madar-core lib.rs replay_fixture). The backend deserializes every one.",
+            "envelopes": envelopes,
+        });
+        let text = serde_json::to_string_pretty(&doc)
+            .unwrap()
+            .replace(&lan, &device)
+            + "\n";
+        doc = serde_json::from_str(&text).unwrap();
+        if std::env::var("MADAR_WRITE_REPLAY_FIXTURE").is_ok() {
+            let shared = std::env::var("MADAR_SHARED_DIR").unwrap_or_else(|_| {
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../../../madar-shared").into()
+            });
+            std::fs::write(
+                std::path::Path::new(&shared).join("crates/madar-sync/vectors/replay_current.json"),
+                &text,
+            )
+            .unwrap();
+            return;
+        }
+        let committed: serde_json::Value =
+            serde_json::from_str(madar_sync::vectors::REPLAY_CURRENT).unwrap();
+        let by_op = |d: &serde_json::Value| -> std::collections::BTreeMap<String, std::collections::BTreeSet<String>> {
+            d["envelopes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|e| {
+                    let mut shape = std::collections::BTreeSet::new();
+                    shape_of(e, "", &mut shape);
+                    (e["op"].as_str().unwrap().to_string(), shape)
+                })
+                .collect()
+        };
+        assert_eq!(
+            by_op(&committed),
+            by_op(&doc),
+            "this release's replay envelopes changed shape: regenerate madar-shared's replay_current.json"
+        );
+    }
+
+    /// `to_json` for any serializable payload (a boxed trait object keeps the
+    /// fixture table above one `vec!` of mixed command types).
+    mod erased {
+        pub trait Ser {
+            fn to_json(&self) -> String;
+        }
+        impl<T: serde::Serialize> Ser for T {
+            fn to_json(&self) -> String {
+                serde_json::to_string(self).unwrap()
+            }
+        }
+    }
 }
 
 // ── Reservations & floor plan (host operations) ───────────────────────────────
