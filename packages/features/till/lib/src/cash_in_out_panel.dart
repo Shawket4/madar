@@ -178,11 +178,12 @@ class _AdvanceToPicker extends ConsumerWidget {
       return;
     }
     if (!context.mounted) return;
+    // A list, not a column: a branch can have more people than the sheet
+    // has room for, and the amount's keyboard can still be up.
     final picked = await showMadarSheet<BranchPersonView?>(
       context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      builder: (context) => ListView(
+        shrinkWrap: true,
         children: [
           MadarRow(
             title: bridge.tr(key: 'cash.expense_advance_none'),
