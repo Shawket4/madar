@@ -306,6 +306,12 @@ class _FakeBridge implements MadarBridge {
   /// Metrics loads.
   int metricsCalls = 0;
 
+  /// The open bills as the local store holds them now; manual syncs asked
+  /// for (a person's pull) and what landing one does to the local rows.
+  List<TicketView> bills = _bills;
+  int syncs = 0;
+  void Function()? onSync;
+
   final String lang;
   final SessionSnapshot session;
   final List<OutboxItemView> outbox;
@@ -369,7 +375,11 @@ class _FakeBridge implements MadarBridge {
     if (name == #deviceCode) return 'T1';
     if (name == #refreshConnectivity) return Future<bool>.value(true);
     if (name == #refreshCatalog) return Future<void>.value();
-    if (name == #syncNow) return Future<SyncStatusView>.value(status);
+    if (name == #syncNow) {
+      syncs++;
+      onSync?.call();
+      return Future<SyncStatusView>.value(status);
+    }
     if (name == #syncFull) {
       fullSyncs += 1;
       return Future<SyncStatusView>.value(status);
@@ -437,7 +447,7 @@ class _FakeBridge implements MadarBridge {
     if (name == #baseUrl) return 'https://api.madar-pos.cloud';
     if (name == #version) return '0.5.1';
     if (name == #environment) return 'prod';
-    if (name == #listOpenTickets) return Future<List<TicketView>>.value(_bills);
+    if (name == #listOpenTickets) return Future<List<TicketView>>.value(bills);
     if (name == #setLocale) return null;
     return null;
   }
@@ -771,6 +781,41 @@ void main() {
     expect(find.text('T-0415'), findsOneWidget);
     expect(find.text('T-0409'), findsNothing);
     expect(find.text('Table T5 has no open ticket'), findsOneWidget);
+  });
+
+  // Pull to refresh: the manual sync, then my bills re-read, so a bill I
+  // opened on another tablet shows without waiting for a tick.
+  testWidgets('a pull on Me syncs and shows my bills', (tester) async {
+    final bridge = _FakeBridge(
+      session: _waiter,
+      outbox: _waiterOutbox,
+      tillOpen: false,
+    )..bills = const [];
+    await _shoot(
+      tester,
+      size: _phone,
+      theme: MadarTheme.light(),
+      home: const MeScreen(),
+      bridge: bridge,
+      name: 'me-pull',
+    );
+    expect(find.text('T-0415'), findsNothing);
+    bridge.onSync = () => bridge.bills = _bills;
+
+    final box = tester.getRect(find.byType(RefreshIndicator).first);
+    await tester.flingFrom(
+      Offset(box.center.dx, box.top + 24),
+      const Offset(0, 400),
+      1200,
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    expect(bridge.syncs, 1, reason: 'one manual sync per pull');
+    expect(find.text('T-0415'), findsOneWidget, reason: 'my bill shows');
   });
 
   testWidgets('me on a phone, in Arabic', (tester) async {
