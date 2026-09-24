@@ -197,11 +197,15 @@ class _Line extends StatelessWidget {
           muted: l.waived,
           tone: l.amount < 0 ? MadarTone.danger : null,
         ),
-        if (l.waived && l.note != null)
+        // Struck through AND said (AD-8): a struck figure alone reads as a
+        // rendering glitch, and the amount keeps its place on the line.
+        if (l.waived)
           Padding(
             padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
             child: Text(
-              tr('staff.waived', {'note': l.note!}),
+              l.note == null
+                  ? tr('staff.waived_short')
+                  : tr('staff.waived', {'note': l.note!}),
               style: MadarType.bodySm.copyWith(
                 color: context.madarColors.textMuted,
               ),
@@ -228,10 +232,13 @@ Future<void> payslipSheet(BuildContext context, Slip s) => showDawamSheet<void>(
   context,
   title: tr('staff.payslip', {'date': s.start, 'date2': s.end}),
   builder: (ctx, ref, store) {
-    final paid = [
+    final period = [
       store.period,
       ...store.history,
-    ].where((p) => sameDay(p.start, s.start)).firstOrNull?.paidBy[s.emp];
+    ].where((p) => sameDay(p.start, s.start)).firstOrNull;
+    final paid = period?.paidBy[s.emp];
+    // A 0-net slip the server settled itself: nothing was paid (PAY-7).
+    final settled = period?.settled.contains(s.emp) ?? false;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
@@ -244,10 +251,14 @@ Future<void> payslipSheet(BuildContext context, Slip s) => showDawamSheet<void>(
               child: Text(name(store.emp(s.emp)), style: MadarType.title),
             ),
             MadarStatusPill.of(
-              paid == null
+              settled
+                  ? tr('staff.nothing_to_pay')
+                  : paid == null
                   ? tr('staff.payslip_approved')
                   : tr('staff.paid_with_method', {'method': payMethod(paid)}),
-              tone: paid == null ? MadarTone.accent : MadarTone.success,
+              tone: paid == null && !settled
+                  ? MadarTone.accent
+                  : MadarTone.success,
             ),
           ],
         ),

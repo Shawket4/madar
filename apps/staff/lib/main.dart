@@ -76,8 +76,14 @@ class DawamApp extends ConsumerWidget {
       builder: (context, child) {
         use24h = MediaQuery.alwaysUse24HourFormatOf(context);
         MadarKeyboardDone.label = tr('common.done');
-        return MadarKeyboardDoneBar(
-          child: _Failures(child: Stack(children: [child!, const _Toast()])),
+        // Above the Navigator there is no Material: without one, the toast
+        // and the keyboard's Done bar took MaterialApp's fallback text style
+        // (the yellow double underline) — E2E money CB2.
+        return Material(
+          type: MaterialType.transparency,
+          child: MadarKeyboardDoneBar(
+            child: _Failures(child: Stack(children: [child!, const _Toast()])),
+          ),
         );
       },
       // Keyed by language: every string re-reads the core on a switch.

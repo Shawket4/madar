@@ -26,7 +26,11 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
     final store = ref.watch(dawamProvider);
     final c = context.madarColors;
     final p = store.period;
-    final slips = [for (final e in store.emps.values) store.slip(e.id, p)];
+    // The server's run, not everyone visible (PAY-3): someone not on
+    // payroll has no slip and no row (owner decision 2).
+    final slips = store.runSlips(
+      p,
+    )..sort((a, b) => name(store.emp(a.emp)).compareTo(name(store.emp(b.emp))));
     final total = slips.fold(0, (a, s) => a + s.net);
     final status = switch (p.status) {
       PeriodStatus.open => MadarStatus(
@@ -75,7 +79,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
               ),
               MadarStatCard(
                 label: tr('staff.paid'),
-                value: '${p.paidBy.length}/${slips.length}',
+                value: '${p.paidBy.length + p.settled.length}/${slips.length}',
                 glyph: MadarGlyph.check,
                 compact: true,
               ),
@@ -229,15 +233,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
                 _ => null,
               },
               onTap: a.recurring && a.status == 'active'
-                  ? () async {
-                      final ok = await showMadarConfirm(
-                        context,
-                        title: tr('staff.stop_this_every_month_line'),
-                        confirmLabel: tr('staff.stop'),
-                        cancelLabel: tr('staff.keep'),
-                      );
-                      if (ok) await store.stopAdj(a);
-                    }
+                  ? () => _stop(a)
                   : null,
             ),
         ],
@@ -363,7 +359,9 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
               meta: payMethod(store.emp(s.emp).pay),
               minor: s.net,
               currency: 'EGP',
-              status: p.paidBy[s.emp] == null
+              status: p.settled.contains(s.emp)
+                  ? MadarStatus(tr('staff.nothing_to_pay'))
+                  : p.paidBy[s.emp] == null
                   ? null
                   : MadarStatus(
                       tr('staff.paid_with_method', {
@@ -371,8 +369,12 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
                       }),
                       tone: MadarTone.success,
                     ),
-              ctaLabel: p.paidBy[s.emp] == null ? tr('staff.paid') : null,
-              onCta: p.paidBy[s.emp] == null ? () => _markPaid(s.emp) : null,
+              ctaLabel: p.paidBy[s.emp] == null && !p.settled.contains(s.emp)
+                  ? tr('staff.paid')
+                  : null,
+              onCta: p.paidBy[s.emp] == null && !p.settled.contains(s.emp)
+                  ? () => _markPaid(s.emp)
+                  : null,
             ),
         ],
       ),
@@ -388,6 +390,53 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
           tone: ChipTone.success,
         ),
     ];
+  }
+
+  /// Stopping an every-month line is logged with why (AD-3, AD-9): the
+  /// server refuses a stop without a reason, and its refusal is shown.
+  Future<void> _stop(Adj a) {
+    final reason = TextEditingController();
+    return showDawamSheet<void>(
+      context,
+      title: tr('staff.stop_this_every_month_line'),
+      builder: (ctx, ref, store) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.md,
+        children: [
+          Text(
+            '${name(store.emp(a.emp))} · ${a.reason}',
+            style: MadarType.body,
+          ),
+          MadarField(
+            controller: reason,
+            placeholder: tr('staff.reason_required'),
+            kind: MadarFieldKind.note,
+            autofocus: true,
+          ),
+          MadarButton(
+            label: tr('staff.stop'),
+            variant: MadarButtonVariant.danger,
+            onTap: () async {
+              if (reason.text.trim().isEmpty) {
+                ref
+                    .read(toastProvider.notifier)
+                    .show(
+                      tr('staff.a_reason_is_required'),
+                      tone: ChipTone.danger,
+                    );
+                return;
+              }
+              final done = await attempt(
+                ref,
+                () => store.stopAdj(a, reason.text.trim()),
+                ok: tr('staff.stopped'),
+              );
+              if (done && ctx.mounted) Navigator.of(ctx).maybePop();
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   /// Reopening is logged with why (AD-9, PAY-6): ask before sending.

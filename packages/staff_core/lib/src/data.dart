@@ -455,6 +455,11 @@ class Period {
   final DateTime end;
   PeriodStatus status = PeriodStatus.open;
   final Map<String, PayMethod> paidBy = {};
+
+  /// 0-net payslips the server settled itself at approval (`paid_method`
+  /// 'none', PAY-7): nothing was paid, so they never read "Paid · Cash" and
+  /// never block a reopen (PAY-6, D16).
+  final Set<String> settled = {};
   final Map<String, Slip> frozen = {};
 }
 
@@ -1014,9 +1019,13 @@ class DawamStore extends ChangeNotifier {
         _date(p['end']),
         id: p['id'] as String?,
       )..status = _enum(PeriodStatus.values, p['status'], PeriodStatus.open);
-      (p['paid_by'] as J).forEach(
-        (k, m) => out.paidBy[k] = _enum(PayMethod.values, m, PayMethod.cash),
-      );
+      (p['paid_by'] as J).forEach((k, m) {
+        if (m == 'none') {
+          out.settled.add(k);
+        } else {
+          out.paidBy[k] = _enum(PayMethod.values, m, PayMethod.cash);
+        }
+      });
       return out;
     }
 
@@ -1160,6 +1169,15 @@ class DawamStore extends ChangeNotifier {
         0,
         {},
       );
+
+  /// The run as the server has it (PAY-3): the frozen payslips once
+  /// approved, else the live preview. Never a person the server left out —
+  /// someone not on payroll (owner decision 2) has no slip, so no row.
+  List<Slip> runSlips(Period p) => p.frozen.isNotEmpty
+      ? p.frozen.values.toList()
+      : identical(p, period)
+      ? _slips.values.where((s) => !s.frozen).toList()
+      : const [];
   List<Slip> payslipsOf(String emp) => [
     ?period.frozen[emp],
     for (final h in history) ?h.frozen[emp],
@@ -1495,27 +1513,38 @@ class DawamStore extends ChangeNotifier {
         'deduct': deduct,
         if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
       });
-  Future<void> addAdjustment(
+
+  /// What the server made of the line (AD-5): `pending` when it is over the
+  /// adder's limit and waits for the owner.
+  Future<Filed?> addAdjustment(
     String emp, {
     required bool bonus,
     required int amount,
     required String reason,
     double? pct,
     bool recurring = false,
-  }) => _act({
-    'action': 'add_adjustment',
-    'emp': emp,
-    'bonus': bonus,
-    'amount': amount,
-    'reason': reason,
-    'pct': ?pct,
-    'recurring': recurring,
-  });
+  }) async {
+    lastFiled = null;
+    await _act({
+      'action': 'add_adjustment',
+      'emp': emp,
+      'bonus': bonus,
+      'amount': amount,
+      'reason': reason,
+      'pct': ?pct,
+      'recurring': recurring,
+    });
+    return lastFiled;
+  }
+
   Future<void> decideAdj(Adj a, {required bool yes}) =>
       _act({'action': 'decide_adj', 'adj': a.id, 'yes': yes});
   Future<void> deleteAdj(String adjId) =>
       _act({'action': 'delete_adj', 'adj': adjId});
-  Future<void> stopAdj(Adj a) => _act({'action': 'stop_adj', 'adj': a.id});
+
+  /// [reason]: why it stops, kept with the stop (AD-9).
+  Future<void> stopAdj(Adj a, String reason) =>
+      _act({'action': 'stop_adj', 'adj': a.id, 'reason': reason});
   Future<void> waive(String key, String reason) =>
       _act({'action': 'waive', 'key': key, 'reason': reason});
 

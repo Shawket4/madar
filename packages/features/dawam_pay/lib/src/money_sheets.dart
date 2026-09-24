@@ -110,9 +110,10 @@ Future<void> adjustmentSheet(BuildContext context, {String? emp}) {
                       );
                   return;
                 }
+                Filed? filed;
                 final added = await attempt(
                   ref,
-                  () => store.addAdjustment(
+                  () async => filed = await store.addAdjustment(
                     who!,
                     bonus: bonus,
                     amount: pct ? 0 : (v * 100).round(),
@@ -120,9 +121,23 @@ Future<void> adjustmentSheet(BuildContext context, {String? emp}) {
                     reason: reason.text.trim(),
                     recurring: recurring,
                   ),
-                  ok: tr('staff.added'),
                 );
-                if (added && ctx.mounted) Navigator.of(ctx).maybePop();
+                if (!added) return;
+                // The server's answer, not the adder's hope (AD-5): over
+                // the limit the line waits for the owner and counts nothing
+                // yet — "Added" would be a lie.
+                final waits = filed?.status == ReqStatus.pending;
+                ref
+                    .read(toastProvider.notifier)
+                    .show(
+                      waits
+                          ? tr('staff.over_waits_for_the_owner_before', {
+                              'amount': egp(limit),
+                            })
+                          : tr('staff.added'),
+                      tone: waits ? ChipTone.warning : ChipTone.success,
+                    );
+                if (ctx.mounted) Navigator.of(ctx).maybePop();
               },
             ),
           ],

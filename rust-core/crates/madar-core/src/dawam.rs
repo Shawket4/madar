@@ -634,7 +634,12 @@ pub enum Act {
     },
     DecideAdj { adj: String, yes: bool },
     DeleteAdj { adj: String },
-    StopAdj { adj: String },
+    /// [reason]: why it stops (AD-9); the server refuses a stop without one.
+    StopAdj {
+        adj: String,
+        #[serde(default)]
+        reason: String,
+    },
     Waive { key: String, reason: String },
     /// Undo a waiver, with a reason (AT-7): the rule's figure comes back.
     Unwaive { key: String, reason: String },
@@ -1672,7 +1677,10 @@ impl MadarCore {
                     Some(p) => body["percent_of_base"] = json!(p),
                     None => body["amount_piastres"] = json!(amount),
                 }
-                self.dawam_srv("POST", "/staff/adjustments", Some(body)).await?;
+                let row = self.dawam_srv("POST", "/staff/adjustments", Some(body)).await?;
+                // What the server made of it (AD-5): over the adder's limit it
+                // waits for the owner, and the screen must say so, not "Added".
+                filed = Some(filed_of(if bonus { "a|bonus" } else { "a|deduction" }, &row));
             }
             Act::DecideAdj { adj, yes } => {
                 let (_, kind, id) = parts(&adj);
@@ -1683,9 +1691,9 @@ impl MadarCore {
                 let table = if kind == "bonus" { "bonuses" } else { "deductions" };
                 self.dawam_srv("DELETE", &format!("/staff/payroll/{table}/{id}"), None).await?;
             }
-            Act::StopAdj { adj } => {
+            Act::StopAdj { adj, reason } => {
                 let (_, kind, id) = parts(&adj);
-                self.dawam_srv("POST", &format!("/staff/adjustments/{kind}/{id}/stop"), Some(json!({}))).await?;
+                self.dawam_srv("POST", &format!("/staff/adjustments/{kind}/{id}/stop"), Some(json!({ "reason": reason }))).await?;
             }
             Act::Waive { key, reason } => {
                 if let Some(id) = key.strip_prefix("d|") {
@@ -4022,6 +4030,36 @@ mod tests {
     /// RQ-8 and B4: a half day says which half, a timed request names its
     /// shift (split days), only a correction carries a record, and the
     /// server's answer to the filing comes back for the screen (RQ-5).
+    /// E2E money CB1/CB6: a pay line says what the server made of it (over
+    /// the adder's limit it waits for the owner, AD-5 — never "Added"), and
+    /// stopping an every-month line carries its reason (AD-3, AD-9: the
+    /// server refuses a stop without one).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_pay_line_returns_the_servers_status_and_a_stop_carries_its_reason() {
+        use crate::testkit::StubResponse;
+        let (stub, core) = cafe(&["hr.adjustments.create", "hr.deductions.create"], move |m, p, r| match (m, p) {
+            ("POST", "/staff/adjustments") => Some(StubResponse::json(201, json!({
+                "id": "d1", "kind": r.json()["kind"], "status": if r.json()["amount_piastres"] == json!(100001) { "pending" } else { "approved" },
+            }))),
+            ("POST", "/staff/adjustments/bonus/m1/stop") => Some(StubResponse::json(200, json!({ "id": "m1" }))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+
+        let act = json!({ "action": "add_adjustment", "emp": "e1", "bonus": false, "amount": 100001, "reason": "cups", "recurring": false }).to_string();
+        let snap: Value = serde_json::from_str(&core.dawam_do(act).await.unwrap()).unwrap();
+        assert_eq!(snap["filed"], json!({ "id": "a|deduction|d1", "status": "pending", "to_owner": false }), "over the limit: waits");
+        let act = json!({ "action": "add_adjustment", "emp": "e1", "bonus": true, "amount": 5000, "reason": "week", "recurring": false }).to_string();
+        let snap: Value = serde_json::from_str(&core.dawam_do(act).await.unwrap()).unwrap();
+        assert_eq!(snap["filed"]["status"], "approved");
+        assert_eq!(snap["filed"]["id"], "a|bonus|d1");
+
+        let act = json!({ "action": "stop_adj", "adj": "a|bonus|m1", "reason": "moved to a meal card" }).to_string();
+        core.dawam_do(act).await.unwrap();
+        assert_eq!(posted(&stub, "/staff/adjustments/bonus/m1/stop"), json!({ "reason": "moved to a meal card" }));
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn filing_sends_the_half_and_the_shift_and_returns_the_servers_status() {
         use crate::testkit::{StubResponse, BRANCH, TELLER};
