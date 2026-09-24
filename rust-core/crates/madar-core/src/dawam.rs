@@ -2709,6 +2709,10 @@ fn notice_text(locale: &str, key: &str, args: &Value) -> String {
             ("date", Value::String(x)) => NaiveDate::parse_from_str(&x[..x.len().min(10)], "%Y-%m-%d")
                 .map(|d| format!("{} {}", d.day(), i18n::tr(locale, &format!("staff.month_{}", d.month()))))
                 .unwrap_or_else(|_| x.clone()),
+            // An audited month (the fairness check): "Aug 2026", like the calendar's range.
+            ("month", Value::String(x)) => NaiveDate::parse_from_str(&x[..x.len().min(10)], "%Y-%m-%d")
+                .map(|d| format!("{} {}", i18n::tr(locale, &format!("staff.month_{}", d.month())), d.year()))
+                .unwrap_or_else(|_| x.clone()),
             (_, Value::String(x)) => x.clone(),
             (_, x) => x.to_string(),
         };
@@ -3922,6 +3926,17 @@ mod tests {
         // The server's notice arguments fill in.
         let t = notice_text("en", "staff.n_fairness_flagged", &json!({ "branch": "Arkan", "month": "2026-08-01", "gap": 35 }));
         assert!(t.contains("Arkan") && t.contains("35"), "{t}");
+    }
+
+    #[test]
+    fn a_fairness_notice_names_its_month() {
+        // The server sends the audited month as a date (`2026-08-01`); the
+        // inbox said "(2026-08-01)" in both languages (E2E posnotif N-047).
+        let en = notice_text("en", "staff.n_fairness_ready", &json!({ "branch": "Arkan", "month": "2026-08-01" }));
+        assert!(en.contains("(Aug 2026)") && !en.contains("2026-08-01"), "{en}");
+        let ar = notice_text("ar", "staff.n_fairness_flagged", &json!({ "branch": "Arkan", "month": "2026-08-01", "gap": 33 }));
+        let aug = format!("({} 2026)", i18n::tr("ar", "staff.month_8"));
+        assert!(ar.contains(&aug) && !ar.contains("2026-08-01"), "{ar}");
     }
 
     // ── requests and rules (phase B): the wire the server now expects ──
