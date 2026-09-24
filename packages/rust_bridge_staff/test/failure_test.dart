@@ -5,8 +5,6 @@
 // leave was sent with the network cut.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge_staff/rust_bridge_staff.dart';
-import 'package:rust_bridge_staff/src/failure.dart';
-import 'package:rust_bridge_staff/src/generated/api/error.dart';
 
 class _Words implements MadarBridge {
   @override
