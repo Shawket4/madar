@@ -336,6 +336,9 @@ class _ShiftCalendarState extends State<ShiftCalendar> {
                   snapping: const KalenderSnapping(snapIntervalMinutes: 30),
                   multiDayTileComponents: TileComponents(tileBuilder: _tile),
                   monthTileComponents: TileComponents(tileBuilder: _monthTile),
+                  monthBodyConfiguration: const MonthBodyConfiguration(
+                    tileHeight: _monthTileHeight,
+                  ),
                   scheduleTileComponents: ScheduleTileComponents(
                     tileBuilder: _listTile,
                   ),
@@ -362,6 +365,56 @@ class _ShiftCalendarState extends State<ShiftCalendar> {
     monthComponents: MonthComponents(
       bodyComponents: MonthBodyComponents(
         monthDayHeaderStringBuilder: (_, d) => '${d.day}',
+        // A phone gives a month day about 60 pt: the default day button
+        // (with its margin) left too little under it, so every shift fell
+        // into a "+1" that itself overflowed the cell (E2E L-17).
+        monthDayHeaderBuilder: (context, d) {
+          final now = widget.now();
+          final today =
+              d.year == now.year && d.month == now.month && d.day == now.day;
+          final c = context.madarColors;
+          return Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: SizedBox.square(
+              dimension: 22,
+              child: DecoratedBox(
+                decoration: today
+                    ? BoxDecoration(color: c.chrome, shape: BoxShape.circle)
+                    : const BoxDecoration(),
+                child: Center(
+                  child: Text(
+                    '${d.day}',
+                    style: MadarType.labelSm.copyWith(
+                      color: today ? c.onChrome : c.textPrimary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+        // The "+N" of a day whose shifts don't all fit: one tile high, so
+        // the tiles above it plus the "+N" always fit the day's cell.
+        overlayBuilders: OverlayBuilders(
+          multiDayPortalOverlayButtonBuilder: (context, portal, hidden) =>
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: portal.show,
+                child: SizedBox(
+                  height: _monthTileHeight,
+                  child: Center(
+                    child: Text(
+                      '+$hidden',
+                      maxLines: 1,
+                      style: MadarType.labelSm.copyWith(
+                        color: context.madarColors.textSecondary,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+        ),
       ),
       headerComponents: MonthHeaderComponents(
         weekDayHeaderStringBuilder: (_, d) => weekday(d.weekday),
@@ -438,6 +491,9 @@ class _ShiftCalendarState extends State<ShiftCalendar> {
       ),
     );
   }
+
+  /// A month tile: one line of 10-pt words.
+  static const double _monthTileHeight = 16;
 
   Widget _monthTile(
     BuildContext context,
