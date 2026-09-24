@@ -62,6 +62,8 @@ fn en(key: &str) -> Option<&'static str> {
         // request needs before it goes, and what the server made of it.
         "staff.err_period_closed" => "That month's payroll is approved, so it can't change. Ask your manager to add it to the next month.",
         "staff.err_leave_pay_required" => "Say whether this leave is paid or unpaid: it's approved as you file it.",
+        "staff.err_request_already_decided" => "Someone already decided this request. The list is up to date now.",
+        "staff.err_overlapping_request" => "You already have a request like this for that time.",
         "staff.try_again" => "Try again",
         "staff.privacy_open_failed" => "Dawam couldn't open just now. Check your connection and try again.",
         "staff.leave_pay_question" => "Paid or unpaid? It's approved as you file it.",
@@ -2117,6 +2119,8 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.err_no_till_session" => "افتح الكاشير الأول، وبعدين سجّل بالرقم السري.",
         "staff.err_period_closed" => "مرتبات الشهر ده اتعتمدت، فمينفعش يتغيّر. اطلب من مديرك يضيفه على الشهر اللي جاي.",
         "staff.err_leave_pay_required" => "قول الإجازة دي مدفوعة ولا لأ: هتتعتمد وانت بتقدّمها.",
+        "staff.err_request_already_decided" => "حد تاني قرر في الطلب ده خلاص. القايمة اتحدّثت.",
+        "staff.err_overlapping_request" => "عندك طلب زي ده في نفس الوقت خلاص.",
         "staff.try_again" => "جرّب تاني",
         "staff.privacy_open_failed" => "دوام مقدرش يفتح دلوقتي. اتأكد من النت وجرّب تاني.",
         "staff.leave_pay_question" => "مدفوعة ولا غير مدفوعة؟ هتتعتمد وانت بتقدّمها.",

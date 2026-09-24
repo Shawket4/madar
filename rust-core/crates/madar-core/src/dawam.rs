@@ -4323,6 +4323,50 @@ mod tests {
         );
     }
 
+    /// A request refused because someone already decided it, or because an
+    /// overlapping one exists, reads in the phone's language (E2E: English
+    /// on an Arabic phone): REQUEST_ALREADY_DECIDED, OVERLAPPING_REQUEST.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn request_refusals_read_in_the_phones_language() {
+        use crate::testkit::{StubResponse, TELLER};
+        let d = today_cairo().to_string();
+        let day = d.clone();
+        let (_stub, core) = cafe(&["hr.leave.edit"], move |m, p, _| match (m, p) {
+            ("GET", "/staff/requests") | ("GET", "/staff/me/requests") => Some(StubResponse::json(200, json!([
+                { "id": "a", "kind": "leave", "employee_id": "e4", "status": "pending", "on_date": day, "end_date": day, "created_at": "2026-09-22T08:00:00Z", "can_decide": true }
+            ]))),
+            ("PATCH", "/staff/requests/a/decision") => Some(StubResponse::json(409, json!({
+                "error": "Conflict: This request is already approved", "code": "REQUEST_ALREADY_DECIDED", "vars": { "status": "approved" }
+            }))),
+            ("POST", "/staff/me/requests") => Some(StubResponse::json(409, json!({
+                "error": "Conflict: You already have a request like this for that time.", "code": "OVERLAPPING_REQUEST"
+            }))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        let _ = TELLER;
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            match core.dawam_do(json!({ "action": "decide", "req": "q|a", "approve": true, "paid": true }).to_string()).await {
+                Err(CoreError::Server { status, code, detail }) => {
+                    assert_eq!((status, code.as_str()), (409, "REQUEST_ALREADY_DECIDED"));
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_request_already_decided"));
+                }
+                other => panic!("expected the refusal, got {other:?}"),
+            }
+            match core.dawam_do(json!({ "action": "file", "kind": "leave", "from": d }).to_string()).await {
+                Err(CoreError::Server { status, code, detail }) => {
+                    assert_eq!((status, code.as_str()), (409, "OVERLAPPING_REQUEST"));
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_overlapping_request"));
+                }
+                other => panic!("expected the refusal, got {other:?}"),
+            }
+        }
+        assert_ne!(i18n::tr("en", "staff.err_overlapping_request"), i18n::tr("ar", "staff.err_overlapping_request"));
+        assert_ne!(i18n::tr("en", "staff.err_request_already_decided"), i18n::tr("ar", "staff.err_request_already_decided"));
+    }
+
     /// A refusal the core words itself is a whole sentence: no field name in
     /// front of it (E2E requests: "req Ask your manager to cancel this one.",
     /// the raw "req" even on an Arabic phone).

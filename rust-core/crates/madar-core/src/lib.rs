@@ -13202,6 +13202,8 @@ impl MadarCore {
             dawam::PRIVACY_NOT_ACCEPTED => Some("staff.err_privacy_not_accepted"),
             "PERIOD_CLOSED" => Some("staff.err_period_closed"),
             "LEAVE_PAY_REQUIRED" => Some("staff.err_leave_pay_required"),
+            "REQUEST_ALREADY_DECIDED" => Some("staff.err_request_already_decided"),
+            "OVERLAPPING_REQUEST" => Some("staff.err_overlapping_request"),
             _ => None,
         };
         let locale = self.current_locale();
