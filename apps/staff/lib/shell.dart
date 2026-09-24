@@ -12,8 +12,15 @@ import 'package:staff_core/staff_core.dart';
 
 /// Which tab is in front, and whether a manager is on the Manage side.
 class ShellNotifier extends Notifier<({int tab, bool manage})> {
+  /// Whoever signs in next starts on their own Home: the side and tab
+  /// belong to the person, so they reset when the person changes — a sign-out
+  /// from the sheet or a forced one (E2E clocking: the next manager on the
+  /// same phone landed on the last one's Manage > Team).
   @override
-  ({int tab, bool manage}) build() => (tab: 0, manage: false);
+  ({int tab, bool manage}) build() {
+    ref.watch(dawamProvider.select((d) => d.me));
+    return (tab: 0, manage: false);
+  }
 
   void select(int tab) => state = (tab: tab, manage: state.manage);
   void toggle() => state = (tab: 0, manage: !state.manage);
