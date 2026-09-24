@@ -1432,10 +1432,13 @@ impl MadarCore {
             return self.dawam_snapshot(false).await;
         }
         if matches!(act, Act::AcceptPrivacy) {
-            if !online {
+            if !self.dawam_reachable(online).await {
                 return Err(needs_connection(&self.current_locale()));
             }
-            self.dawam_srv("POST", "/staff/me/privacy", Some(json!({}))).await?;
+            self.dawam_srv("POST", "/staff/me/privacy", Some(json!({}))).await.map_err(|e| match e {
+                CoreError::Offline { .. } => needs_connection(&self.current_locale()),
+                e => e,
+            })?;
             // Anything that waited for the notice goes now.
             let _ = self.store.clear_network_backoff();
             let _ = self.drain_outbox().await;
@@ -1454,7 +1457,7 @@ impl MadarCore {
             }
             return self.dawam_snapshot(online).await;
         }
-        if !online {
+        if !self.dawam_reachable(online).await {
             return Err(needs_connection(&self.current_locale()));
         }
         let filed = self.dawam_online(act).await?;
@@ -1470,6 +1473,17 @@ impl MadarCore {
             }
             None => snap,
         })
+    }
+
+    /// May an online-only action go? The `online` flag is only the last word
+    /// from the network: a blip leaves it false until some later call
+    /// succeeds, and the refusal it causes sends nothing, so it would never
+    /// clear itself (E2E roster m3: "I agree" and every "Try again" said
+    /// "This needs a connection" with the server up). When the flag says
+    /// offline, the server is asked once (`/health`) before anyone is told
+    /// to find a connection.
+    async fn dawam_reachable(&self, online: bool) -> bool {
+        online || self.probe_connectivity().await
     }
 
     /// The last queued Dawam op the server refused in the pass just run, which
@@ -3566,6 +3580,66 @@ mod tests {
         assert_eq!(v["privacy_accepted"], true);
         assert_eq!(v["queued"], 0, "the held punch went once the notice was accepted");
         assert_eq!(stub.requests("/staff/me/check-in").len(), 2, "refused once, then taken");
+    }
+
+    /// E2E roster m3: "I agree" right after the code step said "This needs a
+    /// connection" with the server up, and nothing reached the server. The
+    /// first picture after the code met a blip, which left the core's
+    /// `online` flag false; the notice was then refused on that flag alone,
+    /// and so was every "Try again", until some other call happened to
+    /// succeed. A flag that says offline is now checked with the server
+    /// before anyone is told to find a connection.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn i_agree_right_after_the_code_reaches_the_server_after_a_blip() {
+        use crate::staff::session_tests::signed_in;
+        use crate::testkit::StubResponse;
+        use std::sync::atomic::Ordering;
+        let k = knobs();
+        k.accepted.store(false, Ordering::SeqCst);
+        let stub = staff_stub(k.clone(), || StubResponse::json(503, json!({}))).await;
+        let core = signed_in(&stub).await;
+        let online = || core.current_session().map(|s| s.online);
+        assert_eq!(online(), Some(true), "the server just took the code");
+
+        // The link drops while the first picture loads (twice: the core now
+        // believes it is offline), then comes back before "I agree".
+        k.up.store(false, Ordering::SeqCst);
+        let _ = core.dawam_snapshot(true).await;
+        let _ = core.dawam_snapshot(true).await;
+        assert_eq!(online(), Some(false));
+        // Really offline, it still says so in the person's words.
+        let err = core.dawam_do(json!({ "action": "accept_privacy" }).to_string()).await.unwrap_err();
+        assert!(matches!(&err, CoreError::Offline { detail } if *detail == i18n::tr("en", "staff.needs_connection")), "{err:?}");
+        k.up.store(true, Ordering::SeqCst);
+
+        let v: Value = serde_json::from_str(&core.dawam_do(json!({ "action": "accept_privacy" }).to_string()).await.expect("I agree reaches the server")).unwrap();
+        assert_eq!(stub.requests("/staff/me/privacy").len(), 1, "sent once, the first time the server was there");
+        assert_eq!(v["privacy_accepted"], true);
+        assert_eq!(online(), Some(true));
+    }
+
+    /// E2E roster m3: a new sign-in starts its own count of failed calls. The
+    /// last person's single blip used to carry over, so one blip in the new
+    /// session (two in a row are needed) already read as offline.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_new_sign_in_does_not_inherit_the_last_sessions_failed_call() {
+        use crate::staff::session_tests::signed_in;
+        use crate::testkit::StubResponse;
+        use std::sync::atomic::Ordering;
+        let k = knobs();
+        let stub = staff_stub(k.clone(), || StubResponse::json(503, json!({}))).await;
+        let core = signed_in(&stub).await;
+        let online = || core.current_session().map(|s| s.online);
+        k.up.store(false, Ordering::SeqCst);
+        let _ = core.dawam_snapshot(true).await;
+        assert_eq!(online(), Some(true), "one blip is not proof of offline");
+        core.logout(false).unwrap();
+
+        k.up.store(true, Ordering::SeqCst);
+        core.staff_otp_verify("+201001234567".into(), "123456".into(), None, None, None).await.unwrap();
+        k.up.store(false, Ordering::SeqCst);
+        let _ = core.dawam_snapshot(true).await;
+        assert_eq!(online(), Some(true), "the new session's first blip is its first");
     }
 
     /// AT-1 / audit 03 bug 12: "today" is my branch's day, not the first
