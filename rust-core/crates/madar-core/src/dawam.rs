@@ -748,6 +748,16 @@ pub(crate) fn punch_words(locale: &str, code: &str, body: &str, tz: chrono_tz::T
     if words == key || out.contains('{') { server() } else { out }
 }
 
+/// The words a punch refusal is looked up by. The server refuses a clock-out
+/// with the check-in's code and sentence (outside the fence, no location); a
+/// clock-out's own words say clock out (E2E posnotif S-036).
+fn punch_key(path: &str, code: &str) -> String {
+    match (path, code) {
+        ("/staff/me/check-out", "OUTSIDE_FENCE" | "LOCATION_REQUIRED") => format!("{code}_OUT"),
+        _ => code.to_string(),
+    }
+}
+
 /// The server's roster refusals (audit 02): worded in the phone's language
 /// as `staff.err_<code in lower case>`.
 pub(crate) const ROSTER_CODES: &[&str] = &[
@@ -1023,7 +1033,7 @@ impl MadarCore {
                     }
                     // A punch refusal, in the phone's language with the server's figures.
                     CoreError::Server { status, code, detail } if PUNCH_CODES.contains(&code.as_str()) => {
-                        let detail = punch_words(&self.current_locale(), &code, &detail, self.dawam_tz());
+                        let detail = punch_words(&self.current_locale(), &punch_key(path, &code), &detail, self.dawam_tz());
                         CoreError::Server { status, code, detail }
                     }
                     e => e,
@@ -3285,6 +3295,46 @@ mod tests {
         let snap: Value = serde_json::from_str(&core.dawam_sync().await.unwrap()).unwrap();
         assert_eq!(snap["refused"], json!([]));
         assert_eq!(stub.requests("/staff/me/check-in").len(), 1, "never resent");
+    }
+
+    /// E2E posnotif S-036: a clock-out refused outside the fence, or with no
+    /// location, said "Clock in within 200 m" / "عشان تسجّل حضور" (the server
+    /// sends the check-in's code and sentence for both). A clock-out's
+    /// refusal says clock out, in both languages; a clock-in's is unchanged.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_refused_clock_out_says_clock_out_not_clock_in() {
+        use crate::testkit::{online_core, Stub, StubResponse};
+
+        const FENCE: &str = r#"{"error":"You are 1201 m from the branch — you must be within 200 m to clock in","code":"OUTSIDE_FENCE","vars":{"distance_m":1201.4,"radius_m":200}}"#;
+        const NO_FIX: &str = r#"{"error":"Location is required to check in at this branch","code":"LOCATION_REQUIRED","vars":{}}"#;
+        let stub = Stub::start(|r| {
+            let no_fix = r.json()["latitude"].is_null();
+            Some(match r.path.split('?').next().unwrap_or_default() {
+                "/staff/me/check-in" | "/staff/me/check-out" if no_fix => StubResponse::text(400, NO_FIX),
+                "/staff/me/check-in" | "/staff/me/check-out" => StubResponse::text(403, FENCE),
+                "/health" => StubResponse::text(200, "ok"),
+                _ => StubResponse::json(200, json!([])),
+            })
+        })
+        .await;
+        let core = online_core(&stub.base, "").await;
+        core.set_online(true);
+        let far = json!({ "latitude": 30.07, "longitude": 31.22 });
+        let none = json!({ "latitude": null, "longitude": null });
+        for (lang, path, body, want) in [
+            ("en", "/staff/me/check-out", &far, "You're 1201 m from the branch. Clock out within 200 m."),
+            ("ar", "/staff/me/check-out", &far, "إنت على بُعد 1201 م من الفرع. لازم تكون في حدود 200 م عشان تسجّل انصراف."),
+            ("en", "/staff/me/check-out", &none, "Your location is needed to clock out. Turn location on and try again."),
+            ("ar", "/staff/me/check-out", &none, "لازم موقعك عشان تسجّل انصراف. شغّل الموقع وجرّب تاني."),
+            ("en", "/staff/me/check-in", &far, "You're 1201 m from the branch. Clock in within 200 m."),
+            ("ar", "/staff/me/check-in", &none, "لازم موقعك عشان تسجّل حضور. شغّل الموقع وجرّب تاني."),
+        ] {
+            core.set_locale(lang.into());
+            match core.dawam_srv("POST", path, Some(body.clone())).await {
+                Err(CoreError::Server { detail, .. }) => assert_eq!(detail, want, "{lang} {path}"),
+                other => panic!("{lang} {path}: {other:?}"),
+            }
+        }
     }
 
     /// A punch queued while the staff token lapsed is sent after a refresh,
