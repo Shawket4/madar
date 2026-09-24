@@ -44,7 +44,8 @@ PushTarget pushTarget(String? key) {
     // A colleague punched on the till with their PIN (CL-13).
     'till_punch_in' || 'till_punch_out' => (manage: true, tab: 'team'),
     'request_approved' ||
-    'request_rejected' => (manage: false, tab: 'requests'),
+    'request_rejected' ||
+    'request_cancelled' => (manage: false, tab: 'requests'),
     // My money.
     'advance_approved' ||
     'advance_rejected' ||

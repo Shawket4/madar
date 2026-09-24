@@ -338,6 +338,12 @@ void main() {
         tab: 'timesheet',
       ));
       expect(pushTarget('staff.n_charge_phone'), (manage: false, tab: 'home'));
+      // The server tells the person when someone else cancels their request
+      // (B-TEAM-3): it opens Requests like the approval did.
+      expect(pushTarget('staff.n_request_cancelled'), (
+        manage: false,
+        tab: 'requests',
+      ));
     });
 
     test('anything else opens the inbox', () {
