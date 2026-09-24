@@ -267,7 +267,9 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
       tone: pub ? MadarTone.success : MadarTone.warning,
       glyph: pub ? MadarGlyph.check : MadarGlyph.edit,
     );
-    final review = sugg.length + hols.length;
+    // Only the owner decides a holiday (decision #3): for anyone else an
+    // undecided one is news, not something waiting on them.
+    final review = sugg.length + (store.decidesHolidays ? hols.length : 0);
     final actions = <Widget>[
       if (!thisWeek)
         MadarChip(
@@ -889,31 +891,35 @@ class _HolidayPrompt extends ConsumerWidget {
           ],
         ),
         Text(
-          tr('staff.make_it_a_holiday_nobody_is', {
-            'holiday_mult': store.holidayMult,
-          }),
+          store.decidesHolidays
+              ? tr('staff.make_it_a_holiday_nobody_is', {
+                  'holiday_mult': store.holidayMult,
+                })
+              : tr('staff.holidays_owner_decides'),
           style: MadarType.bodySm.copyWith(color: c.textSecondary),
         ),
-        Row(
-          spacing: Space.sm,
-          children: [
-            Expanded(
-              child: MadarButton(
-                label: tr('staff.not_now'),
-                size: MadarButtonSize.compact,
-                variant: MadarButtonVariant.secondary,
-                onTap: () => store.decideHoliday(h, 'dismissed'),
+        // Managers see it read-only: the owner sets or dismisses it.
+        if (store.decidesHolidays)
+          Row(
+            spacing: Space.sm,
+            children: [
+              Expanded(
+                child: MadarButton(
+                  label: tr('staff.not_now'),
+                  size: MadarButtonSize.compact,
+                  variant: MadarButtonVariant.secondary,
+                  onTap: () => store.decideHoliday(h, 'dismissed'),
+                ),
               ),
-            ),
-            Expanded(
-              child: MadarButton(
-                label: tr('staff.set_as_holiday'),
-                size: MadarButtonSize.compact,
-                onTap: () => store.decideHoliday(h, 'holiday'),
+              Expanded(
+                child: MadarButton(
+                  label: tr('staff.set_as_holiday'),
+                  size: MadarButtonSize.compact,
+                  onTap: () => store.decideHoliday(h, 'holiday'),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
       ],
     );
   }

@@ -664,6 +664,10 @@ class DawamStore extends ChangeNotifier {
   bool canTeam = false;
   bool canApprove = false;
   bool canSchedule = false;
+
+  /// Sets or dismisses public holidays: the owner's (decision #3). Everyone
+  /// else reads them.
+  bool decidesHolidays = false;
   bool? insideNow;
   double? distance;
 
@@ -790,6 +794,7 @@ class DawamStore extends ChangeNotifier {
     canTeam = tabs['team'] == true;
     canApprove = tabs['approvals'] == true;
     canSchedule = tabs['schedule'] == true;
+    decidesHolidays = v['decides_holidays'] == true;
     myBranches = (v['my_branches'] as List<dynamic>).cast<String>();
     insideNow = v['inside'] as bool?;
     distance = (v['distance_m'] as num?)?.toDouble();
@@ -1387,9 +1392,8 @@ class DawamStore extends ChangeNotifier {
   /// True when the core answered with a picture (reached the server or not).
   Future<bool> _fetch() {
     lastFetch = clock();
-    return _fetching ??= _run(
-      backend.sync,
-    ).whenComplete(() => _fetching = null);
+    return _fetching ??= _run(backend.sync)
+        .whenComplete(() => _fetching = null);
   }
 
   /// While on shift, a ping every 15 minutes, queued by the core offline

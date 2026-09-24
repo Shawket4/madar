@@ -775,6 +775,8 @@ pub(crate) const STAFF_CODES: &[&str] = &[
     // The till PIN punch (CL-13): only from the branch's till, with a till open.
     "TILL_ONLY",
     "NO_TILL_SESSION",
+    // Only the owner decides it (public holidays, decision #3).
+    "OWNER_ONLY",
 ];
 
 /// Dawam refusals the app words for the person (`MadarCore::staff_error`).

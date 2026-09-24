@@ -13217,6 +13217,7 @@ impl MadarCore {
             "LEAVE_PAY_REQUIRED" => Some("staff.err_leave_pay_required"),
             "REQUEST_ALREADY_DECIDED" => Some("staff.err_request_already_decided"),
             "OVERLAPPING_REQUEST" => Some("staff.err_overlapping_request"),
+            "OWNER_ONLY" => Some("staff.err_owner_only"),
             _ => None,
         };
         let locale = self.current_locale();

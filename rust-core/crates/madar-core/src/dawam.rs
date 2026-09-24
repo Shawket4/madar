@@ -193,6 +193,10 @@ pub struct Snapshot {
     pub self_approves: bool,
     /// Which manager tabs show, from `caps` (PM-4).
     pub tabs: ManageTabs,
+    /// Public holidays are the owner's (decision #3): set or dismissed only
+    /// by someone holding the rules right at every branch. Everyone else
+    /// reads them.
+    pub decides_holidays: bool,
     pub caps: Vec<String>,
     pub my_branches: Vec<String>,
     /// When the mirror last heard from the server (epoch ms; 0 = never).
@@ -2032,6 +2036,7 @@ impl MadarCore {
             can_payroll: manage_tabs(&caps).payroll,
             self_approves: caps.iter().any(|c| c == "hr.requests.self_approve"),
             tabs: manage_tabs(&caps),
+            decides_holidays: decides_holidays(&ctx),
             caps,
             fetched_at,
             privacy_accepted: ctx.get("privacy_accepted_at").is_some_and(|x| !x.is_null()),
@@ -2865,6 +2870,16 @@ pub(crate) fn manage_tabs(caps: &[String]) -> ManageTabs {
         TAB_CAPS.iter().find(|(t, _)| *t == tab).is_some_and(|(_, need)| need.iter().any(|n| caps.iter().any(|c| c == n)))
     };
     ManageTabs { team: held("team"), approvals: held("approvals"), schedule: held("schedule"), payroll: held("payroll") }
+}
+
+/// Who decides public holidays (decision #3): `hr.rules.edit` held at
+/// every branch, as the server lists it in `caps_everywhere` (the same right
+/// as the rules). A server that doesn't send that list yet: the owner.
+fn decides_holidays(ctx: &Value) -> bool {
+    match ctx.get("caps_everywhere").and_then(Value::as_array) {
+        Some(all) => all.iter().any(|c| c.as_str() == Some("hr.rules.edit")),
+        None => role_of(&s(ctx, "role")) == "owner",
+    }
 }
 
 fn manages(ctx: &Value) -> bool {
@@ -4498,6 +4513,47 @@ mod tests {
 
     fn posted(stub: &crate::testkit::Stub, path: &str) -> Value {
         stub.seen.lock().unwrap().iter().rev().find(|r| r.method != "GET" && r.path.starts_with(path)).expect(path).json()
+    }
+
+    /// Owner decision #3 (D3): public holidays are the owner's, like the
+    /// rules. The actions show only for someone holding `hr.rules.edit` at
+    /// every branch (the server's `caps_everywhere`); a server that doesn't
+    /// send that list yet: the owner. A manager's tap the server refuses
+    /// (403 OWNER_ONLY) reads in the phone's language.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn holidays_are_decided_by_the_owner_only() {
+        let owner = json!({ "role": "owner", "caps": ["hr.rules.edit"] });
+        let manager = json!({ "role": "manager", "caps": ["hr.rules.edit", "hr.schedule.edit"] });
+        assert!(decides_holidays(&owner), "an older server: the owner decides");
+        assert!(!decides_holidays(&manager), "an older server: a manager doesn't, whatever his caps at one branch");
+        let everywhere = json!({ "role": "manager", "caps_everywhere": ["hr.rules.edit"] });
+        assert!(decides_holidays(&everywhere), "the rules right held at every branch decides");
+        let one_branch = json!({ "role": "owner", "caps": ["hr.rules.edit"], "caps_everywhere": [] });
+        assert!(!decides_holidays(&one_branch), "the server's list wins over the role");
+
+        let (_stub, core) = cafe(&["hr.schedule.read", "hr.schedule.edit"], |m, p, _| {
+            (m == "PUT" && p.starts_with("/staff/holidays/")).then(|| {
+                crate::testkit::StubResponse::json(403, json!({ "error": "Only the owner decides public holidays.", "code": "OWNER_ONLY" }))
+            })
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(snap["decides_holidays"], json!(false), "a manager sees holidays read-only");
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            let err = core
+                .dawam_do(json!({ "action": "decide_holiday", "date": "2026-10-06", "decision": "holiday" }).to_string())
+                .await
+                .unwrap_err();
+            match err {
+                CoreError::Forbidden { resource, action } => {
+                    assert_eq!(resource, "OWNER_ONLY");
+                    assert_eq!(action, i18n::tr(lang, "staff.err_owner_only"), "{lang}");
+                }
+                e => panic!("{e:?}"),
+            }
+        }
+        assert_ne!(i18n::tr("en", "staff.err_owner_only"), i18n::tr("ar", "staff.err_owner_only"));
     }
 
     /// RQ-9 (§3): a correction names the person's OWN record of the shift. A
