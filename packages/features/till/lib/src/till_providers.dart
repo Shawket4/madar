@@ -272,6 +272,29 @@ class TillNotifier extends Notifier<TillState> {
         ...branchDrawers.where((s) => !s.isOpen),
       ],
     );
+    _sayPayOutNotices();
+  }
+
+  /// A queued pay-out whose expense-advance tag the server refused was
+  /// recorded without it (D10): the core's sentence, shown once. A local
+  /// read; nothing to say is the usual answer.
+  void _sayPayOutNotices() {
+    final List<String> said;
+    try {
+      said = _bridge.takePayOutNotices();
+    } on Object {
+      return;
+    }
+    if (said.isEmpty) return;
+    _toastSeq += 1;
+    state = state.copyWith(
+      toast: ToastData(
+        id: _toastSeq,
+        text: said.join('\n'),
+        tone: ChipTone.warning,
+        icon: 'exclamationmark.triangle',
+      ),
+    );
   }
 
   /// A manager tapped a drawer: fetch its report for the shared preview
