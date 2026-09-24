@@ -410,6 +410,19 @@ impl ApiClient {
     /// [`Self::post_json`], also returning the `X-Madar-Sync-Seq` answer header
     /// (the feed horizon that includes a replayed op).
     pub async fn post_json_seq<B: serde::Serialize>(&self, path: &str, body: &B) -> CoreResult<(String, Option<i64>)> {
+        self.post_json_seq_raw(path, body).await.map_err(|(e, _)| e)
+    }
+
+    /// [`Self::post_json_seq`], keeping a refusal as the server sent it
+    /// (status and body) beside its `CoreError`: a queued op the server
+    /// refused is worded from the refusal's own code (`outbox_words`), which
+    /// the `CoreError` mapping keeps only for a few families of codes.
+    /// `None` when the server was never reached.
+    pub(crate) async fn post_json_seq_raw<B: serde::Serialize>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<(String, Option<i64>), (CoreError, Option<(u16, String)>)> {
         let url = format!("{}{}", self.base_url, path);
         let mut rb = self.http().request(reqwest::Method::POST, &url).json(body);
         if let Some(token) = self
@@ -420,7 +433,7 @@ impl ApiClient {
         {
             rb = rb.bearer_auth(token);
         }
-        let resp = rb.send().await.map_err(|e| classify_reqwest(&e))?;
+        let resp = rb.send().await.map_err(|e| (classify_reqwest(&e), None))?;
         self.observe_clock(&resp);
         let status = resp.status();
         let seq = resp
@@ -429,11 +442,12 @@ impl ApiClient {
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.trim().parse::<i64>().ok())
             .filter(|s| *s > 0);
-        let text = resp.text().await.map_err(|e| classify_reqwest(&e))?;
+        let text = resp.text().await.map_err(|e| (classify_reqwest(&e), None))?;
         if status.is_success() {
             Ok((text, seq))
         } else {
-            Err(status_to_error(status.as_u16(), &text))
+            let code = status.as_u16();
+            Err((status_to_error(code, &text), Some((code, text))))
         }
     }
 
@@ -722,7 +736,7 @@ pub(crate) fn pin_throttle_seconds(e: &CoreError) -> Option<i64> {
 pub(crate) const PAYMENT_METHOD_UNAVAILABLE_DETAIL: &str = "payment method not available here";
 
 /// The machine code in our error envelope (`ErrorBody.code`), when present.
-fn extract_error_code(body: &str) -> Option<String> {
+pub(crate) fn extract_error_code(body: &str) -> Option<String> {
     serde_json::from_str::<serde_json::Value>(body)
         .ok()?
         .get("code")?

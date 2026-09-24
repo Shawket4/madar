@@ -248,4 +248,65 @@ mod tests {
         core2.store.kv_put(super::K_BRANCH_PEOPLE, r#"[{"user_id":"u1","name":"Amal"}]"#).unwrap();
         assert_eq!(core2.branch_people().await.unwrap().len(), 1, "the last list, offline");
     }
+
+    /// E2E posnotif B-POS-6: a queued pay-out the server refused showed its
+    /// English, technical reason in the Sync list of an Arabic till ("the
+    /// server does not have what this needs yet — Not found: Employee not
+    /// found"), and a coded refusal would have shown the server's raw JSON.
+    /// It says why in the till's language: the core's words for the server's
+    /// code when it has them, a plain sentence for the kind of refusal
+    /// otherwise.
+    #[tokio::test]
+    async fn a_refused_queued_pay_out_says_why_in_the_tills_language() {
+        let stub = Stub::start(|r| {
+            if !r.path.starts_with("/sync/replay") {
+                return None;
+            }
+            let body = r.json();
+            Some(match body["op"].as_str().unwrap_or("") {
+                "open_till" => StubResponse::json(201, json!({
+                    "id": body["request"]["id"], "branch_id": BRANCH, "teller_id": testkit::TELLER,
+                    "teller_name": "Sara", "status": "open", "opening_cash": body["request"]["opening_cash"],
+                    "opened_at": body["request"]["opened_at"], "opening_cash_was_edited": false,
+                    "verification": "unverified", "opened_while_another_open": false, "disagreement_count": 0})),
+                "cash_movement" => match body["request"]["note"].as_str().unwrap_or("") {
+                    "unknown" => StubResponse::json(404, json!({ "error": "Not found: Employee not found" })),
+                    "off" => StubResponse::json(403, json!({ "error": "Expense advances need Dawam switched on.",
+                        "code": "MODULE_OFF", "vars": { "module": "dawam" } })),
+                    _ => StubResponse::json(403, json!({ "error": "That person isn't an active employee.",
+                        "code": "EMPLOYEE_INACTIVE", "vars": { "status": "suspended" } })),
+                },
+                _ => StubResponse::json(200, json!({ "id": uuid::Uuid::new_v4() })),
+            })
+        })
+        .await;
+        let core = testkit::online_core(&stub.base, "").await;
+        core.set_online(true);
+        core.open_till(10_000, None).await.unwrap();
+        let omar = "00000000-0000-0000-0000-0000000000e9".to_string();
+        let reasons = |core: &crate::MadarCore| -> Vec<String> {
+            core.list_outbox()
+                .unwrap()
+                .into_iter()
+                .filter(|i| i.op_type == "cash_movement" && i.status == "dead")
+                .map(|i| i.last_error.unwrap_or_default())
+                .collect()
+        };
+        let keys = ["sync.err_missing", "sync.err_advance_dawam_off", "sync.err_advance_inactive"];
+        for (n, locale) in ["en", "ar"].into_iter().enumerate() {
+            core.set_locale(locale.into());
+            for note in ["unknown", "off", "inactive"] {
+                core.record_expense_advance(1_500, note.into(), omar.clone()).await.unwrap();
+                let _ = core.drain_outbox().await;
+            }
+            let said = reasons(&core);
+            assert_eq!(said.len(), 3 * (n + 1), "every refused pay-out stays in the list: {said:?}");
+            for (reason, key) in said[3 * n..].iter().zip(keys) {
+                assert_eq!(reason, &crate::i18n::tr(locale, key), "{locale}");
+                assert_ne!(reason, key, "the {locale} table has the words");
+                assert!(!reason.contains('{') && !reason.contains("Not found"), "{reason}");
+            }
+        }
+        assert_ne!(reasons(&core)[0], reasons(&core)[3], "English, then Arabic");
+    }
 }

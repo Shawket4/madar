@@ -76,6 +76,8 @@ pub mod net;
 pub mod obs;
 /// Order history reads — synced + still-queued orders for the shift.
 pub mod orders;
+/// A queued op the server refused, worded in the till's language (B-POS-6).
+pub(crate) mod outbox_words;
 /// Client of the unified realtime bus — ONE SSE connection per device, hand-rolled
 /// over `bytes_stream()`, dispatched to the host through one callback listener.
 pub mod realtime;
@@ -1163,7 +1165,18 @@ impl MadarCore {
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let mut body = None;
             let mut sync_seq = None;
-            let outcome = self.send_outbox_item_body(&item, &mut body, &mut sync_seq).await;
+            let mut refusal = None;
+            let outcome = self.send_outbox_item_body(&item, &mut body, &mut sync_seq, &mut refusal).await;
+            // What the stuck list says for a refusal: the server's code worded
+            // in the till's language (B-POS-6); the server's own text stays in
+            // the diagnostics below. An op the server never answered keeps the
+            // core's reason.
+            let said = |err: &str| match &refusal {
+                Some((status, text)) => {
+                    outbox_words::refusal(&self.current_locale(), &item.op_type, *status, text)
+                }
+                None => err.to_string(),
+            };
             // A REAL outbox send is the strongest connectivity evidence there is: a
             // clean ack proves we're online; a transport failure is evidence we're
             // offline. (A 4xx/5xx/401 reached the server — those are handled by the
@@ -1220,7 +1233,7 @@ impl MadarCore {
                 }
                 // Permanent rejection — surface in the stuck list, never silently drop.
                 SendOutcome::Dead(err) => {
-                    self.store.mark_dead(item.seq, &err)?;
+                    self.store.mark_dead(item.seq, &said(&err))?;
                     self.store
                         .emit_changes(changes::tables_for_op(&item.op_type));
                     self.push_diag("error", format!("{} rejected: {err}", item.op_type));
@@ -1235,8 +1248,8 @@ impl MadarCore {
                 // gates falls back to a plain dead-letter.
                 SendOutcome::Refused(err) => {
                     match till_review::capability_for_op(&item.op_type, &item.payload) {
-                        Some(cap) => self.store.mark_dead_refused(item.seq, &err, cap)?,
-                        None => self.store.mark_dead(item.seq, &err)?,
+                        Some(cap) => self.store.mark_dead_refused(item.seq, &said(&err), cap)?,
+                        None => self.store.mark_dead(item.seq, &said(&err))?,
                     }
                     self.store
                         .emit_changes(changes::tables_for_op(&item.op_type));
@@ -1881,13 +1894,15 @@ impl MadarCore {
     }
 
     /// Send one op; `body_out` receives the backend's JSON answer when there was
-    /// one (the entity the op created or changed — folded into the ledger on ack)
-    /// and `seq_out` the feed horizon that includes it.
+    /// one (the entity the op created or changed — folded into the ledger on ack),
+    /// `seq_out` the feed horizon that includes it, and `refusal_out` a replay
+    /// refusal as the server sent it (status and body), for its wording.
     async fn send_outbox_item_body(
         &self,
         item: &store::OutboxItem,
         body_out: &mut Option<serde_json::Value>,
         seq_out: &mut Option<i64>,
+        refusal_out: &mut Option<(u16, String)>,
     ) -> SendOutcome {
         // Dawam punches and pings go to their own `/staff/*` endpoint. A 409
         // is the server already holding it (a resend after a lost answer).
@@ -1916,7 +1931,7 @@ impl MadarCore {
             Err(outcome) => return outcome,
         };
 
-        match self.api.post_json_seq("/sync/replay", &envelope).await {
+        match self.api.post_json_seq_raw("/sync/replay", &envelope).await {
             Ok((body, sync_seq)) => {
                 *seq_out = sync_seq;
                 // Bump/unbump reply 204 No Content. An EMPTY body is the real
@@ -2053,7 +2068,10 @@ impl MadarCore {
                     _ => SendOutcome::Acked(None),
                 }
             }
-            Err(e) => classify_send(e, idem),
+            Err((e, raw)) => {
+                *refusal_out = raw;
+                classify_send(e, idem)
+            }
         }
     }
 
