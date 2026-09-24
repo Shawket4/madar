@@ -2065,6 +2065,41 @@ impl MadarCore {
                     _ => SendOutcome::Acked(None),
                 }
             }
+            // A pay-out whose expense-advance tag is refused is still a
+            // pay-out (D10): sent again at once without the tag.
+            Err(e) => match self.drop_refused_advance_tag(item, &e) {
+                Some(untagged) => self.resend_untagged(&untagged, body_out, seq_out).await,
+                None => classify_send(e, idem),
+            },
+        }
+    }
+
+    /// The pay-out again, its refused tag dropped (D10). Anything but an ack
+    /// leaves it queued as usual: the payload already carries no tag.
+    async fn resend_untagged(
+        &self,
+        item: &store::OutboxItem,
+        body_out: &mut Option<serde_json::Value>,
+        seq_out: &mut Option<i64>,
+    ) -> SendOutcome {
+        let (envelope, idem) = match self.replay_envelope(item) {
+            Ok(e) => e,
+            Err(outcome) => return outcome,
+        };
+        match self.api.post_json_seq("/sync/replay", &envelope).await {
+            Ok((body, sync_seq)) => {
+                *seq_out = sync_seq;
+                if item.op_type == "lan_mirror" && body.trim().is_empty() {
+                    return SendOutcome::Acked(None);
+                }
+                match replay_backend_object(&body) {
+                    Some(v) => {
+                        *body_out = Some(v);
+                        SendOutcome::Acked(None)
+                    }
+                    None => SendOutcome::Offline,
+                }
+            }
             Err(e) => classify_send(e, idem),
         }
     }

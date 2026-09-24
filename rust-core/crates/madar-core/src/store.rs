@@ -897,6 +897,13 @@ impl Store {
         Ok(())
     }
 
+    /// Rewrite a queued op's payload in place (a refused expense-advance tag
+    /// dropped from a pay-out, D10). Its place in the queue is kept.
+    pub fn set_payload(&self, seq: i64, payload: &str) -> CoreResult<()> {
+        self.lock().execute("UPDATE outbox SET payload=?2 WHERE seq=?1", params![seq, payload])?;
+        Ok(())
+    }
+
     /// Counted retry: bump attempts, set the next backoff gate, record the error.
     pub fn mark_retry(&self, seq: i64, error: &str, next_attempt_at: i64) -> CoreResult<()> {
         self.lock().execute(

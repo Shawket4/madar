@@ -724,6 +724,11 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.before_you_start" => "Before you start",
         "staff.i_agree" => "I agree",
         // ── tills rework (TILLS_CONTRACT §7.2 / §10.4) ──
+        "till.advance_tag_refused" => "Pay-out recorded; the advance tag was refused ({reason}). Log the advance from the dashboard.",
+        "till.advance_tag_inactive" => "{name} isn't an active employee",
+        "till.advance_tag_dawam_off" => "Dawam is switched off",
+        "till.advance_tag_unknown" => "{name} isn't an employee of this business",
+        "till.advance_tag_someone" => "that person",
         "till.open_elsewhere_title" => "Your till is open on another device",
         "till.open_elsewhere_body" => "Close it on {device} first.",
         "till.force_close_elsewhere" => "Force close it",
@@ -2804,6 +2809,11 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.before_you_start" => "قبل ما تبدأ",
         "staff.i_agree" => "موافق",
         // ── tills rework (TILLS_CONTRACT §7.2 / §10.4) ──
+        "till.advance_tag_refused" => "تم تسجيل الصرف، لكن رُفض ربطه كسلفة مصروفات ({reason}). سجّل السلفة من لوحة التحكم.",
+        "till.advance_tag_inactive" => "{name} ليس موظفًا فعّالًا",
+        "till.advance_tag_dawam_off" => "دوام غير مفعّل",
+        "till.advance_tag_unknown" => "{name} ليس موظفًا في هذا النشاط",
+        "till.advance_tag_someone" => "هذا الشخص",
         "till.open_elsewhere_title" => "ورديتك مفتوحة على جهاز آخر",
         "till.open_elsewhere_body" => "أغلقها أولًا على {device}.",
         "till.force_close_elsewhere" => "إغلاق إجباري",
