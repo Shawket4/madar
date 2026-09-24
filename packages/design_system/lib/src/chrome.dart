@@ -855,11 +855,16 @@ class MadarTopBar extends StatelessWidget {
                   '·',
                   style: MadarType.body.copyWith(color: colors.onChromeMuted),
                 ),
-                Text(
-                  subtitle!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MadarType.body.copyWith(color: colors.onChromeMuted),
+                // A long list of branches (an owner's) gives way rather
+                // than overflow; the title keeps most of the row.
+                Flexible(
+                  flex: 3,
+                  child: Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MadarType.body.copyWith(color: colors.onChromeMuted),
+                  ),
                 ),
               ],
             ],
