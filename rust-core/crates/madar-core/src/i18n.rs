@@ -4309,12 +4309,17 @@ mod tests {
         // words keep theirs).
         let src = include_str!("i18n.rs");
         let ar_keys = keys_in_fn(src, "fn ar(key: &str) -> Option<&'static str> {");
-        let indic = |c: char| ('\u{0660}'..='\u{0669}').contains(&c) || ('\u{06F0}'..='\u{06F9}').contains(&c);
+        let indic = |c: char| {
+            ('\u{0660}'..='\u{0669}').contains(&c) || ('\u{06F0}'..='\u{06F9}').contains(&c)
+        };
         let bad: Vec<&str> = ar_keys
             .into_iter()
             .filter(|k| k.starts_with("staff.") && tr("ar", k).chars().any(indic))
             .collect();
-        assert!(bad.is_empty(), "Arabic-Indic digits in Dawam words: {bad:?}");
+        assert!(
+            bad.is_empty(),
+            "Arabic-Indic digits in Dawam words: {bad:?}"
+        );
     }
 
     #[test]
