@@ -184,9 +184,13 @@ impl MadarCore {
             .ok()
             .flatten();
         let Some((created, teller)) = row else { return (None, None) };
+        // The facts are madar-shared's `madar_authz::acts::void_facts`, the
+        // server's arithmetic: whole minutes, truncated, never negative.
         let age = chrono::DateTime::parse_from_rfc3339(&created)
             .ok()
-            .map(|t| (self.corrected_now().timestamp() - t.timestamp()).max(0) / 60);
+            .map(|t| {
+                madar_authz::acts::age_minutes(t.with_timezone(&chrono::Utc), self.corrected_now())
+            });
         (Some(teller.is_some_and(|t| t == me)), age)
     }
 
