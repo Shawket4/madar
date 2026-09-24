@@ -728,6 +728,35 @@ pub(crate) const PUNCH_CODES: &[&str] = &[
     "ALREADY_CHECKED_IN",
 ];
 
+/// The server's money refusals (E2E money BB2): the body is kept, and the
+/// core words them as `staff.err_<code in lower case>` with the server's
+/// figures, a `*_piastres` figure shown as money in the phone's language.
+pub(crate) const MONEY_CODES: &[&str] = &["ADVANCE_OVER_CAP"];
+
+/// A money refusal in `locale`, from the server's body (`{error, code,
+/// vars}`); the server's own `error` when the body can't be read or the
+/// core has no words for it.
+pub(crate) fn money_words(locale: &str, code: &str, body: &str) -> String {
+    let ar = i18n::is_arabic(locale);
+    let v: Value = serde_json::from_str(body).unwrap_or(Value::Null);
+    let args: BTreeMap<String, String> = v.get("vars").and_then(Value::as_object).into_iter().flatten()
+        .map(|(k, x)| {
+            let text = match x {
+                Value::Number(n) if k.ends_with("_piastres") => n.as_i64().map_or_else(|| n.to_string(), |p| egp(p, ar)),
+                Value::Number(n) => n.to_string(),
+                Value::String(t) => t.clone(),
+                other => other.to_string(),
+            };
+            (k.clone(), text)
+        })
+        .collect();
+    let server = || v.get("error").and_then(Value::as_str).map_or_else(|| body.to_string(), str::to_string);
+    let key = format!("staff.err_{}", code.to_lowercase());
+    let words = i18n::tr(locale, &key);
+    let out = fill(&words, &args);
+    if words == key || out.contains('{') { server() } else { out }
+}
+
 /// A punch refusal in `locale`, from the server's body (`{error, code,
 /// vars}`): the core's words with the server's figures, an instant shown at
 /// the branch's time; the server's own `error` when the body can't be read.
@@ -1022,6 +1051,12 @@ impl MadarCore {
                     // A roster refusal, in the phone's language.
                     CoreError::Server { status, code, .. } if ROSTER_CODES.contains(&code.as_str()) => {
                         let detail = i18n::tr(&self.current_locale(), &format!("staff.err_{}", code.to_lowercase()));
+                        CoreError::Server { status, code, detail }
+                    }
+                    // A money refusal (the advance cap), in the phone's language
+                    // with the server's figure as money.
+                    CoreError::Server { status, code, detail } if MONEY_CODES.contains(&code.as_str()) => {
+                        let detail = money_words(&self.current_locale(), &code, &detail);
                         CoreError::Server { status, code, detail }
                     }
                     // A punch refusal, in the phone's language with the server's figures.
@@ -3878,6 +3913,35 @@ mod tests {
                 }
                 e => panic!("{e:?}"),
             }
+        }
+    }
+
+    /// E2E money BB2: an advance over the cap reads in the phone's language
+    /// with the server's figure as money — never the English sentence on an
+    /// Arabic phone.
+    #[test]
+    fn money_refusals_are_worded_with_the_servers_figures() {
+        let body = r#"{"error":"Conflict: ADVANCE_OVER_CAP: that's over the advance cap — at most 1650 EGP more; the owner can approve it.","code":"ADVANCE_OVER_CAP","vars":{"more_piastres":165000,"more_egp":1650}}"#;
+        let en = money_words("en", "ADVANCE_OVER_CAP", body);
+        let ar = money_words("ar", "ADVANCE_OVER_CAP", body);
+        assert!(en.contains("EGP 1,650.00"), "{en}");
+        assert!(ar.contains("1,650.00 ج.م"), "{ar}");
+        assert!(!ar.contains("advance cap"), "Arabic, not English: {ar}");
+        // An unreadable body keeps what the server said.
+        assert_eq!(money_words("ar", "ADVANCE_OVER_CAP", "not json"), "not json");
+        for c in MONEY_CODES {
+            let k = format!("staff.err_{}", c.to_lowercase());
+            let (en, ar) = (i18n::tr("en", &k), i18n::tr("ar", &k));
+            assert_ne!(en, k, "{k} has no English");
+            assert_ne!(ar, en, "{k} has no Arabic");
+        }
+        // The wire keeps the body for these codes, so the vars survive.
+        match crate::net::status_to_error(409, body) {
+            CoreError::Server { status, code, detail } => {
+                assert_eq!((status, code.as_str()), (409, "ADVANCE_OVER_CAP"));
+                assert!(detail.contains("\"vars\""), "{detail}");
+            }
+            e => panic!("{e:?}"),
         }
     }
 

@@ -834,6 +834,11 @@ pub(crate) fn status_to_error(status: u16, body: &str) -> CoreError {
     if let Some(code) = extract_error_code(body).filter(|c| crate::dawam::PUNCH_CODES.contains(&c.as_str())) {
         return CoreError::Server { status, code, detail: body.to_string() };
     }
+    // So does a money refusal (the advance cap's `more_piastres`,
+    // `dawam::money_words`).
+    if let Some(code) = extract_error_code(body).filter(|c| crate::dawam::MONEY_CODES.contains(&c.as_str())) {
+        return CoreError::Server { status, code, detail: body.to_string() };
+    }
     match status {
         // A genuine backend 401 carries our error envelope → the token really was
         // rejected (expired/invalid) and the caller should surface re-auth. A 401
