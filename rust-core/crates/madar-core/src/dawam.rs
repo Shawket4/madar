@@ -1162,6 +1162,12 @@ impl MadarCore {
             Ok(v) => Some(Ok((p, v))),
             // Transport gone mid-refresh: keep the old mirror whole.
             Err(e @ CoreError::Offline { .. }) => Some(Err(e)),
+            // A server that failed or throttled this read (5xx, 429) said
+            // nothing about what there is to show: keep the old mirror whole
+            // rather than write that view empty ("No shift today", E2E S-301).
+            Err(e @ CoreError::Transient { .. }) => Some(Err(e)),
+            Err(CoreError::Server { status: 429, detail, .. }) => Some(Err(CoreError::Transient { detail })),
+            // A view the server refuses this person is simply left empty.
             Err(_) => None,
         })
         .collect::<Result<_, _>>()?;
@@ -2406,7 +2412,9 @@ impl MadarCore {
                 value,
                 waived: a.get("waived_at").is_some_and(|x| !x.is_null()),
                 pct,
-                reason: s(a, "reason"),
+                // A rule line in the phone's language, like the payslip; a
+                // typed reason as typed.
+                reason: rule_words(a, &locale),
                 by: actor(so(a, "created_by")).unwrap_or_default(),
                 at: s(a, "created_at"),
                 period: s(a, "effective_date"),
@@ -2751,6 +2759,10 @@ fn notice_text(locale: &str, key: &str, args: &Value) -> String {
             }
             ("date", Value::String(x)) => NaiveDate::parse_from_str(&x[..x.len().min(10)], "%Y-%m-%d")
                 .map(|d| format!("{} {}", d.day(), i18n::tr(locale, &format!("staff.month_{}", d.month()))))
+                .unwrap_or_else(|_| x.clone()),
+            // An audited month (the fairness check): "Aug 2026", like the calendar's range.
+            ("month", Value::String(x)) => NaiveDate::parse_from_str(&x[..x.len().min(10)], "%Y-%m-%d")
+                .map(|d| format!("{} {}", i18n::tr(locale, &format!("staff.month_{}", d.month())), d.year()))
                 .unwrap_or_else(|_| x.clone()),
             (_, Value::String(x)) => x.clone(),
             (_, x) => x.to_string(),
@@ -3996,6 +4008,17 @@ mod tests {
         assert!(t.contains("Arkan") && t.contains("35"), "{t}");
     }
 
+    #[test]
+    fn a_fairness_notice_names_its_month() {
+        // The server sends the audited month as a date (`2026-08-01`); the
+        // inbox said "(2026-08-01)" in both languages (E2E posnotif N-047).
+        let en = notice_text("en", "staff.n_fairness_ready", &json!({ "branch": "Arkan", "month": "2026-08-01" }));
+        assert!(en.contains("(Aug 2026)") && !en.contains("2026-08-01"), "{en}");
+        let ar = notice_text("ar", "staff.n_fairness_flagged", &json!({ "branch": "Arkan", "month": "2026-08-01", "gap": 33 }));
+        let aug = format!("({} 2026)", i18n::tr("ar", "staff.month_8"));
+        assert!(ar.contains(&aug) && !ar.contains("2026-08-01"), "{ar}");
+    }
+
     // ── requests and rules (phase B): the wire the server now expects ──
 
     /// A one-branch café as `role` sees it (`caps` decide the manager side),
@@ -4321,6 +4344,69 @@ mod tests {
         let q = |id: &str| snap["requests"].as_array().unwrap().iter().find(|q| q["id"] == json!(format!("q|{id}"))).unwrap()["month_open"].clone();
         assert_eq!(q("span"), false);
         assert_eq!(q("open"), true);
+    }
+
+    /// E2E posnotif S-301: a burst of refreshes (a push each) ran past the
+    /// server's per-person limit; the refused (429) roster read was taken as
+    /// "nothing to show", so Home said "No shift today" until the next
+    /// refresh. A throttled or failing read keeps the last picture whole.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_throttled_refresh_keeps_the_last_picture() {
+        use crate::testkit::{StubResponse, TELLER};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let d = today_cairo().to_string();
+        let calls = std::sync::Arc::new(AtomicUsize::new(0));
+        let seen = calls.clone();
+        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("GET", "/staff/me/roster") => {
+                // The first read answers; every later one is throttled.
+                if seen.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Some(StubResponse::json(200, json!({ "shifts": [
+                        { "employee_id": TELLER, "date": d, "work_shift_id": "w1" }
+                    ], "team": [], "unpublished_weeks": [] })))
+                } else {
+                    Some(StubResponse::json(429, json!({ "error": "Too many requests" })))
+                }
+            }
+            _ => None,
+        })
+        .await;
+        let mine = |snap: &Value| snap["shifts"].as_array().unwrap().iter().filter(|x| x["emp"] == json!(TELLER)).count();
+        let first: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(mine(&first), 1);
+        let again: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert!(calls.load(Ordering::SeqCst) >= 2, "the second refresh asked again");
+        assert_eq!(mine(&again), 1, "a 429 must not blank the roster");
+    }
+
+    /// E2E posnotif: the Payroll tab's adjustments list showed a rule line in
+    /// the server's English ("Absent — no check-in recorded") on an Arabic
+    /// screen. A line with a reason code is worded here, as on the payslip.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_rule_line_in_the_adjustments_list_is_worded_in_the_phone_language() {
+        use crate::testkit::{StubResponse, TELLER};
+        let (_stub, core) = cafe(&["hr.attendance.read", "hr.payroll.run"], |m, p, _| match (m, p) {
+            ("GET", "/staff/adjustments") => Some(StubResponse::json(200, json!([
+                { "id": "d1", "kind": "deduction", "employee_id": TELLER, "amount_piastres": 25000, "value_piastres": 25000,
+                  "reason": "Absent — no check-in recorded", "effective_date": "2026-09-24", "source": "absence",
+                  "status": "approved", "recurring": false, "reason_code": "absent_no_punch", "reason_vars": {} },
+                { "id": "d2", "kind": "deduction", "employee_id": TELLER, "amount_piastres": 3000, "value_piastres": 3000,
+                  "reason": "Broken glass", "effective_date": "2026-09-24", "source": "manual",
+                  "status": "approved", "recurring": false, "reason_code": null, "reason_vars": null }
+            ]))),
+            _ => None,
+        })
+        .await;
+        for lang in ["ar", "en"] {
+            core.set_locale(lang.into());
+            let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+            let reason = |id: &str| {
+                snap["adjustments"].as_array().unwrap().iter().find(|a| a["id"] == json!(format!("a|deduction|{id}"))).unwrap()["reason"].clone()
+            };
+            assert_eq!(reason("d1"), json!(i18n::tr(lang, "staff.pay_reason_absent_no_punch")), "{lang}");
+            assert_eq!(reason("d2"), json!("Broken glass"), "a typed reason stays as typed");
+        }
+        assert_ne!(i18n::tr("ar", "staff.pay_reason_absent_no_punch"), "Absent — no check-in recorded");
     }
 
     /// Decision #1: a closed month is `PERIOD_CLOSED` everywhere, and the

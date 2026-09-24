@@ -85,7 +85,8 @@ class _TillPunchSheetState extends ConsumerState<TillPunchSheet> {
           ),
           MadarField(
             controller: _pin,
-            placeholder: t('approval.pin'),
+            // The person's own till PIN, never a manager's.
+            placeholder: t('staff.till_punch_pin'),
             kind: MadarFieldKind.pin,
             maxLength: 6,
             icon: 'lock',

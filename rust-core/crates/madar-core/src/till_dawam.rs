@@ -72,6 +72,15 @@ impl MadarCore {
             CoreError::Forbidden { resource, .. } if resource == "TILL_ONLY" => worded("staff.err_till_only"),
             CoreError::Forbidden { resource, .. } if resource == "NO_TILL_SESSION" => worded("staff.err_no_till_session"),
             CoreError::Unauthenticated { .. } => worded("err.wrong_pin"),
+            // The shift is over, the PIN's owner isn't an employee…: the
+            // staff app's words, never the server's raw body.
+            CoreError::Server { code, detail, .. } if crate::dawam::PUNCH_CODES.contains(&code.as_str()) => {
+                let tz = crate::timefmt::branch_tz(&self.store);
+                CoreError::Validation {
+                    field: String::new(),
+                    detail: crate::dawam::punch_words(&locale, &code, &detail, tz),
+                }
+            }
             e => e,
         }
     }
@@ -161,6 +170,38 @@ mod tests {
         for r in stub.requests("/staff/attendance/till-punch") {
             assert_eq!(r.header("x-madar-device-token").as_deref(), Some("cred-1"));
         }
+    }
+
+    /// E2E posnotif: a punch refusal the till did not word (the shift is
+    /// over, the PIN's owner isn't an employee) showed the server's raw JSON
+    /// body in the red banner. It reads like the staff app's, in the till's
+    /// language.
+    #[tokio::test]
+    async fn a_punch_refusal_is_worded_not_raw_json() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+        let n = Arc::new(AtomicUsize::new(0));
+        let m = n.clone();
+        let stub = Stub::start(move |r| {
+            (r.path == "/staff/attendance/till-punch").then(|| match m.fetch_add(1, Ordering::SeqCst) {
+                0 | 1 => StubResponse::json(400, json!({ "error": "Morning has already ended", "code": "SHIFT_ENDED",
+                    "vars": { "shift": "Morning" } })),
+                _ => StubResponse::json(403, json!({ "error": "Karl isn't set up as an employee in Dawam.",
+                    "code": "NOT_AN_EMPLOYEE" })),
+            })
+        })
+        .await;
+        let core = testkit::online_core(&stub.base, "").await;
+        let said = |e: crate::CoreError| match e {
+            crate::CoreError::Validation { detail, .. } => detail,
+            e => panic!("{e:?}"),
+        };
+        assert_eq!(said(core.till_punch("1111".into()).await.unwrap_err()), "Morning has already ended.");
+        core.set_locale("ar".into());
+        assert_eq!(said(core.till_punch("1111".into()).await.unwrap_err()), "وردية Morning خلصت خلاص.");
+        let not_employee = said(core.till_punch("1111".into()).await.unwrap_err());
+        assert_eq!(not_employee, crate::i18n::tr("ar", "staff.err_not_an_employee"));
+        assert!(!not_employee.contains('{'), "{not_employee}");
     }
 
     #[tokio::test]

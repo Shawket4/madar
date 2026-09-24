@@ -163,6 +163,7 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.n_request" => "{name}: new {kind} request for {date}",
         "staff.n_request_approved" => "Your {kind} request for {date} was approved",
         "staff.n_request_rejected" => "Your {kind} request for {date} was declined",
+        "staff.n_request_cancelled" => "Your {kind} request for {date} was cancelled: {note}",
         "staff.n_adjustment_pending" => "{by} added a pay line for {name} over the limit ({amount}) — approve it",
         "staff.n_adjustment_approved" => "The pay line for {name} was approved",
         "staff.n_adjustment_rejected" => "The pay line for {name} was declined",
@@ -216,6 +217,7 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.till_clocked_out" => "{name} clocked out at {time}",
         "staff.till_punch" => "Clock in/out",
         "staff.till_punch_hint" => "Phone dead or forgotten? Enter your PIN to clock in or out.",
+        "staff.till_punch_pin" => "Your PIN",
         "staff.till_punch_needs_connection" => "Clocking in at the till needs a connection.",
         "cash.expense_advance" => "Expense advance to",
         "cash.expense_advance_hint" => "Cash for shop purchases: logged for them in Dawam, never taken from their pay.",
@@ -2172,7 +2174,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.n_open_shift_cancelled" => "الوردية المتاحة يوم {date} اللي حجزتها اتلغت",
         "staff.n_swap_cancelled" => "{name} لغى طلب التبديل",
         "staff.n_prefs_changed" => "مديرك غيّر تفضيلات ورديّاتك",
-        "staff.n_learning_frozen" => "اقتراحات الجدول في {branch} وقفت تتعلم: المديرين قبلوا {accepted} من {decided} في ٤ أسابيع",
+        "staff.n_learning_frozen" => "اقتراحات الجدول في {branch} وقفت تتعلم: المديرين قبلوا {accepted} من {decided} في 4 أسابيع",
         "staff.n_learning_resumed" => "اقتراحات الجدول في {branch} رجعت تتعلم",
         "staff.n_fairness_ready" => "مراجعة عدالة الورديات الليلية لـ {branch} ({month}) جاهزة",
         "staff.n_fairness_flagged" => "الورديات الليلية في {branch} ({month}) مش متوازنة بين الرجالة والستات ({gap} نقطة) — بص عليها",
@@ -2218,6 +2220,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.n_request" => "{name}: طلب {kind} جديد ليوم {date}",
         "staff.n_request_approved" => "طلب {kind} بتاعك ليوم {date} اتوافق عليه",
         "staff.n_request_rejected" => "طلب {kind} بتاعك ليوم {date} اترفض",
+        "staff.n_request_cancelled" => "طلب {kind} بتاعك ليوم {date} اتلغى: {note}",
         "staff.n_adjustment_pending" => "{by} ضاف بند لـ{name} فوق الحد ({amount}) — وافق عليه",
         "staff.n_adjustment_approved" => "البند بتاع {name} اتوافق عليه",
         "staff.n_adjustment_rejected" => "البند بتاع {name} اترفض",
@@ -2271,6 +2274,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.till_clocked_out" => "{name} سجّل انصراف الساعة {time}",
         "staff.till_punch" => "حضور/انصراف",
         "staff.till_punch_hint" => "الموبايل فاصل أو ناسيه؟ اكتب الرقم السري بتاعك تسجل حضور أو انصراف.",
+        "staff.till_punch_pin" => "الرقم السري بتاعك",
         "staff.till_punch_needs_connection" => "تسجيل الحضور من الكاشير محتاج إنترنت.",
         "cash.expense_advance" => "عهدة لـ",
         "cash.expense_advance_hint" => "فلوس لمشتريات المحل: بتتسجل عليه في دوام، وعمرها ما بتتخصم من مرتبه.",
@@ -4307,6 +4311,90 @@ mod tests {
         assert!(
             orphans.is_empty(),
             "keys present in AR but missing from EN table: {orphans:?}"
+        );
+    }
+
+    #[test]
+    fn every_dawam_notice_the_server_sends_has_words() {
+        // The inbox words each notification from its key (dawam::notice_text):
+        // a key the server sends that is missing here shows as the raw key.
+        // The server's list: MadarRust src/staff/** (24 Sep 2026).
+        const SENT: &[&str] = &[
+            "staff.n_adjustment_approved",
+            "staff.n_adjustment_pending",
+            "staff.n_adjustment_rejected",
+            "staff.n_advance_approved",
+            "staff.n_advance_rejected",
+            "staff.n_bonus_added",
+            "staff.n_charge_phone",
+            "staff.n_claim",
+            "staff.n_claim_approved",
+            "staff.n_claim_rejected",
+            "staff.n_cover",
+            "staff.n_cover_confirmed",
+            "staff.n_cover_rejected",
+            "staff.n_deduction_added",
+            "staff.n_fairness_flagged",
+            "staff.n_fairness_ready",
+            "staff.n_flag_cover",
+            "staff.n_flag_left_mid_shift",
+            "staff.n_flag_new_phone",
+            "staff.n_flag_phone_died",
+            "staff.n_flag_suspicious",
+            "staff.n_flag_time_unverified",
+            "staff.n_flag_tracking_off",
+            "staff.n_learning_frozen",
+            "staff.n_learning_resumed",
+            "staff.n_new_phone",
+            "staff.n_open_shift",
+            "staff.n_open_shift_cancelled",
+            "staff.n_overtime",
+            "staff.n_overtime_approved",
+            "staff.n_overtime_rejected",
+            "staff.n_paid",
+            "staff.n_prefs_changed",
+            "staff.n_punched_for_you",
+            "staff.n_request",
+            "staff.n_request_approved",
+            "staff.n_request_cancelled",
+            "staff.n_request_rejected",
+            "staff.n_shift_changed",
+            "staff.n_swap_agreed",
+            "staff.n_swap_approved",
+            "staff.n_swap_asked",
+            "staff.n_swap_cancelled",
+            "staff.n_swap_declined",
+            "staff.n_swap_pending",
+            "staff.n_swap_rejected",
+            "staff.n_till_punch_in",
+            "staff.n_till_punch_out",
+            "staff.n_week_published",
+        ];
+        let missing: Vec<&str> = SENT
+            .iter()
+            .copied()
+            .filter(|k| en(k).is_none() || ar(k).is_none())
+            .collect();
+        assert!(missing.is_empty(), "no words for: {missing:?}");
+    }
+
+    #[test]
+    fn dawam_arabic_words_use_latin_digits() {
+        // APP-4: the staff app shows Latin digits in both languages, so no
+        // Arabic staff word may carry Arabic-Indic digits (the POS's own
+        // words keep theirs).
+        let src = include_str!("i18n.rs");
+        let ar_keys = keys_in_fn(src, "fn ar(key: &str) -> Option<&'static str> {");
+        let indic = |c: char| {
+            ('\u{0660}'..='\u{0669}').contains(&c) || ('\u{06F0}'..='\u{06F9}').contains(&c)
+        };
+        let bad: Vec<&str> = ar_keys
+            .into_iter()
+            .filter(|k| k.starts_with("staff.") && tr("ar", k).chars().any(indic))
+            .collect();
+        assert!(
+            bad.is_empty(),
+            "Arabic-Indic digits in Dawam words: {bad:?}"
         );
     }
 

@@ -55,6 +55,7 @@ class MadarListRow extends StatelessWidget {
     this.trailing,
     super.key,
   }) : variant = MadarListRowVariant.nav,
+       titleLines = 1,
        chevron = true,
        minor = null,
        currency = '',
@@ -76,6 +77,7 @@ class MadarListRow extends StatelessWidget {
     this.trailing,
     super.key,
   }) : variant = MadarListRowVariant.ledger,
+       titleLines = 1,
        chevron = true,
        glyph = null,
        valueText = null,
@@ -104,6 +106,7 @@ class MadarListRow extends StatelessWidget {
     this.selected = false,
     this.trailing,
     this.chevron = true,
+    this.titleLines = 1,
     super.key,
   }) : variant = MadarListRowVariant.bill,
        glyph = null;
@@ -117,6 +120,7 @@ class MadarListRow extends StatelessWidget {
     this.glyph,
     super.key,
   }) : variant = MadarListRowVariant.pick,
+       titleLines = 1,
        chevron = true,
        minor = null,
        currency = '',
@@ -131,8 +135,12 @@ class MadarListRow extends StatelessWidget {
 
   final MadarListRowVariant variant;
 
-  /// Localised; one line, ellipsised.
+  /// Localised; one line, ellipsised (a bill may allow [titleLines]).
   final String title;
+
+  /// Bill: the lines the title may wrap to before it is ellipsised — a
+  /// record read in full (the staff app's inbox notice). One elsewhere.
+  final int titleLines;
 
   /// The second line — who, when, how. One line, ellipsised. Build it with
   /// `' · '` between facts; isolate figures with `MadarFormat.ltr`.
@@ -295,7 +303,7 @@ class MadarListRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    maxLines: 1,
+                    maxLines: titleLines,
                     overflow: TextOverflow.ellipsis,
                     style: MadarType.title.copyWith(color: colors.textPrimary),
                   ),
