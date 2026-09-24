@@ -273,11 +273,19 @@ class _TeamTabState extends ConsumerState<TeamTab> {
               variant: MadarButtonVariant.danger,
               onTap: () => done('revoke'),
             ),
-          MadarButton(
-            label: tr('staff.ignore'),
-            variant: MadarButtonVariant.ghost,
-            onTap: () => done('ignore'),
-          ),
+          // A cover flag's one act confirms the cover, which pays it (CV-5):
+          // the button says so (E2E clocking S-208: it read "Ignore").
+          if (f.kind == FlagKind.cover)
+            MadarButton(
+              label: tr('staff.confirm_cover'),
+              onTap: () => done('confirm'),
+            )
+          else
+            MadarButton(
+              label: tr('staff.ignore'),
+              variant: MadarButtonVariant.ghost,
+              onTap: () => done('ignore'),
+            ),
         ],
       );
     },

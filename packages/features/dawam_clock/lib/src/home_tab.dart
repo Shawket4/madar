@@ -76,8 +76,13 @@ class _HomeTabState extends ConsumerState<HomeTab> with WidgetsBindingObserver {
         spacing: Space.xs,
         children: [
           Text(
+            // English has an afternoon; Arabic says «مساء الخير» from noon.
             tr(
-              store.now.hour < 12 ? 'staff.good_morning' : 'staff.good_evening',
+              switch (store.now.hour) {
+                < 12 => 'staff.good_morning',
+                < 17 => 'staff.good_afternoon',
+                _ => 'staff.good_evening',
+              },
               {'name': firstName(u)},
             ),
             style: MadarType.h1,

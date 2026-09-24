@@ -54,6 +54,8 @@ final class DawamTracker: NSObject, CLLocationManagerDelegate {
       case "stop":
         self?.stop()
         result(nil)
+      case "requestAlways":
+        self?.requestAlways(result)
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -70,6 +72,33 @@ final class DawamTracker: NSObject, CLLocationManagerDelegate {
   private func start() {
     UserDefaults.standard.set(true, forKey: Self.onKey)
     monitor()
+  }
+
+  /// "Always" location (CL-4): geolocator asks iOS only while the choice is
+  /// undetermined, and its ask is "While Using". This is the upgrade, asked
+  /// once by the app; iOS shows it once and answers through the delegate
+  /// only when the choice changes (the app gives up waiting after a while).
+  private var alwaysAnswer: FlutterResult?
+
+  private func requestAlways(_ result: @escaping FlutterResult) {
+    let status: CLAuthorizationStatus
+    if #available(iOS 14.0, *) { status = manager.authorizationStatus } else { status = CLLocationManager.authorizationStatus() }
+    guard status == .authorizedWhenInUse else {
+      result(status == .authorizedAlways)
+      return
+    }
+    alwaysAnswer?(nil)
+    alwaysAnswer = result
+    manager.requestAlwaysAuthorization()
+  }
+
+  func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+    guard let answer = alwaysAnswer else { return }
+    let status: CLAuthorizationStatus
+    if #available(iOS 14.0, *) { status = manager.authorizationStatus } else { status = CLLocationManager.authorizationStatus() }
+    if status == .notDetermined { return }
+    alwaysAnswer = nil
+    answer(status == .authorizedAlways)
   }
 
   private func stop() {

@@ -787,6 +787,8 @@ pub(crate) const DAWAM_CODES: &[&str] = &[
     // the same kind: worded in the phone's language (E2E requests).
     "REQUEST_ALREADY_DECIDED",
     "OVERLAPPING_REQUEST",
+    // Nobody decides their own flag (E2E B-TEAM-1).
+    "OWN_DECISION",
 ];
 
 /// Map an HTTP status + raw body to a `CoreError` variant.

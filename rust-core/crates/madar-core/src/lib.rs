@@ -1890,7 +1890,9 @@ impl MadarCore {
         seq_out: &mut Option<i64>,
     ) -> SendOutcome {
         // Dawam punches and pings go to their own `/staff/*` endpoint. A 409
-        // is the server already holding it (a resend after a lost answer).
+        // is the server already holding it only for a resend after a lost
+        // answer, or an uncoded check-out / any ping (`conflict_means_held`);
+        // a coded refusal (a closed month…) is a refusal.
         if item.op_type.starts_with(dawam::OP_PREFIX) {
             // A punch is a claim about one person: it only ever goes under
             // their own token, so it waits for them to sign in again.
@@ -1907,6 +1909,16 @@ impl MadarCore {
                 // the punch is kept for when it is, never dropped.
                 Err(CoreError::Forbidden { resource, action }) if resource == dawam::PRIVACY_NOT_ACCEPTED => {
                     SendOutcome::Held(action)
+                }
+                // A first try refused with 409 (rules not saved, a closed
+                // month, a shift that can't be covered) is a refusal, shown
+                // once in the server's words — never a silent "done".
+                Err(CoreError::Server { status: 409, code, detail }) if !dawam::conflict_means_held(item, &code) => {
+                    // In the person's words where the core has them (a closed month).
+                    match self.staff_error(CoreError::Server { status: 409, code, detail }) {
+                        CoreError::Server { detail, .. } => SendOutcome::Dead(detail),
+                        other => SendOutcome::Dead(format!("{other:?}")),
+                    }
                 }
                 Err(e) => classify_send(e, Idem::Yes),
             };
@@ -13201,6 +13213,7 @@ impl MadarCore {
             "STAFF_APP_ONLY" => Some("staff.err_staff_app_only"),
             dawam::PRIVACY_NOT_ACCEPTED => Some("staff.err_privacy_not_accepted"),
             "PERIOD_CLOSED" => Some("staff.err_period_closed"),
+            "OWN_DECISION" => Some("staff.err_own_decision"),
             "LEAVE_PAY_REQUIRED" => Some("staff.err_leave_pay_required"),
             "REQUEST_ALREADY_DECIDED" => Some("staff.err_request_already_decided"),
             "OVERLAPPING_REQUEST" => Some("staff.err_overlapping_request"),
