@@ -872,8 +872,23 @@ fn tail(id: &str) -> &str {
 /// or a ping with nothing open. A first try refused with 409 (rules not
 /// saved, a closed month, a shift that can't be covered, clock out
 /// first) is a refusal (E2E clocking C2).
-pub(crate) fn conflict_means_held(item: &store::OutboxItem) -> bool {
-    item.attempts > 0 || matches!(item.op_type.as_str(), "dawam_check_out" | "dawam_ping")
+///
+/// A coded refusal is always a refusal (owner decision BC-3: a check-out
+/// dated in a closed month is answered 409 PERIOD_CLOSED and must not read
+/// "clocked out"), except "already checked in", which a resend meets when
+/// its first try landed. A ping refused for any reason is dropped quietly:
+/// the next one follows.
+pub(crate) fn conflict_means_held(item: &store::OutboxItem, code: &str) -> bool {
+    if item.op_type == "dawam_ping" {
+        return true;
+    }
+    let refused = crate::net::DAWAM_CODES.contains(&code)
+        || ROSTER_CODES.contains(&code)
+        || (PUNCH_CODES.contains(&code) && code != "ALREADY_CHECKED_IN");
+    if refused {
+        return false;
+    }
+    item.attempts > 0 || item.op_type == "dawam_check_out"
 }
 
 fn needs_connection(locale: &str) -> CoreError {
@@ -3271,6 +3286,100 @@ mod tests {
 
         // A check-out with nothing open: what it asked for is already so.
         core.dawam_do(json!({ "action": "clock_out", "fix": fix }).to_string()).await.expect("nothing open is not an error");
+        assert_eq!(dead_dawam_ops(&core), 0);
+    }
+
+    /// Owner decision BC-3 (E2E clocking): nothing is written into a closed
+    /// month — a check-out dated in an approved or paid month gets 409
+    /// PERIOD_CLOSED. The core took any 409 on a check-out as "nothing open,
+    /// already so" and dropped it as done, so the phone read "clocked out"
+    /// while the server still had the shift open. A coded refusal is a
+    /// refusal: it comes back in the person's words and the shift stays open
+    /// on screen. The plain "you are not clocked in" 409 is still held, and a
+    /// ping refused for any reason is still dropped without a word.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_check_out_in_a_closed_month_is_refused_not_dropped() {
+        use crate::testkit::{online_core, Stub, StubResponse, BRANCH, TELLER};
+        use std::sync::{Arc, Mutex};
+
+        let closed = json!({
+            "error": "PERIOD_CLOSED: that month is paid — a check-out dated 2026-09-24 can't change it.",
+            "code": "PERIOD_CLOSED", "vars": { "date": "2026-09-24", "paid": true },
+        });
+        let check_out = Arc::new(Mutex::new((409_u16, closed.clone())));
+        let (out_answer, ping_closed) = (check_out.clone(), closed.clone());
+        let cairo = Utc::now().with_timezone(&chrono_tz::Africa::Cairo);
+        let today = cairo.date_naive().to_string();
+        let hms = |t: NaiveTime| format!("{}:00", hhmm((t.hour() * 60 + t.minute()) as i64));
+        let (start, end) = (hms(cairo.time() - Duration::hours(1)), hms(cairo.time() + Duration::hours(3)));
+        let in_at = (Utc::now() - Duration::minutes(30)).to_rfc3339();
+        let stub = Stub::start(move |r| {
+            let path = r.path.split('?').next().unwrap_or_default();
+            Some(match path {
+                "/staff/me/context" => StubResponse::json(200, json!({
+                    "role": "employee", "org_name": "Nile Café", "caps": [],
+                    "branches": [{ "id": BRANCH, "name": "Zamalek", "geo_radius_meters": 200,
+                                   "latitude": 30.0609, "longitude": 31.2197, "timezone": "Africa/Cairo" }],
+                    "work_shifts": [{ "id": "w1", "name": "Morning", "branch_id": BRANCH,
+                                      "start_time": start, "end_time": end, "grace_minutes": 10 }],
+                    "people": [{ "employee_id": TELLER, "name": "Sara", "role": "employee", "branch_ids": [BRANCH],
+                                 "base_salary_piastres": 900000, "pay_method": "cash", "cant_work_days": [] }],
+                    "settings": { "period_start_day": 26, "advance_cap_percent": "50", "rules_saved": true },
+                })),
+                "/staff/me/roster" => StubResponse::json(200, json!({
+                    "shifts": [{ "employee_id": TELLER, "date": today, "work_shift_id": "w1" }],
+                    "team": [], "open_shifts": [], "swaps": [], "unpublished_weeks": [],
+                })),
+                // The server still holds the shift open: the check-out was refused.
+                "/staff/me/attendance" => StubResponse::json(200, json!([{
+                    "id": "r1", "employee_id": TELLER, "business_date": today, "work_shift_id": "w1",
+                    "branch_id": BRANCH, "status": "present", "check_in_at": in_at, "check_in_method": "mobile_gps",
+                }])),
+                "/staff/me/check-out" => {
+                    let (status, body) = out_answer.lock().unwrap().clone();
+                    StubResponse::json(status, body)
+                }
+                "/staff/me/pings" => StubResponse::json(409, ping_closed.clone()),
+                "/health" => StubResponse::text(200, "ok"),
+                p if p.ends_with("estimate") || p.ends_with("context") => StubResponse::json(200, json!({})),
+                _ => StubResponse::json(200, json!([])),
+            })
+        })
+        .await;
+        let core = online_core(&stub.base, "").await;
+        core.set_online(true);
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let shift = snap["active_shift"].as_str().expect("clocked in on the server").to_string();
+        let fix = DawamFix { latitude: 30.0609, longitude: 31.2197, accuracy: Some(8.0), ..Default::default() };
+        let clock_out = json!({ "action": "clock_out", "fix": fix }).to_string();
+        let acked = |core: &MadarCore| -> i64 {
+            core.store
+                .with_conn(|c| Ok(c.query_row("SELECT COUNT(*) FROM outbox WHERE status = 'acked' AND op_type LIKE 'dawam_%'", [], |r| r.get(0))?))
+                .unwrap()
+        };
+
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            match core.dawam_do(clock_out.clone()).await {
+                Err(CoreError::Server { status: 409, detail, .. }) => {
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_period_closed"), "{lang}: in the person's words");
+                }
+                other => panic!("{lang}: a closed month refuses the check-out, got {other:?}"),
+            }
+            let snap: Value = serde_json::from_str(&core.dawam_snapshot(false).await.unwrap()).unwrap();
+            assert_eq!(snap["active_shift"], json!(shift), "{lang}: still clocked in on screen");
+            assert_eq!(snap["queued"], 0, "{lang}: the refused check-out left the queue");
+            assert_eq!(acked(&core), 0, "{lang}: a refusal is never acked");
+        }
+
+        // A ping refused because the month is closed: dropped without a word.
+        core.set_locale("en".into());
+        core.dawam_ping(fix.clone()).await.expect("a refused ping says nothing");
+        assert_eq!(dead_dawam_ops(&core), 0, "a refused ping is not shown as stuck");
+
+        // "You are not clocked in": what the check-out asked for is already so.
+        *check_out.lock().unwrap() = (409, json!({ "error": "Conflict: You are not clocked in." }));
+        core.dawam_do(clock_out.clone()).await.expect("nothing open is not an error");
         assert_eq!(dead_dawam_ops(&core), 0);
     }
 
