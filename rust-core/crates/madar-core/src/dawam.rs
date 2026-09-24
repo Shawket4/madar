@@ -721,6 +721,8 @@ pub(crate) const PUNCH_CODES: &[&str] = &[
     "BRANCH_OTHER_ORG",
     "NOT_YOUR_BRANCH",
     "ALREADY_CHECKED_IN",
+    // The till's PIN punch with POS or Dawam switched off (P-010).
+    "MODULE_OFF",
 ];
 
 /// A punch refusal in `locale`, from the server's body (`{error, code,

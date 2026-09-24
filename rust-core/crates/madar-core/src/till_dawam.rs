@@ -204,6 +204,34 @@ mod tests {
         assert!(!not_employee.contains('{'), "{not_employee}");
     }
 
+    /// E2E posnotif P-010: with Dawam (or POS) switched off the server
+    /// refuses the punch with `MODULE_OFF`; an Arabic till showed a generic
+    /// "you don't have permission". It says what is off, in the till's
+    /// language.
+    #[tokio::test]
+    async fn a_punch_with_dawam_off_says_so() {
+        let stub = Stub::start(|r| {
+            (r.path == "/staff/attendance/till-punch").then(|| {
+                StubResponse::json(403, json!({ "error": "Till punches need both POS and Dawam switched on.",
+                    "code": "MODULE_OFF" }))
+            })
+        })
+        .await;
+        let core = testkit::online_core(&stub.base, "").await;
+        let said = |e: crate::CoreError| match e {
+            crate::CoreError::Validation { detail, .. } => detail,
+            e => panic!("{e:?}"),
+        };
+        assert_eq!(
+            said(core.till_punch("1111".into()).await.unwrap_err()),
+            "Till punches need both POS and Dawam switched on."
+        );
+        core.set_locale("ar".into());
+        let ar = said(core.till_punch("1111".into()).await.unwrap_err());
+        assert_eq!(ar, crate::i18n::tr("ar", "staff.err_module_off"));
+        assert_ne!(ar, "staff.err_module_off", "the Arabic table has the words");
+    }
+
     #[tokio::test]
     async fn branch_people_are_kept_for_offline() {
         let stub = Stub::start(|r| {
