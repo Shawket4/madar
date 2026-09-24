@@ -34,10 +34,16 @@ class _Bridge implements MadarBridge {
 }
 
 /// PosPush with a token already in hand (Firebase is what normally sets it).
-PosPush _push(_Bridge bridge, {List<String>? posted, String locale = 'ar'}) {
+PosPush _push(
+  _Bridge bridge, {
+  List<String>? posted,
+  String locale = 'ar',
+  bool ios = false,
+}) {
   return PosPush(
     bridge: bridge,
     locale: locale,
+    ios: ios,
     post: ({required title, required body, required tag}) async =>
         posted?.add('$title|$body|$tag'),
     openQueue: () {},
@@ -83,19 +89,49 @@ void main() {
     expect(bridge.calls.last, 'set:fcm-1|ar|android');
   });
 
-  test('a push with the app open is drawn with the server words', () async {
-    final posted = <String>[];
-    final push = _push(_Bridge(), posted: posted);
+  test(
+    'on Android a push with the app open is drawn with the server words',
+    () async {
+      final posted = <String>[];
+      final push = _push(_Bridge(), posted: posted);
 
-    await push.debugShow(
-      title: 'Online order #12',
-      body: '3 items - 240 EGP',
-      data: {'order_id': 'o-9'},
-    );
-    expect(posted, ['Online order #12|3 items - 240 EGP|o-9']);
+      await push.debugShow(
+        title: 'Online order #12',
+        body: '3 items - 240 EGP',
+        data: {'order_id': 'o-9'},
+      );
+      expect(posted, ['Online order #12|3 items - 240 EGP|o-9']);
 
-    // Nothing to say: nothing drawn.
-    await push.debugShow(title: '', body: '', data: const {});
-    expect(posted, hasLength(1));
+      // Nothing to say: nothing drawn.
+      await push.debugShow(title: '', body: '', data: const {});
+      expect(posted, hasLength(1));
+    },
+  );
+
+  // E2E posnotif B-POS-4b: on an iPad with the till open, neither a push nor
+  // a live alert showed a banner — firebase_messaging, asked first, answered
+  // every notification with the till's foreground options (sound and badge,
+  // no banner). iOS draws a push itself once asked for a banner, so the till
+  // must not post a second copy of it.
+  test(
+    'on iOS a push with the app open is the OS banner, not a copy',
+    () async {
+      final posted = <String>[];
+      final push = _push(_Bridge(), posted: posted, ios: true);
+
+      await push.debugShow(
+        title: 'Online order #12',
+        body: '3 items - 240 EGP',
+        data: {'order_id': 'o-9'},
+      );
+      expect(posted, isEmpty);
+      expect(PosPush.foregroundPresentation.alert, isTrue);
+    },
+  );
+
+  test('an iOS till registers its token as iOS', () async {
+    final bridge = _Bridge();
+    await _push(bridge, ios: true).register();
+    expect(bridge.calls, ['set:fcm-1|ar|ios']);
   });
 }

@@ -2,9 +2,10 @@
 /// server, and a push that lands while the app is closed opens the Queue.
 ///
 /// Policy is the SERVER's — which events push, to whom, in what words. This
-/// holds none of it. It registers the token, shows a banner when a push
-/// arrives with the app open (the OS does it otherwise), and routes a tapped
-/// notification to the Queue, which is where an order that just arrived is.
+/// holds none of it. It registers the token, has a push that arrives with
+/// the app open shown as a banner (iOS draws it, Android needs ours), and
+/// routes a tapped notification to the Queue, which is where an order that
+/// just arrived is.
 ///
 /// Android and iOS only: firebase_messaging has no Windows till, and a macOS
 /// one would need its own APNs setup. Everything is best-effort — a POS must
@@ -33,7 +34,8 @@ class PosPush {
     required this.post,
     required this.openQueue,
     required this.locale,
-  });
+    @visibleForTesting bool? ios,
+  }) : _ios = ios ?? Platform.isIOS;
 
   /// The core: it decides the app name and the language of server pushes.
   final MadarBridge bridge;
@@ -53,6 +55,9 @@ class PosPush {
   /// `ar` or `en`, for the words the server writes pushes in.
   String locale;
 
+  /// On an iPhone or iPad (tests say which).
+  final bool _ios;
+
   String? _token;
   String? _sent; // token|locale last registered, so a rebuild is not a re-send
   StreamSubscription<String>? _refresh;
@@ -61,6 +66,16 @@ class PosPush {
 
   /// True on the platforms that have push at all.
   static bool get supported => Platform.isAndroid || Platform.isIOS;
+
+  /// What iOS shows for a push that lands with the app open: its own banner,
+  /// sound and badge. (E2E B-POS-4b: without `alert`, firebase_messaging —
+  /// asked first by iOS — hid every banner with the till open, the live
+  /// alerts' too.)
+  static const ({bool alert, bool badge, bool sound}) foregroundPresentation = (
+    alert: true,
+    badge: true,
+    sound: true,
+  );
 
   /// Start Firebase, ask for permission, and begin listening. Safe to call
   /// when Firebase is not configured on this machine: it returns quietly and
@@ -79,11 +94,13 @@ class PosPush {
       final m = FirebaseMessaging.instance;
       FirebaseMessaging.onBackgroundMessage(posPushBackgroundHandler);
       await m.requestPermission();
-      // iOS shows its own banner in the foreground only if asked to; we draw
-      // ours instead, so the two never double up.
+      // iOS shows a push's own banner in the foreground only if asked to:
+      // ask, and draw no copy of it (see [_showParts]). Android never shows
+      // it with the app open, so there the till draws it.
       await m.setForegroundNotificationPresentationOptions(
-        badge: true,
-        sound: true,
+        alert: foregroundPresentation.alert,
+        badge: foregroundPresentation.badge,
+        sound: foregroundPresentation.sound,
       );
       _onMessage = FirebaseMessaging.onMessage.listen(_show);
       _onOpened = FirebaseMessaging.onMessageOpenedApp.listen(
@@ -124,7 +141,7 @@ class PosPush {
       await bridge.setPushToken(
         token: token,
         locale: locale,
-        platform: Platform.isIOS ? 'ios' : 'android',
+        platform: _ios ? 'ios' : 'android',
       );
       _sent = stamp;
     } on Object {
@@ -151,7 +168,9 @@ class PosPush {
     }
   }
 
-  /// A push with the app open: the server already wrote the words.
+  /// A push with the app open: the server already wrote the words. On iOS
+  /// the OS draws it ([foregroundPresentation]); a copy would be a second
+  /// banner for the same push.
   Future<void> _show(RemoteMessage message) => _showParts(
     title: message.notification?.title,
     body: message.notification?.body,
@@ -165,6 +184,7 @@ class PosPush {
     required Map<String, dynamic> data,
     String? messageId,
   }) async {
+    if (_ios) return;
     String field(String key) => data[key]?.toString() ?? '';
     final t = title ?? field('title');
     if (t.isEmpty) return;
