@@ -738,6 +738,9 @@ pub(crate) const PUNCH_CODES: &[&str] = &[
     "ALREADY_CHECKED_IN",
     // The till's PIN punch with POS or Dawam switched off (P-010).
     "MODULE_OFF",
+    // A colleague is covering this shift (owner decision #1): every way of
+    // punching its owner in is refused, with the coverer's name.
+    "SHIFT_COVERED",
 ];
 
 /// The server's money refusals (E2E money BB2): the body is kept, and the
@@ -4386,6 +4389,34 @@ mod tests {
             }
             e => panic!("{e:?}"),
         }
+    }
+
+    /// Owner decision #1 (D1): a shift a colleague is covering refuses
+    /// every punch for its owner, 409 `SHIFT_COVERED` `{coverer_name}`. The
+    /// phone and the manager's punch read it in the person's language, with
+    /// the coverer's name, and it is a refusal, never "already held".
+    #[test]
+    fn a_covered_shift_is_refused_with_the_coverers_name() {
+        let tz: chrono_tz::Tz = "Africa/Cairo".parse().unwrap();
+        let body = r#"{"error":"Bassem is covering this shift. A manager ends or rejects the cover first.","code":"SHIFT_COVERED","vars":{"coverer_name":"Bassem"}}"#;
+        let en = punch_words("en", "SHIFT_COVERED", body, tz);
+        let ar = punch_words("ar", "SHIFT_COVERED", body, tz);
+        assert_eq!(en, "Bassem is covering this shift. A manager has to end or reject the cover first.");
+        assert!(ar.contains("Bassem") && !ar.contains("covering"), "{ar}");
+        match crate::net::status_to_error(409, body) {
+            CoreError::Server { status, code, detail } => {
+                assert_eq!((status, code.as_str()), (409, "SHIFT_COVERED"));
+                assert!(detail.contains("\"vars\""), "the coverer's name survives: {detail}");
+            }
+            e => panic!("{e:?}"),
+        }
+        let first_try = store::OutboxItem {
+            seq: 1, id: "p".into(), op_type: "dawam_punch_for".into(), idempotency_key: "p".into(), payload: "{}".into(),
+            event_at: String::new(), status: "inflight".into(), attempts: 0, last_error: None, server_id: None,
+            depends_on_seq: None, next_attempt_at: 0, user_id: None, clock_offset_ms: None, till_id: None,
+            device_id: None, entity_type: None, entity_id: None,
+        };
+        assert!(!conflict_means_held(&first_try, "SHIFT_COVERED"), "a refusal, not a silent done");
     }
 
     #[test]

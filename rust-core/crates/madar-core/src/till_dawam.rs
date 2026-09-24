@@ -232,6 +232,31 @@ mod tests {
         assert_ne!(ar, "staff.err_module_off", "the Arabic table has the words");
     }
 
+    /// Owner decision #1 (D1): a PIN punch on a shift a colleague is
+    /// covering is refused (409 SHIFT_COVERED) and the till says who is
+    /// covering it, in the till's language.
+    #[tokio::test]
+    async fn a_pin_punch_on_a_covered_shift_names_the_coverer() {
+        let stub = Stub::start(|r| {
+            (r.path == "/staff/attendance/till-punch").then(|| {
+                StubResponse::json(409, json!({ "error": "Bassem is covering this shift. A manager ends or rejects the cover first.",
+                    "code": "SHIFT_COVERED", "vars": { "coverer_name": "Bassem" } }))
+            })
+        })
+        .await;
+        let core = testkit::online_core(&stub.base, "").await;
+        let said = |e: crate::CoreError| match e {
+            crate::CoreError::Validation { detail, .. } => detail,
+            e => panic!("{e:?}"),
+        };
+        let en = said(core.till_punch("1111".into()).await.unwrap_err());
+        assert_eq!(en, crate::i18n::tr("en", "staff.err_shift_covered").replace("{coverer_name}", "Bassem"));
+        core.set_locale("ar".into());
+        let ar = said(core.till_punch("1111".into()).await.unwrap_err());
+        assert_eq!(ar, crate::i18n::tr("ar", "staff.err_shift_covered").replace("{coverer_name}", "Bassem"));
+        assert!(core.current_session().is_some(), "a refusal signs nobody out");
+    }
+
     #[tokio::test]
     async fn branch_people_are_kept_for_offline() {
         let stub = Stub::start(|r| {
