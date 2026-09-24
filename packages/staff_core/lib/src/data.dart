@@ -1177,6 +1177,10 @@ class DawamStore extends ChangeNotifier {
     String code, {
     String? orgId,
   }) async {
+    // The last sign-out ends in the background (the server, Firebase, then
+    // the core): verified first, the new session would be wiped by it, and
+    // the notice's "I agree" would have no one to send for (E2E roster m3).
+    await _signingOut;
     final v = await backend.otpVerify(phone, code, orgId: orgId);
     if (v['needs_org'] == true) {
       return [
@@ -1251,13 +1255,16 @@ class DawamStore extends ChangeNotifier {
     }
   }
 
+  /// The sign-out still finishing, which the next sign-in waits for.
+  Future<void> _signingOut = Future<void>.value();
+
   void signOut() {
     stop();
     _trackingOn = false;
     unawaited(backend.tracking(on: false));
     // Never fall back to the last person's picture.
     _lastGood = null;
-    unawaited(backend.signOut());
+    _signingOut = backend.signOut().catchError((Object _) {});
     me = null;
     pendingUser = null;
     notifyListeners();
