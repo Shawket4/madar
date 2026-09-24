@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - "v*.*.*"
+  # By hand from the Actions tab: every build runs and iOS goes to TestFlight,
+  # but no GitHub Release is published (that job needs a tag).
+  workflow_dispatch:
 
 # The Rust core lives IN THIS REPO at rust-core/ (see ci.yml) — Cargokit
 # cross-compiles it from the android/ios/macos build files' relative paths.
@@ -12,6 +15,17 @@ on:
 #   KEYSTORE_BASE64    — Android release keystore, base64-encoded
 #   KEYSTORE_PASSWORD / KEY_PASSWORD / KEY_ALIAS
 #   DIAWI_TOKEN        — optional; skipped gracefully when unset
+#   POS_GOOGLE_SERVICES_JSON — optional; apps/madar/android/app/google-services.json,
+#                        base64. Without it the release builds and runs, push off.
+#
+# iOS → TestFlight (the job skips itself, with a warning, until all are set):
+#   POS_GOOGLE_SERVICE_INFO_PLIST — apps/madar/ios/Runner/GoogleService-Info.plist, base64
+#   ASC_KEY_P8          — App Store Connect API key (.p8), base64. NOT the APNs key:
+#                         App Store Connect > Users and Access > Integrations > Keys,
+#                         role Admin (cloud signing needs it).
+#   ASC_KEY_ID          — that key's Key ID
+#   ASC_ISSUER_ID       — the Issuer ID shown above the keys list
+#   APPLE_TEAM_ID       — the team that owns com.madar.cashier (e.g. NT5TZBZ3BZ)
 
 jobs:
   # ── Android APK + AAB ──────────────────────────────────────────────────────
@@ -47,6 +61,25 @@ jobs:
           flutter-version: "3.47.2"
           channel: stable
           cache: true
+
+      # Push (APP-6). The Firebase config is git-ignored (public repo); the
+      # Gradle plugin applies only when this file exists, so a release without
+      # the secret still builds — with push off, and a warning saying so.
+      - name: Firebase config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.POS_GOOGLE_SERVICES_JSON }}
+        working-directory: apps/madar
+        run: |
+          set -euo pipefail
+          if [ -z "${GOOGLE_SERVICES_JSON:-}" ]; then
+            echo "::warning::POS_GOOGLE_SERVICES_JSON is not set — this release has push notifications OFF."
+            exit 0
+          fi
+          echo "$GOOGLE_SERVICES_JSON" | base64 --decode > android/app/google-services.json
+          python3 -c "import json; d=json.load(open('android/app/google-services.json')); \
+            pk=[c['client_info']['android_client_info']['package_name'] for c in d['client']]; \
+            assert 'com.madar.pos' in pk, pk; print('google-services.json OK:', pk)" \
+            || { echo "::error::POS_GOOGLE_SERVICES_JSON is not a google-services.json for com.madar.pos."; exit 1; }
 
       # Fail here, not 20 minutes later inside Gradle. Without the keystore
       # build.gradle.kts silently falls back to the DEBUG key, which would
@@ -199,7 +232,7 @@ jobs:
       - name: Shred signing material
         if: always()
         working-directory: apps/madar
-        run: shred -u android/app/release.keystore android/key.properties 2>/dev/null || true
+        run: shred -u android/app/release.keystore android/key.properties android/app/google-services.json 2>/dev/null || true
 
   # ── macOS ──────────────────────────────────────────────────────────────────
   build-macos:
@@ -301,9 +334,144 @@ jobs:
           name: windows-build
           path: MadarPOS-Windows.zip
 
+  # ── iOS → TestFlight ───────────────────────────────────────────────────────
+  # Signed in CI with an App Store Connect API key and Xcode's automatic
+  # (cloud-managed) signing, so no certificate or profile lives in a secret.
+  # The archive is exported straight to App Store Connect; TestFlight shows it
+  # once Apple has processed it. Independent of the GitHub Release: a missing
+  # key skips this job instead of failing the Android and desktop release.
+  build-ios:
+    name: Build iOS + upload to TestFlight
+    runs-on: macos-26
+    env:
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      POS_PLIST: ${{ secrets.POS_GOOGLE_SERVICE_INFO_PLIST }}
+    steps:
+      - name: Check App Store Connect secrets
+        id: asc
+        run: |
+          missing=""
+          for v in ASC_KEY_P8 ASC_KEY_ID ASC_ISSUER_ID APPLE_TEAM_ID POS_PLIST; do
+            [ -z "${!v:-}" ] && missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::warning::iOS/TestFlight skipped — missing secret(s):$missing"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.asc.outputs.ready == 'true'
+
+      - name: Setup Rust (from rust-toolchain.toml)
+        if: steps.asc.outputs.ready == 'true'
+        working-directory: rust-core
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustc --version
+
+      - name: Cache cargo
+        if: steps.asc.outputs.ready == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+          key: pos-ios
+
+      - name: Setup Flutter
+        if: steps.asc.outputs.ready == 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      # The plist is git-ignored (public repo); the Xcode build step copies it
+      # into the app when it exists, so this is what switches push on.
+      - name: Firebase config + API key
+        if: steps.asc.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          echo "$POS_PLIST" | base64 --decode > apps/madar/ios/Runner/GoogleService-Info.plist
+          plutil -lint apps/madar/ios/Runner/GoogleService-Info.plist
+          echo "$ASC_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          grep -q "BEGIN PRIVATE KEY" "$RUNNER_TEMP/AuthKey.p8" \
+            || { echo "::error::ASC_KEY_P8 did not decode to a .p8 key."; exit 1; }
+
+      - name: Pub get
+        if: steps.asc.outputs.ready == 'true'
+        run: dart pub get
+
+      # Flutter writes Generated.xcconfig (version from pubspec, build number
+      # from the run) and installs the pods; Xcode does the actual build, the
+      # Rust core included (Cargokit), inside the archive.
+      - name: Prepare the Xcode project
+        if: steps.asc.outputs.ready == 'true'
+        working-directory: apps/madar
+        run: |
+          flutter build ios --release --config-only --build-number=${{ github.run_number }}
+          cd ios && pod install
+
+      - name: Archive (signed)
+        if: steps.asc.outputs.ready == 'true'
+        working-directory: apps/madar/ios
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -workspace Runner.xcworkspace -scheme Runner -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic
+
+      # destination=upload: the export IS the upload, no altool/Transporter.
+      - name: Upload to App Store Connect (TestFlight)
+        if: steps.asc.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          {
+            echo "## 🍎 iOS — uploaded to App Store Connect"
+            echo ""
+            echo "Build **${{ github.run_number }}** of Madar Cashier (\`com.madar.cashier\`). It appears in TestFlight once Apple finishes processing, usually 5–30 minutes."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Shred key and config
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/AuthKey.p8" apps/madar/ios/Runner/GoogleService-Info.plist 2>/dev/null || true
+
   # ── GitHub Release ─────────────────────────────────────────────────────────
   release:
     name: Create GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
     needs: [build-android, build-macos, build-windows]
     runs-on: ubuntu-latest
     permissions:

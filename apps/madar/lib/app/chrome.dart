@@ -15,6 +15,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:madar/app/notifications.dart';
+import 'package:madar/app/push.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// How often the outbox pill re-reads `syncStatus()` between the events
@@ -267,6 +268,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
   /// channel call, and a shell that renders in a test host has no channel.
   AudioPlayer? _player;
   NotificationService? _notifications;
+  PosPush? _fcm;
   Timer? _pillBeatTimer;
 
   /// Bodies already visited, kept alive in the stack.
@@ -310,6 +312,23 @@ class _RoleShellState extends ConsumerState<RoleShell> {
         if (mounted) _notifications = s;
       }),
     );
+    // Push (APP-6): the server decides what to send; here the token goes up,
+    // a push with the app open draws the same banner as a realtime alert,
+    // and a tapped one lands on the Queue.
+    if (PosPush.supported) {
+      final push = PosPush(
+        bridge: ref.read(bridgeProvider),
+        post: ({required title, required body, required tag}) async {
+          await _notifications?.post(title: title, body: body, tag: tag);
+        },
+        openQueue: () {
+          if (mounted) _viewIncoming();
+        },
+        locale: ref.read(localeProvider).locale,
+      );
+      _fcm = push;
+      unawaited(push.start());
+    }
     HardwareKeyboard.instance.addHandler(_onKey);
     _pillBeatTimer = Timer.periodic(
       _pillBeat,
@@ -335,6 +354,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_onKey);
     _pillBeatTimer?.cancel();
+    unawaited(_fcm?.dispose());
     final player = _player;
     if (player != null) unawaited(player.dispose());
     super.dispose();
@@ -558,6 +578,9 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       return;
     }
     bridge.unsubscribeRealtime();
+    // Hand the push token back before the session goes: a till that changes
+    // hands must stop ringing for whoever just left (APP-6).
+    await _fcm?.forget();
     try {
       await bridge.lanStop();
     } on Exception catch (_) {}
@@ -706,8 +729,9 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       ..listen(reauthRequestProvider, (_, _) => _onReauthRequest())
       // The Android channel's name is shown in the OS's notification
       // settings; it follows the app's language like every other word.
-      ..listen(localeProvider, (_, _) {
+      ..listen(localeProvider, (prev, next) {
         unawaited(_notifications?.rename(_t('notif.channel')));
+        _fcm?.language(next.locale);
       })
       // Realtime ticks keep the badges honest whichever tab is showing: the
       // waiter's Bills count and the teller's Queue count read providers the

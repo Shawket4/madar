@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Push (APP-6). `development` is what a debug build wants; Xcode
+	     rewrites it to `production` when it archives for the store. -->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>
