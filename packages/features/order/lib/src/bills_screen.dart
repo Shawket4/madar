@@ -201,27 +201,35 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
             onTap: () => unawaited(_newBill()),
           ),
       ],
+      // Pulled: the manual sync, then the open bills re-read from the local
+      // rows. The empty state pulls too.
       body: SafeArea(
         top: false,
-        child: live.isEmpty
-            ? EmptyState(
-                icon: 'doc.text',
-                title: bridge.tr(key: 'waiter.no_tickets'),
-              )
-            : ListView(
-                padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
-                children: [
-                  if (mine.isNotEmpty)
-                    group(orderWord(bridge, 'bills.mine'), mine),
-                  if (others.isNotEmpty)
-                    // A section header only when the list is grouped — never
-                    // "BILLS" under the page's own title.
-                    group(
-                      mine.isEmpty ? null : orderWord(bridge, 'bills.others'),
-                      others,
-                    ),
-                ],
-              ),
+        child: MadarRefresh(
+          onRefresh: () => pullThenReread(ref, _notifier.loadOpenTickets),
+          child: live.isEmpty
+              ? MadarPullable(
+                  child: EmptyState(
+                    icon: 'doc.text',
+                    title: bridge.tr(key: 'waiter.no_tickets'),
+                  ),
+                )
+              : ListView(
+                  physics: MadarRefresh.physics,
+                  padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
+                  children: [
+                    if (mine.isNotEmpty)
+                      group(orderWord(bridge, 'bills.mine'), mine),
+                    if (others.isNotEmpty)
+                      // A section header only when the list is grouped — never
+                      // "BILLS" under the page's own title.
+                      group(
+                        mine.isEmpty ? null : orderWord(bridge, 'bills.others'),
+                        others,
+                      ),
+                  ],
+                ),
+        ),
       ),
     );
   }
