@@ -253,7 +253,8 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
     Shift? sh(String? id) =>
         id == null ? null : store.shifts.where((s) => s.id == id).firstOrNull;
     final (s1, s2) = (sh(r.shift), sh(r.shift2));
-    final s1Emp = s1?.emp;
+    // A cover's row is the coverer's; the card names whose shift it was.
+    final s1Emp = s1?.coverOf ?? s1?.emp;
     final s1In = s1?.inAt;
     final from = r.from;
     final detail = switch (r.kind) {

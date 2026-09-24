@@ -116,7 +116,11 @@ class _DayRow extends ConsumerWidget {
         ? MadarStatus(flagInfo(flag.kind).label, tone: flagInfo(flag.kind).tone)
         : null;
     return MadarListRow.bill(
-      title: '${dayLabel(s.date)} · ${tplName(s.template)}',
+      title: switch (s.coverOf) {
+        final o? =>
+          '${dayLabel(s.date)} · ${tr('staff.covering', {'name': name(store.emp(o))})}',
+        null => '${dayLabel(s.date)} · ${tplName(s.template)}',
+      },
       meta: s.inAt == null
           ? shiftWindow(s)
           : '${hm(s.inAt!)} – ${s.outAt == null ? '…' : hm(s.outAt!)}'
