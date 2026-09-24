@@ -21,6 +21,7 @@ pub struct StaffContext {
         skip_serializing_if = "Option::is_none"
     )]
     pub adjustment_limit_piastres: Option<Option<i64>>,
+    /// My ceiling on an advance, as whole percent of the person's salary owed after it (the grant stores basis points); null = none.
     #[serde(
         rename = "advance_limit_percent",
         default,

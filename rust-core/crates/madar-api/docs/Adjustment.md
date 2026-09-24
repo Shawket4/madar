@@ -17,6 +17,8 @@ Name | Type | Description | Notes
 **overridden_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **percent_of_base** | Option<**f64**> |  | [optional]
 **reason** | **String** |  | 
+**reason_code** | Option<**String**> | A rule-made line's reason as a code and its figures (`late` `{minutes}`, `absent_no_punch`, …), the payslip breakdown's own, so a client words it in its language (AT-13, E2E B-PAY-4). Null for a bonus and for a manual line (its `reason` is what was typed). | [optional]
+**reason_vars** | Option<**serde_json::Value**> |  | [optional]
 **recurring** | **bool** |  | 
 **source** | **String** |  | 
 **status** | **String** | `pending` (waits for the owner) · `approved` · `rejected` | 

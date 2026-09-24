@@ -71,6 +71,21 @@ pub struct Adjustment {
     pub percent_of_base: Option<Option<f64>>,
     #[serde(rename = "reason")]
     pub reason: String,
+    /// A rule-made line's reason as a code and its figures (`late` `{minutes}`, `absent_no_punch`, …), the payslip breakdown's own, so a client words it in its language (AT-13, E2E B-PAY-4). Null for a bonus and for a manual line (its `reason` is what was typed).
+    #[serde(
+        rename = "reason_code",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reason_code: Option<Option<String>>,
+    #[serde(
+        rename = "reason_vars",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reason_vars: Option<Option<serde_json::Value>>,
     #[serde(rename = "recurring")]
     pub recurring: bool,
     #[serde(rename = "source")]
@@ -133,6 +148,8 @@ impl Adjustment {
             overridden_at: None,
             percent_of_base: None,
             reason,
+            reason_code: None,
+            reason_vars: None,
             recurring,
             source,
             status,

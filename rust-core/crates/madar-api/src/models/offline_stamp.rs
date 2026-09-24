@@ -11,6 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// OfflineStamp : What a punch or ping recorded offline carries, so the server can date it without trusting the phone's wall clock.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OfflineStamp {
     /// The `X-Dawam-Time` value of the last response the phone saw (signed).
@@ -41,6 +42,7 @@ pub struct OfflineStamp {
 }
 
 impl OfflineStamp {
+    /// What a punch or ping recorded offline carries, so the server can date it without trusting the phone's wall clock.
     pub fn new(
         elapsed_ms: i64,
         server_time: chrono::DateTime<chrono::FixedOffset>,

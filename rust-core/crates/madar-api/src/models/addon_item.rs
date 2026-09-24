@@ -31,6 +31,14 @@ pub struct AddonItem {
     pub name_translations: serde_json::Value,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
+    /// How a sale line charges this option: madar-catalog's `OptionView` (branch-effective price, its group's effect and swap category, the ingredient it replaces, its lines per size). The till prices lines with it exactly as the order path does. Additive; older tills ignore it.
+    #[serde(
+        rename = "pricing",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub pricing: Option<Option<serde_json::Value>>,
     #[serde(
         rename = "primary_ingredient_id",
         default,
@@ -64,6 +72,7 @@ impl AddonItem {
             name,
             name_translations,
             org_id,
+            pricing: None,
             primary_ingredient_id: None,
             updated_at,
         }

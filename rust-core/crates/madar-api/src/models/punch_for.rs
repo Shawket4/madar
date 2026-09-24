@@ -23,17 +23,17 @@ pub struct PunchFor {
         skip_serializing_if = "Option::is_none"
     )]
     pub offline: Option<Option<Box<models::OfflineStamp>>>,
-    /// Required (CL-13): a dead phone, a forgotten one.
-    #[serde(rename = "reason")]
-    pub reason: String,
+    /// Required (CL-13): a dead phone, a forgotten one. Missing reads as blank, so the answer is \"A reason is required.\" (Mac E2E BC-4).
+    #[serde(rename = "reason", skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 impl PunchFor {
-    pub fn new(employee_id: uuid::Uuid, reason: String) -> PunchFor {
+    pub fn new(employee_id: uuid::Uuid) -> PunchFor {
         PunchFor {
             employee_id,
             offline: None,
-            reason,
+            reason: None,
         }
     }
 }

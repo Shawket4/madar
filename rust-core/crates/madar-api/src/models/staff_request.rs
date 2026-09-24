@@ -24,6 +24,36 @@ pub struct StaffRequest {
     /// The caller may approve or reject it now: it is pending, not their own, at one of their branches, and — a manager's request — they outrank the requester (RQ-5). The same checks the decision makes.
     #[serde(rename = "can_decide", skip_serializing_if = "Option::is_none")]
     pub can_decide: Option<bool>,
+    #[serde(
+        rename = "cancel_note",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cancel_note: Option<Option<String>>,
+    #[serde(
+        rename = "cancelled_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cancelled_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// Who cancelled it (the person themselves or a manager), when and why.
+    #[serde(
+        rename = "cancelled_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cancelled_by: Option<Option<uuid::Uuid>>,
+    /// Who cancelled it, by name, the same way.
+    #[serde(
+        rename = "cancelled_by_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cancelled_by_name: Option<Option<String>>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(
@@ -33,6 +63,7 @@ pub struct StaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub decided_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// Who approved or rejected it, when and why. A later cancellation keeps these (the approval stays on record) and fills `cancelled_*`.
     #[serde(
         rename = "decided_by",
         default,
@@ -40,6 +71,14 @@ pub struct StaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub decided_by: Option<Option<uuid::Uuid>>,
+    /// Who decided it, by name — their employee's name when linked, else their account's — so a phone that can't look up the owner's account still names them (RQ-F6).
+    #[serde(
+        rename = "decided_by_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub decided_by_name: Option<Option<String>>,
     #[serde(
         rename = "decision_note",
         default,
@@ -120,6 +159,9 @@ pub struct StaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub location: Option<Option<String>>,
+    /// A day of it is in an approved or paid month: approving or cancelling approved time is refused (PERIOD_CLOSED); rejecting still works.
+    #[serde(rename = "month_closed", skip_serializing_if = "Option::is_none")]
+    pub month_closed: Option<bool>,
     #[serde(rename = "on_date")]
     pub on_date: chrono::NaiveDate,
     #[serde(rename = "org_id")]
@@ -201,9 +243,14 @@ impl StaffRequest {
         StaffRequest {
             attendance_record_id: None,
             can_decide: None,
+            cancel_note: None,
+            cancelled_at: None,
+            cancelled_by: None,
+            cancelled_by_name: None,
             created_at,
             decided_at: None,
             decided_by: None,
+            decided_by_name: None,
             decision_note: None,
             employee_id,
             employee_name: None,
@@ -218,6 +265,7 @@ impl StaffRequest {
             leave_type_id: None,
             leave_type_name: None,
             location: None,
+            month_closed: None,
             on_date,
             org_id,
             paid_default: None,

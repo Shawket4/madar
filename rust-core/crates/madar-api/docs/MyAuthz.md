@@ -8,6 +8,7 @@ Name | Type | Description | Notes
 **branch_id** | Option<**uuid::Uuid**> |  | [optional]
 **capabilities** | **Vec<String>** | Capability keys held. | 
 **epoch** | **i64** |  | 
+**everywhere** | Option<**Vec<String>**> | The capabilities held at EVERY branch of the business — what an org-wide act (a department, a shift block, a public holiday, the rules) needs. `/authz/me` only; absent elsewhere. (E2E B-SETUP-3) | [optional]
 **limits** | [**std::collections::HashMap<String, models::LimitsView>**](LimitsView.md) | Limits on held capabilities, by key; absent = unlimited. | 
 **owner** | **bool** |  | 
 **platform** | **bool** |  | 

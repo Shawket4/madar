@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ContextPerson {
+    /// Their salary-advance cap, decided by the server (AV-5, AT-3); shown under the same visibility as the salary.
+    #[serde(
+        rename = "advance_cap_piastres",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub advance_cap_piastres: Option<Option<i64>>,
     /// Only for people whose pay the caller may see.
     #[serde(
         rename = "base_salary_piastres",
@@ -103,6 +111,7 @@ impl ContextPerson {
         role: String,
     ) -> ContextPerson {
         ContextPerson {
+            advance_cap_piastres: None,
             base_salary_piastres: None,
             branch_ids,
             cant_work_days,

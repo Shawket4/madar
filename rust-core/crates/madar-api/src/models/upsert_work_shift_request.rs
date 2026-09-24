@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UpsertWorkShiftRequest {
+    /// The block's branch; null = the whole business. On an update, omitted keeps the block's branch (E2E B-ROTA-8); on a create, omitted = the whole business.
     #[serde(
         rename = "branch_id",
         default,

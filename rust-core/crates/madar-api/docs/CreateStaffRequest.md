@@ -9,7 +9,7 @@ Name | Type | Description | Notes
 **end_date** | Option<**chrono::NaiveDate**> |  | [optional]
 **from_time** | Option<**String**> | Branch-local wall clock. | [optional]
 **is_half_day** | Option<**bool**> |  | [optional]
-**is_paid** | Option<**bool**> | Only when the request is approved as it is filed (the filer holds `hr.requests.self_approve`): leave paid or unpaid, an excuse's pay. Omitted: leave is paid, an excuse follows the rule. | [optional]
+**is_paid** | Option<**bool**> | Only when the request is approved as it is filed (the filer holds `hr.requests.self_approve`): leave paid or unpaid — REQUIRED for such a leave (400 `LEAVE_PAY_REQUIRED`, RQ-2) — and an excuse's pay (omitted: the rule decides). | [optional]
 **kind** | **String** | One of `leave`, `late_arrival`, `early_departure`, `excuse`, `mission`, `correction`. | 
 **leave_half** | Option<**String**> | `first` | `second`: which half of the day a half-day leave takes off. Omitted on a half day = the first. | [optional]
 **leave_type_id** | Option<**uuid::Uuid**> | Deprecated (RQ-2): ignored. Leave has no types. | [optional]

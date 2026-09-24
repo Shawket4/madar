@@ -87,6 +87,14 @@ pub struct AttendanceRecord {
         skip_serializing_if = "Option::is_none"
     )]
     pub check_out_method: Option<Option<String>>,
+    /// Why someone else punched this person OUT; the in-reason stays in `punch_reason` (AT-10, Mac E2E BC-1).
+    #[serde(
+        rename = "check_out_reason",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub check_out_reason: Option<Option<String>>,
     /// `pending` · `confirmed` · `rejected` for a cover.
     #[serde(
         rename = "cover_status",
@@ -143,6 +151,9 @@ pub struct AttendanceRecord {
     pub is_manual: bool,
     #[serde(rename = "late_minutes")]
     pub late_minutes: i32,
+    /// Its day is in an approved or paid month (period_lock): an overtime or cover approval, a correction or a deduction on it is refused with PERIOD_CLOSED, so clients don't offer them.
+    #[serde(rename = "month_closed", skip_serializing_if = "Option::is_none")]
+    pub month_closed: Option<bool>,
     #[serde(
         rename = "notes",
         default,
@@ -162,7 +173,7 @@ pub struct AttendanceRecord {
         skip_serializing_if = "Option::is_none"
     )]
     pub overtime_status: Option<Option<String>>,
-    /// Why someone else punched for this person.
+    /// Why someone else punched this person IN (or the only punch they made).
     #[serde(
         rename = "punch_reason",
         default,
@@ -241,6 +252,7 @@ impl AttendanceRecord {
             check_out_latitude: None,
             check_out_longitude: None,
             check_out_method: None,
+            check_out_reason: None,
             cover_status: None,
             covered_employee_id: None,
             created_at,
@@ -253,6 +265,7 @@ impl AttendanceRecord {
             id,
             is_manual,
             late_minutes,
+            month_closed: None,
             notes: None,
             org_id,
             overtime_minutes,

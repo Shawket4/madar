@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**advance_cap_piastres** | Option<**i64**> | Their salary-advance cap, decided by the server (AV-5, AT-3); shown under the same visibility as the salary. | [optional]
 **base_salary_piastres** | Option<**i64**> | Only for people whose pay the caller may see. | [optional]
 **branch_ids** | **Vec<uuid::Uuid>** |  | 
 **cant_work_days** | **Vec<i32>** |  | 

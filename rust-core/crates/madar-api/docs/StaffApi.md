@@ -2038,7 +2038,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_expense_advances
 
-> Vec<models::ExpenseAdvance> list_expense_advances(employee_id)
+> Vec<models::ExpenseAdvance> list_expense_advances(employee_id, branch_id)
 
 
 ### Parameters
@@ -2047,6 +2047,7 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **employee_id** | Option<**uuid::Uuid**> |  |  |
+**branch_id** | Option<**uuid::Uuid**> | Only the expenses logged at this branch (the expense's own branch, AV-9). A branch the caller can't read is refused (403). |  |
 
 ### Return type
 

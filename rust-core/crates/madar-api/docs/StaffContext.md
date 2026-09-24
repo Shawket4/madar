@@ -5,7 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **adjustment_limit_piastres** | Option<**i64**> | My ceiling on a bonus before it waits for the owner; null = none. | [optional]
-**advance_limit_percent** | Option<**i64**> |  | [optional]
+**advance_limit_percent** | Option<**i64**> | My ceiling on an advance, as whole percent of the person's salary owed after it (the grant stores basis points); null = none. | [optional]
 **branches** | [**Vec<models::ContextBranch>**](ContextBranch.md) |  | 
 **caps** | **Vec<String>** | The HR capabilities I hold (`hr.*` keys) — through my Madar account; empty for an employee with none. The app gates tabs on these (PM-4). | 
 **deduction_limit_piastres** | Option<**i64**> | My ceiling on a deduction (AD-5: separate from the bonus limit). | [optional]
