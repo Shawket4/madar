@@ -306,9 +306,13 @@ class _RoleShellState extends ConsumerState<RoleShell> {
     // toast + chime work immediately; a notification that arrives before
     // init just skips.
     unawaited(
-      NotificationService.initialize(channelName: _t('notif.channel')).then((
-        s,
-      ) {
+      NotificationService.initialize(
+        channelName: _t('notif.channel'),
+        // A tapped banner goes where the in-app alert's View goes.
+        onTap: (_) {
+          if (mounted) _viewIncoming();
+        },
+      ).then((s) {
         if (mounted) _notifications = s;
       }),
     );

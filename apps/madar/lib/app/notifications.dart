@@ -20,8 +20,13 @@ class NotificationService {
 
   /// Boot the plugin, create the Android channel, and request permission
   /// (Android 13+ / iOS / macOS). Returns a ready service; never throws.
+  ///
+  /// [onTap] runs when someone taps one of these notifications (with the tag
+  /// it was posted under), including the tap that launched the app — the
+  /// same place the in-app toast's View goes.
   static Future<NotificationService> initialize({
     required String channelName,
+    void Function(String? tag)? onTap,
   }) async {
     final plugin = FlutterLocalNotificationsPlugin();
     try {
@@ -31,7 +36,12 @@ class NotificationService {
           iOS: DarwinInitializationSettings(),
           macOS: DarwinInitializationSettings(),
         ),
+        onDidReceiveNotificationResponse: (r) => onTap?.call(r.payload),
       );
+      final launch = await plugin.getNotificationAppLaunchDetails();
+      if (launch?.didNotificationLaunchApp ?? false) {
+        onTap?.call(launch?.notificationResponse?.payload);
+      }
 
       final android = plugin
           .resolvePlatformSpecificImplementation<
@@ -100,6 +110,8 @@ class NotificationService {
         id: tag.hashCode & 0x7fffffff,
         title: title,
         body: body.isEmpty ? null : body,
+        // The tag comes back on a tap, so it can open the right place.
+        payload: tag,
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
