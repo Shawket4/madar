@@ -29,6 +29,7 @@ export 'src/page.dart';
 export 'src/paper.dart';
 export 'src/playful.dart';
 export 'src/preferences.dart';
+export 'src/refresh.dart';
 export 'src/responsive.dart';
 export 'src/scrim.dart';
 export 'src/sheet.dart';
