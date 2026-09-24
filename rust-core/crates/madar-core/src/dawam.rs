@@ -166,10 +166,10 @@ impl NotedFix {
     }
 }
 
+/// Great-circle metres between `(lat, lng)` points: madar-shared's
+/// `madar_dawam::geofence::haversine_m`, the server's `haversine_meters`.
 fn haversine_m(a: (f64, f64), b: (f64, f64)) -> f64 {
-    let (la1, lo1, la2, lo2) = (a.0.to_radians(), a.1.to_radians(), b.0.to_radians(), b.1.to_radians());
-    let h = ((la2 - la1) / 2.0).sin().powi(2) + la1.cos() * la2.cos() * ((lo2 - lo1) / 2.0).sin().powi(2);
-    2.0 * 6_371_000.0 * h.sqrt().asin()
+    madar_dawam::geofence::haversine_m(a, b)
 }
 
 // ── what the screens get ──────────────────────────────────────────────────
@@ -2504,7 +2504,8 @@ impl MadarCore {
             let fence = match (&fresh, centre) {
                 (Some(fx), Some(c)) => {
                     let d = haversine_m(c, (fx.latitude, fx.longitude));
-                    FenceV { state: if d <= radius as f64 { "inside" } else { "outside" }.into(), distance_m: Some(d.round() as i64), radius }
+                    let state = if madar_dawam::geofence::inside(d, radius) { "inside" } else { "outside" };
+                    FenceV { state: state.into(), distance_m: Some(d.round() as i64), radius }
                 }
                 _ => FenceV { state: "unknown".into(), distance_m: None, radius },
             };
@@ -2608,19 +2609,17 @@ fn adj_value(a: &Value, pct: Option<f64>) -> i64 {
     a.get("value_piastres").and_then(Value::as_i64).unwrap_or_else(|| if pct.is_some() { 0 } else { i(a, "amount_piastres") })
 }
 
-/// A branch's geofence radius by the server's rule (`staff/attendance.rs`:
-/// `unwrap_or(200).max(0)`, DW2): unset is 200 m, and 0 is 0 m — not 200, or
-/// the phone says "inside" where the server refuses the punch.
+/// A branch's geofence radius by the server's rule (madar-shared's
+/// `madar_dawam::geofence::effective_radius`, DW2): unset is 200 m, and 0 is
+/// 0 m — not 200, or the phone says "inside" where the server refuses the punch.
 fn effective_radius(br: &Value) -> i64 {
-    br.get("geo_radius_meters").and_then(Value::as_i64).unwrap_or(200).max(0)
+    madar_dawam::geofence::effective_radius(br.get("geo_radius_meters").and_then(Value::as_i64))
 }
 
-/// The pay period `d` falls in, for a business starting on `start_day` (PAY-1).
+/// The pay period `d` falls in, for a business starting on `start_day` (PAY-1):
+/// madar-shared's `madar_dawam::pay::period_window`, the server's.
 fn period_around(d: NaiveDate, start_day: i64) -> (NaiveDate, NaiveDate) {
-    let sd = start_day.clamp(1, 28) as u32;
-    let this = NaiveDate::from_ymd_opt(d.year(), d.month(), sd).unwrap_or(d);
-    let start = if d >= this { this } else { this - chrono::Months::new(1) };
-    (start, start + chrono::Months::new(1) - Duration::days(1))
+    madar_dawam::pay::period_window(d, start_day)
 }
 
 fn fill(s: &str, args: &BTreeMap<String, String>) -> String {
@@ -2834,6 +2833,23 @@ mod tests {
         assert_eq!((a.to_string(), z.to_string()), ("2026-08-26".into(), "2026-09-25".into()));
         let (a, _) = period_around(NaiveDate::from_ymd_opt(2026, 9, 26).unwrap(), 26);
         assert_eq!(a.to_string(), "2026-09-26");
+    }
+
+    /// The stamp this phone sends is madar-shared's `OfflineStamp`, the type
+    /// the server decodes it with, and an anchor's time is read the server's way.
+    #[test]
+    fn the_stamp_is_the_shared_offline_stamp() {
+        let signed = format!("v1.1758700000000.{}", "ab".repeat(32));
+        for a in [
+            None,
+            Some(Anchor { server_ms: 1_758_700_000_000, boot_ms: 50_000, wall_ms: 1_758_700_000_000, sig: Some(signed.clone()) }),
+        ] {
+            let v = stamp(a, 80_000, 1_758_700_030_000, Some("2026-09-24T08:00:00Z"));
+            let s: madar_dawam::stamp::OfflineStamp = serde_json::from_value(v.clone()).expect("the shared stamp type");
+            assert_eq!(s.elapsed_ms, v["elapsed_ms"].as_i64().unwrap());
+        }
+        let anchor = crate::net::StaffAnchor { signed, boot_ms: 0, wall_ms: 0 };
+        assert_eq!(anchor.server_ms(), Some(1_758_700_000_000));
     }
 
     #[test]

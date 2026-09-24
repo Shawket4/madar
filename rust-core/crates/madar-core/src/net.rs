@@ -731,8 +731,8 @@ fn extract_error_code(body: &str) -> Option<String> {
 }
 
 /// The header every staff-app response carries: the server's time, signed for
-/// this phone (CL-11).
-pub(crate) const DAWAM_TIME_HEADER: &str = "x-dawam-time";
+/// this phone (CL-11). madar-shared's `madar_dawam::stamp::ANCHOR_HEADER`.
+pub(crate) const DAWAM_TIME_HEADER: &str = madar_dawam::stamp::ANCHOR_HEADER;
 
 /// A signed server time as the phone received it.
 #[derive(Clone, Debug, PartialEq)]
@@ -746,9 +746,10 @@ pub(crate) struct StaffAnchor {
 }
 
 impl StaffAnchor {
-    /// The server time it carries (epoch ms).
+    /// The server time it carries (epoch ms), read the way the server reads
+    /// an anchor (`madar_dawam::stamp::parse_anchor`: `v1.<ms>.<64 hex>`).
     pub fn server_ms(&self) -> Option<i64> {
-        self.signed.split('.').nth(1)?.parse().ok()
+        madar_dawam::stamp::parse_anchor(&self.signed).map(|a| a.ms)
     }
 }
 
