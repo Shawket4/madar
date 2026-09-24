@@ -251,6 +251,8 @@ Future<void> showInbox(BuildContext context, WidgetRef ref) async {
         for (final n in store.myNotices.take(30))
           MadarListRow.bill(
             title: loc(n),
+            // Read in full: a cut line hides what happened ("…was dec…").
+            titleLines: 4,
             meta: '${dayLabel(n.at)} · ${hm(n.at)}',
             rail: n.read ? null : MadarTone.accent,
           ),
