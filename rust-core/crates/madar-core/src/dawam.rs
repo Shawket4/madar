@@ -4350,6 +4350,35 @@ mod tests {
         assert_ne!(i18n::tr("en", "staff.err_period_closed"), i18n::tr("ar", "staff.err_period_closed"));
     }
 
+    /// E2E B-TEAM-1: nobody decides their own flag — the server answers 403
+    /// `OWN_DECISION`, and the phone says it in the person's language (it
+    /// showed the server's English on an Arabic screen).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn deciding_your_own_flag_is_worded_in_both_languages() {
+        use crate::testkit::StubResponse;
+        let (_stub, core) = cafe(&["hr.attendance.read", "hr.attendance.edit"], |m, p, _| match (m, p) {
+            ("PATCH", "/staff/flags/f1") => Some(StubResponse::json(403, json!({
+                "error": "Someone else has to decide this one.", "code": "OWN_DECISION",
+            }))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            let act = json!({ "action": "resolve", "flag": "f1", "how": "ignore" }).to_string();
+            match core.dawam_do(act).await {
+                Err(CoreError::Server { status, code, detail }) => {
+                    assert_eq!((status, code.as_str()), (403, "OWN_DECISION"));
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_own_decision"));
+                }
+                other => panic!("expected the own-decision refusal, got {other:?}"),
+            }
+        }
+        assert_ne!(i18n::tr("en", "staff.err_own_decision"), "staff.err_own_decision");
+        assert_ne!(i18n::tr("en", "staff.err_own_decision"), i18n::tr("ar", "staff.err_own_decision"));
+    }
+
     /// AT-7: cancelling an approved request says why; a pending one doesn't
     /// have to.
     #[tokio::test(flavor = "multi_thread")]

@@ -783,6 +783,8 @@ pub(crate) const DAWAM_CODES: &[&str] = &[
     // One notion of a closed month: an approved or paid payroll freezes
     // every day inside it (RQ-4, PAY-5).
     "PERIOD_CLOSED",
+    // Nobody decides their own flag (E2E B-TEAM-1).
+    "OWN_DECISION",
 ];
 
 /// Map an HTTP status + raw body to a `CoreError` variant.

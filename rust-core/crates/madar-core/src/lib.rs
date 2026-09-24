@@ -13208,6 +13208,7 @@ impl MadarCore {
             "STAFF_APP_ONLY" => Some("staff.err_staff_app_only"),
             dawam::PRIVACY_NOT_ACCEPTED => Some("staff.err_privacy_not_accepted"),
             "PERIOD_CLOSED" => Some("staff.err_period_closed"),
+            "OWN_DECISION" => Some("staff.err_own_decision"),
             "LEAVE_PAY_REQUIRED" => Some("staff.err_leave_pay_required"),
             _ => None,
         };
