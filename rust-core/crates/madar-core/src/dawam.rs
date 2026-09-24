@@ -5513,7 +5513,7 @@ mod tests {
     fn the_window_words_are_in_both_languages() {
         for k in [
             "staff.week_not_loaded", "staff.open_shift_cant_move", "staff.open_shift_gone", "staff.week_loading",
-            "staff.week_needs_connection", "staff.open_shift_posted", "staff.given_to", "staff.week_couldnt_load",
+            "staff.week_needs_connection", "staff.open_shift_posted", "staff.given_to", "staff.week_couldnt_load", "staff.coverage_saved",
         ] {
             let (en, ar) = (i18n::tr("en", k), i18n::tr("ar", k));
             assert_ne!(en, k, "{k} has no English");

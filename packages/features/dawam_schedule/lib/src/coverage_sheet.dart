@@ -45,9 +45,16 @@ class _CoverageSheetState extends ConsumerState<CoverageSheet> {
 
   int _hour(Object? t) => int.parse('$t'.split(':').first);
 
-  void _save(List<J> needs) {
-    setState(() => _needs = needs);
-    unawaited(ref.read(dawamProvider).setCoverage(widget.branch, needs));
+  /// Saved on the server first (H2-07): the list showed a band the moment
+  /// it was tapped and kept it after a refusal. Now a refusal says why and
+  /// leaves the list as it was; the band shows once it is taken.
+  Future<void> _save(List<J> needs) async {
+    final ok = await attempt(
+      ref,
+      () => ref.read(dawamProvider).setCoverage(widget.branch, needs),
+      ok: tr('staff.coverage_saved'),
+    );
+    if (ok && mounted) setState(() => _needs = needs);
   }
 
   @override

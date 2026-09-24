@@ -197,6 +197,23 @@ void main() {
       await finish(t);
     });
 
+    testWidgets('a coverage band shows once the server takes it · $lang', (
+      t,
+    ) async {
+      await board(t, lang);
+      await tapText(t, tr('staff.coverage_needs'));
+      testCore.refuse = refusal;
+      await tapText(t, tr('common.save'));
+      expect(lastAct()['action'], 'set_coverage');
+      expect(find.text(loc(refusal)), findsOneWidget);
+      expect(find.text('12:00 – 15:00'), findsNothing, reason: 'not taken');
+      testCore.refuse = null;
+      await tapText(t, tr('common.save'));
+      expect(find.text(tr('staff.coverage_saved')), findsOneWidget);
+      expect(find.text('12:00 – 15:00'), findsOneWidget);
+      await finish(t);
+    });
+
     testWidgets('a week the server published reads Published, shifts or '
         'none · $lang', (t) async {
       final store = await board(t, lang);
