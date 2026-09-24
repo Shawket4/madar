@@ -761,8 +761,20 @@ pub(crate) const ROSTER_CODES: &[&str] = &[
     "SWAP_OTHER_BRANCH",
     "WEEK_NOT_PUBLISHED",
     "ALREADY_ROSTERED",
+    "ALREADY_CLAIMED",
     "SUGGESTION_STALE",
 ];
+
+/// The server's plain refusals carry its error kind in front ("Conflict:
+/// Someone already claimed that shift."): the person reads the sentence only
+/// (E2E roster: the toast said "Conflict: …").
+fn plain_sentence(detail: &str) -> String {
+    ["Conflict: ", "Bad request: ", "Not found: ", "Forbidden: "]
+        .iter()
+        .find_map(|p| detail.strip_prefix(p))
+        .unwrap_or(detail)
+        .to_string()
+}
 
 /// `minute of the day` → the server's `HH:MM:SS`.
 fn hms_of(m: i64) -> String {
@@ -1024,6 +1036,7 @@ impl MadarCore {
                         let detail = punch_words(&self.current_locale(), &code, &detail, self.dawam_tz());
                         CoreError::Server { status, code, detail }
                     }
+                    CoreError::Server { status, code, detail } => CoreError::Server { status, code, detail: plain_sentence(&detail) },
                     e => e,
                 })
             }
@@ -3713,6 +3726,9 @@ mod tests {
                                   { "employee_id": "Q", "date": day, "day_off": true }],
                 })),
                 (_, "/health") => StubResponse::text(200, "ok"),
+                ("POST", "/staff/open-shifts/taken/claim") => StubResponse::json(409, json!({ "error": "Conflict: Someone already claimed that shift." })),
+                ("POST", "/staff/open-shifts/coded/claim") => StubResponse::json(409, json!({
+                    "error": "Someone already claimed that shift.", "code": "ALREADY_CLAIMED" })),
                 ("GET", p) if p.ends_with("estimate") || p.ends_with("coverage") => StubResponse::json(200, json!({})),
                 ("GET", _) => StubResponse::json(200, json!([])),
                 ("PUT", "/staff/schedules/days") if r.json()["employee_id"] == "Q" => StubResponse::json(409, json!({
@@ -3903,6 +3919,34 @@ mod tests {
                 CoreError::Server { status, code, detail } => {
                     assert_eq!((status, code.as_str()), (409, "SHIFTS_OVERLAP"));
                     assert_eq!(detail, i18n::tr(locale, "staff.err_shifts_overlap"));
+                }
+                e => panic!("{e:?}"),
+            }
+        }
+    }
+
+    /// E2E roster (Omar, iPhone): someone claimed the open shift first and the
+    /// toast read "Conflict: Someone already claimed that shift." — the
+    /// server's error kind in front, English on an Arabic phone. The kind goes;
+    /// once the server names it (ALREADY_CLAIMED) it is worded per language.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_claim_lost_to_a_colleague_reads_as_a_sentence() {
+        let day = the_day();
+        let stub = roster_stub(day.clone()).await;
+        let core = crate::testkit::online_core(&stub.base, "").await;
+        core.set_online(true);
+        core.dawam_snapshot(true).await.unwrap();
+        let claim = |id: &str| core.dawam_do(json!({ "action": "claim", "shift": format!("open|{id}") }).to_string());
+        match claim("taken").await.unwrap_err() {
+            CoreError::Server { detail, .. } => assert_eq!(detail, "Someone already claimed that shift."),
+            e => panic!("{e:?}"),
+        }
+        for locale in ["en", "ar"] {
+            core.set_locale(locale.into());
+            match claim("coded").await.unwrap_err() {
+                CoreError::Server { code, detail, .. } => {
+                    assert_eq!(code, "ALREADY_CLAIMED");
+                    assert_eq!(detail, i18n::tr(locale, "staff.err_already_claimed"));
                 }
                 e => panic!("{e:?}"),
             }
