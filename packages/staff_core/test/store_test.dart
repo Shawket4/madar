@@ -31,8 +31,11 @@ class _Backend implements DawamBackend {
 
   @override
   Future<String> snapshot({required bool refresh}) async => _fixture();
+
+  /// What the next sync (the poll, the pill's tap) answers.
+  Future<String> Function() synced = () async => _fixture();
   @override
-  Future<String> sync() async => _fixture();
+  Future<String> sync() => synced();
   @override
   Future<String> ping(DawamFix fix) async => _fixture();
   @override
@@ -191,6 +194,30 @@ void main() {
       await store.publish('b', DateTime(2026, 9, 19));
       await Future<void>.delayed(Duration.zero);
       expect(failures, ['Outside Zamalek: 340 m away.']);
+      await sub.cancel();
+    },
+  );
+
+  test(
+    'a queued punch refused on reconnect is said once, as a red toast (S-035)',
+    () async {
+      // E2E posnotif S-035/S-036: a clock-out made offline was refused when
+      // the poll sent it; the core reported it and the app said nothing.
+      final (store, backend) = await _store();
+      const why = "You're 1201 m from the branch. Clock in within 200 m.";
+      String withRefused(List<String> r) => jsonEncode(
+        (jsonDecode(_fixture()) as Map<String, dynamic>)..['refused'] = r,
+      );
+      final failures = <String>[];
+      final sub = store.failures.stream.listen(failures.add);
+      backend.synced = () async => withRefused([why]);
+      store.sync();
+      await Future<void>.delayed(Duration.zero);
+      expect(failures, [why]);
+      backend.synced = () async => withRefused([]);
+      store.sync();
+      await Future<void>.delayed(Duration.zero);
+      expect(failures, [why], reason: 'the core says it once');
       await sub.cancel();
     },
   );

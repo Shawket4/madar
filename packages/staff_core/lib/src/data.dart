@@ -635,6 +635,9 @@ class DawamStore extends ChangeNotifier {
   bool offline = false;
   int queued = 0;
   List<String> stuck = const [];
+
+  /// Queued punches the server refused, in the picture just read.
+  List<String> _refused = const [];
   Role role = Role.employee;
   String orgName = '';
   bool canManage = false;
@@ -746,6 +749,7 @@ class DawamStore extends ChangeNotifier {
     offline = v['online'] != true;
     queued = _int(v['queued']);
     stuck = (v['stuck'] as List<dynamic>).cast<String>();
+    _refused = ((v['refused'] as List<dynamic>?) ?? const []).cast<String>();
     role = _enum(Role.values, v['role'], Role.employee);
     orgName = v['org_name'] as String;
     canManage = v['can_manage'] == true;
@@ -1369,6 +1373,11 @@ class DawamStore extends ChangeNotifier {
     try {
       _apply(json);
       _lastGood = json;
+      // A queued punch the server refused after its screen moved on (a
+      // clock-out made offline, sent on reconnect): the core says it once,
+      // and it shows as a red toast (S-035/S-036). Never again from a
+      // re-applied last picture.
+      _refused.forEach(failures.add);
     } on Object catch (e, st) {
       // `_apply` clears as it reads: put the last good picture back.
       final good = _lastGood;
