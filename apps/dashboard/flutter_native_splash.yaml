@@ -1,8 +1,12 @@
-# Native launch splash (Android + iOS): the reversed Madar mark on brand teal,
-# ink in dark mode. Regenerate: dart run flutter_native_splash:create
+# Native launch splash (Android + iOS): the Madar orbit on brand teal, ink in dark mode.
+# Light (teal ground): the on-teal mark (Paper ring and centre dot, Ink satellite: a teal
+# satellite would vanish into the ground). Dark (Ink ground): the reversed mark in the app
+# icon's colouring (Paper ring and centre dot, Madar Teal deep satellite).
+# Sources: Madar Design System png/symbol/symbol-on-teal.png and symbol-reversed.png.
+# Regenerate: dart run flutter_native_splash:create
 flutter_native_splash:
   color: "#0D6273"
-  image: "assets/branding/splash-logo.png"
+  image: "assets/branding/splash-logo-on-teal.png"
   color_dark: "#14181E"
   image_dark: "assets/branding/splash-logo.png"
   android: true
@@ -10,7 +14,7 @@ flutter_native_splash:
   web: false
   fullscreen: true
   android_12:
-    image: "assets/branding/splash-logo.png"
+    image: "assets/branding/splash-logo-on-teal.png"
     color: "#0D6273"
     image_dark: "assets/branding/splash-logo.png"
     color_dark: "#14181E"
