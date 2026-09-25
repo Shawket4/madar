@@ -457,7 +457,7 @@ fn line_view(it: &models::OpenTicketItemView) -> TicketLineView {
         menu_item_id: it.menu_item_id.flatten().map(|m| m.to_string()),
         name: s("name").unwrap_or_else(|| "Item".to_string()),
         qty,
-        size_label: s("size_label"),
+        size_label: crate::cart::real_size(s("size_label")),
         modifiers,
         line_total_minor: it.line_total as i64,
         voided: it.voided,

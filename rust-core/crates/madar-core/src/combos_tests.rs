@@ -1866,7 +1866,12 @@ fn server_order(req: &Value) -> Value {
                 });
                 part["combo_share"] = json!(share);
                 part["combo_surcharge"] = json!(sur);
-                part["size_label"] = p["size_label"].clone();
+                // As the real server stores it: a single-size part says
+                // "one_size" where a plain line says null.
+                part["size_label"] = match &p["size_label"] {
+                    Value::Null => json!("one_size"),
+                    v => v.clone(),
+                };
                 part["addons"] = json!(p["addons"].as_array().cloned().unwrap_or_default().iter().map(|a| json!({
                     "id": uuid::Uuid::new_v4(), "order_item_id": uuid::Uuid::new_v4(), "addon_item_id": a["addon_item_id"],
                     "addon_name": "Oat milk", "unit_price": a["unit_price"], "quantity": a["quantity"],
@@ -1990,6 +1995,12 @@ async fn the_drained_order_is_the_queued_one_and_the_reprint_rebuilds_the_combo(
         ]
     );
     assert_eq!(l.parts[2].size_label.as_deref(), Some("Large"));
+    // The server's "one_size" on a single-size part is no size: never on the
+    // reprint's view, nor on its paper.
+    assert_eq!((l.parts[0].size_label.as_deref(), l.parts[1].size_label.as_deref()), (None, None));
+    let paper: Vec<String> = receipt::layout(&again, &escpos_ctx(&core)).into_iter().map(|l| l.text).collect();
+    assert!(!paper.iter().any(|t| t.contains("one_size")), "{paper:#?}");
+    assert!(paper.iter().any(|t| t.starts_with("  2x Burger") && !t.contains('(')), "{paper:#?}");
     assert_eq!(
         l.parts[2].addons,
         vec![checkout::ReceiptModifierView {
@@ -2360,4 +2371,33 @@ fn the_counted_combo_and_deal_phrases_read_in_each_count_s_form() {
         i18n::tr("ar", "combo.whole_only"),
         "يُسترد الكومبو أو يُلغى بالكامل فقط."
     );
+}
+
+/// The server stores "one_size" on a combo's single-size parts; no view, slip
+/// or chit ever shows it (the KDS, the bill, the order detail read through it).
+#[test]
+fn one_size_is_never_a_size_a_person_reads() {
+    assert_eq!(cart::real_size(Some("one_size".into())), None);
+    assert_eq!(cart::real_size(Some(" One_Size ".into())), None);
+    assert_eq!(cart::real_size(Some(String::new())), None);
+    assert_eq!(cart::real_size(Some("Large".into())), Some("Large".into()));
+    let chit = receipt::KitchenChit {
+        item: "Burger".into(),
+        qty: 1,
+        size_label: Some("one_size".into()),
+        modifiers: vec![],
+        note: None,
+        table_label: None,
+        ticket_ref: None,
+        at: "13:05".into(),
+        teller: None,
+        combo: Some("In Lunch deal".into()),
+    };
+    let labels = receipt::KitchenChitLabels {
+        heading: "KITCHEN".into(),
+        table: "Table".into(),
+        note: "Note:".into(),
+    };
+    let printed: Vec<String> = receipt::kitchen_chit_layout(&chit, &labels, 32).into_iter().map(|l| l.text).collect();
+    assert!(!printed.iter().any(|t| t.contains("one_size")), "{printed:#?}");
 }

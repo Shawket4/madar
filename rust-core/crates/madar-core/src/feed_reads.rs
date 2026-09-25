@@ -187,7 +187,7 @@ impl MadarCore {
                     name: menu_item_id.as_ref().and_then(|m| names.get(m).cloned()).unwrap_or_else(|| "Item".into()),
                     menu_item_id,
                     qty: it.quantity,
-                    size_label: it.size_label.clone().flatten(),
+                    size_label: crate::cart::real_size(it.size_label.clone().flatten()),
                     modifiers: Vec::new(),
                     line_total_minor: line_total,
                     voided: false,

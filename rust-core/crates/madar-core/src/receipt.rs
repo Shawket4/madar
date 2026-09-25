@@ -223,7 +223,7 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
                 w,
             )));
             for p in &l.parts {
-                let name = match &p.size_label {
+                let name = match crate::cart::real_size(p.size_label.clone()) {
                     Some(s) => format!("{} ({})", p.name, s),
                     None => p.name.clone(),
                 };
@@ -243,7 +243,7 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
             }
             continue;
         }
-        let name = match &l.size_label {
+        let name = match crate::cart::real_size(l.size_label.clone()) {
             Some(s) => format!("{} ({})", l.name, s),
             None => l.name.clone(),
         };
@@ -2290,7 +2290,7 @@ pub fn kitchen_chit_layout(
     // The item, big, with its count in front of it. `2x` before the name rather
     // than after: the number is what decides how many pans come out, and a cook
     // scanning a rail sees the left edge first.
-    let name = match chit.size_label.as_deref().filter(|s| !s.trim().is_empty()) {
+    let name = match chit.size_label.as_deref().filter(|s| !s.trim().is_empty() && !crate::cart::is_one_size(s)) {
         Some(sz) => format!("{} ({})", chit.item.trim(), sz.trim()),
         None => chit.item.trim().to_string(),
     };
@@ -2569,7 +2569,7 @@ pub fn kitchen_slip_layout(slip: &KitchenSlip, labels: &KitchenChitLabels, width
             // Space, not a rule and never a cut — one continuous slip.
             out.push(Line::plain(""));
         }
-        let name = match item.size_label.as_deref().filter(|s| !s.trim().is_empty()) {
+        let name = match item.size_label.as_deref().filter(|s| !s.trim().is_empty() && !crate::cart::is_one_size(s)) {
             Some(sz) => format!("{} ({})", item.item.trim(), sz.trim()),
             None => item.item.trim().to_string(),
         };

@@ -744,6 +744,15 @@ pub(crate) fn is_one_size(label: &str) -> bool {
     label.trim().eq_ignore_ascii_case("one_size")
 }
 
+/// A size as a person reads it: `None` for no size, an empty label, or the
+/// `one_size` placeholder (which the server stores on a combo's single-size
+/// parts where a plain line stores null). Every size read from the server or
+/// printed on paper goes through this, so "one_size" never reaches a teller,
+/// a cook or a customer.
+pub(crate) fn real_size(label: Option<String>) -> Option<String> {
+    label.filter(|s| !s.trim().is_empty() && !is_one_size(s))
+}
+
 /// The bill lines a cart line enters the pricing engine as: a plain line is
 /// one; a combo is one per part (contract §4: "the parts enter the bill as
 /// ordinary `BillLine`s"), each at its share plus its surcharges for one

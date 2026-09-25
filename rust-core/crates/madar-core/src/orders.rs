@@ -350,7 +350,7 @@ pub(crate) fn refundable_lines(
             RefundableLineView {
                 order_item_id: id,
                 name: loc(&it.name_translations, &it.item_name, locale),
-                size_label: it.size_label.clone().filter(|s| !s.is_empty()),
+                size_label: crate::cart::real_size(it.size_label.clone()),
                 sold_qty: it.quantity,
                 refundable_qty: (it.quantity - done).max(0),
                 unit_share_minor: line_total / i64::from(it.quantity.max(1)),
@@ -550,7 +550,7 @@ pub(crate) fn order_to_receipt(
             ReceiptLineView {
                 name: loc(&it.name_translations, &it.item_name, locale),
                 qty: it.quantity as i64,
-                size_label: it.size_label.clone().filter(|s| !s.is_empty()),
+                size_label: crate::cart::real_size(it.size_label.clone()),
                 line_total_minor: it.line_total as i64 + staff_on_size,
                 staff_label: (staff_comp > 0 || it.staff_drink_id.is_some())
                     .then(|| crate::i18n::tr(locale, "staff_pool.badge")),
