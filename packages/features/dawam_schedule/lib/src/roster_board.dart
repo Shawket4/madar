@@ -120,6 +120,9 @@ const double _cardH = 46;
 const double _gap = 4;
 const double _pad = 3;
 
+/// The "+" under a filled day's cards (minor #20).
+const double _addH = 20;
+
 /// The week board. Every tap and drop goes back to the screen, which
 /// sends the store's action.
 class RosterBoard extends StatefulWidget {
@@ -191,8 +194,9 @@ class _RosterBoardState extends State<RosterBoard> {
     for (final d in widget.days) {
       n = math.max(n, widget.cardsAt(r.emp, d.date).length);
     }
-    // +1: the cell's bottom hairline takes a pixel of its height.
-    return math.max(60, _pad * 2 + n * _cardH + (n - 1) * _gap + 1);
+    // +1: the cell's bottom hairline takes a pixel of its height; a filled
+    // day ends with its "+".
+    return math.max(60, _pad * 2 + n * _cardH + n * _gap + _addH + 1);
   }
 
   @override
@@ -606,6 +610,7 @@ class _Cell extends StatelessWidget {
               children: [
                 for (final card in cards)
                   _draggable(context, card, ShiftCard(card, onTap: onTapCard)),
+                _AddMore(emp: row.emp, day: day.date, onTap: onTapEmpty),
               ],
             ),
     );
@@ -664,6 +669,41 @@ class _DragCardState extends State<_DragCard> {
     ),
     child: Opacity(opacity: _lifted ? 0.3 : 1, child: widget.child),
   );
+}
+
+/// A "+" under a filled day's cards: another block that day (a split day,
+/// SC-11), or another open shift (minor #20).
+class _AddMore extends StatelessWidget {
+  const _AddMore({required this.emp, required this.day, required this.onTap});
+
+  final String? emp;
+  final DateTime day;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final date = day.toIso8601String().substring(0, 10);
+    return Semantics(
+      button: true,
+      label: tr('staff.add_shift'),
+      excludeSemantics: true,
+      child: InkWell(
+        key: ValueKey('add|$emp|$date'),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(Radii.xs),
+        child: SizedBox(
+          height: _addH,
+          child: Center(
+            child: MadarGlyphIcon(
+              MadarGlyph.plus,
+              size: IconSize.sm,
+              color: context.madarColors.textMuted,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _Empty extends StatelessWidget {
@@ -883,7 +923,14 @@ class RosterDayList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: _gap,
-      children: [for (final card in cards) ShiftCard(card, onTap: onTapCard)],
+      children: [
+        for (final card in cards) ShiftCard(card, onTap: onTapCard),
+        _AddMore(
+          emp: r.emp,
+          day: day.date,
+          onTap: () => onTapEmpty(r.emp, day.date),
+        ),
+      ],
     );
   }
 }

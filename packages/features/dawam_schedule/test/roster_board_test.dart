@@ -274,6 +274,20 @@ void main() {
     expect(r.empties.single.$1, isNotNull, reason: 'a person, not open');
   });
 
+  // Minor #20: only an empty cell had a "+"; a second block on a worked day
+  // (a split day, SC-11) needed a detour. A filled day has one too.
+  for (final lang in ['en', 'ar']) {
+    testWidgets('a filled day has a + that adds to it · $lang', (t) async {
+      final r = await _pump(t, lang, const Size(1180, 820));
+      // Omar (e2) works two shifts on Wednesday the 23rd.
+      final add = find.byKey(const ValueKey('add|e2|2026-09-23'));
+      expect(add, findsOneWidget);
+      await t.tap(add);
+      expect(r.empties, [('e2', DateTime(2026, 9, 23))]);
+      expect(t.takeException(), isNull);
+    });
+  }
+
   testWidgets('a long-press drag moves a shift to another day', (t) async {
     final r = await _pump(t, 'en', const Size(1180, 820));
     // Omar (e2) works only Wednesday; drag one of his cards to Friday.
