@@ -1712,7 +1712,13 @@ impl MadarCore {
                             "amount_piastres": amount, "installments": installments.unwrap_or(1),
                             "reason": Some(note).filter(|n| !n.is_empty()),
                         }))).await?;
-                        filed = Some(filed_of("v", &row));
+                        let mut f = filed_of("v", &row);
+                        // Over the cap only the owner can approve it (minor #34):
+                        // the server's `within_cap` on the new advance.
+                        if row.get("within_cap").and_then(Value::as_bool) == Some(false) {
+                            f["to_owner"] = json!(true);
+                        }
+                        filed = Some(f);
                     }
                     // `shift` is MINE, `shift2` the colleague's.
                     "swap" => {
@@ -5245,6 +5251,32 @@ mod tests {
         let ignore = json!({ "action": "resolve", "flag": "f1", "how": "ignore" });
         let snap: Value = serde_json::from_str(&core.dawam_do(ignore.to_string()).await.unwrap()).unwrap();
         assert_eq!(snap.get("filed"), None, "no money: nothing waits");
+    }
+
+    /// Minor #34: an employee already over the advance cap may still ask;
+    /// the answer says only the owner can approve it (the server's
+    /// `within_cap` on the new advance, never worked out here).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_advance_asked_over_the_cap_goes_to_the_owner() {
+        use crate::testkit::StubResponse;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        let within = Arc::new(AtomicBool::new(false));
+        let w = within.clone();
+        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("POST", "/staff/me/advances") => Some(StubResponse::json(201, json!({
+                "id": "v9", "status": "pending", "amount_piastres": 50_000, "within_cap": w.load(Ordering::SeqCst),
+            }))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        let ask = json!({ "action": "file", "kind": "salaryAdvance", "amount": 50_000, "installments": 1 }).to_string();
+        let snap: Value = serde_json::from_str(&core.dawam_do(ask.clone()).await.unwrap()).unwrap();
+        assert_eq!(snap["filed"], json!({ "id": "v|v9", "status": "pending", "to_owner": true }), "over the cap: the owner's");
+        within.store(true, Ordering::SeqCst);
+        let snap: Value = serde_json::from_str(&core.dawam_do(ask).await.unwrap()).unwrap();
+        assert_eq!(snap["filed"]["to_owner"], json!(false));
     }
 
     /// Owner decision #8 (D8): declining a pay line or an advance says why.

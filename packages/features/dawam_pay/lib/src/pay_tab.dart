@@ -194,17 +194,26 @@ class PayTab extends ConsumerWidget {
                       .show(tr('staff.enter_an_amount'), tone: ChipTone.danger);
                   return;
                 }
+                Filed? filed;
                 final sent = await attempt(
                   ref,
-                  () => store.file(
+                  () async => filed = await store.file(
                     ReqKind.salaryAdvance,
                     amount: v,
                     installments: inst,
                     note: note.text,
                   ),
-                  ok: tr('staff.sent_to_your_manager'),
                 );
-                if (sent && ctx.mounted) Navigator.of(ctx).maybePop();
+                if (!sent) return;
+                ref
+                    .read(toastProvider.notifier)
+                    .show(
+                      advanceSentWords(filed),
+                      tone: filed?.toOwner == true
+                          ? ChipTone.warning
+                          : ChipTone.success,
+                    );
+                if (ctx.mounted) Navigator.of(ctx).maybePop();
               },
             ),
           ],
@@ -213,3 +222,9 @@ class PayTab extends ConsumerWidget {
     );
   }
 }
+
+/// What an advance just asked for says: over the cap only the owner can
+/// approve it (minor #34, the server's word), else it went to the manager.
+String advanceSentWords(Filed? filed) => filed?.toOwner == true
+    ? tr('staff.advance_sent_owner_only')
+    : tr('staff.sent_to_your_manager');
