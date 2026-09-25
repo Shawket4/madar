@@ -77,8 +77,6 @@ pub struct StudioAggregate {
     pub recipe_steps: Vec<models::RecipeStep>,
     #[serde(rename = "sizes")]
     pub sizes: Vec<models::SizeOut>,
-    #[serde(rename = "used_in_bundles")]
-    pub used_in_bundles: Vec<models::UsedInBundleOut>,
 }
 
 impl StudioAggregate {
@@ -95,7 +93,6 @@ impl StudioAggregate {
         org_id: uuid::Uuid,
         recipe_steps: Vec<models::RecipeStep>,
         sizes: Vec<models::SizeOut>,
-        used_in_bundles: Vec<models::UsedInBundleOut>,
     ) -> StudioAggregate {
         StudioAggregate {
             availability: Box::new(availability),
@@ -115,7 +112,6 @@ impl StudioAggregate {
             recipe_source_item_id: None,
             recipe_steps,
             sizes,
-            used_in_bundles,
         }
     }
 }

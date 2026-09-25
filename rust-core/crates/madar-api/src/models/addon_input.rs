@@ -17,7 +17,7 @@ pub struct AddonInput {
     pub addon_item_id: uuid::Uuid,
     #[serde(rename = "quantity", skip_serializing_if = "Option::is_none")]
     pub quantity: Option<i32>,
-    /// Charged unit price (piastres) the POS applied for this addon. When present it is RECORDED as the addon's unit_price; absent → the server's expected (catalog) price is used. Bundle-component addons ignore this (server-priced).
+    /// Charged unit price (piastres) the POS applied for this addon. When present it is RECORDED as the addon's unit_price; absent → the server's expected (catalog) price is used.
     #[serde(
         rename = "unit_price",
         default,

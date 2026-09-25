@@ -13,10 +13,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OrderItemFull {
-    #[serde(rename = "bundle_id", skip_serializing_if = "Option::is_none")]
-    pub bundle_id: Option<uuid::Uuid>,
-    #[serde(rename = "bundle_unit_price", skip_serializing_if = "Option::is_none")]
-    pub bundle_unit_price: Option<i32>,
     /// True when any cost component could not be resolved.
     #[serde(rename = "cost_missing")]
     pub cost_missing: bool,
@@ -32,7 +28,7 @@ pub struct OrderItemFull {
     pub is_reward: Option<bool>,
     #[serde(rename = "item_name")]
     pub item_name: String,
-    /// Full line COGS in piastres (recipe + addons + optionals + components). `null` ⟺ unknown.
+    /// Full line COGS in piastres (recipe + addons + optionals). `null` ⟺ unknown.
     #[serde(rename = "line_cost", skip_serializing_if = "Option::is_none")]
     pub line_cost: Option<i64>,
     #[serde(rename = "line_total")]
@@ -61,15 +57,13 @@ pub struct OrderItemFull {
     /// The `staff_drinks` row this line is (`GET /staff-pool/drinks`).
     #[serde(rename = "staff_drink_id", skip_serializing_if = "Option::is_none")]
     pub staff_drink_id: Option<uuid::Uuid>,
-    /// Recipe-only cost per unit in piastres (incl. swaps). `null` ⟺ unknown or bundle line.
+    /// Recipe-only cost per unit in piastres (incl. swaps). `null` ⟺ unknown.
     #[serde(rename = "unit_cost", skip_serializing_if = "Option::is_none")]
     pub unit_cost: Option<i64>,
     #[serde(rename = "unit_price")]
     pub unit_price: i32,
     #[serde(rename = "addons")]
     pub addons: Vec<models::OrderItemAddon>,
-    #[serde(rename = "bundle_components", skip_serializing_if = "Option::is_none")]
-    pub bundle_components: Option<Vec<models::OrderBundleComponentFull>>,
     #[serde(rename = "optionals")]
     pub optionals: Vec<models::OrderItemOptional>,
 }
@@ -89,8 +83,6 @@ impl OrderItemFull {
         optionals: Vec<models::OrderItemOptional>,
     ) -> OrderItemFull {
         OrderItemFull {
-            bundle_id: None,
-            bundle_unit_price: None,
             cost_missing,
             deductions_snapshot,
             id,
@@ -111,7 +103,6 @@ impl OrderItemFull {
             unit_cost: None,
             unit_price,
             addons,
-            bundle_components: None,
             optionals,
         }
     }

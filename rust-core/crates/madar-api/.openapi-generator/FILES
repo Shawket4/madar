@@ -87,14 +87,6 @@ docs/BranchesApi.md
 docs/BulkReviewPending.md
 docs/BulkReviewRequest.md
 docs/BulkReviewResult.md
-docs/Bundle.md
-docs/BundleComponentHydrated.md
-docs/BundleComponentInput.md
-docs/BundlePerformanceResponse.md
-docs/BundleSalesRow.md
-docs/BundleStatus.md
-docs/BundleWithComponents.md
-docs/BundlesApi.md
 docs/CampaignEffectiveness.md
 docs/CampaignEffectivenessRow.md
 docs/CancelBookingRequest.md
@@ -140,7 +132,6 @@ docs/Column.md
 docs/ColumnKind.md
 docs/CombinedItemSalesRow.md
 docs/Compare.md
-docs/ComponentPopularity.md
 docs/ComputedPayslip.md
 docs/ConsumptionRow.md
 docs/ContextBranch.md
@@ -161,8 +152,6 @@ docs/CreateAdvanceRequest.md
 docs/CreateAssignmentRequest.md
 docs/CreateBookingRequest.md
 docs/CreateBranchRequest.md
-docs/CreateBundleComponentInput.md
-docs/CreateBundleRequest.md
 docs/CreateCatalogItemRequest.md
 docs/CreateCategoryRequest.md
 docs/CreateCredentialRequest.md
@@ -384,9 +373,6 @@ docs/OpenTillRequest.md
 docs/OptionRecipeLineInput.md
 docs/OptionalField.md
 docs/Order.md
-docs/OrderBundleComponentAddon.md
-docs/OrderBundleComponentFull.md
-docs/OrderBundleComponentOptional.md
 docs/OrderDeliveryInfo.md
 docs/OrderExport.md
 docs/OrderFull.md
@@ -424,7 +410,6 @@ docs/PackagingRuleLineInput.md
 docs/PackagingRuleLineOut.md
 docs/PackagingRuleOut.md
 docs/PaginatedAddonItems.md
-docs/PaginatedBundles.md
 docs/PaginatedMenuItems.md
 docs/PaginatedOrders.md
 docs/PaginatedOrdersFull.md
@@ -673,7 +658,6 @@ docs/StocktakesApi.md
 docs/StopAdjustment.md
 docs/StoredTurn.md
 docs/StudioAggregate.md
-docs/SuggestedComponent.md
 docs/Suggestion.md
 docs/Supplier.md
 docs/SupplierSpendRow.md
@@ -724,7 +708,6 @@ docs/UpdateAddonItemRequest.md
 docs/UpdateAddonSlotRequest.md
 docs/UpdateBookingRequest.md
 docs/UpdateBranchRequest.md
-docs/UpdateBundleRequest.md
 docs/UpdateCatalogItemRequest.md
 docs/UpdateCategoryRequest.md
 docs/UpdateCustomerRequest.md
@@ -753,7 +736,6 @@ docs/UpsertPermissionRequest.md
 docs/UpsertRolePermissionRequest.md
 docs/UpsertSizeRequest.md
 docs/UpsertWorkShiftRequest.md
-docs/UsedInBundleOut.md
 docs/UserAccess.md
 docs/UserAllowList.md
 docs/UserBranch.md
@@ -796,7 +778,6 @@ src/apis/authz_api.rs
 src/apis/bookings_api.rs
 src/apis/bookings_public_api.rs
 src/apis/branches_api.rs
-src/apis/bundles_api.rs
 src/apis/configuration.rs
 src/apis/costing_api.rs
 src/apis/customers_api.rs
@@ -917,13 +898,6 @@ src/models/branch_target.rs
 src/models/bulk_review_pending.rs
 src/models/bulk_review_request.rs
 src/models/bulk_review_result.rs
-src/models/bundle.rs
-src/models/bundle_component_hydrated.rs
-src/models/bundle_component_input.rs
-src/models/bundle_performance_response.rs
-src/models/bundle_sales_row.rs
-src/models/bundle_status.rs
-src/models/bundle_with_components.rs
 src/models/campaign_effectiveness.rs
 src/models/campaign_effectiveness_row.rs
 src/models/cancel_booking_request.rs
@@ -969,7 +943,6 @@ src/models/column.rs
 src/models/column_kind.rs
 src/models/combined_item_sales_row.rs
 src/models/compare.rs
-src/models/component_popularity.rs
 src/models/computed_payslip.rs
 src/models/consumption_row.rs
 src/models/context_branch.rs
@@ -989,8 +962,6 @@ src/models/create_advance_request.rs
 src/models/create_assignment_request.rs
 src/models/create_booking_request.rs
 src/models/create_branch_request.rs
-src/models/create_bundle_component_input.rs
-src/models/create_bundle_request.rs
 src/models/create_catalog_item_request.rs
 src/models/create_category_request.rs
 src/models/create_credential_request.rs
@@ -1197,9 +1168,6 @@ src/models/open_till_request.rs
 src/models/option_recipe_line_input.rs
 src/models/optional_field.rs
 src/models/order.rs
-src/models/order_bundle_component_addon.rs
-src/models/order_bundle_component_full.rs
-src/models/order_bundle_component_optional.rs
 src/models/order_delivery_info.rs
 src/models/order_export.rs
 src/models/order_full.rs
@@ -1234,7 +1202,6 @@ src/models/packaging_rule_line_input.rs
 src/models/packaging_rule_line_out.rs
 src/models/packaging_rule_out.rs
 src/models/paginated_addon_items.rs
-src/models/paginated_bundles.rs
 src/models/paginated_menu_items.rs
 src/models/paginated_orders.rs
 src/models/paginated_orders_full.rs
@@ -1468,7 +1435,6 @@ src/models/stocktake_item.rs
 src/models/stop_adjustment.rs
 src/models/stored_turn.rs
 src/models/studio_aggregate.rs
-src/models/suggested_component.rs
 src/models/suggestion.rs
 src/models/supplier.rs
 src/models/supplier_spend_row.rs
@@ -1517,7 +1483,6 @@ src/models/update_addon_item_request.rs
 src/models/update_addon_slot_request.rs
 src/models/update_booking_request.rs
 src/models/update_branch_request.rs
-src/models/update_bundle_request.rs
 src/models/update_catalog_item_request.rs
 src/models/update_category_request.rs
 src/models/update_customer_request.rs
@@ -1545,7 +1510,6 @@ src/models/upsert_permission_request.rs
 src/models/upsert_role_permission_request.rs
 src/models/upsert_size_request.rs
 src/models/upsert_work_shift_request.rs
-src/models/used_in_bundle_out.rs
 src/models/user_access.rs
 src/models/user_allow_list.rs
 src/models/user_branch.rs

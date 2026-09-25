@@ -13,19 +13,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CombinedItemSalesRow {
-    #[serde(rename = "bundle_qty")]
-    pub bundle_qty: i64,
-    #[serde(
-        rename = "item_id",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub item_id: Option<Option<uuid::Uuid>>,
+    #[serde(rename = "item_id")]
+    pub item_id: uuid::Uuid,
     #[serde(rename = "item_name")]
     pub item_name: String,
     #[serde(rename = "item_name_translations")]
     pub item_name_translations: serde_json::Value,
+    /// Equal to `total_qty` since combos were removed (it used to exclude units sold inside a combo). Kept so dashboards built before still render.
     #[serde(rename = "standalone_qty")]
     pub standalone_qty: i64,
     #[serde(rename = "total_qty")]
@@ -34,15 +28,14 @@ pub struct CombinedItemSalesRow {
 
 impl CombinedItemSalesRow {
     pub fn new(
-        bundle_qty: i64,
+        item_id: uuid::Uuid,
         item_name: String,
         item_name_translations: serde_json::Value,
         standalone_qty: i64,
         total_qty: i64,
     ) -> CombinedItemSalesRow {
         CombinedItemSalesRow {
-            bundle_qty,
-            item_id: None,
+            item_id,
             item_name,
             item_name_translations,
             standalone_qty,

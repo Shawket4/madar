@@ -6,7 +6,6 @@ Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**attendance_corrections_audit**](ReportsApi.md#attendance_corrections_audit) | **GET** /reports/orgs/{org_id}/attendance-corrections-audit | 
 [**branch_addon_sales**](ReportsApi.md#branch_addon_sales) | **GET** /reports/branches/{branch_id}/addons | 
-[**branch_bundle_sales**](ReportsApi.md#branch_bundle_sales) | **GET** /reports/branches/{branch_id}/bundles | 
 [**branch_channel_breakdown**](ReportsApi.md#branch_channel_breakdown) | **GET** /reports/branches/{branch_id}/channel-breakdown | 
 [**branch_combined_item_sales**](ReportsApi.md#branch_combined_item_sales) | **GET** /reports/branches/{branch_id}/items-combined | 
 [**branch_consumption**](ReportsApi.md#branch_consumption) | **GET** /reports/branches/{branch_id}/consumption | 
@@ -101,37 +100,6 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::AddonSalesRow>**](AddonSalesRow.md)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## branch_bundle_sales
-
-> Vec<models::BundleSalesRow> branch_bundle_sales(branch_id, from, to, limit)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**branch_id** | **uuid::Uuid** |  | [required] |
-**from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
-**to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
-**limit** | Option<**i64**> |  |  |
-
-### Return type
-
-[**Vec<models::BundleSalesRow>**](BundleSalesRow.md)
 
 ### Authorization
 
@@ -431,7 +399,7 @@ Name | Type | Description  | Required | Notes
 **from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
 **to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
 **limit** | Option<**i64**> |  |  |
-**exclude_items** | Option<**String**> | Comma-separated menu_item/bundle UUIDs left out of `total_line_items` (units sold) ONLY — revenue, top items, and categories are untouched. |  |
+**exclude_items** | Option<**String**> | Comma-separated menu_item UUIDs left out of `total_line_items` (units sold) ONLY — revenue, top items, and categories are untouched. |  |
 
 ### Return type
 

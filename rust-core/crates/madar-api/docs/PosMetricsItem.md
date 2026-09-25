@@ -4,7 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**item_id** | Option<**uuid::Uuid**> | The menu item or bundle; null for a line with neither. | [optional]
+**item_id** | Option<**uuid::Uuid**> | The menu item; null for a line with none. | [optional]
 **item_name** | **String** |  | 
 **quantity** | **i64** |  | 
 **revenue** | **i64** | Σ line totals (before refunds), as `branch_sales.top_items.revenue`. | 

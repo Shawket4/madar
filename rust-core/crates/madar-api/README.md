@@ -83,16 +83,6 @@ Class | Method | HTTP request | Description
 *BranchesApi* | [**list_timezones**](docs/BranchesApi.md#list_timezones) | **GET** /timezones | The full set of selectable IANA timezones — the labels of the `timezone_name` DB enum. The dashboard's timezone `<select>` is populated from this, so the frontend can never offer a value the backend/DB would reject (single source of truth: DB enum → this endpoint → select options).
 *BranchesApi* | [**patch_branch**](docs/BranchesApi.md#patch_branch) | **PATCH** /branches/{id} | `PATCH /branches/{id}` — the same partial update as `PUT` (the contract names both; every field is already optional).
 *BranchesApi* | [**update_branch**](docs/BranchesApi.md#update_branch) | **PUT** /branches/{id} | 
-*BundlesApi* | [**activate_bundle**](docs/BundlesApi.md#activate_bundle) | **POST** /bundles/{id}/activate | 
-*BundlesApi* | [**archive_bundle**](docs/BundlesApi.md#archive_bundle) | **POST** /bundles/{id}/archive | 
-*BundlesApi* | [**available_bundles**](docs/BundlesApi.md#available_bundles) | **GET** /bundles/available | 
-*BundlesApi* | [**bundle_performance**](docs/BundlesApi.md#bundle_performance) | **GET** /bundles/{id}/performance | 
-*BundlesApi* | [**create_bundle**](docs/BundlesApi.md#create_bundle) | **POST** /bundles | 
-*BundlesApi* | [**delete_bundle**](docs/BundlesApi.md#delete_bundle) | **DELETE** /bundles/{id} | 
-*BundlesApi* | [**get_bundle**](docs/BundlesApi.md#get_bundle) | **GET** /bundles/{id} | 
-*BundlesApi* | [**list_bundles**](docs/BundlesApi.md#list_bundles) | **GET** /bundles | 
-*BundlesApi* | [**suggested_components**](docs/BundlesApi.md#suggested_components) | **GET** /bundles/suggested-components | Suggest menu items frequently ordered alongside the given item set, to help a manager pick the next component while building a bundle. Anchors on whichever items are already added: an item is suggested if it co-occurred, on the same order, with at least one anchor item at least `min_count` times across the org's branches in the given window.
-*BundlesApi* | [**update_bundle**](docs/BundlesApi.md#update_bundle) | **PATCH** /bundles/{id} | 
 *CostingApi* | [**list_addon_costs**](docs/CostingApi.md#list_addon_costs) | **GET** /costing/addon-items | 
 *CostingApi* | [**list_sku_costs**](docs/CostingApi.md#list_sku_costs) | **GET** /costing/menu-items | 
 *CustomersApi* | [**create_customer**](docs/CustomersApi.md#create_customer) | **POST** /customers | 
@@ -397,7 +387,6 @@ Class | Method | HTTP request | Description
 *RefundsApi* | [**list_till_refunds**](docs/RefundsApi.md#list_till_refunds) | **GET** /tills/{till_id}/refunds | 
 *ReportsApi* | [**attendance_corrections_audit**](docs/ReportsApi.md#attendance_corrections_audit) | **GET** /reports/orgs/{org_id}/attendance-corrections-audit | 
 *ReportsApi* | [**branch_addon_sales**](docs/ReportsApi.md#branch_addon_sales) | **GET** /reports/branches/{branch_id}/addons | 
-*ReportsApi* | [**branch_bundle_sales**](docs/ReportsApi.md#branch_bundle_sales) | **GET** /reports/branches/{branch_id}/bundles | 
 *ReportsApi* | [**branch_channel_breakdown**](docs/ReportsApi.md#branch_channel_breakdown) | **GET** /reports/branches/{branch_id}/channel-breakdown | 
 *ReportsApi* | [**branch_combined_item_sales**](docs/ReportsApi.md#branch_combined_item_sales) | **GET** /reports/branches/{branch_id}/items-combined | 
 *ReportsApi* | [**branch_consumption**](docs/ReportsApi.md#branch_consumption) | **GET** /reports/branches/{branch_id}/consumption | 
@@ -620,7 +609,6 @@ Class | Method | HTTP request | Description
 *TillsApi* | [**list_spot_views**](docs/TillsApi.md#list_spot_views) | **GET** /tills/{till_id}/spot-views | 
 *TillsApi* | [**list_tills**](docs/TillsApi.md#list_tills) | **GET** /tills/branches/{branch_id} | 
 *TillsApi* | [**open_till**](docs/TillsApi.md#open_till) | **POST** /tills/branches/{branch_id}/open | 
-*UploadsApi* | [**upload_bundle_image**](docs/UploadsApi.md#upload_bundle_image) | **POST** /uploads/bundles/{bundle_id} | 
 *UploadsApi* | [**upload_category_image**](docs/UploadsApi.md#upload_category_image) | **POST** /uploads/categories/{category_id} | 
 *UploadsApi* | [**upload_menu_item_image**](docs/UploadsApi.md#upload_menu_item_image) | **POST** /uploads/menu-items/{menu_item_id} | 
 *UsersApi* | [**assign_branch**](docs/UsersApi.md#assign_branch) | **POST** /users/{id}/branches | 
@@ -717,13 +705,6 @@ Class | Method | HTTP request | Description
  - [BulkReviewPending](docs/BulkReviewPending.md)
  - [BulkReviewRequest](docs/BulkReviewRequest.md)
  - [BulkReviewResult](docs/BulkReviewResult.md)
- - [Bundle](docs/Bundle.md)
- - [BundleComponentHydrated](docs/BundleComponentHydrated.md)
- - [BundleComponentInput](docs/BundleComponentInput.md)
- - [BundlePerformanceResponse](docs/BundlePerformanceResponse.md)
- - [BundleSalesRow](docs/BundleSalesRow.md)
- - [BundleStatus](docs/BundleStatus.md)
- - [BundleWithComponents](docs/BundleWithComponents.md)
  - [CampaignEffectiveness](docs/CampaignEffectiveness.md)
  - [CampaignEffectivenessRow](docs/CampaignEffectivenessRow.md)
  - [CancelBookingRequest](docs/CancelBookingRequest.md)
@@ -769,7 +750,6 @@ Class | Method | HTTP request | Description
  - [ColumnKind](docs/ColumnKind.md)
  - [CombinedItemSalesRow](docs/CombinedItemSalesRow.md)
  - [Compare](docs/Compare.md)
- - [ComponentPopularity](docs/ComponentPopularity.md)
  - [ComputedPayslip](docs/ComputedPayslip.md)
  - [ConsumptionRow](docs/ConsumptionRow.md)
  - [ContextBranch](docs/ContextBranch.md)
@@ -789,8 +769,6 @@ Class | Method | HTTP request | Description
  - [CreateAssignmentRequest](docs/CreateAssignmentRequest.md)
  - [CreateBookingRequest](docs/CreateBookingRequest.md)
  - [CreateBranchRequest](docs/CreateBranchRequest.md)
- - [CreateBundleComponentInput](docs/CreateBundleComponentInput.md)
- - [CreateBundleRequest](docs/CreateBundleRequest.md)
  - [CreateCatalogItemRequest](docs/CreateCatalogItemRequest.md)
  - [CreateCategoryRequest](docs/CreateCategoryRequest.md)
  - [CreateCredentialRequest](docs/CreateCredentialRequest.md)
@@ -996,9 +974,6 @@ Class | Method | HTTP request | Description
  - [OptionRecipeLineInput](docs/OptionRecipeLineInput.md)
  - [OptionalField](docs/OptionalField.md)
  - [Order](docs/Order.md)
- - [OrderBundleComponentAddon](docs/OrderBundleComponentAddon.md)
- - [OrderBundleComponentFull](docs/OrderBundleComponentFull.md)
- - [OrderBundleComponentOptional](docs/OrderBundleComponentOptional.md)
  - [OrderDeliveryInfo](docs/OrderDeliveryInfo.md)
  - [OrderExport](docs/OrderExport.md)
  - [OrderFull](docs/OrderFull.md)
@@ -1033,7 +1008,6 @@ Class | Method | HTTP request | Description
  - [PackagingRuleLineOut](docs/PackagingRuleLineOut.md)
  - [PackagingRuleOut](docs/PackagingRuleOut.md)
  - [PaginatedAddonItems](docs/PaginatedAddonItems.md)
- - [PaginatedBundles](docs/PaginatedBundles.md)
  - [PaginatedMenuItems](docs/PaginatedMenuItems.md)
  - [PaginatedOrders](docs/PaginatedOrders.md)
  - [PaginatedOrdersFull](docs/PaginatedOrdersFull.md)
@@ -1267,7 +1241,6 @@ Class | Method | HTTP request | Description
  - [StopAdjustment](docs/StopAdjustment.md)
  - [StoredTurn](docs/StoredTurn.md)
  - [StudioAggregate](docs/StudioAggregate.md)
- - [SuggestedComponent](docs/SuggestedComponent.md)
  - [Suggestion](docs/Suggestion.md)
  - [Supplier](docs/Supplier.md)
  - [SupplierSpendRow](docs/SupplierSpendRow.md)
@@ -1316,7 +1289,6 @@ Class | Method | HTTP request | Description
  - [UpdateAddonSlotRequest](docs/UpdateAddonSlotRequest.md)
  - [UpdateBookingRequest](docs/UpdateBookingRequest.md)
  - [UpdateBranchRequest](docs/UpdateBranchRequest.md)
- - [UpdateBundleRequest](docs/UpdateBundleRequest.md)
  - [UpdateCatalogItemRequest](docs/UpdateCatalogItemRequest.md)
  - [UpdateCategoryRequest](docs/UpdateCategoryRequest.md)
  - [UpdateCustomerRequest](docs/UpdateCustomerRequest.md)
@@ -1344,7 +1316,6 @@ Class | Method | HTTP request | Description
  - [UpsertRolePermissionRequest](docs/UpsertRolePermissionRequest.md)
  - [UpsertSizeRequest](docs/UpsertSizeRequest.md)
  - [UpsertWorkShiftRequest](docs/UpsertWorkShiftRequest.md)
- - [UsedInBundleOut](docs/UsedInBundleOut.md)
  - [UserAccess](docs/UserAccess.md)
  - [UserAllowList](docs/UserAllowList.md)
  - [UserBranch](docs/UserBranch.md)

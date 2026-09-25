@@ -13,20 +13,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OrderItem {
-    #[serde(
-        rename = "bundle_id",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub bundle_id: Option<Option<uuid::Uuid>>,
-    #[serde(
-        rename = "bundle_unit_price",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub bundle_unit_price: Option<Option<i32>>,
     /// True when any cost component could not be resolved.
     #[serde(rename = "cost_missing")]
     pub cost_missing: bool,
@@ -42,7 +28,7 @@ pub struct OrderItem {
     pub is_reward: Option<bool>,
     #[serde(rename = "item_name")]
     pub item_name: String,
-    /// Full line COGS in piastres (recipe + addons + optionals + components). `null` ⟺ unknown.
+    /// Full line COGS in piastres (recipe + addons + optionals). `null` ⟺ unknown.
     #[serde(
         rename = "line_cost",
         default,
@@ -96,7 +82,7 @@ pub struct OrderItem {
         skip_serializing_if = "Option::is_none"
     )]
     pub staff_drink_id: Option<Option<uuid::Uuid>>,
-    /// Recipe-only cost per unit in piastres (incl. swaps). `null` ⟺ unknown or bundle line.
+    /// Recipe-only cost per unit in piastres (incl. swaps). `null` ⟺ unknown.
     #[serde(
         rename = "unit_cost",
         default,
@@ -121,8 +107,6 @@ impl OrderItem {
         unit_price: i32,
     ) -> OrderItem {
         OrderItem {
-            bundle_id: None,
-            bundle_unit_price: None,
             cost_missing,
             deductions_snapshot,
             id,
