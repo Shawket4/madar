@@ -310,9 +310,16 @@ pub(crate) fn build_fire_projection(
     // tagged with it (C12), in the order the server numbers kitchen lines.
     let dishes: Vec<KdsLineView> = lines
         .iter()
-        .flat_map(|l| -> Vec<KdsLineView> {
+        .enumerate()
+        .flat_map(|(li, l)| -> Vec<KdsLineView> {
             if l.kind == crate::menu::KIND_COMBO {
-                let tag = KdsComboTag { line_id: l.key.clone(), name: l.name.clone() };
+                // The same tag the catch-up projection gives it
+                // ([`projection_from_envelope`]): the round and the line's
+                // index in its `items[]` (the cart position).
+                let tag = KdsComboTag {
+                    line_id: format!("{round_idem}:{li}"),
+                    name: l.name.clone(),
+                };
                 return l
                     .parts
                     .iter()
@@ -531,6 +538,27 @@ pub(crate) fn sort_feed(tickets: &mut [KdsTicketView]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The server's slim `KitchenLine` carries `combo` (contract §3.2, C12):
+    /// the board tags the dish with it; an older line, or `null`, has none.
+    #[test]
+    fn a_kitchen_line_names_its_combo() {
+        let line = serde_json::json!({ "name": "Latte", "qty": 2,
+            "combo": { "line_id": "h1", "name": "Lunch deal", "name_translations": {} } });
+        assert_eq!(
+            combo_tag(Some(&line)),
+            Some(KdsComboTag {
+                line_id: "h1".into(),
+                name: "Lunch deal".into()
+            })
+        );
+        assert_eq!(
+            combo_tag(Some(&serde_json::json!({ "name": "Tea", "combo": null }))),
+            None
+        );
+        assert_eq!(combo_tag(Some(&serde_json::json!({ "name": "Tea" }))), None);
+        assert_eq!(combo_tag(None), None);
+    }
 
     fn tk(id: &str, status: &str, created_at: &str) -> KdsTicketView {
         KdsTicketView {

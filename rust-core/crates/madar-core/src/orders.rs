@@ -1076,6 +1076,177 @@ mod tests {
         models::OrderDeliveryInfo::new("outside".into(), "01000000000".into())
     }
 
+    // ---- combos and deals (COMBOS_CONTRACT §3.2, C12, C13) ---------------
+
+    /// The worked example sold twice, as the server returns it: the header
+    /// (no money) first, then its parts in slot order, each at its share
+    /// plus its surcharge; then a croissant line in a deal (net of it).
+    fn combo_order() -> models::OrderFull {
+        let header_id = uid(100);
+        let mut header = item("Lunch deal", 2, 0);
+        header.id = header_id;
+        header.unit_price = 0;
+        header.line_kind = Some("combo".into());
+        header.combo_unit_price = Some(15000);
+        header.name_translations = serde_json::json!({ "ar": "وجبة الغداء" });
+        let part =
+            |id: u8, name: &str, slot: &str, size: Option<&str>, share: i32, surcharge: i32| {
+                let mut p = item(name, 2, share + surcharge);
+                p.id = uid(id);
+                p.line_kind = Some("combo_part".into());
+                p.combo_line_id = Some(header_id);
+                p.combo_slot_name = Some(slot.into());
+                p.combo_share = Some(share);
+                p.combo_surcharge = Some(surcharge);
+                p.size_label = size.map(str::to_string);
+                p
+            };
+        let burger = part(101, "Burger", "Main", Some("one_size"), 17142, 0);
+        let fries = part(102, "Fries", "Side", None, 5716, 0);
+        let mut latte = part(103, "Latte", "Drink", Some("Large"), 7142, 2000);
+        latte.addons = vec![addon("Oat milk", 1, 1500)];
+        latte.addons[0].line_total = 3000; // the pick's add-on for both combos
+        let mut croissant = item("Croissant", 2, 9000);
+        croissant.id = uid(104);
+        croissant.unit_price = 5500;
+        croissant.deal_minor = Some(2000);
+        let mut o = order_full(vec![header, burger, fries, latte, croissant]);
+        o.deals = Some(vec![models::OrderDeal::new(
+            uid(110),
+            2000,
+            uid(111),
+            vec![models::OrderDealLine::new(2000, uid(104), 2)],
+            "Any 2 bites for 90".into(),
+            serde_json::json!({ "ar": "أي قطعتين بـ 90" }),
+            1,
+        )]);
+        o
+    }
+
+    #[test]
+    fn a_reprint_rebuilds_the_combo_from_its_header_and_parts() {
+        let r = order_to_receipt(&combo_order(), "en");
+        assert_eq!(
+            r.lines.len(),
+            2,
+            "the parts print under their header, not as lines"
+        );
+        let c = &r.lines[0];
+        assert_eq!(
+            (c.kind.as_str(), c.name.as_str(), c.qty, c.unit_price_minor),
+            ("combo", "Lunch deal", 2, 15000)
+        );
+        assert_eq!(c.line_total_minor, 17142 + 5716 + 9142 + 3000);
+        let parts: Vec<(&str, i64, Option<&str>, Option<&str>, i64)> = c
+            .parts
+            .iter()
+            .map(|p| {
+                (
+                    p.name.as_str(),
+                    p.qty,
+                    p.size_label.as_deref(),
+                    p.slot_name.as_deref(),
+                    p.surcharge_minor,
+                )
+            })
+            .collect();
+        assert_eq!(
+            parts,
+            vec![
+                ("Burger", 2, None, Some("Main"), 0),
+                ("Fries", 2, None, Some("Side"), 0),
+                ("Latte", 2, Some("Large"), Some("Drink"), 2000),
+            ]
+        );
+        assert_eq!(c.parts[2].addons[0].price_minor, 3000);
+        // The plain line prints at its normal price; the deal is its own row.
+        assert_eq!(
+            (r.lines[1].line_total_minor, r.lines[1].deal_minor),
+            (11000, 2000)
+        );
+        assert_eq!(r.deals.len(), 1);
+        assert_eq!(
+            (r.deals[0].name.as_str(), r.deals[0].discount_minor),
+            ("Any 2 bites for 90", 2000)
+        );
+        // In Arabic, the frozen translations.
+        let ar = order_to_receipt(&combo_order(), "ar");
+        assert_eq!(ar.lines[0].name, "وجبة الغداء");
+        assert_eq!(ar.deals[0].name, "أي قطعتين بـ 90");
+    }
+
+    #[test]
+    fn the_order_detail_shows_the_header_with_its_parts_total() {
+        let v = order_detail_view(&combo_order(), "en");
+        let kinds: Vec<(&str, i64)> = v
+            .lines
+            .iter()
+            .map(|l| (l.kind.as_str(), l.line_total_minor))
+            .collect();
+        assert_eq!(
+            kinds,
+            vec![
+                ("combo", 35000),
+                ("combo_part", 17142),
+                ("combo_part", 5716),
+                ("combo_part", 9142),
+                ("item", 11000)
+            ]
+        );
+        assert_eq!(v.lines[1].size_label, None, "one_size is no size");
+    }
+
+    #[test]
+    fn a_combo_is_refunded_whole_from_its_header() {
+        let o = combo_order();
+        let none = OrderRefundsView {
+            order_id: o.id.to_string(),
+            order_status: "completed".into(),
+            total_minor: 0,
+            refunded_minor: 0,
+            refunded_cash_minor: 0,
+            refundable_remaining_minor: 0,
+            refunds: vec![],
+        };
+        let lines = refundable_lines(&o, &none, "en");
+        // C13: the header only (never a part), and the croissants.
+        assert_eq!(
+            lines
+                .iter()
+                .map(|l| (l.order_item_id.clone(), l.sold_qty, l.refundable_qty))
+                .collect::<Vec<_>>(),
+            vec![(uid(100).to_string(), 2, 2), (uid(104).to_string(), 2, 2)]
+        );
+        // One combo is its parts' money with add-ons, over the header's units.
+        assert_eq!(lines[0].unit_share_minor, (17142 + 5716 + 9142 + 3000) / 2);
+        // A line in a deal refunds at its net per-unit figure.
+        assert_eq!(lines[1].unit_share_minor, 4500);
+
+        // One combo already refunded (named by its header): one left.
+        let mut done = none.clone();
+        done.refunds = vec![RefundView {
+            id: "r".into(),
+            order_id: o.id.to_string(),
+            amount_minor: 17500,
+            method: "Cash".into(),
+            is_cash: true,
+            reason: "other".into(),
+            note: None,
+            issued_at: String::new(),
+            issued_by_name: String::new(),
+            lines: vec![RefundLineView {
+                order_item_id: uid(100).to_string(),
+                item_name: "Lunch deal".into(),
+                qty: 1,
+                amount_minor: 17500,
+                restocked: false,
+            }],
+            queued: false,
+        }];
+        let lines = refundable_lines(&o, &done, "en");
+        assert_eq!(lines[0].refundable_qty, 1);
+    }
+
     // ---- order_detail_view ---------------------------------------------
 
     #[test]

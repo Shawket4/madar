@@ -1079,6 +1079,41 @@ mod tests {
         RewardPick { line, units }
     }
 
+    /// C7: a combo's items earn stamps (the server's), but no reward is taken
+    /// inside a combo; a line in a deal is already discounted. The board says
+    /// why, in the till's language, and trims a pick asked for on either.
+    #[test]
+    fn no_reward_inside_a_combo_or_a_deal() {
+        let mut combo = line("latte", 1, 17_500);
+        combo.in_combo = true;
+        let mut dealt = line("latte", 2, 11_000);
+        dealt.in_deal = true;
+        let plain = line("latte", 1, 5_000);
+        let lines = [combo, dealt, plain];
+        let b = reward_board(
+            &lines,
+            &scan(20, None, true),
+            &[pick(0, 1), pick(1, 1), pick(2, 1)],
+            "en",
+        );
+        assert_eq!(b.picks, vec![pick(2, 1)], "only the plain line is covered");
+        assert!(!b.lines[0].claimable && !b.lines[1].claimable && b.lines[2].claimable);
+        assert_eq!(
+            b.lines[0].blocked_reason.as_deref(),
+            Some("Rewards can't be used inside a combo.")
+        );
+        assert_eq!(
+            b.lines[1].blocked_reason.as_deref(),
+            Some("This item is in a deal, so it can't also be a reward.")
+        );
+        assert!(b.adjusted_reason.is_some(), "the teller hears the trim");
+        let ar = reward_board(&lines, &scan(20, None, true), &[], "ar");
+        assert_eq!(
+            ar.lines[0].blocked_reason.as_deref(),
+            Some("لا يمكن استخدام المكافآت داخل الكومبو.")
+        );
+    }
+
     #[test]
     fn a_reward_covers_the_drink_as_chosen_and_only_the_catalogue_is_offered() {
         // Three oat lattes at 6,750 each; a cake that is not a reward.

@@ -129,6 +129,8 @@ mod testkit;
 mod offline_b_tests;
 #[cfg(test)]
 mod staff_comp_tests;
+#[cfg(test)]
+mod combos_tests;
 pub(crate) mod schema;
 pub(crate) mod integrity;
 pub mod synced;
@@ -2502,11 +2504,11 @@ pub(crate) fn queued_ticket_view(
                 qty: it.quantity,
                 size_label: it.size_label.clone().flatten(),
                 modifiers: Vec::new(),
-                line_total_minor: it.unit_price.flatten().unwrap_or(0) as i64 * it.quantity as i64,
+                line_total_minor: checkout::wire_line_total(it),
                 voided: false,
                 round_number: 1,
                 round_fired_at: event_at.to_string(),
-                is_combo: false,
+                is_combo: it.combo.as_ref().is_some_and(Option::is_some),
             }
         })
         .collect();
