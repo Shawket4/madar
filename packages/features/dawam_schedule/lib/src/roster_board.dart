@@ -181,10 +181,12 @@ class _RosterBoardState extends State<RosterBoard> {
     final p = _h.position;
     if (!p.hasContentDimensions) return;
     final target = widget.focus * _dayW;
-    // Wait for a layout that can reach the day (the first frames of a tab
+    // Wait for a layout with something to scroll (the first frames of a tab
     // may lay the board out before it has its real width), unless the whole
-    // week fits and there is nothing to scroll.
-    if (target > p.maxScrollExtent + 1 && !_fits) return;
+    // week fits and there is nothing to scroll. A day late in the week can
+    // never be the first one showing: the board goes as far as it can
+    // (found on a Friday: it waited for ever and stayed on Saturday).
+    if (p.maxScrollExtent <= 0 && !_fits) return;
     _focusPending = false;
     _h.jumpTo(target.clamp(p.minScrollExtent, p.maxScrollExtent));
   }
