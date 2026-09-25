@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dawam brand v2 (Dawam Design System v2): Paper ground, Ink ground in dark mode. -->
+    <color name="splash_background">#EFF3F4</color>
+</resources>
