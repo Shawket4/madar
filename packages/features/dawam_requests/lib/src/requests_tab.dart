@@ -123,9 +123,17 @@ String reqMeta(Req r, String? me, String? Function(String id) nameOf) {
   ].join(' · ');
 }
 
-/// The lines a request row's meta may take: a declined one with its reason
-/// is read in full (the reason sat in one cut line: "… · R…"), the rest one.
-int reqMetaLines(Req r) => declineReason(r) == null ? 1 : 4;
+/// The lines a request row's meta may take: a row that carries words — my
+/// note, why it was declined, who cancelled it and why — is read in full
+/// (on a phone one line cut them: "until 9:30 AM …", "… · R…"; an Arabic
+/// excuse with its note and times takes five beside its pill), up to eight
+/// for a note that runs on; a row that says only when keeps one line.
+int reqMetaLines(Req r) =>
+    r.note.trim().isNotEmpty ||
+        declineReason(r) != null ||
+        (r.status == ReqStatus.cancelled && r.cancelledBy != null)
+    ? 8
+    : 1;
 
 /// Why a request of mine was declined (decision #8: a decline needs a
 /// reason, and the person who asked sees it): the server's decision note.

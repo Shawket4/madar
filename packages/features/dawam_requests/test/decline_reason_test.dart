@@ -56,12 +56,23 @@ void main() {
     );
   });
 
-  test('a declined row with a reason may wrap; the others keep one line', () {
+  // POLISH: a row with words in it (my note, a reason) may wrap; one that
+  // says only when keeps one line.
+  test('a row that carries words may wrap; the others keep one line', () {
     expect(
       reqMetaLines(advance(ReqStatus.rejected)..decisionNote = 'Not yet'),
       greaterThan(1),
     );
-    expect(reqMetaLines(advance(ReqStatus.rejected)), 1);
-    expect(reqMetaLines(advance(ReqStatus.pending)), 1);
+    expect(reqMetaLines(advance(ReqStatus.pending)), greaterThan(1));
+    expect(reqMetaLines(advance(ReqStatus.rejected)..note = ''), 1);
+    expect(reqMetaLines(advance(ReqStatus.pending)..note = ' '), 1);
+    expect(
+      reqMetaLines(
+        advance(ReqStatus.cancelled)
+          ..note = ''
+          ..cancelledBy = 'manager',
+      ),
+      greaterThan(1),
+    );
   });
 }
