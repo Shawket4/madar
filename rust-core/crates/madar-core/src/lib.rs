@@ -1906,8 +1906,9 @@ impl MadarCore {
     ) -> SendOutcome {
         // Dawam punches and pings go to their own `/staff/*` endpoint. A 409
         // is the server already holding it only for a resend after a lost
-        // answer, or an uncoded check-out / any ping (`conflict_means_held`);
-        // a coded refusal (a closed month…) is a refusal.
+        // answer, or an uncoded check-out / any ping (`conflict_means_held`),
+        // or a queued check-in meeting "already checked in"; a coded refusal
+        // (a closed month…) is a refusal.
         if item.op_type.starts_with(dawam::OP_PREFIX) {
             // A punch is a claim about one person: it only ever goes under
             // their own token, so it waits for them to sign in again.
@@ -1925,17 +1926,12 @@ impl MadarCore {
                 Err(CoreError::Forbidden { resource, action }) if resource == dawam::PRIVACY_NOT_ACCEPTED => {
                     SendOutcome::Held(action)
                 }
-                // A first try refused with 409 (rules not saved, a closed
-                // month, a shift that can't be covered) is a refusal, shown
-                // once in the server's words — never a silent "done".
-                Err(CoreError::Server { status: 409, code, detail }) if !dawam::conflict_means_held(item, &code) => {
-                    // In the person's words where the core has them (a closed month).
-                    match self.staff_error(CoreError::Server { status: 409, code, detail }) {
-                        CoreError::Server { detail, .. } => SendOutcome::Dead(detail),
-                        other => SendOutcome::Dead(format!("{other:?}")),
-                    }
-                }
-                Err(e) => classify_send(e, Idem::Yes),
+                // Held, or a refusal (`dawam_refusal`, in dawam.rs): a
+                // first try refused with 409 is a refusal, never a silent
+                // "done" (E2E clocking C2); the punch the person waits on is
+                // said in the server's words, one sent later from the queue in
+                // the phone's language (the toast says it, S-036).
+                Err(e) => self.dawam_refusal(item, e),
             };
         }
         let (envelope, idem) = match self.replay_envelope(item) {

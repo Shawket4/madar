@@ -62,6 +62,14 @@ const FIX_FRESH_MS: i64 = 10 * 60_000;
 /// Sent within this long of being queued, a punch goes as live, not offline.
 const LIVE_MS: i64 = 30_000;
 
+tokio::task_local! {
+    /// The outbox id of the punch the person just made and is waiting on:
+    /// `dawam_do` drains it at once, and its refusal is said on their screen
+    /// in the server's words. Every other refused op was sent later from the
+    /// queue and becomes a toast in the phone's language (`dawam_refusal`).
+    static LIVE_OP: String;
+}
+
 // ── time since boot (CL-11) ───────────────────────────────────────────────
 
 /// Milliseconds since the phone booted, counting deep sleep: `CLOCK_BOOTTIME`
@@ -738,6 +746,8 @@ pub(crate) const PUNCH_CODES: &[&str] = &[
     "ALREADY_CHECKED_IN",
     // The till's PIN punch with POS or Dawam switched off (P-010).
     "MODULE_OFF",
+    // A clock-out with nothing open (a manager or the till closed it).
+    "NOT_CLOCKED_IN",
 ];
 
 /// The server's money refusals (E2E money BB2): the body is kept, and the
@@ -790,6 +800,16 @@ pub(crate) fn punch_words(locale: &str, code: &str, body: &str, tz: chrono_tz::T
     let out = fill(&words, &args);
     // No words for it, or a figure the server didn't send: its own sentence.
     if words == key || out.contains('{') { server() } else { out }
+}
+
+/// The words a punch refusal is looked up by. The server refuses a clock-out
+/// with the check-in's code and sentence (outside the fence, no location); a
+/// clock-out's own words say clock out (E2E posnotif S-036).
+fn punch_key(path: &str, code: &str) -> String {
+    match (path, code) {
+        ("/staff/me/check-out", "OUTSIDE_FENCE" | "LOCATION_REQUIRED") => format!("{code}_OUT"),
+        _ => code.to_string(),
+    }
 }
 
 /// The server's roster refusals (audit 02): worded in the phone's language
@@ -1111,7 +1131,7 @@ impl MadarCore {
                     }
                     // A punch refusal, in the phone's language with the server's figures.
                     CoreError::Server { status, code, detail } if PUNCH_CODES.contains(&code.as_str()) => {
-                        let detail = punch_words(&self.current_locale(), &code, &detail, self.dawam_tz());
+                        let detail = punch_words(&self.current_locale(), &punch_key(path, &code), &detail, self.dawam_tz());
                         CoreError::Server { status, code, detail }
                     }
                     CoreError::Server { status, code, detail } => CoreError::Server { status, code, detail: plain_sentence(&detail) },
@@ -1412,8 +1432,15 @@ impl MadarCore {
                 Err(e) => return Err(e),
             }
         }
+        // A queued punch the server refused after its screen moved on (a
+        // clock-out made offline, sent on reconnect) is said once, in the
+        // words it was refused with, and leaves the queue: the host shows it
+        // as a red toast (S-035/S-036). Only a refreshed picture takes them;
+        // the background's pings build pictures nobody sees.
+        let refused = if refresh { self.dawam_take_refused() } else { Vec::new() };
         let snap = self.dawam_build()?;
         let mut v = serde_json::to_value(&snap).map_err(|e| CoreError::Internal { detail: format!("snapshot: {e}") })?;
+        v["refused"] = json!(refused);
         in_branch_zone(&mut v, &self.dawam_tz());
         serde_json::to_string(&v).map_err(|e| CoreError::Internal { detail: format!("snapshot: {e}") })
     }
@@ -1456,7 +1483,8 @@ impl MadarCore {
         self.dawam_srv("PUT", "/staff/me/push-token", Some(json!({ "token": token, "locale": locale }))).await.map(|_| ())
     }
 
-    fn dawam_enqueue(&self, op: &str, path: &str, body: Value, gps_time: Option<&str>) -> Result<(), CoreError> {
+    /// Queue one Dawam op; returns its outbox id.
+    fn dawam_enqueue(&self, op: &str, path: &str, body: Value, gps_time: Option<&str>) -> Result<String, CoreError> {
         let me = self.dawam_me()?;
         let id = uuid::Uuid::new_v4().to_string();
         let wall = wall_ms();
@@ -1468,7 +1496,7 @@ impl MadarCore {
         self.store.enqueue(&store::NewOutboxOp {
             id: id.clone(),
             op_type: op.to_string(),
-            idempotency_key: id,
+            idempotency_key: id.clone(),
             payload: payload.to_string(),
             event_at: ms_rfc3339(self.corrected_now_ms()),
             depends_on_seq: None,
@@ -1480,7 +1508,7 @@ impl MadarCore {
             entity_type: None,
             entity_id: None,
         })?;
-        Ok(())
+        Ok(id)
     }
 
     /// The drain's send for a queued Dawam op: straight to its `/staff/*`
@@ -1525,8 +1553,13 @@ impl MadarCore {
             return self.dawam_snapshot(true).await;
         }
         if act.queueable() {
-            self.dawam_queue(act)?;
-            let _ = self.drain_outbox().await;
+            let made = self.dawam_queue(act)?;
+            // The punch just made is the one the person waits on (`LIVE_OP`).
+            let drain = self.drain_outbox();
+            let _ = match made {
+                Some(id) => LIVE_OP.scope(id, drain).await,
+                None => drain.await,
+            };
             // Online, the server's answer (lateness, a refusal) shows at once.
             if online {
                 let dead = self.dawam_dead_since()?;
@@ -1572,7 +1605,97 @@ impl MadarCore {
         }))
     }
 
-    fn dawam_queue(&self, act: Act) -> Result<(), CoreError> {
+    /// Every queued Dawam op the server refused, oldest first, in the words it
+    /// was refused with; each leaves the outbox as it is taken. A refused ping
+    /// goes quietly: nobody made it, so there is nobody to tell.
+    fn dawam_take_refused(&self) -> Vec<String> {
+        let rows = self
+            .store
+            .with_conn(|c| {
+                let mut st = c.prepare("SELECT id, op_type, COALESCE(last_error, '') FROM outbox WHERE status = 'dead' AND op_type LIKE 'dawam_%' ORDER BY seq ASC")?;
+                let v = st
+                    .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?)))?
+                    .filter_map(Result::ok)
+                    .collect::<Vec<_>>();
+                Ok(v)
+            })
+            .unwrap_or_default();
+        rows.into_iter()
+            .filter_map(|(id, op, why)| {
+                self.store.discard_dead(&id).ok().filter(|gone| *gone)?;
+                if op == "dawam_ping" {
+                    return None;
+                }
+                Some(if why.trim().is_empty() { i18n::tr(&self.current_locale(), "sync.refused") } else { why })
+            })
+            .collect()
+    }
+
+    /// What the drain makes of a queued Dawam op the server answered with an
+    /// error. The punch the person just made and waits on (`LIVE_OP`) is
+    /// refused on their screen in the server's words, in theirs where the
+    /// core has them (E2E clocking C2, BC-3). One sent later from the queue (a
+    /// punch made offline, sent on reconnect) becomes the red toast, worded
+    /// in the phone's language, never the core's or the server's English
+    /// (S-035/S-036).
+    ///
+    /// A 409 is "the server already holds it" only for a resend, an uncoded
+    /// check-out or a ping (`conflict_means_held`), and, sent later, for
+    /// "already checked in"; any other 409 is a refusal, never a silent done.
+    pub(crate) fn dawam_refusal(&self, item: &store::OutboxItem, e: CoreError) -> crate::SendOutcome {
+        use crate::SendOutcome;
+        let loc = self.current_locale();
+        let live = LIVE_OP.try_with(|id| *id == item.id).unwrap_or(false);
+        let code = match &e {
+            CoreError::Server { code, .. } => code.clone(),
+            _ => String::new(),
+        };
+        // A refusal sent later, when the core has no words of its own for it.
+        let queued = || {
+            let key = match item.op_type.as_str() {
+                "dawam_check_in" => "staff.err_queued_refused_in",
+                "dawam_check_out" => "staff.err_queued_refused_out",
+                "dawam_cover" => "staff.err_queued_refused_cover",
+                "dawam_punch_for" => "staff.err_queued_refused_punch",
+                _ => "sync.refused",
+            };
+            SendOutcome::Dead(i18n::tr(&loc, key))
+        };
+        match e {
+            // Held already: a resend after a lost answer, a check-out with
+            // nothing open, a ping. Sent later, "already checked in" is what
+            // the punch asked for (the till or a manager clocked the person in
+            // meanwhile): nothing to say. Only a stale screen is told (S-075).
+            CoreError::Server { status: 409, .. } if conflict_means_held(item, &code) || (!live && code == "ALREADY_CHECKED_IN") => {
+                SendOutcome::Acked(None)
+            }
+            // A month already approved or paid takes no punch (BC-3).
+            CoreError::Server { .. } if code == "PERIOD_CLOSED" => {
+                SendOutcome::Dead(i18n::tr(&loc, if live { "staff.err_period_closed" } else { "staff.err_queued_period_closed" }))
+            }
+            // Nothing open to close: a manager or the till closed it meanwhile.
+            CoreError::Server { .. } if code == "NOT_CLOCKED_IN" => SendOutcome::Dead(i18n::tr(&loc, "staff.err_already_clocked_out")),
+            // Worded already (the fence, the window, location, already in…).
+            CoreError::Server { detail, .. } if PUNCH_CODES.contains(&code.as_str()) => SendOutcome::Dead(detail),
+            // Any other 409 is a refusal (rules not saved, a shift that can't
+            // be covered): the person waiting reads the server's words.
+            e @ CoreError::Server { status: 409, .. } if live => match self.staff_error(e) {
+                CoreError::Server { detail, .. } => SendOutcome::Dead(detail),
+                other => SendOutcome::Dead(format!("{other:?}")),
+            },
+            CoreError::Server { status: 409, .. } => queued(),
+            e => match crate::classify_send(e, crate::Idem::Yes) {
+                // The person waiting reads what the server said.
+                outcome if live => outcome,
+                SendOutcome::Dead(_) | SendOutcome::Refused(_) => queued(),
+                other => other,
+            },
+        }
+    }
+
+    /// Queue a punch the person made; returns its outbox id (none for an act
+    /// that queues nothing).
+    fn dawam_queue(&self, act: Act) -> Result<Option<String>, CoreError> {
         let snap = self.dawam_build()?;
         let branch_of = |shift: &str| {
             let tpl = shift.rsplit('|').next().unwrap_or_default();
@@ -1604,11 +1727,11 @@ impl MadarCore {
                 body["branch_id"] = json!(branch_of(&shift));
                 body["tracking_off"] = json!(tracking_off);
                 body["shift"] = json!(shift);
-                self.dawam_enqueue("dawam_check_in", "/staff/me/check-in", body, gps(&fix).as_deref())
+                self.dawam_enqueue("dawam_check_in", "/staff/me/check-in", body, gps(&fix).as_deref()).map(Some)
             }
             Act::ClockOut { fix } => {
                 noted(&fix);
-                self.dawam_enqueue("dawam_check_out", "/staff/me/check-out", fix_body(&fix), gps(&fix).as_deref())
+                self.dawam_enqueue("dawam_check_out", "/staff/me/check-out", fix_body(&fix), gps(&fix).as_deref()).map(Some)
             }
             Act::Cover { shift, fix } => {
                 noted(&fix);
@@ -1617,13 +1740,13 @@ impl MadarCore {
                 body["employee_id"] = json!(user);
                 body["work_shift_id"] = json!(tpl);
                 body["shift"] = json!(shift);
-                self.dawam_enqueue("dawam_cover", "/staff/me/cover", body, gps(&fix).as_deref())
+                self.dawam_enqueue("dawam_cover", "/staff/me/cover", body, gps(&fix).as_deref()).map(Some)
             }
             Act::PunchFor { shift, reason } => {
                 let (user, ..) = parts(&shift);
-                self.dawam_enqueue("dawam_punch_for", "/staff/attendance/punch", json!({ "employee_id": user, "reason": reason, "shift": shift }), None)
+                self.dawam_enqueue("dawam_punch_for", "/staff/attendance/punch", json!({ "employee_id": user, "reason": reason, "shift": shift }), None).map(Some)
             }
-            _ => Ok(()),
+            _ => Ok(None),
         }
     }
 
@@ -3534,6 +3657,185 @@ mod tests {
         *check_out.lock().unwrap() = (409, json!({ "error": "Conflict: You are not clocked in." }));
         core.dawam_do(clock_out.clone()).await.expect("nothing open is not an error");
         assert_eq!(dead_dawam_ops(&core), 0);
+    }
+
+    /// E2E posnotif S-035/S-036: a punch made offline and refused when it is
+    /// finally sent (outside the fence, no location) is said ONCE, in the
+    /// phone's words, and leaves the queue. It used to be dead-lettered into
+    /// `stuck`, which no screen reads: the pill went, the shift read "clocked
+    /// in" again and the person never learnt the clock-out was lost.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_queued_punch_refused_on_reconnect_is_said_once_and_leaves_the_queue() {
+        use crate::testkit::{online_core, Stub, StubResponse, BRANCH, TELLER};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        const FENCE: &str = r#"{"error":"You are 1201 m from the branch — you must be within 200 m to clock in","code":"OUTSIDE_FENCE","vars":{"distance_m":1201.4,"radius_m":200}}"#;
+        let up = Arc::new(AtomicBool::new(true));
+        let flag = up.clone();
+        let cairo = Utc::now().with_timezone(&chrono_tz::Africa::Cairo);
+        let today = cairo.date_naive().to_string();
+        let hms = |t: NaiveTime| format!("{}:00", hhmm((t.hour() * 60 + t.minute()) as i64));
+        let (start, end) = (hms(cairo.time() - Duration::hours(1)), hms(cairo.time() + Duration::hours(3)));
+        let stub = Stub::start(move |r| {
+            if !flag.load(Ordering::SeqCst) {
+                return Some(StubResponse::hangup());
+            }
+            let path = r.path.split('?').next().unwrap_or_default();
+            Some(match path {
+                "/staff/me/context" => StubResponse::json(200, json!({
+                    "role": "employee", "org_name": "Nile Café", "caps": [],
+                    "branches": [{ "id": BRANCH, "name": "Zamalek", "geo_radius_meters": 200,
+                                   "latitude": 30.0609, "longitude": 31.2197, "timezone": "Africa/Cairo" }],
+                    "work_shifts": [{ "id": "w1", "name": "Morning", "branch_id": BRANCH,
+                                      "start_time": start, "end_time": end, "grace_minutes": 10 }],
+                    "people": [{ "employee_id": TELLER, "name": "Sara", "role": "employee", "branch_ids": [BRANCH],
+                                 "base_salary_piastres": 900000, "pay_method": "cash", "cant_work_days": [] }],
+                    "settings": { "period_start_day": 26, "advance_cap_percent": "50" },
+                })),
+                "/staff/me/roster" => StubResponse::json(200, json!({
+                    "shifts": [{ "employee_id": TELLER, "date": today, "work_shift_id": "w1" }],
+                    "team": [], "open_shifts": [], "swaps": [], "unpublished_weeks": [],
+                })),
+                "/staff/me/check-in" => StubResponse::text(403, FENCE),
+                "/health" => StubResponse::text(200, "ok"),
+                p if p.ends_with("estimate") || p.ends_with("context") => StubResponse::json(200, json!({})),
+                _ => StubResponse::json(200, json!([])),
+            })
+        })
+        .await;
+        let core = online_core(&stub.base, "").await;
+        core.set_online(true);
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let shift = snap["my_now"][0].as_str().expect("today's shift is mine").to_string();
+
+        // Offline, 1.2 km away: the punch waits on the phone.
+        up.store(false, Ordering::SeqCst);
+        let fix = DawamFix { latitude: 30.07, longitude: 31.22, accuracy: Some(8.0), ..Default::default() };
+        let act = json!({ "action": "clock_in", "shift": shift, "fix": fix }).to_string();
+        let snap: Value = serde_json::from_str(&core.dawam_do(act).await.unwrap()).unwrap();
+        assert_eq!(snap["queued"], 1);
+
+        // Back online, the poll sends it and the server refuses it.
+        stub.seen.lock().unwrap().clear(); // it logs the attempts it hung up on
+        up.store(true, Ordering::SeqCst);
+        let snap: Value = serde_json::from_str(&core.dawam_sync().await.unwrap()).unwrap();
+        assert_eq!(stub.requests("/staff/me/check-in").len(), 1, "sent once");
+        assert_eq!(snap["queued"], 0, "it left the queue");
+        let said = punch_words("en", "OUTSIDE_FENCE", FENCE, chrono_tz::Africa::Cairo);
+        assert_eq!(snap["refused"], json!([said]), "said once, in the phone's words");
+        assert_eq!(snap["stuck"], json!([]), "not parked where no screen looks");
+        assert!(snap["active_shift"].is_null(), "the refused punch no longer shows as made");
+
+        // The next picture does not say it again.
+        let snap: Value = serde_json::from_str(&core.dawam_sync().await.unwrap()).unwrap();
+        assert_eq!(snap["refused"], json!([]));
+        assert_eq!(stub.requests("/staff/me/check-in").len(), 1, "never resent");
+    }
+
+    /// E2E posnotif (queue wording, with S-035/S-036): every way the server
+    /// can refuse a queued punch reads in the phone's language when the toast
+    /// says it. It stored classify_send's English "the server does not have
+    /// what this needs yet — You are not checked in" for a check-out with
+    /// nothing open, the server's English for an uncoded 400, and a month
+    /// already closed (409 PERIOD_CLOSED) was acked as if applied and dropped
+    /// without a word. A refused ping is dropped quietly (nobody made it).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn every_refused_queued_punch_is_said_in_the_phones_language() {
+        use crate::testkit::{online_core, Stub, StubResponse, BRANCH, TELLER};
+
+        let cairo = Utc::now().with_timezone(&chrono_tz::Africa::Cairo);
+        let today = cairo.date_naive().to_string();
+        let stub = Stub::start(move |r| {
+            let path = r.path.split('?').next().unwrap_or_default();
+            let case = r.json()["case"].as_str().unwrap_or_default().to_string();
+            Some(match (path, case.as_str()) {
+                ("/staff/me/context", _) => StubResponse::json(200, json!({
+                    "role": "employee", "org_name": "Nile Café", "caps": [],
+                    "branches": [{ "id": BRANCH, "name": "Zamalek", "geo_radius_meters": 200,
+                                   "latitude": 30.0609, "longitude": 31.2197, "timezone": "Africa/Cairo" }],
+                    "work_shifts": [], "settings": {},
+                    "people": [{ "employee_id": TELLER, "name": "Sara", "role": "employee", "branch_ids": [BRANCH] }],
+                })),
+                ("/staff/me/roster", _) => StubResponse::json(200, json!({ "shifts": [], "team": [], "open_shifts": [], "swaps": [], "unpublished_weeks": [] })),
+                ("/staff/me/check-out", "gone") => StubResponse::text(404, r#"{"error":"You are not checked in","code":"NOT_CLOCKED_IN"}"#),
+                ("/staff/me/check-out", "closed") => StubResponse::text(409, &format!(r#"{{"error":"That month's payroll is approved — a check-out dated {today} can't change it.","code":"PERIOD_CLOSED","vars":{{}}}}"#)),
+                ("/staff/me/check-in", "future") => StubResponse::text(400, r#"{"error":"That punch is dated in the future."}"#),
+                ("/staff/me/check-in", "twice") => StubResponse::text(409, r#"{"error":"Already checked in","code":"ALREADY_CHECKED_IN"}"#),
+                ("/staff/me/pings", _) => StubResponse::text(404, r#"{"error":"Not on a shift"}"#),
+                ("/health", _) => StubResponse::text(200, "ok"),
+                (p, _) if p.ends_with("estimate") || p.ends_with("context") => StubResponse::json(200, json!({})),
+                _ => StubResponse::json(200, json!([])),
+            })
+        })
+        .await;
+        let core = online_core(&stub.base, "").await;
+        core.set_online(true);
+        core.dawam_snapshot(true).await.unwrap();
+        for lang in ["ar", "en"] {
+            core.set_locale(lang.into());
+            for (path, case) in [
+                ("/staff/me/check-out", "gone"),
+                ("/staff/me/check-out", "closed"),
+                ("/staff/me/check-in", "future"),
+                ("/staff/me/check-in", "twice"),
+                ("/staff/me/pings", "ping"),
+            ] {
+                let op = if path.ends_with("pings") { "dawam_ping" } else if path.ends_with("in") { "dawam_check_in" } else { "dawam_check_out" };
+                core.dawam_enqueue(op, path, json!({ "case": case }), None).unwrap();
+            }
+            let snap: Value = serde_json::from_str(&core.dawam_sync().await.unwrap()).unwrap();
+            assert_eq!(snap["queued"], 0, "{lang}: nothing left waiting");
+            let want: Vec<String> = ["staff.err_already_clocked_out", "staff.err_queued_period_closed", "staff.err_queued_refused_in"]
+                .iter()
+                .map(|k| i18n::tr(lang, k))
+                .collect();
+            assert!(want.iter().all(|w| !w.starts_with("staff.")), "{lang}: words exist: {want:?}");
+            assert_eq!(snap["refused"], json!(want), "{lang}: the duplicate check-in is no refusal, the ping says nothing");
+            if lang == "ar" {
+                assert!(want.iter().all(|w| !w.chars().any(|c| c.is_ascii_alphabetic())), "{want:?}");
+            }
+        }
+    }
+
+    /// E2E posnotif S-036: a clock-out refused outside the fence, or with no
+    /// location, said "Clock in within 200 m" / "عشان تسجّل حضور" (the server
+    /// sends the check-in's code and sentence for both). A clock-out's
+    /// refusal says clock out, in both languages; a clock-in's is unchanged.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_refused_clock_out_says_clock_out_not_clock_in() {
+        use crate::testkit::{online_core, Stub, StubResponse};
+
+        const FENCE: &str = r#"{"error":"You are 1201 m from the branch — you must be within 200 m to clock in","code":"OUTSIDE_FENCE","vars":{"distance_m":1201.4,"radius_m":200}}"#;
+        const NO_FIX: &str = r#"{"error":"Location is required to check in at this branch","code":"LOCATION_REQUIRED","vars":{}}"#;
+        let stub = Stub::start(|r| {
+            let no_fix = r.json()["latitude"].is_null();
+            Some(match r.path.split('?').next().unwrap_or_default() {
+                "/staff/me/check-in" | "/staff/me/check-out" if no_fix => StubResponse::text(400, NO_FIX),
+                "/staff/me/check-in" | "/staff/me/check-out" => StubResponse::text(403, FENCE),
+                "/health" => StubResponse::text(200, "ok"),
+                _ => StubResponse::json(200, json!([])),
+            })
+        })
+        .await;
+        let core = online_core(&stub.base, "").await;
+        core.set_online(true);
+        let far = json!({ "latitude": 30.07, "longitude": 31.22 });
+        let none = json!({ "latitude": null, "longitude": null });
+        for (lang, path, body, want) in [
+            ("en", "/staff/me/check-out", &far, "You're 1201 m from the branch. Clock out within 200 m."),
+            ("ar", "/staff/me/check-out", &far, "إنت على بُعد 1201 م من الفرع. لازم تكون في حدود 200 م عشان تسجّل انصراف."),
+            ("en", "/staff/me/check-out", &none, "Your location is needed to clock out. Turn location on and try again."),
+            ("ar", "/staff/me/check-out", &none, "لازم موقعك عشان تسجّل انصراف. شغّل الموقع وجرّب تاني."),
+            ("en", "/staff/me/check-in", &far, "You're 1201 m from the branch. Clock in within 200 m."),
+            ("ar", "/staff/me/check-in", &none, "لازم موقعك عشان تسجّل حضور. شغّل الموقع وجرّب تاني."),
+        ] {
+            core.set_locale(lang.into());
+            match core.dawam_srv("POST", path, Some(body.clone())).await {
+                Err(CoreError::Server { detail, .. }) => assert_eq!(detail, want, "{lang} {path}"),
+                other => panic!("{lang} {path}: {other:?}"),
+            }
+        }
     }
 
     /// A punch queued while the staff token lapsed is sent after a refresh,
