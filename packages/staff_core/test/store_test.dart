@@ -56,8 +56,14 @@ class _Backend implements DawamBackend {
     return fetched();
   }
 
+  /// The readings handed to the core as pings (CL-4).
+  final pings = <DawamFix>[];
   @override
-  Future<String> ping(DawamFix fix) async => _fixture();
+  Future<String> ping(DawamFix fix) {
+    pings.add(fix);
+    return snapshot(refresh: false);
+  }
+
   @override
   Future<void> otpRequest(String phone) async {}
   @override
@@ -82,10 +88,19 @@ class _Backend implements DawamBackend {
   }
 
   final trackingCalls = <bool>[];
+
+  /// The branch fence each call handed over (iOS watches it, CL-4).
+  final trackingFences = <DawamFence?>[];
   @override
-  Future<void> tracking({required bool on}) async => trackingCalls.add(on);
+  Future<void> tracking({required bool on, DawamFence? fence}) async {
+    trackingCalls.add(on);
+    trackingFences.add(fence);
+  }
+
+  /// The core's saved session: null is signed out.
+  String? restored = 'e1';
   @override
-  String? restoredUser() => 'e1';
+  String? restoredUser() => restored;
 
   /// Holds a sign-out open (Firebase forgetting the token can take 5 s).
   Completer<void>? signOutGate;
@@ -960,5 +975,112 @@ void main() {
     backend.edit = null;
     await store.refresh();
     expect(store.unsettled, isEmpty, reason: 'an older core says nothing');
+  });
+
+  // CL-4, iOS: the host's tracker watches the branch's fence and takes its
+  // own readings (a fence crossing, a significant move, the 15-minute one),
+  // which the store pings as they come.
+  group('on-shift tracking (CL-4)', () {
+    const zamalek = (lat: 30.0609, lng: 31.2197, radius: 200);
+    const fix = (
+      lat: 30.07,
+      lng: 31.22,
+      accuracy: 65.0,
+      mock: false,
+      gpsTime: null,
+      battery: 72,
+    );
+
+    /// The picture on shift, with the fence the core names for it.
+    void Function(Map<String, dynamic>) onShift(Map<String, dynamic>? fence) =>
+        (v) {
+          final id = (v['my_now'] as List<dynamic>).first as String;
+          v['active_shift'] = id;
+          for (final s
+              in (v['shifts'] as List<dynamic>).cast<Map<String, dynamic>>()) {
+            if (s['id'] == id) s['in_at'] = '${s['date']}T09:02:00+03:00';
+          }
+          v['tracking_fence'] = fence;
+        };
+
+    Future<(DawamStore, _Backend)> restored(_Backend b) async {
+      final s = DawamStore(b);
+      await s.restore();
+      addTearDown(s.stop);
+      return (s, b);
+    }
+
+    test('on shift the host is told the branch fence the core names', () async {
+      final (store, b) = await restored(
+        _Backend()
+          ..edit = onShift({
+            'latitude': 30.0609,
+            'longitude': 31.2197,
+            'radius': 200,
+          }),
+      );
+      await store.refresh();
+      expect(b.trackingCalls, [true], reason: 'started once');
+      expect(b.trackingFences, [zamalek]);
+      expect(store.trackingFence, zamalek);
+
+      // The branch's fence changed on the server: the host watches the new one.
+      b.edit = onShift({
+        'latitude': 30.0609,
+        'longitude': 31.2197,
+        'radius': 350,
+      });
+      await store.refresh();
+      expect(b.trackingFences.last, (lat: 30.0609, lng: 31.2197, radius: 350));
+
+      // Clocked out: stopped, with no fence.
+      b.edit = null;
+      await store.refresh();
+      expect(b.trackingCalls.last, isFalse);
+      expect(b.trackingFences.last, isNull);
+    });
+
+    test(
+      'a branch with no coordinates starts tracking with no fence',
+      () async {
+        final (_, b) = await restored(_Backend()..edit = onShift(null));
+        expect(b.trackingCalls, [true]);
+        expect(b.trackingFences, [null]);
+      },
+    );
+
+    test('a woken reading is pinged at once, whatever the spacing', () async {
+      final (store, b) = await restored(_Backend()..edit = onShift(null));
+      await store.wakeFix(fix, wake: 'interval');
+      // A minute later the person leaves the branch: sent too, not held
+      // for the 15-minute spacing (the host keeps that itself).
+      await store.wakeFix(fix, wake: 'region_exit');
+      await store.wakeFix(fix, wake: 'significant_change');
+      expect(b.pings, [fix, fix, fix]);
+      expect(store.battery, 72);
+    });
+
+    test('a reading kept too long is not sent as where they are now', () async {
+      final (store, b) = await restored(_Backend()..edit = onShift(null));
+      await store.wakeFix(
+        fix,
+        wake: 'region_exit',
+        age: const Duration(minutes: 40),
+      );
+      expect(b.pings, isEmpty);
+      await store.wakeFix(
+        fix,
+        wake: 'region_exit',
+        age: const Duration(minutes: 2),
+      );
+      expect(b.pings, [fix]);
+    });
+
+    test('signed out, a reading is not sent', () async {
+      final (store, b) = await restored(_Backend()..restored = null);
+      expect(store.me, isNull);
+      await store.wakeFix(fix, wake: 'significant_change');
+      expect(b.pings, isEmpty);
+    });
   });
 }

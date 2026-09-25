@@ -83,6 +83,12 @@ class FakeCore implements DawamBackend {
   /// What the background tracking was last told (CL-4).
   final trackingCalls = <bool>[];
 
+  /// The branch fence each of those handed over (iOS watches it).
+  final trackingFences = <DawamFence?>[];
+
+  /// The readings pinged (CL-4).
+  final pings = <DawamFix>[];
+
   /// The fixture as the core would answer it now. Offline, the core has
   /// only its mirror: the last picture, marked offline.
   String picture() {
@@ -201,7 +207,10 @@ class FakeCore implements DawamBackend {
   }
 
   @override
-  Future<String> ping(DawamFix fix) async => picture();
+  Future<String> ping(DawamFix fix) async {
+    pings.add(fix);
+    return picture();
+  }
 
   @override
   Future<String> sync() async {
@@ -228,7 +237,10 @@ class FakeCore implements DawamBackend {
   Future<bool> alwaysLocation() async => always;
 
   @override
-  Future<void> tracking({required bool on}) async => trackingCalls.add(on);
+  Future<void> tracking({required bool on, DawamFence? fence}) async {
+    trackingCalls.add(on);
+    trackingFences.add(fence);
+  }
 
   @override
   String? restoredUser() => restored;

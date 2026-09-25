@@ -8,9 +8,12 @@
 		<string>location</string>
 	</array>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Dawam records your location every 15 minutes while you are on shift, and never after you clock out.</string>
+	<string>Dawam checks where you are regularly while you are on shift, and when you leave your branch, even with the app closed. It never checks after you clock out.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Dawam uses your location only when you clock in or out, to confirm you are at your branch.</string>
+	<string>Dawam uses your location when you clock in or out, to confirm you are at your branch, and checks where you are regularly while you are on shift. It never checks after you clock out.</string>
+	<!-- Export compliance: only standard HTTPS/TLS (rustls in the core, and the platform's), which is exempt. Without this key every TestFlight build waits on "Missing Compliance". -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

@@ -108,6 +108,52 @@ void main() {
       );
     });
 
+    // CL-4: the prompts say what the phone does — checks where they are
+    // regularly on shift and when they leave the branch (even closed), never
+    // after clock-out — and the background modes that do it stay declared.
+    test('the location prompts say what tracking does, in both languages', () {
+      for (final (lang, regularly, leave, never) in [
+        (
+          'en',
+          'regularly',
+          'leave your branch',
+          'never checks after you clock out',
+        ),
+        ('ar', 'كل شوية', 'تخرج من فرعك', 'عمره ما بيشوفه بعد ما تسجّل انصراف'),
+      ]) {
+        final s = _strings('ios/Runner/$lang.lproj/InfoPlist.strings');
+        final always = s['NSLocationAlwaysAndWhenInUseUsageDescription']!;
+        final using = s['NSLocationWhenInUseUsageDescription']!;
+        for (final t in [always, using]) {
+          expect(t.toLowerCase(), contains(regularly), reason: '$lang: $t');
+          expect(t.toLowerCase(), contains(never), reason: '$lang: $t');
+        }
+        expect(always, contains(leave), reason: '$lang: $always');
+        expect(using, isNot(contains('only')), reason: 'not only at punches');
+      }
+      expect(
+        _plist(plist, 'NSLocationAlwaysAndWhenInUseUsageDescription'),
+        _strings(
+          'ios/Runner/en.lproj/InfoPlist.strings',
+        )['NSLocationAlwaysAndWhenInUseUsageDescription'],
+        reason: 'the base string is the English one',
+      );
+      final modes = RegExp(
+        r'<key>UIBackgroundModes</key>\s*<array>([\s\S]*?)</array>',
+      ).firstMatch(plist)!.group(1)!;
+      expect(modes, contains('<string>location</string>'));
+      expect(modes, contains('<string>remote-notification</string>'));
+    });
+
+    // TestFlight holds every build on "Missing Compliance" without it; the
+    // app uses only standard HTTPS/TLS (rustls, the platform), which is exempt.
+    test('export compliance is declared', () {
+      expect(
+        plist,
+        matches(RegExp(r'<key>ITSAppUsesNonExemptEncryption</key>\s*<false/>')),
+      );
+    });
+
     test('the localised strings are bundled (project file)', () {
       final pbx = _read('ios/Runner.xcodeproj/project.pbxproj');
       expect(pbx, contains('InfoPlist.strings in Resources'));
