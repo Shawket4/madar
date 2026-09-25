@@ -167,17 +167,15 @@ class _DayRow extends ConsumerWidget {
                 value: shiftWindow(s),
               ),
               MadarSummaryLine(
-                label: [
+                label: punchLabel(
                   tr('staff.in_label'),
-                  if (s.inMethod != null) methodLabel(s.inMethod!),
-                ].join(' · '),
+                  s.inMethod,
+                  s.punchReason,
+                ),
                 value: s.inAt == null ? '—' : hm(s.inAt!),
               ),
               MadarSummaryLine(
-                label: [
-                  tr('staff.out'),
-                  if (s.outMethod != null) methodLabel(s.outMethod!),
-                ].join(' · '),
+                label: punchLabel(tr('staff.out'), s.outMethod, s.outReason),
                 value: s.outAt == null ? '—' : hm(s.outAt!),
               ),
               if (late > 0)
@@ -302,3 +300,11 @@ MadarStatus? coverStatus(Shift s) => s.coverOf == null
         ),
         _ => null,
       };
+
+/// A punch's line: in or out, who made it, and why when someone else did
+/// (BC-1: the out-reason sits beside the out, the in-reason beside the in).
+String punchLabel(String what, Method? method, String? reason) => [
+  what,
+  if (method != null) methodLabel(method),
+  if (reason != null && reason.trim().isNotEmpty) '“${reason.trim()}”',
+].join(' · ');

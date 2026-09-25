@@ -443,6 +443,9 @@ pub struct ShiftV {
     pub in_method: Option<String>,
     pub out_method: Option<String>,
     pub punch_reason: Option<String>,
+    /// Why someone else punched this person out (BC-1); the in-reason stays
+    /// in `punch_reason`.
+    pub out_reason: Option<String>,
     pub leave: Option<String>,
     pub half_leave: bool,
     /// Which half a half-day leave takes off: `first` or `second` (RQ-8).
@@ -3062,6 +3065,7 @@ impl MadarCore {
                     in_method: method_of(&s(r, "check_in_method")),
                     out_method: method_of(&s(r, "check_out_method")),
                     punch_reason: so(r, "punch_reason"),
+                    out_reason: so(r, "check_out_reason"),
                     tracking_off: b(r, "tracking_off"),
                     late_minutes: i(r, "late_minutes"),
                     ..Default::default()
@@ -3099,6 +3103,7 @@ impl MadarCore {
             sh.in_method = method_of(&s(r, "check_in_method"));
             sh.out_method = method_of(&s(r, "check_out_method"));
             sh.punch_reason = so(r, "punch_reason");
+            sh.out_reason = so(r, "check_out_reason");
             sh.tracking_off = b(r, "tracking_off");
             sh.late_minutes = i(r, "late_minutes");
             sh.absent = s(r, "status") == "absent";
@@ -3161,11 +3166,12 @@ impl MadarCore {
                         if sh.in_at.is_none() {
                             sh.in_at = Some(when);
                             sh.in_method = Some("manager".into());
+                            sh.punch_reason = so(&p["body"], "reason");
                         } else {
                             sh.out_at = Some(when);
                             sh.out_method = Some("manager".into());
+                            sh.out_reason = so(&p["body"], "reason");
                         }
-                        sh.punch_reason = so(&p["body"], "reason");
                         sh.queued = true;
                     }
                 }
@@ -4591,6 +4597,28 @@ mod tests {
         let snap: Value = serde_json::from_str(&core.dawam_sync().await.unwrap()).unwrap();
         assert_eq!(snap["refused"], json!([]));
         assert_eq!(stub.requests("/staff/me/check-in").len(), 1, "never resent");
+    }
+
+    /// BC-1 (FOLLOWUPS): a manager's punch-out carries its own reason beside
+    /// the punch-in's; the timesheet shows each next to its punch.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_punch_outs_reason_is_kept_beside_the_punch_ins() {
+        use crate::testkit::{StubResponse, BRANCH, TELLER};
+        let d = today_cairo().to_string();
+        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("GET", "/staff/me/roster") => Some(StubResponse::json(200, json!({ "shifts": [
+                { "employee_id": TELLER, "date": d, "work_shift_id": "w1" }], "team": [], "unpublished_weeks": [] }))),
+            ("GET", "/staff/me/attendance") => Some(StubResponse::json(200, json!([{
+                "id": "r1", "employee_id": TELLER, "business_date": d, "work_shift_id": "w1", "branch_id": BRANCH,
+                "status": "present", "check_in_at": format!("{d}T06:05:00Z"), "check_in_method": "manager",
+                "check_out_at": format!("{d}T09:40:00Z"), "check_out_method": "manager",
+                "punch_reason": "Phone died", "check_out_reason": "Sent home sick" }]))),
+            _ => None,
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let sh = snap["shifts"].as_array().unwrap().iter().find(|x| x["id"].as_str().is_some_and(|i| i.ends_with("|w1"))).unwrap().clone();
+        assert_eq!((sh["punch_reason"].clone(), sh["out_reason"].clone()), (json!("Phone died"), json!("Sent home sick")));
     }
 
     /// FOLLOWUPS (last line): a live punch the server refuses WITHOUT a code

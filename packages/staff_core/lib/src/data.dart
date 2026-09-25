@@ -237,6 +237,9 @@ class Shift {
   Method? inMethod;
   Method? outMethod;
   String? punchReason;
+
+  /// Why someone else punched this person out (BC-1).
+  String? outReason;
   String? leave; // 'paid' | 'unpaid'
   bool halfLeave = false;
   String? leaveHalf; // 'first' | 'second' (RQ-8)
@@ -1018,6 +1021,7 @@ class DawamStore extends ChangeNotifier {
                 ? null
                 : _enum(Method.values, s['out_method'], Method.app)
             ..punchReason = s['punch_reason'] as String?
+            ..outReason = s['out_reason'] as String?
             ..leave = s['leave'] as String?
             ..halfLeave = s['half_leave'] == true
             ..mission = s['mission'] == true
