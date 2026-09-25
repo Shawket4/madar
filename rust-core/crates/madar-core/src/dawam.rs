@@ -18,7 +18,8 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Timelike, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, TimeZone, Timelike, Utc};
+use madar_authz::Cap;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -2861,7 +2862,7 @@ impl MadarCore {
             stuck,
             can_manage: manages(&ctx),
             can_payroll: manage_tabs(&caps).payroll,
-            self_approves: caps.iter().any(|c| c == "hr.requests.self_approve"),
+            self_approves: caps.iter().any(|c| c == Cap::HrRequestsSelfApprove.key()),
             tabs: manage_tabs(&caps),
             decides_holidays: decides_holidays(&ctx),
             caps,
@@ -3629,7 +3630,7 @@ impl MadarCore {
         // Where I am against each branch's fence, from a FRESH reading only
         // (06 B4): an old one, or none, is "unknown" — never "inside".
         let noted: Option<NotedFix> = self.store.kv_get(K_FIX).ok().flatten().and_then(|j| serde_json::from_str(&j).ok());
-        out.charge_phone = out.active_shift.is_some() && noted.as_ref().and_then(|x| x.fix.battery).is_some_and(|b| b <= LOW_BATTERY);
+        out.charge_phone = out.active_shift.is_some() && noted.as_ref().and_then(|x| x.fix.battery).is_some_and(madar_dawam::presence::low_battery);
         let fresh = noted.filter(|n| n.fresh_at(boot_ms())).map(|n| n.fix);
         for br in rows("dawam_branches") {
             let radius = effective_radius(br);
@@ -3704,40 +3705,24 @@ fn parts(id: &str) -> (&str, &str, &str) {
 /// A shift's start: the server's instant (DW1). Only a shift the server sent
 /// no instant for is placed here, by the server's own rule.
 fn shift_start(sh: &ShiftV, tz: &chrono_tz::Tz) -> Option<DateTime<Utc>> {
-    if sh.start_at.is_some() {
-        return sh.start_at;
-    }
-    let d = NaiveDate::parse_from_str(&sh.date, "%Y-%m-%d").ok()?;
-    let t = NaiveTime::from_num_seconds_from_midnight_opt((sh.start.rem_euclid(1440) * 60) as u32, 0)?;
-    wall_instant(tz, d.and_time(t))
+    sh.start_at.or_else(|| placed(sh, tz).map(|(a, _)| a))
 }
 
 /// Its end: the server's instant, else on the next date when it crosses
 /// midnight.
 fn shift_end(sh: &ShiftV, tz: &chrono_tz::Tz) -> Option<DateTime<Utc>> {
-    if sh.end_at.is_some() {
-        return sh.end_at;
-    }
-    let d = NaiveDate::parse_from_str(&sh.date, "%Y-%m-%d").ok()?;
-    let d = if sh.end <= sh.start { d + Duration::days(1) } else { d };
-    let t = NaiveTime::from_num_seconds_from_midnight_opt((sh.end.rem_euclid(1440) * 60) as u32, 0)?;
-    wall_instant(tz, d.and_time(t))
+    sh.end_at.or_else(|| placed(sh, tz).map(|(_, z)| z))
 }
 
-/// A branch wall-clock time as an instant, the way Postgres's
-/// `(date + time) AT TIME ZONE tz` places it (the server's shift instants):
-/// a time in the spring-forward gap moves forward by the gap, and a time
-/// that happens twice in the autumn is the later (standard-time) one.
-/// chrono's `.earliest()` gave `None` and one hour early respectively.
-fn wall_instant(tz: &chrono_tz::Tz, wall: NaiveDateTime) -> Option<DateTime<Utc>> {
-    use chrono::offset::LocalResult;
-    match tz.from_local_datetime(&wall) {
-        LocalResult::Single(x) => Some(x.with_timezone(&Utc)),
-        LocalResult::Ambiguous(_, later) => Some(later.with_timezone(&Utc)),
-        LocalResult::None => (1..=3)
-            .find_map(|h| tz.from_local_datetime(&(wall + Duration::hours(h))).latest())
-            .map(|x| x.with_timezone(&Utc)),
-    }
+/// A shift's wall-clock times as instants by the server's rule, madar-shared's
+/// `madar_dawam::shift::instants` (Postgres's `(date + time) AT TIME ZONE`:
+/// a spring-gap time moves forward by the gap, an autumn time that happens
+/// twice is the later one, the end is on the next date when it does not come
+/// after the start). chrono's `.earliest()` gave `None` and one hour early.
+fn placed(sh: &ShiftV, tz: &chrono_tz::Tz) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
+    let d = NaiveDate::parse_from_str(&sh.date, "%Y-%m-%d").ok()?;
+    let t = |m: i64| NaiveTime::from_num_seconds_from_midnight_opt((m.rem_euclid(1440) * 60) as u32, 0);
+    madar_dawam::shift::instants(*tz, d, t(sh.start)?, t(sh.end)?)
 }
 
 /// Each person's salary-advance cap as the server computed it (numeric
@@ -3806,20 +3791,28 @@ pub struct ManageTabs {
     pub payroll: bool,
 }
 
-/// What decides each tab: any one capability of its list.
-const TAB_CAPS: [(&str, &[&str]); 4] = [
-    ("team", &["hr.attendance.read"]),
+/// What decides each tab: any one capability of its list, as madar-shared's
+/// `madar_authz::Cap` (DW6: the server's registry, not strings typed here).
+const TAB_CAPS: [(&str, &[Cap]); 4] = [
+    ("team", &[Cap::HrAttendanceRead]),
     (
         "approvals",
-        &["hr.leave.edit", "hr.advances.decide", "hr.shift_cover.confirm", "hr.overtime.approve", "hr.schedule.edit", "hr.payroll.run"],
+        &[
+            Cap::HrLeaveEdit,
+            Cap::HrAdvancesDecide,
+            Cap::HrShiftCoverConfirm,
+            Cap::HrOvertimeApprove,
+            Cap::HrScheduleEdit,
+            Cap::HrPayrollRun,
+        ],
     ),
-    ("schedule", &["hr.schedule.read"]),
-    ("payroll", &["hr.payroll.run"]),
+    ("schedule", &[Cap::HrScheduleRead]),
+    ("payroll", &[Cap::HrPayrollRun]),
 ];
 
 pub(crate) fn manage_tabs(caps: &[String]) -> ManageTabs {
     let held = |tab: &str| {
-        TAB_CAPS.iter().find(|(t, _)| *t == tab).is_some_and(|(_, need)| need.iter().any(|n| caps.iter().any(|c| c == n)))
+        TAB_CAPS.iter().find(|(t, _)| *t == tab).is_some_and(|(_, need)| need.iter().any(|n| caps.iter().any(|c| c == n.key())))
     };
     ManageTabs { team: held("team"), approvals: held("approvals"), schedule: held("schedule"), payroll: held("payroll") }
 }
@@ -3829,7 +3822,7 @@ pub(crate) fn manage_tabs(caps: &[String]) -> ManageTabs {
 /// as the rules). A server that doesn't send that list yet: the owner.
 fn decides_holidays(ctx: &Value) -> bool {
     match ctx.get("caps_everywhere").and_then(Value::as_array) {
-        Some(all) => all.iter().any(|c| c.as_str() == Some("hr.rules.edit")),
+        Some(all) => all.iter().any(|c| c.as_str() == Some(Cap::HrRulesEdit.key())),
         None => role_of(&s(ctx, "role")) == "owner",
     }
 }
@@ -3964,9 +3957,6 @@ fn rule_words(l: &Value, lang: &str) -> String {
         None => s(l, "reason"),
     }
 }
-
-/// At or under this on shift, the phone says charge (CL-12, the server's figure).
-const LOW_BATTERY: i64 = 15;
 
 /// The server's labour-limit warnings (RU-13) as core i18n keys, keyed
 /// `user|week_start`. They warn and never block.
