@@ -480,6 +480,47 @@ void main() {
     expect(store.now.difference(DateTime.now()).inSeconds.abs(), lessThan(5));
   });
 
+  test(
+    'my claims keep how they ended: approved, declined, withdrawn (B-H1-1)',
+    () async {
+      final (store, backend) = await _store();
+      final v = jsonDecode(_fixture()) as Map<String, dynamic>;
+      final requests = v['requests'] as List<dynamic>;
+      final base = requests.first as Map<String, dynamic>;
+      Map<String, dynamic> claim(String id, String status) => {
+        ...base,
+        'id': id,
+        'kind': 'openShift',
+        'emp': v['me'],
+        'status': status,
+        'created': '2026-09-24T10:30:00+03:00',
+        'from': '2026-10-24',
+        'shift': 'open|o1',
+      };
+      requests.addAll([
+        claim('o|o1', 'pending'),
+        claim('oc|c0', 'withdrawn'),
+        claim('oc|c2', 'approved'),
+        claim('oc|c3', 'rejected'),
+      ]);
+      backend.answer = () async => jsonEncode(v);
+      await store.readAll();
+      ReqStatus status(String id) =>
+          store.reqs.firstWhere((r) => r.id == id).status;
+      expect(status('o|o1'), ReqStatus.pending);
+      expect(status('oc|c0'), ReqStatus.withdrawn);
+      expect(status('oc|c2'), ReqStatus.approved);
+      expect(status('oc|c3'), ReqStatus.rejected);
+      // The chip says so in its own word, not "Cancelled" or "Pending".
+      expect(statusOf(ReqStatus.withdrawn).label, 'staff.withdrawn');
+      // When it was claimed, on the branch's wall clock (AT-1).
+      expect(
+        store.reqs.firstWhere((r) => r.id == 'oc|c0').created,
+        DateTime(2026, 9, 24, 10, 30),
+      );
+    },
+  );
+
   group('times are the branch wall clock (AT-1)', () {
     test('the offset is dropped, never converted to the phone zone', () {
       expect(
@@ -544,6 +585,11 @@ void main() {
         tab: 'timesheet',
       ));
       expect(pushTarget('staff.n_charge_phone'), (manage: false, tab: 'home'));
+      // A claim taken back: the shift is open again on the board (B-H1-5).
+      expect(pushTarget('staff.n_claim_withdrawn'), (
+        manage: true,
+        tab: 'schedule',
+      ));
       // The server tells the person when someone else cancels their request
       // (B-TEAM-3): it opens Requests like the approval did.
       expect(pushTarget('staff.n_request_cancelled'), (

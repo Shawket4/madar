@@ -850,6 +850,11 @@ pub(crate) const ROSTER_CODES: &[&str] = &[
     "SUGGESTION_STALE",
     // A board's branch the person doesn't work at (H2-B8).
     "EMPLOYEE_NOT_AT_BRANCH",
+    // An open shift that already started is neither posted nor claimed, and
+    // a claim is taken back only while it waits (H1: B-H1-2, B-H1-5).
+    "SHIFT_STARTED",
+    "NO_PENDING_CLAIM",
+    "CLAIM_ALREADY_DECIDED",
 ];
 
 /// Refusals that mean the picture is stale (someone else decided, claimed or
@@ -1564,12 +1569,23 @@ impl MadarCore {
         for sl in list("/staff/me/payslips") {
             m.put("dawam_payslips", Row::new(format!("{}|{}", s(&sl, "period_start"), s(&sl, "employee_id")), &sl));
         }
+        // My claims on open shifts and how each ended (B-H1-1), from every
+        // read of my roster: the server answers the dates asked and every
+        // claim of mine still waiting.
+        let mut my_claims: BTreeMap<String, Value> = BTreeMap::new();
+        for (p, v) in &got {
+            if p.starts_with("/staff/me/roster?") {
+                for c in arr(v, "my_claims") {
+                    my_claims.insert(s(c, "id"), c.clone());
+                }
+            }
+        }
         m.meta = vec![
             ("context", ctx),
             ("published", json!(published)),
             ("estimate", g("/staff/me/pay/estimate")),
             ("current", cur),
-            ("me_roster", json!({ "pref_time": mine_roster.get("pref_time") })),
+            ("me_roster", json!({ "pref_time": mine_roster.get("pref_time"), "my_claims": my_claims.into_values().collect::<Vec<_>>() })),
             ("warnings", json!(warnings)),
             ("coverage", json!(coverage)),
             ("date_sets", json!(date_sets)),
@@ -2081,6 +2097,12 @@ impl MadarCore {
             Act::Cancel { req, .. } if req.starts_with("w|") => {
                 self.dawam_srv("POST", &format!("/staff/me/swaps/{}/cancel", tail(&req)), Some(json!({}))).await?;
             }
+            // My claim on an open shift, taken back while it waits (B-H1-5).
+            Act::Cancel { req, .. } if req.starts_with("o|") => {
+                self.dawam_srv("POST", &format!("/staff/open-shifts/{}/withdraw", tail(&req)), Some(json!({}))).await?;
+            }
+            // An ended claim is the manager's to change.
+            Act::Cancel { req, .. } if req.starts_with("oc|") => return Err(invalid("staff.err_claim_already_decided")),
             Act::Cancel { req, note } => {
                 if !req.starts_with("q|") {
                     return Err(CoreError::Validation { field: String::new(), detail: i18n::tr(&locale, "staff.ask_manager_to_cancel") });
@@ -2263,6 +2285,15 @@ impl MadarCore {
                         }))).await.map_err(|err| already_on_it(err, &snap, &e, &locale))?;
                     }
                     None => {
+                        // A started shift can't become an open one (the server's
+                        // SHIFT_STARTED, B-H1-2): refused before its day is
+                        // touched, or the day would lose it with no open shift
+                        // in its place.
+                        let now = Utc.timestamp_millis_opt(self.corrected_now_ms()).single().unwrap_or_else(Utc::now);
+                        let tz = self.dawam_tz();
+                        if snap.shifts.iter().find(|x| x.id == shift).and_then(|x| shift_start(x, &tz)).is_some_and(|s| s <= now) {
+                            return Err(invalid("staff.err_shift_started"));
+                        }
                         let snap = self.dawam_day_known(snap, d).await?;
                         let rest: Vec<BlockA> = day_set(&snap, owner, d).into_iter().filter(|b| b.tpl != tpl).collect();
                         self.dawam_put_day(owner, d, &rest, branch.as_deref()).await?;
@@ -2564,9 +2595,34 @@ impl MadarCore {
             shifts.push(ShiftV { id: format!("open|{}", s(o, "id")), tpl: id, date: d.to_string(), published: is_pub(&tp.branch, d), start, end, next_day: end <= start, start_at: at(o, "start_at"), end_at: at(o, "end_at"), ..Default::default() });
             if s(o, "status") == "claimed" {
                 if let Some(by) = so(o, "claimed_by") {
-                    out.requests.push(ReqV { id: format!("o|{}", s(o, "id")), kind: "openShift".into(), emp: by, created: now.to_rfc3339(), status: "pending".into(), from: Some(d.to_string()), shift: Some(format!("open|{}", s(o, "id"))), installments: 1, ..Default::default() });
+                    // When it was claimed (B-H1-4); an older server says only
+                    // that it is.
+                    let created = so(o, "claimed_at").unwrap_or_else(|| now.to_rfc3339());
+                    out.requests.push(ReqV { id: format!("o|{}", s(o, "id")), kind: "openShift".into(), emp: by, created, status: "pending".into(), from: Some(d.to_string()), shift: Some(format!("open|{}", s(o, "id"))), installments: 1, ..Default::default() });
                 }
             }
+        }
+        // My claims, and how each ended (B-H1-1): a claim is a request like
+        // any other, so it stays in my Requests once decided. The waiting one
+        // is the open shift's own row (a cancel and the decision name the
+        // shift); an ended one is a row of its own, nothing to act on.
+        for c in arr(&me_roster, "my_claims") {
+            let Some(d) = date(c, "on_date") else { continue };
+            let status = match s(c, "status").as_str() {
+                "pending" => "pending",
+                "approved" => "approved",
+                "declined" => "rejected",
+                "withdrawn" => "withdrawn",
+                _ => continue,
+            };
+            let os = s(c, "open_shift_id");
+            let created = so(c, "claimed_at").unwrap_or_else(|| now.to_rfc3339());
+            let id = if status == "pending" { format!("o|{os}") } else { format!("oc|{}", s(c, "id")) };
+            if let Some(r) = out.requests.iter_mut().find(|r| r.id == id) {
+                r.created = created;
+                continue;
+            }
+            out.requests.push(ReqV { id, kind: "openShift".into(), emp: me.clone(), created, status: status.into(), from: Some(d.to_string()), shift: Some(format!("open|{os}")), installments: 1, ..Default::default() });
         }
         // A record's shift, by record id (flags and requests name records).
         let mut record_of: HashMap<String, String> = HashMap::new();
@@ -6173,6 +6229,233 @@ mod tests {
             assert_ne!(en, k, "{k} has no English");
             assert_ne!(ar, en, "{k} has no Arabic");
         }
+    }
+
+    // ── my claims on open shifts (H1: B-H1-1, B-H1-4, B-H1-5): a claim is a
+    // request like any other. It stays in my Requests once decided, it says
+    // when it was made, and I can take it back while it waits ──
+
+    /// My roster with my claims, as the server answers it: `o1` waits on the
+    /// manager (claimed on the board too), an earlier claim on `o1` I took
+    /// back, `o2` approved (filled now), `o3` declined (open again).
+    fn roster_with_my_claims(day: NaiveDate) -> Value {
+        use crate::testkit::{BRANCH, TELLER};
+        let claim = |id: &str, o: &str, w: &str, status: &str, at: &str, decided: Option<&str>| {
+            json!({
+                "id": id, "open_shift_id": o, "branch_id": BRANCH, "on_date": day, "work_shift_id": w,
+                "shift_name": if w == "w1" { "Morning" } else { "Evening" },
+                "status": status, "claimed_at": at, "decided_at": decided,
+            })
+        };
+        json!({
+            "shifts": [], "team": [], "swaps": [], "unpublished_weeks": [],
+            "open_shifts": [
+                { "id": "o1", "branch_id": BRANCH, "work_shift_id": "w1", "on_date": day, "status": "claimed", "claimed_by": TELLER, "claimed_at": "2026-09-24T07:30:00Z" },
+                { "id": "o3", "branch_id": BRANCH, "work_shift_id": "w2", "on_date": day, "status": "open", "claimed_at": null },
+            ],
+            "my_claims": [
+                claim("c1", "o1", "w1", "pending", "2026-09-24T07:30:00Z", None),
+                claim("c0", "o1", "w1", "withdrawn", "2026-09-23T08:00:00Z", Some("2026-09-23T08:05:00Z")),
+                claim("c2", "o2", "w2", "approved", "2026-09-22T10:00:00Z", Some("2026-09-22T11:00:00Z")),
+                claim("c3", "o3", "w2", "declined", "2026-09-21T12:00:00Z", Some("2026-09-21T13:00:00Z")),
+            ],
+        })
+    }
+
+    /// My open-shift requests in the picture: (id, status, when made). The
+    /// picture words times in the branch's zone: compared as instants.
+    fn my_claim_rows(snap: &Value, me: &str, day: NaiveDate) -> Vec<(String, String, DateTime<Utc>)> {
+        let mut rows: Vec<_> = snap["requests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|q| q["kind"] == "openShift" && q["emp"] == me)
+            .map(|q| {
+                assert_eq!(q["from"], json!(day.to_string()), "{q}");
+                let at = DateTime::parse_from_rfc3339(&s(q, "created")).unwrap_or_else(|e| panic!("{q}: {e}"));
+                (s(q, "id"), s(q, "status"), at.with_timezone(&Utc))
+            })
+            .collect();
+        rows.sort();
+        rows
+    }
+
+    /// B-H1-1: an approved or declined claim vanished from my Requests (the
+    /// open shift was filled, or open again with nobody's name on it). Every
+    /// claim of mine stays, with how it ended and when I made it (B-H1-4).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn my_claims_stay_in_my_requests_with_how_they_ended() {
+        use crate::testkit::{StubResponse, TELLER};
+        let day = today_cairo() + Duration::days(3);
+        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("GET", "/staff/me/roster") => Some(StubResponse::json(200, roster_with_my_claims(day))),
+            _ => None,
+        })
+        .await;
+        let snap = snap_of(&core.dawam_snapshot(true).await.unwrap());
+        let row = |id: &str, st: &str, at: &str| (id.to_string(), st.to_string(), at.parse::<DateTime<Utc>>().unwrap());
+        let mut want = vec![
+                // The waiting one is the open shift's own row: cancel and the
+                // manager's decision name the shift.
+                row("o|o1", "pending", "2026-09-24T07:30:00Z"),
+                row("oc|c0", "withdrawn", "2026-09-23T08:00:00Z"),
+                row("oc|c2", "approved", "2026-09-22T10:00:00Z"),
+                row("oc|c3", "rejected", "2026-09-21T12:00:00Z"),
+        ];
+        want.sort();
+        assert_eq!(my_claim_rows(&snap, TELLER, day), want);
+        // An ended claim is nothing to cancel or decide.
+        assert!(snap["inbox"].as_array().is_none_or(|x| x.is_empty()), "{}", snap["inbox"]);
+    }
+
+    /// A waiting claim of mine the fetched dates don't reach is still listed:
+    /// the server sends every pending claim of mine whatever the dates.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn my_waiting_claim_is_listed_even_without_its_open_shift() {
+        use crate::testkit::{StubResponse, BRANCH, TELLER};
+        let day = today_cairo() + Duration::days(3);
+        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("GET", "/staff/me/roster") => Some(StubResponse::json(200, json!({
+                "shifts": [], "team": [], "swaps": [], "unpublished_weeks": [], "open_shifts": [],
+                "my_claims": [{ "id": "c9", "open_shift_id": "o9", "branch_id": BRANCH, "on_date": day, "work_shift_id": "w1",
+                                "shift_name": "Morning", "status": "pending", "claimed_at": "2026-09-24T07:30:00Z", "decided_at": null }],
+            }))),
+            _ => None,
+        })
+        .await;
+        let snap = snap_of(&core.dawam_snapshot(true).await.unwrap());
+        assert_eq!(
+            my_claim_rows(&snap, TELLER, day),
+            vec![("o|o9".to_string(), "pending".to_string(), "2026-09-24T07:30:00Z".parse::<DateTime<Utc>>().unwrap())],
+        );
+    }
+
+    /// B-H1-4: the manager's Approvals card said when the phone last fetched
+    /// ("25 Sep 1:18 AM"), not when the claim was made.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_claim_waits_on_the_manager_with_the_time_it_was_made() {
+        use crate::testkit::{StubResponse, BRANCH};
+        let day = today_cairo() + Duration::days(3);
+        let (_stub, core) = cafe(MGR, move |m, p, _| match (m, p) {
+            ("GET", "/staff/roster") => Some(StubResponse::json(200, json!({
+                "published_weeks": [], "shifts": [], "date_sets": [],
+                "open_shifts": [{ "id": "o1", "branch_id": BRANCH, "work_shift_id": "w1", "on_date": day, "status": "claimed",
+                                  "claimed_by": "e4", "claimed_at": "2026-09-24T07:30:00Z" }],
+            }))),
+            _ => None,
+        })
+        .await;
+        let snap = snap_of(&core.dawam_snapshot(true).await.unwrap());
+        assert!(snap["inbox"].as_array().unwrap().contains(&json!("o|o1")), "{}", snap["inbox"]);
+        let claim = snap["requests"].as_array().unwrap().iter().find(|q| q["id"] == "o|o1").cloned().unwrap();
+        let at = DateTime::parse_from_rfc3339(&s(&claim, "created")).unwrap();
+        assert_eq!(at.with_timezone(&Utc), "2026-09-24T07:30:00Z".parse::<DateTime<Utc>>().unwrap(), "{claim}");
+    }
+
+    /// B-H1-5: "Cancel this request" on a waiting claim said "Ask your
+    /// manager to cancel this one." It takes the claim back.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn cancelling_my_waiting_claim_takes_it_back() {
+        use crate::testkit::{StubResponse, BRANCH};
+        let day = today_cairo() + Duration::days(3);
+        let (stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("GET", "/staff/me/roster") => Some(StubResponse::json(200, roster_with_my_claims(day))),
+            ("POST", "/staff/open-shifts/o1/withdraw") => Some(StubResponse::json(200, json!({
+                "id": "o1", "branch_id": BRANCH, "work_shift_id": "w1", "on_date": day, "shift_name": "Morning", "status": "open", "claimed_at": null,
+            }))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        core.dawam_do(json!({ "action": "cancel", "req": "o|o1" }).to_string()).await.unwrap();
+        let sent: Vec<_> = stub.seen.lock().unwrap().iter().filter(|r| r.method != "GET").map(|r| format!("{} {}", r.method, r.path)).collect();
+        assert!(sent.contains(&"POST /staff/open-shifts/o1/withdraw".to_string()), "{sent:?}");
+        // An ended claim is not mine to cancel: the core says so, sends nothing.
+        match core.dawam_do(json!({ "action": "cancel", "req": "oc|c2" }).to_string()).await {
+            Err(CoreError::Validation { detail, .. }) => assert_eq!(detail, i18n::tr("en", "staff.err_claim_already_decided")),
+            other => panic!("expected the refusal, got {other:?}"),
+        }
+        let sent: Vec<_> = stub.seen.lock().unwrap().iter().filter(|r| r.path.starts_with("/staff/open-shifts")).map(|r| r.path.clone()).collect();
+        assert_eq!(sent, ["/staff/open-shifts/o1/withdraw"]);
+    }
+
+    /// The server's refusals of a claim, in the phone's language:
+    /// withdrawing one that no longer waits, and posting or claiming a shift
+    /// that already started (owner's 19 Sep row, B-H1-2).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_claim_or_open_shift_refused_says_why_in_both_languages() {
+        use crate::testkit::{StubResponse, BRANCH};
+        let refuse = |code: &str| Some(StubResponse::json(409, json!({ "error": "Conflict: refused", "code": code })));
+        let (_stub, core) = cafe(MGR, move |m, p, _| match (m, p) {
+            ("POST", "/staff/open-shifts/o7/withdraw") => refuse("NO_PENDING_CLAIM"),
+            ("POST", "/staff/open-shifts/o8/withdraw") => refuse("CLAIM_ALREADY_DECIDED"),
+            ("POST", "/staff/open-shifts/o9/claim") => refuse("SHIFT_STARTED"),
+            ("POST", "/staff/open-shifts") => refuse("SHIFT_STARTED"),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        let day = today_cairo();
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            for (act, key) in [
+                (json!({ "action": "cancel", "req": "o|o7" }), "staff.err_no_pending_claim"),
+                (json!({ "action": "cancel", "req": "o|o8" }), "staff.err_claim_already_decided"),
+                (json!({ "action": "claim", "shift": "open|o9" }), "staff.err_shift_started"),
+                (json!({ "action": "post_open", "branch": BRANCH, "date": day, "tpl": "w1" }), "staff.err_shift_started"),
+            ] {
+                match core.dawam_do(act.to_string()).await {
+                    Err(CoreError::Server { status: 409, detail, .. }) => assert_eq!(detail, i18n::tr(lang, key), "{act}"),
+                    other => panic!("{act}: expected the refusal, got {other:?}"),
+                }
+            }
+        }
+        for k in ["staff.err_no_pending_claim", "staff.err_claim_already_decided", "staff.err_shift_started", "staff.withdrawn", "staff.n_claim_withdrawn"] {
+            let (en, ar) = (i18n::tr("en", k), i18n::tr("ar", k));
+            assert_ne!(en, k, "{k} has no English");
+            assert_ne!(ar, en, "{k} has no Arabic");
+        }
+    }
+
+    /// Turning a shift into an open one took it off its person's day first,
+    /// then posted the open shift. Once the server refuses a started shift
+    /// (SHIFT_STARTED), that left the day without the shift and no open shift
+    /// either. A started shift is refused before anything changes.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_started_shift_is_not_turned_into_an_open_one() {
+        use crate::testkit::StubResponse;
+        let yesterday = today_cairo() - Duration::days(1);
+        let (stub, core) = cafe(MGR, move |m, p, _| match (m, p) {
+            ("GET", "/staff/roster") => Some(StubResponse::json(200, json!({
+                "published_weeks": [week_start(yesterday).to_string()], "date_sets": [], "open_shifts": [],
+                "shifts": [{ "employee_id": "e4", "date": yesterday, "work_shift_id": "w1", "start_time": "08:00:00", "end_time": "12:00:00",
+                             "start_at": format!("{yesterday}T05:00:00Z"), "end_at": format!("{yesterday}T09:00:00Z") }],
+            }))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            let act = json!({ "action": "assign", "shift": format!("e4|{yesterday}|w1"), "emp": null });
+            match core.dawam_do(act.to_string()).await {
+                Err(CoreError::Validation { detail, .. }) => assert_eq!(detail, i18n::tr(lang, "staff.err_shift_started")),
+                other => panic!("expected the refusal, got {other:?}"),
+            }
+        }
+        let writes: Vec<_> = stub.seen.lock().unwrap().iter().filter(|r| r.method != "GET" && r.path.starts_with("/staff/")).map(|r| r.path.clone()).collect();
+        assert!(writes.is_empty(), "nothing is written: {writes:?}");
+    }
+
+    /// The manager hears a claim was taken back (the server's
+    /// `staff.n_claim_withdrawn`), with the name and the day.
+    #[test]
+    fn a_withdrawn_claim_notice_names_who_and_the_day() {
+        let args = json!({ "name": "Omar", "date": "2026-10-24" });
+        assert_eq!(notice_text("en", "staff.n_claim_withdrawn", &args), "Omar took back their claim for the open shift on 24 Oct");
+        let ar = notice_text("ar", "staff.n_claim_withdrawn", &args);
+        assert!(ar.starts_with("Omar لغى حجزه للوردية المتاحة يوم 24 "), "{ar}");
+        assert!(!ar.contains('{') && !ar.contains("2026"), "{ar}");
     }
 
     #[test]
