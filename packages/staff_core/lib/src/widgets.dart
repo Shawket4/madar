@@ -253,6 +253,12 @@ String kindLabel(ReqKind k) => switch (k) {
   ReqKind.overtime => tr('staff.kind_overtime'),
 };
 
+/// What a claim's filer is told: a manager's claim goes to the owner
+/// (RQ-5, addendum 2), anyone else's to their manager.
+String claimSentWords(Role role) => role == Role.manager
+    ? tr('staff.claimed_waiting_for_the_owner')
+    : tr('staff.claimed_waiting_for_the_manager');
+
 MadarStatus statusOf(ReqStatus s) => switch (s) {
   ReqStatus.awaitingPeer => MadarStatus(
     tr('staff.waiting_for_colleague'),

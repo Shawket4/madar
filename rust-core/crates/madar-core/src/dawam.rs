@@ -224,6 +224,9 @@ pub struct Snapshot {
     pub open_flags: Vec<String>,
     pub requests: Vec<ReqV>,
     pub inbox: Vec<String>,
+    /// A manager's own pending requests and claims: the owner decides them
+    /// (RQ-5); his Approvals lists them read-only (addendum 2).
+    pub waiting_owner: Vec<String>,
     pub adjustments: Vec<AdjV>,
     pub adj_inbox: Vec<String>,
     pub advances: Vec<AdvanceV>,
@@ -3192,6 +3195,16 @@ impl MadarCore {
             .collect();
         notices.sort_by(|a, z| z.at.cmp(&a.at));
         out.notices = notices;
+        // A manager's own claim goes to the owner like his own requests
+        // (RQ-5); the claim's row doesn't say so, the role does.
+        if out.role == "manager" {
+            for r in out.requests.iter_mut().filter(|r| r.emp == me && r.status == "pending" && r.kind == "openShift") {
+                r.to_owner = true;
+            }
+            let mut mine: Vec<&ReqV> = out.requests.iter().filter(|r| r.emp == me && r.status == "pending" && r.to_owner).collect();
+            mine.sort_by(|a, z| z.created.cmp(&a.created));
+            out.waiting_owner = mine.into_iter().map(|r| r.id.clone()).collect();
+        }
         if out.can_manage {
             let owner = out.role == "owner";
             let visible: HashSet<&str> = out.people.iter().map(|p| p.id.as_str()).collect();
@@ -6387,6 +6400,42 @@ mod tests {
         let q = |id: &str| snap["requests"].as_array().unwrap().iter().find(|q| q["id"] == id).unwrap().clone();
         assert_eq!(q("q|m")["worked"], json!([day]));
         assert_eq!(q("q|l")["worked"], json!([]), "no worked_dates: nothing worked");
+    }
+
+    /// Addendum 2 (owner's Android test): a manager's own claim read
+    /// "waiting for the manager", though it goes to the owner (RQ-5). A
+    /// manager's own pending request or claim waits for the owner, and his
+    /// Approvals lists them read-only; an employee's claim is his manager's.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_managers_own_claim_waits_for_the_owner() {
+        use crate::testkit::{StubResponse, BRANCH, TELLER};
+        for manager in [true, false] {
+            let day = (today_cairo() + Duration::days(2)).to_string();
+            let d = day.clone();
+            let caps: &'static [&'static str] = if manager { &["hr.leave.edit", "hr.attendance.read"] } else { &[] };
+            let (_stub, core) = cafe(caps, move |m, p, _| match (m, p) {
+                ("GET", "/staff/me/roster") => Some(StubResponse::json(200, json!({ "shifts": [], "team": [], "unpublished_weeks": [],
+                    "open_shifts": [{ "id": "x", "branch_id": BRANCH, "work_shift_id": "w1", "on_date": d, "status": "claimed",
+                                      "claimed_by": TELLER, "claimed_at": "2026-09-22T08:00:00Z" }] }))),
+                ("GET", "/staff/requests") | ("GET", "/staff/me/requests") => Some(StubResponse::json(200, json!([
+                    { "id": "mine", "kind": "leave", "employee_id": TELLER, "status": "pending", "on_date": d,
+                      "to_owner": manager, "created_at": "2026-09-22T08:03:00Z" }
+                ]))),
+                _ => None,
+            })
+            .await;
+            let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+            let req = |id: &str| snap["requests"].as_array().unwrap().iter().find(|q| q["id"] == id).unwrap().clone();
+            assert_eq!(req("o|x")["to_owner"], json!(manager), "manager {manager}: my claim");
+            let waiting: Vec<&str> = snap["waiting_owner"].as_array().unwrap().iter().filter_map(Value::as_str).collect();
+            if manager {
+                assert!(waiting.contains(&"o|x") && waiting.contains(&"q|mine"), "{waiting:?}");
+            } else {
+                assert!(waiting.is_empty(), "{waiting:?}");
+            }
+            let inbox: Vec<&str> = snap["inbox"].as_array().unwrap().iter().filter_map(Value::as_str).collect();
+            assert!(!inbox.contains(&"o|x") && !inbox.contains(&"q|mine"), "never mine to decide: {inbox:?}");
+        }
     }
 
     /// Addendum 2 (owner's phone, rate limiter on): a refresh the server

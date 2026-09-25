@@ -92,6 +92,41 @@ class _ApprovalsTabState extends ConsumerState<ApprovalsTab> {
               );
             },
           ),
+        // My own, which the owner decides (RQ-5, addendum 2): shown so they
+        // don't vanish, with nothing to decide.
+        if (store.waitingOwner case final mine when mine.isNotEmpty) ...[
+          MadarSectionHeader(text: tr('staff.yours_waiting_for_the_owner')),
+          for (final r in mine) _OwnCard(r, key: ValueKey('owner|${r.id}')),
+        ],
+      ],
+    );
+  }
+}
+
+/// My own pending request or claim, read-only: the owner decides it.
+class _OwnCard extends ConsumerWidget {
+  const _OwnCard(this.r, {super.key});
+
+  final Req r;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final store = ref.watch(dawamProvider);
+    return MadarCard.column(
+      children: [
+        _Who(
+          store.emp(r.emp),
+          kindLabel(r.kind),
+          r.created,
+          flag: MadarStatus(
+            tr('staff.waiting_for_the_owner'),
+            tone: MadarTone.warning,
+          ),
+        ),
+        Text(
+          [reqWhen(r), if (r.note.isNotEmpty) r.note].join(' · '),
+          style: MadarType.body,
+        ),
       ],
     );
   }

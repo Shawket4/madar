@@ -193,7 +193,7 @@ class _ShiftsTabState extends ConsumerState<ShiftsTab> {
         await attempt(
           ref,
           () => store.claim(s),
-          ok: tr('staff.claimed_waiting_for_the_manager'),
+          ok: claimSentWords(store.user.role),
         );
       }
       return;

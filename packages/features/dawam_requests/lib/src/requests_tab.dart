@@ -181,7 +181,7 @@ class _ReqRow extends ConsumerWidget {
         final e = store.emps[id];
         return e == null ? null : name(e);
       }),
-      status: statusOf(r.status),
+      status: reqStatus(r, store.me),
       onTap: !cancellable
           ? null
           : r.status == ReqStatus.approved
@@ -438,6 +438,13 @@ Future<void> requestSheet(BuildContext context, ReqKind k) {
     ),
   );
 }
+
+/// A request's status in my list: my own pending one that the owner decides
+/// says so (RQ-5, addendum 2), never a plain "Pending".
+MadarStatus reqStatus(Req r, String? me) =>
+    r.emp == me && r.status == ReqStatus.pending && r.toOwner
+    ? MadarStatus(tr('staff.waiting_for_the_owner'), tone: MadarTone.warning)
+    : statusOf(r.status);
 
 /// What to tell the filer, from what the server did with it (RQ-5).
 String filedWords(Filed? f) => switch (f) {

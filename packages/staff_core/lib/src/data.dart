@@ -779,6 +779,7 @@ class DawamStore extends ChangeNotifier {
   String? _active;
   List<String> _coverable = const [];
   List<String> _inbox = const [];
+  List<String> _waitingOwner = const [];
 
   /// The server's answer to the last filing, from the picture it came with.
   Filed? lastFiled;
@@ -1108,6 +1109,8 @@ class DawamStore extends ChangeNotifier {
       );
     }
     _inbox = (v['inbox'] as List<dynamic>).cast<String>();
+    _waitingOwner = ((v['waiting_owner'] as List<dynamic>?) ?? const [])
+        .cast<String>();
     final filed = v['filed'];
     lastWarnings = filed is J ? _warningList(filed['warnings']) : const [];
     lastFiled = filed is J
@@ -1333,6 +1336,13 @@ class DawamStore extends ChangeNotifier {
   List<Shift> coverable() => [for (final id in _coverable) ?_shift(id)];
   int lateMinutes(Shift s) => s.lateMinutes;
   bool isAbsent(Shift s) => s.absent;
+
+  /// A manager's own pending requests and claims: the owner decides them
+  /// (RQ-5); Approvals lists them read-only (addendum 2).
+  List<Req> get waitingOwner => [
+    for (final id in _waitingOwner) ?reqs.where((r) => r.id == id).firstOrNull,
+  ];
+
   List<Req> get inbox => [
     for (final id in _inbox) ?reqs.where((r) => r.id == id).firstOrNull,
   ];
