@@ -675,6 +675,20 @@ void main() {
       expect(pushTarget('staff.n_request'), (manage: true, tab: 'approvals'));
       // Decision #9: someone added with no salary opens the owner's Team.
       expect(pushTarget('staff.n_salary_missing'), (manage: true, tab: 'team'));
+      // Phase D: an advance asked for waits in Approvals; an undecided
+      // holiday is the owner's Schedule; a week's open shifts are Shifts.
+      expect(pushTarget('staff.n_advance_requested'), (
+        manage: true,
+        tab: 'approvals',
+      ));
+      expect(pushTarget('staff.n_holiday_undecided'), (
+        manage: true,
+        tab: 'schedule',
+      ));
+      expect(pushTarget('staff.n_open_shifts_week'), (
+        manage: false,
+        tab: 'shifts',
+      ));
       expect(pushTarget('staff.n_week_published'), (
         manage: false,
         tab: 'shifts',
