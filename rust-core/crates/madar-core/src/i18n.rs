@@ -18,6 +18,17 @@
 //! new entry point) to accept a count and select among plural forms — a
 //! signature change that ripples into every `bridge.tr(key: …)` call site,
 //! out of scope for a strings-only pass.
+//!
+//! PLURAL FORMS (the staff app, Dawam): a whole phrase with a count carries
+//! its forms as sibling keys. The key itself is the CLDR "other" form; beside
+//! it `<key>_one` in both languages, and in Arabic `<key>_two`, `<key>_few`
+//! (3–10) and `<key>_many` (11–99): 100, 101, 102… read the key itself.
+//! English has no two / few / many, so those Arabic keys have no English
+//! twin (`ar_has_no_orphan_keys_absent_from_en` allows exactly those). The
+//! staff app picks the form by the count (staff_core `trCount`), as
+//! `reconfigure.rs` picks `.one` / `.many` and `loyalty.rs` `_one` / `_many`.
+//! A counted phrase with `_one` must have every Arabic form
+//! (`a_counted_phrase_has_every_arabic_form`).
 
 /// Localized string for `key` in `locale`, falling back en → key.
 pub fn tr(locale: &str, key: &str) -> String {
@@ -78,6 +89,7 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.err_org_suspended" => "This business is paused. Ask the owner.",
         "staff.err_salary_missing" => "Payroll can't be approved yet: no salary is set for {names}. Set it from the dashboard, or mark them not on payroll.",
         "staff.payroll_salary_missing" => "{count} people have no salary: approval is blocked.",
+        "staff.payroll_salary_missing_one" => "1 person has no salary: approval is blocked.",
         "staff.approve_blocked_salary_missing" => "Set every salary first: approval is blocked.",
         "staff.salary_not_set" => "Salary not set",
         "staff.n_salary_missing" => "{by} added {name} without a salary. Set it before approving payroll.",
@@ -332,7 +344,8 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.privacy_pings" => "Your location is checked when you clock in or out, and every 15 minutes while you're on shift.",
         "staff.privacy_off_shift" => "Never off shift. Tracking stops the moment you clock out.",
         "staff.privacy_wipe" => "Exact coordinates are deleted once that month's payroll is approved.",
-        "staff.shortfall_list" => "{count} payslip(s) stop at zero and carry a shortfall: {names}.",
+        "staff.shortfall_list" => "{count} payslips stop at zero and carry a shortfall: {names}.",
+        "staff.shortfall_list_one" => "1 payslip stops at zero and carries a shortfall: {names}.",
         "staff.kind_leave" => "Leave",
         "staff.kind_late_arrival" => "Late arrival",
         "staff.kind_early_departure" => "Early departure",
@@ -451,6 +464,7 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.from_inline" => "from",
         "staff.next_payslip" => "next payslip",
         "staff.months" => "{installments} months",
+        "staff.months_one" => "1 month",
         "staff.cancel_this_request" => "Cancel this request?",
         "staff.those_days_are_repriced" => "Those days are repriced.",
         "staff.cancel_request" => "Cancel request",
@@ -476,7 +490,8 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.shortfall_carried" => "Shortfall {amount} carried",
         "staff.salary_advances" => "Salary advances",
         "staff.request" => "Request",
-        "staff.installment_s_left" => "{date} · {installments} installment(s) · {amount} left",
+        "staff.installment_s_left" => "{date} · {installments} installments · {amount} left",
+        "staff.installment_s_left_one" => "{date} · 1 installment · {amount} left",
         "staff.repaid" => "Repaid",
         "staff.repaying" => "Repaying",
         "staff.requested" => "Requested",
@@ -591,6 +606,7 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.unpaid" => "Unpaid",
         "staff.in_full_next_payslip" => "In full, next payslip",
         "staff.installments_count" => "{inst} monthly installments",
+        "staff.installments_count_one" => "1 monthly installment",
         "staff.confirm_cover" => "Confirm cover",
         "staff.reject_cover" => "Reject cover",
         "staff.declining_pays_nothing_the_absent_owner" => "Declining pays nothing. The absent owner is marked absent either way — waive it in Payroll if you want.",
@@ -707,7 +723,8 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.stopped_from_next_month" => "Stopped from next month",
         "staff.last_month_ends" => "Ends {date}",
         "staff.stop" => "Stop",
-        "staff.installment_s" => "{amount} · {installments} installment(s) · {date}",
+        "staff.installment_s" => "{amount} · {installments} installments · {date}",
+        "staff.installment_s_one" => "{amount} · 1 installment · {date}",
         "staff.expense_advances_log_only" => "Expense advances · log only",
         "staff.till_pay_out_inline" => "till pay-out",
         "staff.bank_transfer_inline" => "bank transfer",
@@ -750,6 +767,7 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.err_rate_limited" => "Too many requests just now. Try again in a moment.",
         "staff.unsettled_title" => "{period} isn't fully paid yet",
         "staff.unsettled_draft" => "Not approved yet · {people} people · {amount}",
+        "staff.unsettled_draft_one" => "Not approved yet · 1 person · {amount}",
         "staff.unsettled_approved" => "Approved · {paid} of {people} paid · {amount}",
         "staff.back_to_this_month" => "Back to this month",
         // Coded refusals (CODES: hunt H2-B9, M43, FOLLOWUPS), `dawam::refusal_words`.
@@ -2380,7 +2398,11 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.err_owner_only" => "المالك بس هو اللي يقدر يعمل ده.",
         "staff.err_org_suspended" => "الشغل ده واقف مؤقتًا. اسأل المالك.",
         "staff.err_salary_missing" => "المرتبات مش هتتعتمد دلوقتي: مفيش مرتب متحدد لـ{names}. حدده من لوحة التحكم، أو علّم إنهم مش على المرتبات.",
-        "staff.payroll_salary_missing" => "{count} ملهمش مرتب: الاعتماد واقف.",
+        "staff.payroll_salary_missing" => "{count} شخص ملهمش مرتب: الاعتماد واقف.",
+        "staff.payroll_salary_missing_one" => "شخص واحد ملوش مرتب: الاعتماد واقف.",
+        "staff.payroll_salary_missing_two" => "شخصين ملهمش مرتب: الاعتماد واقف.",
+        "staff.payroll_salary_missing_few" => "{count} أشخاص ملهمش مرتب: الاعتماد واقف.",
+        "staff.payroll_salary_missing_many" => "{count} شخص ملهمش مرتب: الاعتماد واقف.",
         "staff.approve_blocked_salary_missing" => "حدد كل المرتبات الأول: الاعتماد واقف.",
         "staff.salary_not_set" => "المرتب مش متحدد",
         "staff.n_salary_missing" => "{by} ضاف {name} من غير مرتب. حدّده قبل ما تعتمد المرتبات.",
@@ -2634,6 +2656,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.privacy_off_shift" => "أبداً برّه الوردية. التتبع بيقف أول ما تسجل انصراف.",
         "staff.privacy_wipe" => "الإحداثيات بالظبط بتتمسح أول ما مرتبات الشهر تتعمد.",
         "staff.shortfall_list" => "{count} قسيمة واقفة على صفر ومرحّلة عجز: {names}.",
+        "staff.shortfall_list_one" => "قسيمة واحدة واقفة على صفر ومرحّلة عجز: {names}.",
+        "staff.shortfall_list_two" => "قسيمتين واقفين على صفر ومرحّلين عجز: {names}.",
+        "staff.shortfall_list_few" => "{count} قسايم واقفة على صفر ومرحّلة عجز: {names}.",
+        "staff.shortfall_list_many" => "{count} قسيمة واقفة على صفر ومرحّلة عجز: {names}.",
         "staff.kind_leave" => "إجازة",
         "staff.kind_late_arrival" => "تأخير",
         "staff.kind_early_departure" => "انصراف بدري",
@@ -2751,7 +2777,11 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.until" => "لحد",
         "staff.from_inline" => "من",
         "staff.next_payslip" => "القسيمة الجاية",
-        "staff.months" => "{installments} شهور",
+        "staff.months" => "{installments} شهر",
+        "staff.months_one" => "شهر واحد",
+        "staff.months_two" => "شهرين",
+        "staff.months_few" => "{installments} شهور",
+        "staff.months_many" => "{installments} شهر",
         "staff.cancel_this_request" => "تلغي الطلب ده؟",
         "staff.those_days_are_repriced" => "الأيام دي هتتحسب من جديد.",
         "staff.cancel_request" => "الغي الطلب",
@@ -2778,6 +2808,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.salary_advances" => "السلف",
         "staff.request" => "اطلب",
         "staff.installment_s_left" => "{date} · {installments} قسط · فاضل {amount}",
+        "staff.installment_s_left_one" => "{date} · قسط واحد · فاضل {amount}",
+        "staff.installment_s_left_two" => "{date} · قسطين · فاضل {amount}",
+        "staff.installment_s_left_few" => "{date} · {installments} أقساط · فاضل {amount}",
+        "staff.installment_s_left_many" => "{date} · {installments} قسط · فاضل {amount}",
         "staff.repaid" => "اتسدّت",
         "staff.repaying" => "بتتسدّ",
         "staff.requested" => "مطلوبة",
@@ -2890,7 +2924,11 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.approve_paid" => "بمرتب",
         "staff.unpaid" => "بدون مرتب",
         "staff.in_full_next_payslip" => "مرة واحدة، القسيمة الجاية",
-        "staff.installments_count" => "{inst} أقساط شهرية",
+        "staff.installments_count" => "{inst} قسط شهري",
+        "staff.installments_count_one" => "قسط شهري واحد",
+        "staff.installments_count_two" => "قسطين شهريين",
+        "staff.installments_count_few" => "{inst} أقساط شهرية",
+        "staff.installments_count_many" => "{inst} قسط شهري",
         "staff.confirm_cover" => "أكّد التغطية",
         "staff.reject_cover" => "ارفض التغطية",
         "staff.declining_pays_nothing_the_absent_owner" => "الرفض مش بيدفع حاجة. صاحب الوردية بيتحسب غياب في الحالتين — تقدر تلغيه من المرتبات.",
@@ -3008,6 +3046,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.last_month_ends" => "بينتهي {date}",
         "staff.stop" => "وقّف",
         "staff.installment_s" => "{amount} · {installments} قسط · {date}",
+        "staff.installment_s_one" => "{amount} · قسط واحد · {date}",
+        "staff.installment_s_two" => "{amount} · قسطين · {date}",
+        "staff.installment_s_few" => "{amount} · {installments} أقساط · {date}",
+        "staff.installment_s_many" => "{amount} · {installments} قسط · {date}",
         "staff.expense_advances_log_only" => "العُهد · سجل بس",
         "staff.till_pay_out_inline" => "من الكاشير",
         "staff.bank_transfer_inline" => "تحويل",
@@ -3047,7 +3089,11 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.refresh_failed" => "ما قدرناش نوصل للسيرفر. ده آخر اللي اتحفظ على الموبايل.",
         "staff.err_rate_limited" => "طلبات كتير في نفس الوقت. جرّب تاني بعد شوية.",
         "staff.unsettled_title" => "مرتب {period} لسه ما اتدفعش كله",
-        "staff.unsettled_draft" => "لسه ما اتعتمدش · {people} أشخاص · {amount}",
+        "staff.unsettled_draft" => "لسه ما اتعتمدش · {people} شخص · {amount}",
+        "staff.unsettled_draft_one" => "لسه ما اتعتمدش · شخص واحد · {amount}",
+        "staff.unsettled_draft_two" => "لسه ما اتعتمدش · شخصين · {amount}",
+        "staff.unsettled_draft_few" => "لسه ما اتعتمدش · {people} أشخاص · {amount}",
+        "staff.unsettled_draft_many" => "لسه ما اتعتمدش · {people} شخص · {amount}",
         "staff.unsettled_approved" => "اتعتمد · اتدفع لـ {paid} من {people} · {amount}",
         "staff.back_to_this_month" => "ارجع للشهر ده",
         "staff.err_above_limit" => "ده فوق الحد بتاعك. صاحب الشغل بس اللي يقدر يغيّره.",
@@ -4872,11 +4918,80 @@ mod tests {
         let en_keys = keys_in_fn(src, "fn en(key: &str) -> Option<&'static str> {");
         let ar_keys = keys_in_fn(src, "fn ar(key: &str) -> Option<&'static str> {");
 
-        let orphans: Vec<&str> = ar_keys.difference(&en_keys).copied().collect();
+        // Except an Arabic plural form English doesn't have (two, 3–10,
+        // 11–99) of a phrase English does: see PLURAL FORMS above.
+        let arabic_form = |k: &str| {
+            ["_zero", "_two", "_few", "_many"].iter().any(|f| {
+                k.strip_suffix(f).is_some_and(|base| {
+                    en_keys.contains(base) && en_keys.contains(format!("{base}_one").as_str())
+                })
+            })
+        };
+        let orphans: Vec<&str> = ar_keys
+            .difference(&en_keys)
+            .copied()
+            .filter(|k| !arabic_form(k))
+            .collect();
         assert!(
             orphans.is_empty(),
             "keys present in AR but missing from EN table: {orphans:?}"
         );
+    }
+
+    /// FINAL device check (C2, D9): the owner's Payroll read "1 people have
+    /// no salary". A counted phrase has its one form in both languages and
+    /// every Arabic form: one, two, 3–10 (few) and 11–99 (many), the key
+    /// itself being the rest. Staff words only (the POS keeps its own).
+    #[test]
+    fn a_counted_phrase_has_every_arabic_form() {
+        let src = include_str!("i18n.rs");
+        let en_keys = keys_in_fn(src, "fn en(key: &str) -> Option<&'static str> {");
+        let ar_keys = keys_in_fn(src, "fn ar(key: &str) -> Option<&'static str> {");
+        let counted: Vec<&str> = en_keys
+            .iter()
+            .filter(|k| k.starts_with("staff."))
+            .filter_map(|k| k.strip_suffix("_one"))
+            .filter(|base| en_keys.contains(base))
+            .collect();
+        assert!(counted.len() >= 7, "counted phrases found: {counted:?}");
+        let mut missing = Vec::new();
+        for base in &counted {
+            for form in ["", "_one", "_two", "_few", "_many"] {
+                let k = format!("{base}{form}");
+                if !ar_keys.contains(k.as_str()) {
+                    missing.push(k);
+                }
+            }
+        }
+        assert!(missing.is_empty(), "Arabic forms missing: {missing:?}");
+        // The forms differ where Arabic grammar does, and the count shows.
+        let ar = |k: &str| tr("ar", k);
+        assert_eq!(
+            tr("en", "staff.payroll_salary_missing_one"),
+            "1 person has no salary: approval is blocked."
+        );
+        assert_eq!(
+            ar("staff.payroll_salary_missing_one"),
+            "شخص واحد ملوش مرتب: الاعتماد واقف."
+        );
+        assert_eq!(
+            ar("staff.payroll_salary_missing_two"),
+            "شخصين ملهمش مرتب: الاعتماد واقف."
+        );
+        assert_eq!(
+            ar("staff.payroll_salary_missing_few"),
+            "{count} أشخاص ملهمش مرتب: الاعتماد واقف."
+        );
+        assert_eq!(
+            ar("staff.payroll_salary_missing_many"),
+            "{count} شخص ملهمش مرتب: الاعتماد واقف."
+        );
+        for base in &counted {
+            assert!(
+                !tr("en", base).contains("(s)"),
+                "{base}: pick the form, don't hedge it"
+            );
+        }
     }
 
     #[test]

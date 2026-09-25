@@ -158,6 +158,40 @@ void main() {
       }
       await finish(t);
     });
+
+    // FINAL device check (C2): a count reads in its own form, "1 person"
+    // and "شخص واحد", never "1 people" / "1 أشخاص".
+    testWidgets('a one-person month says one person · $lang', (t) async {
+      await pumpApp(
+        t,
+        lang: lang,
+        who: 'e3',
+        manage: true,
+        tab: _payrollTab,
+        core: (f) => f.edit = (v) {
+          v['unsettled'] = [
+            {
+              'id': 'p0',
+              'start': '2026-07-26',
+              'end': '2026-08-25',
+              'status': 'open',
+              'net': 650000,
+              'paid_count': 0,
+              'people': 1,
+            },
+          ];
+        },
+      );
+      await frames(t);
+      final meta = t.widget<Text>(find.textContaining(egp(650000))).data!;
+      expect(
+        meta,
+        lang == 'en'
+            ? 'Not approved yet · 1 person · ${egp(650000)}'
+            : 'لسه ما اتعتمدش · شخص واحد · ${egp(650000)}',
+      );
+      await finish(t);
+    });
   }
 
   testWidgets('no older month to settle: no banner', (t) async {

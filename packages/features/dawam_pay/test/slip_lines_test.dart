@@ -74,14 +74,36 @@ void main() {
         reason: 'a real 0 is shown as 0',
       );
       expect(missingSalaryBanner(0), isNull);
-      final banner = missingSalaryBanner(2)!;
-      expect(banner, contains('2'));
+      final banner = missingSalaryBanner(13)!;
+      expect(banner, contains('13'));
       expect(
         banner,
         coreWord(
-          'staff.payroll_salary_missing',
+          lang == 'ar'
+              ? 'staff.payroll_salary_missing_many'
+              : 'staff.payroll_salary_missing',
           arabic: lang == 'ar',
-        ).replaceAll('{count}', '2'),
+        ).replaceAll('{count}', '13'),
+      );
+    });
+
+    // FINAL device check (run C2, D9): one person without a salary read
+    // "1 people have no salary". One is one, and Arabic's two is its dual.
+    test('one person, two people · $lang', () {
+      currentLang = lang;
+      String word(String key, int n) =>
+          coreWord(key, arabic: lang == 'ar').replaceAll('{count}', '$n');
+      expect(
+        missingSalaryBanner(1),
+        lang == 'en'
+            ? '1 person has no salary: approval is blocked.'
+            : word('staff.payroll_salary_missing_one', 1),
+      );
+      expect(
+        missingSalaryBanner(2),
+        lang == 'en'
+            ? '2 people have no salary: approval is blocked.'
+            : word('staff.payroll_salary_missing_two', 2),
       );
     });
   }

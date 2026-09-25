@@ -83,7 +83,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
                   'period': periodName(u.start, u.end),
                 }),
                 meta: u.status == PeriodStatus.open
-                    ? tr('staff.unsettled_draft', {
+                    ? trCount('staff.unsettled_draft', u.people, {
                         'people': u.people,
                         'amount': egp(u.net),
                       })
@@ -306,7 +306,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
         for (final a in store.advances)
           MadarListRow.bill(
             title: name(store.emp(a.emp)),
-            meta: tr('staff.installment_s', {
+            meta: trCount('staff.installment_s', a.installments, {
               'amount': egp(a.amount),
               'installments': a.installments,
               'date': a.date,
@@ -358,7 +358,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
           NoticeBanner(text: text, tone: ChipTone.danger),
         if (carries.isNotEmpty)
           NoticeBanner(
-            text: tr('staff.shortfall_list', {
+            text: trCount('staff.shortfall_list', carries.length, {
               'count': carries.length,
               'names': carries
                   .map((s) => name(store.emp(s.emp)))

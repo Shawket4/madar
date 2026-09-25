@@ -171,7 +171,7 @@ String reqWhen(Req r) {
     ReqKind.correction when window.isNotEmpty => '$d · $ltrWindow',
     ReqKind.salaryAdvance =>
       '${egp(r.amount)} · '
-          '${r.installments == 1 ? tr('staff.next_payslip') : tr('staff.months', {'installments': r.installments})}',
+          '${r.installments == 1 ? tr('staff.next_payslip') : trCount('staff.months', r.installments, {'installments': r.installments})}',
     ReqKind.overtime => '$d · ${mins(r.minutes)}',
     _ => d,
   };

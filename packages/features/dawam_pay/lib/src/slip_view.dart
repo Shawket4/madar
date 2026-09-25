@@ -191,8 +191,9 @@ String? slipLineValue(Line l, Slip slip) =>
 
 /// The Payroll tab's warning while [count] people on it have no salary
 /// (decision #9); null when everyone has one.
-String? missingSalaryBanner(int count) =>
-    count > 0 ? tr('staff.payroll_salary_missing', {'count': count}) : null;
+String? missingSalaryBanner(int count) => count > 0
+    ? trCount('staff.payroll_salary_missing', count, {'count': count})
+    : null;
 
 class _Line extends StatelessWidget {
   const _Line(this.l, {this.onTap, this.value});
