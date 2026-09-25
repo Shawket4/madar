@@ -251,6 +251,8 @@ fn with_approval(
 
 /// The device's own credential from an activation code (POS_SIGNIN_OVERHAUL §4).
 pub(crate) const K_DEVICE_CREDENTIAL: &str = "device:credential";
+/// A staff call the server's limiter refused (429): worded "slow down".
+pub(crate) const RATE_LIMITED: &str = "RATE_LIMITED";
 
 /// The one refusal for a code that does not bind (see `activate_device`).
 pub(crate) const ACTIVATION_CODE_INVALID_DETAIL: &str = "activation code not valid";
@@ -13300,6 +13302,13 @@ impl MadarCore {
             CoreError::Forbidden { resource, action } => match key(&resource) {
                 Some(k) => CoreError::Forbidden { action: i18n::tr(&locale, k), resource },
                 None => CoreError::Forbidden { resource, action },
+            },
+            // The server's limiter (addendum 2): slow down, never "can't
+            // reach the server". A PIN throttle keeps its own wait.
+            CoreError::Server { status: 429, code, .. } if code != net::PIN_THROTTLED => CoreError::Server {
+                status: 429,
+                code: RATE_LIMITED.into(),
+                detail: i18n::tr(&locale, "staff.err_rate_limited"),
             },
             CoreError::Server { status, code, detail } => match key(&code) {
                 Some(k) => CoreError::Server { status, detail: i18n::tr(&locale, k), code },

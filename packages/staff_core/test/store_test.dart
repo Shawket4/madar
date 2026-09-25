@@ -731,10 +731,11 @@ void main() {
 
   group('staying up to date: pull and resume', () {
     /// The fixture as the core answers a fetch: [at] its `fetched_at`.
-    String answer(int at, {bool online = true}) {
+    String answer(int at, {bool online = true, bool throttled = false}) {
       final v = jsonDecode(_fixture()) as Map<String, dynamic>;
       v['fetched_at'] = at;
       v['online'] = online;
+      v['throttled'] = throttled;
       return jsonEncode(v);
     }
 
@@ -766,6 +767,16 @@ void main() {
       );
       expect(store.offline, isTrue);
       expect(failures, ['staff.refresh_offline']);
+    });
+
+    // Addendum 2: with the server's limiter on, a pull read "Couldn't reach
+    // the server". The server asked to slow down; the picture stays.
+    test('throttled: the toast says slow down, not unreachable', () async {
+      final (store, _, failures) = await pulled(
+        () => answer(100, throttled: true),
+      );
+      expect(failures, ['staff.refresh_throttled']);
+      expect(store.me, 'e1');
     });
 
     test('online, but the fetch never got an answer: said too', () async {

@@ -682,6 +682,10 @@ class DawamStore extends ChangeNotifier {
   /// The owner saved the rules; until then nobody clocks in (RU-1).
   bool rulesSaved = true;
 
+  /// The last refresh was refused by the server's limiter (429): the saved
+  /// picture stands (addendum 2).
+  bool throttled = false;
+
   /// The pay month a new pay line lands in when this month's payroll is
   /// already approved or paid (minor #27); null while this month is open.
   ({DateTime from, DateTime to})? linesLand;
@@ -866,6 +870,7 @@ class DawamStore extends ChangeNotifier {
     me = v['me'] as String;
     _skew = (_at(v['now']) ?? DateTime.now()).difference(DateTime.now());
     offline = v['online'] != true;
+    throttled = v['throttled'] == true;
     fetchedAt = _int(v['fetched_at']);
     queued = _int(v['queued']);
     stuck = (v['stuck'] as List<dynamic>).cast<String>();
@@ -1539,7 +1544,9 @@ class DawamStore extends ChangeNotifier {
     if (me == null) return;
     final before = fetchedAt;
     if (!await _fetch()) return; // refused: the toast already said why
-    if (offline) {
+    if (throttled) {
+      failures.add(tr('staff.refresh_throttled'));
+    } else if (offline) {
       failures.add(tr('staff.refresh_offline'));
     } else if (fetchedAt <= before) {
       failures.add(tr('staff.refresh_failed'));

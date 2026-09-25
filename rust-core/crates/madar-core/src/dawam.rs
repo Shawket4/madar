@@ -1469,7 +1469,9 @@ impl MadarCore {
             // nothing about what there is to show: keep the old mirror whole
             // rather than write that view empty ("No shift today", E2E S-301).
             Err(e @ CoreError::Transient { .. }) => Some(Err(e)),
-            Err(CoreError::Server { status: 429, detail, .. }) => Some(Err(CoreError::Transient { detail })),
+            // …and a throttled one says so (addendum 2): the refresh keeps
+            // the picture and the phone says the server asked to slow down.
+            Err(e @ CoreError::Server { status: 429, .. }) => Some(Err(e)),
             // A view the server refuses this person is simply left empty.
             Err(_) => None,
         })
@@ -1711,9 +1713,13 @@ impl MadarCore {
     /// or when the server can't be reached, it is the last mirror plus what is
     /// queued.
     pub async fn dawam_snapshot(&self, refresh: bool) -> Result<String, CoreError> {
+        // The server's limiter refused the refresh (429): the saved picture
+        // stays, and says so (addendum 2).
+        let mut throttled = false;
         if refresh {
             match self.dawam_fetch().await {
                 Ok(()) | Err(CoreError::Offline { .. }) | Err(CoreError::Transient { .. }) => {}
+                Err(CoreError::Server { status: 429, .. }) => throttled = true,
                 Err(e) => return Err(e),
             }
         }
@@ -1726,6 +1732,7 @@ impl MadarCore {
         let snap = self.dawam_build()?;
         let mut v = serde_json::to_value(&snap).map_err(|e| CoreError::Internal { detail: format!("snapshot: {e}") })?;
         v["refused"] = json!(refused);
+        v["throttled"] = json!(throttled);
         in_branch_zone(&mut v, &self.dawam_tz());
         serde_json::to_string(&v).map_err(|e| CoreError::Internal { detail: format!("snapshot: {e}") })
     }
@@ -6380,6 +6387,48 @@ mod tests {
         let q = |id: &str| snap["requests"].as_array().unwrap().iter().find(|q| q["id"] == id).unwrap().clone();
         assert_eq!(q("q|m")["worked"], json!([day]));
         assert_eq!(q("q|l")["worked"], json!([]), "no worked_dates: nothing worked");
+    }
+
+    /// Addendum 2 (owner's phone, rate limiter on): a refresh the server
+    /// throttled (429) read "Couldn't reach the server". It keeps the saved
+    /// picture and says the server asked to slow down, in the phone's
+    /// language; an action throttled says so too, never the server's English.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_throttled_refresh_says_so_and_keeps_the_picture() {
+        use crate::testkit::StubResponse;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        let limit = Arc::new(AtomicBool::new(false));
+        let l = limit.clone();
+        let (_stub, core) = cafe(&[], move |m, p, _| {
+            let too_many = || StubResponse::json(429, json!({ "error": "Too many requests just now. This will clear in a moment." }));
+            match (m, p) {
+                _ if !l.load(Ordering::SeqCst) => None,
+                ("GET", "/staff/me/notifications") | ("POST", "/staff/me/requests") => Some(too_many()),
+                _ => None,
+            }
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(snap["throttled"], json!(false));
+        let fetched = snap["fetched_at"].clone();
+        limit.store(true, Ordering::SeqCst);
+        for locale in ["en", "ar"] {
+            core.set_locale(locale.into());
+            let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+            assert_eq!(snap["throttled"], json!(true), "{locale}");
+            assert_eq!(snap["fetched_at"], fetched, "the saved picture stays");
+            assert_eq!(snap["org_name"], "Nile Café");
+            let err = core
+                .dawam_do(json!({ "action": "file", "kind": "mission", "from": today_cairo().to_string(), "note": "Bank" }).to_string())
+                .await
+                .unwrap_err();
+            match err {
+                CoreError::Server { status: 429, detail, .. } => assert_eq!(detail, i18n::tr(locale, "staff.err_rate_limited")),
+                e => panic!("{locale}: {e:?}"),
+            }
+        }
+        assert_ne!(i18n::tr("ar", "staff.err_rate_limited"), i18n::tr("en", "staff.err_rate_limited"));
     }
 
     /// Minor #43: a mission filed with a title (the dashboard's form) and no
