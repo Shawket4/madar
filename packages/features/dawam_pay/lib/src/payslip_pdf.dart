@@ -147,7 +147,8 @@ Future<Uint8List> payslipPdf({
           for (final l in slip.lines)
             row(
               l.waived
-                  ? '${_label(l, arabic)} (${_w('staff.pdf_waived', arabic)})'
+                  ? '${_label(l, arabic)} (${_w('staff.pdf_waived', arabic)}'
+                        '${l.note == null ? '' : ': ${l.note}'})'
                   : _label(l, arabic),
               _money(l.amount, arabic),
               struck: l.waived,

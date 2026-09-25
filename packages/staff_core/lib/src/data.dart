@@ -1115,16 +1115,19 @@ class DawamStore extends ChangeNotifier {
         [
           for (final l in _list(s['lines']))
             Line(
-              l['key'] as String,
-              l['en'] as String,
-              l['ar'] as String,
-              _int(l['amount']),
-              rule: l['rule'] == true,
-              manual: l['manual'] as String?,
-              date: l['date'] is String
-                  ? DateTime.tryParse(l['date'] as String)
-                  : null,
-            )..waived = l['waived'] == true,
+                l['key'] as String,
+                l['en'] as String,
+                l['ar'] as String,
+                _int(l['amount']),
+                rule: l['rule'] == true,
+                manual: l['manual'] as String?,
+                date: l['date'] is String
+                    ? DateTime.tryParse(l['date'] as String)
+                    : null,
+              )
+              ..waived = l['waived'] == true
+              // Why it was waived (AD-6, minor #29).
+              ..note = l['note'] as String?,
         ],
         _int(s['net']),
         _int(s['carry_out']),

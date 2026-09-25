@@ -224,6 +224,17 @@ class _Line extends StatelessWidget {
                 color: context.madarColors.textMuted,
               ),
             ),
+          )
+        // An overridden amount says why too (AD-6, minor #29).
+        else if (l.note case final note?)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
+            child: Text(
+              note,
+              style: MadarType.bodySm.copyWith(
+                color: context.madarColors.textMuted,
+              ),
+            ),
           ),
       ],
     );

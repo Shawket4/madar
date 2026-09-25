@@ -580,6 +580,8 @@ pub struct LineV {
     /// The day a bonus or deduction counts on (`YYYY-MM-DD`), so two lines
     /// with the same reason ("Late by 55 minutes") can be told apart (AD-6).
     pub date: Option<String>,
+    /// Why it was waived, or its amount overridden (AD-6, minor #29).
+    pub note: Option<String>,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -3012,11 +3014,12 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
         manual: None,
         waived: false,
         date: None,
+        note: None,
     });
     let ot = i(s_, "overtime_piastres");
     if ot > 0 {
         let m = i(s_, "overtime_minutes");
-        lines.push(LineV { key: "ot".into(), en: format!("Overtime ({m} min)"), ar: format!("وقت إضافي ({m} د)"), amount: ot, rule: false, manual: None, waived: false, date: None });
+        lines.push(LineV { key: "ot".into(), en: format!("Overtime ({m} min)"), ar: format!("وقت إضافي ({m} د)"), amount: ot, rule: false, manual: None, waived: false, date: None, note: None });
     }
     for l in arr(bd, "bonuses") {
         let (en, ar) = match (s(l, "kind").as_str(), s(l, "reason")) {
@@ -3025,7 +3028,7 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
             (_, r) => (r.clone(), r),
         };
         let id = so(l, "id");
-        lines.push(LineV { key: format!("b|{}", id.clone().unwrap_or_default()), en, ar, amount: i(l, "piastres"), rule: false, manual: id.map(|x| format!("a|bonus|{x}")), waived: false, date: so(l, "effective_date") });
+        lines.push(LineV { key: format!("b|{}", id.clone().unwrap_or_default()), en, ar, amount: i(l, "piastres"), rule: false, manual: id.map(|x| format!("a|bonus|{x}")), waived: false, date: so(l, "effective_date"), note: None });
     }
     for l in arr(bd, "deductions") {
         let carry = s(l, "kind") == "carry";
@@ -3040,6 +3043,7 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
             manual: manual.then(|| format!("a|deduction|{id}")),
             waived: b(l, "waived"),
             date: so(l, "effective_date"),
+            note: so(l, "waive_reason").filter(|_| b(l, "waived")).or_else(|| so(l, "override_reason")).filter(|n| !n.trim().is_empty()),
         });
     }
     let mut collected = BTreeMap::new();
@@ -3049,7 +3053,7 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
             continue;
         }
         collected.insert(s(a, "id"), take);
-        lines.push(LineV { key: format!("adv|{}", s(a, "id")), en: "Advance installment".into(), ar: "قسط سلفة".into(), amount: -take, rule: false, manual: None, waived: false, date: None });
+        lines.push(LineV { key: format!("adv|{}", s(a, "id")), en: "Advance installment".into(), ar: "قسط سلفة".into(), amount: -take, rule: false, manual: None, waived: false, date: None, note: None });
     }
     SlipV {
         emp: s(s_, "employee_id"),
@@ -3380,6 +3384,24 @@ mod tests {
         assert_eq!(sl.lines[0].date, None, "the salary line has no day");
     }
 
+
+    /// Minor #29 (AD-6): a waived line says why. The server's `waive_reason`
+    /// (or an overridden line's `override_reason`) rides the line as `note`.
+    #[test]
+    fn a_waived_line_carries_its_reason() {
+        let p = PeriodV { start: "2026-08-26".into(), end: "2026-09-25".into(), status: "open".into(), ..Default::default() };
+        let c = json!({ "employee_id": "u", "net_piastres": 0, "breakdown": { "deductions": [
+            { "id": "d1", "reason": "Absent", "piastres": 0, "source": "absence", "waived": true, "waive_reason": "Hospital visit" },
+            { "id": "d2", "reason": "Late", "piastres": 2_000, "source": "late_penalty", "override_reason": "Traffic on the ring road" },
+            { "id": "d3", "reason": "Late", "piastres": 5_000, "source": "late_penalty" }
+        ] } });
+        let sl = slip_of(&c, &p, 0, false);
+        let note = |k: &str| sl.lines.iter().find(|l| l.key == k).unwrap().note.clone();
+        assert_eq!(note("d|d1").as_deref(), Some("Hospital visit"));
+        assert_eq!(note("d|d2").as_deref(), Some("Traffic on the ring road"));
+        assert_eq!(note("d|d3"), None);
+        assert_eq!(sl.lines[0].note, None, "the salary line has none");
+    }
 
     /// The whole offline path (APP-8, CL-10, CL-11): clock in and ping with the
     /// server gone, see both on screen at once, then watch them reach the
