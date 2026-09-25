@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**branch_id** | Option<**uuid::Uuid**> | The branch whose board sets the day: a business-wide block is worked there (one of the person's branches, else 400 `EMPLOYEE_NOT_AT_BRANCH`). Omitted = each block stays where the date had it (a new one at the person's first branch). | [optional]
 **employee_id** | **uuid::Uuid** |  | 
 **on_date** | **chrono::NaiveDate** |  | 
 **reason** | Option<**String**> |  | [optional]

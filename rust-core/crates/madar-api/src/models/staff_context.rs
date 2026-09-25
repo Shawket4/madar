@@ -48,6 +48,9 @@ pub struct StaffContext {
     /// Who is signed in: the employee.
     #[serde(rename = "employee_id")]
     pub employee_id: uuid::Uuid,
+    /// The first day (from my today) not inside an approved or paid month: where a new bonus or deduction lands by default (\"lands in October's pay\", minor default M27).
+    #[serde(rename = "first_open_date")]
+    pub first_open_date: chrono::NaiveDate,
     /// The org's modules (`pos`, `dawam`); POS on means till punches (CL-13).
     #[serde(rename = "modules")]
     pub modules: Vec<String>,
@@ -90,6 +93,7 @@ impl StaffContext {
         caps: Vec<String>,
         caps_everywhere: Vec<String>,
         employee_id: uuid::Uuid,
+        first_open_date: chrono::NaiveDate,
         modules: Vec<String>,
         name: String,
         org_id: uuid::Uuid,
@@ -107,6 +111,7 @@ impl StaffContext {
             caps_everywhere,
             deduction_limit_piastres: None,
             employee_id,
+            first_open_date,
             modules,
             name,
             org_id,

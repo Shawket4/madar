@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PutDayRequest {
+    /// The branch whose board sets the day: a business-wide block is worked there (one of the person's branches, else 400 `EMPLOYEE_NOT_AT_BRANCH`). Omitted = each block stays where the date had it (a new one at the person's first branch).
+    #[serde(
+        rename = "branch_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub branch_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "employee_id")]
     pub employee_id: uuid::Uuid,
     #[serde(rename = "on_date")]
@@ -36,6 +44,7 @@ impl PutDayRequest {
         shifts: Vec<models::DayBlock>,
     ) -> PutDayRequest {
         PutDayRequest {
+            branch_id: None,
             employee_id,
             on_date,
             reason: None,

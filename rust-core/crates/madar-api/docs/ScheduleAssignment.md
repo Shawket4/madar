@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**branch_id** | Option<**uuid::Uuid**> | Where a business-wide block is worked (hunt H2-B8b); null = the block's own branch, else the person's first. | [optional]
 **created_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **day_of_week** | Option<**i32**> | Postgres `EXTRACT(DOW)` convention: 0 = Sunday … 6 = Saturday. `None` = every day of the week. | [optional]
 **effective_from** | **chrono::NaiveDate** |  | 

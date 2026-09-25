@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ResolveFlag {
-    /// `ignore` · `excuse_paid` · `excuse_unpaid` · `deduct` · `revoke` (a new phone) · `confirm`
+    /// `ignore` · `excuse_paid` · `excuse_unpaid` · `deduct` · `revoke` (a new phone) · `confirm`. A cover's flag takes only `confirm` or `reject`, which decide the cover itself (400 `FLAG_COVER_CONFIRM_OR_REJECT`).
     #[serde(rename = "action")]
     pub action: String,
     /// For `deduct`: the amount the manager typed (CL-7).

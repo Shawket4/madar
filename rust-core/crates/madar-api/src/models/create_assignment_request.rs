@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateAssignmentRequest {
+    /// The branch whose board sets the pattern: a business-wide block is worked there every week (one of the person's branches, else 400 `EMPLOYEE_NOT_AT_BRANCH`). Omitted = the person's first branch.
+    #[serde(
+        rename = "branch_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub branch_id: Option<Option<uuid::Uuid>>,
     /// 0 = Sunday … 6 = Saturday. Omit for \"every day\".
     #[serde(
         rename = "day_of_week",
@@ -44,6 +52,7 @@ pub struct CreateAssignmentRequest {
 impl CreateAssignmentRequest {
     pub fn new(employee_id: uuid::Uuid, work_shift_id: uuid::Uuid) -> CreateAssignmentRequest {
         CreateAssignmentRequest {
+            branch_id: None,
             day_of_week: None,
             effective_from: None,
             effective_to: None,

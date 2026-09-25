@@ -17,6 +17,9 @@ pub struct MyRosterView {
     pub cant_work_days: Vec<i32>,
     #[serde(rename = "from")]
     pub from: chrono::NaiveDate,
+    /// My claims on open shifts, decided ones included: those on dates in range, and every pending one wherever it falls (SC-9, S-162).
+    #[serde(rename = "my_claims")]
+    pub my_claims: Vec<models::MyClaim>,
     /// Open shifts at my branches, in published weeks (SC-9).
     #[serde(rename = "open_shifts")]
     pub open_shifts: Vec<models::OpenShift>,
@@ -49,6 +52,7 @@ impl MyRosterView {
     pub fn new(
         cant_work_days: Vec<i32>,
         from: chrono::NaiveDate,
+        my_claims: Vec<models::MyClaim>,
         open_shifts: Vec<models::OpenShift>,
         prefs_set_by: String,
         shifts: Vec<models::RosterShift>,
@@ -60,6 +64,7 @@ impl MyRosterView {
         MyRosterView {
             cant_work_days,
             from,
+            my_claims,
             open_shifts,
             pref_time: None,
             prefs_set_by,

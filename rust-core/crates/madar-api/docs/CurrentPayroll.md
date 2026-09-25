@@ -11,6 +11,7 @@ Name | Type | Description | Notes
 **period** | [**models::PayrollPeriod**](PayrollPeriod.md) |  | 
 **preview** | [**Vec<models::ComputedPayslip>**](ComputedPayslip.md) | A live computation while the period is still a draft. | 
 **totals** | [**models::PayrollTotals**](PayrollTotals.md) | The run added up by the server (AT-3). | 
+**unsettled** | [**Vec<models::UnsettledPeriod>**](UnsettledPeriod.md) | Older months that aren't fully paid, oldest first (hunt H2-P1): a month that rolled over while still a draft, or approved with someone unpaid. Each is settled by its id (approve, mark paid, reopen, export); a paid or closed month isn't listed. | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

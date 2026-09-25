@@ -226,6 +226,9 @@ pub struct StaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub work_shift_id: Option<Option<uuid::Uuid>>,
+    /// For a leave or mission: the days it covers that the person already clocked in on. Approving turns those worked days into leave (the punches are kept), so the approver is warned first (minor default M16). Empty for every other kind.
+    #[serde(rename = "worked_dates", skip_serializing_if = "Option::is_none")]
+    pub worked_dates: Option<Vec<chrono::NaiveDate>>,
 }
 
 impl StaffRequest {
@@ -278,6 +281,7 @@ impl StaffRequest {
             to_time: None,
             updated_at,
             work_shift_id: None,
+            worked_dates: None,
         }
     }
 }

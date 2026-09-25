@@ -80,6 +80,13 @@ pub struct ClaimOpenShiftParams {
     pub id: String,
 }
 
+/// struct for passing parameters to the method [`clear_expense_advance`]
+#[derive(Clone, Debug)]
+pub struct ClearExpenseAdvanceParams {
+    pub id: String,
+    pub reason: Option<String>,
+}
+
 /// struct for passing parameters to the method [`correct_record`]
 #[derive(Clone, Debug)]
 pub struct CorrectRecordParams {
@@ -312,7 +319,7 @@ pub struct DisciplineReportParams {
 pub struct ExportPeriodCsvParams {
     /// Period ID
     pub id: String,
-    /// `bank` (a transfer file: name, account, amount) · `wallet` (numbers and amounts) · `cash`; omitted = everyone, every figure (PAY-8).
+    /// `bank` (a transfer file: name, account, amount) · `wallet` (numbers and amounts) · `cash` (the envelope list: name and amount, nobody with 0 to pay); omitted = everyone, every figure (PAY-8).
     pub method: Option<String>,
 }
 
@@ -393,11 +400,17 @@ pub struct ListAssignmentsParams {
 /// struct for passing parameters to the method [`list_attendance`]
 #[derive(Clone, Debug)]
 pub struct ListAttendanceParams {
-    pub from: chrono::NaiveDate,
-    pub to: chrono::NaiveDate,
+    /// Required unless `cover_status` or `overtime_status` is `pending`.
+    pub from: Option<chrono::NaiveDate>,
+    /// Required unless `cover_status` or `overtime_status` is `pending`.
+    pub to: Option<chrono::NaiveDate>,
     pub branch_id: Option<String>,
     pub employee_id: Option<String>,
     pub status: Option<String>,
+    /// `pending` · `confirmed` · `rejected`: covers in that state.
+    pub cover_status: Option<String>,
+    /// `pending` · `approved` · `rejected`: overtime in that state.
+    pub overtime_status: Option<String>,
 }
 
 /// struct for passing parameters to the method [`list_attendance_flags`]
@@ -655,6 +668,13 @@ pub struct ReadNotificationsParams {
     pub read_notifications: models::ReadNotifications,
 }
 
+/// struct for passing parameters to the method [`reassign_expense_advance`]
+#[derive(Clone, Debug)]
+pub struct ReassignExpenseAdvanceParams {
+    pub id: String,
+    pub reassign_expense_advance: models::ReassignExpenseAdvance,
+}
+
 /// struct for passing parameters to the method [`record_advance`]
 #[derive(Clone, Debug)]
 pub struct RecordAdvanceParams {
@@ -772,6 +792,12 @@ pub struct WaiveDeductionParams {
     /// Deduction ID
     pub id: String,
     pub waive_deduction_request: models::WaiveDeductionRequest,
+}
+
+/// struct for passing parameters to the method [`withdraw_claim`]
+#[derive(Clone, Debug)]
+pub struct WithdrawClaimParams {
+    pub id: String,
 }
 
 /// struct for typed errors of method [`accept_staff_privacy`]
@@ -908,6 +934,19 @@ pub enum CheckOutError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ClaimOpenShiftError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`clear_expense_advance`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ClearExpenseAdvanceError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -2191,6 +2230,19 @@ pub enum ReadNotificationsError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`reassign_expense_advance`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ReassignExpenseAdvanceError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`record_advance`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -2403,6 +2455,19 @@ pub enum UpdateWorkShiftError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum WaiveDeductionError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`withdraw_claim`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum WithdrawClaimError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -2921,6 +2986,47 @@ pub async fn claim_open_shift(
     } else {
         let content = resp.text().await?;
         let entity: Option<ClaimOpenShiftError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn clear_expense_advance(
+    configuration: &configuration::Configuration,
+    params: ClearExpenseAdvanceParams,
+) -> Result<(), Error<ClearExpenseAdvanceError>> {
+    let uri_str = format!(
+        "{}/staff/expense-advances/{id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::DELETE, &uri_str);
+
+    if let Some(ref param_value) = params.reason {
+        req_builder = req_builder.query(&[("reason", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ClearExpenseAdvanceError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -3631,7 +3737,7 @@ pub async fn decide_adjustment(
 pub async fn decide_claim(
     configuration: &configuration::Configuration,
     params: DecideClaimParams,
-) -> Result<(), Error<DecideClaimError>> {
+) -> Result<models::ClaimDecision, Error<DecideClaimError>> {
     let uri_str = format!(
         "{}/staff/open-shifts/{id}/decision",
         configuration.base_path,
@@ -3653,9 +3759,20 @@ pub async fn decide_claim(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ClaimDecision`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ClaimDecision`")))),
+        }
     } else {
         let content = resp.text().await?;
         let entity: Option<DecideClaimError> = serde_json::from_str(&content).ok();
@@ -5018,8 +5135,12 @@ pub async fn list_attendance(
     let uri_str = format!("{}/staff/attendance", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    req_builder = req_builder.query(&[("from", &params.from.to_string())]);
-    req_builder = req_builder.query(&[("to", &params.to.to_string())]);
+    if let Some(ref param_value) = params.from {
+        req_builder = req_builder.query(&[("from", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.to {
+        req_builder = req_builder.query(&[("to", &param_value.to_string())]);
+    }
     if let Some(ref param_value) = params.branch_id {
         req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
     }
@@ -5028,6 +5149,12 @@ pub async fn list_attendance(
     }
     if let Some(ref param_value) = params.status {
         req_builder = req_builder.query(&[("status", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.cover_status {
+        req_builder = req_builder.query(&[("cover_status", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.overtime_status {
+        req_builder = req_builder.query(&[("overtime_status", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -7309,6 +7436,56 @@ pub async fn read_notifications(
     }
 }
 
+pub async fn reassign_expense_advance(
+    configuration: &configuration::Configuration,
+    params: ReassignExpenseAdvanceParams,
+) -> Result<models::ExpenseAdvance, Error<ReassignExpenseAdvanceError>> {
+    let uri_str = format!(
+        "{}/staff/expense-advances/{id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::PATCH, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.reassign_expense_advance);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ExpenseAdvance`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ExpenseAdvance`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ReassignExpenseAdvanceError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn record_advance(
     configuration: &configuration::Configuration,
     params: RecordAdvanceParams,
@@ -8088,6 +8265,55 @@ pub async fn waive_deduction(
     } else {
         let content = resp.text().await?;
         let entity: Option<WaiveDeductionError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn withdraw_claim(
+    configuration: &configuration::Configuration,
+    params: WithdrawClaimParams,
+) -> Result<models::OpenShift, Error<WithdrawClaimError>> {
+    let uri_str = format!(
+        "{}/staff/open-shifts/{id}/withdraw",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::OpenShift`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::OpenShift`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<WithdrawClaimError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

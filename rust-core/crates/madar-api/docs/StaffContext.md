@@ -11,6 +11,7 @@ Name | Type | Description | Notes
 **caps_everywhere** | **Vec<String>** | The capabilities I hold at EVERY branch: the list `GET /authz/me` puts in `everywhere`, for the business-wide acts (the rules, payroll, public holidays: `hr.rules.edit`, D3). Empty without a Madar account. | 
 **deduction_limit_piastres** | Option<**i64**> | My ceiling on a deduction (AD-5: separate from the bonus limit). | [optional]
 **employee_id** | **uuid::Uuid** | Who is signed in: the employee. | 
+**first_open_date** | **chrono::NaiveDate** | The first day (from my today) not inside an approved or paid month: where a new bonus or deduction lands by default (\"lands in October's pay\", minor default M27). | 
 **modules** | **Vec<String>** | The org's modules (`pos`, `dawam`); POS on means till punches (CL-13). | 
 **name** | **String** |  | 
 **org_id** | **uuid::Uuid** |  | 

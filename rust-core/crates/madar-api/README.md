@@ -468,6 +468,7 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**check_in**](docs/StaffApi.md#check_in) | **POST** /staff/me/check-in | 
 *StaffApi* | [**check_out**](docs/StaffApi.md#check_out) | **POST** /staff/me/check-out | 
 *StaffApi* | [**claim_open_shift**](docs/StaffApi.md#claim_open_shift) | **POST** /staff/open-shifts/{id}/claim | Claim an open shift; the manager approves the claim (SC-9). Only a published week's, and only one that fits beside the person's own shifts.
+*StaffApi* | [**clear_expense_advance**](docs/StaffApi.md#clear_expense_advance) | **DELETE** /staff/expense-advances/{id} | Clear an expense advance (a till pay-out's \"expense advance to\" tag, or a logged one) with a reason: the record goes, a till's cash movement stays exactly as it is (AV-10, minor default M39). Owner only.
 *StaffApi* | [**correct_record**](docs/StaffApi.md#correct_record) | **PATCH** /staff/attendance/{id} | 
 *StaffApi* | [**create_adjustment**](docs/StaffApi.md#create_adjustment) | **POST** /staff/adjustments | Add a bonus or deduction. Over the caller's limit it is created pending and waits for the owner (AD-5). Bonuses and deductions have separate limits.
 *StaffApi* | [**create_advance_admin**](docs/StaffApi.md#create_advance_admin) | **POST** /staff/payroll/advances | Record an ask on someone's behalf: it still waits for a decision (`PATCH /staff/advances/{id}/review`). To hand one over at once, use `POST /staff/advances/record`.
@@ -566,6 +567,7 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**put_preferences**](docs/StaffApi.md#put_preferences) | **PUT** /staff/me/preferences | Preferred times and days I can't work; managers see them (SC-12). Logged.
 *StaffApi* | [**put_times**](docs/StaffApi.md#put_times) | **PUT** /staff/schedules/days/times | One assignment's own from/to (one person, one date, one block), without changing the block. Both null = back to the block's times.
 *StaffApi* | [**read_notifications**](docs/StaffApi.md#read_notifications) | **POST** /staff/me/notifications/read | 
+*StaffApi* | [**reassign_expense_advance**](docs/StaffApi.md#reassign_expense_advance) | **PATCH** /staff/expense-advances/{id} | Give an expense advance to the person who really received the cash, with a reason; a till's cash movement stays as it is (minor default M39). Owner only.
 *StaffApi* | [**record_advance**](docs/StaffApi.md#record_advance) | **POST** /staff/advances/record | A manager hands an advance over directly (AV-2): recorded and approved in ONE call under the same cap and limit as a review, so a refusal never leaves a stray pending advance behind (audit B10).
 *StaffApi* | [**reset_day**](docs/StaffApi.md#reset_day) | **DELETE** /staff/schedules/days | Put a date back on the standing pattern.
 *StaffApi* | [**resolve_flag**](docs/StaffApi.md#resolve_flag) | **PATCH** /staff/flags/{id} | Handle a flag. Nothing is ever charged automatically (CL-6).
@@ -583,6 +585,7 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**update_department**](docs/StaffApi.md#update_department) | **PATCH** /staff/departments/{id} | 
 *StaffApi* | [**update_work_shift**](docs/StaffApi.md#update_work_shift) | **PATCH** /staff/work-shifts/{id} | 
 *StaffApi* | [**waive_deduction**](docs/StaffApi.md#waive_deduction) | **PATCH** /staff/payroll/deductions/{id}/waive | 
+*StaffApi* | [**withdraw_claim**](docs/StaffApi.md#withdraw_claim) | **POST** /staff/open-shifts/{id}/withdraw | Take back my claim while it waits (SC-9, S-162), as the one who asked can cancel any pending request: the shift is open again, the claim stays in my Requests as `withdrawn`, and the managers told of it hear. 409 `NO_PENDING_CLAIM` when I have no claim waiting on it, 409 `CLAIM_ALREADY_DECIDED` once it was approved or declined.
 *StaffAuthApi* | [**staff_otp_request**](docs/StaffAuthApi.md#staff_otp_request) | **POST** /auth/staff/otp/request | 
 *StaffAuthApi* | [**staff_otp_verify**](docs/StaffAuthApi.md#staff_otp_verify) | **POST** /auth/staff/otp/verify | 
 *StaffAuthApi* | [**staff_token_refresh**](docs/StaffAuthApi.md#staff_token_refresh) | **POST** /auth/staff/refresh | A fresh staff token for the phone that sends its device token in `X-Staff-Device` (RO-3). The device is the refresh credential: once it is revoked (a new phone, a new number, the employee deactivated) this answers 401 `DEVICE_REVOKED` and the app signs out. The same checks as every `/staff/_*` call: the employee is active with app access, the business is active and has Dawam on.
@@ -754,6 +757,7 @@ Class | Method | HTTP request | Description
  - [ChatFrameOneOf5](docs/ChatFrameOneOf5.md)
  - [CheckInRequest](docs/CheckInRequest.md)
  - [CheckOutRequest](docs/CheckOutRequest.md)
+ - [ClaimDecision](docs/ClaimDecision.md)
  - [ClearTableRequest](docs/ClearTableRequest.md)
  - [ClientSeen](docs/ClientSeen.md)
  - [CloseShiftResponse](docs/CloseShiftResponse.md)
@@ -972,6 +976,7 @@ Class | Method | HTTP request | Description
  - [MoveView](docs/MoveView.md)
  - [MyAttendanceToday](docs/MyAttendanceToday.md)
  - [MyAuthz](docs/MyAuthz.md)
+ - [MyClaim](docs/MyClaim.md)
  - [MyRosterView](docs/MyRosterView.md)
  - [NewAdjustment](docs/NewAdjustment.md)
  - [NewExpenseAdvance](docs/NewExpenseAdvance.md)
@@ -1142,6 +1147,7 @@ Class | Method | HTTP request | Description
  - [QuoteResponse](docs/QuoteResponse.md)
  - [ReadNotifications](docs/ReadNotifications.md)
  - [ReadyGroupRef](docs/ReadyGroupRef.md)
+ - [ReassignExpenseAdvance](docs/ReassignExpenseAdvance.md)
  - [ReceiveLineInput](docs/ReceiveLineInput.md)
  - [ReceivePurchaseOrderRequest](docs/ReceivePurchaseOrderRequest.md)
  - [RecipeBaseLineInput](docs/RecipeBaseLineInput.md)
@@ -1305,6 +1311,7 @@ Class | Method | HTTP request | Description
  - [Transform](docs/Transform.md)
  - [TypeChecksum](docs/TypeChecksum.md)
  - [UnregisterPushDevice](docs/UnregisterPushDevice.md)
+ - [UnsettledPeriod](docs/UnsettledPeriod.md)
  - [UpdateAddonItemRequest](docs/UpdateAddonItemRequest.md)
  - [UpdateAddonSlotRequest](docs/UpdateAddonSlotRequest.md)
  - [UpdateBookingRequest](docs/UpdateBookingRequest.md)

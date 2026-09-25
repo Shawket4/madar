@@ -48,6 +48,14 @@ pub struct PresenceRow {
     pub job_title: Option<Option<String>>,
     #[serde(rename = "late_minutes")]
     pub late_minutes: i32,
+    /// When a punch for them opens: the next shift of their today (not yet ended; else the first) less its check-in window (CL-3). Null when not rostered. The dashboard offers Punch from then, as the app does (minor default M15).
+    #[serde(
+        rename = "punch_opens_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub punch_opens_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     /// Minutes this person is rostered for today — the denominator of the labour-vs-plan bar.
     #[serde(rename = "scheduled_minutes")]
     pub scheduled_minutes: i64,
@@ -76,6 +84,7 @@ impl PresenceRow {
             employee_name,
             job_title: None,
             late_minutes,
+            punch_opens_at: None,
             scheduled_minutes,
             state,
             worked_minutes,
