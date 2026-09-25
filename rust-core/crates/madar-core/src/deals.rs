@@ -265,11 +265,9 @@ pub(crate) fn suggest(
         .collect())
 }
 
-/// The detail a refused apply carries (`deal.not_eligible`).
-pub const NOT_ELIGIBLE: &str = "This deal no longer applies to the cart.";
-
 /// Apply `deal_id` the best way the cart allows now (the suggestion the
-/// teller tapped). Refused when it no longer saves anything.
+/// teller tapped). Refused (`deal.not_eligible`, the whole sentence in the
+/// till's language) when it no longer saves anything.
 pub(crate) fn apply(
     store: &Store,
     ctx: Ctx<'_>,
@@ -277,10 +275,11 @@ pub(crate) fn apply(
     deals: &[DealView],
     items: &[MenuItemView],
     when: &When<'_>,
+    locale: &str,
 ) -> CoreResult<()> {
     let refuse = || CoreError::Validation {
-        field: "deal".into(),
-        detail: NOT_ELIGIBLE.into(),
+        field: String::new(),
+        detail: i18n::tr(locale, "deal.not_eligible"),
     };
     if !when.pos_on || ctx.is_some() {
         return Err(refuse());
@@ -543,7 +542,15 @@ impl crate::MadarCore {
         let (branch, now, pos_on) = self.deal_when(&catalog);
         let when = When { branch_id: branch.as_deref(), now: &now, pos_on };
         let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
-        apply(&self.store, table_id.as_deref(), &deal_id, &catalog.deals, &catalog.items, &when)?;
+        apply(
+            &self.store,
+            table_id.as_deref(),
+            &deal_id,
+            &catalog.deals,
+            &catalog.items,
+            &when,
+            &catalog.locale,
+        )?;
         drop(_guard);
         cart::lines(&self.store, table_id.as_deref())
     }

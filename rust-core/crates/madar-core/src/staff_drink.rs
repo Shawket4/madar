@@ -563,6 +563,21 @@ impl MadarCore {
             field: "line".into(),
             detail: "that line is no longer in the cart".into(),
         })?;
+        // C15: never a combo, never a line in a deal — said as such, before
+        // the pool's list is asked about an item that could never be on it.
+        let closed = if line.kind == crate::menu::KIND_COMBO {
+            Some("combo.staff_drink")
+        } else if line.deal_cut_minor > 0 {
+            Some("deal.staff_drink")
+        } else {
+            None
+        };
+        if let Some(key) = closed {
+            return Err(CoreError::Validation {
+                field: String::new(),
+                detail: crate::i18n::tr(&locale, key),
+            });
+        }
         let branch = self.session_branch_id()?;
         let settings = self.staff_pool_settings()?;
         let date = self.staff_pool_date();

@@ -698,9 +698,11 @@ impl crate::MadarCore {
         catalog: &'a crate::CatalogSnapshot,
         combo_id: &str,
     ) -> Result<(&'a ComboDef, &'a MenuItemView), crate::error::CoreError> {
+        // The detail is the whole sentence, in the till's language (the host
+        // shows it as it is when `field` is empty).
         let unknown = || crate::error::CoreError::Validation {
-            field: "combo".into(),
-            detail: UNKNOWN_COMBO.into(),
+            field: String::new(),
+            detail: i18n::tr(&catalog.locale, "combo.unavailable"),
         };
         let def = catalog.combos.iter().find(|c| c.id == combo_id).ok_or_else(unknown)?;
         let item = catalog.items.iter().find(|i| i.id == combo_id).ok_or_else(unknown)?;
@@ -794,7 +796,7 @@ impl crate::MadarCore {
         let view = catalog_pricing::combo_view_for(def, item, &catalog.pricing);
         if let Err(why) = availability(&view, &catalog.items, &at) {
             return Err(crate::error::CoreError::Validation {
-                field: "combo".into(),
+                field: String::new(),
                 detail: why_text(&why, &catalog.locale),
             });
         }
@@ -809,7 +811,7 @@ impl crate::MadarCore {
             notes,
         )
         .map_err(|r| crate::error::CoreError::Validation {
-            field: "combo".into(),
+            field: String::new(),
             detail: refusal_text(&r, def, &catalog.items, &catalog.locale),
         })
     }
@@ -922,7 +924,7 @@ impl crate::MadarCore {
     ) -> Result<ComboDraft, crate::error::CoreError> {
         let catalog = self.catalog()?;
         let invalid = || crate::error::CoreError::Validation {
-            field: "meal".into(),
+            field: String::new(),
             detail: i18n::tr(&catalog.locale, "meal.target_invalid"),
         };
         let item = catalog.items.iter().find(|i| i.id == item_id).ok_or_else(invalid)?;
@@ -942,9 +944,6 @@ impl crate::MadarCore {
         .ok_or_else(invalid)
     }
 }
-
-/// The refusal of a combo id the menu does not have.
-pub const UNKNOWN_COMBO: &str = "unknown combo";
 
 impl crate::MadarCore {
     /// A cart line as the round's single-dish kitchen chits (the fire print):

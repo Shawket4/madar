@@ -1116,6 +1116,38 @@ fn combo_wire_item(l: &cart::CartLineView) -> models::OrderItemInput {
     item
 }
 
+/// What a queued wire line comes to, for a bill shown before it syncs: a
+/// combo is its picks' money as the till charged it (each pick's share, its
+/// surcharges and its add-ons, per combo unit) times the combos; any other
+/// line its charged unit price times its quantity, as before.
+pub(crate) fn wire_line_total(it: &models::OrderItemInput) -> i64 {
+    let qty = i64::from(it.quantity);
+    match it.combo.clone().flatten() {
+        Some(c) => {
+            let per_combo: i64 = c
+                .picks
+                .iter()
+                .map(|p| {
+                    let pq = i64::from(p.quantity.unwrap_or(1).max(1));
+                    let addons: i64 = p
+                        .addons
+                        .iter()
+                        .flatten()
+                        .map(|a| {
+                            i64::from(a.unit_price.flatten().unwrap_or(0))
+                                * i64::from(a.quantity.unwrap_or(1).max(1))
+                        })
+                        .sum();
+                    i64::from(p.share.flatten().unwrap_or(0))
+                        + pq * (i64::from(p.surcharge.flatten().unwrap_or(0)) + addons)
+                })
+                .sum();
+            qty * per_combo
+        }
+        None => i64::from(it.unit_price.flatten().unwrap_or(0)) * qty,
+    }
+}
+
 /// The applied deals as the order carries them (§3.1): by line index, with
 /// the till's discount (kept on replay).
 fn wire_deals(store: &Store, ctx: cart::Ctx<'_>) -> CoreResult<Option<Vec<models::DealApplicationInput>>> {

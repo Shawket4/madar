@@ -180,7 +180,7 @@ impl MadarCore {
             let mut added = 0i64;
             for it in &req.items {
                 let menu_item_id = it.menu_item_id.flatten().map(|u| u.to_string());
-                let line_total = it.unit_price.flatten().unwrap_or(0) as i64 * it.quantity as i64;
+                let line_total = crate::checkout::wire_line_total(it);
                 added += line_total;
                 bill.lines.push(tickets::TicketLineView {
                     id: String::new(),
@@ -193,7 +193,7 @@ impl MadarCore {
                     voided: false,
                     round_number,
                     round_fired_at: at.clone(),
-                    is_combo: false,
+                    is_combo: it.combo.as_ref().is_some_and(Option::is_some),
                 });
             }
             bill.subtotal_minor += added;
