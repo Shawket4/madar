@@ -214,6 +214,35 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
 
     // ── items ───────────────────────────────────────────────────────────────
     for l in &receipt.lines {
+        // A combo (C12): `n × <name> …… n×P`, then each item indented with
+        // its size, `+surcharge` when it cost more, and its add-ons under it.
+        if l.kind == crate::menu::KIND_COMBO {
+            out.push(bold_left(row(
+                &format!("{}x {}", l.qty, l.name),
+                &money(l.unit_price_minor * l.qty, cur),
+                w,
+            )));
+            for p in &l.parts {
+                let name = match &p.size_label {
+                    Some(s) => format!("{} ({})", p.name, s),
+                    None => p.name.clone(),
+                };
+                let left = format!("  {}x {}", p.qty, name);
+                if p.surcharge_minor > 0 {
+                    out.push(Line::plain(row(
+                        &left,
+                        &format!("+{}", money(p.surcharge_minor, cur)),
+                        w,
+                    )));
+                } else {
+                    out.push(Line::plain(left));
+                }
+                for m in p.addons.iter().chain(p.optionals.iter()) {
+                    push_modifier(&mut out, "    + ", m, cur, w);
+                }
+            }
+            continue;
+        }
         let name = match &l.size_label {
             Some(s) => format!("{} ({})", l.name, s),
             None => l.name.clone(),
@@ -245,12 +274,17 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
     out.push(Line::plain(divider(w)));
 
     // ── totals ──────────────────────────────────────────────────────────────
-    if receipt.discount_minor > 0 || receipt.delivery_fee_minor > 0 {
+    // With deals, the subtotal row is the lines at their normal prices and
+    // each deal prints under it as its own discount (C8).
+    if receipt.discount_minor > 0 || receipt.delivery_fee_minor > 0 || !receipt.deals.is_empty() {
         out.push(Line::plain(row(
             &lab.subtotal,
-            &money(receipt.subtotal_minor, cur),
+            &money(receipt.gross_subtotal_minor(), cur),
             w,
         )));
+    }
+    for d in &receipt.deals {
+        out.push(Line::plain(row(&d.name, &money(-d.discount_minor, cur), w)));
     }
     if receipt.discount_minor > 0 {
         out.push(Line::plain(row(
@@ -1037,6 +1071,10 @@ mod tests {
             staff_comp_minor: 0,
             addons: vec![],
             optionals: vec![],
+            kind: "item".into(),
+            unit_price_minor: total / qty.max(1),
+            parts: vec![],
+            deal_minor: 0,
         }
     }
 
@@ -1094,6 +1132,7 @@ mod tests {
             created_at: "2026-06-20T10:00:00Z".into(),
             loyalty_notice: None,
             staff_notice: None,
+            deals: vec![],
             payments: vec![],
         }
     }
@@ -2205,6 +2244,9 @@ pub struct KitchenChit {
     pub at: String,
     /// Who sent it — the signed-in teller or waiter, for a cook with a question.
     pub teller: Option<String>,
+    /// The combo this dish is part of, already worded ("In Lunch deal"), so
+    /// a station making one item of a meal knows the rest is coming (C12).
+    pub combo: Option<String>,
 }
 
 /// The words a chit needs.
@@ -2259,6 +2301,9 @@ pub fn kitchen_chit_layout(
         size: Size::Double,
     });
 
+    if let Some(c) = chit.combo.as_deref().filter(|s| !s.trim().is_empty()) {
+        out.push(Line { text: format!("  » {}", c.trim()), align: Align::Left, bold: true, size: Size::Normal });
+    }
     // Modifications, indented under what they modify.
     for m in chit.modifiers.iter().filter(|m| !m.trim().is_empty()) {
         out.push(Line::plain(format!("  - {}", m.trim())));
@@ -2312,6 +2357,8 @@ pub struct KitchenSlipItem {
     /// THIS item's own note (its line's order note + its kitchen-only note,
     /// joined) — never the cart-level notes, which print once at the top.
     pub note: Option<String>,
+    /// The combo this dish is part of, already worded ("In Lunch deal").
+    pub combo: Option<String>,
 }
 
 /// A kitchen slip: one header (table/ticket/time), the notes that apply to
@@ -2378,7 +2425,75 @@ pub fn slip_item_for_cart_line(line: &crate::cart::CartLineView) -> KitchenSlipI
         size_label: line.size_label.clone(),
         modifiers,
         note,
+        combo: None,
     }
+}
+
+/// One cart line's dishes for the kitchen (C12): a plain line is one; a
+/// combo is one per item — its own size, add-ons and note, the count for
+/// the whole line — each tagged with the combo's name, so every station
+/// sees its part and knows what it belongs to. The combo's own note and
+/// kitchen note ride every one of its dishes.
+pub fn slip_items_for_cart_line(line: &crate::cart::CartLineView, locale: &str) -> Vec<KitchenSlipItem> {
+    if line.kind != crate::menu::KIND_COMBO {
+        return vec![slip_item_for_cart_line(line)];
+    }
+    let tag = crate::i18n::tr(locale, "combo.in_combo").replace("{combo}", line.name.trim());
+    let line_note = slip_item_for_cart_line(line).note;
+    line.parts
+        .iter()
+        .map(|p| {
+            let mut modifiers: Vec<String> = Vec::new();
+            for a in &p.addons {
+                modifiers.push(if a.qty > 1 { format!("{} x{}", a.name, a.qty) } else { a.name.clone() });
+            }
+            for o in &p.optionals {
+                modifiers.push(o.name.clone());
+            }
+            let own = p.notes.as_deref().map(str::trim).filter(|s| !s.is_empty());
+            let note = match (own, line_note.as_deref()) {
+                (Some(o), Some(l)) => Some(format!("{o} — {l}")),
+                (Some(o), None) => Some(o.to_string()),
+                (None, Some(l)) => Some(l.to_string()),
+                (None, None) => None,
+            };
+            KitchenSlipItem {
+                item: p.item_name.clone(),
+                qty: p.qty.max(1) * line.qty.max(1),
+                size_label: p.size_label.clone(),
+                modifiers,
+                note,
+                combo: Some(tag.clone()),
+            }
+        })
+        .collect()
+}
+
+/// A cart line as the round's single-dish chits (the fire/checkout print):
+/// one per dish, a combo's items each tagged with it.
+pub fn chits_for_cart_line(
+    line: &crate::cart::CartLineView,
+    table_label: Option<String>,
+    ticket_ref: Option<String>,
+    at: String,
+    teller: Option<String>,
+    locale: &str,
+) -> Vec<KitchenChit> {
+    slip_items_for_cart_line(line, locale)
+        .into_iter()
+        .map(|it| KitchenChit {
+            item: it.item,
+            qty: it.qty,
+            size_label: it.size_label,
+            modifiers: it.modifiers,
+            note: it.note,
+            table_label: table_label.clone(),
+            ticket_ref: ticket_ref.clone(),
+            at: at.clone(),
+            teller: teller.clone(),
+            combo: it.combo,
+        })
+        .collect()
 }
 
 /// Build a ONE-ITEM slip — the per-item print button. Still the same
@@ -2392,6 +2507,7 @@ pub fn slip_for_cart_line(
     teller: Option<String>,
     order_note: Option<String>,
     cart_kitchen_note: Option<String>,
+    locale: &str,
 ) -> KitchenSlip {
     KitchenSlip {
         table_label,
@@ -2399,7 +2515,7 @@ pub fn slip_for_cart_line(
         at,
         teller,
         top_notes: top_notes(order_note, cart_kitchen_note),
-        items: vec![slip_item_for_cart_line(line)],
+        items: slip_items_for_cart_line(line, locale),
     }
 }
 
@@ -2463,6 +2579,9 @@ pub fn kitchen_slip_layout(slip: &KitchenSlip, labels: &KitchenChitLabels, width
             bold: true,
             size: Size::Double,
         });
+        if let Some(c) = item.combo.as_deref().filter(|s| !s.trim().is_empty()) {
+            out.push(Line { text: format!("  » {}", c.trim()), align: Align::Left, bold: true, size: Size::Normal });
+        }
         for m in item.modifiers.iter().filter(|m| !m.trim().is_empty()) {
             out.push(Line::plain(format!("  - {}", m.trim())));
         }
@@ -2505,6 +2624,7 @@ pub fn slip_for_kitchen_chit(chit: &KitchenChit) -> KitchenSlip {
             size_label: chit.size_label.clone(),
             modifiers: chit.modifiers.clone(),
             note: chit.note.clone(),
+            combo: chit.combo.clone(),
         }],
     }
 }
@@ -2573,6 +2693,7 @@ mod kitchen_chit_tests {
             table_label: Some("T4".into()),
             ticket_ref: Some("T-0412".into()),
             at: "19:42".into(),
+            combo: None,
             teller: Some("Mona".into()),
         }
     }
@@ -2614,6 +2735,7 @@ mod kitchen_chit_tests {
             Some("Ken".into()),
             None,
             None,
+            "en",
         );
         let preview = kitchen_slip_preview(&built, &labels(), 32);
         let text = preview
@@ -2699,6 +2821,7 @@ mod kitchen_chit_tests {
             table_label: None,
             ticket_ref: None,
             at: "19:42".into(),
+            combo: None,
             teller: None,
         };
         let lines = kitchen_chit_layout(&bare, &labels(), 32);
@@ -2762,6 +2885,7 @@ mod kitchen_chit_tests {
             Some("Sara".into()),
             None,
             None,
+            "en",
         );
         assert_eq!(slip.items.len(), 1);
         let item = &slip.items[0];
@@ -2785,7 +2909,7 @@ mod kitchen_chit_tests {
     fn a_counter_cart_line_chit_has_no_table() {
         let mut line = cart_line();
         line.notes = None;
-        let slip = slip_for_cart_line(&line, None, None, "13:05".into(), None, None, None);
+        let slip = slip_for_cart_line(&line, None, None, "13:05".into(), None, None, None, "en");
         let joined = text_of(&kitchen_slip_layout(&slip, &labels(), 32)).join("\n");
         assert!(!joined.contains("Table"));
         assert!(!joined.contains("NOTE:"));
@@ -2806,6 +2930,7 @@ mod kitchen_chit_tests {
             Some("Sara".into()),
             Some("Birthday — bring the cake last".into()), // the ORDER note
             Some("rush this table".into()),                // the CART-level kitchen note
+            "en",
         );
         assert_eq!(
             slip.top_notes,

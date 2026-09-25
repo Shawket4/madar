@@ -13,7 +13,9 @@
 //! `take_deal_notices` (`deal.dropped`), toasted by the shell.
 //!
 //! Only plain lines take part (never a combo, a staff drink or a reward), and
-//! a deal covers the item price at its size: add-ons always pay.
+//! a deal covers the item price at its size: add-ons always pay. A deal rides
+//! a COUNTER sale only: a table's cart becomes a ticket's round, and the
+//! ticket API carries no deals (the same rule as a staff drink).
 
 use std::collections::HashMap;
 
@@ -233,7 +235,9 @@ pub(crate) fn suggest(
     when: &When<'_>,
     locale: &str,
 ) -> CoreResult<Vec<DealSuggestion>> {
-    if !when.pos_on || deals.is_empty() {
+    // A deal rides a counter sale only: a table's cart becomes a ticket's
+    // round, and a ticket carries no deal (as it carries no staff drink).
+    if !when.pos_on || ctx.is_some() || deals.is_empty() {
         return Ok(Vec::new());
     }
     let apps = load_apps(store, ctx);
@@ -278,7 +282,7 @@ pub(crate) fn apply(
         field: "deal".into(),
         detail: NOT_ELIGIBLE.into(),
     };
-    if !when.pos_on {
+    if !when.pos_on || ctx.is_some() {
         return Err(refuse());
     }
     let deal = deals.iter().find(|d| d.id == deal_id).ok_or_else(refuse)?;
@@ -337,7 +341,7 @@ pub(crate) fn settle(
     let mut dropped: Vec<String> = Vec::new();
     for a in apps {
         let ok = (|| {
-            if !when.pos_on {
+            if !when.pos_on || ctx.is_some() {
                 return None;
             }
             let deal = deals.iter().find(|d| d.id == a.deal_id)?;

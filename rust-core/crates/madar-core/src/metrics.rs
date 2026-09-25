@@ -417,6 +417,19 @@ fn sale_lines(conn: &Connection, okey: &str, row: &Value, catalog: &mut Catalog)
 fn wire_lines(conn: &Connection, wire: &[Value], redemptions: Option<&Value>, catalog: &mut Catalog) -> CoreResult<Option<Vec<Line>>> {
     let mut out = Vec::with_capacity(wire.len());
     for (idx, l) in wire.iter().enumerate() {
+        // A combo line counts as its items (C6): each pick at its share of
+        // the combo price plus its surcharge, as the server's part lines do.
+        if let Some(picks) = l.pointer("/combo/picks").and_then(Value::as_array) {
+            let n = i(l, "quantity").max(1);
+            for p in picks {
+                let Some(id) = s(p, "menu_item_id") else { return Ok(None) };
+                let Some((name, _)) = catalog.get(conn, id)? else { return Ok(None) };
+                let q = i(p, "quantity").max(1);
+                let revenue = n * (i(p, "share") + q * i(p, "surcharge"));
+                out.push(Line { item_id: Some(id.to_string()), item_name: name, quantity: q * n, revenue: revenue.max(0) });
+            }
+            continue;
+        }
         let Some(id) = s(l, "menu_item_id") else { return Ok(None) };
         let Some((name, base_price)) = catalog.get(conn, id)? else { return Ok(None) };
         let quantity = i(l, "quantity");

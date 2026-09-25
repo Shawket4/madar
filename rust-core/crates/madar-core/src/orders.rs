@@ -148,6 +148,32 @@ pub struct OrderDetailLineView {
     pub addons: Vec<String>,
     /// Optional-field labels.
     pub optionals: Vec<String>,
+    /// `"item"`, `"combo"` (a combo's header: its parts follow it, and its
+    /// total is theirs) or `"combo_part"` (one item of the combo above,
+    /// drawn indented).
+    pub kind: String,
+}
+
+/// A line's kind as the server stores it (`line_kind`); a line from an
+/// older server is an item.
+fn line_kind(it: &models::OrderItemFull) -> &str {
+    it.line_kind.as_deref().unwrap_or(crate::menu::KIND_ITEM)
+}
+
+/// What a line comes to with its add-on and optional rows (the header of a
+/// combo carries no money: its parts do).
+fn with_extras(it: &models::OrderItemFull) -> i64 {
+    it.line_total as i64
+        + it.addons.iter().map(|a| a.line_total as i64).sum::<i64>()
+        + it.optionals.iter().map(|o| o.price as i64 * it.quantity.max(1) as i64).sum::<i64>()
+}
+
+/// The parts of a combo header, in the order the server returns them.
+fn parts_of<'a>(o: &'a models::OrderFull, header: &models::OrderItemFull) -> Vec<&'a models::OrderItemFull> {
+    o.items
+        .iter()
+        .filter(|p| p.combo_line_id == Some(header.id))
+        .collect()
 }
 
 /// A fetched order with its lines — drives the history detail + reprint.
@@ -386,8 +412,18 @@ pub(crate) fn order_detail_view(o: &models::OrderFull, locale: &str) -> OrderDet
             .map(|it| OrderDetailLineView {
                 name: loc(&it.name_translations, &it.item_name, locale),
                 qty: it.quantity as i64,
-                size_label: it.size_label.clone().filter(|s| !s.is_empty()),
-                line_total_minor: it.line_total as i64,
+                size_label: it
+                    .size_label
+                    .clone()
+                    .filter(|s| !s.is_empty() && !crate::cart::is_one_size(s)),
+                kind: line_kind(it).to_string(),
+                // A combo's header shows what its parts come to; a line in a
+                // deal shows its normal price (the deal is its own figure).
+                line_total_minor: if line_kind(it) == crate::menu::KIND_COMBO {
+                    parts_of(o, it).iter().map(|p| with_extras(p)).sum()
+                } else {
+                    it.line_total as i64 + it.deal_minor.unwrap_or(0).max(0) as i64
+                },
                 addons: it
                     .addons
                     .iter()
@@ -400,6 +436,61 @@ pub(crate) fn order_detail_view(o: &models::OrderFull, locale: &str) -> OrderDet
                     .collect(),
             })
             .collect(),
+    }
+}
+
+/// A combo header and its parts as one receipt line (C12): `n × <name> ……
+/// n×P`, then each part with its size, its surcharge and its add-ons — the
+/// same layout the till printed when it sold it.
+fn combo_receipt_line(
+    o: &models::OrderFull,
+    header: &models::OrderItemFull,
+    locale: &str,
+) -> crate::checkout::ReceiptLineView {
+    use crate::checkout::{ReceiptLineView, ReceiptModifierView, ReceiptPartView};
+    let parts = parts_of(o, header);
+    ReceiptLineView {
+        name: loc(&header.name_translations, &header.item_name, locale),
+        qty: header.quantity as i64,
+        size_label: None,
+        line_total_minor: parts.iter().map(|p| with_extras(p)).sum(),
+        reward_label: None,
+        staff_label: None,
+        staff_comp_minor: 0,
+        addons: vec![],
+        optionals: vec![],
+        kind: crate::menu::KIND_COMBO.to_string(),
+        unit_price_minor: header.combo_unit_price.unwrap_or(0) as i64,
+        parts: parts
+            .iter()
+            .map(|p| ReceiptPartView {
+                name: loc(&p.name_translations, &p.item_name, locale),
+                qty: p.quantity as i64,
+                size_label: p
+                    .size_label
+                    .clone()
+                    .filter(|s| !s.is_empty() && !crate::cart::is_one_size(s)),
+                slot_name: p.combo_slot_name.clone().filter(|s| !s.is_empty()),
+                surcharge_minor: p.combo_surcharge.unwrap_or(0) as i64,
+                addons: p
+                    .addons
+                    .iter()
+                    .map(|a| ReceiptModifierView {
+                        name: addon_label(&a.addon_name, &a.name_translations, a.quantity, locale),
+                        price_minor: a.line_total as i64,
+                    })
+                    .collect(),
+                optionals: p
+                    .optionals
+                    .iter()
+                    .map(|op| ReceiptModifierView {
+                        name: loc(&op.name_translations, &op.field_name, locale),
+                        price_minor: op.price as i64 * p.quantity.max(1) as i64,
+                    })
+                    .collect(),
+            })
+            .collect(),
+        deal_minor: 0,
     }
 }
 
@@ -416,7 +507,12 @@ pub(crate) fn order_to_receipt(
     let lines = o
         .items
         .iter()
+        // A combo's parts print under its header, not as lines of their own.
+        .filter(|it| line_kind(it) != "combo_part")
         .map(|it| {
+            if line_kind(it) == crate::menu::KIND_COMBO {
+                return combo_receipt_line(o, it, locale);
+            }
             let addons = it
                 .addons
                 .iter()
@@ -455,7 +551,17 @@ pub(crate) fn order_to_receipt(
                 }),
                 addons,
                 optionals,
+                kind: crate::menu::KIND_ITEM.to_string(),
+                unit_price_minor: it.unit_price as i64,
+                parts: vec![],
+                deal_minor: it.deal_minor.unwrap_or(0).max(0) as i64,
             }
+        })
+        .map(|mut l| {
+            // The stored figure is net of the deal; the receipt prints the
+            // normal price and the deal as its own row under the subtotal.
+            l.line_total_minor += l.deal_minor;
+            l
         })
         .collect();
 
@@ -544,6 +650,15 @@ pub(crate) fn order_to_receipt(
         created_at: o.created_at.to_rfc3339(),
         // Only a SPLIT lists its legs; one leg is the payment line already.
         staff_notice: None,
+        deals: o
+            .deals
+            .iter()
+            .flatten()
+            .map(|d| crate::checkout::ReceiptDealView {
+                name: loc(&d.name_translations, &d.name, locale),
+                discount_minor: d.discount as i64,
+            })
+            .collect(),
         loyalty_notice: o
             .loyalty_redemption_refused
             .clone()

@@ -3926,11 +3926,14 @@ impl MadarCore {
         let teller = self.current_session().map(|s| s.display_name).filter(|n| !n.trim().is_empty());
         let order_note = cart::note(&self.store, table_id)?;
         let cart_kitchen_note = cart::kitchen_note(&self.store, table_id)?;
-        let slip = receipt::slip_for_cart_line(line, table_label, ticket_ref, at, teller, order_note, cart_kitchen_note);
+        let slip = receipt::slip_for_cart_line(line, table_label, ticket_ref, at, teller, order_note, cart_kitchen_note, &loc);
 
+        // A combo's chit goes where its first item goes (each item routes to
+        // its own station when the round fires; this is the early copy).
+        let routed_item = line.parts.first().map(|p| p.item_id.clone()).unwrap_or_else(|| line.item_id.clone());
         let category_id = menu::menu_items(&self.store, &loc)
             .ok()
-            .and_then(|items| items.into_iter().find(|i| i.id == line.item_id))
+            .and_then(|items| items.into_iter().find(|i| i.id == routed_item))
             .and_then(|i| i.category_id);
         let stations: Vec<kds::KdsStationView> = self
             .branch_field::<Vec<madar_api::models::KitchenStation>>(branch_reads::F_STATIONS)
@@ -3945,7 +3948,7 @@ impl MadarCore {
             .ok()
             .and_then(|s| s.value())
             .unwrap_or_else(|| madar_api::models::StationRoutes { categories: vec![], items: vec![] });
-        let target = kds::resolve_chit_printer(&line.item_id, category_id.as_deref(), &routes, &stations);
+        let target = kds::resolve_chit_printer(&routed_item, category_id.as_deref(), &routes, &stations);
 
         let brand = match target.brand.as_deref() {
             Some("star") if !target.is_till() => receipt::PrinterBrand::Star,
@@ -3992,7 +3995,7 @@ impl MadarCore {
             at,
             teller,
             top_notes: receipt::top_notes(order_note.clone(), cart_note.clone()),
-            items: lines.iter().map(receipt::slip_item_for_cart_line).collect(),
+            items: lines.iter().flat_map(|l| receipt::slip_items_for_cart_line(l, &loc)).collect(),
         };
         let labels = self.kitchen_chit_labels();
         let preview = receipt::kitchen_slip_preview(&slip, &labels, width);

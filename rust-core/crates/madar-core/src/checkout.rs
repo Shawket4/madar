@@ -172,6 +172,44 @@ pub struct ReceiptLineView {
     pub staff_comp_minor: i64,
     pub addons: Vec<ReceiptModifierView>,
     pub optionals: Vec<ReceiptModifierView>,
+    /// `"item"` or `"combo"` (COMBOS_CONTRACT §3.3, C12). A combo prints
+    /// `n × <name> …… n×P`, then its parts indented.
+    pub kind: String,
+    /// One unit's price before its extras: a combo's P, an item's size price.
+    pub unit_price_minor: i64,
+    /// A combo's items, in slot order (empty for an item).
+    pub parts: Vec<ReceiptPartView>,
+    /// What a deal took off this line; `line_total_minor` stays the NORMAL
+    /// price and the deal prints as its own row under the subtotal.
+    pub deal_minor: i64,
+}
+
+/// One item of a combo on the receipt, printed indented under the combo:
+/// its name and size, `+surcharge` when the pick cost more (a bigger size, a
+/// premium choice), and its add-ons indented once more. Every figure is for
+/// the WHOLE line (all its combo units), so the rows add up on paper.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct ReceiptPartView {
+    pub name: String,
+    /// Units of the item on the whole line.
+    pub qty: i64,
+    pub size_label: Option<String>,
+    pub slot_name: Option<String>,
+    pub surcharge_minor: i64,
+    pub addons: Vec<ReceiptModifierView>,
+    pub optionals: Vec<ReceiptModifierView>,
+}
+
+/// A deal on the receipt: printed as `<deal name> −discount` under the
+/// subtotal (C8). The lines above print at their normal prices.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct ReceiptDealView {
+    pub name: String,
+    pub discount_minor: i64,
 }
 
 /// The order confirmation / receipt summary.
@@ -259,6 +297,18 @@ pub struct ReceiptView {
     /// this server does not support free staff drinks yet. Shown on the done
     /// card; never printed.
     pub staff_notice: Option<String>,
+    /// The deals applied on the order, printed under the subtotal. The
+    /// subtotal (`subtotal_minor`) is NET of them, as the server stores it;
+    /// a renderer prints the lines' sum above them.
+    pub deals: Vec<ReceiptDealView>,
+}
+
+impl ReceiptView {
+    /// The lines at their normal prices: the subtotal plus what the deals
+    /// took off (the row the deal rows print under).
+    pub fn gross_subtotal_minor(&self) -> i64 {
+        self.subtotal_minor + self.deals.iter().map(|d| d.discount_minor).sum::<i64>()
+    }
 }
 
 /// One tender on a split receipt: the method as the customer reads it, and
@@ -496,6 +546,9 @@ pub(crate) fn lines_to_wire_items(lines: &[cart::CartLineView]) -> Vec<models::O
     lines
         .iter()
         .map(|l| {
+            if l.kind == crate::menu::KIND_COMBO {
+                return combo_wire_item(l);
+            }
             // Addons carry their CHARGED unit price (swap delta / extra) verbatim.
             let addons = component_addons(&l.addons);
             let optional_ids: Vec<uuid::Uuid> = l
@@ -694,6 +747,7 @@ pub(crate) fn prepare(
     // inside the persisted outbox payload, so a replay after a lost response —
     // even months later — dedups against `orders.idempotency_key` server-side.
     request.idempotency_key = Some(Some(order_id));
+    request.deals = wire_deals(store, ctx)?;
     request.subtotal = Some(Some(priced.subtotal_minor as i32));
     request.tax_amount = Some(Some(priced.tax_minor as i32));
     request.total_amount = Some(Some(priced.total_minor as i32));
@@ -872,6 +926,10 @@ pub(crate) fn prepare(
         created_at: now_rfc3339.clone(),
         loyalty_notice: None,
         staff_notice: None,
+        deals: crate::deals::load_apps(store, ctx)
+            .into_iter()
+            .map(|a| ReceiptDealView { name: a.name, discount_minor: a.discount })
+            .collect(),
         payments: input
             .splits
             .iter()
@@ -964,6 +1022,42 @@ fn receipt_line_from_cart(l: &cart::CartLineView) -> ReceiptLineView {
             price_minor: o.price_minor,
         })
         .collect();
+    let parts = l
+        .parts
+        .iter()
+        .map(|p| {
+            // Whole-line figures: a pick's units on the line are its count
+            // per combo times the combos.
+            let times = p.qty.max(1) * l.qty.max(1);
+            ReceiptPartView {
+                name: p.item_name.clone(),
+                qty: times,
+                size_label: p.size_label.clone().filter(|s| !s.is_empty()),
+                slot_name: Some(p.slot_name.clone()).filter(|s| !s.is_empty()),
+                surcharge_minor: p.surcharge_minor * times,
+                addons: p
+                    .addons
+                    .iter()
+                    .map(|a| ReceiptModifierView {
+                        name: if a.qty > 1 {
+                            format!("{} ×{}", a.name, a.qty)
+                        } else {
+                            a.name.clone()
+                        },
+                        price_minor: a.price_modifier_minor * a.qty.max(1) * times,
+                    })
+                    .collect(),
+                optionals: p
+                    .optionals
+                    .iter()
+                    .map(|o| ReceiptModifierView {
+                        name: o.name.clone(),
+                        price_minor: o.price_minor * times,
+                    })
+                    .collect(),
+            }
+        })
+        .collect();
     ReceiptLineView {
         name: l.name.clone(),
         qty: l.qty,
@@ -974,7 +1068,76 @@ fn receipt_line_from_cart(l: &cart::CartLineView) -> ReceiptLineView {
         staff_comp_minor: 0,
         addons,
         optionals,
+        kind: l.kind.clone(),
+        unit_price_minor: l.unit_price_minor,
+        parts,
+        deal_minor: l.deal_cut_minor,
     }
+}
+
+/// A combo line on the wire (COMBOS_CONTRACT §3.1): the combo's id at its
+/// price P as charged, and its picks — each with its size (explicit, so the
+/// server prices the same part), its add-ons at their charged prices, and
+/// the replay figures `share` and `surcharge` per combo unit. Live, the
+/// server prices every part itself and ignores the figures; on replay it
+/// keeps them and flags a difference (`menu.combos:price_mismatch`).
+fn combo_wire_item(l: &cart::CartLineView) -> models::OrderItemInput {
+    let mut item = models::OrderItemInput::new(l.qty as i32);
+    item.menu_item_id = uuid::Uuid::parse_str(&l.item_id).ok().map(Some);
+    item.unit_price = Some(Some(l.unit_price_minor as i32));
+    let picks = l
+        .parts
+        .iter()
+        .filter_map(|p| {
+            let item_id = uuid::Uuid::parse_str(&p.item_id).ok()?;
+            let slot_id = uuid::Uuid::parse_str(&p.slot_id).ok()?;
+            let mut pick = models::ComboPickInput::new(item_id, slot_id);
+            pick.quantity = Some(p.qty as i32);
+            pick.size_label = Some(p.size_label.clone());
+            let addons = component_addons(&p.addons);
+            if !addons.is_empty() {
+                pick.addons = Some(addons);
+            }
+            let optional_ids: Vec<uuid::Uuid> = p
+                .optionals
+                .iter()
+                .filter_map(|o| uuid::Uuid::parse_str(&o.optional_field_id).ok())
+                .collect();
+            if !optional_ids.is_empty() {
+                pick.optional_field_ids = Some(optional_ids);
+            }
+            pick.notes = p.notes.clone().map(Some);
+            pick.share = Some(Some(p.share_minor as i32));
+            pick.surcharge = Some(Some(p.surcharge_minor as i32));
+            Some(pick)
+        })
+        .collect();
+    item.combo = Some(Some(Box::new(models::ComboInput::new(picks))));
+    item
+}
+
+/// The applied deals as the order carries them (§3.1): by line index, with
+/// the till's discount (kept on replay).
+fn wire_deals(store: &Store, ctx: cart::Ctx<'_>) -> CoreResult<Option<Vec<models::DealApplicationInput>>> {
+    let apps = crate::deals::wire_apps(store, ctx)?;
+    if apps.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(
+        apps.into_iter()
+            .filter_map(|a| {
+                let id = uuid::Uuid::parse_str(&a.deal_rule_id).ok()?;
+                let lines = a
+                    .lines
+                    .iter()
+                    .map(|l| models::DealLineInput::new(l.line_index as i32, l.units as i32))
+                    .collect();
+                let mut d = models::DealApplicationInput::new(id, lines, a.times as i32);
+                d.discount = Some(Some(a.discount as i32));
+                Some(d)
+            })
+            .collect(),
+    ))
 }
 
 /// Wire `AddonInput`s from cart addons — the CHARGED unit price recorded
