@@ -150,18 +150,13 @@ class ShiftsTab extends ConsumerWidget {
     context,
     title: tr('staff.swap_this_shift'),
     builder: (ctx, ref, store) {
-      final options =
-          store.shifts
-              .where(
-                (s) =>
-                    s.emp != null &&
-                    s.emp != store.me &&
-                    s.template.branch == mine.template.branch &&
-                    store.isPublished(s) &&
-                    s.startAt.isAfter(store.now),
-              )
-              .toList()
-            ..sort((a, b) => a.startAt.compareTo(b.startAt));
+      final days = swapChoices(
+        store.shifts,
+        mine,
+        me: store.me!,
+        now: store.now,
+        published: store.isPublished,
+      );
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.md,
@@ -180,25 +175,31 @@ class ShiftsTab extends ConsumerWidget {
             ],
           ),
           const OfflineNotice(),
-          DawamSection(
-            tr('staff.swap_with'),
-            children: [
-              for (final s in options.take(12))
-                MadarListRow.nav(
-                  title: name(store.emp(s.emp!)),
-                  meta: '${dayLabel(s.date)} · ${tplName(s.template)}',
-                  onTap: () async {
-                    // MY shift first, the colleague's second (06 B2).
-                    final sent = await attempt(
-                      ref,
-                      () => store.askSwap(mine, s),
-                      ok: tr('staff.asked', {'name': name(store.emp(s.emp!))}),
-                    );
-                    if (sent && ctx.mounted) Navigator.of(ctx).maybePop();
-                  },
-                ),
-            ],
-          ),
+          MadarSectionHeader(text: tr('staff.swap_with')),
+          if (days.isEmpty)
+            Text(tr('staff.no_shifts_to_swap'), style: MadarType.body),
+          for (final (day, shifts) in days)
+            DawamSection(
+              dayLabel(day),
+              children: [
+                for (final s in shifts)
+                  MadarListRow.nav(
+                    title: name(store.emp(s.emp!)),
+                    meta: '${tplName(s.template)} · ${shiftWindow(s)}',
+                    onTap: () async {
+                      // MY shift first, the colleague's second (06 B2).
+                      final sent = await attempt(
+                        ref,
+                        () => store.askSwap(mine, s),
+                        ok: tr('staff.asked', {
+                          'name': name(store.emp(s.emp!)),
+                        }),
+                      );
+                      if (sent && ctx.mounted) Navigator.of(ctx).maybePop();
+                    },
+                  ),
+              ],
+            ),
           Text(
             tr('staff.your_colleague_agrees_first_then_your'),
             style: MadarType.bodySm.copyWith(color: ctx.madarColors.textMuted),
@@ -384,4 +385,33 @@ class _MySwap extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// The colleagues' shifts I can ask to swap mine for: every one at my
+/// shift's branch in a published week that hasn't started, grouped by day,
+/// each day in start order (minor #19: every one, not the 12 soonest).
+List<(DateTime, List<Shift>)> swapChoices(
+  Iterable<Shift> shifts,
+  Shift mine, {
+  required String me,
+  required DateTime now,
+  required bool Function(Shift) published,
+}) {
+  final byDay = <DateTime, List<Shift>>{};
+  final picked =
+      shifts
+          .where(
+            (s) =>
+                s.emp != null &&
+                s.emp != me &&
+                s.template.branch == mine.template.branch &&
+                published(s) &&
+                s.startAt.isAfter(now),
+          )
+          .toList()
+        ..sort((a, b) => a.startAt.compareTo(b.startAt));
+  for (final s in picked) {
+    byDay.putIfAbsent(dateOnly(s.date), () => []).add(s);
+  }
+  return [for (final e in byDay.entries) (e.key, e.value)];
 }
