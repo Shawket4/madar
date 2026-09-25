@@ -391,10 +391,6 @@ void main() {
     final c = _container(bridge);
     final order = c.read(orderProvider.notifier);
     expect(await order.tryLoadItemModifierGroups('latte'), isNull);
-    expect(
-      c.read(orderProvider).toast,
-      isNotNull,
-      reason: 'the teller is told',
-    );
+    expect(c.read(appToastProvider), isNotNull, reason: 'the teller is told');
   });
 }

@@ -8,30 +8,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// State of the receipt preview sheet — the print-in-flight flag, the
-/// core-cached org logo path, and the local toast feedback.
+/// State of the receipt preview sheet — the print-in-flight flag and the
+/// core-cached org logo path. How the print went is said through the app's
+/// one toast, so it is seen even if the sheet closed before the printer
+/// answered.
 @immutable
 class ReceiptPreviewState {
-  const ReceiptPreviewState({
-    this.printing = false,
-    this.orgLogoPath,
-    this.toast,
-  });
+  const ReceiptPreviewState({this.printing = false, this.orgLogoPath});
 
   final bool printing;
   final String? orgLogoPath;
-  final ToastData? toast;
 
-  ReceiptPreviewState copyWith({
-    bool? printing,
-    String? orgLogoPath,
-    ToastData? toast,
-    bool clearToast = false,
-  }) {
+  ReceiptPreviewState copyWith({bool? printing, String? orgLogoPath}) {
     return ReceiptPreviewState(
       printing: printing ?? this.printing,
       orgLogoPath: orgLogoPath ?? this.orgLogoPath,
-      toast: clearToast ? null : (toast ?? this.toast),
     );
   }
 }
@@ -42,7 +33,6 @@ class ReceiptPreviewState {
 /// this is a preview / reprint surface, the natives' printReceiptView).
 class ReceiptPreviewNotifier extends Notifier<ReceiptPreviewState> {
   bool _live = false;
-  int _toastSeq = 0;
 
   @override
   ReceiptPreviewState build() {
@@ -62,21 +52,6 @@ class ReceiptPreviewNotifier extends Notifier<ReceiptPreviewState> {
     if (_live) state = transform(state);
   }
 
-  void _toast(String text, {required ChipTone tone, String? icon}) {
-    _toastSeq += 1;
-    _update(
-      (s) => s.copyWith(
-        toast: ToastData(id: _toastSeq, text: text, tone: tone, icon: icon),
-      ),
-    );
-  }
-
-  /// Auto-dismiss callback for `ToastHost`.
-  void dismissToast(int id) {
-    if (state.toast?.id != id) return;
-    _update((s) => s.copyWith(clearToast: true));
-  }
-
   /// Print [receipt] through the one shared print path ([printReceiptView]:
   /// same width, brand, timeout and failure handling as the Charge's
   /// auto-print), then say how it went. No drawer kick — this is a preview /
@@ -85,6 +60,7 @@ class ReceiptPreviewNotifier extends Notifier<ReceiptPreviewState> {
     if (state.printing) return;
     final bridge = _bridge;
     String tr(String key) => bridge.tr(key: key);
+    final toasts = ref.read(appToastProvider.notifier);
     _update((s) => s.copyWith(printing: true));
     final result = await printReceiptView(
       bridge,
@@ -94,19 +70,19 @@ class ReceiptPreviewNotifier extends Notifier<ReceiptPreviewState> {
     );
     switch (result) {
       case PrintState.noPrinter:
-        _toast(
+        toasts.show(
           tr('receipt.no_printer'),
           tone: ChipTone.warning,
           icon: 'exclamationmark.triangle',
         );
       case PrintState.printed:
-        _toast(
+        toasts.show(
           tr('receipt.printed'),
           tone: ChipTone.success,
           icon: 'checkmark.circle',
         );
       case PrintState.failed || PrintState.idle || PrintState.printing:
-        _toast(
+        toasts.show(
           tr('receipt.print_failed'),
           tone: ChipTone.danger,
           icon: 'xmark.circle',
@@ -156,8 +132,6 @@ class ReceiptSheet extends ConsumerWidget {
       printing: preview.printing,
       onPrint: () =>
           unawaited(ref.read(receiptPreviewProvider.notifier).print(receipt)),
-      toast: preview.toast,
-      onDismissToast: ref.read(receiptPreviewProvider.notifier).dismissToast,
       paper: Column(
         children: [
           // One-shot settle celebration — just-paid presentations
@@ -182,8 +156,9 @@ class ReceiptSheet extends ConsumerWidget {
 }
 
 /// The print preview sheet's frame — sticky title + close, the scrolling
-/// paper, pinned Print + Done, and a local toast layer. Shared by every
-/// print preview (a receipt, a kitchen chit) so they cannot drift apart.
+/// paper, pinned Print + Done. Shared by every print preview (a receipt, a
+/// kitchen chit) so they cannot drift apart. Print feedback is the app's one
+/// toast, drawn above the sheet.
 class PrintPreviewFrame extends ConsumerWidget {
   const PrintPreviewFrame({
     required this.title,
@@ -191,8 +166,6 @@ class PrintPreviewFrame extends ConsumerWidget {
     required this.printing,
     required this.onPrint,
     required this.paper,
-    required this.toast,
-    required this.onDismissToast,
     super.key,
   });
 
@@ -201,100 +174,91 @@ class PrintPreviewFrame extends ConsumerWidget {
   final bool printing;
   final VoidCallback onPrint;
   final Widget paper;
-  final ToastData? toast;
-  final ValueChanged<int> onDismissToast;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     String tr(String key) => ref.bridge.tr(key: key);
-    return Stack(
+    return Column(
       children: [
-        Column(
-          children: [
-            // Sticky header — title + close (natives' preview header).
-            Padding(
-              padding: const EdgeInsetsDirectional.symmetric(
-                horizontal: Space.lg,
-                vertical: Space.md,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: MadarType.h3.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: colors.textPrimary,
-                      ),
-                    ),
+        // Sticky header — title + close (natives' preview header).
+        Padding(
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Space.lg,
+            vertical: Space.md,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: MadarType.h3.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: colors.textPrimary,
                   ),
-                  TactileScale(
-                    onTap: () => Navigator.of(context).maybePop(),
-                    child: Container(
-                      width: Metrics.closeButton,
-                      height: Metrics.closeButton,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: colors.surfaceAlt,
-                        shape: BoxShape.circle,
-                      ),
-                      child: MadarIcon(
-                        'xmark',
-                        tint: colors.textMuted,
-                        size: IconSize.sm,
-                      ),
-                    ),
+                ),
+              ),
+              TactileScale(
+                onTap: () => Navigator.of(context).maybePop(),
+                child: Container(
+                  width: Metrics.closeButton,
+                  height: Metrics.closeButton,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: colors.surfaceAlt,
+                    shape: BoxShape.circle,
                   ),
-                ],
-              ),
-            ),
-            const MadarHairline(),
-            // Scrolling paper — centered like the natives' preview.
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsetsDirectional.all(Space.lg),
-                child: paper,
-              ),
-            ),
-            // Pinned actions — Print + Done.
-            ColoredBox(
-              color: colors.surface,
-              child: Column(
-                children: [
-                  const MadarHairline(),
-                  Padding(
-                    padding: const EdgeInsetsDirectional.all(Space.lg),
-                    child: Row(
-                      spacing: Space.sm,
-                      children: [
-                        Expanded(
-                          child: MadarButton(
-                            label: printLabel,
-                            icon: 'printer',
-                            variant: MadarButtonVariant.outline,
-                            loading: printing,
-                            onTap: onPrint,
-                          ),
-                        ),
-                        Expanded(
-                          child: MadarButton(
-                            label: tr('order.done'),
-                            icon: 'checkmark',
-                            onTap: () => Navigator.of(context).maybePop(),
-                          ),
-                        ),
-                      ],
-                    ),
+                  child: MadarIcon(
+                    'xmark',
+                    tint: colors.textMuted,
+                    size: IconSize.sm,
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        // Local toast layer — the sheet floats above the screen's host, so
-        // print feedback presents inside the sheet itself.
-        ToastHost(toast, onDismiss: onDismissToast),
+        const MadarHairline(),
+        // Scrolling paper — centered like the natives' preview.
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsetsDirectional.all(Space.lg),
+            child: paper,
+          ),
+        ),
+        // Pinned actions — Print + Done.
+        ColoredBox(
+          color: colors.surface,
+          child: Column(
+            children: [
+              const MadarHairline(),
+              Padding(
+                padding: const EdgeInsetsDirectional.all(Space.lg),
+                child: Row(
+                  spacing: Space.sm,
+                  children: [
+                    Expanded(
+                      child: MadarButton(
+                        label: printLabel,
+                        icon: 'printer',
+                        variant: MadarButtonVariant.outline,
+                        loading: printing,
+                        onTap: onPrint,
+                      ),
+                    ),
+                    Expanded(
+                      child: MadarButton(
+                        label: tr('order.done'),
+                        icon: 'checkmark',
+                        onTap: () => Navigator.of(context).maybePop(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }

@@ -26,9 +26,9 @@ import 'package:feature_checkout/feature_checkout.dart'
         buildCartKitchenChit,
         buildCartLineChit,
         cartDiscountLabel,
-        chitPrintToast,
         discountLabel,
         printCartKitchenChit,
+        sayChitPrint,
         showCartDiscountPicker;
 import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/floor_list.dart';
@@ -823,10 +823,11 @@ Future<void> _previewRowChit(
       ticketRef: ticketRef,
     );
   } on Object {
-    final toast = chitPrintToast(bridge, PrintState.failed);
-    ref
-        .read(orderProvider.notifier)
-        .showToast(toast.text, tone: toast.tone, icon: toast.icon);
+    sayChitPrint(
+      ref.read(appToastProvider.notifier),
+      bridge,
+      PrintState.failed,
+    );
     return;
   }
   if (!context.mounted) return;
@@ -1615,10 +1616,7 @@ Future<void> _printWholeCartToKitchen(
     result = PrintState.failed;
   }
   if (!context.mounted) return;
-  final toast = chitPrintToast(bridge, result);
-  ref
-      .read(orderProvider.notifier)
-      .showToast(toast.text, tone: toast.tone, icon: toast.icon);
+  sayChitPrint(ref.read(appToastProvider.notifier), bridge, result);
 }
 
 /// Long press: build the whole-cart chit in the core and show it on the
@@ -1641,10 +1639,11 @@ Future<void> _previewWholeCartKitchenChit(
       ticketRef: ticketRef,
     );
   } on Object {
-    final toast = chitPrintToast(bridge, PrintState.failed);
-    ref
-        .read(orderProvider.notifier)
-        .showToast(toast.text, tone: toast.tone, icon: toast.icon);
+    sayChitPrint(
+      ref.read(appToastProvider.notifier),
+      bridge,
+      PrintState.failed,
+    );
     return;
   }
   if (!context.mounted) return;

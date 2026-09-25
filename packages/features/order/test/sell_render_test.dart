@@ -98,7 +98,7 @@ void main() {
         reason: 'the Sell tab never becomes the table',
       );
       expect(bridge.carts[null], isEmpty, reason: 'the lines left takeaway');
-      expect(c.read(orderProvider).toast?.text, 'Held on T6');
+      expect(c.read(appToastProvider)?.text, 'Held on T6');
     });
 
     testWidgets('a parked order moves to the table, and says so', (
@@ -113,7 +113,7 @@ void main() {
       );
       await assignVia(tester, 'd1');
       expect(bridge.assigned, ['t6']);
-      expect(c.read(orderProvider).toast?.text, 'Held on T6');
+      expect(c.read(appToastProvider)?.text, 'Held on T6');
       await tester.pump(const Duration(seconds: 5));
     });
   });
@@ -140,7 +140,7 @@ void main() {
       expect(bridge.chitsBuilt, ['k-espresso'], reason: 'just that line');
       expect(bridge.chitsSent.map((s) => s.$1), ['10.0.0.5']);
       expect(find.byType(KitchenChitSheet), findsNothing);
-      expect(c.read(orderProvider).toast?.text, coreWord('printing.chit_sent'));
+      expect(c.read(appToastProvider)?.text, coreWord('printing.chit_sent'));
       expect(bridge.carts[null]!.map((l) => l.key), [
         'k-espresso',
         'k-flat',

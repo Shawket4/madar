@@ -8,14 +8,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// State of the kitchen chit preview — the print-in-flight flag and the
-/// sheet's own toast.
+/// State of the kitchen chit preview — the print-in-flight flag. How the
+/// print went is said through the app's one toast ([sayChitPrint]), so it is
+/// seen even when the sheet has closed by the time the printer answers.
 @immutable
 class ChitPreviewState {
-  const ChitPreviewState({this.printing = false, this.toast});
+  const ChitPreviewState({this.printing = false});
 
   final bool printing;
-  final ToastData? toast;
 }
 
 /// The chit preview's state holder — autoDispose, one per presented sheet.
@@ -23,7 +23,6 @@ class ChitPreviewState {
 /// tap, then says how it went.
 class ChitPreviewNotifier extends Notifier<ChitPreviewState> {
   bool _live = false;
-  int _toastSeq = 0;
 
   @override
   ChitPreviewState build() {
@@ -36,12 +35,6 @@ class ChitPreviewNotifier extends Notifier<ChitPreviewState> {
     if (_live) state = s;
   }
 
-  /// Auto-dismiss callback for `ToastHost`.
-  void dismissToast(int id) {
-    if (state.toast?.id != id) return;
-    _set(ChitPreviewState(printing: state.printing));
-  }
-
   /// [tableId] and [lineKey] are only needed to clear that line's kitchen
   /// note once it actually prints — the print itself needs neither.
   Future<void> print(
@@ -51,7 +44,8 @@ class ChitPreviewNotifier extends Notifier<ChitPreviewState> {
   }) async {
     if (state.printing) return;
     final bridge = ref.read(bridgeProvider);
-    _set(ChitPreviewState(printing: true, toast: state.toast));
+    final toasts = ref.read(appToastProvider.notifier);
+    _set(const ChitPreviewState(printing: true));
     final result = await printCartLineChit(
       bridge,
       ref.read(printerServiceProvider),
@@ -60,10 +54,8 @@ class ChitPreviewNotifier extends Notifier<ChitPreviewState> {
     if (result == PrintState.printed && lineKey != null) {
       await bridge.cartClearLineKitchenNote(tableId: tableId, lineKey: lineKey);
     }
-    _toastSeq += 1;
-    _set(
-      ChitPreviewState(toast: chitPrintToast(bridge, result, id: _toastSeq)),
-    );
+    _set(const ChitPreviewState());
+    sayChitPrint(toasts, bridge, result);
   }
 }
 
@@ -71,30 +63,35 @@ class ChitPreviewNotifier extends Notifier<ChitPreviewState> {
 final NotifierProvider<ChitPreviewNotifier, ChitPreviewState>
 chitPreviewProvider = NotifierProvider.autoDispose(ChitPreviewNotifier.new);
 
-/// The toast a chit print answers with — shared by the cart line's tap and
-/// the preview sheet, so the two say the same thing.
-ToastData chitPrintToast(MadarBridge bridge, PrintState result, {int id = 0}) {
+/// Say how a chit print went, through the app's one toast — shared by the
+/// cart line's tap, the cart's chit and the preview sheets, so they all say
+/// the same thing.
+void sayChitPrint(
+  AppToastNotifier toasts,
+  MadarBridge bridge,
+  PrintState result,
+) {
   String tr(String key) => bridge.tr(key: key);
-  return switch (result) {
-    PrintState.printed => ToastData(
-      id: id,
-      text: tr('printing.chit_sent'),
-      tone: ChipTone.success,
-      icon: 'printer',
-    ),
-    PrintState.noPrinter => ToastData(
-      id: id,
-      text: tr('printing.no_printer'),
-      tone: ChipTone.warning,
-      icon: 'printer',
-    ),
-    PrintState.failed || PrintState.idle || PrintState.printing => ToastData(
-      id: id,
-      text: tr('printing.failed'),
-      tone: ChipTone.danger,
-      icon: 'xmark.circle',
-    ),
-  };
+  switch (result) {
+    case PrintState.printed:
+      toasts.show(
+        tr('printing.chit_sent'),
+        tone: ChipTone.success,
+        icon: 'printer',
+      );
+    case PrintState.noPrinter:
+      toasts.show(
+        tr('printing.no_printer'),
+        tone: ChipTone.warning,
+        icon: 'printer',
+      );
+    case PrintState.failed || PrintState.idle || PrintState.printing:
+      toasts.show(
+        tr('printing.failed'),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+  }
 }
 
 /// Preview of one cart line's kitchen chit with Print + Done — the same
@@ -124,8 +121,6 @@ class KitchenChitSheet extends ConsumerWidget {
       printing: preview.printing,
       onPrint: () =>
           unawaited(notifier.print(chit, tableId: tableId, lineKey: lineKey)),
-      toast: preview.toast,
-      onDismissToast: notifier.dismissToast,
       paper: Center(child: KitchenChitPaper(lines: chit.preview)),
     );
   }
@@ -134,10 +129,9 @@ class KitchenChitSheet extends ConsumerWidget {
 /// State of the whole-cart kitchen chit preview — mirrors [ChitPreviewState].
 @immutable
 class CartChitPreviewState {
-  const CartChitPreviewState({this.printing = false, this.toast});
+  const CartChitPreviewState({this.printing = false});
 
   final bool printing;
-  final ToastData? toast;
 }
 
 /// The whole-cart chit preview's state holder. [print] goes through
@@ -145,7 +139,6 @@ class CartChitPreviewState {
 /// every printed line's own note — exactly what the cart-level tap does.
 class CartChitPreviewNotifier extends Notifier<CartChitPreviewState> {
   bool _live = false;
-  int _toastSeq = 0;
 
   @override
   CartChitPreviewState build() {
@@ -158,15 +151,11 @@ class CartChitPreviewNotifier extends Notifier<CartChitPreviewState> {
     if (_live) state = s;
   }
 
-  void dismissToast(int id) {
-    if (state.toast?.id != id) return;
-    _set(CartChitPreviewState(printing: state.printing));
-  }
-
   Future<void> print(CartKitchenChit chit, {String? tableId}) async {
     if (state.printing) return;
     final bridge = ref.read(bridgeProvider);
-    _set(CartChitPreviewState(printing: true, toast: state.toast));
+    final toasts = ref.read(appToastProvider.notifier);
+    _set(const CartChitPreviewState(printing: true));
     final result = await printCartKitchenChit(
       ref.read(printerServiceProvider),
       chit,
@@ -177,12 +166,8 @@ class CartChitPreviewNotifier extends Notifier<CartChitPreviewState> {
     if (result == PrintState.printed) {
       await bridge.cartClearAllKitchenNotes(tableId: tableId);
     }
-    _toastSeq += 1;
-    _set(
-      CartChitPreviewState(
-        toast: chitPrintToast(bridge, result, id: _toastSeq),
-      ),
-    );
+    _set(const CartChitPreviewState());
+    sayChitPrint(toasts, bridge, result);
   }
 }
 
@@ -211,8 +196,6 @@ class CartKitchenChitSheet extends ConsumerWidget {
       printLabel: bridge.tr(key: 'printing.cart_chit'),
       printing: preview.printing,
       onPrint: () => unawaited(notifier.print(chit, tableId: tableId)),
-      toast: preview.toast,
-      onDismissToast: notifier.dismissToast,
       paper: Center(child: KitchenChitPaper(lines: chit.preview)),
     );
   }

@@ -328,11 +328,6 @@ class CartNotifier extends Notifier<CartState> {
     } on MadarError catch (e) {
       ok = false;
       _order._fail(e);
-      _order.showToast(
-        _bridge.humanMessage(e),
-        tone: ChipTone.danger,
-        icon: 'xmark.circle',
-      );
     }
     await _apply(() => _bridge.cartLines(tableId: arg));
     return ok;
@@ -469,7 +464,6 @@ class CartNotifier extends Notifier<CartState> {
     // Captured BEFORE the fire: a successful one clears the cart.
     final round = List<CartLineView>.unmodifiable(state.lines);
     state = state.copyWith(isBusy: true);
-    _order.clearError();
     var ok = false;
     try {
       if (ticket != null) {

@@ -30,6 +30,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:madar/app/shell.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
+part 'shell_order_messages.dart';
 part 'shell_till_state.dart';
 
 const _render = bool.fromEnvironment('MADAR_RENDER');
@@ -607,6 +608,21 @@ class _FakeBridge implements MadarBridge {
   final bool authPaused;
   final int clockSkew;
 
+  /// The room, when a test needs one the fixtures do not draw (a table whose
+  /// parked order another till is editing). Null: the fixtures' room.
+  FloorLayoutView? layout;
+
+  /// The open bills, when a test moves them (a bill settled on another
+  /// till). Null: the fixtures' bills.
+  List<TicketView>? tickets;
+
+  /// What the core answers a fire with: this failure, or a fired ticket.
+  MadarError? fireError;
+
+  /// The sentences the core keeps for the Till to say once (a queued
+  /// pay-out recorded without its advance tag) — drained by the read.
+  List<String> payOutNotices = [];
+
   bool get _waiter => role == 'waiter';
   // A waiter's device has no drawer; the till is the till's, not theirs.
   TillView? get _openTill => tillOpen && !_waiter ? _tillNo(tillSeq) : null;
@@ -921,10 +937,24 @@ class _FakeBridge implements MadarBridge {
     }
     // ── floor, bills, bookings ─────────────────────────────────────────────
     if (name == #floorLayout) {
-      return Future<FloorLayoutView>.value(hasFloor ? _layout : _emptyLayout);
+      return Future<FloorLayoutView>.value(
+        layout ?? (hasFloor ? _layout : _emptyLayout),
+      );
     }
     if (name == #listOpenTickets) {
-      return Future<List<TicketView>>.value(_tickets);
+      return Future<List<TicketView>>.value(tickets ?? _tickets);
+    }
+    if (name == #fireTicket) {
+      final e = fireError;
+      if (e != null) return Future<TicketFiredView>.error(e);
+      return Future<TicketFiredView>.value(
+        const TicketFiredView(ticketId: 'tk-new', queuedOffline: false),
+      );
+    }
+    if (name == #takePayOutNotices) {
+      final said = List<String>.of(payOutNotices);
+      payOutNotices = [];
+      return said;
     }
     if (name == #listTransferQueue) {
       return Future<List<TransferQueueView>>.value(const []);
@@ -1260,6 +1290,7 @@ void main() {
   group('one page shell', pageShellMain);
   group('spec board', specBoardMain);
   group('one till owner', tillStateMain);
+  group('order messages reach the screen', orderMessagesMain);
 
   testWidgets('the teller shell on an iPad: Sell, Floor, Queue, Till', (
     tester,

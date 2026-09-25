@@ -49,8 +49,15 @@ class PendingTableClear {
 
 /// Immutable snapshot of the natives' AppModel slice the order surface
 /// consumes: catalog, cart (+ start timestamp), drafts, open tickets,
-/// connectivity chrome, till stats, and the toast/error slots. All business
-/// logic stays in the core; [OrderNotifier] only sequences bridge calls.
+/// connectivity chrome and till stats. All business logic stays in the core;
+/// [OrderNotifier] only sequences bridge calls.
+///
+/// No message is kept here. This state used to carry a `toast` and an
+/// `error` slot, and when the legacy order screen went (944b5fd5) so did the
+/// only widgets that drew them: every order, cart, floor and bill message —
+/// "Being edited on another till", "This bill was closed on another till", a
+/// refused round — was set and shown to nobody. Messages go straight to the
+/// app's one toast ([OrderNotifier.showToast] → `appToastProvider`).
 @immutable
 class OrderState {
   const OrderState({
@@ -72,9 +79,7 @@ class OrderState {
     this.syncFailed = 0,
     this.syncAuthPaused = false,
     this.clockSkewMinutes = 0,
-    this.error,
     this.isBusy = false,
-    this.toast,
     this.tillSalesMinor = 0,
     this.tillOrderCount = 0,
     this.displayName = '',
@@ -151,11 +156,7 @@ class OrderState {
   final int syncFailed;
   final bool syncAuthPaused;
   final int clockSkewMinutes;
-  final UiText? error;
   final bool isBusy;
-
-  // ── toast ────────────────────────────────────────────────────────────────
-  final ToastData? toast;
 
   // ── till stats (top-bar pill) ───────────────────────────────────────────
   /// Live till totals — "EGP X · N orders", voided excluded, summed in the
@@ -189,9 +190,7 @@ class OrderState {
     int? syncFailed,
     bool? syncAuthPaused,
     int? clockSkewMinutes,
-    Object? error = _unset,
     bool? isBusy,
-    Object? toast = _unset,
     int? tillSalesMinor,
     int? tillOrderCount,
     String? displayName,
@@ -220,9 +219,7 @@ class OrderState {
     syncFailed: syncFailed ?? this.syncFailed,
     syncAuthPaused: syncAuthPaused ?? this.syncAuthPaused,
     clockSkewMinutes: clockSkewMinutes ?? this.clockSkewMinutes,
-    error: identical(error, _unset) ? this.error : error as UiText?,
     isBusy: isBusy ?? this.isBusy,
-    toast: identical(toast, _unset) ? this.toast : toast as ToastData?,
     tillSalesMinor: tillSalesMinor ?? this.tillSalesMinor,
     tillOrderCount: tillOrderCount ?? this.tillOrderCount,
     displayName: displayName ?? this.displayName,
@@ -273,10 +270,11 @@ class OrderNotifier extends Notifier<OrderState> {
     await init();
   }
 
-  // ── toast ──────────────────────────────────────────────────────────────────
-  VoidCallback? _toastAction;
-  int _toastSeq = 0;
+  // ── messages ───────────────────────────────────────────────────────────────
 
+  /// Tell the teller something — through the app's ONE toast, drawn above
+  /// every tab, page and sheet, so whichever order, floor or bill screen is
+  /// in front (or none of them) the words are seen.
   void showToast(
     String text, {
     ChipTone tone = ChipTone.neutral,
@@ -284,37 +282,25 @@ class OrderNotifier extends Notifier<OrderState> {
     VoidCallback? action,
     double seconds = 2.6,
     String? icon,
-  }) {
-    _toastSeq += 1;
-    _toastAction = action;
-    state = state.copyWith(
-      toast: ToastData(
-        id: _toastSeq,
-        text: text,
+  }) => ref
+      .read(appToastProvider.notifier)
+      .show(
+        text,
         tone: tone,
         actionLabel: actionLabel,
+        action: action,
         seconds: seconds,
         icon: icon,
-      ),
-    );
-  }
+      );
 
-  void dismissToast(int id) {
-    if (state.toast?.id != id) return;
-    _toastAction = null;
-    state = state.copyWith(toast: null);
-  }
-
-  void runToastAction() {
-    final action = _toastAction;
-    _toastAction = null;
-    state = state.copyWith(toast: null);
-    action?.call();
-  }
-
-  void clearError() => state = state.copyWith(error: null);
-
-  void _fail(MadarError e) => state = state.copyWith(error: UiText.error(e));
+  /// A bridge call failed: say why, in the core's words. (It used to be kept
+  /// in `OrderState.error`, which nothing has drawn since 944b5fd5 — a failed
+  /// round, cart change or bill customer was silent.)
+  void _fail(MadarError e) => showToast(
+    UiText.error(e).of(_bridge),
+    tone: ChipTone.danger,
+    icon: 'xmark.circle',
+  );
 
   // ── lifecycle ──────────────────────────────────────────────────────────────
   /// Mirror of the natives' on-appear LaunchedEffect: re-derive the session
@@ -330,7 +316,6 @@ class OrderNotifier extends Notifier<OrderState> {
       displayName: session?.displayName ?? '',
       requireTableForOrders: session?.requireTableForOrders ?? false,
       isLoadingCatalog: true,
-      error: null,
       clockSkewMinutes: _bridge.clockSkewMinutes(),
     );
     // Independent bridge reads run CONCURRENTLY (FRB executes them on the
@@ -452,7 +437,8 @@ class OrderNotifier extends Notifier<OrderState> {
         isLoadingCatalog: false,
       );
     } on MadarError catch (e) {
-      state = state.copyWith(error: UiText.error(e), isLoadingCatalog: false);
+      state = state.copyWith(isLoadingCatalog: false);
+      _fail(e);
     }
   }
 
@@ -1297,81 +1283,6 @@ class OrderNotifier extends Notifier<OrderState> {
     state = state.copyWith(openTickets: tickets);
   }
 
-  /// SETTLE an open ticket into a paid order in the cashier's till through
-  /// the shared checkout drawer (the natives' AppModel.settleTicket): the
-  /// till id is resolved here (no till → `waiter.need_till`), the tender
-  /// fields come from the drawer's CheckoutResult, and success reloads the
-  /// open board + refreshes the shell (history/till stats move).
-  Future<bool> settleTicket(
-    String ticketId,
-    String paymentMethodId, {
-    int? amountTenderedMinor,
-    int? tipMinor,
-    String? tipPaymentMethodId,
-    String? loyaltyCustomerId,
-    List<CheckoutRedemption> loyaltyRedemptions = const [],
-
-    /// Raise the floor's "clear it now?" prompt through
-    /// [OrderState.pendingTableClear]. The bill screen passes false and asks
-    /// on its own footer instead, so the question is not raised twice — once
-    /// by the floor beneath it and once by the bill itself.
-    bool askToClear = true,
-  }) async {
-    // THE till, from its one owner — never a copy that could name the till
-    // before a close and reopen.
-    final tillId = ref.read(shellProvider).till?.id;
-    if (tillId == null) {
-      state = state.copyWith(error: const UiText.key('waiter.need_shift'));
-      return false;
-    }
-    state = state.copyWith(isBusy: true, error: null);
-    try {
-      // The ticket's table, captured before the board reloads without it.
-      final table = state.openTickets
-          .where((t) => t.id == ticketId)
-          .firstOrNull
-          ?.tableId;
-      final label = state.floorLayout?.tables
-          .where((t) => t.id == table)
-          .firstOrNull
-          ?.label;
-      final orderId = await _bridge.settleTicket(
-        ticketId: ticketId,
-        tillId: tillId,
-        paymentMethodId: paymentMethodId,
-        amountTenderedMinor: amountTenderedMinor,
-        tipMinor: tipMinor,
-        tipPaymentMethodId: tipPaymentMethodId,
-        loyaltyCustomerId: loyaltyCustomerId,
-        loyaltyRedemptions: loyaltyRedemptions,
-        // The floor settles with one method; splitting happens in the drawer.
-        splits: const [],
-        // Removing the service charge is the Charge sheet's decision, made by
-        // someone holding `orders:waive_service`; the floor never does it.
-        waiveService: false,
-      );
-      // The party paid and left their plates: the table needs a bus, and the
-      // teller — not the app — decides when it is ready for the next party.
-      if (table != null) await _busTableLocally(table);
-      await loadOpenTickets();
-      await loadFloor();
-      if (table != null && askToClear) _askToClear(table, label);
-      // The customer's receipt. Settling a table used to print nothing at all —
-      // the checkout drawer printed, the floor's own settle did not — so a
-      // dine-in customer got a toast and no paper.
-      unawaited(_printSettledReceipt(orderId));
-      showToast(_tr('waiter.settled'), tone: ChipTone.success);
-      _refreshShell();
-      ref.read(drawerTickProvider.notifier).bump();
-      return true;
-    } on MadarError catch (e) {
-      state = state.copyWith(error: UiText.error(e));
-      return false;
-    } finally {
-      state = state.copyWith(isBusy: false);
-    }
-  }
-
   /// Send ONE cart line to the kitchen printer as a chit.
   ///
   /// A chit is a different document from a receipt, not a shorter one: the
@@ -1454,8 +1365,7 @@ class OrderNotifier extends Notifier<OrderState> {
     } on Object {
       result = PrintState.failed;
     }
-    final toast = chitPrintToast(_bridge, result);
-    showToast(toast.text, tone: toast.tone, icon: toast.icon);
+    sayChitPrint(ref.read(appToastProvider.notifier), _bridge, result);
   }
 
   /// One dish rendered for the kitchen. `null` when the core could not lay it
@@ -1498,42 +1408,6 @@ class OrderNotifier extends Notifier<OrderState> {
       );
     } on Exception {
       return null;
-    }
-  }
-
-  /// Print the receipt for a just-settled ticket.
-  ///
-  /// Best-effort and silent on failure by design: the money is already taken
-  /// and the ticket is closed, so a printer that is off, unbound or out of
-  /// paper must not read as a failed settle. `orderId` is null while the
-  /// settle is still queued offline — there is no order yet, and printing a
-  /// receipt for a sale the server has not accepted would be a lie on paper.
-  Future<void> _printSettledReceipt(String? orderId) async {
-    if (orderId == null) return;
-    final tx = ref.read(printerServiceProvider).activeTransport();
-    if (tx == null) return;
-    try {
-      final receipt = await _bridge.orderReceiptView(orderId: orderId);
-      final brand = printerBrandOf(_bridge.deviceConfig().printerBrand);
-      final bytes = await _bridge.renderReceipt(
-        receipt: receipt,
-        storeName: _bridge.deviceConfig().branchName ?? '',
-        currency: state.currency,
-        width: kReceiptChars,
-        brand: brand,
-      );
-      await tx.send(bytes);
-      // Cash opens the drawer, exactly as the checkout path does.
-      if (receipt.isCash) {
-        try {
-          await tx.send(await _bridge.cashDrawerKick(brand: brand));
-        } on Exception {
-          // The receipt printed; the kick is a bonus.
-        }
-      }
-    } on Exception {
-      // Nothing to say: the sale is done either way, and the receipt can be
-      // reprinted from history.
     }
   }
 
