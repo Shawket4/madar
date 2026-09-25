@@ -154,6 +154,50 @@ void main() {
       );
     });
 
+    // App Store: the privacy manifest. No tracking; the required-reason
+    // APIs the app's own code and the Rust core call (plugins ship their
+    // own); the data the app collects, each linked to the person, never for
+    // tracking, only to make the app work.
+    test('the privacy manifest is declared and bundled', () {
+      final m = _read('ios/Runner/PrivacyInfo.xcprivacy');
+      expect(m, matches(RegExp(r'<key>NSPrivacyTracking</key>\s*<false/>')));
+      expect(
+        m,
+        matches(RegExp(r'<key>NSPrivacyTrackingDomains</key>\s*<array/>')),
+      );
+      for (final (api, reason) in [
+        ('UserDefaults', 'CA92.1'),
+        ('FileTimestamp', 'C617.1'),
+        ('SystemBootTime', '35F9.1'),
+        ('DiskSpace', 'E174.1'),
+      ]) {
+        expect(
+          m,
+          matches(
+            RegExp(
+              '<string>NSPrivacyAccessedAPICategory$api</string>\\s*'
+              '<key>NSPrivacyAccessedAPITypeReasons</key>\\s*<array>\\s*'
+              '<string>${RegExp.escape(reason)}</string>',
+            ),
+          ),
+          reason: api,
+        );
+      }
+      final collected = RegExp(
+        r'<string>NSPrivacyCollectedDataType(\w+)</string>\s*'
+        r'<key>NSPrivacyCollectedDataTypeLinked</key>\s*<true/>\s*'
+        r'<key>NSPrivacyCollectedDataTypeTracking</key>\s*<false/>\s*'
+        r'<key>NSPrivacyCollectedDataTypePurposes</key>\s*<array>\s*'
+        r'<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>\s*'
+        r'</array>',
+      ).allMatches(m).map((x) => x.group(1)).toSet();
+      expect(collected, {'PreciseLocation', 'PhoneNumber', 'Name', 'DeviceID'});
+
+      final pbx = _read('ios/Runner.xcodeproj/project.pbxproj');
+      expect(pbx, contains('PrivacyInfo.xcprivacy in Resources */,'));
+      expect(pbx, contains('path = PrivacyInfo.xcprivacy;'));
+    });
+
     test('the localised strings are bundled (project file)', () {
       final pbx = _read('ios/Runner.xcodeproj/project.pbxproj');
       expect(pbx, contains('InfoPlist.strings in Resources'));
