@@ -964,6 +964,15 @@ fn beyond(a: NaiveDate, z: NaiveDate, from: NaiveDate, to: NaiveDate) -> Option<
     }
 }
 
+/// What the core fetches by itself: four weeks back and this week plus three
+/// ahead, reaching back to the start of the pay period the Timesheet lists
+/// (H2-10: on a Saturday late in a 31-day period it began before that).
+fn fetch_window(today: NaiveDate, period_start_day: i64) -> (NaiveDate, NaiveDate) {
+    let ws = week_start(today);
+    let from = (ws - Duration::days(28)).min(period_around(today, period_start_day).0);
+    (from, ws + Duration::days(27))
+}
+
 /// [d] lies in one of the spans the picture holds in full (H2-01).
 fn holds_day(loaded: &[[String; 2]], d: NaiveDate) -> bool {
     let d = d.to_string();
@@ -1258,8 +1267,7 @@ impl MadarCore {
                 .unwrap_or_default()
         };
         let today = self.dawam_today();
-        let from = week_start(today) - Duration::days(28);
-        let to = from + Duration::days(55);
+        let (from, to) = fetch_window(today, i(&ctx["settings"], "period_start_day").clamp(1, 28));
         let range = format!("from={from}&to={to}");
         let weeks = [week_start(today), week_start(today) + Duration::days(7)];
         // The dates a screen shows past that window (H2-01: the board paged to
@@ -3228,6 +3236,32 @@ mod tests {
         assert_eq!(p["e1"], PresenceV { state: "late".into(), since: Some("2026-09-23T06:12:00Z".into()), late_minutes: 12 });
         assert_eq!(p["e4"].state, "absent");
         assert!(presence_of(&Value::Null).is_empty(), "no board (employee, offline first run): nothing");
+    }
+
+    /// H2-10: the window the core fetches holds the whole pay period the
+    /// Timesheet lists, whatever the weekday: on Saturday 31 Oct a 1–31 Oct
+    /// period began before "four weeks back" (3 Oct), and its first two
+    /// days' shifts and absences were never on the phone.
+    #[test]
+    fn the_fetch_window_holds_this_pay_period_and_three_weeks_ahead() {
+        let day = |s: &str| NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap();
+        let (from, to) = fetch_window(day("2026-10-31"), 1);
+        assert!(from <= day("2026-10-01"), "the period's first day: {from}");
+        assert_eq!(to, day("2026-11-27"), "this week and three ahead");
+        assert!((to - from).num_days() <= RANGE_MAX_DAYS, "one roster read: {from}..{to}");
+        // A mid-week day keeps four weeks back and three ahead.
+        let (from, to) = fetch_window(day("2026-09-22"), 26);
+        assert_eq!((from, to), (day("2026-08-22"), day("2026-10-16")));
+        // Any day of the year, any start day: the period is held, the read fits.
+        let mut d = day("2026-01-01");
+        while d < day("2027-01-01") {
+            for start in [1, 15, 26, 28] {
+                let (from, to) = fetch_window(d, start);
+                assert!(from <= period_around(d, start).0 && to >= week_start(d) + Duration::days(27), "{d} {start}");
+                assert!((to - from).num_days() <= RANGE_MAX_DAYS, "{d} {start}: {from}..{to}");
+            }
+            d += Duration::days(1);
+        }
     }
 
     #[test]
