@@ -91,7 +91,18 @@ fn every_en_key_has_an_ar_translation() {
 fn every_ar_key_has_an_en_translation() {
     let en = en_keys();
     let ar = ar_keys();
-    let orphans: Vec<&str> = ar.difference(&en).copied().collect();
+    // Arabic has more plural forms than English: `<key>_two`, `<key>_few`
+    // (3–10) and `<key>_many` (11–99) live only in AR, next to a key EN has.
+    let arabic_only_plural = |k: &str| {
+        ["_two", "_few", "_many"]
+            .iter()
+            .any(|s| k.strip_suffix(s).is_some_and(|base| en.contains(base)))
+    };
+    let orphans: Vec<&str> = ar
+        .difference(&en)
+        .copied()
+        .filter(|k| !arabic_only_plural(k))
+        .collect();
     assert!(
         orphans.is_empty(),
         "keys present in AR but absent from EN — unreachable via `tr` for an \
