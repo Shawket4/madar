@@ -143,10 +143,8 @@ impl MadarCore {
         }
         // This person's OWN open till on THIS device is the only thing that
         // unlocks it — a stale till left by whoever worked here before does not.
-        if let Ok(Some(cur)) = till::current(&self.store) {
-            if cur.is_open && cur.teller_id == session.user_id {
-                return unlocked(true);
-            }
+        if self.own_open_till().is_some() {
+            return unlocked(true);
         }
         // "Not permitted" is only ever said when the permissions are actually
         // KNOWN. An offline bundle sign-in carries a role and no permission
@@ -207,6 +205,30 @@ impl MadarCore {
         till::current(&self.store)
     }
 
+    /// The signed-in person's OWN open till on THIS device, or `None` — the
+    /// one answer to "is a till open here?".
+    ///
+    /// `app_route` and `till_lock` decide from it, and the app's shell reads it
+    /// in the same pass as those two, so the route, the lock and every screen
+    /// (the cart, the Till tab, Charge, the open-till form) agree about the
+    /// drawer by construction. Screens used to each load their own copy of
+    /// `current_till` at their own moment; a copy loaded before a till opened
+    /// kept saying "no till" after it had (owner report 2026-09-25).
+    ///
+    /// Sync and purely local: the device may be offline and must still know.
+    /// Waiters and kitchen devices hold no drawer, so they never have one; a
+    /// till left open here by somebody else is not this person's.
+    pub fn own_open_till(&self) -> Option<TillView> {
+        let session = self.current_session()?;
+        if matches!(self.work_kind().as_str(), "waiter" | "kitchen") {
+            return None;
+        }
+        till::current(&self.store)
+            .ok()
+            .flatten()
+            .filter(|t| t.is_open && t.teller_id == session.user_id)
+    }
+
     pub fn suggested_opening_cash_minor(&self) -> Result<i64, CoreError> {
         till::suggested_opening_cash(&self.store)
     }
@@ -242,11 +264,14 @@ impl MadarCore {
                 action: "waiters never open a till".into(),
             });
         }
+        // Already open here: that till, flagged, and nothing enqueued. A screen
+        // that still offered the form (a stale one) must never mint a second.
         if let Some(cur) = till::current(&self.store)?.filter(|t| t.is_open) {
             return Ok(till::OpenTillOutcome {
                 verification: cur.verification.clone(),
                 till: Some(cur),
                 open_elsewhere: None,
+                already_open: true,
             });
         }
         let dev = self.lan_device_id();
@@ -266,6 +291,7 @@ impl MadarCore {
                     till: None,
                     verification: String::new(),
                     open_elsewhere: Some(e),
+                    already_open: false,
                 })
             }
             till::OpenDecision::Resume(t) => {
@@ -279,6 +305,8 @@ impl MadarCore {
                     verification: v.verification.clone(),
                     till: Some(v),
                     open_elsewhere: None,
+                    // The server holds this person's till open on THIS device.
+                    already_open: true,
                 });
             }
             till::OpenDecision::Allow(v) => v,
@@ -355,6 +383,7 @@ impl MadarCore {
             till: Some(till::view_from(&local)),
             verification: verification.to_string(),
             open_elsewhere: None,
+            already_open: false,
         })
     }
 

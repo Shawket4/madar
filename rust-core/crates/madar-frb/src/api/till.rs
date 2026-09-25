@@ -169,6 +169,9 @@ pub struct _OpenTillOutcome {
     pub till: Option<TillView>,
     pub verification: String,
     pub open_elsewhere: Option<TillElsewhereView>,
+    /// Nothing new was opened: this person's till here was already open, and
+    /// `till` is that till. The app words it; it is never a second till.
+    pub already_open: bool,
 }
 
 #[frb(mirror(OpenBillsNoticeView))]
@@ -260,6 +263,15 @@ impl MadarBridge {
     #[frb(sync)]
     pub fn till_lock(&self) -> TillLockView {
         self.inner.till_lock()
+    }
+
+    /// The signed-in person's OWN open till on THIS device, or `None` — the
+    /// one answer to "is a till open here?" that `app_route` and `till_lock`
+    /// decide from. Sync + local, so the shell reads it in the same pass as
+    /// those two and every screen reads the shell, never its own copy.
+    #[frb(sync)]
+    pub fn own_open_till(&self) -> Option<TillView> {
+        self.inner.own_open_till()
     }
 
     pub async fn check_till_elsewhere(&self) -> Result<Option<TillElsewhereView>, MadarError> {

@@ -2676,11 +2676,14 @@ impl MadarCore {
         if session.work_kind() == "waiter" {
             return AppRoute::WaiterTickets;
         }
-        // An open shift counts only if it belongs to THIS teller (a stale shift
-        // from a previous teller on the device must not route them past setup).
-        match till::current(&self.store) {
-            Ok(Some(s)) if s.is_open && s.teller_id == session.snapshot.user_id => AppRoute::Order,
-            _ => AppRoute::OpenTill,
+        drop(guard);
+        // An open till counts only if it is THIS teller's own on this device (a
+        // stale till from a previous teller must not route them past setup) —
+        // the same one answer the lock and the app's screens read.
+        if self.own_open_till().is_some() {
+            AppRoute::Order
+        } else {
+            AppRoute::OpenTill
         }
     }
 
@@ -11770,6 +11773,104 @@ mod lifecycle_tests {
         set_session(&core, Some(teller_session(&me.to_string(), Some("b"))));
         seed_shift(&core, uuid::Uuid::new_v4(), "open");
         assert!(core.till_lock().locked);
+    }
+
+    // ── one answer to "is a till open here?" (owner report 2026-09-25) ─────
+
+    /// Asserts `own_open_till`, `app_route` and `till_lock` give ONE answer,
+    /// and that the till they name is `open` (the current one).
+    fn assert_one_till_answer(core: &MadarCore, open: Option<&str>, step: &str) {
+        let own = core.own_open_till();
+        assert_eq!(own.as_ref().map(|t| t.id.as_str()), open, "{step}: own_open_till");
+        assert!(own.as_ref().is_none_or(|t| t.is_open), "{step}: only an OPEN till");
+        let route = if open.is_some() { AppRoute::Order } else { AppRoute::OpenTill };
+        assert_eq!(core.app_route(), route, "{step}: app_route");
+        assert_eq!(core.till_lock().locked, open.is_none(), "{step}: till_lock");
+    }
+
+    /// `own_open_till`, `app_route` and `till_lock` are ONE answer: through
+    /// no till → open → close → open again, the three never disagree, and the
+    /// till they name is always the CURRENT one (the app's shell reads all
+    /// three in one pass; a screen holding its own copy is how a cart said
+    /// "no till" over an open one, and how a second till could settle onto the
+    /// first).
+    #[tokio::test]
+    async fn own_open_till_route_and_lock_agree_through_open_close_open() {
+        let core = signed_in_offline_core().await;
+        assert_one_till_answer(&core, None, "configured, no till");
+
+        let first = core.open_till(50_000, None).await.unwrap();
+        assert!(!first.already_open, "a fresh open is not 'already open'");
+        let first = first.till.unwrap().id;
+        assert_one_till_answer(&core, Some(&first), "opened");
+
+        core.close_till_confirmed(50_000, None, vec![], true).await.unwrap();
+        assert_one_till_answer(&core, None, "closed");
+
+        let second = core.open_till(50_000, None).await.unwrap().till.unwrap().id;
+        assert_ne!(second, first, "a new till, not the closed one");
+        assert_one_till_answer(&core, Some(&second), "opened again");
+    }
+
+    /// A close made ELSEWHERE (the dashboard's force-close, landing by pull)
+    /// moves the one answer too: the pulled row is enough, no screen reload.
+    #[test]
+    fn own_open_till_follows_a_close_that_arrives_by_pull() {
+        let core = MadarCore::from_env().unwrap();
+        core.set_device_branch("b".into(), None).unwrap();
+        let me = uuid::Uuid::new_v4();
+        set_session(&core, Some(teller_session(&me.to_string(), Some("b"))));
+        // A till this device holds from the server (no op of its own pending).
+        let id = seed_shift_returning_id(&core, me, "open");
+        assert_one_till_answer(&core, Some(&id), "held");
+        // The pull writes the row WITHOUT touching this device's slot.
+        let mut rec = till::record(&core.store, &id).unwrap();
+        rec.status = "closed".into();
+        till::update_record(&core.store, &rec).unwrap();
+        assert_one_till_answer(&core, None, "force-closed by a pull");
+    }
+
+    /// Opening over an open till mints NOTHING: the core answers with the till
+    /// already open, flagged, and queues no second open — whatever screen asked.
+    #[tokio::test]
+    async fn open_till_over_an_open_till_says_already_open_and_mints_no_second() {
+        let core = signed_in_offline_core().await;
+        let first = core.open_till(50_000, None).await.unwrap();
+        assert!(!first.already_open);
+        let pending = core.store.pending().unwrap().len();
+
+        let again = core.open_till(12_345, None).await.unwrap();
+        assert!(again.already_open, "the app must be able to word it");
+        assert!(again.open_elsewhere.is_none());
+        assert_eq!(again.till.map(|t| t.id), first.till.map(|t| t.id), "the SAME till");
+        assert_eq!(core.store.pending().unwrap().len(), pending, "no second open queued");
+        assert_eq!(core.own_open_till().map(|t| t.opening_cash_minor), Some(50_000));
+    }
+
+    /// Nobody else's till is this person's, and waiters and the kitchen hold
+    /// no drawer at all.
+    #[test]
+    fn own_open_till_is_only_ever_this_persons_drawer() {
+        let core = MadarCore::from_env().unwrap();
+        core.set_device_branch("b".into(), None).unwrap();
+        assert!(core.own_open_till().is_none(), "signed out");
+        let me = uuid::Uuid::new_v4();
+        set_session(&core, Some(teller_session(&me.to_string(), Some("b"))));
+        seed_shift(&core, uuid::Uuid::new_v4(), "open");
+        assert!(core.own_open_till().is_none(), "a foreign till left open here");
+        seed_shift(&core, me, "closed");
+        assert!(core.own_open_till().is_none(), "my till, closed");
+        seed_shift(&core, me, "open");
+        assert!(core.own_open_till().is_some(), "my till, open");
+
+        for sess in [
+            waiter_session(&me.to_string(), Some("b")),
+            kitchen_session(&me.to_string(), Some("b")),
+        ] {
+            let kind = sess.snapshot.role.clone();
+            set_session(&core, Some(sess));
+            assert!(core.own_open_till().is_none(), "{kind}: holds no drawer");
+        }
     }
 
     /// Opening a till unlocks IMMEDIATELY — no restart, no server round trip.

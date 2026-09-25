@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 890663195;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1423195127;
 
 // Section: executor
 
@@ -10230,6 +10230,54 @@ fn wire__crate__api__bridge__MadarBridge_org_logo_url_impl(
         },
     )
 }
+fn wire__crate__api__bridge__MadarBridge_own_open_till_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_own_open_till",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Ok::<_, ()>(crate::api::bridge::MadarBridge::own_open_till(
+                    &*api_that_guard,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__bridge__MadarBridge_payment_method_label_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -17405,6 +17453,7 @@ const _: fn() = || {
         let _: Option<crate::api::types::TillView> = OpenTillOutcome.till;
         let _: String = OpenTillOutcome.verification;
         let _: Option<crate::api::till::TillElsewhereView> = OpenTillOutcome.open_elsewhere;
+        let _: bool = OpenTillOutcome.already_open;
     }
     {
         let OptionalFieldView = None::<crate::api::catalog::OptionalFieldView>.unwrap();
@@ -21381,10 +21430,12 @@ impl SseDecode for crate::api::till::OpenTillOutcome {
         let mut var_verification = <String>::sse_decode(deserializer);
         let mut var_openElsewhere =
             <Option<crate::api::till::TillElsewhereView>>::sse_decode(deserializer);
+        let mut var_alreadyOpen = <bool>::sse_decode(deserializer);
         return crate::api::till::OpenTillOutcome {
             till: var_till,
             verification: var_verification,
             open_elsewhere: var_openElsewhere,
+            already_open: var_alreadyOpen,
         };
     }
 }
@@ -24129,406 +24180,406 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        189 => wire__crate__api__bridge__MadarBridge_pending_outbox_count_impl(
+        190 => wire__crate__api__bridge__MadarBridge_pending_outbox_count_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        191 => wire__crate__api__bridge__MadarBridge_pos_metrics_impl(
+        192 => wire__crate__api__bridge__MadarBridge_pos_metrics_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        193 => wire__crate__api__bridge__MadarBridge_preview_configured_line_impl(
+        194 => wire__crate__api__bridge__MadarBridge_preview_configured_line_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        196 => wire__crate__api__bridge__MadarBridge_print_to_device_impl(
+        197 => wire__crate__api__bridge__MadarBridge_print_to_device_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        197 => wire__crate__api__bridge__MadarBridge_probe_connectivity_impl(
+        198 => wire__crate__api__bridge__MadarBridge_probe_connectivity_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        199 => wire__crate__api__bridge__MadarBridge_recent_logs_impl(
+        200 => wire__crate__api__bridge__MadarBridge_recent_logs_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        200 => wire__crate__api__bridge__MadarBridge_reconfigure_push_now_impl(
+        201 => wire__crate__api__bridge__MadarBridge_reconfigure_push_now_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        202 => wire__crate__api__bridge__MadarBridge_record_cash_movement_impl(
+        203 => wire__crate__api__bridge__MadarBridge_record_cash_movement_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        203 => wire__crate__api__bridge__MadarBridge_record_cash_spot_print_impl(
+        204 => wire__crate__api__bridge__MadarBridge_record_cash_spot_print_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        204 => wire__crate__api__bridge__MadarBridge_record_expense_advance_impl(
+        205 => wire__crate__api__bridge__MadarBridge_record_expense_advance_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        205 => wire__crate__api__bridge__MadarBridge_record_staff_drink_impl(
+        206 => wire__crate__api__bridge__MadarBridge_record_staff_drink_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        206 => wire__crate__api__bridge__MadarBridge_record_waste_impl(
+        207 => wire__crate__api__bridge__MadarBridge_record_waste_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        207 => wire__crate__api__bridge__MadarBridge_refresh_arrivals_impl(
+        208 => wire__crate__api__bridge__MadarBridge_refresh_arrivals_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        208 => wire__crate__api__bridge__MadarBridge_refresh_catalog_impl(
+        209 => wire__crate__api__bridge__MadarBridge_refresh_catalog_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        209 => wire__crate__api__bridge__MadarBridge_refresh_connectivity_impl(
+        210 => wire__crate__api__bridge__MadarBridge_refresh_connectivity_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        210 => wire__crate__api__bridge__MadarBridge_refresh_floor_impl(
+        211 => wire__crate__api__bridge__MadarBridge_refresh_floor_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        211 => wire__crate__api__bridge__MadarBridge_refresh_review_flags_impl(
+        212 => wire__crate__api__bridge__MadarBridge_refresh_review_flags_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        212 => wire__crate__api__bridge__MadarBridge_refresh_till_impl(
+        213 => wire__crate__api__bridge__MadarBridge_refresh_till_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        214 => wire__crate__api__bridge__MadarBridge_refund_order_impl(
+        215 => wire__crate__api__bridge__MadarBridge_refund_order_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        215 => wire__crate__api__bridge__MadarBridge_refund_order_approved_impl(
+        216 => wire__crate__api__bridge__MadarBridge_refund_order_approved_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        216 => wire__crate__api__bridge__MadarBridge_refund_order_lines_approved_impl(
+        217 => wire__crate__api__bridge__MadarBridge_refund_order_lines_approved_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        217 => wire__crate__api__bridge__MadarBridge_refundable_lines_impl(
+        218 => wire__crate__api__bridge__MadarBridge_refundable_lines_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        218 => wire__crate__api__bridge__MadarBridge_release_draft_impl(
+        219 => wire__crate__api__bridge__MadarBridge_release_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        219 => wire__crate__api__bridge__MadarBridge_rename_draft_impl(
+        220 => wire__crate__api__bridge__MadarBridge_rename_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        220 => wire__crate__api__bridge__MadarBridge_render_kitchen_chit_impl(
+        221 => wire__crate__api__bridge__MadarBridge_render_kitchen_chit_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        221 => wire__crate__api__bridge__MadarBridge_render_order_receipt_impl(
+        222 => wire__crate__api__bridge__MadarBridge_render_order_receipt_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        222 => wire__crate__api__bridge__MadarBridge_render_receipt_impl(
+        223 => wire__crate__api__bridge__MadarBridge_render_receipt_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        223 => wire__crate__api__bridge__MadarBridge_render_till_report_impl(
+        224 => wire__crate__api__bridge__MadarBridge_render_till_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        224 => wire__crate__api__bridge__MadarBridge_repair_assets_impl(
+        225 => wire__crate__api__bridge__MadarBridge_repair_assets_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        225 => wire__crate__api__bridge__MadarBridge_restore_draft_impl(
+        226 => wire__crate__api__bridge__MadarBridge_restore_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        226 => wire__crate__api__bridge__MadarBridge_restore_session_impl(
+        227 => wire__crate__api__bridge__MadarBridge_restore_session_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        228 => wire__crate__api__bridge__MadarBridge_retry_outbox_impl(
+        229 => wire__crate__api__bridge__MadarBridge_retry_outbox_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        229 => wire__crate__api__bridge__MadarBridge_retry_till_outbox_impl(
+        230 => wire__crate__api__bridge__MadarBridge_retry_till_outbox_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        234 => wire__crate__api__bridge__MadarBridge_search_orders_impl(
+        235 => wire__crate__api__bridge__MadarBridge_search_orders_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        235 => wire__crate__api__bridge__MadarBridge_seat_booking_impl(
+        236 => wire__crate__api__bridge__MadarBridge_seat_booking_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        236 => {
+        237 => {
             wire__crate__api__bridge__MadarBridge_seat_table_impl(port, ptr, rust_vec_len, data_len)
         }
-        237 => wire__crate__api__bridge__MadarBridge_send_to_printer_impl(
+        238 => wire__crate__api__bridge__MadarBridge_send_to_printer_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        238 => wire__crate__api__bridge__MadarBridge_set_device_branch_impl(
+        239 => wire__crate__api__bridge__MadarBridge_set_device_branch_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        240 => wire__crate__api__bridge__MadarBridge_set_device_lan_hub_impl(
+        241 => wire__crate__api__bridge__MadarBridge_set_device_lan_hub_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        241 => wire__crate__api__bridge__MadarBridge_set_device_printer_impl(
+        242 => wire__crate__api__bridge__MadarBridge_set_device_printer_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        242 => wire__crate__api__bridge__MadarBridge_set_device_printer_bt_impl(
+        243 => wire__crate__api__bridge__MadarBridge_set_device_printer_bt_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        243 => wire__crate__api__bridge__MadarBridge_set_device_printer_paper_impl(
+        244 => wire__crate__api__bridge__MadarBridge_set_device_printer_paper_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        244 => wire__crate__api__bridge__MadarBridge_set_device_printer_transport_impl(
+        245 => wire__crate__api__bridge__MadarBridge_set_device_printer_transport_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        245 => wire__crate__api__bridge__MadarBridge_set_device_station_impl(
+        246 => wire__crate__api__bridge__MadarBridge_set_device_station_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        246 => wire__crate__api__bridge__MadarBridge_set_kitchen_routing_mode_impl(
+        247 => wire__crate__api__bridge__MadarBridge_set_kitchen_routing_mode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        248 => wire__crate__api__bridge__MadarBridge_set_push_token_impl(
+        249 => wire__crate__api__bridge__MadarBridge_set_push_token_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        250 => wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
+        251 => wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        251 => {
+        252 => {
             wire__crate__api__bridge__MadarBridge_sign_in_impl(port, ptr, rust_vec_len, data_len)
         }
-        258 => wire__crate__api__bridge__MadarBridge_start_realtime_impl(
+        259 => wire__crate__api__bridge__MadarBridge_start_realtime_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        259 => wire__crate__api__bridge__MadarBridge_start_reconfigure_impl(
+        260 => wire__crate__api__bridge__MadarBridge_start_reconfigure_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        260 => wire__crate__api__bridge__MadarBridge_suggested_opening_cash_minor_impl(
+        261 => wire__crate__api__bridge__MadarBridge_suggested_opening_cash_minor_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        261 => wire__crate__api__bridge__MadarBridge_swap_floor_tables_impl(
+        262 => wire__crate__api__bridge__MadarBridge_swap_floor_tables_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        262 => wire__crate__api__bridge__MadarBridge_switch_to_draft_impl(
+        263 => wire__crate__api__bridge__MadarBridge_switch_to_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        263 => {
+        264 => {
             wire__crate__api__bridge__MadarBridge_sync_full_impl(port, ptr, rust_vec_len, data_len)
         }
-        264 => {
+        265 => {
             wire__crate__api__bridge__MadarBridge_sync_now_impl(port, ptr, rust_vec_len, data_len)
         }
-        267 => wire__crate__api__bridge__MadarBridge_table_history_impl(
+        268 => wire__crate__api__bridge__MadarBridge_table_history_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        276 => {
+        277 => {
             wire__crate__api__bridge__MadarBridge_till_punch_impl(port, ptr, rust_vec_len, data_len)
         }
-        277 => wire__crate__api__bridge__MadarBridge_till_report_impl(
+        278 => wire__crate__api__bridge__MadarBridge_till_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        278 => wire__crate__api__bridge__MadarBridge_till_report_for_impl(
+        279 => wire__crate__api__bridge__MadarBridge_till_report_for_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        279 => wire__crate__api__bridge__MadarBridge_till_report_synced_impl(
+        280 => wire__crate__api__bridge__MadarBridge_till_report_synced_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        280 => {
+        281 => {
             wire__crate__api__bridge__MadarBridge_till_stats_impl(port, ptr, rust_vec_len, data_len)
         }
-        281 => wire__crate__api__bridge__MadarBridge_till_stats_checked_impl(
+        282 => wire__crate__api__bridge__MadarBridge_till_stats_checked_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        284 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
+        285 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        285 => wire__crate__api__bridge__MadarBridge_unmark_staff_drink_impl(
+        286 => wire__crate__api__bridge__MadarBridge_unmark_staff_drink_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        286 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
+        287 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        288 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
+        289 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        290 => {
+        291 => {
             wire__crate__api__bridge__MadarBridge_void_order_impl(port, ptr, rust_vec_len, data_len)
         }
-        291 => wire__crate__api__bridge__MadarBridge_void_order_approved_impl(
+        292 => wire__crate__api__bridge__MadarBridge_void_order_approved_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        292 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
+        293 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        293 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
+        294 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        297 => wire__crate__api__bridge__MadarBridge_watch_tables_impl(
+        298 => wire__crate__api__bridge__MadarBridge_watch_tables_impl(
             port,
             ptr,
             rust_vec_len,
@@ -24725,157 +24776,160 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        187 => wire__crate__api__bridge__MadarBridge_payment_method_label_impl(
+        187 => {
+            wire__crate__api__bridge__MadarBridge_own_open_till_impl(ptr, rust_vec_len, data_len)
+        }
+        188 => wire__crate__api__bridge__MadarBridge_payment_method_label_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        188 => wire__crate__api__bridge__MadarBridge_pending_manager_actions_impl(
+        189 => wire__crate__api__bridge__MadarBridge_pending_manager_actions_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        190 => {
+        191 => {
             wire__crate__api__bridge__MadarBridge_pin_wait_seconds_impl(ptr, rust_vec_len, data_len)
         }
-        192 => wire__crate__api__bridge__MadarBridge_pos_metrics_presets_impl(
+        193 => wire__crate__api__bridge__MadarBridge_pos_metrics_presets_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        194 => wire__crate__api__bridge__MadarBridge_preview_staff_drink_impl(
+        195 => wire__crate__api__bridge__MadarBridge_preview_staff_drink_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        195 => {
+        196 => {
             wire__crate__api__bridge__MadarBridge_preview_waste_impl(ptr, rust_vec_len, data_len)
         }
-        198 => {
+        199 => {
             wire__crate__api__bridge__MadarBridge_receipt_footer_impl(ptr, rust_vec_len, data_len)
         }
-        201 => wire__crate__api__bridge__MadarBridge_reconfigure_readiness_impl(
+        202 => wire__crate__api__bridge__MadarBridge_reconfigure_readiness_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        213 => wire__crate__api__bridge__MadarBridge_refund_method_plan_impl(
+        214 => wire__crate__api__bridge__MadarBridge_refund_method_plan_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        227 => wire__crate__api__bridge__MadarBridge_restore_session_cached_impl(
+        228 => wire__crate__api__bridge__MadarBridge_restore_session_cached_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        230 => wire__crate__api__bridge__MadarBridge_reward_board_impl(ptr, rust_vec_len, data_len),
-        231 => wire__crate__api__bridge__MadarBridge_reward_redemptions_impl(
+        231 => wire__crate__api__bridge__MadarBridge_reward_board_impl(ptr, rust_vec_len, data_len),
+        232 => wire__crate__api__bridge__MadarBridge_reward_redemptions_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        232 => wire__crate__api__bridge__MadarBridge_sale_tax_inclusive_impl(
+        233 => wire__crate__api__bridge__MadarBridge_sale_tax_inclusive_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        233 => {
+        234 => {
             wire__crate__api__bridge__MadarBridge_search_customers_impl(ptr, rust_vec_len, data_len)
         }
-        239 => {
+        240 => {
             wire__crate__api__bridge__MadarBridge_set_device_code_impl(ptr, rust_vec_len, data_len)
         }
-        247 => wire__crate__api__bridge__MadarBridge_set_locale_impl(ptr, rust_vec_len, data_len),
-        249 => wire__crate__api__bridge__MadarBridge_set_ticket_customer_impl(
+        248 => wire__crate__api__bridge__MadarBridge_set_locale_impl(ptr, rust_vec_len, data_len),
+        250 => wire__crate__api__bridge__MadarBridge_set_ticket_customer_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        252 => {
+        253 => {
             wire__crate__api__bridge__MadarBridge_split_auto_fill_impl(ptr, rust_vec_len, data_len)
         }
-        253 => {
+        254 => {
             wire__crate__api__bridge__MadarBridge_split_rest_here_impl(ptr, rust_vec_len, data_len)
         }
-        254 => wire__crate__api__bridge__MadarBridge_staff_drink_access_impl(
+        255 => wire__crate__api__bridge__MadarBridge_staff_drink_access_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        255 => wire__crate__api__bridge__MadarBridge_staff_drinks_today_impl(
+        256 => wire__crate__api__bridge__MadarBridge_staff_drinks_today_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        256 => wire__crate__api__bridge__MadarBridge_staff_old_server_notice_impl(
+        257 => wire__crate__api__bridge__MadarBridge_staff_old_server_notice_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        257 => {
+        258 => {
             wire__crate__api__bridge__MadarBridge_staff_pool_today_impl(ptr, rust_vec_len, data_len)
         }
-        265 => wire__crate__api__bridge__MadarBridge_sync_on_till_open_status_impl(
+        266 => wire__crate__api__bridge__MadarBridge_sync_on_till_open_status_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        266 => wire__crate__api__bridge__MadarBridge_sync_status_impl(ptr, rust_vec_len, data_len),
-        268 => wire__crate__api__bridge__MadarBridge_take_pay_out_notices_impl(
+        267 => wire__crate__api__bridge__MadarBridge_sync_status_impl(ptr, rust_vec_len, data_len),
+        269 => wire__crate__api__bridge__MadarBridge_take_pay_out_notices_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        269 => wire__crate__api__bridge__MadarBridge_take_staff_drink_notices_impl(
+        270 => wire__crate__api__bridge__MadarBridge_take_staff_drink_notices_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        270 => {
+        271 => {
             wire__crate__api__bridge__MadarBridge_tender_summary_impl(ptr, rust_vec_len, data_len)
         }
-        271 => wire__crate__api__bridge__MadarBridge_ticket_reward_lines_impl(
+        272 => wire__crate__api__bridge__MadarBridge_ticket_reward_lines_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        272 => wire__crate__api__bridge__MadarBridge_till_cash_sales_minor_impl(
+        273 => wire__crate__api__bridge__MadarBridge_till_cash_sales_minor_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        273 => {
+        274 => {
             wire__crate__api__bridge__MadarBridge_till_dawam_on_impl(ptr, rust_vec_len, data_len)
         }
-        274 => wire__crate__api__bridge__MadarBridge_till_figures_visible_impl(
+        275 => wire__crate__api__bridge__MadarBridge_till_figures_visible_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        275 => wire__crate__api__bridge__MadarBridge_till_lock_impl(ptr, rust_vec_len, data_len),
-        282 => {
+        276 => wire__crate__api__bridge__MadarBridge_till_lock_impl(ptr, rust_vec_len, data_len),
+        283 => {
             wire__crate__api__bridge__MadarBridge_toggle_reward_impl(ptr, rust_vec_len, data_len)
         }
-        283 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
-        287 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
+        284 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
+        288 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        289 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
-        294 => wire__crate__api__bridge__MadarBridge_waste_ingredients_impl(
+        290 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
+        295 => wire__crate__api__bridge__MadarBridge_waste_ingredients_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        295 => wire__crate__api__bridge__MadarBridge_waste_items_impl(ptr, rust_vec_len, data_len),
-        296 => {
+        296 => wire__crate__api__bridge__MadarBridge_waste_items_impl(ptr, rust_vec_len, data_len),
+        297 => {
             wire__crate__api__bridge__MadarBridge_waste_reasons_impl(ptr, rust_vec_len, data_len)
         }
-        298 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
-        299 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
-        300 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
+        299 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
+        300 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
+        301 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -27357,6 +27411,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::OpenTillOutc
             self.0.till.into_into_dart().into_dart(),
             self.0.verification.into_into_dart().into_dart(),
             self.0.open_elsewhere.into_into_dart().into_dart(),
+            self.0.already_open.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -31621,6 +31676,7 @@ impl SseEncode for crate::api::till::OpenTillOutcome {
         <Option<crate::api::types::TillView>>::sse_encode(self.till, serializer);
         <String>::sse_encode(self.verification, serializer);
         <Option<crate::api::till::TillElsewhereView>>::sse_encode(self.open_elsewhere, serializer);
+        <bool>::sse_encode(self.already_open, serializer);
     }
 }
 

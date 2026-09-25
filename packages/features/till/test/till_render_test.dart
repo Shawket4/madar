@@ -496,6 +496,11 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #humanMessage) return 'Something went wrong';
     if (name == #clockSkewMinutes) return 0;
+    // The one owner's sync read: this person's OWN open till, or none.
+    if (name == #ownOpenTill) {
+      final t = till;
+      return (t?.isOpen ?? false) ? t : null;
+    }
     if (name == #currentTill || name == #refreshTill) {
       return Future<TillView?>.value(till);
     }
@@ -577,6 +582,7 @@ class _FakeBridge implements MadarBridge {
           till: elsewhere == null ? _till : null,
           verification: 'server',
           openElsewhere: elsewhere,
+          alreadyOpen: false,
         ),
       );
     }
