@@ -38,11 +38,19 @@ class MadarBrandPanel extends StatelessWidget {
     required this.headline,
     required this.tagline,
     this.arabic = false,
+    this.lockup,
+    this.watermark,
     super.key,
   });
 
   final String headline;
   final String tagline;
+
+  /// The product's lockup at the top (default: Madar's).
+  final Widget? lockup;
+
+  /// The faded mark behind the panel (default: Madar's symbol).
+  final Widget? watermark;
 
   /// Render the Arabic lockup variant (the natives pick by core locale).
   final bool arabic;
@@ -56,10 +64,15 @@ class MadarBrandPanel extends StatelessWidget {
         children: [
           // Faded watermark mark — offset like the natives, start-anchored so
           // it mirrors in RTL.
-          const PositionedDirectional(
+          PositionedDirectional(
             start: _watermarkOffset,
             top: _watermarkOffset,
-            child: MadarSymbol(size: _watermarkSize, opacity: _watermarkAlpha),
+            child:
+                watermark ??
+                const MadarSymbol(
+                  size: _watermarkSize,
+                  opacity: _watermarkAlpha,
+                ),
           ),
           Padding(
             padding: const EdgeInsetsDirectional.all(_panelPad),
@@ -70,7 +83,7 @@ class MadarBrandPanel extends StatelessWidget {
                   height: _lockupHeight,
                   child: FittedBox(
                     alignment: AlignmentDirectional.centerStart,
-                    child: MadarLockup(arabic: arabic),
+                    child: lockup ?? MadarLockup(arabic: arabic),
                   ),
                 ),
                 const Spacer(),

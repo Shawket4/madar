@@ -125,6 +125,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           headline: tr('staff.brand_headline'),
           tagline: tr('staff.brand_tagline'),
           arabic: isAr,
+          lockup: const DawamMark(),
+          watermark: const DawamSymbol(size: 360, opacity: 0.05),
         ),
         compactHeader: const DawamMark(),
         form: Column(
@@ -272,7 +274,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   ];
 }
 
-/// Dawam's mark: the Madar symbol with the product name — "Dawam by Madar"
+/// Dawam's mark: the heavy d with the product name — "Dawam by Madar"
 /// (PS-6) — for the phone layout and the app's chrome.
 class DawamMark extends StatelessWidget {
   const DawamMark({super.key});
@@ -283,7 +285,7 @@ class DawamMark extends StatelessWidget {
     return Row(
       spacing: Space.md,
       children: [
-        const MadarSymbol(size: 44),
+        const DawamSymbol(size: 44),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
