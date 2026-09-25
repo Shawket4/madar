@@ -33,6 +33,31 @@ void main() {
     expect(ar, 'دوام بواسطة مدار');
   });
 
+  // CL-4, AT-5: the notice a new phone accepts says what tracking does —
+  // about every 15 minutes on shift and when they leave the branch, never
+  // after clock-out — as the iOS prompts do.
+  test('the in-app location notice says when the location is checked', () {
+    for (final (arabic, every, leave, never) in [
+      (
+        false,
+        'about every 15 minutes',
+        'leave your branch',
+        'never after you clock out',
+      ),
+      (
+        true,
+        'كل 15 دقيقة تقريباً',
+        'تخرج من فرعك',
+        'عمره ما بيتشاف بعد ما تسجل انصراف',
+      ),
+    ]) {
+      final line = coreWord('staff.privacy_pings', arabic: arabic);
+      expect(line, contains(every), reason: line);
+      expect(line, contains(leave), reason: line);
+      expect(line.toLowerCase(), contains(never), reason: line);
+    }
+  });
+
   group('Android', () {
     const res = 'android/app/src/main/res';
 
