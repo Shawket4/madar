@@ -1,7 +1,7 @@
 name: madar_staff
 description: "Dawam by Madar — the staff app shell: boot, theme, tabs. Features live in packages/features/dawam_*, the spine in packages/staff_core."
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+1
 resolution: workspace
 
 environment:
