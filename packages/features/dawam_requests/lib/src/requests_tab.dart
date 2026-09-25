@@ -123,6 +123,10 @@ String reqMeta(Req r, String? me, String? Function(String id) nameOf) {
   ].join(' · ');
 }
 
+/// The lines a request row's meta may take: a declined one with its reason
+/// is read in full (the reason sat in one cut line: "… · R…"), the rest one.
+int reqMetaLines(Req r) => declineReason(r) == null ? 1 : 4;
+
 /// Why a request of mine was declined (decision #8: a decline needs a
 /// reason, and the person who asked sees it): the server's decision note.
 String? declineReason(Req r) {
@@ -194,6 +198,7 @@ class _ReqRow extends ConsumerWidget {
         final e = store.emps[id];
         return e == null ? null : name(e);
       }),
+      metaLines: reqMetaLines(r),
       status: reqStatus(r, store.me),
       onTap: !cancellable
           ? null

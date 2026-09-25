@@ -56,6 +56,7 @@ class MadarListRow extends StatelessWidget {
     super.key,
   }) : variant = MadarListRowVariant.nav,
        titleLines = 1,
+       metaLines = 1,
        chevron = true,
        minor = null,
        currency = '',
@@ -78,6 +79,7 @@ class MadarListRow extends StatelessWidget {
     super.key,
   }) : variant = MadarListRowVariant.ledger,
        titleLines = 1,
+       metaLines = 1,
        chevron = true,
        glyph = null,
        valueText = null,
@@ -107,6 +109,7 @@ class MadarListRow extends StatelessWidget {
     this.trailing,
     this.chevron = true,
     this.titleLines = 1,
+    this.metaLines = 1,
     super.key,
   }) : variant = MadarListRowVariant.bill,
        glyph = null;
@@ -121,6 +124,7 @@ class MadarListRow extends StatelessWidget {
     super.key,
   }) : variant = MadarListRowVariant.pick,
        titleLines = 1,
+       metaLines = 1,
        chevron = true,
        minor = null,
        currency = '',
@@ -145,6 +149,10 @@ class MadarListRow extends StatelessWidget {
   /// The second line — who, when, how. One line, ellipsised. Build it with
   /// `' · '` between facts; isolate figures with `MadarFormat.ltr`.
   final String? meta;
+
+  /// Bill: the lines [meta] may wrap to before it is ellipsised — a line
+  /// that must be read in full (why a request was declined). One elsewhere.
+  final int metaLines;
 
   /// A leading glyph (nav, pick).
   final MadarGlyph? glyph;
@@ -310,7 +318,7 @@ class MadarListRow extends StatelessWidget {
                   if (meta != null)
                     Text(
                       meta!,
-                      maxLines: 1,
+                      maxLines: metaLines,
                       overflow: TextOverflow.ellipsis,
                       style: MadarType.bodySm.copyWith(
                         color: colors.textSecondary,

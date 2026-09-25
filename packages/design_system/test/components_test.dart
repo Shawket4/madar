@@ -445,6 +445,37 @@ void main() {
       );
     });
 
+    // D8 (FINAL device check): a declined request's reason sat in the one
+    // meta line and was cut ("… · R…"); a bill may let its meta wrap.
+    testWidgets("a bill's meta wraps to metaLines, one line by default", (
+      tester,
+    ) async {
+      const long =
+          'EGP 4,000.00 · next payslip · Reason: over the cap, not this month · '
+          'my own note that is also rather long';
+      await tester.pumpWidget(
+        _app(
+          const Scaffold(
+            body: Column(
+              children: [
+                MadarListRow.bill(title: 'Salary advance', meta: long),
+                MadarListRow.bill(
+                  title: 'Salary advance',
+                  meta: long,
+                  metaLines: 3,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      final metas = tester
+          .widgetList<Text>(find.text(long))
+          .map((t) => t.maxLines)
+          .toList();
+      expect(metas, [1, 3]);
+    });
+
     testWidgets('a status pill always carries a glyph', (tester) async {
       await tester.pumpWidget(
         _app(

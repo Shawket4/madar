@@ -55,4 +55,13 @@ void main() {
       isNot(contains('Reason')),
     );
   });
+
+  test('a declined row with a reason may wrap; the others keep one line', () {
+    expect(
+      reqMetaLines(advance(ReqStatus.rejected)..decisionNote = 'Not yet'),
+      greaterThan(1),
+    );
+    expect(reqMetaLines(advance(ReqStatus.rejected)), 1);
+    expect(reqMetaLines(advance(ReqStatus.pending)), 1);
+  });
 }
