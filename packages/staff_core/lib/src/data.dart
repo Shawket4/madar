@@ -220,6 +220,9 @@ class Shift {
 
   /// A cover's own row (the coverer's): whose shift it covered (CV-7).
   String? coverOf;
+
+  /// That cover's decision: `pending` · `confirmed` · `rejected`.
+  String? coverStatus;
   DateTime? inAt;
   DateTime? outAt;
   Method? inMethod;
@@ -956,6 +959,7 @@ class DawamStore extends ChangeNotifier {
             ..edited = s['edited'] == true
             ..ownDay = s['own_day'] == true
             ..coverBy = s['cover_by'] as String?
+            ..coverStatus = s['cover_status'] as String?
             ..coverOf = s['cover_of'] as String?
             ..inAt = _at(s['in_at'])
             ..outAt = _at(s['out_at'])

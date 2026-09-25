@@ -409,6 +409,9 @@ pub struct ShiftV {
     /// A cover's own row (`cover|<record>`, the coverer's): whose shift it
     /// covered. The covered person's shift never takes the cover's punches.
     pub cover_of: Option<String>,
+    /// That cover's decision: `pending` · `confirmed` · `rejected` (a
+    /// rejected one is not paid and must not read like a confirmed one).
+    pub cover_status: Option<String>,
     pub in_at: Option<String>,
     pub out_at: Option<String>,
     pub in_method: Option<String>,
@@ -2273,6 +2276,7 @@ impl MadarCore {
                     id: cid.clone(),
                     emp: Some(user.clone()),
                     cover_of: Some(owner.clone()),
+                    cover_status: so(r, "cover_status"),
                     tpl: wid.clone(),
                     date: d.to_string(),
                     published: true,
@@ -4867,6 +4871,33 @@ mod tests {
         let act = json!({ "action": "file", "kind": "correction", "from": d, "shift": shift }).to_string();
         let err = core.dawam_do(act).await.unwrap_err();
         assert!(format!("{err:?}").contains(&i18n::tr("en", "staff.change_a_time_first")), "{err:?}");
+    }
+
+    /// The cover proof (M-CV-1, M-CV-2): the coverer's own cover row says
+    /// its status (a rejected cover must not read like a confirmed one), and
+    /// it spans the cover's own window, the record's scheduled instants,
+    /// never the block's default day (Home showed "8h 00m" for a 20-minute
+    /// cover when the covered shift was not in the coverer's picture).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_cover_row_has_its_own_status_and_window() {
+        use crate::testkit::{StubResponse, BRANCH, TELLER};
+        let d = today_cairo().to_string();
+        for status in ["pending", "confirmed", "rejected"] {
+            // I covered e4's shift; e4's roster is not in my picture.
+            let cov = json!({ "id": "cov", "employee_id": TELLER, "covered_employee_id": "e4", "business_date": d, "work_shift_id": "w1",
+                "branch_id": BRANCH, "status": "present", "cover_status": status, "check_in_method": "cover",
+                "scheduled_start_at": format!("{d}T07:40:00Z"), "scheduled_end_at": format!("{d}T08:00:00Z"),
+                "check_in_at": format!("{d}T07:41:00Z") });
+            let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+                ("GET", "/staff/me/attendance") => Some(StubResponse::json(200, json!([cov.clone()]))),
+                _ => None,
+            })
+            .await;
+            let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+            let cover = snap["shifts"].as_array().unwrap().iter().find(|x| x["id"] == "cover|cov").cloned().expect("my cover row");
+            assert_eq!(cover["cover_status"], json!(status), "the cover's own status");
+        }
+        assert_ne!(i18n::tr("en", "staff.cover_not_confirmed"), i18n::tr("ar", "staff.cover_not_confirmed"));
     }
 
     /// E2E (posnotif, requests, clocking): a cover record shared the covered

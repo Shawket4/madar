@@ -88,33 +88,39 @@ class _DayRow extends ConsumerWidget {
     final flag = store.flags
         .where((f) => f.shift == s.id && f.kind != FlagKind.cover)
         .firstOrNull;
-    final status = absent
-        ? MadarStatus(tr('staff.absent_total'), tone: MadarTone.danger)
-        : s.leave != null
-        ? MadarStatus(
-            s.leave == 'paid'
-                ? tr('staff.paid_leave')
-                : tr('staff.unpaid_leave'),
-          )
-        : s.mission
-        ? MadarStatus(tr('staff.mission'))
-        : late > 0
-        ? MadarStatus(
-            tr('staff.late_m', {'late': late}),
-            tone: MadarTone.warning,
-          )
-        : s.outMethod == Method.auto
-        ? MadarStatus(tr('staff.auto_closed'), tone: MadarTone.warning)
-        : ot != null
-        ? MadarStatus(
-            tr('staff.ot_m', {'minutes': ot.minutes}),
-            tone: ot.status == ReqStatus.approved
-                ? MadarTone.success
-                : MadarTone.warning,
-          )
-        : flag != null
-        ? MadarStatus(flagInfo(flag.kind).label, tone: flagInfo(flag.kind).tone)
-        : null;
+    // A cover not (yet) confirmed says so first (M-CV-1).
+    final status =
+        coverStatus(s) ??
+        (absent
+            ? MadarStatus(tr('staff.absent_total'), tone: MadarTone.danger)
+            : s.leave != null
+            ? MadarStatus(
+                s.leave == 'paid'
+                    ? tr('staff.paid_leave')
+                    : tr('staff.unpaid_leave'),
+              )
+            : s.mission
+            ? MadarStatus(tr('staff.mission'))
+            : late > 0
+            ? MadarStatus(
+                tr('staff.late_m', {'late': late}),
+                tone: MadarTone.warning,
+              )
+            : s.outMethod == Method.auto
+            ? MadarStatus(tr('staff.auto_closed'), tone: MadarTone.warning)
+            : ot != null
+            ? MadarStatus(
+                tr('staff.ot_m', {'minutes': ot.minutes}),
+                tone: ot.status == ReqStatus.approved
+                    ? MadarTone.success
+                    : MadarTone.warning,
+              )
+            : flag != null
+            ? MadarStatus(
+                flagInfo(flag.kind).label,
+                tone: flagInfo(flag.kind).tone,
+              )
+            : null);
     return MadarListRow.bill(
       title: switch (s.coverOf) {
         final o? =>
@@ -129,7 +135,7 @@ class _DayRow extends ConsumerWidget {
                   null => '',
                 }}',
       status: status,
-      rail: absent
+      rail: absent || s.coverStatus == 'rejected'
           ? MadarTone.danger
           : late > 0
           ? MadarTone.warning
@@ -279,3 +285,20 @@ Future<void> correctionSheet(BuildContext context, Shift s) {
     ),
   );
 }
+
+/// A cover of mine not (yet) confirmed says so (M-CV-1): a rejected cover
+/// is not paid and must not read like a confirmed one. Null for anything
+/// else.
+MadarStatus? coverStatus(Shift s) => s.coverOf == null
+    ? null
+    : switch (s.coverStatus) {
+        'rejected' => MadarStatus(
+          tr('staff.cover_not_confirmed'),
+          tone: MadarTone.danger,
+        ),
+        'pending' => MadarStatus(
+          tr('staff.cover_waiting'),
+          tone: MadarTone.warning,
+        ),
+        _ => null,
+      };
