@@ -5,7 +5,9 @@
 // only show them and hand the teller's picks back.
 
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:app_core/app_core.dart';
 import 'package:app_core/testing.dart';
@@ -15,11 +17,16 @@ import 'package:feature_order/src/combo_sheet.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/sell_cart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show FontLoader;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
+
+/// `MADAR_RENDER=true` writes `build/render/combo-vs-item-<lang>.png`: the
+/// item sheet beside the combo sheet (and the combo waiting for a bread).
+const _render = bool.fromEnvironment('MADAR_RENDER');
 
 const Size _phone = Size(390, 844);
 const Size _tablet = Size(1194, 834);
@@ -50,6 +57,7 @@ ComboChoiceDetail _choice(
   int surcharge = 0,
   bool isDefault = false,
   bool customisable = false,
+  bool mustCustomise = false,
 }) => ComboChoiceDetail(
   itemId: id,
   name: name,
@@ -59,9 +67,14 @@ ComboChoiceDetail _choice(
   sizes: sizes,
   isDefault: isDefault,
   customisable: customisable,
+  mustCustomise: mustCustomise,
 );
 
-ComboDetail _detail({required bool arabic, bool available = true}) {
+ComboDetail _detail({
+  required bool arabic,
+  bool available = true,
+  bool club = false,
+}) {
   String rule(int n) => coreWord(
     n == 1 ? 'combo.pick_n_one' : 'combo.pick_n',
     arabic: arabic,
@@ -91,6 +104,15 @@ ComboDetail _detail({required bool arabic, bool available = true}) {
             13000,
             surcharge: 1500,
           ),
+          // A sandwich whose Bread is required and has no default.
+          if (club)
+            _choice(
+              'club',
+              'Club sandwich',
+              11000,
+              customisable: true,
+              mustCustomise: true,
+            ),
         ],
       ),
       ComboSlotDetail(
@@ -246,6 +268,36 @@ MenuItemView _latteItem() => const MenuItemView(
   recipeSteps: [],
 );
 
+MenuItemView _clubItem() => const MenuItemView(
+  kind: 'item',
+  id: 'club',
+  name: 'Club sandwich',
+  categoryId: 'mains',
+  basePriceMinor: 11000,
+  isActive: true,
+  allowedAddonIds: [],
+  sizes: [],
+  addonSlots: [],
+  optionalFields: [],
+  recipes: [],
+  recipeSteps: [],
+);
+
+const List<ItemAddonView> _bread = [
+  ItemAddonView(
+    addonItemId: 'white',
+    name: 'White',
+    addonType: 'bread',
+    chargedPriceMinor: 0,
+  ),
+  ItemAddonView(
+    addonItemId: 'brown',
+    name: 'Brown',
+    addonType: 'bread',
+    chargedPriceMinor: 0,
+  ),
+];
+
 class _Fake implements MadarBridge {
   _Fake({this.arabic = false});
 
@@ -261,6 +313,9 @@ class _Fake implements MadarBridge {
   MadarError? refuseSave;
 
   bool available = true;
+
+  /// The Main slot also offers a Club sandwich (Bread required, no default).
+  bool club = false;
   MealOffer? meal = const MealOffer(
     comboId: 'lunch',
     slotId: 's-drink',
@@ -301,7 +356,7 @@ class _Fake implements MadarBridge {
       return const DeviceConfigView(reconfiguring: false, configured: true);
     }
     if (name == #comboDetail) {
-      return _detail(arabic: arabic, available: available);
+      return _detail(arabic: arabic, available: available, club: club);
     }
     if (name == #comboNewDraft) {
       return ComboDraft(comboId: 'lunch', qty: 1, picks: _defaults);
@@ -310,11 +365,26 @@ class _Fake implements MadarBridge {
       final picks = List.of(a[#picks] as List<ComboPickInput>);
       final qty = a[#qty] as int;
       quoted.add(picks);
-      final complete = {
+      final slotsFull = {
         's-main',
         's-side',
         's-drink',
       }.every((s) => picks.any((p) => p.slotId == s));
+      // The core's check: a club with no bread still wants its choice.
+      final needs = [
+        for (final p in picks)
+          if (p.itemId == 'club' && p.addons.isEmpty)
+            ComboPickNeed(
+              slotId: p.slotId,
+              itemId: 'club',
+              groupName: 'Bread',
+              text: coreWord(
+                'combo.pick_choose',
+                arabic: arabic,
+              ).replaceAll('{group}', 'Bread'),
+            ),
+      ];
+      final complete = slotsFull && needs.isEmpty;
       final unit = 15000 + _surcharge(picks);
       return Future<ComboQuoteView>.value(
         ComboQuoteView(
@@ -326,13 +396,22 @@ class _Fake implements MadarBridge {
           listMinor: 21000 * qty,
           savingMinor: (21000 - unit) * qty,
           complete: complete,
-          refusal: complete ? null : 'COMBO_SLOT_TOO_FEW',
+          refusal: complete
+              ? null
+              : !slotsFull
+              ? 'COMBO_SLOT_TOO_FEW'
+              : 'COMBO_PICK_CHOICE_REQUIRED',
           refusalText: complete
               ? null
-              : coreWord(
+              : !slotsFull
+              ? coreWord(
                   'combo.slot_too_few',
                   arabic: arabic,
-                ).replaceAll('{min}', '1').replaceAll('{slot}', 'Main'),
+                ).replaceAll('{min}', '1').replaceAll('{slot}', 'Main')
+              : coreWord('combo.pick_choice_required', arabic: arabic)
+                    .replaceAll('{group}', 'Bread')
+                    .replaceAll('{item}', 'Club sandwich'),
+          pickNeeds: needs,
         ),
       );
     }
@@ -410,6 +489,40 @@ class _Fake implements MadarBridge {
       lines = [_croissants()];
       return Future<List<CartLineView>>.value(lines);
     }
+    if (name == #listCategories) {
+      return Future<List<CategoryView>>.value(const []);
+    }
+    if (name == #listMenuItems) {
+      return Future<List<MenuItemView>>.value([_latteItem(), _clubItem()]);
+    }
+    if (name == #listItemAddons && a[#itemId] == 'club') {
+      return Future<List<ItemAddonView>>.value(_bread);
+    }
+    if (name == #listItemModifierGroups && a[#itemId] == 'club') {
+      return Future<List<ModifierGroupView>>.value(const [
+        ModifierGroupView(
+          groupId: 'g-bread',
+          name: 'Bread',
+          kind: ModifierGroupKind.addon,
+          addonType: 'bread',
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+          options: [
+            ModifierOptionView(
+              id: 'white',
+              name: 'White',
+              chargedPriceMinor: 0,
+            ),
+            ModifierOptionView(
+              id: 'brown',
+              name: 'Brown',
+              chargedPriceMinor: 0,
+            ),
+          ],
+        ),
+      ]);
+    }
     if (name == #listItemAddons) {
       return Future<List<ItemAddonView>>.value(const [
         ItemAddonView(
@@ -456,18 +569,21 @@ Future<ProviderContainer> _mount(
   );
   addTearDown(container.dispose);
   await tester.pumpWidget(
-    UncontrolledProviderScope(
-      container: container,
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: MadarTheme.light(),
-        locale: Locale(fake.arabic ? 'ar' : 'en'),
-        supportedLocales: const [Locale('en'), Locale('ar')],
-        localizationsDelegates: GlobalMaterialLocalizations.delegates,
-        home: Directionality(
-          textDirection: fake.arabic ? TextDirection.rtl : TextDirection.ltr,
-          child: Scaffold(
-            body: Consumer(builder: (context, ref, _) => body(context, ref)),
+    RepaintBoundary(
+      key: const ValueKey('shot'),
+      child: UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: MadarTheme.light(),
+          locale: Locale(fake.arabic ? 'ar' : 'en'),
+          supportedLocales: const [Locale('en'), Locale('ar')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: Directionality(
+            textDirection: fake.arabic ? TextDirection.rtl : TextDirection.ltr,
+            child: Scaffold(
+              body: Consumer(builder: (context, ref, _) => body(context, ref)),
+            ),
           ),
         ),
       ),
@@ -517,8 +633,189 @@ Future<void> _loadFonts() async {
   }
 }
 
+/// The picture as it stands (the whole app, sheet and scrim included).
+Future<ui.Image> _grab(WidgetTester tester) async {
+  final boundary =
+      tester.renderObject(find.byKey(const ValueKey('shot')))
+          as RenderRepaintBoundary;
+  return (await tester.runAsync(() => boundary.toImage(pixelRatio: 2)))!;
+}
+
+/// [shots] side by side on one PNG in `build/render/`.
+Future<void> _sideBySide(
+  WidgetTester tester,
+  String name,
+  List<ui.Image> shots,
+) async {
+  final bytes = await tester.runAsync(() async {
+    const gap = 32.0;
+    final w =
+        shots.fold<double>(0, (s, i) => s + i.width) + gap * (shots.length + 1);
+    final h = shots.map((i) => i.height).reduce(math.max) + gap * 2;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder)
+      ..drawRect(
+        Rect.fromLTWH(0, 0, w, h),
+        Paint()..color = const Color(0xFFDAD6CF),
+      );
+    var x = gap;
+    for (final shot in shots) {
+      canvas.drawImage(shot, Offset(x, gap), Paint());
+      x += shot.width + gap;
+    }
+    final image = await recorder.endRecording().toImage(w.toInt(), h.toInt());
+    return await image.toByteData(format: ui.ImageByteFormat.png);
+  });
+  final dir = Directory('build/render')..createSync(recursive: true);
+  File('${dir.path}/$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+}
+
+/// The item sheet's own showcase: sizes, a milk swap on full fat, extras.
+MenuItemView _latteSized({required bool arabic}) => MenuItemView(
+  kind: 'item',
+  id: 'latte',
+  name: arabic ? 'لاتيه' : 'Latte',
+  description: arabic ? 'إسبريسو مع حليب مبخر' : 'Espresso with steamed milk',
+  categoryId: 'hot',
+  basePriceMinor: 5000,
+  isActive: true,
+  allowedAddonIds: const [],
+  sizes: const [
+    ItemSizeView(id: 'r', label: 'Regular', priceMinor: 5000, isActive: true),
+    ItemSizeView(id: 'l', label: 'Large', priceMinor: 6000, isActive: true),
+  ],
+  addonSlots: const [],
+  optionalFields: const [],
+  recipes: const [],
+  recipeSteps: const [],
+);
+
+List<ItemAddonView> _latteAddons({required bool arabic}) => [
+  ItemAddonView(
+    addonItemId: 'full',
+    name: arabic ? 'حليب كامل الدسم' : 'Full fat',
+    addonType: 'milk_type',
+    chargedPriceMinor: 0,
+  ),
+  ItemAddonView(
+    addonItemId: 'oat',
+    name: arabic ? 'حليب شوفان' : 'Oat milk',
+    addonType: 'milk_type',
+    chargedPriceMinor: 1500,
+  ),
+  ItemAddonView(
+    addonItemId: 'shot',
+    name: arabic ? 'شوت إضافي' : 'Extra shot',
+    addonType: 'extra',
+    chargedPriceMinor: 800,
+  ),
+];
+
+List<ModifierGroupView> _latteGroups({required bool arabic}) {
+  final a = _latteAddons(arabic: arabic);
+  ModifierOptionView o(ItemAddonView x) => ModifierOptionView(
+    id: x.addonItemId,
+    name: x.name,
+    chargedPriceMinor: x.chargedPriceMinor,
+  );
+  return [
+    ModifierGroupView(
+      groupId: 'g-milk',
+      name: 'milk_type',
+      kind: ModifierGroupKind.addon,
+      addonType: 'milk_type',
+      isRequired: true,
+      minSelections: 1,
+      maxSelections: 1,
+      defaultOptionId: 'full',
+      options: [o(a[0]), o(a[1])],
+    ),
+    ModifierGroupView(
+      groupId: 'type:extra',
+      name: 'extra',
+      kind: ModifierGroupKind.addon,
+      addonType: 'extra',
+      isRequired: false,
+      minSelections: 0,
+      options: [o(a[2])],
+    ),
+  ];
+}
+
 void main() {
   setUpAll(_loadFonts);
+
+  // The two sheets side by side, EN and AR: the combo sheet is the item
+  // sheet's header, group cards, chips and footer.
+  for (final arabic in [false, true]) {
+    final lang = arabic ? 'ar' : 'en';
+    testWidgets('the combo sheet matches the item sheet ($lang)', (
+      tester,
+    ) async {
+      final fake = _Fake(arabic: arabic)..club = true;
+      ComboDraft? draft;
+      final c = await _mount(
+        tester,
+        fake,
+        size: _phone,
+        body: (context, ref) => Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextButton(
+              key: const ValueKey('open-item'),
+              onPressed: () => showMadarSheet<Object?>(
+                context,
+                size: SheetSize.hug,
+                builder: (_) => ItemDetailSheet(
+                  item: _latteSized(arabic: arabic),
+                  addons: _latteAddons(arabic: arabic),
+                  groups: _latteGroups(arabic: arabic),
+                ),
+              ),
+              child: const Text('item'),
+            ),
+            TextButton(
+              key: const ValueKey('open'),
+              onPressed: () => showComboSheet(
+                context,
+                ref,
+                comboId: 'lunch',
+                tableId: null,
+                draft: draft,
+              ),
+              child: const Text('combo'),
+            ),
+          ],
+        ),
+      );
+      await c.read(orderProvider.notifier).loadCatalog();
+      final shots = <ui.Image>[];
+      Future<void> shoot(String opener) async {
+        await tester.tap(find.byKey(ValueKey(opener)));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        if (_render) shots.add(await _grab(tester));
+        await tester.tapAt(const Offset(8, 8)); // the scrim closes it
+        await tester.pumpAndSettle();
+      }
+
+      await shoot('open-item');
+      expect(find.byType(ItemDetailSheet), findsNothing);
+      await shoot('open');
+      // The combo waiting for its bread.
+      draft = ComboDraft(
+        comboId: 'lunch',
+        qty: 1,
+        picks: [
+          _pick('s-main', 'club'),
+          _pick('s-side', 'fries'),
+          _pick('s-drink', 'latte', size: 'Large'),
+        ],
+      );
+      await shoot('open');
+      if (_render) await _sideBySide(tester, 'combo-vs-item-$lang', shots);
+    });
+  }
 
   for (final arabic in [false, true]) {
     final lang = arabic ? 'ar' : 'en';
@@ -541,12 +838,16 @@ void main() {
           ),
           findsNWidgets(3),
         );
-        // The bigger size says what it adds; the included one adds nothing.
-        expect(
-          find.text('Large +${_money(1000, arabic: arabic)}'),
-          findsOneWidget,
-        );
+        // The item sheet's size chips: each size over what it adds — the
+        // bigger one its "+X", the included one nothing.
+        expect(find.byKey(const ValueKey('size-latte-Large')), findsOneWidget);
+        expect(find.text('Large'), findsOneWidget);
+        expect(find.text('+${_money(1000, arabic: arabic)}'), findsOneWidget);
         expect(find.text('Regular'), findsOneWidget);
+        expect(
+          find.text(coreWord('combo.included', arabic: arabic)),
+          findsWidgets,
+        );
         // The choice that costs more says so.
         expect(find.text('+${_money(1500, arabic: arabic)}'), findsOneWidget);
         // The core's live figures: the total and the saving.
@@ -670,6 +971,106 @@ void main() {
     await tester.pumpAndSettle();
     expect(fake.saved, isEmpty);
   });
+
+  // ── a pick's required choice with no default (a sandwich's bread) ──────
+  testWidgets(
+    'a pick whose required choice has no default opens Customise, and Add '
+    'waits for the choice',
+    (tester) async {
+      final fake = _Fake()..club = true;
+      final c = await _mount(tester, fake, size: _tablet, body: _opener);
+      await c.read(orderProvider.notifier).loadCatalog();
+      await _open(tester);
+
+      // Picking the club opens its sheet in pick mode straight away.
+      await tester.tap(find.byKey(const ValueKey('choice-s-main-club')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ItemDetailSheet), findsOneWidget);
+      // Closed with no bread chosen: the slot says so, and Add is off and
+      // says why — tapping it saves nothing.
+      Navigator.of(tester.element(find.byType(ItemDetailSheet))).pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(ItemDetailSheet), findsNothing);
+      expect(
+        find.byKey(const ValueKey('need-s-main-club')),
+        findsOneWidget,
+        reason: 'the slot shows "Choose Bread"',
+      );
+      MadarButton add() =>
+          tester.widget<MadarButton>(find.byKey(const ValueKey('combo-save')));
+      expect((add().label, add().enabled), ('Choose Bread', false));
+      await tester.tap(find.byKey(const ValueKey('combo-save')));
+      await tester.pumpAndSettle();
+      expect(fake.saved, isEmpty);
+
+      // Customise again and choose the bread: now it adds, with it.
+      await tester.tap(find.byKey(const ValueKey('customise-club')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Brown'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(coreWord('combo.done')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('need-s-main-club')), findsNothing);
+      expect((add().label, add().enabled), (coreWord('combo.add'), true));
+      await tester.tap(find.byKey(const ValueKey('combo-save')));
+      await tester.pumpAndSettle();
+      final club = fake.saved.single.$2.singleWhere((p) => p.itemId == 'club');
+      expect(club.addons.map((a) => a.addonItemId), ['brown']);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final arabic in [false, true]) {
+    testWidgets(
+      'editing a combo (or making a meal) whose club has no bread is blocked '
+      '(${arabic ? 'ar' : 'en'})',
+      (tester) async {
+        final fake = _Fake(arabic: arabic)..club = true;
+        await _mount(
+          tester,
+          fake,
+          size: _phone,
+          body: (context, ref) => _opener(
+            context,
+            ref,
+            draft: ComboDraft(
+              comboId: 'lunch',
+              lineKey: 'combo:lunch',
+              qty: 1,
+              picks: [
+                _pick('s-main', 'club'),
+                _pick('s-side', 'fries'),
+                _pick('s-drink', 'latte'),
+              ],
+            ),
+          ),
+        );
+        await _open(tester);
+        expect(find.byKey(const ValueKey('need-s-main-club')), findsOneWidget);
+        // The slot's chip and the button both say what to choose.
+        final choose = coreWord(
+          'combo.pick_choose',
+          arabic: arabic,
+        ).replaceAll('{group}', 'Bread');
+        expect(
+          tester
+              .widget<StatusChip>(
+                find.byKey(const ValueKey('need-s-main-club')),
+              )
+              .label,
+          choose,
+        );
+        final add = tester.widget<MadarButton>(
+          find.byKey(const ValueKey('combo-save')),
+        );
+        expect((add.label, add.enabled), (choose, false));
+        await tester.tap(find.byKey(const ValueKey('combo-save')));
+        await tester.pumpAndSettle();
+        expect(fake.saved, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('editing a combo line saves over that line', (tester) async {
     final fake = _Fake();

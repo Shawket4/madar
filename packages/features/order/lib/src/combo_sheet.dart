@@ -14,9 +14,15 @@ import 'package:rust_bridge/rust_bridge.dart';
 // one at its "+extra"), "Customise" for an item's add-ons at their normal
 // prices (the item sheet in pick mode), and the core's live total and saving.
 //
+// It is built from the item sheet's own parts (header, group cards, chips,
+// footer) so a combo reads like any other item: a slot is a group, its
+// choices are option chips.
+//
 // Every figure is the core's (`comboQuote`); the sheet only keeps the picks
-// and hands them back. A refusal to save is the core's sentence, on the
-// toast.
+// and hands them back. A pick whose item has a required choice with no
+// default (a sandwich's bread) opens its sheet at once; until the choice is
+// made the slot says so and the core keeps Add off with the reason. A
+// refusal to save is the core's sentence, on the toast.
 
 /// Open the combo sheet for [comboId]: a fresh combo, or [draft] (a combo
 /// line being edited, or "make it a meal" pre-filled with the item).
@@ -54,7 +60,8 @@ Future<void> showComboSheet(
   );
   await showMadarSheet<void>(
     context,
-    size: SheetSize.large,
+    // The item sheet's container: hugs its content, scrolls on overflow.
+    size: SheetSize.hug,
     builder: (_) => anchors == null
         ? sheet
         : CartAnchorScope(anchors: anchors, child: sheet),
@@ -167,7 +174,8 @@ class _ComboSheetState extends ConsumerState<ComboSheet> {
       );
 
   /// A choice tapped: one-pick slots swap to it (or, optional and already
-  /// picked, let it go); larger slots add it while there is room.
+  /// picked, let it go); larger slots add it while there is room. An item
+  /// with a required choice and no default opens its sheet at once.
   void _tapChoice(ComboSlotDetail slot, ComboChoiceDetail c) {
     final mine = _picksOf(slot);
     final picked = mine.any((p) => p.itemId == c.itemId);
@@ -180,10 +188,9 @@ class _ComboSheetState extends ConsumerState<ComboSheet> {
         return;
       }
       if (picked) return;
-      _setPicks([
+      _addPick(slot, c, [
         for (final p in _picks)
           if (p.slotId != slot.id) p,
-        _fresh(slot, c),
       ]);
       return;
     }
@@ -198,7 +205,26 @@ class _ComboSheetState extends ConsumerState<ComboSheet> {
       MadarHaptics.selection();
       return;
     }
-    _setPicks([..._picks, _fresh(slot, c)]);
+    _addPick(slot, c, _picks);
+  }
+
+  void _addPick(
+    ComboSlotDetail slot,
+    ComboChoiceDetail c,
+    List<ComboPickInput> others,
+  ) {
+    final pick = _fresh(slot, c);
+    _setPicks([...others, pick]);
+    if (c.mustCustomise) unawaited(_customise(pick));
+  }
+
+  /// A multi-pick slot's "+" on a chosen item, while the slot has room.
+  void _more(ComboSlotDetail slot, ComboPickInput pick) {
+    if (_countOf(slot) >= slot.max) {
+      MadarHaptics.selection();
+      return;
+    }
+    _replace(pick, _with(pick, qty: pick.qty + 1));
   }
 
   ComboPickInput _with(
@@ -234,6 +260,7 @@ class _ComboSheetState extends ConsumerState<ComboSheet> {
       context,
       size: SheetSize.hug,
       builder: (_) => ItemDetailSheet(
+        key: ValueKey('customise-sheet-${item.id}'),
         item: item,
         addons: addons,
         groups: groups,
@@ -282,28 +309,47 @@ class _ComboSheetState extends ConsumerState<ComboSheet> {
     final editing = widget.draft.lineKey != null;
     final canSave =
         _detail.availableNow && (quote?.complete ?? false) && !_saving;
+    final needs = quote?.pickNeeds ?? const <ComboPickNeed>[];
+    // A pick still wanting its choice: the button says it short ("Choose
+    // Bread", as the item sheet's "Select Bread"); the slot marks which pick.
     final label = !_detail.availableNow
         ? (_detail.whyUnavailable ?? bridge.tr(key: 'combo.not_now'))
+        : quote != null &&
+              !quote.complete &&
+              quote.refusal == 'COMBO_PICK_CHOICE_REQUIRED' &&
+              needs.isNotEmpty
+        ? needs.first.text
         : quote != null && !quote.complete && quote.refusalText != null
         ? quote.refusalText!
         : bridge.tr(key: editing ? 'combo.update' : 'combo.add');
+    final saving = quote?.savingMinor ?? 0;
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _ComboHeader(detail: _detail, currency: currency),
-        Expanded(
+        ItemSheetHeader(
+          title: _detail.name,
+          description: _detail.description,
+          tag: bridge.tr(key: 'combo.badge'),
+          totalMinor: quote?.unitTotalMinor ?? _detail.priceMinor,
+          currency: currency,
+        ),
+        // Hug content when it fits; scroll when the slots overflow — the
+        // footer stays pinned and visible (the item sheet's body).
+        Flexible(
           child: ColoredBox(
             color: colors.surfaceAlt,
             // Not lazy: a combo has a handful of slots, and every one of
             // them is part of the picture the teller checks before saving.
             child: SingleChildScrollView(
-              padding: const EdgeInsetsDirectional.symmetric(
-                horizontal: Space.xl,
-                vertical: Space.lg,
+              padding: const EdgeInsetsDirectional.only(
+                start: Space.xl,
+                end: Space.xl,
+                top: Space.lg,
+                bottom: Space.sm,
               ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (!_detail.availableNow) ...[
                     MadarTag(
@@ -315,14 +361,20 @@ class _ComboSheetState extends ConsumerState<ComboSheet> {
                     const SizedBox(height: Space.md),
                   ],
                   for (final slot in _detail.slots) ...[
-                    _SlotSection(
+                    _SlotCard(
                       key: ValueKey('slot-${slot.id}'),
                       slot: slot,
                       picks: _picksOf(slot),
+                      needs: needs,
                       currency: currency,
                       money: _money,
                       addonNames: _addonNames,
                       onTapChoice: (c) => _tapChoice(slot, c),
+                      onMore: (p) => _more(slot, p),
+                      onLess: (p) => _replace(
+                        p,
+                        p.qty <= 1 ? null : _with(p, qty: p.qty - 1),
+                      ),
                       onSize: (p, size) => _replace(
                         p,
                         _with(
@@ -330,12 +382,9 @@ class _ComboSheetState extends ConsumerState<ComboSheet> {
                           sizeLabel: size.isIncluded ? null : size.label,
                         ),
                       ),
-                      onQty: (p, q) =>
-                          _replace(p, q < 1 ? null : _with(p, qty: q)),
-                      roomLeft: slot.max - _countOf(slot),
                       onCustomise: (p) => unawaited(_customise(p)),
                     ),
-                    const SizedBox(height: Space.lg),
+                    const SizedBox(height: Space.md),
                   ],
                   MadarSectionHeader(text: bridge.tr(key: 'order.notes')),
                   const SizedBox(height: Space.sm),
@@ -350,321 +399,192 @@ class _ComboSheetState extends ConsumerState<ComboSheet> {
             ),
           ),
         ),
-        _ComboFooter(
+        ItemSheetFooter(
           currency: currency,
           totalMinor: quote?.lineTotalMinor ?? _detail.priceMinor * _qty,
-          savingMinor: quote?.savingMinor ?? 0,
-          qty: _qty,
+          totalLabel: bridge.tr(key: 'combo.total'),
+          note: saving > 0
+              ? Text(
+                  bridge
+                      .tr(key: 'combo.you_save')
+                      .replaceAll('{amount}', _money(saving)),
+                  key: const ValueKey('combo-saving'),
+                  textAlign: TextAlign.center,
+                  style: MadarType.bodySm.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: colors.success,
+                  ),
+                )
+              : null,
           label: label,
-          canSave: canSave,
-          saving: _saving,
-          onQty: (q) {
-            setState(() => _qty = q);
-            unawaited(_requote());
-          },
-          onSave: () => unawaited(_save()),
+          canAdd: canSave,
+          loading: _saving,
+          qty: _qty,
+          onDec: () => _setQty(_qty - 1),
+          onInc: () => _setQty(_qty + 1),
+          onCommit: () => unawaited(_save()),
+          ctaKey: const ValueKey('combo-save'),
         ),
       ],
     );
   }
 
+  void _setQty(int qty) {
+    final next = qty.clamp(1, 99);
+    if (next == _qty) return;
+    setState(() => _qty = next);
+    unawaited(_requote());
+  }
+
   static const Object _keep = Object();
 }
 
-class _ComboHeader extends ConsumerWidget {
-  const _ComboHeader({required this.detail, required this.currency});
-
-  final ComboDetail detail;
-  final String currency;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    final bridge = ref.bridge;
-    final description = detail.description;
-    return ColoredBox(
-      color: colors.surface,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: Space.xl,
-              vertical: Space.md,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: Space.md,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: Space.xs,
-                    children: [
-                      MadarTag(
-                        label: bridge.tr(key: 'combo.badge'),
-                        tone: MadarTone.accent,
-                      ),
-                      Text(
-                        detail.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: MadarType.h3.copyWith(
-                          fontWeight: FontWeight.w900,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      if (description != null && description.isNotEmpty)
-                        Text(
-                          description,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: MadarType.bodySm.copyWith(
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                MoneyText(
-                  detail.priceMinor,
-                  currency: currency,
-                  color: colors.navy,
-                ),
-                MadarGlyphTile(
-                  glyph: MadarGlyph.close,
-                  semanticLabel: bridge.tr(key: 'common.close'),
-                  onTap: () => MadarSheet.close<void>(context),
-                ),
-              ],
-            ),
-          ),
-          const MadarHairline(),
-        ],
-      ),
-    );
-  }
-}
-
-/// One slot: its rule ("Choose 1 item"), the choices, and under them each
-/// pick's size chips and "Customise".
-class _SlotSection extends ConsumerWidget {
-  const _SlotSection({
+/// One slot, as the item sheet draws a group: its name and rule, the
+/// choices as option chips ("+X" where a choice costs more), and under them
+/// each pick's sizes, "Customise", and what it still needs.
+class _SlotCard extends ConsumerWidget {
+  const _SlotCard({
     required this.slot,
     required this.picks,
+    required this.needs,
     required this.currency,
     required this.money,
     required this.addonNames,
     required this.onTapChoice,
+    required this.onMore,
+    required this.onLess,
     required this.onSize,
-    required this.onQty,
-    required this.roomLeft,
     required this.onCustomise,
     super.key,
   });
 
   final ComboSlotDetail slot;
   final List<ComboPickInput> picks;
+  final List<ComboPickNeed> needs;
   final String currency;
   final String Function(int minor) money;
   final Map<String, List<ItemAddonView>> addonNames;
   final ValueChanged<ComboChoiceDetail> onTapChoice;
+  final ValueChanged<ComboPickInput> onMore;
+  final ValueChanged<ComboPickInput> onLess;
   final void Function(ComboPickInput pick, ComboSizeOption size) onSize;
-  final void Function(ComboPickInput pick, int qty) onQty;
-  final int roomLeft;
   final ValueChanged<ComboPickInput> onCustomise;
 
   ComboChoiceDetail? _choice(String itemId) =>
       slot.choices.where((c) => c.itemId == itemId).firstOrNull;
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    final bridge = ref.bridge;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        MadarSectionHeader(
-          text: slot.name,
-          trailing: Flexible(
-            child: Text(
-              slot.ruleLabel,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: MadarType.bodySm.copyWith(color: colors.textMuted),
-            ),
-          ),
-        ),
-        const SizedBox(height: Space.sm),
-        if (slot.choices.isEmpty)
-          Text(
-            bridge.tr(key: 'combo.nothing_to_choose'),
-            style: MadarType.bodySm.copyWith(color: colors.textMuted),
-          )
-        else
-          LayoutBuilder(
-            builder: (context, c) {
-              final cols = c.maxWidth >= 560
-                  ? 3
-                  : c.maxWidth >= 340
-                  ? 2
-                  : 1;
-              final w = (c.maxWidth - Space.sm * (cols - 1)) / cols;
-              return Wrap(
-                spacing: Space.sm,
-                runSpacing: Space.sm,
-                children: [
-                  for (final choice in slot.choices)
-                    SizedBox(
-                      width: w,
-                      child: _ChoiceTile(
-                        key: ValueKey('choice-${slot.id}-${choice.itemId}'),
-                        choice: choice,
-                        selected: picks.any((p) => p.itemId == choice.itemId),
-                        money: money,
-                        onTap: () => onTapChoice(choice),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-        for (final pick in picks)
-          if (_choice(pick.itemId) case final choice?)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(top: Space.sm),
-              child: _PickCard(
-                key: ValueKey('pick-${slot.id}-${pick.itemId}'),
-                pick: pick,
-                choice: choice,
-                multi: slot.max > 1,
-                maxQty: pick.qty + (roomLeft < 0 ? 0 : roomLeft),
-                money: money,
-                addonNames: addonNames[pick.itemId] ?? const [],
-                onSize: (s) => onSize(pick, s),
-                onQty: (q) => onQty(pick, q),
-                onCustomise: () => onCustomise(pick),
-              ),
-            ),
-      ],
-    );
-  }
-}
-
-class _ChoiceTile extends ConsumerWidget {
-  const _ChoiceTile({
-    required this.choice,
-    required this.selected,
-    required this.money,
-    required this.onTap,
-    super.key,
-  });
-
-  final ComboChoiceDetail choice;
-  final bool selected;
-  final String Function(int minor) money;
-  final VoidCallback onTap;
+  ComboPickInput? _pick(String itemId) =>
+      picks.where((p) => p.itemId == itemId).firstOrNull;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final bridge = ref.bridge;
-    final sub = choice.surchargeMinor > 0
-        ? '+${money(choice.surchargeMinor)}'
-        : switch (choice.includedSizeLabel) {
-            final size? when choice.sizes.length > 1 =>
-              bridge.tr(key: 'combo.included_size').replaceAll('{size}', size),
-            _ => null,
-          };
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: sub == null ? choice.name : '${choice.name}, $sub',
-      excludeSemantics: true,
-      child: MadarCard(
-        onTap: onTap,
-        selected: selected,
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Space.md,
-          vertical: Space.sm,
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: Metrics.buttonHeight),
-          child: Row(
-            spacing: Space.sm,
-            children: [
-              MadarGlyphIcon(
-                selected ? MadarGlyph.check : MadarGlyph.plus,
-                size: IconSize.sm,
-                color: selected ? colors.accent : colors.textMuted,
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      choice.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: MadarType.title.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    if (sub != null)
-                      Text(
-                        sub,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: MadarType.bodySm.copyWith(
-                          color: choice.surchargeMinor > 0
-                              ? colors.accent
-                              : colors.textMuted,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+    final multi = slot.max > 1;
+    void tap(String id) {
+      if (_choice(id) case final c?) onTapChoice(c);
+    }
+
+    final details = [
+      for (final pick in picks)
+        if (_choice(pick.itemId) case final choice?)
+          if (choice.sizes.length > 1 ||
+              choice.customisable ||
+              needs.any((n) => n.slotId == slot.id && n.itemId == pick.itemId))
+            _PickDetails(
+              key: ValueKey('pick-${slot.id}-${pick.itemId}'),
+              pick: pick,
+              choice: choice,
+              need: needs
+                  .where((n) => n.slotId == slot.id && n.itemId == pick.itemId)
+                  .firstOrNull,
+              money: money,
+              addonNames: addonNames[pick.itemId] ?? const [],
+              onSize: (s) => onSize(pick, s),
+              onCustomise: () => onCustomise(pick),
+            ),
+    ];
+    return ItemSheetGroupCard(
+      group: AddonGroup(
+        id: slot.id,
+        title: slot.name,
+        addons: [
+          for (final c in slot.choices)
+            ItemAddonView(
+              addonItemId: c.itemId,
+              name: c.name,
+              addonType: '',
+              chargedPriceMinor: c.surchargeMinor,
+            ),
+        ],
+        isMulti: multi,
+        maxSel: multi ? slot.max : 1,
+        isRequired: slot.min > 0,
+        minSel: slot.min,
       ),
+      subtitle: slot.ruleLabel,
+      currency: currency,
+      charged: (id) => _choice(id)?.surchargeMinor ?? 0,
+      selectedSingle: multi ? null : picks.firstOrNull?.itemId,
+      selectedMulti: multi
+          ? {for (final p in picks) p.itemId: p.qty}
+          : const <String, int>{},
+      onToggleSingle: tap,
+      onToggleMulti: tap,
+      onInc: (id) {
+        if (_pick(id) case final p?) onMore(p);
+      },
+      onDec: (id) {
+        if (_pick(id) case final p?) onLess(p);
+      },
+      optionKey: (id) => ValueKey('choice-${slot.id}-$id'),
+      below: slot.choices.isEmpty
+          ? Padding(
+              padding: const EdgeInsetsDirectional.only(top: Space.sm),
+              child: Text(
+                bridge.tr(key: 'combo.nothing_to_choose'),
+                style: MadarType.bodySm.copyWith(color: colors.textMuted),
+              ),
+            )
+          : details.isEmpty
+          ? null
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: details,
+            ),
     );
   }
 }
 
-/// One pick: its sizes (the included one free, bigger ones at "+extra"),
-/// its count in a slot that takes several, and "Customise".
-class _PickCard extends ConsumerWidget {
-  const _PickCard({
+/// A pick's own choices under its slot: the sizes (the included one free,
+/// a bigger one at "+extra"), its add-ons so far, "Customise", and — when
+/// its item has a required choice still unmade — what to choose.
+class _PickDetails extends ConsumerWidget {
+  const _PickDetails({
     required this.pick,
     required this.choice,
-    required this.multi,
-    required this.maxQty,
+    required this.need,
     required this.money,
     required this.addonNames,
     required this.onSize,
-    required this.onQty,
     required this.onCustomise,
     super.key,
   });
 
   final ComboPickInput pick;
   final ComboChoiceDetail choice;
-  final bool multi;
-  final int maxQty;
+  final ComboPickNeed? need;
   final String Function(int minor) money;
   final List<ItemAddonView> addonNames;
   final ValueChanged<ComboSizeOption> onSize;
-  final ValueChanged<int> onQty;
   final VoidCallback onCustomise;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final bridge = ref.bridge;
+    final need = this.need;
     final chosen = pick.sizeLabel ?? choice.includedSizeLabel;
     final extras = [
       for (final a in pick.addons)
@@ -672,148 +592,84 @@ class _PickCard extends ConsumerWidget {
             case final n?)
           if (a.qty > 1) '${n.name} ×${a.qty}' else n.name,
     ];
-    final showSizes = choice.sizes.length > 1;
-    if (!showSizes && !multi && !choice.customisable) {
-      return const SizedBox.shrink();
-    }
-    return MadarCard.column(
-      spacing: Space.sm,
-      padding: const EdgeInsetsDirectional.all(Space.md),
-      children: [
-        Row(
-          spacing: Space.sm,
-          children: [
-            Expanded(
-              child: Text(
-                choice.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: MadarType.title.copyWith(color: colors.textPrimary),
+    final summary = [...extras, ?pick.notes].join(' · ');
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: Space.md),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(height: 1, color: colors.borderLight),
+          const SizedBox(height: Space.md),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  choice.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MadarType.bodySm.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+              if (need != null) ...[
+                const SizedBox(width: Space.sm),
+                StatusChip(
+                  key: ValueKey('need-${pick.slotId}-${pick.itemId}'),
+                  label: need.text,
+                  tone: ChipTone.danger,
+                ),
+              ],
+            ],
+          ),
+          if (choice.sizes.length > 1) ...[
+            const SizedBox(height: Space.sm),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final size in choice.sizes) ...[
+                    ItemSheetChip(
+                      key: ValueKey('size-${pick.itemId}-${size.label}'),
+                      label: size.label,
+                      sub: size.extraMinor > 0
+                          ? '+${money(size.extraMinor)}'
+                          : bridge.tr(key: 'combo.included'),
+                      active: chosen == size.label,
+                      onTap: () => onSize(size),
+                    ),
+                    const SizedBox(width: Space.sm),
+                  ],
+                ],
               ),
             ),
-            if (multi)
-              MadarStepper(value: pick.qty, max: maxQty, onChanged: onQty),
           ],
-        ),
-        if (showSizes)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              spacing: Space.sm,
-              children: [
-                for (final size in choice.sizes)
-                  MadarChip(
-                    key: ValueKey('size-${pick.itemId}-${size.label}'),
-                    label: size.extraMinor > 0
-                        ? '${size.label} +${money(size.extraMinor)}'
-                        : size.label,
-                    selected: chosen == size.label,
-                    onTap: () => onSize(size),
-                  ),
-              ],
+          if (summary.isNotEmpty) ...[
+            const SizedBox(height: Space.sm),
+            Text(
+              summary,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: MadarType.bodySm.copyWith(color: colors.textSecondary),
             ),
-          ),
-        if (extras.isNotEmpty || (pick.notes?.isNotEmpty ?? false))
-          Text(
-            [...extras, ?pick.notes].join(' · '),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: MadarType.bodySm.copyWith(color: colors.textSecondary),
-          ),
-        if (choice.customisable)
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: MadarButton(
+          ],
+          if (choice.customisable) ...[
+            const SizedBox(height: Space.sm),
+            MadarButton(
               key: ValueKey('customise-${pick.itemId}'),
               label: bridge.tr(key: 'combo.customise'),
-              variant: MadarButtonVariant.ghost,
+              // Wanting a choice, it is the thing to do next.
+              variant: need != null
+                  ? MadarButtonVariant.primary
+                  : MadarButtonVariant.outline,
               size: MadarButtonSize.compact,
               glyph: MadarGlyph.plus,
               onTap: onCustomise,
             ),
-          ),
-      ],
-    );
-  }
-}
-
-class _ComboFooter extends ConsumerWidget {
-  const _ComboFooter({
-    required this.currency,
-    required this.totalMinor,
-    required this.savingMinor,
-    required this.qty,
-    required this.label,
-    required this.canSave,
-    required this.saving,
-    required this.onQty,
-    required this.onSave,
-  });
-
-  final String currency;
-  final int totalMinor;
-  final int savingMinor;
-  final int qty;
-  final String label;
-  final bool canSave;
-  final bool saving;
-  final ValueChanged<int> onQty;
-  final VoidCallback onSave;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    final bridge = ref.bridge;
-    return ColoredBox(
-      color: colors.surface,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Space.xl,
-          vertical: Space.md,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.sm,
-          children: [
-            GrandTotalBlock(
-              label: bridge.tr(key: 'combo.total'),
-              totalMinor: totalMinor,
-              currency: currency,
-            ),
-            if (savingMinor > 0)
-              Text(
-                bridge
-                    .tr(key: 'combo.you_save')
-                    .replaceAll(
-                      '{amount}',
-                      Money.format(
-                        savingMinor,
-                        currency: currency,
-                        locale: MadarFormat.localeOf(context),
-                      ),
-                    ),
-                key: const ValueKey('combo-saving'),
-                textAlign: TextAlign.center,
-                style: MadarType.bodySm.copyWith(color: colors.success),
-              ),
-            Row(
-              spacing: Space.md,
-              children: [
-                MadarStepper(value: qty, min: 1, onChanged: onQty),
-                Expanded(
-                  child: MadarButton(
-                    key: const ValueKey('combo-save'),
-                    label: label,
-                    enabled: canSave,
-                    loading: saving,
-                    onTap: onSave,
-                  ),
-                ),
-              ],
-            ),
           ],
-        ),
+        ],
       ),
     );
   }
