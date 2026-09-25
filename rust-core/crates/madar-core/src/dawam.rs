@@ -5074,8 +5074,13 @@ mod tests {
                 e => panic!("{e:?}"),
             }
         }
-        let n = notice_text("ar", "staff.n_salary_missing", &json!({ "name": "Youssef", "employee_id": "e4" }));
-        assert!(n.contains("Youssef") && n != i18n::tr("en", "staff.n_salary_missing"), "{n}");
+        let args = json!({ "name": "Youssef", "employee_id": "e4", "by": "Omar" });
+        assert_eq!(
+            notice_text("en", "staff.n_salary_missing", &args),
+            "Omar added Youssef without a salary. Set it before approving payroll."
+        );
+        let n = notice_text("ar", "staff.n_salary_missing", &args);
+        assert!(n.contains("Youssef") && n.contains("Omar") && !n.contains('{'), "{n}");
         for k in ["staff.payroll_salary_missing", "staff.salary_not_set", "staff.approve_blocked_salary_missing"] {
             assert_ne!(i18n::tr("ar", k), i18n::tr("en", k), "{k}");
         }
