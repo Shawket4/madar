@@ -220,10 +220,16 @@ class _ReqRow extends ConsumerWidget {
           : r.status == ReqStatus.approved
           ? () => _cancelApproved(context)
           : () async {
+              // A claim is withdrawn, as its row then reads; the rest cancelled.
+              final claim = r.kind == ReqKind.openShift;
               final ok = await showMadarConfirm(
                 context,
-                title: tr('staff.cancel_this_request'),
-                confirmLabel: tr('staff.cancel_request'),
+                title: claim
+                    ? tr('staff.withdraw_this_claim')
+                    : tr('staff.cancel_this_request'),
+                confirmLabel: claim
+                    ? tr('staff.withdraw')
+                    : tr('staff.cancel_request'),
                 cancelLabel: tr('staff.keep'),
               );
               if (ok) {

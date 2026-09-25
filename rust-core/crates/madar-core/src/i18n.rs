@@ -584,6 +584,8 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.declined" => "Declined",
         "staff.withdrawn" => "Withdrawn",
         "staff.claim_withdrawn" => "Claim withdrawn",
+        "staff.withdraw_this_claim" => "Withdraw this claim?",
+        "staff.withdraw" => "Withdraw",
         "staff.app" => "App",
         "staff.app_offline" => "App · offline",
         "staff.by_manager" => "By manager",
@@ -2917,6 +2919,8 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.declined" => "اترفض",
         "staff.withdrawn" => "اتسحب",
         "staff.claim_withdrawn" => "الحجز اتسحب",
+        "staff.withdraw_this_claim" => "تسحب الحجز ده؟",
+        "staff.withdraw" => "اسحب",
         "staff.app" => "التطبيق",
         "staff.app_offline" => "التطبيق · أوفلاين",
         "staff.by_manager" => "من المدير",
@@ -5173,10 +5177,19 @@ mod tests {
     }
 
     /// FINAL device check (B, C2): withdrawing an open-shift claim toasts the
-    /// row's own word, not "Cancelled".
+    /// row's own word, not "Cancelled" — and asks it so (POLISH): "Withdraw
+    /// this claim?" / "Withdraw", the Arabic on the row's سحب.
     #[test]
     fn a_withdrawn_claim_says_withdrawn() {
         assert_eq!(tr("en", "staff.claim_withdrawn"), "Claim withdrawn");
+        assert_eq!(
+            tr("en", "staff.withdraw_this_claim"),
+            "Withdraw this claim?"
+        );
+        assert_eq!(tr("en", "staff.withdraw"), "Withdraw");
+        for k in ["staff.withdraw_this_claim", "staff.withdraw"] {
+            assert!(tr("ar", k).contains("سحب"), "{k}: {}", tr("ar", k));
+        }
         assert!(tr("ar", "staff.claim_withdrawn").contains(&tr("ar", "staff.withdrawn")));
     }
 

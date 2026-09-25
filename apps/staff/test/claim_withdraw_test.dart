@@ -1,7 +1,8 @@
 // FINAL device check (run B, C2): taking back my claim on an open shift
 // toasted "Cancelled" while its row then read "Withdrawn". The toast says
-// what the row says: the claim was withdrawn. Any other request of mine
-// taken back still says "Cancelled".
+// what the row says: the claim was withdrawn. POLISH: so does the question
+// before it, "Withdraw this claim?" / "Withdraw". Any other request of mine
+// taken back is still cancelled, in the question and the toast.
 import 'package:design_system/design_system.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -54,9 +55,21 @@ void main() {
   });
 
   for (final lang in ['en', 'ar']) {
-    for (final (kind, label, toast) in [
-      ('openShift', 'staff.kind_open_shift', 'staff.claim_withdrawn'),
-      ('mission', 'staff.kind_mission', 'staff.cancelled'),
+    for (final (kind, label, title, button, toast) in [
+      (
+        'openShift',
+        'staff.kind_open_shift',
+        'staff.withdraw_this_claim',
+        'staff.withdraw',
+        'staff.claim_withdrawn',
+      ),
+      (
+        'mission',
+        'staff.kind_mission',
+        'staff.cancel_this_request',
+        'staff.cancel_request',
+        'staff.cancelled',
+      ),
     ]) {
       testWidgets('taking back a pending $kind says $toast · $lang', (t) async {
         await pumpApp(
@@ -76,7 +89,9 @@ void main() {
         await t.ensureVisible(row.first);
         await t.tap(row.first);
         await frames(t);
-        await t.tap(find.text(tr('staff.cancel_request')).last);
+        expect(find.text(tr(title)), findsOneWidget, reason: tr(title));
+        expect(find.text(tr(button)), findsOneWidget, reason: tr(button));
+        await t.tap(find.text(tr(button)).last);
         await frames(t);
         expect(lastAct(), {'action': 'cancel', 'req': 'x|1'});
         expect(testContainer.read(toastProvider)?.text, tr(toast));
@@ -86,6 +101,7 @@ void main() {
             tr('staff.claim_withdrawn'),
             contains(lang == 'en' ? 'withdrawn' : tr('staff.withdrawn')),
           );
+          expect(find.text(tr('staff.cancel_this_request')), findsNothing);
         }
         await finish(t);
       });
