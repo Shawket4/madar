@@ -147,8 +147,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
   /// Whether an item needs its sheet, remembered per item. The answer needs
   /// the item's modifier groups from the core, which is a bridge call — once
-  /// per item per screen life is plenty; per tap would put a round-trip
-  /// between the finger and the cart.
+  /// per item per menu read is plenty; per tap would put a round-trip
+  /// between the finger and the cart. Cleared whenever the catalogue changes,
+  /// or a synced required pick would keep being skipped by a quick add.
   final _needsSheet = <String, bool>{};
 
   /// This screen's cart landing pads — its own, so a table's screen never
@@ -398,10 +399,17 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       ..listen(connectivityPulseProvider, (_, _) {
         unawaited(_notifier.syncFromStatus());
       })
-      // A manual sync re-pulled the catalogue: re-read the menu so paths the
-      // sync just cached (step animations, photos) reach the item sheet.
+      // A sync (manual or a background pull) changed the catalogue: re-read the
+      // menu so paths the sync just cached (step animations, photos) reach the
+      // item sheet, and forget which items needed a sheet — a synced required
+      // pick (say, a bread) must open the sheet on the very next tap.
       ..listen(catalogTickProvider, (_, _) {
+        _needsSheet.clear();
         unawaited(_notifier.loadCatalog());
+      })
+      // Any new menu read (sync, language, re-init) invalidates the answers too.
+      ..listen(orderProvider.select((s) => s.menuItems), (_, _) {
+        _needsSheet.clear();
       })
       ..listen(localeProvider.select((s) => s.locale), (_, _) {
         unawaited(_notifier.loadCatalog());

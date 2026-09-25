@@ -423,6 +423,12 @@ class _FakeBridge implements MadarBridge {
   /// How many times the menu was read from the core.
   int menuReads = 0;
 
+  /// Items whose options now include a required pick (a sync can add one).
+  final Set<String> requiredFor = {};
+
+  /// How many quick adds reached the core's cart.
+  int cartAdds = 0;
+
   /// The open bills as the local store holds them now.
   List<TicketView> tickets = _tickets;
 
@@ -583,6 +589,7 @@ class _FakeBridge implements MadarBridge {
       return const DeviceConfigView(reconfiguring: false, configured: true);
     }
     if (name == #cartAdd) {
+      cartAdds++;
       final id = invocation.namedArguments[#itemId] as String;
       final label = invocation.namedArguments[#name] as String;
       final minor = invocation.namedArguments[#unitPriceMinor] as int;
@@ -764,7 +771,28 @@ class _FakeBridge implements MadarBridge {
       );
     }
     if (name == #listItemModifierGroups) {
-      return Future<List<ModifierGroupView>>.value(const []);
+      final id = invocation.namedArguments[#itemId] as String;
+      return Future<List<ModifierGroupView>>.value(
+        requiredFor.contains(id)
+            ? const [
+                ModifierGroupView(
+                  groupId: 'bread',
+                  name: 'Bread',
+                  kind: ModifierGroupKind.addon,
+                  isRequired: true,
+                  minSelections: 1,
+                  maxSelections: 1,
+                  options: [
+                    ModifierOptionView(
+                      id: 'white',
+                      name: 'White Bread',
+                      chargedPriceMinor: 0,
+                    ),
+                  ],
+                ),
+              ]
+            : const [],
+      );
     }
     if (name == #listItemAddons) {
       return Future<List<ItemAddonView>>.value(const []);
@@ -1962,6 +1990,36 @@ void _cartFlightTests() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(fake.menuReads, greaterThan(before));
+    });
+
+    testWidgets('an item that gains a required pick in a sync opens its sheet '
+        'on the next tap, not a stale quick add', (tester) async {
+      final fake = _FakeBridge();
+      final container = await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: fake,
+      );
+      // Before the sync: no options, so a tap adds straight to the cart.
+      await tester.tap(find.text('Latte').first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(fake.cartAdds, 1);
+      expect(find.byType(ItemDetailSheet), findsNothing);
+
+      // A sync lands a required Bread pick on the same item.
+      fake.requiredFor.add('latte');
+      container.read(catalogTickProvider.notifier).bump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // The next tap must ask, not reuse the remembered "no sheet".
+      await tester.tap(find.text('Latte').first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.byType(ItemDetailSheet), findsOneWidget);
+      expect(fake.cartAdds, 1, reason: 'no bread picked, nothing added');
     });
 
     for (final (device, size) in [('ipad', _ipad), ('phone', _phone)]) {
