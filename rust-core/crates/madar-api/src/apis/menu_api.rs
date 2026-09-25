@@ -24,6 +24,12 @@ pub struct CatalogSyncParams {
     pub since: Option<i64>,
 }
 
+/// struct for passing parameters to the method [`combo_economics`]
+#[derive(Clone, Debug)]
+pub struct ComboEconomicsParams {
+    pub combo_economics_request: models::ComboEconomicsRequest,
+}
+
 /// struct for passing parameters to the method [`create_addon_item`]
 #[derive(Clone, Debug)]
 pub struct CreateAddonItemParams {
@@ -48,6 +54,18 @@ pub struct CreateBaseParams {
 #[derive(Clone, Debug)]
 pub struct CreateCategoryParams {
     pub create_category_request: models::CreateCategoryRequest,
+}
+
+/// struct for passing parameters to the method [`create_combo`]
+#[derive(Clone, Debug)]
+pub struct CreateComboParams {
+    pub combo_write: models::ComboWrite,
+}
+
+/// struct for passing parameters to the method [`create_deal`]
+#[derive(Clone, Debug)]
+pub struct CreateDealParams {
+    pub deal_write: models::DealWrite,
 }
 
 /// struct for passing parameters to the method [`create_group`]
@@ -123,6 +141,13 @@ pub struct DeleteBranchAddonOverrideParams {
     pub addon_item_id: String,
 }
 
+/// struct for passing parameters to the method [`delete_branch_channels`]
+#[derive(Clone, Debug)]
+pub struct DeleteBranchChannelsParams {
+    /// Branch ID
+    pub branch_id: String,
+}
+
 /// struct for passing parameters to the method [`delete_branch_menu_override`]
 #[derive(Clone, Debug)]
 pub struct DeleteBranchMenuOverrideParams {
@@ -135,6 +160,22 @@ pub struct DeleteBranchMenuOverrideParams {
 pub struct DeleteCategoryParams {
     /// Category ID
     pub id: String,
+}
+
+/// struct for passing parameters to the method [`delete_deal`]
+#[derive(Clone, Debug)]
+pub struct DeleteDealParams {
+    /// Deal rule ID
+    pub id: String,
+}
+
+/// struct for passing parameters to the method [`delete_deal_branch`]
+#[derive(Clone, Debug)]
+pub struct DeleteDealBranchParams {
+    /// Deal rule ID
+    pub id: String,
+    /// Branch ID
+    pub branch_id: String,
 }
 
 /// struct for passing parameters to the method [`delete_group`]
@@ -215,6 +256,15 @@ pub struct GetBaseParams {
 pub struct GetBaseUsageParams {
     /// Recipe base ID
     pub id: String,
+}
+
+/// struct for passing parameters to the method [`get_combo`]
+#[derive(Clone, Debug)]
+pub struct GetComboParams {
+    /// The combo's menu item id
+    pub id: String,
+    /// Price the economics for this branch; omitted = the org's catalogue.
+    pub branch_id: Option<String>,
 }
 
 /// struct for passing parameters to the method [`get_group_usage`]
@@ -324,6 +374,23 @@ pub struct ListCategoriesParams {
     pub org_id: String,
 }
 
+/// struct for passing parameters to the method [`list_combos`]
+#[derive(Clone, Debug)]
+pub struct ListCombosParams {
+    /// Name search (EN or AR).
+    pub q: Option<String>,
+    pub category_id: Option<String>,
+    pub is_active: Option<bool>,
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+}
+
+/// struct for passing parameters to the method [`list_deals`]
+#[derive(Clone, Debug)]
+pub struct ListDealsParams {
+    pub is_active: Option<bool>,
+}
+
 /// struct for passing parameters to the method [`list_groups`]
 #[derive(Clone, Debug)]
 pub struct ListGroupsParams {
@@ -428,12 +495,38 @@ pub struct PutBaseLinesParams {
     pub put_recipe_base_lines_request: models::PutRecipeBaseLinesRequest,
 }
 
+/// struct for passing parameters to the method [`put_branch_channels`]
+#[derive(Clone, Debug)]
+pub struct PutBranchChannelsParams {
+    /// Branch ID
+    pub branch_id: String,
+    pub channel_override: models::ChannelOverride,
+}
+
+/// struct for passing parameters to the method [`put_deal_branch`]
+#[derive(Clone, Debug)]
+pub struct PutDealBranchParams {
+    /// Deal rule ID
+    pub id: String,
+    /// Branch ID
+    pub branch_id: String,
+    pub deal_branch_write: models::DealBranchWrite,
+}
+
 /// struct for passing parameters to the method [`put_item_options`]
 #[derive(Clone, Debug)]
 pub struct PutItemOptionsParams {
     /// Menu item ID
     pub id: String,
     pub put_item_options_request: models::PutItemOptionsRequest,
+}
+
+/// struct for passing parameters to the method [`put_meal`]
+#[derive(Clone, Debug)]
+pub struct PutMealParams {
+    /// A kind=item menu item
+    pub id: String,
+    pub meal_link_write: models::MealLinkWrite,
 }
 
 /// struct for passing parameters to the method [`put_modifier_groups`]
@@ -456,6 +549,12 @@ pub struct PutOptionRecipeParams {
 #[derive(Clone, Debug)]
 pub struct PutPriceOverrideParams {
     pub price_override_request: models::PriceOverrideRequest,
+}
+
+/// struct for passing parameters to the method [`put_settings`]
+#[derive(Clone, Debug)]
+pub struct PutSettingsParams {
+    pub combo_settings_write: models::ComboSettingsWrite,
 }
 
 /// struct for passing parameters to the method [`put_size_base`]
@@ -512,6 +611,22 @@ pub struct UpdateCategoryParams {
     /// Category ID
     pub id: String,
     pub update_category_request: models::UpdateCategoryRequest,
+}
+
+/// struct for passing parameters to the method [`update_combo`]
+#[derive(Clone, Debug)]
+pub struct UpdateComboParams {
+    /// The combo's menu item id
+    pub id: String,
+    pub combo_write: models::ComboWrite,
+}
+
+/// struct for passing parameters to the method [`update_deal`]
+#[derive(Clone, Debug)]
+pub struct UpdateDealParams {
+    /// Deal rule ID
+    pub id: String,
+    pub deal_write: models::DealWrite,
 }
 
 /// struct for passing parameters to the method [`update_menu_item`]
@@ -586,6 +701,19 @@ pub enum CatalogSyncError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`combo_economics`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ComboEconomicsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`create_addon_item`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -629,6 +757,32 @@ pub enum CreateBaseError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CreateCategoryError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`create_combo`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CreateComboError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`create_deal`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CreateDealError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -768,6 +922,19 @@ pub enum DeleteBranchAddonOverrideError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`delete_branch_channels`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteBranchChannelsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`delete_branch_menu_override`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -785,6 +952,32 @@ pub enum DeleteBranchMenuOverrideError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteCategoryError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`delete_deal`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteDealError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`delete_deal_branch`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteDealBranchError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -937,6 +1130,19 @@ pub enum GetBaseUsageError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`get_combo`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetComboError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`get_group_usage`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -993,6 +1199,19 @@ pub enum GetMenuLintError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetRecipeLinkError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_settings`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetSettingsError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1110,6 +1329,32 @@ pub enum ListBranchMenuOverridesError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListCategoriesError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`list_combos`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListCombosError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`list_deals`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListDealsError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1275,10 +1520,49 @@ pub enum PutBaseLinesError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`put_branch_channels`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PutBranchChannelsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`put_deal_branch`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PutDealBranchError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`put_item_options`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PutItemOptionsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`put_meal`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PutMealError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1318,6 +1602,19 @@ pub enum PutOptionRecipeError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PutPriceOverrideError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`put_settings`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PutSettingsError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1409,6 +1706,32 @@ pub enum UpdateAddonSlotError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UpdateCategoryError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`update_combo`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UpdateComboError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`update_deal`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UpdateDealError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -1582,6 +1905,52 @@ pub async fn catalog_sync(
     } else {
         let content = resp.text().await?;
         let entity: Option<CatalogSyncError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn combo_economics(
+    configuration: &configuration::Configuration,
+    params: ComboEconomicsParams,
+) -> Result<models::ComboEconomics, Error<ComboEconomicsError>> {
+    let uri_str = format!("{}/combos/economics", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.combo_economics_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ComboEconomics`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ComboEconomics`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ComboEconomicsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1770,6 +2139,98 @@ pub async fn create_category(
     } else {
         let content = resp.text().await?;
         let entity: Option<CreateCategoryError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn create_combo(
+    configuration: &configuration::Configuration,
+    params: CreateComboParams,
+) -> Result<models::Combo, Error<CreateComboError>> {
+    let uri_str = format!("{}/combos", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.combo_write);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::Combo`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::Combo`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<CreateComboError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn create_deal(
+    configuration: &configuration::Configuration,
+    params: CreateDealParams,
+) -> Result<models::DealRule, Error<CreateDealError>> {
+    let uri_str = format!("{}/deals", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.deal_write);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::DealRule`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::DealRule`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<CreateDealError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -2206,6 +2667,44 @@ pub async fn delete_branch_addon_override(
     }
 }
 
+pub async fn delete_branch_channels(
+    configuration: &configuration::Configuration,
+    params: DeleteBranchChannelsParams,
+) -> Result<(), Error<DeleteBranchChannelsError>> {
+    let uri_str = format!(
+        "{}/settings/combos/branches/{branch_id}",
+        configuration.base_path,
+        branch_id = crate::apis::urlencode(params.branch_id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::DELETE, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DeleteBranchChannelsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn delete_branch_menu_override(
     configuration: &configuration::Configuration,
     params: DeleteBranchMenuOverrideParams,
@@ -2272,6 +2771,83 @@ pub async fn delete_category(
     } else {
         let content = resp.text().await?;
         let entity: Option<DeleteCategoryError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn delete_deal(
+    configuration: &configuration::Configuration,
+    params: DeleteDealParams,
+) -> Result<(), Error<DeleteDealError>> {
+    let uri_str = format!(
+        "{}/deals/{id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::DELETE, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DeleteDealError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn delete_deal_branch(
+    configuration: &configuration::Configuration,
+    params: DeleteDealBranchParams,
+) -> Result<(), Error<DeleteDealBranchError>> {
+    let uri_str = format!(
+        "{}/deals/{id}/branches/{branch_id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id),
+        branch_id = crate::apis::urlencode(params.branch_id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::DELETE, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DeleteDealBranchError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -2737,6 +3313,56 @@ pub async fn get_base_usage(
     }
 }
 
+pub async fn get_combo(
+    configuration: &configuration::Configuration,
+    params: GetComboParams,
+) -> Result<models::Combo, Error<GetComboError>> {
+    let uri_str = format!(
+        "{}/combos/{id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.branch_id {
+        req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::Combo`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::Combo`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetComboError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn get_group_usage(
     configuration: &configuration::Configuration,
     params: GetGroupUsageParams,
@@ -2964,6 +3590,48 @@ pub async fn get_recipe_link(
     } else {
         let content = resp.text().await?;
         let entity: Option<GetRecipeLinkError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_settings(
+    configuration: &configuration::Configuration,
+) -> Result<models::ComboSettings, Error<GetSettingsError>> {
+    let uri_str = format!("{}/settings/combos", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ComboSettings`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ComboSettings`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetSettingsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -3403,6 +4071,110 @@ pub async fn list_categories(
     } else {
         let content = resp.text().await?;
         let entity: Option<ListCategoriesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn list_combos(
+    configuration: &configuration::Configuration,
+    params: ListCombosParams,
+) -> Result<models::PaginatedCombos, Error<ListCombosError>> {
+    let uri_str = format!("{}/combos", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.q {
+        req_builder = req_builder.query(&[("q", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.category_id {
+        req_builder = req_builder.query(&[("category_id", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.is_active {
+        req_builder = req_builder.query(&[("is_active", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.page {
+        req_builder = req_builder.query(&[("page", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.per_page {
+        req_builder = req_builder.query(&[("per_page", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PaginatedCombos`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PaginatedCombos`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ListCombosError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn list_deals(
+    configuration: &configuration::Configuration,
+    params: ListDealsParams,
+) -> Result<Vec<models::DealRule>, Error<ListDealsError>> {
+    let uri_str = format!("{}/deals", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.is_active {
+        req_builder = req_builder.query(&[("is_active", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::DealRule&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::DealRule&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ListDealsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -4014,6 +4786,81 @@ pub async fn put_base_lines(
     }
 }
 
+pub async fn put_branch_channels(
+    configuration: &configuration::Configuration,
+    params: PutBranchChannelsParams,
+) -> Result<(), Error<PutBranchChannelsError>> {
+    let uri_str = format!(
+        "{}/settings/combos/branches/{branch_id}",
+        configuration.base_path,
+        branch_id = crate::apis::urlencode(params.branch_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.channel_override);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PutBranchChannelsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn put_deal_branch(
+    configuration: &configuration::Configuration,
+    params: PutDealBranchParams,
+) -> Result<(), Error<PutDealBranchError>> {
+    let uri_str = format!(
+        "{}/deals/{id}/branches/{branch_id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id),
+        branch_id = crate::apis::urlencode(params.branch_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.deal_branch_write);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PutDealBranchError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn put_item_options(
     configuration: &configuration::Configuration,
     params: PutItemOptionsParams,
@@ -4054,6 +4901,43 @@ pub async fn put_item_options(
     } else {
         let content = resp.text().await?;
         let entity: Option<PutItemOptionsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn put_meal(
+    configuration: &configuration::Configuration,
+    params: PutMealParams,
+) -> Result<(), Error<PutMealError>> {
+    let uri_str = format!(
+        "{}/menu-items/{id}/meal",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.meal_link_write);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PutMealError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -4194,6 +5078,50 @@ pub async fn put_price_override(
     } else {
         let content = resp.text().await?;
         let entity: Option<PutPriceOverrideError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn put_settings(
+    configuration: &configuration::Configuration,
+    params: PutSettingsParams,
+) -> Result<models::ComboSettings, Error<PutSettingsError>> {
+    let uri_str = format!("{}/settings/combos", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.combo_settings_write);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ComboSettings`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ComboSettings`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PutSettingsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -4533,6 +5461,102 @@ pub async fn update_category(
     } else {
         let content = resp.text().await?;
         let entity: Option<UpdateCategoryError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn update_combo(
+    configuration: &configuration::Configuration,
+    params: UpdateComboParams,
+) -> Result<models::Combo, Error<UpdateComboError>> {
+    let uri_str = format!(
+        "{}/combos/{id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.combo_write);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::Combo`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::Combo`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<UpdateComboError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn update_deal(
+    configuration: &configuration::Configuration,
+    params: UpdateDealParams,
+) -> Result<models::DealRule, Error<UpdateDealError>> {
+    let uri_str = format!(
+        "{}/deals/{id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.deal_write);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::DealRule`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::DealRule`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<UpdateDealError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

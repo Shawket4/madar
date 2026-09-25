@@ -14,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 MenuItemView _item({String? localImagePath}) => MenuItemView(
+  kind: 'item',
   id: 'latte',
   name: 'Latte',
   basePriceMinor: 4500,

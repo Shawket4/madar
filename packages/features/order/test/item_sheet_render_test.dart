@@ -1,6 +1,6 @@
-// The item and bundle detail sheets: modifier groups (size, a milk swap family
-// preselected on full-fat, extras), recipe steps (one animated, one still, one
-// typed) and a combo — iPad landscape and phone, EN/AR, light/dark.
+// The item detail sheet: modifier groups (size, a milk swap family
+// preselected on full-fat, extras) and recipe steps (one animated, one still,
+// one typed) — iPad landscape and phone, EN/AR, light/dark.
 //
 // `MADAR_RENDER=true` writes `build/render/sheet-<scene>-<tag>.png`.
 
@@ -11,7 +11,6 @@ import 'dart:ui' as ui;
 import 'package:app_core/app_core.dart';
 import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_order/src/bundle_detail_sheet.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -94,6 +93,7 @@ final _groups = [
 ];
 
 MenuItemView _latte() => MenuItemView(
+  kind: 'item',
   id: 'latte',
   name: 'Spanish latte',
   basePriceMinor: 4500,
@@ -112,25 +112,6 @@ MenuItemView _latte() => MenuItemView(
     RecipeStepView(name: 'Pull a double shot', localAnimationPath: _lottie),
     RecipeStepView(name: 'Steam the milk', localAnimationPath: _lottie),
     const RecipeStepView(name: 'Pour over condensed milk', note: '30 ml'),
-  ],
-);
-
-const _combo = BundleView(
-  id: 'combo',
-  name: 'Breakfast combo',
-  priceMinor: 9000,
-  isAvailable: true,
-  components: [
-    BundleComponentView(
-      itemId: 'latte',
-      itemName: 'Spanish latte',
-      quantity: 1,
-    ),
-    BundleComponentView(
-      itemId: 'croissant',
-      itemName: 'Croissant',
-      quantity: 2,
-    ),
   ],
 );
 
@@ -306,18 +287,6 @@ void main() {
           );
           expect(find.byType(ItemDetailSheet), findsOneWidget);
           await _capture(tester, 'sheet-item-$tag');
-        });
-
-        testWidgets('bundle sheet $tag', (tester) async {
-          await _open(
-            tester,
-            size: size,
-            ar: ar,
-            dark: dark,
-            sheet: (_) => const BundleDetailSheet(bundle: _combo),
-          );
-          expect(find.byType(BundleDetailSheet), findsOneWidget);
-          await _capture(tester, 'sheet-bundle-$tag');
         });
       }
     }

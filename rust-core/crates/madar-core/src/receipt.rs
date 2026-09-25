@@ -124,7 +124,7 @@ pub fn escpos(receipt: &ReceiptView, ctx: &EscPosCtx, brand: PrinterBrand) -> Ve
 /// Build the visible line list — pure, no bytes. Golden-tested. Reproduces the
 /// Flutter `printer_service.dart` receipt structure top-to-bottom: header +
 /// delivery flag, order meta, delivery block, item lines with their full
-/// modifier/bundle breakdown, totals, payment/teller footer, thank-you.
+/// modifier breakdown, totals, payment/teller footer, thank-you.
 pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
     let w = ctx.width.max(16) as usize;
     let cur = &ctx.currency;
@@ -214,7 +214,36 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
 
     // ── items ───────────────────────────────────────────────────────────────
     for l in &receipt.lines {
-        let name = match &l.size_label {
+        // A combo (C12): `n × <name> …… n×P`, then each item indented with
+        // its size, `+surcharge` when it cost more, and its add-ons under it.
+        if l.kind == crate::menu::KIND_COMBO {
+            out.push(bold_left(row(
+                &format!("{}x {}", l.qty, l.name),
+                &money(l.unit_price_minor * l.qty, cur),
+                w,
+            )));
+            for p in &l.parts {
+                let name = match crate::cart::real_size(p.size_label.clone()) {
+                    Some(s) => format!("{} ({})", p.name, s),
+                    None => p.name.clone(),
+                };
+                let left = format!("  {}x {}", p.qty, name);
+                if p.surcharge_minor > 0 {
+                    out.push(Line::plain(row(
+                        &left,
+                        &format!("+{}", money(p.surcharge_minor, cur)),
+                        w,
+                    )));
+                } else {
+                    out.push(Line::plain(left));
+                }
+                for m in p.addons.iter().chain(p.optionals.iter()) {
+                    push_modifier(&mut out, "    + ", m, cur, w);
+                }
+            }
+            continue;
+        }
+        let name = match crate::cart::real_size(l.size_label.clone()) {
             Some(s) => format!("{} ({})", l.name, s),
             None => l.name.clone(),
         };
@@ -235,38 +264,27 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
                 w,
             )));
         }
-        if l.is_bundle {
-            for c in &l.components {
-                let cname = match &c.size_label {
-                    Some(s) => format!("{} ({})", c.name, s),
-                    None => c.name.clone(),
-                };
-                out.push(Line::plain(format!("  - {}", cname)));
-                for m in &c.addons {
-                    push_modifier(&mut out, "    + ", m, cur, w);
-                }
-                for m in &c.optionals {
-                    push_modifier(&mut out, "    + ", m, cur, w);
-                }
-            }
-        } else {
-            for m in &l.addons {
-                push_modifier(&mut out, "  + ", m, cur, w);
-            }
-            for m in &l.optionals {
-                push_modifier(&mut out, "  + ", m, cur, w);
-            }
+        for m in &l.addons {
+            push_modifier(&mut out, "  + ", m, cur, w);
+        }
+        for m in &l.optionals {
+            push_modifier(&mut out, "  + ", m, cur, w);
         }
     }
     out.push(Line::plain(divider(w)));
 
     // ── totals ──────────────────────────────────────────────────────────────
-    if receipt.discount_minor > 0 || receipt.delivery_fee_minor > 0 {
+    // With deals, the subtotal row is the lines at their normal prices and
+    // each deal prints under it as its own discount (C8).
+    if receipt.discount_minor > 0 || receipt.delivery_fee_minor > 0 || !receipt.deals.is_empty() {
         out.push(Line::plain(row(
             &lab.subtotal,
-            &money(receipt.subtotal_minor, cur),
+            &money(receipt.gross_subtotal_minor(), cur),
             w,
         )));
+    }
+    for d in &receipt.deals {
+        out.push(Line::plain(row(&d.name, &money(-d.discount_minor, cur), w)));
     }
     if receipt.discount_minor > 0 {
         out.push(Line::plain(row(
@@ -834,7 +852,7 @@ pub(crate) fn short_id(id: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::checkout::{ReceiptComponentView, ReceiptLineView, ReceiptPaymentView, ReceiptView};
+    use crate::checkout::{ReceiptLineView, ReceiptPaymentView, ReceiptView};
 
     #[test]
     fn till_report_layout_has_drawer_lines_and_methods() {
@@ -1048,13 +1066,15 @@ mod tests {
             qty,
             size_label: None,
             line_total_minor: total,
-            is_bundle: false,
             reward_label: None,
             staff_label: None,
             staff_comp_minor: 0,
             addons: vec![],
             optionals: vec![],
-            components: vec![],
+            kind: "item".into(),
+            unit_price_minor: total / qty.max(1),
+            parts: vec![],
+            deal_minor: 0,
         }
     }
 
@@ -1112,6 +1132,7 @@ mod tests {
             created_at: "2026-06-20T10:00:00Z".into(),
             loyalty_notice: None,
             staff_notice: None,
+            deals: vec![],
             payments: vec![],
         }
     }
@@ -1295,7 +1316,7 @@ mod tests {
     }
 
     #[test]
-    fn layout_delivery_with_modifiers_and_bundle() {
+    fn layout_delivery_with_modifiers() {
         let mut r = cash_receipt();
         r.is_delivery = true;
         r.delivery_channel = Some("outside".into());
@@ -1314,19 +1335,7 @@ mod tests {
             name: "No sugar".into(),
             price_minor: 0,
         }];
-        // A bundle line with one configured component.
-        let mut combo = line("Breakfast Combo", 1, 12000);
-        combo.is_bundle = true;
-        combo.components = vec![ReceiptComponentView {
-            name: "Eggs".into(),
-            size_label: None,
-            addons: vec![ReceiptModifierView {
-                name: "Cheese".into(),
-                price_minor: 500,
-            }],
-            optionals: vec![],
-        }];
-        r.lines = vec![latte, combo];
+        r.lines = vec![latte];
         let lines = layout(&r, &ctx());
         let text: Vec<&str> = lines.iter().map(|l| l.text.as_str()).collect();
         // Delivery flag with the channel label.
@@ -1344,11 +1353,6 @@ mod tests {
             .iter()
             .any(|t| t.trim_start().starts_with("+ Oat milk") && t.contains("+8.00 EGP")));
         assert!(text.iter().any(|t| t.trim() == "+ No sugar")); // free → no price
-                                                                // Bundle breakdown: a "- component" line and an indented "+ addon".
-        assert!(text.iter().any(|t| t.trim() == "- Eggs"));
-        assert!(text
-            .iter()
-            .any(|t| t.trim_start().starts_with("+ Cheese") && t.contains("+5.00 EGP")));
         // Delivery fee forces a Subtotal row and prints the fee.
         assert!(text.iter().any(|t| t.starts_with("Subtotal")));
         assert!(text
@@ -1800,7 +1804,7 @@ mod tests {
             .any(|l| l.text.starts_with("Customer") && l.text.ends_with("Walk-in")));
     }
 
-    // ── layout: item / modifier / bundle indentation depth ────────────────────
+    // ── layout: item / modifier indentation depth ─────────────────────────────
 
     #[test]
     fn layout_addon_indent_is_two_spaces_optional_after_addon() {
@@ -1817,7 +1821,7 @@ mod tests {
         r.lines = vec![latte];
         let lines = layout(&r, &ctx());
         let text: Vec<&str> = lines.iter().map(|l| l.text.as_str()).collect();
-        // Non-bundle modifiers use a two-space prefix "  + ".
+        // Modifiers use a two-space prefix "  + ".
         assert!(text
             .iter()
             .any(|t| t.starts_with("  + Vanilla") && t.contains("+3.00 EGP")));
@@ -1827,53 +1831,6 @@ mod tests {
         let i_addon = text.iter().position(|t| t.contains("Vanilla")).unwrap();
         let i_opt = text.iter().position(|t| t.contains("Extra hot")).unwrap();
         assert!(i_addon < i_opt);
-    }
-
-    #[test]
-    fn layout_bundle_component_and_addon_use_four_space_indent() {
-        let mut r = cash_receipt();
-        let mut combo = line("Combo", 1, 10000);
-        combo.is_bundle = true;
-        combo.components = vec![ReceiptComponentView {
-            name: "Burger".into(),
-            size_label: Some("Double".into()),
-            addons: vec![ReceiptModifierView {
-                name: "Bacon".into(),
-                price_minor: 700,
-            }],
-            optionals: vec![ReceiptModifierView {
-                name: "No onion".into(),
-                price_minor: 0,
-            }],
-        }];
-        r.lines = vec![combo];
-        let lines = layout(&r, &ctx());
-        let text: Vec<&str> = lines.iter().map(|l| l.text.as_str()).collect();
-        // Component line: "  - Burger (Double)" (size inlined).
-        assert!(text.iter().any(|t| *t == "  - Burger (Double)"));
-        // Bundle addon priced, four-space indent "    + ".
-        assert!(text
-            .iter()
-            .any(|t| t.starts_with("    + Bacon") && t.contains("+7.00 EGP")));
-        // Bundle free optional: four-space indent, no price.
-        assert!(text.iter().any(|t| *t == "    + No onion"));
-    }
-
-    #[test]
-    fn layout_non_bundle_ignores_components() {
-        // A line with components but is_bundle=false should NOT print them.
-        let mut r = cash_receipt();
-        let mut item = line("Solo", 1, 5000);
-        item.is_bundle = false;
-        item.components = vec![ReceiptComponentView {
-            name: "ShouldNotShow".into(),
-            size_label: None,
-            addons: vec![],
-            optionals: vec![],
-        }];
-        r.lines = vec![item];
-        let lines = layout(&r, &ctx());
-        assert!(!lines.iter().any(|l| l.text.contains("ShouldNotShow")));
     }
 
     #[test]
@@ -2287,6 +2244,9 @@ pub struct KitchenChit {
     pub at: String,
     /// Who sent it — the signed-in teller or waiter, for a cook with a question.
     pub teller: Option<String>,
+    /// The combo this dish is part of, already worded ("In Lunch deal"), so
+    /// a station making one item of a meal knows the rest is coming (C12).
+    pub combo: Option<String>,
 }
 
 /// The words a chit needs.
@@ -2330,7 +2290,7 @@ pub fn kitchen_chit_layout(
     // The item, big, with its count in front of it. `2x` before the name rather
     // than after: the number is what decides how many pans come out, and a cook
     // scanning a rail sees the left edge first.
-    let name = match chit.size_label.as_deref().filter(|s| !s.trim().is_empty()) {
+    let name = match chit.size_label.as_deref().filter(|s| !s.trim().is_empty() && !crate::cart::is_one_size(s)) {
         Some(sz) => format!("{} ({})", chit.item.trim(), sz.trim()),
         None => chit.item.trim().to_string(),
     };
@@ -2341,6 +2301,9 @@ pub fn kitchen_chit_layout(
         size: Size::Double,
     });
 
+    if let Some(c) = chit.combo.as_deref().filter(|s| !s.trim().is_empty()) {
+        out.push(Line { text: format!("  » {}", c.trim()), align: Align::Left, bold: true, size: Size::Normal });
+    }
     // Modifications, indented under what they modify.
     for m in chit.modifiers.iter().filter(|m| !m.trim().is_empty()) {
         out.push(Line::plain(format!("  - {}", m.trim())));
@@ -2394,6 +2357,8 @@ pub struct KitchenSlipItem {
     /// THIS item's own note (its line's order note + its kitchen-only note,
     /// joined) — never the cart-level notes, which print once at the top.
     pub note: Option<String>,
+    /// The combo this dish is part of, already worded ("In Lunch deal").
+    pub combo: Option<String>,
 }
 
 /// A kitchen slip: one header (table/ticket/time), the notes that apply to
@@ -2442,19 +2407,6 @@ pub fn slip_item_for_cart_line(line: &crate::cart::CartLineView) -> KitchenSlipI
     for o in &line.optionals {
         modifiers.push(o.name.clone());
     }
-    for c in &line.bundle_components {
-        let name = match c.size_label.as_deref().filter(|s| !s.trim().is_empty()) {
-            Some(sz) => format!("{}x {} ({})", c.qty, c.name, sz.trim()),
-            None => format!("{}x {}", c.qty, c.name),
-        };
-        modifiers.push(name);
-        for a in &c.addons {
-            modifiers.push(format!("   {}", a.name));
-        }
-        for o in &c.optionals {
-            modifiers.push(format!("   {}", o.name));
-        }
-    }
     // This LINE's own order note (also on the receipt) and its own
     // kitchen-only note (never on the receipt, local-only) — joined so
     // neither is silently dropped when both are set. The CART-level notes
@@ -2473,7 +2425,75 @@ pub fn slip_item_for_cart_line(line: &crate::cart::CartLineView) -> KitchenSlipI
         size_label: line.size_label.clone(),
         modifiers,
         note,
+        combo: None,
     }
+}
+
+/// One cart line's dishes for the kitchen (C12): a plain line is one; a
+/// combo is one per item — its own size, add-ons and note, the count for
+/// the whole line — each tagged with the combo's name, so every station
+/// sees its part and knows what it belongs to. The combo's own note and
+/// kitchen note ride every one of its dishes.
+pub fn slip_items_for_cart_line(line: &crate::cart::CartLineView, locale: &str) -> Vec<KitchenSlipItem> {
+    if line.kind != crate::menu::KIND_COMBO {
+        return vec![slip_item_for_cart_line(line)];
+    }
+    let tag = crate::i18n::tr(locale, "combo.in_combo").replace("{combo}", line.name.trim());
+    let line_note = slip_item_for_cart_line(line).note;
+    line.parts
+        .iter()
+        .map(|p| {
+            let mut modifiers: Vec<String> = Vec::new();
+            for a in &p.addons {
+                modifiers.push(if a.qty > 1 { format!("{} x{}", a.name, a.qty) } else { a.name.clone() });
+            }
+            for o in &p.optionals {
+                modifiers.push(o.name.clone());
+            }
+            let own = p.notes.as_deref().map(str::trim).filter(|s| !s.is_empty());
+            let note = match (own, line_note.as_deref()) {
+                (Some(o), Some(l)) => Some(format!("{o} — {l}")),
+                (Some(o), None) => Some(o.to_string()),
+                (None, Some(l)) => Some(l.to_string()),
+                (None, None) => None,
+            };
+            KitchenSlipItem {
+                item: p.item_name.clone(),
+                qty: p.qty.max(1) * line.qty.max(1),
+                size_label: p.size_label.clone(),
+                modifiers,
+                note,
+                combo: Some(tag.clone()),
+            }
+        })
+        .collect()
+}
+
+/// A cart line as the round's single-dish chits (the fire/checkout print):
+/// one per dish, a combo's items each tagged with it.
+pub fn chits_for_cart_line(
+    line: &crate::cart::CartLineView,
+    table_label: Option<String>,
+    ticket_ref: Option<String>,
+    at: String,
+    teller: Option<String>,
+    locale: &str,
+) -> Vec<KitchenChit> {
+    slip_items_for_cart_line(line, locale)
+        .into_iter()
+        .map(|it| KitchenChit {
+            item: it.item,
+            qty: it.qty,
+            size_label: it.size_label,
+            modifiers: it.modifiers,
+            note: it.note,
+            table_label: table_label.clone(),
+            ticket_ref: ticket_ref.clone(),
+            at: at.clone(),
+            teller: teller.clone(),
+            combo: it.combo,
+        })
+        .collect()
 }
 
 /// Build a ONE-ITEM slip — the per-item print button. Still the same
@@ -2487,6 +2507,7 @@ pub fn slip_for_cart_line(
     teller: Option<String>,
     order_note: Option<String>,
     cart_kitchen_note: Option<String>,
+    locale: &str,
 ) -> KitchenSlip {
     KitchenSlip {
         table_label,
@@ -2494,7 +2515,7 @@ pub fn slip_for_cart_line(
         at,
         teller,
         top_notes: top_notes(order_note, cart_kitchen_note),
-        items: vec![slip_item_for_cart_line(line)],
+        items: slip_items_for_cart_line(line, locale),
     }
 }
 
@@ -2548,7 +2569,7 @@ pub fn kitchen_slip_layout(slip: &KitchenSlip, labels: &KitchenChitLabels, width
             // Space, not a rule and never a cut — one continuous slip.
             out.push(Line::plain(""));
         }
-        let name = match item.size_label.as_deref().filter(|s| !s.trim().is_empty()) {
+        let name = match item.size_label.as_deref().filter(|s| !s.trim().is_empty() && !crate::cart::is_one_size(s)) {
             Some(sz) => format!("{} ({})", item.item.trim(), sz.trim()),
             None => item.item.trim().to_string(),
         };
@@ -2558,6 +2579,9 @@ pub fn kitchen_slip_layout(slip: &KitchenSlip, labels: &KitchenChitLabels, width
             bold: true,
             size: Size::Double,
         });
+        if let Some(c) = item.combo.as_deref().filter(|s| !s.trim().is_empty()) {
+            out.push(Line { text: format!("  » {}", c.trim()), align: Align::Left, bold: true, size: Size::Normal });
+        }
         for m in item.modifiers.iter().filter(|m| !m.trim().is_empty()) {
             out.push(Line::plain(format!("  - {}", m.trim())));
         }
@@ -2600,6 +2624,7 @@ pub fn slip_for_kitchen_chit(chit: &KitchenChit) -> KitchenSlip {
             size_label: chit.size_label.clone(),
             modifiers: chit.modifiers.clone(),
             note: chit.note.clone(),
+            combo: chit.combo.clone(),
         }],
     }
 }
@@ -2668,6 +2693,7 @@ mod kitchen_chit_tests {
             table_label: Some("T4".into()),
             ticket_ref: Some("T-0412".into()),
             at: "19:42".into(),
+            combo: None,
             teller: Some("Mona".into()),
         }
     }
@@ -2690,8 +2716,8 @@ mod kitchen_chit_tests {
         }
     }
 
-    /// A cook chit is built from cart lines that ARE priced (addons, bundle
-    /// components, the line's own unit price) — this is the one place money
+    /// A cook chit is built from cart lines that ARE priced (addons, the
+    /// line's own unit price) — this is the one place money
     /// sits right next to what gets printed, so it is the one place a price
     /// could leak through by accident. `kitchen_slip_layout` is the shared
     /// structure both the preview and the raster renderer
@@ -2700,21 +2726,7 @@ mod kitchen_chit_tests {
     /// [`slip_for_kitchen_chit`]) the normal fire/checkout chit too.
     #[test]
     fn a_kitchen_chit_never_carries_a_price_currency_or_logo() {
-        let mut line = cart_line(); // unit 120.00, addons 5.00/9.00, total 360.00
-        line.bundle_id = Some("b1".into());
-        line.bundle_components = vec![crate::cart::CartBundleComponentView {
-            item_id: "c1".into(),
-            name: "Fries".into(),
-            qty: 1,
-            size_label: None,
-            addons: vec![crate::cart::CartAddonView {
-                addon_item_id: "a3".into(),
-                name: "Extra salt".into(),
-                qty: 1,
-                price_modifier_minor: 1000, // 10.00
-            }],
-            optionals: vec![],
-        }];
+        let line = cart_line(); // unit 120.00, addons 5.00/9.00, total 360.00
         let built = slip_for_cart_line(
             &line,
             Some("T9".into()),
@@ -2723,6 +2735,7 @@ mod kitchen_chit_tests {
             Some("Ken".into()),
             None,
             None,
+            "en",
         );
         let preview = kitchen_slip_preview(&built, &labels(), 32);
         let text = preview
@@ -2733,7 +2746,7 @@ mod kitchen_chit_tests {
         // Every money figure this line could possibly print, plus currency,
         // VAT and logo/QR/loyalty/promo markers — none belong on a chit.
         for forbidden in [
-            "EGP", "$", "5.00", "9.00", "10.00", "120.00", "360.00", "Total",
+            "EGP", "$", "5.00", "9.00", "120.00", "360.00", "Total",
             "Subtotal", "VAT", "Tax", "Discount", "QR", "logo", "loyalty",
             "points", "promo",
         ] {
@@ -2808,6 +2821,7 @@ mod kitchen_chit_tests {
             table_label: None,
             ticket_ref: None,
             at: "19:42".into(),
+            combo: None,
             teller: None,
         };
         let lines = kitchen_chit_layout(&bare, &labels(), 32);
@@ -2852,10 +2866,12 @@ mod kitchen_chit_tests {
             unit_price_minor: 12_000,
             qty: 3,
             line_total_minor: 36_000,
-            bundle_id: None,
-            bundle_components: vec![],
             kitchen_note: None,
             staff_drink: None,
+            kind: "item".into(),
+            parts: vec![],
+            deal_cut_minor: 0,
+            deal_name: None,
         }
     }
 
@@ -2869,6 +2885,7 @@ mod kitchen_chit_tests {
             Some("Sara".into()),
             None,
             None,
+            "en",
         );
         assert_eq!(slip.items.len(), 1);
         let item = &slip.items[0];
@@ -2892,7 +2909,7 @@ mod kitchen_chit_tests {
     fn a_counter_cart_line_chit_has_no_table() {
         let mut line = cart_line();
         line.notes = None;
-        let slip = slip_for_cart_line(&line, None, None, "13:05".into(), None, None, None);
+        let slip = slip_for_cart_line(&line, None, None, "13:05".into(), None, None, None, "en");
         let joined = text_of(&kitchen_slip_layout(&slip, &labels(), 32)).join("\n");
         assert!(!joined.contains("Table"));
         assert!(!joined.contains("NOTE:"));
@@ -2913,6 +2930,7 @@ mod kitchen_chit_tests {
             Some("Sara".into()),
             Some("Birthday — bring the cake last".into()), // the ORDER note
             Some("rush this table".into()),                // the CART-level kitchen note
+            "en",
         );
         assert_eq!(
             slip.top_notes,

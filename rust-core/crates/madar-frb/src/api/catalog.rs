@@ -1,6 +1,5 @@
 //! Catalog / menu reads — FRB delegation over madar-core's local catalog
-//! mirror (menu items, categories, addons, bundles, payment methods,
-//! discounts) plus category styling and the org logo. Binding code only:
+//! mirror (menu items, categories, addons, payment methods, discounts) plus category styling and the org logo. Binding code only:
 //! every method is a one-line delegation through `self.inner`.
 
 use flutter_rust_bridge::frb;
@@ -9,10 +8,13 @@ use crate::api::bridge::MadarBridge;
 use crate::api::error::MadarError;
 
 pub use madar_core::catstyle::CatStyleView;
+pub use madar_core::combos::{
+    ComboChoiceDetail, ComboDetail, ComboDraft, ComboPickInput, ComboQuoteView, ComboSizeOption,
+    ComboSlotDetail, MealOffer,
+};
 pub use madar_core::menu::{
-    AddonIngredientView, AddonItemView, AddonSlotView, BundleComponentView, BundleView,
-    CategoryView, DiscountView, ItemSizeView, MenuItemView, OptionalFieldView, PaymentMethodView,
-    RecipeLineView, RecipeStepView,
+    AddonIngredientView, AddonItemView, AddonSlotView, CategoryView, DiscountView, ItemSizeView,
+    MenuItemView, OptionalFieldView, PaymentMethodView, RecipeLineView, RecipeStepView,
 };
 
 /// A resolved category style: an icon key + four hex colours (`#RRGGBB`).
@@ -52,6 +54,116 @@ pub struct _MenuItemView {
     pub recipes: Vec<RecipeLineView>,
     /// How the item is made, in order — shown under the recipe.
     pub recipe_steps: Vec<RecipeStepView>,
+    /// `"item"` or `"combo"`: a combo opens the combo sheet and wears a
+    /// "Combo" badge.
+    pub kind: String,
+}
+
+/// One pick of a combo: the slot, the item, its size and its add-ons.
+#[frb(mirror(ComboPickInput))]
+pub struct _ComboPickInput {
+    pub slot_id: String,
+    pub item_id: String,
+    /// `None` = the size the combo includes.
+    pub size_label: Option<String>,
+    /// Units per combo (usually 1).
+    pub qty: i64,
+    pub addons: Vec<crate::api::cart::AddonSelection>,
+    pub optional_field_ids: Vec<String>,
+    pub notes: Option<String>,
+}
+
+/// The combo sheet, priced.
+#[frb(mirror(ComboDetail))]
+pub struct _ComboDetail {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub local_image_path: Option<String>,
+    /// P: the combo's price before any surcharge or add-on.
+    pub price_minor: i64,
+    /// One item per slot, nothing to choose.
+    pub is_fixed: bool,
+    pub available_now: bool,
+    /// Why not, in the teller's language.
+    pub why_unavailable: Option<String>,
+    pub slots: Vec<ComboSlotDetail>,
+}
+
+#[frb(mirror(ComboSlotDetail))]
+pub struct _ComboSlotDetail {
+    pub id: String,
+    pub name: String,
+    pub min: i64,
+    pub max: i64,
+    /// "Choose 1 item", "Optional · Choose up to 2 items", … (localized).
+    pub rule_label: String,
+    pub default_item_id: Option<String>,
+    pub default_size_label: Option<String>,
+    pub choices: Vec<ComboChoiceDetail>,
+}
+
+#[frb(mirror(ComboChoiceDetail))]
+pub struct _ComboChoiceDetail {
+    pub item_id: String,
+    pub name: String,
+    pub local_image_path: Option<String>,
+    /// The item's normal price at the size the combo includes.
+    pub base_price_minor: i64,
+    pub included_size_label: Option<String>,
+    /// What choosing this item adds (0 = included).
+    pub surcharge_minor: i64,
+    pub sizes: Vec<ComboSizeOption>,
+    pub is_default: bool,
+    /// The item has add-ons or options: offer "Customise".
+    pub customisable: bool,
+}
+
+#[frb(mirror(ComboSizeOption))]
+pub struct _ComboSizeOption {
+    pub label: String,
+    pub price_minor: i64,
+    /// What this size adds inside the combo (0 = included).
+    pub extra_minor: i64,
+    pub is_included: bool,
+}
+
+/// The combo sheet's live figures.
+#[frb(mirror(ComboQuoteView))]
+pub struct _ComboQuoteView {
+    pub price_minor: i64,
+    pub unit_total_minor: i64,
+    pub line_total_minor: i64,
+    pub surcharge_minor: i64,
+    pub extras_minor: i64,
+    pub list_minor: i64,
+    pub saving_minor: i64,
+    /// Every slot is satisfied: the combo can be added.
+    pub complete: bool,
+    /// The coded refusal (`COMBO_SLOT_TOO_FEW`, …) when not complete.
+    pub refusal: Option<String>,
+    /// The same, in the teller's language.
+    pub refusal_text: Option<String>,
+}
+
+/// A combo to edit on the sheet (a cart line, or "make it a meal").
+#[frb(mirror(ComboDraft))]
+pub struct _ComboDraft {
+    pub combo_id: String,
+    /// The cart line saving replaces (`cart_replace_combo`); `None` = add.
+    pub line_key: Option<String>,
+    pub qty: i64,
+    pub notes: Option<String>,
+    pub picks: Vec<ComboPickInput>,
+}
+
+/// "Make it a meal +X" on an item.
+#[frb(mirror(MealOffer))]
+pub struct _MealOffer {
+    pub combo_id: String,
+    pub slot_id: String,
+    pub name: String,
+    pub delta_minor: i64,
 }
 
 /// One preparation step: localized, and pointing at the animation's CACHED
@@ -149,37 +261,6 @@ pub struct _AddonItemView {
     pub ingredients: Vec<AddonIngredientView>,
 }
 
-#[frb(mirror(BundleView))]
-pub struct _BundleView {
-    pub id: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub price_minor: i64,
-    pub image_url: Option<String>,
-    /// On-disk path of the CACHED image — see `_MenuItemView`.
-    pub local_image_path: Option<String>,
-    /// `status == active`. The date/time availability window (below) is gated in
-    /// the branch timezone by the cart/order context, not in this static read.
-    pub is_available: bool,
-    pub available_from_date: Option<String>,
-    pub available_until_date: Option<String>,
-    pub available_from_time: Option<String>,
-    pub available_until_time: Option<String>,
-    /// The bundle's component items (which menu item + how many). The detail
-    /// sheet configures each one through the normal item-customization flow.
-    pub components: Vec<BundleComponentView>,
-}
-
-/// One item that makes up a bundle (hydrated from the bundle list). The
-/// component's base price is never charged separately — the bundle price covers
-/// it; only its addon/optional up-charges add money.
-#[frb(mirror(BundleComponentView))]
-pub struct _BundleComponentView {
-    pub item_id: String,
-    pub item_name: String,
-    pub quantity: i64,
-}
-
 #[frb(mirror(PaymentMethodView))]
 pub struct _PaymentMethodView {
     pub id: String,
@@ -223,15 +304,6 @@ impl MadarBridge {
         self.inner.list_addon_catalog().map_err(MadarError::from)
     }
 
-    /// Bundles orderable right now — status active and within their date/time
-    /// window at `now` (branch-local). The host passes its local time so the
-    /// window is evaluated in the till's timezone (Flutter parity).
-    pub fn available_bundles(&self, now_rfc3339: String) -> Result<Vec<BundleView>, MadarError> {
-        self.inner
-            .available_bundles(now_rfc3339)
-            .map_err(MadarError::from)
-    }
-
     pub fn list_payment_methods(&self) -> Result<Vec<PaymentMethodView>, MadarError> {
         self.inner.list_payment_methods().map_err(MadarError::from)
     }
@@ -240,7 +312,28 @@ impl MadarBridge {
         self.inner.list_discounts().map_err(MadarError::from)
     }
 
-    /// Pull the branch-effective catalog (items + categories + addons + bundles +
+    // ── combos (COMBOS_CONTRACT §6) ──────────────────────────────────────
+
+    /// The combo sheet for a `kind == "combo"` item: slots, priced choices,
+    /// sizes with what they add, and whether it is on sale now. Offline.
+    #[frb(sync)]
+    pub fn combo_detail(&self, item_id: String) -> Option<ComboDetail> {
+        self.inner.combo_detail(item_id)
+    }
+
+    /// The picks a fresh combo opens with (every slot's default).
+    #[frb(sync)]
+    pub fn combo_new_draft(&self, item_id: String) -> Option<ComboDraft> {
+        self.inner.combo_new_draft(item_id)
+    }
+
+    /// "Make it a meal +X" for an item, when it has a meal on sale now.
+    #[frb(sync)]
+    pub fn meal_offer(&self, item_id: String) -> Option<MealOffer> {
+        self.inner.meal_offer(item_id)
+    }
+
+    /// Pull the branch-effective catalog (items + categories + addons +
     /// payment methods + discounts) and mirror the canonical JSON into the local
     /// store. Online-only; the offline reads (`list_*`) then serve this mirror.
     /// Atomic-ish: every stream is fetched before any is written, so a mid-pull

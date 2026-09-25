@@ -51,6 +51,9 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub customer_name: Option<Option<String>>,
+    /// Deals the teller applied (combos module, C8). Each names order lines by index and the units it takes. Needs `orders.deals.apply`. Additive.
+    #[serde(rename = "deals", skip_serializing_if = "Option::is_none")]
+    pub deals: Option<Vec<models::DealApplicationInput>>,
     /// The device's code; with `device_id` + `order_number` the number is stored verbatim.
     #[serde(
         rename = "device_code",
@@ -267,6 +270,7 @@ impl CreateOrderRequest {
             created_at: None,
             customer_id: None,
             customer_name: None,
+            deals: None,
             device_code: None,
             device_id: None,
             discount_amount: None,

@@ -259,7 +259,17 @@ fn render_board(app: &Arc<App>) {
                                     .unwrap_or_default();
                                 format!("{}× {}{}", l.qty, l.name, size).into()
                             },
-                            modifiers: l.modifiers.join(", ").into(),
+                            // A combo's item says which combo it goes out
+                            // with (C12), ahead of its modifiers.
+                            modifiers: l
+                                .combo
+                                .as_ref()
+                                .map(|c| app.core.tr("combo.in_combo".into()).replace("{combo}", &c.name))
+                                .into_iter()
+                                .chain(l.modifiers.iter().cloned())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                                .into(),
                             notes: l.notes.clone().unwrap_or_default().trim().into(),
                             station: l
                                 .station_name

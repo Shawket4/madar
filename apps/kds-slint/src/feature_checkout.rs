@@ -887,8 +887,7 @@ fn set_paper(
         rows.push(rule());
     }
 
-    // ── line blocks: `qty× name (size) … amount`, then modifiers — a bundle
-    // indents its components with their own addons/optionals. ──
+    // ── line blocks: `qty× name (size) … amount`, then modifiers. ──
     for line in &r.lines {
         rows.push(money_row(
             format!("{}× {}", line.qty, name_with_size(&line.name, line.size_label.as_deref())),
@@ -896,29 +895,11 @@ fn set_paper(
             false,
             false,
         ));
-        if line.is_bundle {
-            for c in &line.components {
-                rows.push(mono(
-                    format!("  – {}", name_with_size(&c.name, c.size_label.as_deref())),
-                    12.0,
-                    400,
-                    FAINT,
-                    true,
-                ));
-                for md in &c.addons {
-                    rows.push(mod_row("    + ", md, currency));
-                }
-                for md in &c.optionals {
-                    rows.push(mod_row("    + ", md, currency));
-                }
-            }
-        } else {
-            for md in &line.addons {
-                rows.push(mod_row("  + ", md, currency));
-            }
-            for md in &line.optionals {
-                rows.push(mod_row("  + ", md, currency));
-            }
+        for md in &line.addons {
+            rows.push(mod_row("  + ", md, currency));
+        }
+        for md in &line.optionals {
+            rows.push(mod_row("  + ", md, currency));
         }
     }
     rows.push(rule());

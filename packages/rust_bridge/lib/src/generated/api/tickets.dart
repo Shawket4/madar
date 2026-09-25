@@ -123,6 +123,9 @@ class TicketLineView {
   final int roundNumber;
   final String roundFiredAt;
 
+  /// A combo line (no reward is taken on it).
+  final bool isCombo;
+
   const TicketLineView({
     required this.id,
     this.menuItemId,
@@ -134,6 +137,7 @@ class TicketLineView {
     required this.voided,
     required this.roundNumber,
     required this.roundFiredAt,
+    required this.isCombo,
   });
 
   @override
@@ -147,7 +151,8 @@ class TicketLineView {
       lineTotalMinor.hashCode ^
       voided.hashCode ^
       roundNumber.hashCode ^
-      roundFiredAt.hashCode;
+      roundFiredAt.hashCode ^
+      isCombo.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -163,7 +168,8 @@ class TicketLineView {
           lineTotalMinor == other.lineTotalMinor &&
           voided == other.voided &&
           roundNumber == other.roundNumber &&
-          roundFiredAt == other.roundFiredAt;
+          roundFiredAt == other.roundFiredAt &&
+          isCombo == other.isCombo;
 }
 
 /// An open ticket for the waiter list / detail screens.

@@ -120,7 +120,6 @@ pub mod authz_api;
 pub mod bookings_api;
 pub mod bookings_public_api;
 pub mod branches_api;
-pub mod bundles_api;
 pub mod costing_api;
 pub mod customers_api;
 pub mod delivery_api;

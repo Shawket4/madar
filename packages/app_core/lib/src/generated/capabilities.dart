@@ -4,7 +4,7 @@
 /// Capability keys the till gates on. Ask the core (`bridge.can`), never a role.
 abstract final class Cap {
   static const int specVersion = 2;
-  static const String specHash = 'b79e9c7e15eec025';
+  static const String specHash = '6c952ec193f4d94b';
   static const String orgSettingsRead = 'org.settings.read';
   static const String orgSettingsEdit = 'org.settings.edit';
   static const String branchesCreate = 'branches.create';
@@ -159,4 +159,8 @@ abstract final class Cap {
   static const String hrRulesEdit = 'hr.rules.edit';
   static const String hrRulesView = 'hr.rules.view';
   static const String hrDeductionsCreate = 'hr.deductions.create';
+  static const String menuCombosEdit = 'menu.combos.edit';
+  static const String menuDealsEdit = 'menu.deals.edit';
+  static const String ordersDealsApply = 'orders.deals.apply';
+  static const String reportsBundles = 'reports.bundles';
 }

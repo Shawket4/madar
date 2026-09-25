@@ -83,16 +83,6 @@ Class | Method | HTTP request | Description
 *BranchesApi* | [**list_timezones**](docs/BranchesApi.md#list_timezones) | **GET** /timezones | The full set of selectable IANA timezones — the labels of the `timezone_name` DB enum. The dashboard's timezone `<select>` is populated from this, so the frontend can never offer a value the backend/DB would reject (single source of truth: DB enum → this endpoint → select options).
 *BranchesApi* | [**patch_branch**](docs/BranchesApi.md#patch_branch) | **PATCH** /branches/{id} | `PATCH /branches/{id}` — the same partial update as `PUT` (the contract names both; every field is already optional).
 *BranchesApi* | [**update_branch**](docs/BranchesApi.md#update_branch) | **PUT** /branches/{id} | 
-*BundlesApi* | [**activate_bundle**](docs/BundlesApi.md#activate_bundle) | **POST** /bundles/{id}/activate | 
-*BundlesApi* | [**archive_bundle**](docs/BundlesApi.md#archive_bundle) | **POST** /bundles/{id}/archive | 
-*BundlesApi* | [**available_bundles**](docs/BundlesApi.md#available_bundles) | **GET** /bundles/available | 
-*BundlesApi* | [**bundle_performance**](docs/BundlesApi.md#bundle_performance) | **GET** /bundles/{id}/performance | 
-*BundlesApi* | [**create_bundle**](docs/BundlesApi.md#create_bundle) | **POST** /bundles | 
-*BundlesApi* | [**delete_bundle**](docs/BundlesApi.md#delete_bundle) | **DELETE** /bundles/{id} | 
-*BundlesApi* | [**get_bundle**](docs/BundlesApi.md#get_bundle) | **GET** /bundles/{id} | 
-*BundlesApi* | [**list_bundles**](docs/BundlesApi.md#list_bundles) | **GET** /bundles | 
-*BundlesApi* | [**suggested_components**](docs/BundlesApi.md#suggested_components) | **GET** /bundles/suggested-components | Suggest menu items frequently ordered alongside the given item set, to help a manager pick the next component while building a bundle. Anchors on whichever items are already added: an item is suggested if it co-occurred, on the same order, with at least one anchor item at least `min_count` times across the org's branches in the given window.
-*BundlesApi* | [**update_bundle**](docs/BundlesApi.md#update_bundle) | **PATCH** /bundles/{id} | 
 *CostingApi* | [**list_addon_costs**](docs/CostingApi.md#list_addon_costs) | **GET** /costing/addon-items | 
 *CostingApi* | [**list_sku_costs**](docs/CostingApi.md#list_sku_costs) | **GET** /costing/menu-items | 
 *CustomersApi* | [**create_customer**](docs/CustomersApi.md#create_customer) | **POST** /customers | 
@@ -115,6 +105,7 @@ Class | Method | HTTP request | Description
 *DeliveryApi* | [**list_channel_overrides**](docs/DeliveryApi.md#list_channel_overrides) | **GET** /delivery/channel-overrides | 
 *DeliveryApi* | [**list_delivery_orders**](docs/DeliveryApi.md#list_delivery_orders) | **GET** /delivery-orders | 
 *DeliveryApi* | [**list_zones**](docs/DeliveryApi.md#list_zones) | **GET** /delivery/zones | 
+*DeliveryApi* | [**public_branch_cart_quote**](docs/DeliveryApi.md#public_branch_cart_quote) | **POST** /public/branches/{id}/cart-quote | Price an online (storefront) cart at a branch, deals applied.
 *DeliveryApi* | [**put_branch_settings**](docs/DeliveryApi.md#put_branch_settings) | **PUT** /delivery/settings | 
 *DeliveryApi* | [**set_accepting**](docs/DeliveryApi.md#set_accepting) | **POST** /delivery/accepting | 
 *DeliveryApi* | [**set_prep_time**](docs/DeliveryApi.md#set_prep_time) | **POST** /delivery-orders/{id}/prep-time | 
@@ -228,10 +219,13 @@ Class | Method | HTTP request | Description
 *LoyaltyPublicApi* | [**set_loyalty_card_preferences**](docs/LoyaltyPublicApi.md#set_loyalty_card_preferences) | **POST** /public/loyalty/card/{token}/preferences | 
 *MenuApi* | [**apply_rules**](docs/MenuApi.md#apply_rules) | **POST** /packaging-rules/apply | 
 *MenuApi* | [**catalog_sync**](docs/MenuApi.md#catalog_sync) | **GET** /catalog/sync | 
+*MenuApi* | [**combo_economics**](docs/MenuApi.md#combo_economics) | **POST** /combos/economics | 
 *MenuApi* | [**create_addon_item**](docs/MenuApi.md#create_addon_item) | **POST** /addon-items | 
 *MenuApi* | [**create_addon_slot**](docs/MenuApi.md#create_addon_slot) | **POST** /menu-items/{id}/addon-slots | 
 *MenuApi* | [**create_base**](docs/MenuApi.md#create_base) | **POST** /recipe-bases | 
 *MenuApi* | [**create_category**](docs/MenuApi.md#create_category) | **POST** /categories | 
+*MenuApi* | [**create_combo**](docs/MenuApi.md#create_combo) | **POST** /combos | 
+*MenuApi* | [**create_deal**](docs/MenuApi.md#create_deal) | **POST** /deals | 
 *MenuApi* | [**create_group**](docs/MenuApi.md#create_group) | **POST** /modifier-groups | 
 *MenuApi* | [**create_menu_item**](docs/MenuApi.md#create_menu_item) | **POST** /menu-items | 
 *MenuApi* | [**create_option**](docs/MenuApi.md#create_option) | **POST** /modifier-groups/{gid}/options | 
@@ -242,8 +236,11 @@ Class | Method | HTTP request | Description
 *MenuApi* | [**delete_addon_slot**](docs/MenuApi.md#delete_addon_slot) | **DELETE** /menu-items/{id}/addon-slots/{slot_id} | 
 *MenuApi* | [**delete_base**](docs/MenuApi.md#delete_base) | **DELETE** /recipe-bases/{id} | 
 *MenuApi* | [**delete_branch_addon_override**](docs/MenuApi.md#delete_branch_addon_override) | **DELETE** /branch-addon-overrides | 
+*MenuApi* | [**delete_branch_channels**](docs/MenuApi.md#delete_branch_channels) | **DELETE** /settings/combos/branches/{branch_id} | 
 *MenuApi* | [**delete_branch_menu_override**](docs/MenuApi.md#delete_branch_menu_override) | **DELETE** /branch-menu-overrides | 
 *MenuApi* | [**delete_category**](docs/MenuApi.md#delete_category) | **DELETE** /categories/{id} | 
+*MenuApi* | [**delete_deal**](docs/MenuApi.md#delete_deal) | **DELETE** /deals/{id} | 
+*MenuApi* | [**delete_deal_branch**](docs/MenuApi.md#delete_deal_branch) | **DELETE** /deals/{id}/branches/{branch_id} | 
 *MenuApi* | [**delete_group**](docs/MenuApi.md#delete_group) | **DELETE** /modifier-groups/{gid} | 
 *MenuApi* | [**delete_menu_item**](docs/MenuApi.md#delete_menu_item) | **DELETE** /menu-items/{id} | 
 *MenuApi* | [**delete_option**](docs/MenuApi.md#delete_option) | **DELETE** /modifier-options/{oid} | 
@@ -255,11 +252,13 @@ Class | Method | HTTP request | Description
 *MenuApi* | [**duplicate_item**](docs/MenuApi.md#duplicate_item) | **POST** /menu-items/{id}/duplicate | 
 *MenuApi* | [**get_base**](docs/MenuApi.md#get_base) | **GET** /recipe-bases/{id} | 
 *MenuApi* | [**get_base_usage**](docs/MenuApi.md#get_base_usage) | **GET** /recipe-bases/{id}/usage | 
+*MenuApi* | [**get_combo**](docs/MenuApi.md#get_combo) | **GET** /combos/{id} | 
 *MenuApi* | [**get_group_usage**](docs/MenuApi.md#get_group_usage) | **GET** /modifier-groups/{gid}/usage | 
 *MenuApi* | [**get_item_cost**](docs/MenuApi.md#get_item_cost) | **GET** /menu-items/{id}/cost | 
 *MenuApi* | [**get_menu_item**](docs/MenuApi.md#get_menu_item) | **GET** /menu-items/{id} | 
 *MenuApi* | [**get_menu_lint**](docs/MenuApi.md#get_menu_lint) | **GET** /menu/lint | 
 *MenuApi* | [**get_recipe_link**](docs/MenuApi.md#get_recipe_link) | **GET** /menu-items/{id}/recipe-link | 
+*MenuApi* | [**get_settings**](docs/MenuApi.md#get_settings) | **GET** /settings/combos | 
 *MenuApi* | [**get_studio**](docs/MenuApi.md#get_studio) | **GET** /menu-items/{id}/studio | 
 *MenuApi* | [**list_addon_catalog**](docs/MenuApi.md#list_addon_catalog) | **GET** /addon-items/catalog | 
 *MenuApi* | [**list_addon_items**](docs/MenuApi.md#list_addon_items) | **GET** /addon-items | 
@@ -269,6 +268,8 @@ Class | Method | HTTP request | Description
 *MenuApi* | [**list_branch_addon_overrides**](docs/MenuApi.md#list_branch_addon_overrides) | **GET** /branch-addon-overrides | 
 *MenuApi* | [**list_branch_menu_overrides**](docs/MenuApi.md#list_branch_menu_overrides) | **GET** /branch-menu-overrides | 
 *MenuApi* | [**list_categories**](docs/MenuApi.md#list_categories) | **GET** /categories | 
+*MenuApi* | [**list_combos**](docs/MenuApi.md#list_combos) | **GET** /combos | 
+*MenuApi* | [**list_deals**](docs/MenuApi.md#list_deals) | **GET** /deals | 
 *MenuApi* | [**list_groups**](docs/MenuApi.md#list_groups) | **GET** /modifier-groups | 
 *MenuApi* | [**list_menu_catalog**](docs/MenuApi.md#list_menu_catalog) | **GET** /costing/catalog | 
 *MenuApi* | [**list_menu_items**](docs/MenuApi.md#list_menu_items) | **GET** /menu-items | 
@@ -281,10 +282,14 @@ Class | Method | HTTP request | Description
 *MenuApi* | [**preview_menu_item**](docs/MenuApi.md#preview_menu_item) | **POST** /menu-items/{id}/preview | 
 *MenuApi* | [**put_allowed_addons**](docs/MenuApi.md#put_allowed_addons) | **PUT** /menu-items/{id}/allowed-addons | 
 *MenuApi* | [**put_base_lines**](docs/MenuApi.md#put_base_lines) | **PUT** /recipe-bases/{id}/lines | 
+*MenuApi* | [**put_branch_channels**](docs/MenuApi.md#put_branch_channels) | **PUT** /settings/combos/branches/{branch_id} | 
+*MenuApi* | [**put_deal_branch**](docs/MenuApi.md#put_deal_branch) | **PUT** /deals/{id}/branches/{branch_id} | 
 *MenuApi* | [**put_item_options**](docs/MenuApi.md#put_item_options) | **PUT** /menu-items/{id}/options | 
+*MenuApi* | [**put_meal**](docs/MenuApi.md#put_meal) | **PUT** /menu-items/{id}/meal | 
 *MenuApi* | [**put_modifier_groups**](docs/MenuApi.md#put_modifier_groups) | **PUT** /menu-items/{id}/modifier-groups | 
 *MenuApi* | [**put_option_recipe**](docs/MenuApi.md#put_option_recipe) | **PUT** /modifier-options/{oid}/recipe | 
 *MenuApi* | [**put_price_override**](docs/MenuApi.md#put_price_override) | **PUT** /menu-price-overrides | 
+*MenuApi* | [**put_settings**](docs/MenuApi.md#put_settings) | **PUT** /settings/combos | 
 *MenuApi* | [**put_size_base**](docs/MenuApi.md#put_size_base) | **PUT** /menu-item-sizes/{size_id}/base | 
 *MenuApi* | [**put_size_recipe**](docs/MenuApi.md#put_size_recipe) | **PUT** /menu-item-sizes/{size_id}/recipe | 
 *MenuApi* | [**put_sizes**](docs/MenuApi.md#put_sizes) | **PUT** /menu-items/{id}/sizes | 
@@ -292,6 +297,8 @@ Class | Method | HTTP request | Description
 *MenuApi* | [**update_addon_item**](docs/MenuApi.md#update_addon_item) | **PATCH** /addon-items/{id} | 
 *MenuApi* | [**update_addon_slot**](docs/MenuApi.md#update_addon_slot) | **PATCH** /menu-items/{id}/addon-slots/{slot_id} | 
 *MenuApi* | [**update_category**](docs/MenuApi.md#update_category) | **PATCH** /categories/{id} | 
+*MenuApi* | [**update_combo**](docs/MenuApi.md#update_combo) | **PUT** /combos/{id} | 
+*MenuApi* | [**update_deal**](docs/MenuApi.md#update_deal) | **PUT** /deals/{id} | 
 *MenuApi* | [**update_menu_item**](docs/MenuApi.md#update_menu_item) | **PATCH** /menu-items/{id} | 
 *MenuApi* | [**update_optional_field**](docs/MenuApi.md#update_optional_field) | **PATCH** /menu-items/{id}/optionals/{field_id} | 
 *MenuApi* | [**upsert_addon_override**](docs/MenuApi.md#upsert_addon_override) | **POST** /menu-items/{id}/overrides | 
@@ -306,6 +313,7 @@ Class | Method | HTTP request | Description
 *OpenTicketsApi* | [**list_open_tickets**](docs/OpenTicketsApi.md#list_open_tickets) | **GET** /open-tickets | 
 *OpenTicketsApi* | [**move_ticket_table**](docs/OpenTicketsApi.md#move_ticket_table) | **PATCH** /open-tickets/{id}/table | Switch an open ticket to a different table (the \"move table\" button). Works for any live ticket — walk-in dine-in or one auto-opened from a booking. The old table is flagged `dirty` (bus it), the new one `seated`; if the ticket came from a booking, the booking's assignment is kept in sync.
 *OpenTicketsApi* | [**public_table**](docs/OpenTicketsApi.md#public_table) | **GET** /public/tables/{id} | 
+*OpenTicketsApi* | [**public_table_cart_quote**](docs/OpenTicketsApi.md#public_table_cart_quote) | **POST** /public/tables/{id}/cart-quote | Price a QR table cart, deals applied.
 *OpenTicketsApi* | [**public_table_menu**](docs/OpenTicketsApi.md#public_table_menu) | **GET** /public/tables/{id}/menu | The menu at this table.
 *OpenTicketsApi* | [**public_table_order**](docs/OpenTicketsApi.md#public_table_order) | **POST** /public/table-orders | Send this table's order to the kitchen.
 *OpenTicketsApi* | [**set_ticket_customer**](docs/OpenTicketsApi.md#set_ticket_customer) | **PUT** /open-tickets/{id}/customer | Set or clear the customer on an open bill (the dashboard / online path; a till queues `set_ticket_customer` through `/sync/replay` instead).
@@ -397,7 +405,6 @@ Class | Method | HTTP request | Description
 *RefundsApi* | [**list_till_refunds**](docs/RefundsApi.md#list_till_refunds) | **GET** /tills/{till_id}/refunds | 
 *ReportsApi* | [**attendance_corrections_audit**](docs/ReportsApi.md#attendance_corrections_audit) | **GET** /reports/orgs/{org_id}/attendance-corrections-audit | 
 *ReportsApi* | [**branch_addon_sales**](docs/ReportsApi.md#branch_addon_sales) | **GET** /reports/branches/{branch_id}/addons | 
-*ReportsApi* | [**branch_bundle_sales**](docs/ReportsApi.md#branch_bundle_sales) | **GET** /reports/branches/{branch_id}/bundles | 
 *ReportsApi* | [**branch_channel_breakdown**](docs/ReportsApi.md#branch_channel_breakdown) | **GET** /reports/branches/{branch_id}/channel-breakdown | 
 *ReportsApi* | [**branch_combined_item_sales**](docs/ReportsApi.md#branch_combined_item_sales) | **GET** /reports/branches/{branch_id}/items-combined | 
 *ReportsApi* | [**branch_consumption**](docs/ReportsApi.md#branch_consumption) | **GET** /reports/branches/{branch_id}/consumption | 
@@ -418,6 +425,8 @@ Class | Method | HTTP request | Description
 *ReportsApi* | [**branch_till_sessions**](docs/ReportsApi.md#branch_till_sessions) | **GET** /reports/branches/{branch_id}/tills | 
 *ReportsApi* | [**branch_waiter_stats**](docs/ReportsApi.md#branch_waiter_stats) | **GET** /reports/branches/{branch_id}/waiters | 
 *ReportsApi* | [**branch_waste_report**](docs/ReportsApi.md#branch_waste_report) | **GET** /reports/branches/{branch_id}/waste-report | 
+*ReportsApi* | [**bundles_report**](docs/ReportsApi.md#bundles_report) | **GET** /reports/bundles | 
+*ReportsApi* | [**combo_mix**](docs/ReportsApi.md#combo_mix) | **GET** /reports/bundles/combos/{id}/mix | 
 *ReportsApi* | [**deduction_overrides_audit**](docs/ReportsApi.md#deduction_overrides_audit) | **GET** /reports/orgs/{org_id}/deduction-overrides-audit | 
 *ReportsApi* | [**discounts_audit**](docs/ReportsApi.md#discounts_audit) | **GET** /reports/orgs/{org_id}/discounts-audit | 
 *ReportsApi* | [**loyalty_adjustments_audit**](docs/ReportsApi.md#loyalty_adjustments_audit) | **GET** /reports/orgs/{org_id}/loyalty-adjustments-audit | 
@@ -620,7 +629,6 @@ Class | Method | HTTP request | Description
 *TillsApi* | [**list_spot_views**](docs/TillsApi.md#list_spot_views) | **GET** /tills/{till_id}/spot-views | 
 *TillsApi* | [**list_tills**](docs/TillsApi.md#list_tills) | **GET** /tills/branches/{branch_id} | 
 *TillsApi* | [**open_till**](docs/TillsApi.md#open_till) | **POST** /tills/branches/{branch_id}/open | 
-*UploadsApi* | [**upload_bundle_image**](docs/UploadsApi.md#upload_bundle_image) | **POST** /uploads/bundles/{bundle_id} | 
 *UploadsApi* | [**upload_category_image**](docs/UploadsApi.md#upload_category_image) | **POST** /uploads/categories/{category_id} | 
 *UploadsApi* | [**upload_menu_item_image**](docs/UploadsApi.md#upload_menu_item_image) | **POST** /uploads/menu-items/{menu_item_id} | 
 *UsersApi* | [**assign_branch**](docs/UsersApi.md#assign_branch) | **POST** /users/{id}/branches | 
@@ -699,6 +707,7 @@ Class | Method | HTTP request | Description
  - [BranchAddonOverride](docs/BranchAddonOverride.md)
  - [BranchAddonOverrideInput](docs/BranchAddonOverrideInput.md)
  - [BranchAvailabilityOut](docs/BranchAvailabilityOut.md)
+ - [BranchChannelOverride](docs/BranchChannelOverride.md)
  - [BranchComparison](docs/BranchComparison.md)
  - [BranchDeliverySettings](docs/BranchDeliverySettings.md)
  - [BranchFairness](docs/BranchFairness.md)
@@ -717,13 +726,9 @@ Class | Method | HTTP request | Description
  - [BulkReviewPending](docs/BulkReviewPending.md)
  - [BulkReviewRequest](docs/BulkReviewRequest.md)
  - [BulkReviewResult](docs/BulkReviewResult.md)
- - [Bundle](docs/Bundle.md)
- - [BundleComponentHydrated](docs/BundleComponentHydrated.md)
- - [BundleComponentInput](docs/BundleComponentInput.md)
- - [BundlePerformanceResponse](docs/BundlePerformanceResponse.md)
- - [BundleSalesRow](docs/BundleSalesRow.md)
- - [BundleStatus](docs/BundleStatus.md)
- - [BundleWithComponents](docs/BundleWithComponents.md)
+ - [BundlesReport](docs/BundlesReport.md)
+ - [BundlesRow](docs/BundlesRow.md)
+ - [BundlesTotals](docs/BundlesTotals.md)
  - [CampaignEffectiveness](docs/CampaignEffectiveness.md)
  - [CampaignEffectivenessRow](docs/CampaignEffectivenessRow.md)
  - [CancelBookingRequest](docs/CancelBookingRequest.md)
@@ -733,6 +738,7 @@ Class | Method | HTTP request | Description
  - [CardPreferences](docs/CardPreferences.md)
  - [CardView](docs/CardView.md)
  - [CartLineInput](docs/CartLineInput.md)
+ - [CartQuote](docs/CartQuote.md)
  - [CashMovement](docs/CashMovement.md)
  - [CashMovementKind](docs/CashMovementKind.md)
  - [CashMovementRequest](docs/CashMovementRequest.md)
@@ -746,8 +752,10 @@ Class | Method | HTTP request | Description
  - [ChannelAddonOverrideInput](docs/ChannelAddonOverrideInput.md)
  - [ChannelBreakdownRow](docs/ChannelBreakdownRow.md)
  - [ChannelMenuOverride](docs/ChannelMenuOverride.md)
+ - [ChannelOverride](docs/ChannelOverride.md)
  - [ChannelOverrideInput](docs/ChannelOverrideInput.md)
  - [ChannelOverrideOut](docs/ChannelOverrideOut.md)
+ - [ChannelToggles](docs/ChannelToggles.md)
  - [ChatFrame](docs/ChatFrame.md)
  - [ChatFrameOneOf](docs/ChatFrameOneOf.md)
  - [ChatFrameOneOf1](docs/ChatFrameOneOf1.md)
@@ -768,8 +776,23 @@ Class | Method | HTTP request | Description
  - [Column](docs/Column.md)
  - [ColumnKind](docs/ColumnKind.md)
  - [CombinedItemSalesRow](docs/CombinedItemSalesRow.md)
+ - [Combo](docs/Combo.md)
+ - [ComboChoice](docs/ComboChoice.md)
+ - [ComboChoiceWrite](docs/ComboChoiceWrite.md)
+ - [ComboEconomics](docs/ComboEconomics.md)
+ - [ComboEconomicsRequest](docs/ComboEconomicsRequest.md)
+ - [ComboFeed](docs/ComboFeed.md)
+ - [ComboInput](docs/ComboInput.md)
+ - [ComboMix](docs/ComboMix.md)
+ - [ComboPickInput](docs/ComboPickInput.md)
+ - [ComboSettings](docs/ComboSettings.md)
+ - [ComboSettingsWrite](docs/ComboSettingsWrite.md)
+ - [ComboSlot](docs/ComboSlot.md)
+ - [ComboSlotWrite](docs/ComboSlotWrite.md)
+ - [ComboSummary](docs/ComboSummary.md)
+ - [ComboWarning](docs/ComboWarning.md)
+ - [ComboWrite](docs/ComboWrite.md)
  - [Compare](docs/Compare.md)
- - [ComponentPopularity](docs/ComponentPopularity.md)
  - [ComputedPayslip](docs/ComputedPayslip.md)
  - [ConsumptionRow](docs/ConsumptionRow.md)
  - [ContextBranch](docs/ContextBranch.md)
@@ -789,8 +812,6 @@ Class | Method | HTTP request | Description
  - [CreateAssignmentRequest](docs/CreateAssignmentRequest.md)
  - [CreateBookingRequest](docs/CreateBookingRequest.md)
  - [CreateBranchRequest](docs/CreateBranchRequest.md)
- - [CreateBundleComponentInput](docs/CreateBundleComponentInput.md)
- - [CreateBundleRequest](docs/CreateBundleRequest.md)
  - [CreateCatalogItemRequest](docs/CreateCatalogItemRequest.md)
  - [CreateCategoryRequest](docs/CreateCategoryRequest.md)
  - [CreateCredentialRequest](docs/CreateCredentialRequest.md)
@@ -839,6 +860,13 @@ Class | Method | HTTP request | Description
  - [DayBlock](docs/DayBlock.md)
  - [DayTime](docs/DayTime.md)
  - [DayView](docs/DayView.md)
+ - [DealApplicationInput](docs/DealApplicationInput.md)
+ - [DealBranchOverride](docs/DealBranchOverride.md)
+ - [DealBranchWrite](docs/DealBranchWrite.md)
+ - [DealLineInput](docs/DealLineInput.md)
+ - [DealPoolEntry](docs/DealPoolEntry.md)
+ - [DealRule](docs/DealRule.md)
+ - [DealWrite](docs/DealWrite.md)
  - [Decide](docs/Decide.md)
  - [DecidePay](docs/DecidePay.md)
  - [DecideRoster](docs/DecideRoster.md)
@@ -920,6 +948,7 @@ Class | Method | HTTP request | Description
  - [JoinInfo](docs/JoinInfo.md)
  - [JoinInput](docs/JoinInput.md)
  - [JoinResult](docs/JoinResult.md)
+ - [KitchenComboTag](docs/KitchenComboTag.md)
  - [KitchenLine](docs/KitchenLine.md)
  - [KitchenStation](docs/KitchenStation.md)
  - [KitchenTicketItemView](docs/KitchenTicketItemView.md)
@@ -957,6 +986,8 @@ Class | Method | HTTP request | Description
  - [MarketingLink](docs/MarketingLink.md)
  - [MaterialCostTrendRow](docs/MaterialCostTrendRow.md)
  - [MeResponse](docs/MeResponse.md)
+ - [MealLink](docs/MealLink.md)
+ - [MealLinkWrite](docs/MealLinkWrite.md)
  - [MemberDetail](docs/MemberDetail.md)
  - [MemberView](docs/MemberView.md)
  - [MembersPage](docs/MembersPage.md)
@@ -969,6 +1000,8 @@ Class | Method | HTTP request | Description
  - [MetricResult](docs/MetricResult.md)
  - [MetricsQueryRequest](docs/MetricsQueryRequest.md)
  - [MetricsQueryResponse](docs/MetricsQueryResponse.md)
+ - [MixPick](docs/MixPick.md)
+ - [MixSlot](docs/MixSlot.md)
  - [ModifierGroupOut](docs/ModifierGroupOut.md)
  - [ModifierOptionOut](docs/ModifierOptionOut.md)
  - [MoveShiftRequest](docs/MoveShiftRequest.md)
@@ -996,9 +1029,8 @@ Class | Method | HTTP request | Description
  - [OptionRecipeLineInput](docs/OptionRecipeLineInput.md)
  - [OptionalField](docs/OptionalField.md)
  - [Order](docs/Order.md)
- - [OrderBundleComponentAddon](docs/OrderBundleComponentAddon.md)
- - [OrderBundleComponentFull](docs/OrderBundleComponentFull.md)
- - [OrderBundleComponentOptional](docs/OrderBundleComponentOptional.md)
+ - [OrderDeal](docs/OrderDeal.md)
+ - [OrderDealLine](docs/OrderDealLine.md)
  - [OrderDeliveryInfo](docs/OrderDeliveryInfo.md)
  - [OrderExport](docs/OrderExport.md)
  - [OrderFull](docs/OrderFull.md)
@@ -1033,7 +1065,7 @@ Class | Method | HTTP request | Description
  - [PackagingRuleLineOut](docs/PackagingRuleLineOut.md)
  - [PackagingRuleOut](docs/PackagingRuleOut.md)
  - [PaginatedAddonItems](docs/PaginatedAddonItems.md)
- - [PaginatedBundles](docs/PaginatedBundles.md)
+ - [PaginatedCombos](docs/PaginatedCombos.md)
  - [PaginatedMenuItems](docs/PaginatedMenuItems.md)
  - [PaginatedOrders](docs/PaginatedOrders.md)
  - [PaginatedOrdersFull](docs/PaginatedOrdersFull.md)
@@ -1108,6 +1140,11 @@ Class | Method | HTTP request | Description
  - [PublicBookingView](docs/PublicBookingView.md)
  - [PublicBranch](docs/PublicBranch.md)
  - [PublicBrand](docs/PublicBrand.md)
+ - [PublicCartQuoteRequest](docs/PublicCartQuoteRequest.md)
+ - [PublicCombo](docs/PublicCombo.md)
+ - [PublicComboChoice](docs/PublicComboChoice.md)
+ - [PublicComboSize](docs/PublicComboSize.md)
+ - [PublicComboSlot](docs/PublicComboSlot.md)
  - [PublicReward](docs/PublicReward.md)
  - [PublicSlot](docs/PublicSlot.md)
  - [PublicSlots](docs/PublicSlots.md)
@@ -1145,6 +1182,10 @@ Class | Method | HTTP request | Description
  - [QrResponse](docs/QrResponse.md)
  - [QuerySpec](docs/QuerySpec.md)
  - [QuoteResponse](docs/QuoteResponse.md)
+ - [QuotedCombo](docs/QuotedCombo.md)
+ - [QuotedComboPart](docs/QuotedComboPart.md)
+ - [QuotedDeal](docs/QuotedDeal.md)
+ - [QuotedLine](docs/QuotedLine.md)
  - [ReadNotifications](docs/ReadNotifications.md)
  - [ReadyGroupRef](docs/ReadyGroupRef.md)
  - [ReassignExpenseAdvance](docs/ReassignExpenseAdvance.md)
@@ -1209,6 +1250,7 @@ Class | Method | HTTP request | Description
  - [RoutingModeResponse](docs/RoutingModeResponse.md)
  - [SalaryAdvance](docs/SalaryAdvance.md)
  - [SalaryAdvanceRow](docs/SalaryAdvanceRow.md)
+ - [SaleWindow](docs/SaleWindow.md)
  - [SaveLayoutRequest](docs/SaveLayoutRequest.md)
  - [ScanResult](docs/ScanResult.md)
  - [ScheduleAssignment](docs/ScheduleAssignment.md)
@@ -1235,6 +1277,7 @@ Class | Method | HTTP request | Description
  - [SizeInput](docs/SizeInput.md)
  - [SizeOut](docs/SizeOut.md)
  - [SizeOverrideOut](docs/SizeOverrideOut.md)
+ - [SizeSurcharge](docs/SizeSurcharge.md)
  - [SkuCost](docs/SkuCost.md)
  - [SlotAvailability](docs/SlotAvailability.md)
  - [SnapshotCursor](docs/SnapshotCursor.md)
@@ -1267,7 +1310,6 @@ Class | Method | HTTP request | Description
  - [StopAdjustment](docs/StopAdjustment.md)
  - [StoredTurn](docs/StoredTurn.md)
  - [StudioAggregate](docs/StudioAggregate.md)
- - [SuggestedComponent](docs/SuggestedComponent.md)
  - [Suggestion](docs/Suggestion.md)
  - [Supplier](docs/Supplier.md)
  - [SupplierSpendRow](docs/SupplierSpendRow.md)
@@ -1316,7 +1358,6 @@ Class | Method | HTTP request | Description
  - [UpdateAddonSlotRequest](docs/UpdateAddonSlotRequest.md)
  - [UpdateBookingRequest](docs/UpdateBookingRequest.md)
  - [UpdateBranchRequest](docs/UpdateBranchRequest.md)
- - [UpdateBundleRequest](docs/UpdateBundleRequest.md)
  - [UpdateCatalogItemRequest](docs/UpdateCatalogItemRequest.md)
  - [UpdateCategoryRequest](docs/UpdateCategoryRequest.md)
  - [UpdateCustomerRequest](docs/UpdateCustomerRequest.md)
@@ -1344,7 +1385,6 @@ Class | Method | HTTP request | Description
  - [UpsertRolePermissionRequest](docs/UpsertRolePermissionRequest.md)
  - [UpsertSizeRequest](docs/UpsertSizeRequest.md)
  - [UpsertWorkShiftRequest](docs/UpsertWorkShiftRequest.md)
- - [UsedInBundleOut](docs/UsedInBundleOut.md)
  - [UserAccess](docs/UserAccess.md)
  - [UserAllowList](docs/UserAllowList.md)
  - [UserBranch](docs/UserBranch.md)

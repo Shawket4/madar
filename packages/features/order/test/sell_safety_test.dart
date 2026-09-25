@@ -30,6 +30,9 @@ const _session = SessionSnapshot(
 );
 
 const _latte = CartLineView(
+  dealCutMinor: 0,
+  kind: 'item',
+  parts: [],
   key: 'latte|Large|oat:1||',
   itemId: 'latte',
   name: 'Latte',
@@ -39,7 +42,6 @@ const _latte = CartLineView(
   unitPriceMinor: 6000,
   qty: 1,
   lineTotalMinor: 6000,
-  bundleComponents: [],
 );
 
 const _totals = CartTotals(
@@ -62,6 +64,7 @@ const _draft = DraftView(
 );
 
 const _item = MenuItemView(
+  kind: 'item',
   id: 'latte',
   name: 'Latte',
   basePriceMinor: 5000,

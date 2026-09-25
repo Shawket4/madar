@@ -22,9 +22,19 @@ use crate::store::Store;
 pub(crate) const K_MENU_ITEMS: &str = "catalog:menu_items"; // Vec<MenuItemFull>
 pub(crate) const K_CATEGORIES: &str = "catalog:categories"; // Vec<Category>
 pub(crate) const K_ADDONS: &str = "catalog:addons"; // Vec<AddonItem>
-pub(crate) const K_BUNDLES: &str = "catalog:bundles"; // Vec<Bundle>
+/// The combos (bundles) mirror an older build kept. Combos were removed; the
+/// catalog refresh deletes it.
+pub(crate) const K_RETIRED_BUNDLES: &str = "catalog:bundles";
 pub(crate) const K_PAYMENT_METHODS: &str = "catalog:payment_methods"; // Vec<OrgPaymentMethod>
 pub(crate) const K_DISCOUNTS: &str = "catalog:discounts"; // Vec<Discount>
+/// The branch's deal rules (COMBOS_CONTRACT §5), rebuilt from the `deal_rule`
+/// feed rows by `project_pull_mirrors`: the §2.3 `DealRule` shape.
+pub(crate) const K_DEALS: &str = "catalog:deals";
+
+/// [`MenuItemView::kind`] of a plain item.
+pub const KIND_ITEM: &str = "item";
+/// [`MenuItemView::kind`] of a combo.
+pub const KIND_COMBO: &str = "combo";
 
 // ── view DTOs (host-facing) ─────────────────────────────────────────────────
 
@@ -55,6 +65,10 @@ pub struct MenuItemView {
     pub recipes: Vec<RecipeLineView>,
     /// How the item is made, in order — shown under the recipe.
     pub recipe_steps: Vec<RecipeStepView>,
+    /// `"item"` or `"combo"` (COMBOS_CONTRACT §0): a combo opens the combo
+    /// sheet ([`crate::combos`]) instead of the item sheet, and wears a
+    /// "Combo" badge on the grid. A row from an older server is an item.
+    pub kind: String,
 }
 
 /// One preparation step, ready to draw: already localized, and pointing at the
@@ -171,39 +185,6 @@ pub struct AddonItemView {
 
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug)]
-pub struct BundleView {
-    pub id: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub price_minor: i64,
-    pub image_url: Option<String>,
-    /// On-disk path of the CACHED image — see `MenuItemView::local_image_path`.
-    pub local_image_path: Option<String>,
-    /// `status == active`. The date/time availability window (below) is gated in
-    /// the branch timezone by the cart/order context, not in this static read.
-    pub is_available: bool,
-    pub available_from_date: Option<String>,
-    pub available_until_date: Option<String>,
-    pub available_from_time: Option<String>,
-    pub available_until_time: Option<String>,
-    /// The bundle's component items (which menu item + how many). The detail
-    /// sheet configures each one through the normal item-customization flow.
-    pub components: Vec<BundleComponentView>,
-}
-
-/// One item that makes up a bundle (hydrated from the bundle list). The
-/// component's base price is never charged separately — the bundle price covers
-/// it; only its addon/optional up-charges add money.
-#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug)]
-pub struct BundleComponentView {
-    pub item_id: String,
-    pub item_name: String,
-    pub quantity: i64,
-}
-
-#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug)]
 pub struct PaymentMethodView {
     pub id: String,
     pub name: String,
@@ -269,6 +250,9 @@ struct FullItem {
     recipes: Vec<FullRecipe>,
     #[serde(default)]
     recipe_steps: Vec<FullStep>,
+    /// `item` | `combo`; absent from a server older than the combos module.
+    #[serde(default)]
+    kind: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -421,6 +405,10 @@ pub(crate) fn menu_items(store: &Store, locale: &str) -> CoreResult<Vec<MenuItem
                     org_ingredient_id: r.org_ingredient_id.clone().filter(|s| !s.is_empty()),
                 })
                 .collect(),
+            kind: match i.kind.as_deref() {
+                Some(KIND_COMBO) => KIND_COMBO.to_string(),
+                _ => KIND_ITEM.to_string(),
+            },
             recipe_steps: i
                 .recipe_steps
                 .iter()
@@ -479,6 +467,160 @@ pub(crate) fn menu_items(store: &Store, locale: &str) -> CoreResult<Vec<MenuItem
                     org_ingredient_id: o.org_ingredient_id.clone().filter(|s| !s.is_empty()),
                 })
                 .collect(),
+        })
+        .collect())
+}
+
+// ── combos and "make it a meal" (COMBOS_CONTRACT §2.4) ──────────────────────
+//
+// A combo is a menu row of `kind = 'combo'`: its price is the row's usual
+// price, its own half (`combo`) the slots, choices and windows. A plain row
+// may carry `meal`: the combo it upgrades to and the slot it fills (C14).
+// Parsed leniently on their own, so a malformed `combo` never blanks the menu:
+// the row stays on the grid and simply cannot be sold as a combo.
+
+/// A combo's own half, localized, as the till sells it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct ComboDef {
+    pub id: String,
+    pub name: String,
+    pub is_active: bool,
+    pub category_id: Option<String>,
+    /// The channel switches the row carries resolved for this branch (§2.4);
+    /// `None` from a server that sends them elsewhere (branch settings).
+    pub sell: Option<madar_catalog::combo::Sell>,
+    pub windows: Vec<madar_catalog::sale_window::Window>,
+    pub slots: Vec<ComboSlotDef>,
+}
+
+/// One slot of a combo, localized.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct ComboSlotDef {
+    pub id: String,
+    pub name: String,
+    pub sort: i64,
+    pub min: i64,
+    pub max: i64,
+    pub default_item_id: Option<String>,
+    pub default_size_label: Option<String>,
+    pub choices: Vec<madar_catalog::combo::ChoiceView>,
+}
+
+/// "Make it a meal": the combo a plain item upgrades to and the slot it fills.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
+pub(crate) struct MealRef {
+    pub combo_id: String,
+    pub slot_id: String,
+}
+
+#[derive(Deserialize)]
+struct WireComboRow {
+    id: String,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    name_translations: Value,
+    #[serde(default)]
+    category_id: Option<String>,
+    #[serde(default = "yes")]
+    is_active: bool,
+    #[serde(default)]
+    deleted_at: Option<Value>,
+    #[serde(default)]
+    kind: Option<String>,
+    #[serde(default)]
+    combo: Option<Value>,
+    #[serde(default)]
+    meal: Option<Value>,
+}
+
+#[derive(Deserialize)]
+struct WireCombo {
+    #[serde(default)]
+    sell: Option<madar_catalog::combo::Sell>,
+    #[serde(default)]
+    windows: Vec<madar_catalog::sale_window::Window>,
+    #[serde(default)]
+    slots: Vec<WireSlot>,
+}
+
+#[derive(Deserialize)]
+struct WireSlot {
+    id: String,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    name_translations: Value,
+    #[serde(default)]
+    sort: i64,
+    #[serde(default = "one", alias = "min_picks")]
+    min: i64,
+    #[serde(default = "one", alias = "max_picks")]
+    max: i64,
+    #[serde(default)]
+    default_item_id: Option<String>,
+    #[serde(default)]
+    default_size_label: Option<String>,
+    #[serde(default)]
+    choices: Vec<madar_catalog::combo::ChoiceView>,
+}
+
+fn yes() -> bool {
+    true
+}
+
+fn one() -> i64 {
+    1
+}
+
+/// Every combo on the mirrored menu (soft-deleted rows dropped), localized,
+/// with its slots in their sort order.
+pub(crate) fn combos(store: &Store, locale: &str) -> CoreResult<Vec<ComboDef>> {
+    let rows: Vec<WireComboRow> = parse_kv_lenient(store, K_MENU_ITEMS)?;
+    Ok(rows
+        .into_iter()
+        .filter(|r| r.deleted_at.as_ref().is_none_or(Value::is_null))
+        .filter(|r| r.kind.as_deref() == Some(KIND_COMBO))
+        .filter_map(|r| {
+            let wire: WireCombo = serde_json::from_value(r.combo?).ok()?;
+            let mut slots: Vec<ComboSlotDef> = wire
+                .slots
+                .into_iter()
+                .map(|sl| ComboSlotDef {
+                    name: resolve(&sl.name_translations, &sl.name, locale),
+                    id: sl.id,
+                    sort: sl.sort,
+                    min: sl.min.max(0),
+                    max: sl.max.max(1),
+                    default_item_id: sl.default_item_id.filter(|s| !s.is_empty()),
+                    default_size_label: sl.default_size_label.filter(|s| !s.is_empty()),
+                    choices: sl.choices,
+                })
+                .collect();
+            slots.sort_by_key(|s| s.sort);
+            Some(ComboDef {
+                name: resolve(&r.name_translations, &r.name, locale),
+                id: r.id,
+                is_active: r.is_active,
+                category_id: r.category_id,
+                sell: wire.sell,
+                windows: wire.windows,
+                slots,
+            })
+        })
+        .collect())
+}
+
+/// Every plain item's "make it a meal" pointer, by item id.
+pub(crate) fn meals(store: &Store) -> CoreResult<std::collections::HashMap<String, MealRef>> {
+    let rows: Vec<WireComboRow> = parse_kv_lenient(store, K_MENU_ITEMS)?;
+    Ok(rows
+        .into_iter()
+        .filter(|r| r.deleted_at.as_ref().is_none_or(Value::is_null))
+        .filter(|r| r.kind.as_deref() != Some(KIND_COMBO))
+        .filter_map(|r| {
+            let m: MealRef = serde_json::from_value(r.meal?).ok()?;
+            (!m.combo_id.is_empty() && !m.slot_id.is_empty()).then(|| (r.id, m))
         })
         .collect())
 }
@@ -553,126 +695,6 @@ pub(crate) fn addons(store: &Store, locale: &str) -> CoreResult<Vec<AddonItemVie
                 .collect(),
         })
         .collect())
-}
-
-// Tolerant local shape for the `/bundles` wire (PaginatedBundles.data is
-// `Vec<BundleWithComponents>` — the COMPONENTS the detail sheet needs ride
-// along). Captured leniently (dates/status as strings, decimals omitted) so the
-// encoding can't blank the combos; a bad row is skipped, not fatal.
-#[derive(Deserialize)]
-struct FullBundle {
-    id: uuid::Uuid,
-    name: String,
-    #[serde(default)]
-    name_translations: Value,
-    #[serde(default)]
-    description: Option<String>,
-    #[serde(default)]
-    description_translations: Value,
-    price: i32,
-    status: String,
-    #[serde(default)]
-    image_url: Option<String>,
-    #[serde(default)]
-    available_from_date: Option<String>,
-    #[serde(default)]
-    available_until_date: Option<String>,
-    #[serde(default)]
-    available_from_time: Option<String>,
-    #[serde(default)]
-    available_until_time: Option<String>,
-    #[serde(default)]
-    components: Vec<FullBundleComponent>,
-}
-
-#[derive(Deserialize)]
-struct FullBundleComponent {
-    item_id: uuid::Uuid,
-    #[serde(default)]
-    item_name: String,
-    #[serde(default)]
-    quantity: i32,
-}
-
-pub(crate) fn bundles(store: &Store, locale: &str) -> CoreResult<Vec<BundleView>> {
-    let items: Vec<FullBundle> = parse_kv_lenient(store, K_BUNDLES)?;
-    Ok(items
-        .into_iter()
-        .map(|b| BundleView {
-            id: b.id.to_string(),
-            name: resolve(&b.name_translations, &b.name, locale),
-            description: b
-                .description
-                .clone()
-                .map(|d| resolve(&b.description_translations, &d, locale)),
-            price_minor: b.price as i64,
-            image_url: b.image_url.clone(),
-            local_image_path: None,
-            is_available: b.status == "active",
-            available_from_date: b.available_from_date.clone().filter(|s| !s.is_empty()),
-            available_until_date: b.available_until_date.clone().filter(|s| !s.is_empty()),
-            available_from_time: b.available_from_time.clone().filter(|s| !s.is_empty()),
-            available_until_time: b.available_until_time.clone().filter(|s| !s.is_empty()),
-            components: b
-                .components
-                .iter()
-                .map(|c| BundleComponentView {
-                    item_id: c.item_id.to_string(),
-                    item_name: c.item_name.clone(),
-                    quantity: c.quantity.max(1) as i64,
-                })
-                .collect(),
-        })
-        .collect())
-}
-
-/// True when `b` is orderable at `now` (branch-local wall-clock): status active
-/// AND within its optional date and time windows (inclusive). Branch filtering
-/// is already applied server-side. Mirrors Flutter's `isBundleAvailableNow`.
-pub(crate) fn bundle_available<Z: chrono::TimeZone>(
-    b: &BundleView,
-    now: chrono::DateTime<Z>,
-) -> bool {
-    use chrono::Timelike;
-    if !b.is_available {
-        return false;
-    }
-    let date = now.date_naive();
-    if let Some(from) = b.available_from_date.as_deref().and_then(parse_ymd) {
-        if date < from {
-            return false;
-        }
-    }
-    if let Some(until) = b.available_until_date.as_deref().and_then(parse_ymd) {
-        if date > until {
-            return false;
-        }
-    }
-    let mins = now.hour() as i32 * 60 + now.minute() as i32;
-    if let Some(from) = b.available_from_time.as_deref().and_then(parse_hm) {
-        if mins < from {
-            return false;
-        }
-    }
-    if let Some(until) = b.available_until_time.as_deref().and_then(parse_hm) {
-        if mins > until {
-            return false;
-        }
-    }
-    true
-}
-
-/// "YYYY-MM-DD" (or the date prefix of an RFC3339 string) → NaiveDate.
-fn parse_ymd(s: &str) -> Option<chrono::NaiveDate> {
-    chrono::NaiveDate::parse_from_str(&s[..s.len().min(10)], "%Y-%m-%d").ok()
-}
-
-/// "HH:MM[:SS]" → minutes since midnight.
-fn parse_hm(s: &str) -> Option<i32> {
-    let mut it = s.split(':');
-    let h: i32 = it.next()?.parse().ok()?;
-    let m: i32 = it.next()?.parse().ok()?;
-    Some(h * 60 + m)
 }
 
 /// The payment-method catalog AS CACHED ON DISK.
@@ -1124,7 +1146,6 @@ mod tests {
         assert!(menu_items(&store, "en").unwrap().is_empty());
         assert!(categories(&store, "en").unwrap().is_empty());
         assert!(addons(&store, "en").unwrap().is_empty());
-        assert!(bundles(&store, "en").unwrap().is_empty());
         assert!(payment_methods(&store, "en").unwrap().is_empty());
         assert!(discounts(&store, "en").unwrap().is_empty());
     }
@@ -1160,66 +1181,6 @@ mod tests {
         assert_eq!(pm.len(), 1); // inactive filtered
         assert_eq!(pm[0].name, "Cash");
         assert!(pm[0].is_cash);
-    }
-
-    #[test]
-    fn bundle_availability_gates_status_and_time_window() {
-        fn bv(active: bool, from_t: Option<&str>, until_t: Option<&str>) -> BundleView {
-            BundleView {
-                id: "b".into(),
-                name: "Combo".into(),
-                description: None,
-                price_minor: 1000,
-                image_url: None,
-                local_image_path: None,
-                is_available: active,
-                available_from_date: None,
-                available_until_date: None,
-                available_from_time: from_t.map(String::from),
-                available_until_time: until_t.map(String::from),
-                components: vec![],
-            }
-        }
-        let now = chrono::DateTime::parse_from_rfc3339("2026-06-21T10:30:00+00:00").unwrap();
-        assert!(bundle_available(&bv(true, None, None), now)); // active, no window
-        assert!(!bundle_available(&bv(false, None, None), now)); // inactive (draft/archived)
-        assert!(bundle_available(
-            &bv(true, Some("08:00"), Some("12:00")),
-            now
-        )); // inside window
-        assert!(!bundle_available(
-            &bv(true, Some("11:00"), Some("12:00")),
-            now
-        )); // before it opens
-        assert!(!bundle_available(
-            &bv(true, Some("08:00"), Some("10:00")),
-            now
-        )); // after it closes
-    }
-
-    // ── helper constructors for hand-built BundleViews ──────────────────────
-
-    fn bundle_view(
-        active: bool,
-        from_d: Option<&str>,
-        until_d: Option<&str>,
-        from_t: Option<&str>,
-        until_t: Option<&str>,
-    ) -> BundleView {
-        BundleView {
-            id: "b".into(),
-            name: "Combo".into(),
-            description: None,
-            price_minor: 1000,
-            image_url: None,
-            local_image_path: None,
-            is_available: active,
-            available_from_date: from_d.map(String::from),
-            available_until_date: until_d.map(String::from),
-            available_from_time: from_t.map(String::from),
-            available_until_time: until_t.map(String::from),
-            components: vec![],
-        }
     }
 
     // ── locale resolution (resolve via the public menu_items projection) ─────
@@ -1582,160 +1543,6 @@ mod tests {
         );
         let a = addons(&store, "en").unwrap();
         assert_eq!(a[0].ingredients[0].quantity, 0.0);
-    }
-
-    // ── bundles: projection + availability date/time gating ─────────────────
-
-    #[test]
-    fn bundles_project_status_components_and_clamp_quantity() {
-        let store = Store::open("").unwrap();
-        seed(
-            &store,
-            K_BUNDLES,
-            r#"[{
-              "id":"00000000-0000-0000-0000-0000000000b1","name":"Combo",
-              "name_translations":{"ar":"كومبو"},"description":"two drinks",
-              "description_translations":{},"price":9000,"status":"active",
-              "image_url":"http://img/combo.png",
-              "available_from_date":"2026-06-01","available_until_date":"2026-06-30",
-              "available_from_time":"08:00","available_until_time":"22:00",
-              "components":[
-                {"item_id":"00000000-0000-0000-0000-0000000000a1","item_name":"Latte","quantity":2},
-                {"item_id":"00000000-0000-0000-0000-0000000000a2","item_name":"Cookie","quantity":0}
-              ]
-            }]"#,
-        );
-        let b = bundles(&store, "ar").unwrap();
-        assert_eq!(b.len(), 1);
-        assert_eq!(b[0].name, "كومبو");
-        assert_eq!(b[0].price_minor, 9000);
-        assert!(b[0].is_available); // status == active
-        assert_eq!(b[0].available_from_date.as_deref(), Some("2026-06-01"));
-        assert_eq!(b[0].available_until_time.as_deref(), Some("22:00"));
-        assert_eq!(b[0].components.len(), 2);
-        assert_eq!(b[0].components[0].quantity, 2);
-        assert_eq!(b[0].components[1].quantity, 1, "qty<1 clamps to 1");
-    }
-
-    #[test]
-    fn bundles_non_active_status_is_unavailable_and_empty_windows_drop() {
-        let store = Store::open("").unwrap();
-        seed(
-            &store,
-            K_BUNDLES,
-            r#"[{
-              "id":"00000000-0000-0000-0000-0000000000b1","name":"Draft Combo",
-              "name_translations":{},"description_translations":{},"price":100,
-              "status":"draft",
-              "available_from_date":"","available_until_date":"",
-              "available_from_time":"","available_until_time":"",
-              "components":[]
-            }]"#,
-        );
-        let b = bundles(&store, "en").unwrap();
-        assert!(!b[0].is_available); // status != active
-                                     // Empty-string window fields are filtered to None.
-        assert_eq!(b[0].available_from_date, None);
-        assert_eq!(b[0].available_until_time, None);
-    }
-
-    #[test]
-    fn bundles_skip_malformed_rows() {
-        // A bundle missing required `price`/`status` is skipped, not fatal.
-        let store = Store::open("").unwrap();
-        seed(
-            &store,
-            K_BUNDLES,
-            r#"[
-              {"id":"00000000-0000-0000-0000-0000000000b0","name":"Broken"},
-              {"id":"00000000-0000-0000-0000-0000000000b1","name":"Good",
-               "name_translations":{},"description_translations":{},"price":100,
-               "status":"active","components":[]}
-            ]"#,
-        );
-        let b = bundles(&store, "en").unwrap();
-        assert_eq!(b.len(), 1);
-        assert_eq!(b[0].name, "Good");
-    }
-
-    #[test]
-    fn bundle_available_date_window_inclusive_boundaries() {
-        // On the from-date and on the until-date are both inside (inclusive).
-        let on_from = chrono::DateTime::parse_from_rfc3339("2026-06-01T12:00:00+00:00").unwrap();
-        let on_until = chrono::DateTime::parse_from_rfc3339("2026-06-30T12:00:00+00:00").unwrap();
-        let before = chrono::DateTime::parse_from_rfc3339("2026-05-31T12:00:00+00:00").unwrap();
-        let after = chrono::DateTime::parse_from_rfc3339("2026-07-01T12:00:00+00:00").unwrap();
-        let b = bundle_view(true, Some("2026-06-01"), Some("2026-06-30"), None, None);
-        assert!(bundle_available(&b, on_from)); // == from
-        assert!(bundle_available(&b, on_until)); // == until
-        assert!(!bundle_available(&b, before)); // day before from
-        assert!(!bundle_available(&b, after)); // day after until
-    }
-
-    #[test]
-    fn bundle_available_time_window_inclusive_boundaries() {
-        // mins < from / mins > until are out; equality is in.
-        let b = bundle_view(true, None, None, Some("09:00"), Some("17:00"));
-        let at_open = chrono::DateTime::parse_from_rfc3339("2026-06-15T09:00:00+00:00").unwrap();
-        let at_close = chrono::DateTime::parse_from_rfc3339("2026-06-15T17:00:00+00:00").unwrap();
-        let one_before = chrono::DateTime::parse_from_rfc3339("2026-06-15T08:59:00+00:00").unwrap();
-        let one_after = chrono::DateTime::parse_from_rfc3339("2026-06-15T17:01:00+00:00").unwrap();
-        assert!(bundle_available(&b, at_open)); // == from minute
-        assert!(bundle_available(&b, at_close)); // == until minute
-        assert!(!bundle_available(&b, one_before));
-        assert!(!bundle_available(&b, one_after));
-    }
-
-    #[test]
-    fn bundle_window_reads_the_branch_wall_clock_not_the_sent_offset() {
-        // A late-night bundle on the 13th; the host sends 23:30 UTC on the 12th,
-        // which is 02:30 on the 13th in Cairo — so it IS on sale there.
-        let b = bundle_view(
-            true,
-            Some("2026-09-13"),
-            Some("2026-09-13"),
-            Some("00:00"),
-            Some("03:00"),
-        );
-        let sent = chrono::DateTime::parse_from_rfc3339("2026-09-12T23:30:00+00:00").unwrap();
-        assert!(!bundle_available(&b, sent)); // raw offset: wrong day and hour
-        assert!(bundle_available(
-            &b,
-            sent.with_timezone(&chrono_tz::Africa::Cairo)
-        ));
-    }
-
-    #[test]
-    fn bundle_available_accepts_rfc3339_date_prefix() {
-        // parse_ymd takes the first 10 chars, so a full timestamp string works.
-        let b = bundle_view(
-            true,
-            Some("2026-06-01T00:00:00Z"),
-            Some("2026-06-30T23:59:59Z"),
-            None,
-            None,
-        );
-        let mid = chrono::DateTime::parse_from_rfc3339("2026-06-15T12:00:00+00:00").unwrap();
-        assert!(bundle_available(&b, mid));
-    }
-
-    #[test]
-    fn bundle_available_garbage_window_is_ignored_not_fatal() {
-        // Unparseable date/time strings yield None from parse_ymd/parse_hm, so the
-        // window simply doesn't constrain (and there's no panic).
-        let b = bundle_view(true, Some("not-a-date"), None, Some("nope"), None);
-        let now = chrono::DateTime::parse_from_rfc3339("2026-06-15T12:00:00+00:00").unwrap();
-        assert!(bundle_available(&b, now));
-    }
-
-    #[test]
-    fn bundle_available_time_with_seconds_parses() {
-        // parse_hm tolerates an "HH:MM:SS" form (extra :SS ignored).
-        let b = bundle_view(true, None, None, Some("09:30:45"), Some("10:30:00"));
-        let inside = chrono::DateTime::parse_from_rfc3339("2026-06-15T10:00:00+00:00").unwrap();
-        let before = chrono::DateTime::parse_from_rfc3339("2026-06-15T09:15:00+00:00").unwrap();
-        assert!(bundle_available(&b, inside));
-        assert!(!bundle_available(&b, before)); // 09:15 < 09:30
     }
 
     // ── lenient parse: completely malformed kv JSON IS an error ──────────────

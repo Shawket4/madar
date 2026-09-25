@@ -230,6 +230,9 @@ pub struct OrderFull {
     pub waiter_id: Option<uuid::Uuid>,
     #[serde(rename = "waiter_name", skip_serializing_if = "Option::is_none")]
     pub waiter_name: Option<String>,
+    /// The deals applied to this sale (combos module). Additive.
+    #[serde(rename = "deals", skip_serializing_if = "Option::is_none")]
+    pub deals: Option<Vec<models::OrderDeal>>,
     /// Delivery context (customer phone, address, channel, zone), populated only on the single-order detail endpoint and only when the order originated from a delivery order. `null`/absent for dine-in orders.
     #[serde(
         rename = "delivery",
@@ -343,6 +346,7 @@ impl OrderFull {
             voided_by: None,
             waiter_id: None,
             waiter_name: None,
+            deals: None,
             delivery: None,
             items,
             loyalty_redemption_refused: None,

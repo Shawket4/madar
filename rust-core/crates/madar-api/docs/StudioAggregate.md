@@ -21,7 +21,6 @@ Name | Type | Description | Notes
 **recipe_source_item_id** | Option<**uuid::Uuid**> | The item this one's recipe follows (linked copy), or `null`. | [optional]
 **recipe_steps** | [**Vec<models::RecipeStep>**](RecipeStep.md) | How the item is made, in order. Edited through `PUT /recipes/steps/{id}` and saved by the studio alongside the recipe lines. | 
 **sizes** | [**Vec<models::SizeOut>**](SizeOut.md) |  | 
-**used_in_bundles** | [**Vec<models::UsedInBundleOut>**](UsedInBundleOut.md) |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

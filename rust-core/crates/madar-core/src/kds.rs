@@ -74,6 +74,27 @@ pub struct KdsLineView {
     pub station_id: Option<String>,
     pub station_name: Option<String>,
     pub bumped: bool,
+    /// The combo this line is one item of (C12): the station makes only its
+    /// part, tagged with the combo so the pass can bring the rest together.
+    pub combo: Option<KdsComboTag>,
+}
+
+/// A kitchen line's combo (`KitchenLine.combo`, contract §3.3).
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KdsComboTag {
+    /// The combo's header line id: every item of one combo shares it.
+    pub line_id: String,
+    pub name: String,
+}
+
+/// The combo tag a slim `KitchenLine` JSON carries, if any.
+fn combo_tag(line: Option<&serde_json::Value>) -> Option<KdsComboTag> {
+    let c = line?.get("combo").filter(|c| c.is_object())?;
+    Some(KdsComboTag {
+        line_id: c.get("line_id")?.as_str()?.to_string(),
+        name: c.get("name").and_then(|n| n.as_str()).unwrap_or_default().to_string(),
+    })
 }
 
 // ── Mappers ───────────────────────────────────────────────────────────────────
@@ -131,12 +152,13 @@ fn line_view(it: &models::KitchenTicketItemView) -> KdsLineView {
         id: it.id.to_string(),
         name: s("name").unwrap_or_else(|| "Item".to_string()),
         qty: it.qty,
-        size_label: s("size_label"),
+        size_label: crate::cart::real_size(s("size_label")),
         modifiers,
         notes: s("notes"),
         station_id: flat(&it.station_id).map(|u| u.to_string()),
         station_name: flat(&it.station_name),
         bumped: it.bumped,
+        combo: combo_tag(line),
     }
 }
 
@@ -284,14 +306,45 @@ pub(crate) fn build_fire_projection(
     created_at: String,
 ) -> Option<KdsTicketView> {
     let kt = derive_kitchen_ticket_id(round_idem)?;
-    let items = lines
+    // A combo is never fired itself: each of its items goes to the kitchen,
+    // tagged with it (C12), in the order the server numbers kitchen lines.
+    let dishes: Vec<KdsLineView> = lines
         .iter()
         .enumerate()
-        .map(|(i, l)| {
+        .flat_map(|(li, l)| -> Vec<KdsLineView> {
+            if l.kind == crate::menu::KIND_COMBO {
+                // The same tag the catch-up projection gives it
+                // ([`projection_from_envelope`]): the round and the line's
+                // index in its `items[]` (the cart position).
+                let tag = KdsComboTag {
+                    line_id: format!("{round_idem}:{li}"),
+                    name: l.name.clone(),
+                };
+                return l
+                    .parts
+                    .iter()
+                    .map(|p| {
+                        let mut modifiers: Vec<String> = p.addons.iter().map(|a| a.name.clone()).collect();
+                        modifiers.extend(p.optionals.iter().map(|o| o.name.clone()));
+                        KdsLineView {
+                            id: String::new(),
+                            name: p.item_name.clone(),
+                            qty: (p.qty.max(1) * l.qty.max(1)) as i32,
+                            size_label: p.size_label.clone(),
+                            modifiers,
+                            notes: p.notes.clone(),
+                            station_id: None,
+                            station_name: None,
+                            bumped: false,
+                            combo: Some(tag.clone()),
+                        }
+                    })
+                    .collect();
+            }
             let mut modifiers: Vec<String> = l.addons.iter().map(|a| a.name.clone()).collect();
             modifiers.extend(l.optionals.iter().map(|o| o.name.clone()));
-            KdsLineView {
-                id: derive_kitchen_item_id(&kt, i),
+            vec![KdsLineView {
+                id: String::new(),
                 name: l.name.clone(),
                 qty: l.qty as i32,
                 size_label: l.size_label.clone(),
@@ -300,7 +353,16 @@ pub(crate) fn build_fire_projection(
                 station_id: None, // routing is server config; unknown offline
                 station_name: None,
                 bumped: false,
-            }
+                combo: None,
+            }]
+        })
+        .collect();
+    let items = dishes
+        .into_iter()
+        .enumerate()
+        .map(|(i, mut d)| {
+            d.id = derive_kitchen_item_id(&kt, i);
+            d
         })
         .collect();
     Some(KdsTicketView {
@@ -329,25 +391,52 @@ pub(crate) fn projection_from_envelope(
         .or_else(|| req.get("idempotency_key"))
         .and_then(|v| v.as_str())?;
     let kt = derive_kitchen_ticket_id(round_idem)?;
+    let name_of = |id: &str| names.get(id).cloned().unwrap_or_else(|| "Item".into());
     let items = req
         .get("items")
         .and_then(|v| v.as_array())
         .map(|a| {
             a.iter()
                 .enumerate()
-                .map(|(i, it)| {
+                .flat_map(|(li, it)| -> Vec<KdsLineView> {
                     let menu = it.get("menu_item_id").and_then(|m| m.as_str()).unwrap_or("");
-                    KdsLineView {
-                        id: derive_kitchen_item_id(&kt, i),
-                        name: names.get(menu).cloned().unwrap_or_else(|| "Item".into()),
-                        qty: it.get("quantity").and_then(|q| q.as_i64()).unwrap_or(1) as i32,
-                        size_label: it.get("size_label").and_then(|x| x.as_str()).map(str::to_string),
+                    let qty = it.get("quantity").and_then(|q| q.as_i64()).unwrap_or(1);
+                    // A combo line: its picks are the dishes (C12).
+                    if let Some(picks) = it.pointer("/combo/picks").and_then(|p| p.as_array()) {
+                        let tag = KdsComboTag { line_id: format!("{round_idem}:{li}"), name: name_of(menu) };
+                        return picks
+                            .iter()
+                            .map(|p| KdsLineView {
+                                id: String::new(),
+                                name: name_of(p.get("menu_item_id").and_then(|m| m.as_str()).unwrap_or("")),
+                                qty: (p.get("quantity").and_then(|q| q.as_i64()).unwrap_or(1).max(1) * qty.max(1)) as i32,
+                                size_label: crate::cart::real_size(p.get("size_label").and_then(|x| x.as_str()).map(str::to_string)),
+                                modifiers: Vec::new(),
+                                notes: p.get("notes").and_then(|x| x.as_str()).map(str::to_string),
+                                station_id: None,
+                                station_name: None,
+                                bumped: false,
+                                combo: Some(tag.clone()),
+                            })
+                            .collect();
+                    }
+                    vec![KdsLineView {
+                        id: String::new(),
+                        name: name_of(menu),
+                        qty: qty as i32,
+                        size_label: crate::cart::real_size(it.get("size_label").and_then(|x| x.as_str()).map(str::to_string)),
                         modifiers: Vec::new(),
                         notes: it.get("notes").and_then(|x| x.as_str()).map(str::to_string),
                         station_id: None,
                         station_name: None,
                         bumped: false,
-                    }
+                        combo: None,
+                    }]
+                })
+                .enumerate()
+                .map(|(i, mut d)| {
+                    d.id = derive_kitchen_item_id(&kt, i);
+                    d
                 })
                 .collect::<Vec<_>>()
         })
@@ -450,6 +539,27 @@ pub(crate) fn sort_feed(tickets: &mut [KdsTicketView]) {
 mod tests {
     use super::*;
 
+    /// The server's slim `KitchenLine` carries `combo` (contract §3.2, C12):
+    /// the board tags the dish with it; an older line, or `null`, has none.
+    #[test]
+    fn a_kitchen_line_names_its_combo() {
+        let line = serde_json::json!({ "name": "Latte", "qty": 2,
+            "combo": { "line_id": "h1", "name": "Lunch deal", "name_translations": {} } });
+        assert_eq!(
+            combo_tag(Some(&line)),
+            Some(KdsComboTag {
+                line_id: "h1".into(),
+                name: "Lunch deal".into()
+            })
+        );
+        assert_eq!(
+            combo_tag(Some(&serde_json::json!({ "name": "Tea", "combo": null }))),
+            None
+        );
+        assert_eq!(combo_tag(Some(&serde_json::json!({ "name": "Tea" }))), None);
+        assert_eq!(combo_tag(None), None);
+    }
+
     fn tk(id: &str, status: &str, created_at: &str) -> KdsTicketView {
         KdsTicketView {
             id: id.into(),
@@ -487,6 +597,7 @@ mod tests {
             station_id: None,
             station_name: None,
             bumped,
+            combo: None,
         }
     }
 

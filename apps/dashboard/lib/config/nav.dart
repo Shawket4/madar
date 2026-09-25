@@ -133,12 +133,6 @@ const List<NavGroup> kNav = [
         ],
       ),
       NavLeaf(
-        path: '/menu/bundles',
-        labelKey: 'nav.bundles',
-        fallback: 'Bundles',
-        icon: 'layers',
-      ),
-      NavLeaf(
         path: '/discounts',
         labelKey: 'nav.discounts',
         fallback: 'Discounts',

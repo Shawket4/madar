@@ -193,6 +193,9 @@ pub struct TicketLineView {
     /// RFC3339; the host formats it, because the core never guesses a timezone.
     pub round_number: i32,
     pub round_fired_at: String,
+    /// A COMBO line (its items print under it). No reward is taken on it
+    /// (C7: `REWARD_IN_COMBO`).
+    pub is_combo: bool,
 }
 
 // ── Request builders ──────────────────────────────────────────────────────────
@@ -454,10 +457,14 @@ fn line_view(it: &models::OpenTicketItemView) -> TicketLineView {
         menu_item_id: it.menu_item_id.flatten().map(|m| m.to_string()),
         name: s("name").unwrap_or_else(|| "Item".to_string()),
         qty,
-        size_label: s("size_label"),
+        size_label: crate::cart::real_size(s("size_label")),
         modifiers,
         line_total_minor: it.line_total as i64,
         voided: it.voided,
+        is_combo: line.is_some_and(|l| {
+            l.get("combo").is_some_and(|c| !c.is_null())
+                || l.get("line_kind").and_then(|k| k.as_str()) == Some("combo")
+        }),
     }
 }
 

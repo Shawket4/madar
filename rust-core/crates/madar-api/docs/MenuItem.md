@@ -15,6 +15,7 @@ Name | Type | Description | Notes
 **image** | Option<[**models::AssetGroupRef**](AssetGroupRef.md)> | Asset refs (Track B4, §11.10); null when no asset or not attached by this endpoint. | [optional]
 **image_url** | Option<**String**> |  | [optional]
 **is_active** | **bool** |  | 
+**kind** | Option<**String**> | `item` | `combo` (combos module). A combo's price is its `one_size` row like any item; its slots are on `GET /combos/{id}`. Additive. | [optional]
 **name** | **String** |  | 
 **name_translations** | **serde_json::Value** |  | 
 **org_id** | **uuid::Uuid** |  | 

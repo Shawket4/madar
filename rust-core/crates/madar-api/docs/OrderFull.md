@@ -71,6 +71,7 @@ Name | Type | Description | Notes
 **voided_by** | Option<**uuid::Uuid**> |  | [optional]
 **waiter_id** | Option<**uuid::Uuid**> | The WAITER who opened this order's ticket (`open_tickets.opened_by`), stamped server-side at settle time. `null` for direct teller sales and delivery orders (they never pass through a waiter's ticket). | [optional]
 **waiter_name** | Option<**String**> |  | [optional]
+**deals** | Option<[**Vec<models::OrderDeal>**](OrderDeal.md)> | The deals applied to this sale (combos module). Additive. | [optional]
 **delivery** | Option<[**models::OrderDeliveryInfo**](OrderDeliveryInfo.md)> | Delivery context (customer phone, address, channel, zone), populated only on the single-order detail endpoint and only when the order originated from a delivery order. `null`/absent for dine-in orders. | [optional]
 **items** | [**Vec<models::OrderItemFull>**](OrderItemFull.md) |  | 
 **loyalty_redemption_refused** | Option<**String**> | Set only on the response to a REPLAYED sale whose rewards the points could not pay for: the covered lines stayed covered, no points moved, the order is flagged. The till shows this sentence to the teller. | [optional]

@@ -80,6 +80,7 @@ String _ago(int minutes) => DateTime.now()
 
 MenuItemView _item(String id, String name, int price, {String cat = 'hot'}) =>
     MenuItemView(
+      kind: 'item',
       id: id,
       name: name,
       categoryId: cat,
@@ -116,6 +117,9 @@ const _categories = <CategoryView>[
 
 CartLineView _cartLine(String id, String name, int price, int qty) =>
     CartLineView(
+      dealCutMinor: 0,
+      kind: 'item',
+      parts: const [],
       key: 'k-$id',
       itemId: id,
       name: name,
@@ -124,7 +128,6 @@ CartLineView _cartLine(String id, String name, int price, int qty) =>
       unitPriceMinor: price,
       qty: qty,
       lineTotalMinor: price * qty,
-      bundleComponents: const [],
     );
 
 final _cart = <CartLineView>[
@@ -150,6 +153,7 @@ TicketLineView _line(
   bool voided = false,
   List<String> mods = const [],
 }) => TicketLineView(
+  isCombo: false,
   id: '$name-$round',
   menuItemId: name.toLowerCase(),
   name: name,
@@ -513,6 +517,7 @@ OrderDetailView _detail(String id) => OrderDetailView(
   createdAt: _ago(38),
   lines: const [
     OrderDetailLineView(
+      kind: 'item',
       name: 'Flat white',
       qty: 2,
       lineTotalMinor: 10000,
@@ -520,6 +525,7 @@ OrderDetailView _detail(String id) => OrderDetailView(
       optionals: [],
     ),
     OrderDetailLineView(
+      kind: 'item',
       name: 'Croissant',
       qty: 1,
       lineTotalMinor: 4000,
@@ -866,9 +872,6 @@ class _FakeBridge implements MadarBridge {
       return Future<List<CategoryView>>.value(_categories);
     }
     if (name == #listMenuItems) return Future<List<MenuItemView>>.value(_items);
-    if (name == #availableBundles) {
-      return Future<List<BundleView>>.value(const []);
-    }
     if (name == #listItemModifierGroups) {
       return Future<List<ModifierGroupView>>.value(const []);
     }

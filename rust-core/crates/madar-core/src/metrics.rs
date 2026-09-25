@@ -9,7 +9,7 @@
 //! * a SOLD sale is neither voided nor refunded in full;
 //! * `net_sales` = Σ (total − every refund against the sale) over sold sales;
 //! * tenders are the sold sales' payment legs by method (goods only, no tips);
-//! * top items are the sold sales' lines grouped by (menu item or bundle, name),
+//! * top items are the sold sales' lines grouped by (menu item, name),
 //!   by quantity, then revenue, then name (byte order, `COLLATE "C"`);
 //! * hours are the branch's local hours.
 //!
@@ -320,9 +320,8 @@ pub(crate) fn local_figures(
 
 // ── A sale's lines ───────────────────────────────────────────────────────────
 
-/// Names and prices of the menu this device holds (`catalog:menu_items`,
-/// `catalog:bundles`), read once per computation and only when a queued sale
-/// needs them.
+/// Names and prices of the menu this device holds (`catalog:menu_items`),
+/// read once per computation and only when a queued sale needs them.
 #[derive(Default)]
 struct Catalog {
     loaded: bool,
@@ -334,15 +333,14 @@ impl Catalog {
     fn get(&mut self, conn: &Connection, id: &str) -> CoreResult<Option<(String, i64)>> {
         if !self.loaded {
             self.loaded = true;
-            for key in [crate::menu::K_MENU_ITEMS, crate::menu::K_BUNDLES] {
-                let raw: Option<String> =
-                    conn.query_row("SELECT v FROM kv WHERE k = ?1", [key], |r| r.get(0)).optional()?;
-                let list: Value = raw.and_then(|r| serde_json::from_str(&r).ok()).unwrap_or(Value::Null);
-                for it in list.as_array().into_iter().flatten() {
-                    if let (Some(id), Some(name)) = (s(it, "id"), s(it, "name")) {
-                        let price = it.get("base_price").or(it.get("price")).and_then(Value::as_i64).unwrap_or(0);
-                        self.by_id.insert(id.to_string(), (name.to_string(), price));
-                    }
+            let raw: Option<String> = conn
+                .query_row("SELECT v FROM kv WHERE k = ?1", [crate::menu::K_MENU_ITEMS], |r| r.get(0))
+                .optional()?;
+            let list: Value = raw.and_then(|r| serde_json::from_str(&r).ok()).unwrap_or(Value::Null);
+            for it in list.as_array().into_iter().flatten() {
+                if let (Some(id), Some(name)) = (s(it, "id"), s(it, "name")) {
+                    let price = it.get("base_price").and_then(Value::as_i64).unwrap_or(0);
+                    self.by_id.insert(id.to_string(), (name.to_string(), price));
                 }
             }
         }
@@ -365,7 +363,7 @@ struct Line {
 /// 2. a sale still in the outbox (queued, in flight or dead-lettered): the
 ///    `create_order` payload's cart lines (this device's, or a LAN peer's
 ///    mirrored envelope), named from the menu this device holds and priced as
-///    rung (unit price × quantity, bundle component add-ons, less reward units);
+///    rung (unit price × quantity, less reward units);
 /// 3. a settled bill still in the outbox: the bill's synced lines (not voided)
 ///    plus any round of it still queued here.
 ///
@@ -379,7 +377,7 @@ fn sale_lines(conn: &Connection, okey: &str, row: &Value, catalog: &mut Catalog)
             lines
                 .iter()
                 .map(|l| Line {
-                    item_id: s(l, "menu_item_id").or(s(l, "bundle_id")).map(str::to_string),
+                    item_id: s(l, "menu_item_id").map(str::to_string),
                     item_name: s(l, "item_name").unwrap_or("").to_string(),
                     quantity: i(l, "quantity"),
                     revenue: i(l, "line_total"),
@@ -419,26 +417,24 @@ fn sale_lines(conn: &Connection, okey: &str, row: &Value, catalog: &mut Catalog)
 fn wire_lines(conn: &Connection, wire: &[Value], redemptions: Option<&Value>, catalog: &mut Catalog) -> CoreResult<Option<Vec<Line>>> {
     let mut out = Vec::with_capacity(wire.len());
     for (idx, l) in wire.iter().enumerate() {
-        let Some(id) = s(l, "menu_item_id").or(s(l, "bundle_id")) else { return Ok(None) };
+        // A combo line counts as its items (C6): each pick at its share of
+        // the combo price plus its surcharge, as the server's part lines do.
+        if let Some(picks) = l.pointer("/combo/picks").and_then(Value::as_array) {
+            let n = i(l, "quantity").max(1);
+            for p in picks {
+                let Some(id) = s(p, "menu_item_id") else { return Ok(None) };
+                let Some((name, _)) = catalog.get(conn, id)? else { return Ok(None) };
+                let q = i(p, "quantity").max(1);
+                let revenue = n * (i(p, "share") + q * i(p, "surcharge"));
+                out.push(Line { item_id: Some(id.to_string()), item_name: name, quantity: q * n, revenue: revenue.max(0) });
+            }
+            continue;
+        }
+        let Some(id) = s(l, "menu_item_id") else { return Ok(None) };
         let Some((name, base_price)) = catalog.get(conn, id)? else { return Ok(None) };
         let quantity = i(l, "quantity");
         let unit = l.get("unit_price").and_then(Value::as_i64).unwrap_or(base_price);
-        let addons_of = |v: &Value| -> i64 {
-            v.get("addons")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .map(|a| i(a, "unit_price") * a.get("quantity").and_then(Value::as_i64).unwrap_or(1))
-                .sum()
-        };
-        let surcharge: i64 = l
-            .get("bundle_components")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .map(|c| addons_of(c) * c.get("quantity").and_then(Value::as_i64).unwrap_or(1) * quantity)
-            .sum();
-        let charged = unit * quantity + surcharge;
+        let charged = unit * quantity;
         let reward_units: i64 = redemptions
             .and_then(Value::as_array)
             .into_iter()
@@ -446,11 +442,7 @@ fn wire_lines(conn: &Connection, wire: &[Value], redemptions: Option<&Value>, ca
             .filter(|r| r.get("item_index").and_then(Value::as_u64) == Some(idx as u64))
             .map(|r| i(r, "units"))
             .sum();
-        let covered = if l.get("bundle_id").and_then(Value::as_str).is_some() {
-            0
-        } else {
-            crate::loyalty::covered_minor(unit * quantity, quantity, reward_units)
-        };
+        let covered = crate::loyalty::covered_minor(unit * quantity, quantity, reward_units);
         out.push(Line { item_id: Some(id.to_string()), item_name: name, quantity, revenue: (charged - covered).max(0) });
     }
     Ok(Some(out))
@@ -472,7 +464,7 @@ fn bill_lines(conn: &Connection, ticket: &str, catalog: &mut Catalog) -> CoreRes
             }
             let line = it.get("line").unwrap_or(&Value::Null);
             out.push(Line {
-                item_id: s(it, "menu_item_id").or(s(line, "bundle_id")).map(str::to_string),
+                item_id: s(it, "menu_item_id").map(str::to_string),
                 item_name: s(line, "name").or(s(it, "item_name")).unwrap_or("").to_string(),
                 quantity: line.get("qty").and_then(Value::as_i64).unwrap_or(1),
                 revenue: i(it, "line_total"),
@@ -893,12 +885,6 @@ mod tests {
                 .to_string(),
             )
             .unwrap();
-        store
-            .kv_put(
-                crate::menu::K_BUNDLES,
-                &serde_json::json!([{"id": "00000000-0000-0000-0000-0000000000b1", "name": "Breakfast", "price": 900}]).to_string(),
-            )
-            .unwrap();
     }
 
     /// A queued sale's lines come from its outbox payload, named from the menu
@@ -916,10 +902,7 @@ mod tests {
             "branch_id": branch, "till_id": "t1", "payment_method": "cash",
             "items": [
                 {"menu_item_id": "00000000-0000-0000-0000-0000000000a1", "quantity": 2, "unit_price": 600},
-                {"menu_item_id": "00000000-0000-0000-0000-0000000000a2", "quantity": 1},
-                {"bundle_id": "00000000-0000-0000-0000-0000000000b1", "quantity": 1, "unit_price": 900,
-                 "bundle_components": [{"item_id": "00000000-0000-0000-0000-0000000000a1", "quantity": 1,
-                                        "addons": [{"addon_item_id": "00000000-0000-0000-0000-0000000000c1", "unit_price": 50}]}]}
+                {"menu_item_id": "00000000-0000-0000-0000-0000000000a2", "quantity": 1}
             ],
             "loyalty_redemptions": [{"item_index": 0, "units": 1}]
         }}));
@@ -955,7 +938,6 @@ mod tests {
         assert_eq!(f.items_missing, 0, "every line is on this device");
         let a1 = Some("00000000-0000-0000-0000-0000000000a1".to_string());
         let a2 = Some("00000000-0000-0000-0000-0000000000a2".to_string());
-        let b1 = Some("00000000-0000-0000-0000-0000000000b1".to_string());
         let item = |item_id: &Option<String>, name: &str, quantity, revenue| Item { item_id: item_id.clone(), item_name: name.into(), quantity, revenue };
         assert_eq!(
             f.top_items,
@@ -964,8 +946,6 @@ mod tests {
                 item(&a2, "Tea", 4, 1200),
                 // Latte: 2 × 600 less one reward unit, + 1 synced bill line of 500.
                 item(&a1, "Latte", 3, 1100),
-                // Breakfast: 900 + the component's 50 add-on.
-                item(&b1, "Breakfast", 1, 950),
             ]
         );
     }

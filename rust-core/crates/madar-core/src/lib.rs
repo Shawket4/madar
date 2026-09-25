@@ -32,6 +32,10 @@ pub mod tax;
 pub mod bookings;
 pub mod cart;
 pub(crate) mod catalog_pricing;
+/// Combos on the till: the combo sheet, its live figures, "make it a meal".
+pub mod combos;
+/// Deals on the till: suggested, the teller applies (C8).
+pub mod deals;
 /// Category styling (icon + gradient palette) — port of Flutter's `CatStyle`.
 pub mod catstyle;
 /// Checkout — assemble an order from the cart + place it via the outbox.
@@ -125,6 +129,8 @@ mod testkit;
 mod offline_b_tests;
 #[cfg(test)]
 mod staff_comp_tests;
+#[cfg(test)]
+mod combos_tests;
 pub(crate) mod schema;
 pub(crate) mod integrity;
 pub mod synced;
@@ -184,7 +190,11 @@ pub fn ffi_surface_version() -> u32 {
     // 4: core-driven realtime — `start_realtime(listener, player)` + the
     //    `RealtimePlayer` callback (the core owns topics-per-role + the alert
     //    decision/dedup/localized text; the host just plays ping/notification/haptic).
-    4
+    // 5: combos and deals (COMBOS_CONTRACT §6) — `combo_detail`/`meal_offer`/
+    //    `combo_quote`/`cart_*_combo`/`cart_make_it_a_meal`/deal suggestions;
+    //    `CartLineView.kind/parts/deal_*`, `ReceiptLineView.kind/parts/…`,
+    //    `KitchenChit.combo`, `KdsLineView.combo`, `MenuItemView.kind`.
+    5
 }
 
 /// Smoke-test call used to prove the binding pipeline end-to-end from each host.
@@ -220,19 +230,24 @@ pub enum AppRoute {
 /// local store, sync engine and printer off this object — the host keeps
 /// holding the same handle.
 /// One fully-projected catalog for a locale — the kv JSON mirrors parsed and
-/// localized ONCE, items/bundles carrying their resolved `local_image_path`,
+/// localized ONCE, items carrying their resolved `local_image_path`,
 /// plus the parsed unified-modifier doc. Shared via `Arc` so every read path
 /// (grid load, customization sheet, per-toggle recipe preview) borrows the
 /// same snapshot instead of re-parsing multi-hundred-KB JSON per call.
 struct CatalogSnapshot {
     locale: String,
     items: Vec<menu::MenuItemView>,
-    bundles: Vec<menu::BundleView>,
     categories: Vec<menu::CategoryView>,
     addons: Vec<menu::AddonItemView>,
     unified: Option<menu::UnifiedDoc>,
     /// The menu rows' and add-on rows' `pricing` (madar-catalog's view).
     pricing: catalog_pricing::PricingMirror,
+    /// The combos' own halves (slots, windows), localized.
+    combos: Vec<menu::ComboDef>,
+    /// "Make it a meal" pointers, by plain item id.
+    meals: std::collections::HashMap<String, menu::MealRef>,
+    /// The branch's deal rules, localized.
+    deals: Vec<madar_catalog::deal::DealView>,
 }
 
 /// kv key persisting the dashboard's active org/branch scope override.
@@ -339,7 +354,7 @@ pub struct MadarCore {
     sends_attempted: std::sync::atomic::AtomicU64,
     /// The SSE stream is connected right now (fed by [`SyncNudgeListener`]).
     realtime_connected: Arc<std::sync::atomic::AtomicBool>,
-    /// Core-owned catalog image cache (menu/bundle photos + org logo).
+    /// Core-owned catalog image cache (menu photos + org logo).
     images: filestore::FileStore,
     /// Recipe-step animations, in their own directory so evicting the orphans
     /// of one cache never deletes the other's files.
@@ -938,29 +953,20 @@ impl MadarCore {
         }
     }
 
-    /// Every image URL the fresh catalog references (menu items + bundles +
-    /// the org logo) — the keep-set for eviction and the download work-list.
+    /// Every image URL the fresh catalog references (menu items + the org
+    /// logo) — the keep-set for eviction and the download work-list.
     fn catalog_image_urls(&self) -> std::collections::HashSet<String> {
         let mut urls = std::collections::HashSet::new();
         let locale = self.current_locale();
         // Rows with a content hash get their file from the branch asset bundle
         // (one tar), so they never cost a per-image request here.
         let item_hashes = self.synced_image_hashes("menu_item");
-        let bundle_hashes = self.synced_image_hashes("bundle");
         if let Ok(items) = menu::menu_items(&self.store, &locale) {
             urls.extend(
                 items
                     .into_iter()
                     .filter(|i| !item_hashes.contains_key(&i.id))
                     .filter_map(|i| i.image_url),
-            );
-        }
-        if let Ok(bundles) = menu::bundles(&self.store, &locale) {
-            urls.extend(
-                bundles
-                    .into_iter()
-                    .filter(|b| !bundle_hashes.contains_key(&b.id))
-                    .filter_map(|b| b.image_url),
             );
         }
         urls.extend(self.org_logo_url());
@@ -2498,10 +2504,11 @@ pub(crate) fn queued_ticket_view(
                 qty: it.quantity,
                 size_label: it.size_label.clone().flatten(),
                 modifiers: Vec::new(),
-                line_total_minor: it.unit_price.flatten().unwrap_or(0) as i64 * it.quantity as i64,
+                line_total_minor: checkout::wire_line_total(it),
                 voided: false,
                 round_number: 1,
                 round_fired_at: event_at.to_string(),
+                is_combo: it.combo.as_ref().is_some_and(Option::is_some),
             }
         })
         .collect();
@@ -3925,11 +3932,14 @@ impl MadarCore {
         let teller = self.current_session().map(|s| s.display_name).filter(|n| !n.trim().is_empty());
         let order_note = cart::note(&self.store, table_id)?;
         let cart_kitchen_note = cart::kitchen_note(&self.store, table_id)?;
-        let slip = receipt::slip_for_cart_line(line, table_label, ticket_ref, at, teller, order_note, cart_kitchen_note);
+        let slip = receipt::slip_for_cart_line(line, table_label, ticket_ref, at, teller, order_note, cart_kitchen_note, &loc);
 
+        // A combo's chit goes where its first item goes (each item routes to
+        // its own station when the round fires; this is the early copy).
+        let routed_item = line.parts.first().map(|p| p.item_id.clone()).unwrap_or_else(|| line.item_id.clone());
         let category_id = menu::menu_items(&self.store, &loc)
             .ok()
-            .and_then(|items| items.into_iter().find(|i| i.id == line.item_id))
+            .and_then(|items| items.into_iter().find(|i| i.id == routed_item))
             .and_then(|i| i.category_id);
         let stations: Vec<kds::KdsStationView> = self
             .branch_field::<Vec<madar_api::models::KitchenStation>>(branch_reads::F_STATIONS)
@@ -3944,7 +3954,7 @@ impl MadarCore {
             .ok()
             .and_then(|s| s.value())
             .unwrap_or_else(|| madar_api::models::StationRoutes { categories: vec![], items: vec![] });
-        let target = kds::resolve_chit_printer(&line.item_id, category_id.as_deref(), &routes, &stations);
+        let target = kds::resolve_chit_printer(&routed_item, category_id.as_deref(), &routes, &stations);
 
         let brand = match target.brand.as_deref() {
             Some("star") if !target.is_till() => receipt::PrinterBrand::Star,
@@ -3991,7 +4001,7 @@ impl MadarCore {
             at,
             teller,
             top_notes: receipt::top_notes(order_note.clone(), cart_note.clone()),
-            items: lines.iter().map(receipt::slip_item_for_cart_line).collect(),
+            items: lines.iter().flat_map(|l| receipt::slip_items_for_cart_line(l, &loc)).collect(),
         };
         let labels = self.kitchen_chit_labels();
         let preview = receipt::kitchen_slip_preview(&slip, &labels, width);
@@ -4215,7 +4225,6 @@ impl MadarCore {
         // alone left every asset-pipeline image (a menu uploaded after the
         // WebP rework) blank even though its file was on disk.
         let item_hashes = self.synced_image_hashes("menu_item");
-        let bundle_hashes = self.synced_image_hashes("bundle");
         let mut items = menu::menu_items(&self.store, &locale)?;
         for item in &mut items {
             item.local_image_path = item_hashes
@@ -4234,26 +4243,16 @@ impl MadarCore {
                 .map(|u| self.animation_absolute_url(u))
                 .and_then(|u| self.animations.path_if_cached(&u));
         }
-        let mut bundles = menu::bundles(&self.store, &locale)?;
-        for bundle in &mut bundles {
-            bundle.local_image_path = bundle_hashes
-                .get(&bundle.id)
-                .and_then(|h| self.local_path_for_hash(h.clone()))
-                .or_else(|| {
-                    bundle
-                        .image_url
-                        .as_deref()
-                        .and_then(|u| self.images.path_if_cached(u))
-                });
-        }
         let snapshot = Arc::new(CatalogSnapshot {
             categories: menu::categories(&self.store, &locale)?,
             addons: menu::addons(&self.store, &locale)?,
             unified: menu::unified_doc(&self.store),
             pricing: catalog_pricing::PricingMirror::load(&self.store),
+            combos: menu::combos(&self.store, &locale)?,
+            meals: menu::meals(&self.store)?,
+            deals: deals::rules(&self.store, &locale),
             locale,
             items,
-            bundles,
         });
         *self.catalog_cache.lock().unwrap_or_else(|e| e.into_inner()) = Some(snapshot.clone());
         Ok(snapshot)
@@ -4293,7 +4292,18 @@ impl MadarCore {
     }
 
     pub fn list_menu_items(&self) -> Result<Vec<menu::MenuItemView>, CoreError> {
-        Ok(self.catalog()?.items.clone())
+        let catalog = self.catalog()?;
+        // A combo is on the grid only while the till can sell it: the POS
+        // switch on at this branch (§11), inside a window, every required
+        // slot with something to pick. Judged at each read, on the branch's
+        // clock; the sheet judges again when it opens.
+        let at = self.combo_at(&catalog);
+        Ok(catalog
+            .items
+            .iter()
+            .filter(|i| i.kind != menu::KIND_COMBO || self.combo_on_sale(&catalog, &i.id, &at))
+            .cloned()
+            .collect())
     }
     pub fn list_categories(&self) -> Result<Vec<menu::CategoryView>, CoreError> {
         Ok(self.catalog()?.categories.clone())
@@ -4301,31 +4311,7 @@ impl MadarCore {
     pub fn list_addon_catalog(&self) -> Result<Vec<menu::AddonItemView>, CoreError> {
         Ok(self.catalog()?.addons.clone())
     }
-    /// Bundles orderable right now — status active and within their date/time
-    /// window at `now`, evaluated in the BRANCH timezone. The host passes an
-    /// instant (UTC); its offset never picks the zone.
-    pub fn available_bundles(
-        &self,
-        now_rfc3339: String,
-    ) -> Result<Vec<menu::BundleView>, CoreError> {
-        let now = chrono::DateTime::parse_from_rfc3339(&now_rfc3339).map_err(|_| {
-            CoreError::Validation {
-                field: "now".into(),
-                detail: "bad timestamp".into(),
-            }
-        })?;
-        // The window is the BRANCH's wall-clock: the instant is re-read in the
-        // branch zone, whatever offset (device-local or UTC) the host sent.
-        let now = now.with_timezone(&timefmt::branch_tz(&self.store));
-        // local_image_path is already resolved on the snapshot.
-        Ok(self
-            .catalog()?
-            .bundles
-            .iter()
-            .filter(|b| menu::bundle_available(b, now))
-            .cloned()
-            .collect())
-    }
+
     pub fn list_payment_methods(&self) -> Result<Vec<menu::PaymentMethodView>, CoreError> {
         menu::payment_methods(&self.store, &self.current_locale())
     }
@@ -4374,16 +4360,17 @@ impl MadarCore {
                 None,
             ))
         });
-        match resolved {
-            Some(line) => cart::add_resolved(&self.store, table_id.as_deref(), line),
+        let lines = match resolved {
+            Some(line) => cart::add_resolved(&self.store, table_id.as_deref(), line)?,
             None => cart::add(
                 &self.store,
                 table_id.as_deref(),
                 &item_id,
                 &name,
                 unit_price_minor,
-            ),
-        }
+            )?,
+        };
+        self.lines_with_deals_settled(table_id.as_deref(), lines)
     }
     /// The lines after a change, with every staff-drink mark re-decided first:
     /// a new size, add-on or quantity recomputes the comp, and a line that
@@ -4394,6 +4381,9 @@ impl MadarCore {
         table_id: Option<&str>,
         lines: Vec<cart::CartLineView>,
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
+        // The deals first: a line that left a deal may be marked again, and
+        // a deal never sits beside a staff drink (contract §1.2).
+        let lines = self.lines_with_deals_settled(table_id, lines)?;
         if lines.iter().all(|l| l.staff_drink.is_none()) {
             return Ok(lines);
         }
@@ -4434,7 +4424,8 @@ impl MadarCore {
             qty,
             notes,
         );
-        cart::add_resolved(&self.store, table_id.as_deref(), line)
+        let lines = cart::add_resolved(&self.store, table_id.as_deref(), line)?;
+        self.lines_with_deals_settled(table_id.as_deref(), lines)
     }
     /// EDIT a configured line: resolve the new configuration, then swap it in
     /// for `line_key` in one write. Anything that fails — an item no longer on
@@ -4516,36 +4507,6 @@ impl MadarCore {
     ) -> Result<i64, CoreError> {
         let totals = self.cart_totals(table_id)?;
         Ok(ticket_subtotal_minor.saturating_add(totals.subtotal_minor))
-    }
-    /// Add a configured BUNDLE line: the fixed bundle price + each component's
-    /// chosen item/size/addons/optionals. The core resolves the component
-    /// up-charges from the catalog (component base/size price is never charged —
-    /// the bundle price covers it) and merges identical bundle configs.
-    pub fn cart_add_bundle(
-        &self,
-        table_id: Option<String>,
-        bundle_id: String,
-        components: Vec<cart::BundleComponentSelection>,
-        qty: i64,
-    ) -> Result<Vec<cart::CartLineView>, CoreError> {
-        let catalog = self.catalog()?;
-        let bundle = catalog
-            .bundles
-            .iter()
-            .find(|b| b.id == bundle_id)
-            .ok_or_else(|| CoreError::Validation {
-                field: "bundle".into(),
-                detail: "unknown bundle".into(),
-            })?;
-        let line = cart::resolve_bundle_line(
-            bundle,
-            &catalog.items,
-            &catalog.addons,
-            &catalog.pricing,
-            &components,
-            qty,
-        );
-        cart::add_resolved(&self.store, table_id.as_deref(), line)
     }
     /// Active addons offered for an item, with their CHARGED price resolved (swap
     /// delta / full) — the customization sheet groups these by `addon_type`.
@@ -4667,7 +4628,8 @@ impl MadarCore {
         table_id: Option<String>,
         item_id: String,
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
-        cart::remove(&self.store, table_id.as_deref(), &item_id)
+        let lines = cart::remove(&self.store, table_id.as_deref(), &item_id)?;
+        self.lines_with_deals_settled(table_id.as_deref(), lines)
     }
     /// Undo the last `cart_remove` — re-inserts the swiped-away line. No-op if
     /// nothing was removed (or it was already restored / the cart was cleared).
@@ -5527,12 +5489,10 @@ impl MadarCore {
             .iter()
             .filter_map(|r| {
                 let l = rewards.get(r.item_index as usize)?;
-                (!l.is_bundle).then(|| {
-                    (
-                        r.item_index as usize,
-                        (r.units as i64).clamp(0, l.qty as i64),
-                    )
-                })
+                Some((
+                    r.item_index as usize,
+                    (r.units as i64).clamp(0, l.qty as i64),
+                ))
             })
             .collect();
         cart::totals_with_rewards(&self.store, table_id.as_deref(), &policy, &units)
@@ -6444,7 +6404,7 @@ impl MadarCore {
             .collect())
     }
 
-    /// Pull the branch-effective catalog (items + categories + addons + bundles +
+    /// Pull the branch-effective catalog (items + categories + addons +
     /// payment methods + discounts) and mirror the canonical JSON into the local
     /// store. Online-only; the offline reads (`list_*`) then serve this mirror.
     /// Atomic-ish: every stream is fetched before any is written, so a mid-pull
@@ -6476,8 +6436,7 @@ impl MadarCore {
     }
 
     async fn refresh_catalog_inner(&self, force: bool) -> Result<(), CoreError> {
-        use madar_api::apis::{bundles_api, discounts_api, menu_api, payment_methods_api};
-        use madar_api::models::BundleStatus;
+        use madar_api::apis::{discounts_api, menu_api, payment_methods_api};
 
         let (org_id, branch_id) = self.org_branch()?;
 
@@ -6517,20 +6476,6 @@ impl MadarCore {
         .await
         .map_err(net::map_api_error)?;
 
-        let bundles = bundles_api::list_bundles(
-            &self.api.config(),
-            bundles_api::ListBundlesParams {
-                org_id: Some(org_id.clone()),
-                status: Some(BundleStatus::Active),
-                branch_id: branch_id.clone(),
-                search: None,
-                page: Some(1),
-                per_page: Some(500),
-                sort: None,
-            },
-        )
-        .await
-        .map_err(net::map_api_error)?;
 
         // Payment methods + discounts are CHECKOUT-time data — not needed to render
         // or FIRE the menu. A role that can read the menu but not these (a WAITER
@@ -6581,14 +6526,13 @@ impl MadarCore {
 
         // All required streams fetched OK → commit the mirror in ONE transaction.
         let categories_json = serde_json::to_string(&categories)?;
-        let bundles_json = serde_json::to_string(&bundles.data)?;
+
         let methods_json = payment_methods.as_ref().map(serde_json::to_string).transpose()?;
         let discounts_json = discounts.as_ref().map(serde_json::to_string).transpose()?;
         let mut rows: Vec<(&str, &str)> = vec![
             (menu::K_MENU_ITEMS, &menu_items_json),
             (menu::K_CATEGORIES, &categories_json),
             (menu::K_ADDONS, &addons_json),
-            (menu::K_BUNDLES, &bundles_json),
         ];
         if let Some(unified) = unified_json.as_deref() {
             rows.push((menu::K_UNIFIED, unified));
@@ -6600,6 +6544,8 @@ impl MadarCore {
             rows.push((menu::K_DISCOUNTS, d));
         }
         self.store.kv_put_many(&rows)?;
+        // Combos were removed (2026-09): drop the mirror an older build wrote.
+        let _ = self.store.kv_delete(menu::K_RETIRED_BUNDLES);
         self.store
             .emit_changes([changes::CATALOG, changes::PAYMENT_METHODS]);
 
@@ -9518,7 +9464,7 @@ mod tests {
         // 1: realtime SSE + AppRoute payload variants. 2: core-owned device config.
         // 3: LAN offline relay surface. 4: core-driven realtime (start_realtime +
         // RealtimePlayer). Every breaking FFI change MUST bump this and this assertion.
-        assert_eq!(ffi_surface_version(), 4);
+        assert_eq!(ffi_surface_version(), 5);
     }
 
     #[test]
@@ -10692,8 +10638,9 @@ mod lifecycle_tests {
             menu_item_id: Some("x".into()),
             qty: 1,
             line_total_minor: 1000,
-            is_bundle: false,
             is_staff_drink: false,
+            in_combo: false,
+            in_deal: false,
         }];
         let asked = vec![checkout::CheckoutRedemption {
             item_index: 0,

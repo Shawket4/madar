@@ -13,7 +13,6 @@
 //! - order is **subtotal → discount → tax-on-the-discounted-base → total**,
 //! - exactly **two** rounding points (percentage discount, tax),
 //! - a single org-wide **exclusive** tax rate,
-//! - bundle base price is **fixed**; only component addons/optionals add on,
 //! - the wire `price_modifier` per addon is the already-resolved charged delta —
 //!   this module **trusts it** and never re-derives swap-family deltas.
 
@@ -33,7 +32,7 @@ pub enum DiscountKind {
     Fixed,
 }
 
-/// A selected addon on a line (or bundle component). `price_modifier` is the
+/// A selected addon on a line. `price_modifier` is the
 /// CHARGED delta already resolved at selection time (swap families clamp to ≥0
 /// upstream); trusted verbatim here.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
@@ -50,43 +49,29 @@ pub struct OptionalSel {
     pub price: MoneyMinor,
 }
 
-/// One configured component inside a bundle line. Only its addons + optionals
-/// add money; the component's base/size price is **never** charged (the bundle's
-/// fixed price already covers the components).
-#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug)]
-pub struct BundleComponentSel {
-    /// Units of this component in ONE bundle (the catalogue's
-    /// `bundle_components.quantity`). Its extras are charged per unit, as the
-    /// server's `component_surcharge` does (`orders/handlers.rs`) and as its
-    /// inventory deducts them.
-    pub quantity: i64,
-    pub addons: Vec<AddonSel>,
-    pub optionals: Vec<OptionalSel>,
-}
-
-/// A cart line. For a normal line, `unit_price` is the size-resolved absolute
-/// price and extras come from `addons` + `optionals`. For a bundle line, set
-/// `is_bundle = true`, `unit_price` = the fixed bundle price, and put the
-/// per-component extras in `bundle_components`.
+/// A cart line: `unit_price` is the size-resolved absolute price and extras
+/// come from `addons` + `optionals`.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug)]
 pub struct CartLine {
     pub quantity: i64,
     pub unit_price: MoneyMinor,
-    pub is_bundle: bool,
     /// Units of this line a loyalty reward covers. They come off the subtotal
     /// at the line's charged per-unit price, BEFORE the discount — the server's
-    /// order (`loyalty_reward_vectors.json`). Never set on a bundle.
+    /// order (`loyalty_reward_vectors.json`).
     pub reward_units: i64,
     /// What the STAFF POOL comps on this whole line (`staff_comp.rs`). It comes
     /// off the subtotal before anything is computed on it, exactly as a reward
     /// does, so the discount, service charge and tax see the CHARGED part only.
-    /// Clamped to what the line rings at. Never set on a bundle or beside a reward.
+    /// Clamped to what the line rings at. Never set beside a reward.
     pub staff_comp_minor: MoneyMinor,
+    /// What an applied DEAL takes off this whole line (COMBOS_CONTRACT §5):
+    /// the line enters the bill at `line_total − deal_minor`, so the order's
+    /// subtotal is net of it, exactly as the server stores `line_total`.
+    /// Clamped to what the line rings at. Never beside a reward or a comp.
+    pub deal_minor: MoneyMinor,
     pub addons: Vec<AddonSel>,
     pub optionals: Vec<OptionalSel>,
-    pub bundle_components: Vec<BundleComponentSel>,
 }
 
 /// Everything needed to price a cart.
@@ -158,28 +143,21 @@ fn addons_of(addons: &[AddonSel]) -> Vec<madar_money::line::Addon> {
         .collect()
 }
 
-/// A cart line in madar-shared's vocabulary (`madar_money::line`).
+/// A cart line in madar-shared's vocabulary (`madar_money::line`). The
+/// shape's combo fields (madar-shared v0.4.0 still has them) stay at their
+/// defaults: combos were removed.
 fn shape_of(line: &CartLine) -> madar_money::line::LineShape {
     madar_money::line::LineShape {
         quantity: line.quantity,
         unit_price: line.unit_price,
-        is_bundle: line.is_bundle,
         addons: addons_of(&line.addons),
         optionals: line.optionals.iter().map(|o| o.price).collect(),
-        bundle_components: line
-            .bundle_components
-            .iter()
-            .map(|c| madar_money::line::BundleComponent {
-                quantity: c.quantity,
-                addons: addons_of(&c.addons),
-                optionals: c.optionals.iter().map(|o| o.price).collect(),
-            })
-            .collect(),
+        ..Default::default()
     }
 }
 
 /// What a line comes to before any reward: madar-shared's `line_total`, the
-/// server's arithmetic (a bundle component's extras per component unit, M3).
+/// server's arithmetic.
 fn line_total(line: &CartLine) -> MoneyMinor {
     madar_money::line::line_total(&shape_of(line))
 }
@@ -195,12 +173,13 @@ pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
     // leave the subtotal before anything is computed on it, so the discount,
     // service charge and tax never see them), then the discount on what is
     // left, then the engine. What THIS till decides is only which lines may
-    // carry a reward or a comp: never a bundle, and never both on one line.
+    // carry a reward or a comp: never both on one line.
     let bill_lines: Vec<madar_money::bill::BillLine> = input
         .lines
         .iter()
         .map(|l| {
-            let charged = line_total(l);
+            let gross = line_total(l);
+            let charged = gross - l.deal_minor.clamp(0, gross.max(0));
             madar_money::bill::BillLine {
                 charged,
                 per_unit: if l.quantity > 0 {
@@ -208,8 +187,8 @@ pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
                 } else {
                     0
                 },
-                reward_units: if l.is_bundle { 0 } else { l.reward_units },
-                staff_comp: if l.is_bundle || l.reward_units != 0 {
+                reward_units: l.reward_units,
+                staff_comp: if l.reward_units != 0 {
                     0
                 } else {
                     l.staff_comp_minor.clamp(0, charged.max(0))
@@ -341,12 +320,11 @@ mod tests {
         let l = CartLine {
             quantity: 1,
             unit_price: 1000,
-            is_bundle: false,
             reward_units: 0,
             staff_comp_minor: 0,
+            deal_minor: 0,
             addons: vec![AddonSel { price_modifier: 250, quantity: 2 }],
             optionals: vec![],
-            bundle_components: vec![],
         };
         let b = price_cart(cart(vec![l], DiscountKind::Fixed, 9999.0, 0.14));
         assert_eq!(b.subtotal_minor, 1500);
@@ -384,12 +362,11 @@ mod tests {
         CartLine {
             quantity: qty,
             unit_price: unit,
-            is_bundle: false,
             reward_units: 0,
             staff_comp_minor: 0,
+            deal_minor: 0,
             addons: vec![],
             optionals: vec![],
-            bundle_components: vec![],
         }
     }
 
@@ -442,9 +419,9 @@ mod tests {
         let legacy = CartLine {
             quantity: 1,
             unit_price: 5000,
-            is_bundle: false,
             reward_units: 0,
             staff_comp_minor: 0,
+            deal_minor: 0,
             addons: vec![
                 AddonSel {
                     price_modifier: 1000,
@@ -456,14 +433,13 @@ mod tests {
                 }, // extra
             ],
             optionals: vec![OptionalSel { price: 300 }],
-            bundle_components: vec![],
         };
         let new_model = CartLine {
             quantity: 1,
             unit_price: 5000,
-            is_bundle: false,
             reward_units: 0,
             staff_comp_minor: 0,
+            deal_minor: 0,
             addons: vec![
                 AddonSel {
                     price_modifier: 500,
@@ -475,7 +451,6 @@ mod tests {
                 }, // "Milk" group second
             ],
             optionals: vec![OptionalSel { price: 300 }],
-            bundle_components: vec![],
         };
         let price = |l: CartLine| price_cart(cart(vec![l], DiscountKind::Percentage, 0.1, 0.14));
         let a = price(legacy);
@@ -494,62 +469,13 @@ mod tests {
     }
 
     #[test]
-    fn migration_price_parity_bundle_component_modifiers() {
-        // A bundle (fixed 12000): the fixed price already covers the components,
-        // so only component modifiers add money — and only via their resolved
-        // deltas, unchanged by the migration. Component A gets an oat-milk swap
-        // (+800) the legacy way; component B the same swap the new grouped way.
-        let mk = |a_first: bool| {
-            let comp_a = BundleComponentSel {
-                quantity: 1,
-                addons: vec![AddonSel {
-                    price_modifier: 800,
-                    quantity: 1,
-                }],
-                optionals: vec![OptionalSel { price: 200 }],
-            };
-            let comp_b = BundleComponentSel {
-                quantity: 1,
-                addons: vec![AddonSel {
-                    price_modifier: 800,
-                    quantity: 1,
-                }],
-                optionals: vec![],
-            };
-            let line = CartLine {
-                quantity: 1,
-                unit_price: 12000,
-                is_bundle: true,
-                reward_units: 0,
-                staff_comp_minor: 0,
-                addons: vec![],
-                optionals: vec![],
-                bundle_components: if a_first {
-                    vec![comp_a.clone(), comp_b.clone()]
-                } else {
-                    vec![comp_b, comp_a]
-                },
-            };
-            price_cart(cart(vec![line], DiscountKind::None, 0.0, 0.0))
-        };
-        assert_eq!(
-            mk(true),
-            mk(false),
-            "component order/grouping must not change bundle price"
-        );
-        // subtotal = 12000 + (800 + 200) + 800 = 13800; no discount/tax.
-        assert_eq!(mk(true).subtotal_minor, 13_800);
-        assert_eq!(mk(true).total_minor, 13_800);
-    }
-
-    #[test]
     fn line_with_addons_and_optionals() {
         let l = CartLine {
             quantity: 1,
             unit_price: 1500,
-            is_bundle: false,
             reward_units: 0,
             staff_comp_minor: 0,
+            deal_minor: 0,
             addons: vec![
                 AddonSel {
                     price_modifier: 500,
@@ -561,7 +487,6 @@ mod tests {
                 },
             ],
             optionals: vec![OptionalSel { price: 300 }],
-            bundle_components: vec![],
         };
         let b = price_cart(cart(vec![l], DiscountKind::None, 0.0, 0.0));
         // extras = 500 + 250*2 + 300 = 1300 ; (1500 + 1300) * 1
@@ -644,37 +569,6 @@ mod tests {
         ));
         assert_eq!(b.discount_minor, 125);
         assert_eq!(b.total_minor, 875);
-    }
-
-    #[test]
-    fn bundle_line_fixed_base_plus_component_extras() {
-        let comp1 = BundleComponentSel {
-            quantity: 1,
-            addons: vec![AddonSel {
-                price_modifier: 200,
-                quantity: 1,
-            }],
-            optionals: vec![OptionalSel { price: 150 }],
-        };
-        let comp2 = BundleComponentSel {
-            quantity: 1,
-            addons: vec![],
-            optionals: vec![OptionalSel { price: 100 }],
-        };
-        let bundle = CartLine {
-            quantity: 2,
-            unit_price: 5000, // fixed bundle price
-            is_bundle: true,
-            reward_units: 0,
-            staff_comp_minor: 0,
-            addons: vec![],
-            optionals: vec![],
-            bundle_components: vec![comp1, comp2],
-        };
-        let b = price_cart(cart(vec![bundle], DiscountKind::None, 0.0, 0.0));
-        // extras = (200 + 150) + (100) = 450 ; (5000 + 450) * 2
-        assert_eq!(b.subtotal_minor, 10_900);
-        assert_eq!(b.total_minor, 10_900);
     }
 
     #[test]
@@ -892,96 +786,19 @@ mod tests {
     }
 
     #[test]
-    fn bundle_extras_scale_with_bundle_qty() {
-        // Two bundle lines (qty 3) each with one component up-charge of 250.
-        let comp = BundleComponentSel {
-            quantity: 1,
-            addons: vec![AddonSel {
-                price_modifier: 250,
-                quantity: 1,
-            }],
-            optionals: vec![],
-        };
-        let bundle = CartLine {
-            quantity: 3,
-            unit_price: 4000,
-            is_bundle: true,
-            reward_units: 0,
-            staff_comp_minor: 0,
-            addons: vec![],
-            optionals: vec![],
-            bundle_components: vec![comp],
-        };
-        let b = price_cart(cart(vec![bundle], DiscountKind::None, 0.0, 0.0));
-        // (4000 + 250) × 3 = 12_750.
-        assert_eq!(b.subtotal_minor, 12_750);
-    }
-
-    /// M3 (owner: the server is right): a component's extras are charged per
-    /// component unit, then per bundle — the server's
-    /// `(addons + optionals) × comp.quantity × item.quantity`.
-    #[test]
-    fn bundle_extras_scale_with_component_qty_like_the_server() {
-        let bundle = CartLine {
-            quantity: 1,
-            unit_price: 5000,
-            is_bundle: true,
-            reward_units: 0,
-            staff_comp_minor: 0,
-            addons: vec![],
-            optionals: vec![],
-            bundle_components: vec![BundleComponentSel {
-                quantity: 2,
-                addons: vec![AddonSel { price_modifier: 500, quantity: 1 }], // oat milk
-                optionals: vec![],
-            }],
-        };
-        let b = price_cart(cart(vec![bundle.clone()], DiscountKind::None, 0.0, 0.14));
-        assert_eq!((b.subtotal_minor, b.tax_minor, b.total_minor), (6000, 840, 6840), "the server's figures");
-        let two = CartLine { quantity: 2, ..bundle };
-        assert_eq!(price_cart(cart(vec![two], DiscountKind::None, 0.0, 0.14)).subtotal_minor, 12_000);
-    }
-
-    #[test]
-    fn bundle_ignores_top_level_addons_optionals() {
-        // For a bundle line, only bundle_components add money; the line's own
-        // addons/optionals are NOT charged (the line_total bundle branch).
-        let bundle = CartLine {
-            quantity: 1,
-            unit_price: 5000,
-            is_bundle: true,
-            reward_units: 0,
-            staff_comp_minor: 0,
-            addons: vec![AddonSel {
-                price_modifier: 9999,
-                quantity: 5,
-            }], // ignored
-            optionals: vec![OptionalSel { price: 8888 }], // ignored
-            bundle_components: vec![BundleComponentSel {
-                quantity: 1,
-                addons: vec![],
-                optionals: vec![],
-            }],
-        };
-        let b = price_cart(cart(vec![bundle], DiscountKind::None, 0.0, 0.0));
-        assert_eq!(b.subtotal_minor, 5000); // only the fixed base
-    }
-
-    #[test]
     fn addon_quantity_multiplies_the_modifier() {
         // A normal line: unit 1000 + addon(price 300 × qty 3) = 1900.
         let l = CartLine {
             quantity: 1,
             unit_price: 1000,
-            is_bundle: false,
             reward_units: 0,
             staff_comp_minor: 0,
+            deal_minor: 0,
             addons: vec![AddonSel {
                 price_modifier: 300,
                 quantity: 3,
             }],
             optionals: vec![],
-            bundle_components: vec![],
         };
         let b = price_cart(cart(vec![l], DiscountKind::None, 0.0, 0.0));
         assert_eq!(b.subtotal_minor, 1900);
@@ -1007,12 +824,11 @@ mod tests {
         let l = CartLine {
             quantity: 2,
             unit_price: 0,
-            is_bundle: false,
             reward_units: 0,
             staff_comp_minor: 0,
+            deal_minor: 0,
             addons: vec![],
             optionals: vec![OptionalSel { price: 300 }],
-            bundle_components: vec![],
         };
         let b = price_cart(cart(vec![l], DiscountKind::None, 0.0, 0.0));
         assert_eq!(b.subtotal_minor, 600);
@@ -1065,12 +881,11 @@ mod proptests {
             .prop_map(|(quantity, unit_price, addons, optionals)| CartLine {
                 quantity,
                 unit_price,
-                is_bundle: false,
                 reward_units: 0,
                 staff_comp_minor: 0,
+                deal_minor: 0,
                 addons,
                 optionals,
-                bundle_components: vec![],
             })
     }
     fn arb_input() -> impl Strategy<Value = PriceCartInput> {
@@ -1146,7 +961,7 @@ mod proptests {
 
     /// Hand-written re-statement of the pricing spec (doc 05). NOT a call into the
     /// engine — cargo-mutants mutates the engine, not this, so it is a stable
-    /// oracle. Covers the non-bundle line path that `arb_input` generates.
+    /// oracle. Covers the line path that `arb_input` generates.
     fn reference_price(input: &PriceCartInput) -> PricedBreakdown {
         let subtotal: i64 = input
             .lines
@@ -1242,12 +1057,11 @@ mod proptests {
                     .map(|l| CartLine {
                         quantity: l.qty,
                         unit_price: l.per_unit,
-                        is_bundle: false,
                         reward_units: l.reward_units,
                         staff_comp_minor: 0,
+                        deal_minor: 0,
                         addons: vec![],
                         optionals: vec![],
-                        bundle_components: vec![],
                     })
                     .collect(),
                 discount_kind: match v.discount_kind.as_str() {

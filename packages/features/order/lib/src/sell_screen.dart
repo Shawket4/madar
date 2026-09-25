@@ -15,8 +15,8 @@ import 'dart:math' as math;
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart';
-import 'package:feature_order/src/bundle_detail_sheet.dart';
 import 'package:feature_order/src/cart_anchor.dart';
+import 'package:feature_order/src/combo_sheet.dart';
 import 'package:feature_order/src/floor_list.dart' show groupBillByRound;
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/order_providers.dart';
@@ -29,9 +29,6 @@ import 'package:feature_till/feature_till.dart' show TillSyncStrip;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
-
-/// Synthetic category id for the Combos chip (bundles are not a category).
-const String _kCombos = '__combos__';
 
 /// Tile geometry — a VERTICAL card: the picture on top, the name and the
 /// price under it, full width.
@@ -216,6 +213,11 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   }
 
   Future<void> _onTileTap(MenuItemView item, Offset origin) => _once(() async {
+    // A combo always opens its sheet: its slots are the choice to make.
+    if (item.kind == 'combo') {
+      await _openComboSheet(item.id);
+      return;
+    }
     final needs = await _itemNeedsSheet(item);
     if (needs == null || !mounted) return;
     if (needs) {
@@ -252,10 +254,16 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   }
 
   Future<void> _openItemSheet(MenuItemView item, {CartLineView? edit}) async {
+    if (item.kind == 'combo') {
+      await _openComboSheet(item.id);
+      return;
+    }
     final addons = await _notifier.loadItemAddons(item.id);
     final groups = await _notifier.loadItemModifierGroups(item.id);
     if (!mounted) return;
-    await showMadarSheet<void>(
+    // The sheet closes with a combo draft when the teller chose "Make it a
+    // meal": the combo sheet takes over from there, on that draft.
+    final result = await showMadarSheet<Object?>(
       context,
       size: SheetSize.hug,
       builder: (_) => CartAnchorScope(
@@ -269,25 +277,41 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         ),
       ),
     );
+    if (result is ComboDraft && mounted) {
+      await _openComboSheet(result.comboId, draft: result);
+    }
   }
 
+  /// The combo sheet: a fresh combo, or [draft] (a combo line to edit, or a
+  /// meal made from an item).
+  Future<void> _openComboSheet(String comboId, {ComboDraft? draft}) =>
+      showComboSheet(
+        context,
+        ref,
+        comboId: comboId,
+        tableId: _tableId,
+        draft: draft,
+        anchors: _anchors,
+      );
+
   Future<void> _editLine(CartLineView line) => _once(() async {
+    if (line.kind == 'combo') {
+      final ComboDraft draft;
+      try {
+        draft = await ref
+            .read(bridgeProvider)
+            .cartComboDraft(tableId: _tableId, lineKey: line.key);
+      } on MadarError {
+        return;
+      }
+      if (!mounted) return;
+      await _openComboSheet(line.itemId, draft: draft);
+      return;
+    }
     final item = ref.read(orderProvider).menuItemById(line.itemId);
     if (item == null) return;
     await _openItemSheet(item, edit: line);
   });
-
-  Future<void> _openBundle(BundleView bundle) async {
-    await showMadarSheet<void>(
-      context,
-      size: SheetSize.hug,
-      maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (_) => CartAnchorScope(
-        anchors: _anchors,
-        child: BundleDetailSheet(bundle: bundle, tableId: _tableId),
-      ),
-    );
-  }
 
   // ── terminal ───────────────────────────────────────────────────────────────
 
@@ -430,7 +454,6 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       query: _searching ? _search.text : null,
       onItemTap: (item, origin) => unawaited(_onTileTap(item, origin)),
       onItemLongPress: (item) => unawaited(_openItemSheet(item)),
-      onBundleTap: (b) => unawaited(_openBundle(b)),
     );
 
     // As a tab body the shell's top bar above it already paid the top inset;
@@ -530,7 +553,6 @@ class MenuGrid extends ConsumerStatefulWidget {
     required this.tableId,
     required this.onItemTap,
     required this.onItemLongPress,
-    required this.onBundleTap,
     this.query,
     super.key,
   });
@@ -541,7 +563,6 @@ class MenuGrid extends ConsumerStatefulWidget {
   final String? query;
   final void Function(MenuItemView item, Offset origin) onItemTap;
   final ValueChanged<MenuItemView> onItemLongPress;
-  final ValueChanged<BundleView> onBundleTap;
 
   @override
   ConsumerState<MenuGrid> createState() => _MenuGridState();
@@ -579,7 +600,6 @@ class _MenuGridState extends ConsumerState<MenuGrid> {
             query: widget.query ?? '',
             onItemTap: widget.onItemTap,
             onItemLongPress: widget.onItemLongPress,
-            onBundleTap: widget.onBundleTap,
           ),
         ),
       ],
@@ -587,7 +607,7 @@ class _MenuGridState extends ConsumerState<MenuGrid> {
   }
 }
 
-/// All · the categories · Combos, as chips in a horizontal strip.
+/// All · the categories, as chips in a horizontal strip.
 class _CategoryChips extends ConsumerWidget {
   const _CategoryChips({required this.selected, required this.onSelect});
 
@@ -598,9 +618,6 @@ class _CategoryChips extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
     final categories = ref.watch(orderProvider.select((s) => s.categories));
-    final hasBundles = ref.watch(
-      orderProvider.select((s) => s.bundles.isNotEmpty),
-    );
     return SizedBox(
       height: Metrics.chipHeight,
       child: ListView(
@@ -619,14 +636,6 @@ class _CategoryChips extends ConsumerWidget {
               onTap: () => onSelect(c.id),
             ),
           ],
-          if (hasBundles) ...[
-            const SizedBox(width: Space.sm),
-            MadarChip(
-              label: bridge.tr(key: 'order.combos'),
-              selected: selected == _kCombos,
-              onTap: () => onSelect(_kCombos),
-            ),
-          ],
         ],
       ),
     );
@@ -641,7 +650,6 @@ class _Catalog extends ConsumerWidget {
     required this.query,
     required this.onItemTap,
     required this.onItemLongPress,
-    required this.onBundleTap,
   });
 
   final String? tableId;
@@ -653,7 +661,6 @@ class _Catalog extends ConsumerWidget {
   /// actually hit, not a fixed spot on the screen.
   final void Function(MenuItemView item, Offset origin) onItemTap;
   final ValueChanged<MenuItemView> onItemLongPress;
-  final ValueChanged<BundleView> onBundleTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -695,24 +702,6 @@ class _Catalog extends ConsumerWidget {
             gridDelegate: delegateFor(c.maxWidth),
             itemCount: 12,
             itemBuilder: (context, _) => const SellTileSkeleton(),
-          ),
-        ),
-      );
-    }
-
-    if (categoryId == _kCombos) {
-      final bundles = ref.watch(orderProvider.select((s) => s.bundles));
-      return LayoutBuilder(
-        builder: (context, c) => GridView.builder(
-          key: const PageStorageKey('sell-combos'),
-          padding: padding,
-          gridDelegate: delegateFor(c.maxWidth),
-          itemCount: bundles.length,
-          itemBuilder: (context, i) => _BundleTile(
-            bundle: bundles[i],
-            currency: currency,
-            label: bridge.tr(key: 'order.configure'),
-            onTap: () => onBundleTap(bundles[i]),
           ),
         ),
       );
@@ -771,6 +760,7 @@ class _Catalog extends ConsumerWidget {
                   .categoryStyle(cat.isEmpty ? item.name : cat, dark: dark)
                   .accent,
             ),
+            badge: item.kind == 'combo' ? bridge.tr(key: 'combo.badge') : null,
             onTap: (origin) => onItemTap(item, origin),
             onLongPress: () => onItemLongPress(item),
           );
@@ -796,6 +786,7 @@ class SellTile extends StatelessWidget {
     required this.accent,
     required this.onTap,
     required this.onLongPress,
+    this.badge,
     super.key,
   });
 
@@ -803,6 +794,9 @@ class SellTile extends StatelessWidget {
   final String currency;
   final int inCart;
   final Color accent;
+
+  /// A word on the photo — "Combo" on a combo — already localized.
+  final String? badge;
 
   /// Called with the tile's on-screen center, for the add-to-cart flight.
   final void Function(Offset origin) onTap;
@@ -815,8 +809,11 @@ class SellTile extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      label:
-          '${item.name}, ${Money.format(item.basePriceMinor, currency: currency)}',
+      label: [
+        item.name,
+        ?badge,
+        Money.format(item.basePriceMinor, currency: currency),
+      ].join(', '),
       child: GestureDetector(
         onLongPress: () {
           MadarHaptics.impact();
@@ -859,6 +856,16 @@ class SellTile extends StatelessWidget {
                     fit: StackFit.expand,
                     children: [
                       _TileThumb(item: item, accent: accent),
+                      if (badge case final b?)
+                        PositionedDirectional(
+                          top: Space.sm,
+                          start: Space.sm,
+                          end: selected ? Space.xxl : Space.sm,
+                          child: Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: MadarTag(label: b, tone: MadarTone.accent),
+                          ),
+                        ),
                       if (selected)
                         PositionedDirectional(
                           top: Space.sm,
@@ -1167,61 +1174,6 @@ class SellTileSkeleton extends StatelessWidget {
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// A combo's tile: name, fixed price, and a "+ Configure" face, because a
-/// bundle is never one tap.
-class _BundleTile extends StatelessWidget {
-  const _BundleTile({
-    required this.bundle,
-    required this.currency,
-    required this.label,
-    required this.onTap,
-  });
-
-  final BundleView bundle;
-  final String currency;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return TactileScale(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsetsDirectional.all(Space.md),
-        decoration: BoxDecoration(
-          color: colors.accentBg,
-          borderRadius: BorderRadius.circular(Radii.card),
-          border: Border.all(color: colors.borderLight),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Text(
-                bundle.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: MadarType.title.copyWith(color: colors.textPrimary),
-              ),
-            ),
-            // Stacked, never beside each other: on a compact tile the two
-            // would not share one line, and the price scales down before
-            // it ever clips (the same rule as an item tile's).
-            Text(
-              '+ $label',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: MadarType.bodySm.copyWith(color: colors.accent),
-            ),
-            _TilePrice(minor: bundle.priceMinor, currency: currency),
           ],
         ),
       ),

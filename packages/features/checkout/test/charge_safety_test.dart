@@ -74,6 +74,7 @@ const _ticket = TicketView(
 );
 
 ReceiptView _receipt() => const ReceiptView(
+  deals: [],
   localOrderId: 'order-1',
   isVoided: false,
   lines: [],

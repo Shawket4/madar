@@ -15,15 +15,14 @@ use serde::{Deserialize, Serialize};
 pub struct OrderItemInput {
     #[serde(rename = "addons", skip_serializing_if = "Option::is_none")]
     pub addons: Option<Vec<models::AddonInput>>,
-    #[serde(rename = "bundle_components", skip_serializing_if = "Option::is_none")]
-    pub bundle_components: Option<Vec<models::BundleComponentInput>>,
+    /// A line naming a combo item (`kind=combo`) carries its picks here; see COMBOS_CONTRACT.md §3.1. On replay `unit_price` is P as the till charged it and each pick's `share`/`surcharge` are per combo unit. Additive.
     #[serde(
-        rename = "bundle_id",
+        rename = "combo",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub bundle_id: Option<Option<uuid::Uuid>>,
+    pub combo: Option<Option<Box<models::ComboInput>>>,
     #[serde(
         rename = "menu_item_id",
         default,
@@ -49,7 +48,7 @@ pub struct OrderItemInput {
         skip_serializing_if = "Option::is_none"
     )]
     pub size_label: Option<Option<String>>,
-    /// Put this line on the branch's STAFF POOL: a normal sale whose base configuration (cheapest size + the default of each required choice) is comped, extras still charged. Needs `orders.staff_drink.record`. The server prices the comp; see `docs/staff-drink-comp-contract.md`. Additive — a client that omits it rings an ordinary paid line. Not carried by a bundle line (`item_not_eligible`) nor by a ticket's line.
+    /// Put this line on the branch's STAFF POOL: a normal sale whose base configuration (cheapest size + the default of each required choice) is comped, extras still charged. Needs `orders.staff_drink.record`. The server prices the comp; see `docs/staff-drink-comp-contract.md`. Additive — a client that omits it rings an ordinary paid line. Not carried by a ticket's line.
     #[serde(
         rename = "staff_drink",
         default,
@@ -71,8 +70,7 @@ impl OrderItemInput {
     pub fn new(quantity: i32) -> OrderItemInput {
         OrderItemInput {
             addons: None,
-            bundle_components: None,
-            bundle_id: None,
+            combo: None,
             menu_item_id: None,
             notes: None,
             optional_field_ids: None,

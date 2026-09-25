@@ -18,6 +18,9 @@ pub struct DeliveryMenu {
     pub addons: Vec<models::DeliveryAddonOption>,
     #[serde(rename = "categories")]
     pub categories: Vec<models::DeliveryMenuCategory>,
+    /// The deals on offer on this channel now (§11.2): checkout applies the best ones automatically (`POST …/cart-quote` shows them). Additive.
+    #[serde(rename = "deals")]
+    pub deals: Vec<models::DealRule>,
     /// The active discount for this channel (customer-facing) or `null`. Applies to the item subtotal only — the delivery fee is always charged in full.
     #[serde(
         rename = "discount",
@@ -34,11 +37,13 @@ impl DeliveryMenu {
     pub fn new(
         addons: Vec<models::DeliveryAddonOption>,
         categories: Vec<models::DeliveryMenuCategory>,
+        deals: Vec<models::DealRule>,
         items: Vec<models::DeliveryMenuItem>,
     ) -> DeliveryMenu {
         DeliveryMenu {
             addons,
             categories,
+            deals,
             discount: None,
             items,
         }

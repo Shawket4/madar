@@ -15,6 +15,7 @@ const Size _phone = Size(390, 844);
 
 MenuItemView _item(String id, String name, int price, {String cat = 'hot'}) =>
     MenuItemView(
+      kind: 'item',
       id: id,
       name: name,
       categoryId: cat,
@@ -51,6 +52,9 @@ const _categories = <CategoryView>[
 
 CartLineView _cartLine(String id, String name, int price, int qty) =>
     CartLineView(
+      dealCutMinor: 0,
+      kind: 'item',
+      parts: const [],
       key: 'k-$id',
       itemId: id,
       name: name,
@@ -59,7 +63,6 @@ CartLineView _cartLine(String id, String name, int price, int qty) =>
       unitPriceMinor: price,
       qty: qty,
       lineTotalMinor: price * qty,
-      bundleComponents: const [],
     );
 
 final _cart = <CartLineView>[
@@ -85,6 +88,7 @@ TicketLineView _line(
   bool voided = false,
   List<String> mods = const [],
 }) => TicketLineView(
+  isCombo: false,
   id: '$name-$round',
   menuItemId: name.toLowerCase(),
   name: name,
@@ -269,8 +273,6 @@ const _en = {
   'ticket.status.ready': 'Ready',
   'order.all': 'All',
   'order.search': 'Search items',
-  'order.combos': 'Combos',
-  'order.configure': 'Configure',
   'order.subtotal': 'Subtotal',
   'order.total': 'Total',
   'order.tax': 'Tax',
@@ -376,12 +378,9 @@ const _ar = {
 };
 
 class _FakeBridge implements MadarBridge {
-  _FakeBridge({this.rtl = false, this.tillOpen = true, this.bundles = const []})
+  _FakeBridge({this.rtl = false, this.tillOpen = true})
     : role = 'teller',
       drafts = _drafts;
-
-  /// The combos the catalog offers — none unless a test needs the chip.
-  final List<BundleView> bundles;
 
   final String role;
 
@@ -508,9 +507,6 @@ class _FakeBridge implements MadarBridge {
       menuReads++;
       return Future<List<MenuItemView>>.value(_items);
     }
-    if (name == #availableBundles) {
-      return Future<List<BundleView>>.value(bundles);
-    }
     // Retargeting the cart parks whatever is in it first and may clear it —
     // both are bridge calls the fake has to answer or the whole flow throws.
     // Recorded, because the ORDER of them is the fix: park, clear, adopt.
@@ -569,11 +565,6 @@ class _FakeBridge implements MadarBridge {
       _cartOf(invocation).add(_cartLine(id, item.name, item.basePriceMinor, 1));
       return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
     }
-    if (name == #cartAddBundle) {
-      final id = invocation.namedArguments[#bundleId] as String;
-      _cartOf(invocation).add(_cartLine(id, 'Combo', 9000, 1));
-      return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
-    }
     if (name == #fireTicket) {
       _cartOf(invocation).clear();
       return Future<TicketFiredView>.value(
@@ -629,6 +620,9 @@ class _FakeBridge implements MadarBridge {
         final note = notes[l.key];
         if (note == null) return l;
         return CartLineView(
+          dealCutMinor: 0,
+          kind: 'item',
+          parts: const [],
           key: l.key,
           itemId: l.itemId,
           name: l.name,
@@ -639,8 +633,6 @@ class _FakeBridge implements MadarBridge {
           unitPriceMinor: l.unitPriceMinor,
           qty: l.qty,
           lineTotalMinor: l.lineTotalMinor,
-          bundleId: l.bundleId,
-          bundleComponents: l.bundleComponents,
           kitchenNote: note,
         );
       }

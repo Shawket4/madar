@@ -25,41 +25,45 @@ class AddonSelection {
           qty == other.qty;
 }
 
-/// A host-supplied configured component of a bundle (which item, its size, and
-/// the chosen addons/optionals). The CORE resolves the charged extra prices.
-class BundleComponentSelection {
-  final String itemId;
-  final String? sizeLabel;
-  final PlatformInt64 qty;
-  final List<AddonSelection> addons;
-  final List<String> optionalFieldIds;
+/// A deal applied on the cart.
+class AppliedDealView {
+  /// Pass to `cart_remove_deal`.
+  final String id;
+  final String dealId;
+  final String name;
+  final PlatformInt64 times;
+  final PlatformInt64 discountMinor;
+  final List<String> lineKeys;
 
-  const BundleComponentSelection({
-    required this.itemId,
-    this.sizeLabel,
-    required this.qty,
-    required this.addons,
-    required this.optionalFieldIds,
+  const AppliedDealView({
+    required this.id,
+    required this.dealId,
+    required this.name,
+    required this.times,
+    required this.discountMinor,
+    required this.lineKeys,
   });
 
   @override
   int get hashCode =>
-      itemId.hashCode ^
-      sizeLabel.hashCode ^
-      qty.hashCode ^
-      addons.hashCode ^
-      optionalFieldIds.hashCode;
+      id.hashCode ^
+      dealId.hashCode ^
+      name.hashCode ^
+      times.hashCode ^
+      discountMinor.hashCode ^
+      lineKeys.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is BundleComponentSelection &&
+      other is AppliedDealView &&
           runtimeType == other.runtimeType &&
-          itemId == other.itemId &&
-          sizeLabel == other.sizeLabel &&
-          qty == other.qty &&
-          addons == other.addons &&
-          optionalFieldIds == other.optionalFieldIds;
+          id == other.id &&
+          dealId == other.dealId &&
+          name == other.name &&
+          times == other.times &&
+          discountMinor == other.discountMinor &&
+          lineKeys == other.lineKeys;
 }
 
 class CartAddonView {
@@ -93,50 +97,7 @@ class CartAddonView {
           priceModifierMinor == other.priceModifierMinor;
 }
 
-/// A configured component of a bundle cart line, for the bundle row breakdown.
-class CartBundleComponentView {
-  final String itemId;
-  final String name;
-  final PlatformInt64 qty;
-  final String? sizeLabel;
-  final List<CartAddonView> addons;
-  final List<CartOptionalView> optionals;
-
-  const CartBundleComponentView({
-    required this.itemId,
-    required this.name,
-    required this.qty,
-    this.sizeLabel,
-    required this.addons,
-    required this.optionals,
-  });
-
-  @override
-  int get hashCode =>
-      itemId.hashCode ^
-      name.hashCode ^
-      qty.hashCode ^
-      sizeLabel.hashCode ^
-      addons.hashCode ^
-      optionals.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CartBundleComponentView &&
-          runtimeType == other.runtimeType &&
-          itemId == other.itemId &&
-          name == other.name &&
-          qty == other.qty &&
-          sizeLabel == other.sizeLabel &&
-          addons == other.addons &&
-          optionals == other.optionals;
-}
-
-/// A cart line as the host renders it (with the derived line total). When
-/// `bundle_id` is set the line is a bundle: `name` is the bundle name,
-/// `unit_price_minor` the fixed bundle price, and `bundle_components` the
-/// configured items (the row renders their breakdown).
+/// A cart line as the host renders it (with the derived line total).
 class CartLineView {
   /// Stable line key (the selection signature) — use for set_qty/remove/edit.
   final String key;
@@ -149,8 +110,6 @@ class CartLineView {
   final PlatformInt64 unitPriceMinor;
   final PlatformInt64 qty;
   final PlatformInt64 lineTotalMinor;
-  final String? bundleId;
-  final List<CartBundleComponentView> bundleComponents;
 
   /// A KITCHEN-ONLY note for this line — never on the checkout payload,
   /// never on the customer receipt. Cleared once this line's chit prints.
@@ -159,6 +118,16 @@ class CartLineView {
   /// Set when the line is a STAFF DRINK. `line_total_minor` stays the normal
   /// price; this carries the comp and what is still charged.
   final CartStaffDrinkView? staffDrink;
+
+  /// `"item"` or `"combo"`. A combo's `unit_price_minor` is its price P,
+  /// `line_total_minor` the whole line, and its items are `parts`.
+  final String kind;
+  final List<CartPartView> parts;
+
+  /// What an applied deal takes off this line (0 = none);
+  /// `line_total_minor` stays the normal price.
+  final PlatformInt64 dealCutMinor;
+  final String? dealName;
 
   const CartLineView({
     required this.key,
@@ -171,10 +140,12 @@ class CartLineView {
     required this.unitPriceMinor,
     required this.qty,
     required this.lineTotalMinor,
-    this.bundleId,
-    required this.bundleComponents,
     this.kitchenNote,
     this.staffDrink,
+    required this.kind,
+    required this.parts,
+    required this.dealCutMinor,
+    this.dealName,
   });
 
   @override
@@ -189,10 +160,12 @@ class CartLineView {
       unitPriceMinor.hashCode ^
       qty.hashCode ^
       lineTotalMinor.hashCode ^
-      bundleId.hashCode ^
-      bundleComponents.hashCode ^
       kitchenNote.hashCode ^
-      staffDrink.hashCode;
+      staffDrink.hashCode ^
+      kind.hashCode ^
+      parts.hashCode ^
+      dealCutMinor.hashCode ^
+      dealName.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -209,10 +182,12 @@ class CartLineView {
           unitPriceMinor == other.unitPriceMinor &&
           qty == other.qty &&
           lineTotalMinor == other.lineTotalMinor &&
-          bundleId == other.bundleId &&
-          bundleComponents == other.bundleComponents &&
           kitchenNote == other.kitchenNote &&
-          staffDrink == other.staffDrink;
+          staffDrink == other.staffDrink &&
+          kind == other.kind &&
+          parts == other.parts &&
+          dealCutMinor == other.dealCutMinor &&
+          dealName == other.dealName;
 }
 
 /// What `switch_to_draft` left in hand.
@@ -286,6 +261,80 @@ class CartOptionalView {
           optionalFieldId == other.optionalFieldId &&
           name == other.name &&
           priceMinor == other.priceMinor;
+}
+
+/// One item of a combo line, drawn indented under the combo.
+class CartPartView {
+  final String slotId;
+  final String slotName;
+  final String itemId;
+  final String itemName;
+
+  /// `None` for an item with no real size.
+  final String? sizeLabel;
+
+  /// Units per combo.
+  final PlatformInt64 qty;
+
+  /// The item's normal price at its size.
+  final PlatformInt64 unitPriceMinor;
+
+  /// Its share of ONE combo price.
+  final PlatformInt64 shareMinor;
+
+  /// Per unit: what the choice and a bigger size add (0 = included).
+  final PlatformInt64 surchargeMinor;
+  final List<CartAddonView> addons;
+  final List<CartOptionalView> optionals;
+  final String? notes;
+
+  const CartPartView({
+    required this.slotId,
+    required this.slotName,
+    required this.itemId,
+    required this.itemName,
+    this.sizeLabel,
+    required this.qty,
+    required this.unitPriceMinor,
+    required this.shareMinor,
+    required this.surchargeMinor,
+    required this.addons,
+    required this.optionals,
+    this.notes,
+  });
+
+  @override
+  int get hashCode =>
+      slotId.hashCode ^
+      slotName.hashCode ^
+      itemId.hashCode ^
+      itemName.hashCode ^
+      sizeLabel.hashCode ^
+      qty.hashCode ^
+      unitPriceMinor.hashCode ^
+      shareMinor.hashCode ^
+      surchargeMinor.hashCode ^
+      addons.hashCode ^
+      optionals.hashCode ^
+      notes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CartPartView &&
+          runtimeType == other.runtimeType &&
+          slotId == other.slotId &&
+          slotName == other.slotName &&
+          itemId == other.itemId &&
+          itemName == other.itemName &&
+          sizeLabel == other.sizeLabel &&
+          qty == other.qty &&
+          unitPriceMinor == other.unitPriceMinor &&
+          shareMinor == other.shareMinor &&
+          surchargeMinor == other.surchargeMinor &&
+          addons == other.addons &&
+          optionals == other.optionals &&
+          notes == other.notes;
 }
 
 /// A cart line's staff-drink mark.
@@ -423,6 +472,48 @@ class ComputedRecipeLineView {
           quantity == other.quantity &&
           sourceLabel == other.sourceLabel &&
           isBase == other.isBase;
+}
+
+/// A deal the cart qualifies for — the teller taps it to apply (C8).
+class DealSuggestion {
+  final String dealId;
+  final String name;
+  final PlatformInt64 times;
+
+  /// "Applies twice", localized.
+  final String timesLabel;
+  final PlatformInt64 savingMinor;
+  final List<String> lineKeys;
+
+  const DealSuggestion({
+    required this.dealId,
+    required this.name,
+    required this.times,
+    required this.timesLabel,
+    required this.savingMinor,
+    required this.lineKeys,
+  });
+
+  @override
+  int get hashCode =>
+      dealId.hashCode ^
+      name.hashCode ^
+      times.hashCode ^
+      timesLabel.hashCode ^
+      savingMinor.hashCode ^
+      lineKeys.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DealSuggestion &&
+          runtimeType == other.runtimeType &&
+          dealId == other.dealId &&
+          name == other.name &&
+          times == other.times &&
+          timesLabel == other.timesLabel &&
+          savingMinor == other.savingMinor &&
+          lineKeys == other.lineKeys;
 }
 
 class DraftSwitchView {

@@ -483,15 +483,19 @@ pub struct RewardLineInput {
     pub cart_index: Option<u32>,
     /// `open_ticket_items.id` for a bill line (a settle names lines by id).
     pub ticket_line_id: Option<String>,
-    /// `None` for a bundle or a line with no menu item — never coverable.
+    /// `None` for a line with no menu item — never coverable.
     pub menu_item_id: Option<String>,
     pub qty: i32,
     /// The line as charged (modifiers included, before any reward).
     pub line_total_minor: i64,
-    pub is_bundle: bool,
     /// The line is a STAFF DRINK: the pool already gives it away, so it can
     /// never be taken as a reward too (the server refuses the pair with a 400).
     pub is_staff_drink: bool,
+    /// The line is a COMBO (C7: its items earn stamps, but no reward is
+    /// taken inside a combo — the server refuses `REWARD_IN_COMBO`).
+    pub in_combo: bool,
+    /// The line is in an applied DEAL: already discounted, never a reward too.
+    pub in_deal: bool,
 }
 
 /// A reward applied to one line: which line (its position in the list the
@@ -556,8 +560,9 @@ pub fn reward_lines_from_cart(lines: &[crate::cart::CartLineView]) -> Vec<Reward
             menu_item_id: Some(l.item_id.clone()).filter(|s| !s.is_empty()),
             qty: l.qty as i32,
             line_total_minor: l.line_total_minor,
-            is_bundle: l.bundle_id.is_some(),
             is_staff_drink: l.staff_drink.is_some(),
+            in_combo: l.kind == crate::menu::KIND_COMBO,
+            in_deal: l.deal_cut_minor > 0,
         })
         .collect()
 }
@@ -573,8 +578,9 @@ pub fn reward_lines_from_ticket(lines: &[crate::tickets::TicketLineView]) -> Vec
             name: l.name.clone(),
             cart_index: None,
             ticket_line_id: Some(l.id.clone()),
-            is_bundle: l.menu_item_id.is_none(),
             is_staff_drink: false,
+            in_combo: l.is_combo,
+            in_deal: false,
             menu_item_id: l.menu_item_id.clone(),
             qty: l.qty,
             line_total_minor: l.line_total_minor,
@@ -626,13 +632,14 @@ pub fn redemptions_from_picks(
         .collect()
 }
 
-/// A line as madar-shared's redemption planner reads it: a bundle has no
-/// menu item.
+/// A line as madar-shared's redemption planner reads it.
 fn plan_line(line: &RewardLineInput) -> madar_loyalty::Line {
     madar_loyalty::Line {
-        menu_item_id: line.menu_item_id.clone().filter(|_| !line.is_bundle),
+        menu_item_id: line.menu_item_id.clone(),
         quantity: i64::from(line.qty),
         is_staff_drink: line.is_staff_drink,
+        // A line in a deal is as closed to a reward as a combo is.
+        in_combo: line.in_combo || line.in_deal,
     }
 }
 
@@ -655,7 +662,7 @@ fn programme_of(scan: &LoyaltyScanView) -> madar_loyalty::Programme {
 }
 
 /// What one unit of `line` costs, if this balance's programme lets it be taken
-/// (madar-shared's `madar_loyalty::unit_cost`: not a bundle, not a staff drink,
+/// (madar-shared's `madar_loyalty::unit_cost`: a menu item, not a staff drink,
 /// the first catalogue entry for the item — else the any-item cost — above
 /// zero).
 fn unit_cost_for(line: &RewardLineInput, scan: &LoyaltyScanView) -> Option<i64> {
@@ -676,8 +683,8 @@ pub fn covered_minor(line_total_minor: i64, qty: i64, units: i64) -> i64 {
 
 /// Apply the rules to the asked picks and describe every line.
 ///
-/// Picks are honoured in the order given; a pick for a line that is gone, a
-/// bundle, or a non-reward is dropped; units are clamped to the line; and
+/// Picks are honoured in the order given; a pick for a line that is gone or a
+/// non-reward is dropped; units are clamped to the line; and
 /// picks that would overrun the per-order cap or the balance are trimmed —
 /// each trim named in `adjusted_reason` so the teller hears it before Charge,
 /// not from the server after.
@@ -724,6 +731,7 @@ pub fn reward_board(
         madar_loyalty::Trim::LineShrank => tr("loyalty.reward_line_shrank"),
         madar_loyalty::Trim::OverCap => cap_reason(cap.unwrap_or(0), locale),
         madar_loyalty::Trim::BalanceShort => tr("loyalty.reward_balance_short"),
+        madar_loyalty::Trim::InCombo => tr("combo.reward"),
     });
 
     let states = lines
@@ -738,7 +746,8 @@ pub fn reward_board(
                 .unwrap_or(0);
             let blocked_reason = match unit {
                 None if line.is_staff_drink => Some(tr("loyalty.reward_no_staff_drink")),
-                None if line.is_bundle => Some(tr("loyalty.reward_no_bundles")),
+                None if line.in_combo => Some(tr("combo.reward")),
+                None if line.in_deal => Some(tr("deal.reward")),
                 None => None,
                 Some(_) if units >= line.qty => None,
                 Some(_) if cap.is_some_and(|c| claimed >= c) => {
@@ -1060,13 +1069,49 @@ mod tests {
             menu_item_id: Some(item.into()),
             qty,
             line_total_minor: total,
-            is_bundle: false,
             is_staff_drink: false,
+            in_combo: false,
+            in_deal: false,
         }
     }
 
     fn pick(line: u32, units: i32) -> RewardPick {
         RewardPick { line, units }
+    }
+
+    /// C7: a combo's items earn stamps (the server's), but no reward is taken
+    /// inside a combo; a line in a deal is already discounted. The board says
+    /// why, in the till's language, and trims a pick asked for on either.
+    #[test]
+    fn no_reward_inside_a_combo_or_a_deal() {
+        let mut combo = line("latte", 1, 17_500);
+        combo.in_combo = true;
+        let mut dealt = line("latte", 2, 11_000);
+        dealt.in_deal = true;
+        let plain = line("latte", 1, 5_000);
+        let lines = [combo, dealt, plain];
+        let b = reward_board(
+            &lines,
+            &scan(20, None, true),
+            &[pick(0, 1), pick(1, 1), pick(2, 1)],
+            "en",
+        );
+        assert_eq!(b.picks, vec![pick(2, 1)], "only the plain line is covered");
+        assert!(!b.lines[0].claimable && !b.lines[1].claimable && b.lines[2].claimable);
+        assert_eq!(
+            b.lines[0].blocked_reason.as_deref(),
+            Some("Rewards can't be used inside a combo.")
+        );
+        assert_eq!(
+            b.lines[1].blocked_reason.as_deref(),
+            Some("This item is in a deal, so it can't also be a reward.")
+        );
+        assert!(b.adjusted_reason.is_some(), "the teller hears the trim");
+        let ar = reward_board(&lines, &scan(20, None, true), &[], "ar");
+        assert_eq!(
+            ar.lines[0].blocked_reason.as_deref(),
+            Some("لا يمكن استخدام المكافآت داخل الكومبو.")
+        );
     }
 
     #[test]
@@ -1119,15 +1164,12 @@ mod tests {
     }
 
     #[test]
-    fn bundles_zero_cost_and_any_item_follow_the_servers_rules() {
-        let mut bundle = line("latte", 1, 5_000);
-        bundle.is_bundle = true;
-        let b = reward_board(&[bundle], &scan(50, None, true), &[pick(0, 1)], "en");
+    fn no_item_zero_cost_and_any_item_follow_the_servers_rules() {
+        let mut no_item = line("latte", 1, 5_000);
+        no_item.menu_item_id = None;
+        let b = reward_board(&[no_item], &scan(50, None, true), &[pick(0, 1)], "en");
         assert!(b.picks.is_empty());
-        assert_eq!(
-            b.lines[0].blocked_reason.as_deref(),
-            Some("Bundles can't be taken as a reward")
-        );
+        assert!(!b.lines[0].claimable);
         let any = reward_board(
             &[line("cake", 1, 9_000)],
             &scan(8, None, true),
@@ -1195,8 +1237,9 @@ mod tests {
                     menu_item_id: l.menu_item_id.clone(),
                     qty: l.quantity as i32,
                     line_total_minor: 1_000 * l.quantity,
-                    is_bundle: l.menu_item_id.is_none(),
                     is_staff_drink: l.is_staff_drink,
+                    in_combo: l.in_combo,
+                    in_deal: false,
                 })
                 .collect();
             let mut sc = scan(0, v.programme.max_per_order, v.programme.any_item);

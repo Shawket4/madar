@@ -124,8 +124,11 @@ pub struct _RewardLineInput {
     pub menu_item_id: Option<String>,
     pub qty: i32,
     pub line_total_minor: i64,
-    pub is_bundle: bool,
     pub is_staff_drink: bool,
+    /// A combo line: its items earn stamps, but no reward inside it (C7).
+    pub in_combo: bool,
+    /// A line in an applied deal: never a reward too.
+    pub in_deal: bool,
 }
 
 #[frb(mirror(RewardPick))]
@@ -230,7 +233,7 @@ impl MadarBridge {
     }
 
     /// Apply the reward rules to the asked picks (cap, balance, catalogue,
-    /// bundles, shrunk or removed lines) and describe every line.
+    /// shrunk or removed lines) and describe every line.
     #[frb(sync)]
     pub fn reward_board(
         &self,

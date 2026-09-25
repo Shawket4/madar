@@ -12,24 +12,6 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:lottie/lottie.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// A host-only draft of one configured bundle component (what the
-/// per-component sheet pops in configure mode). [extrasMinor] is the
-/// resolved addon/optional up-charge, summed into the bundle's live total.
-@immutable
-class BundleComponentDraft {
-  const BundleComponentDraft({
-    required this.sizeLabel,
-    required this.addons,
-    required this.optionalIds,
-    required this.extrasMinor,
-  });
-
-  final String? sizeLabel;
-  final List<AddonSelection> addons;
-  final List<String> optionalIds;
-  final int extrasMinor;
-}
-
 /// Whether the size row is a real choice. One `one_size` row is a
 /// placeholder (see the importer), not something to render.
 bool _hasSizeChoice(List<ItemSizeView> sizes) =>
@@ -108,10 +90,13 @@ class ItemSheetArgs {
     required this.addons,
     this.groups = const [],
     this.editLine,
-    this.configureSeed,
-    this.isConfiguring = false,
     this.tableId,
+    this.pick,
   });
+
+  /// Pick mode: customising one item of a combo on the combo sheet. The
+  /// sheet then hands the selection back instead of touching the cart.
+  final ComboPickInput? pick;
 
   /// The cart a commit lands in (null = takeaway).
   final String? tableId;
@@ -127,10 +112,6 @@ class ItemSheetArgs {
 
   /// Edit mode: the cart line being reconfigured (null = adding fresh).
   final CartLineView? editLine;
-
-  /// Configure mode: the previously saved component draft to seed from.
-  final BundleComponentDraft? configureSeed;
-  final bool isConfiguring;
 }
 
 /// The live selection inside one item-customization sheet.
@@ -211,7 +192,7 @@ class ItemConfigState {
 }
 
 /// Selection notifier for one sheet presentation — seeded from the args
-/// (edit line / configure seed / defaults), mutated by the chip taps.
+/// (edit line / defaults), mutated by the chip taps.
 class ItemConfigNotifier extends Notifier<ItemConfigState> {
   /// Creates the notifier for one family [arg].
   ItemConfigNotifier(this.arg);
@@ -382,20 +363,24 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
     var optionals = const <String>{};
     var size = item.sizes.firstOrNull?.label;
     var qty = 1;
-    final seed = args.configureSeed;
     final editLine = args.editLine;
-    if (args.isConfiguring) {
-      if (seed != null) {
-        size = seed.sizeLabel ?? size;
-        for (final a in seed.addons) {
-          _placeAddon(args, single, multi, a.addonItemId, a.qty);
-        }
-        optionals = seed.optionalIds.toSet();
-      } else {
-        _seedSwapDefaults(args, single);
-        _seedDefaultMilk(args, single);
+    final pick = args.pick;
+    if (pick != null && pick.addons.isNotEmpty) {
+      // A combo pick already customised: reopen on what it holds.
+      size = pick.sizeLabel ?? size;
+      for (final a in pick.addons) {
+        _placeAddon(args, single, multi, a.addonItemId, a.qty);
       }
-    } else if (editLine == null) {
+      return ItemConfigState(
+        size: size,
+        single: single,
+        multi: multi,
+        optionals: pick.optionalFieldIds.toSet(),
+        qty: 1,
+      );
+    }
+    if (pick != null) size = pick.sizeLabel ?? size;
+    if (editLine == null) {
       _seedSwapDefaults(args, single);
     }
     if (editLine != null) {
@@ -413,7 +398,7 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
       size: size,
       single: single,
       multi: multi,
-      optionals: optionals,
+      optionals: pick?.optionalFieldIds.toSet() ?? optionals,
       qty: qty,
     );
   }
@@ -617,24 +602,24 @@ bool coreGroupIsSingle(ModifierGroupView g, List<ItemAddonView> addons) {
 /// Item customization — size, addons (per slot + global types), optional
 /// fields, live recipe preview, notes, qty. Prices come pre-resolved from
 /// the core; this only displays and sums.
-///
-/// Bundle-component configure mode: when [isConfiguring] the footer SAVES
-/// the selection back (pops a [BundleComponentDraft], no cart write), seeded
-/// from [configureSeed], and the qty stepper is hidden.
 class ItemDetailSheet extends ConsumerStatefulWidget {
   const ItemDetailSheet({
     required this.item,
     required this.addons,
     this.groups = const [],
     this.editLine,
-    this.configureSeed,
-    this.isConfiguring = false,
     this.tableId,
+    this.pick,
     super.key,
   });
 
   /// The cart the sheet adds to (null = takeaway, else that table's).
   final String? tableId;
+
+  /// Pick mode (the combo sheet's "Customise"): the item's add-ons and
+  /// options at their normal prices (C10), handed back as the pick — no
+  /// size row (the combo sheet prices the size), no quantity, no cart.
+  final ComboPickInput? pick;
 
   final MenuItemView item;
 
@@ -649,10 +634,6 @@ class ItemDetailSheet extends ConsumerStatefulWidget {
 
   /// Edit mode: the cart line being reconfigured (null = adding fresh).
   final CartLineView? editLine;
-
-  /// Configure mode: the previously saved component draft to seed from.
-  final BundleComponentDraft? configureSeed;
-  final bool isConfiguring;
 
   @override
   ConsumerState<ItemDetailSheet> createState() => _ItemDetailSheetState();
@@ -676,13 +657,12 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     addons: widget.addons,
     groups: widget.groups,
     editLine: widget.editLine,
-    configureSeed: widget.configureSeed,
-    isConfiguring: widget.isConfiguring,
     tableId: widget.tableId,
+    pick: widget.pick,
   );
 
   late final TextEditingController _notes = TextEditingController(
-    text: widget.editLine?.notes ?? '',
+    text: widget.pick?.notes ?? widget.editLine?.notes ?? '',
   );
 
   /// Anchors the footer CTA — the add-to-cart flight launches from here.
@@ -860,29 +840,26 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     return false;
   }
 
-  Future<void> _commit(ItemConfigState config, int extrasMinor) async {
+  Future<void> _commit(ItemConfigState config) async {
     if (!await _selectionValid(config)) return;
     if (!mounted) return;
-    if (widget.isConfiguring) {
-      if (config.committing) return;
-      // The extras for EXACTLY this selection: a tap that landed a moment
-      // before Save may not have been priced yet.
-      final notifier = ref.read(itemConfigProvider(_args).notifier);
-      await notifier.refreshPrice();
-      if (!mounted) return;
-      final extras =
-          ref.read(itemConfigProvider(_args)).price?.extrasMinor ?? extrasMinor;
+    final notes = _notes.text.trim();
+    final pick = widget.pick;
+    if (pick != null) {
+      // Pick mode: the selection goes back to the combo sheet as the pick.
       await Navigator.of(context).maybePop(
-        BundleComponentDraft(
-          sizeLabel: config.size,
+        ComboPickInput(
+          slotId: pick.slotId,
+          itemId: pick.itemId,
+          sizeLabel: pick.sizeLabel,
+          qty: pick.qty,
           addons: config.selectedAddons,
-          optionalIds: config.optionals.toList(growable: false),
-          extrasMinor: extras,
+          optionalFieldIds: config.optionals.toList(growable: false),
+          notes: notes.isEmpty ? null : notes,
         ),
       );
       return;
     }
-    final notes = _notes.text.trim();
     final committed = await ref
         .read(itemConfigProvider(_args).notifier)
         .commit(notes: notes.isEmpty ? null : notes);
@@ -892,6 +869,43 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
       await Navigator.of(context).maybePop();
       if (fly != null) unawaited(fly());
     }
+  }
+
+  /// "Make it a meal": the core builds the combo draft with this item in its
+  /// slot (from the line in the cart when editing one, else from the sheet's
+  /// selection) and the sheet closes with it; the screen opens the combo
+  /// sheet on it.
+  Future<void> _makeItAMeal(ItemConfigState config) async {
+    final bridge = ref.read(bridgeProvider);
+    final edit = widget.editLine;
+    final notes = _notes.text.trim();
+    final ComboDraft draft;
+    try {
+      draft = edit != null
+          ? await bridge.cartMakeItAMeal(
+              tableId: widget.tableId,
+              lineKey: edit.key,
+            )
+          : await bridge.itemMealDraft(
+              itemId: _item.id,
+              sizeLabel: config.size,
+              addons: config.selectedAddons,
+              optionalFieldIds: config.optionals.toList(growable: false),
+              qty: config.qty,
+              notes: notes.isEmpty ? null : notes,
+            );
+    } on MadarError catch (e) {
+      ref
+          .read(orderProvider.notifier)
+          .showToast(
+            bridge.humanMessage(e),
+            tone: ChipTone.danger,
+            icon: 'xmark.circle',
+          );
+      return;
+    }
+    if (!mounted) return;
+    await Navigator.of(context).maybePop(draft);
   }
 
   /// The add-to-cart flight from the footer CTA, captured while the sheet
@@ -936,7 +950,6 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     // the header shows the item's own price and the footer no extras.
     final price = config.price;
     final headerTotal = price?.unitTotalMinor ?? _item.basePriceMinor;
-    final extrasMinor = price?.extrasMinor ?? 0;
 
     AddonGroup? firstUnsatisfied;
     for (final g in groups) {
@@ -953,22 +966,28 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
 
     final footerLabel = !canAdd
         ? '${bridge.tr(key: 'order.select_prefix')} ${firstUnsatisfied.title}'
-        : widget.isConfiguring
-        ? bridge.tr(key: 'order.save_component')
         : widget.editLine == null
         ? bridge.tr(key: 'order.add_to_cart')
         : bridge.tr(key: 'order.update_item');
-    // Configure mode sums only the extras (the bundle covers the base).
-    final footerPrice = widget.isConfiguring
-        ? extrasMinor
-        : (price?.lineTotalMinor ?? headerTotal);
+    final footerPrice = price?.lineTotalMinor ?? headerTotal;
+    final picking = widget.pick != null;
+    // "Make it a meal +X": the core says whether this item has a meal on
+    // sale now and what it adds; never in pick mode (already in a combo).
+    MealOffer? meal;
+    if (!picking) {
+      try {
+        meal = bridge.mealOffer(itemId: _item.id);
+      } on Object {
+        meal = null;
+      }
+    }
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _SheetHeader(
           item: _item,
-          headerTotalMinor: headerTotal,
+          headerTotalMinor: picking ? null : headerTotal,
           currency: currency,
           showRecipe: config.showRecipe,
           onToggleRecipe: notifier.toggleRecipe,
@@ -1015,7 +1034,26 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                   ),
                   // A single `one_size` is a placeholder the dashboard needs so
                   // a recipe has a column to hang on — never a choice to make.
-                  if (_hasSizeChoice(_item.sizes)) ...[
+                  if (meal != null) ...[
+                    MadarButton(
+                      key: const ValueKey('make-it-a-meal'),
+                      label: bridge
+                          .tr(key: 'meal.make_it_plus')
+                          .replaceAll(
+                            '{amount}',
+                            Money.format(
+                              meal.deltaMinor,
+                              currency: currency,
+                              locale: MadarFormat.localeOf(context),
+                            ),
+                          ),
+                      glyph: MadarGlyph.plus,
+                      variant: MadarButtonVariant.outline,
+                      onTap: () => unawaited(_makeItAMeal(config)),
+                    ),
+                    const SizedBox(height: Space.md),
+                  ],
+                  if (!picking && _hasSizeChoice(_item.sizes)) ...[
                     MadarSectionHeader(text: bridge.tr(key: 'order.size')),
                     const SizedBox(height: Space.sm),
                     SingleChildScrollView(
@@ -1085,16 +1123,14 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                     _StepList(steps: _item.recipeSteps),
                     const SizedBox(height: Space.lg),
                   ],
-                  if (!widget.isConfiguring) ...[
-                    MadarSectionHeader(text: bridge.tr(key: 'order.notes')),
-                    const SizedBox(height: Space.sm),
-                    MadarField(
-                      controller: _notes,
-                      placeholder: bridge.tr(key: 'sell.item_note_hint'),
-                      kind: MadarFieldKind.note,
-                      icon: 'text.bubble',
-                    ),
-                  ],
+                  MadarSectionHeader(text: bridge.tr(key: 'order.notes')),
+                  const SizedBox(height: Space.sm),
+                  MadarField(
+                    controller: _notes,
+                    placeholder: bridge.tr(key: 'sell.item_note_hint'),
+                    kind: MadarFieldKind.note,
+                    icon: 'text.bubble',
+                  ),
                 ],
               ),
             ),
@@ -1104,15 +1140,18 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
           key: _footerKey,
           child: _SheetFooter(
             currency: currency,
-            totalMinor: footerPrice,
-            label: footerLabel,
+            totalMinor: picking ? (price?.extrasMinor ?? 0) : footerPrice,
+            totalLabel: picking ? bridge.tr(key: 'combo.extras') : null,
+            showQty: !picking,
+            label: picking && canAdd
+                ? bridge.tr(key: 'combo.done')
+                : footerLabel,
             canAdd: canAdd,
             loading: config.committing,
-            showQty: !widget.isConfiguring,
             qty: config.qty,
             onDec: () => notifier.setQty(config.qty - 1),
             onInc: () => notifier.setQty(config.qty + 1),
-            onCommit: () => unawaited(_commit(config, extrasMinor)),
+            onCommit: () => unawaited(_commit(config)),
           ),
         ),
       ],
@@ -1223,7 +1262,9 @@ class _SheetHeader extends StatelessWidget {
   });
 
   final MenuItemView item;
-  final int headerTotalMinor;
+
+  /// Null hides the price badge (pick mode: the combo prices the item).
+  final int? headerTotalMinor;
   final String currency;
   final bool showRecipe;
   final VoidCallback onToggleRecipe;
@@ -1274,22 +1315,23 @@ class _SheetHeader extends StatelessWidget {
                 ),
                 const SizedBox(width: Space.md),
                 // Price badge · recipe chip · close, on a common baseline.
-                Container(
-                  height: Metrics.closeButton,
-                  padding: const EdgeInsetsDirectional.symmetric(
-                    horizontal: 10,
+                if (headerTotalMinor case final total?)
+                  Container(
+                    height: Metrics.closeButton,
+                    padding: const EdgeInsetsDirectional.symmetric(
+                      horizontal: 10,
+                    ),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: colors.navyBg,
+                      borderRadius: BorderRadius.circular(Radii.sm),
+                    ),
+                    child: MoneyText(
+                      total,
+                      currency: currency,
+                      color: colors.navy,
+                    ),
                   ),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: colors.navyBg,
-                    borderRadius: BorderRadius.circular(Radii.sm),
-                  ),
-                  child: MoneyText(
-                    headerTotalMinor,
-                    currency: currency,
-                    color: colors.navy,
-                  ),
-                ),
                 if (item.recipes.isNotEmpty) ...[
                   const SizedBox(width: Space.sm),
                   TactileScale(
@@ -1350,21 +1392,28 @@ class _SheetFooter extends ConsumerWidget {
     required this.label,
     required this.canAdd,
     required this.loading,
-    required this.showQty,
     required this.qty,
     required this.onDec,
     required this.onInc,
     required this.onCommit,
+    this.totalLabel,
+    this.showQty = true,
   });
 
   final String currency;
   final int totalMinor;
+
+  /// The figure's label; null = "Total".
+  final String? totalLabel;
+
+  /// The quantity stepper (hidden in pick mode: a pick's count is the
+  /// combo's).
+  final bool showQty;
   final String label;
   final bool canAdd;
 
   /// The commit is in flight — spinner on, taps blocked (double-tap guard).
   final bool loading;
-  final bool showQty;
   final int qty;
   final VoidCallback onDec;
   final VoidCallback onInc;
@@ -1386,7 +1435,7 @@ class _SheetFooter extends ConsumerWidget {
             Container(height: 1, color: colors.border),
             const SizedBox(height: Space.md),
             GrandTotalBlock(
-              label: bridge.tr(key: 'order.total'),
+              label: totalLabel ?? bridge.tr(key: 'order.total'),
               totalMinor: totalMinor,
               currency: currency,
             ),
@@ -2292,7 +2341,7 @@ class _StepRow extends StatelessWidget {
   }
 }
 
-// ── Shared pieces (the item and bundle sheets) ─────────────────────────────
+// ── Shared pieces ──────────────────────────────────────────────────────────
 
 /// A circular stepper button (natives: 30.dp, [MotionSpec.pressScaleKey]-deep
 /// press).
@@ -2365,15 +2414,20 @@ class GrandTotalBlock extends StatelessWidget {
         borderRadius: BorderRadius.circular(Radii.md),
       ),
       child: Row(
+        spacing: Space.sm,
         children: [
-          Text(
-            label,
-            style: MadarType.body.copyWith(
-              fontWeight: FontWeight.w700,
-              color: colors.accent,
+          // A long label (an Arabic one, a combo's) gives way to the figure.
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: MadarType.body.copyWith(
+                fontWeight: FontWeight.w700,
+                color: colors.accent,
+              ),
             ),
           ),
-          const Spacer(),
           AnimatedSwitcher(
             duration: MotionSpec.standardDuration,
             switchInCurve: MotionSpec.standardCurve,

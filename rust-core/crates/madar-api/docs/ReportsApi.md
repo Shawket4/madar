@@ -6,7 +6,6 @@ Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**attendance_corrections_audit**](ReportsApi.md#attendance_corrections_audit) | **GET** /reports/orgs/{org_id}/attendance-corrections-audit | 
 [**branch_addon_sales**](ReportsApi.md#branch_addon_sales) | **GET** /reports/branches/{branch_id}/addons | 
-[**branch_bundle_sales**](ReportsApi.md#branch_bundle_sales) | **GET** /reports/branches/{branch_id}/bundles | 
 [**branch_channel_breakdown**](ReportsApi.md#branch_channel_breakdown) | **GET** /reports/branches/{branch_id}/channel-breakdown | 
 [**branch_combined_item_sales**](ReportsApi.md#branch_combined_item_sales) | **GET** /reports/branches/{branch_id}/items-combined | 
 [**branch_consumption**](ReportsApi.md#branch_consumption) | **GET** /reports/branches/{branch_id}/consumption | 
@@ -27,6 +26,8 @@ Method | HTTP request | Description
 [**branch_till_sessions**](ReportsApi.md#branch_till_sessions) | **GET** /reports/branches/{branch_id}/tills | 
 [**branch_waiter_stats**](ReportsApi.md#branch_waiter_stats) | **GET** /reports/branches/{branch_id}/waiters | 
 [**branch_waste_report**](ReportsApi.md#branch_waste_report) | **GET** /reports/branches/{branch_id}/waste-report | 
+[**bundles_report**](ReportsApi.md#bundles_report) | **GET** /reports/bundles | 
+[**combo_mix**](ReportsApi.md#combo_mix) | **GET** /reports/bundles/combos/{id}/mix | 
 [**deduction_overrides_audit**](ReportsApi.md#deduction_overrides_audit) | **GET** /reports/orgs/{org_id}/deduction-overrides-audit | 
 [**discounts_audit**](ReportsApi.md#discounts_audit) | **GET** /reports/orgs/{org_id}/discounts-audit | 
 [**loyalty_adjustments_audit**](ReportsApi.md#loyalty_adjustments_audit) | **GET** /reports/orgs/{org_id}/loyalty-adjustments-audit | 
@@ -101,37 +102,6 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::AddonSalesRow>**](AddonSalesRow.md)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## branch_bundle_sales
-
-> Vec<models::BundleSalesRow> branch_bundle_sales(branch_id, from, to, limit)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**branch_id** | **uuid::Uuid** |  | [required] |
-**from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
-**to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
-**limit** | Option<**i64**> |  |  |
-
-### Return type
-
-[**Vec<models::BundleSalesRow>**](BundleSalesRow.md)
 
 ### Authorization
 
@@ -431,7 +401,7 @@ Name | Type | Description  | Required | Notes
 **from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
 **to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
 **limit** | Option<**i64**> |  |  |
-**exclude_items** | Option<**String**> | Comma-separated menu_item/bundle UUIDs left out of `total_line_items` (units sold) ONLY — revenue, top items, and categories are untouched. |  |
+**exclude_items** | Option<**String**> | Comma-separated menu_item UUIDs left out of `total_line_items` (units sold) ONLY — revenue, top items, and categories are untouched. |  |
 
 ### Return type
 
@@ -742,6 +712,68 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::WasteReportRow>**](WasteReportRow.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## bundles_report
+
+> models::BundlesReport bundles_report(from, to, branch_id, kind)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**from** | **chrono::NaiveDate** | Business date, inclusive. | [required] |
+**to** | **chrono::NaiveDate** | Business date, inclusive. | [required] |
+**branch_id** | Option<**uuid::Uuid**> |  |  |
+**kind** | Option<**String**> | `combo` | `deal`; omitted = both. |  |
+
+### Return type
+
+[**models::BundlesReport**](BundlesReport.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## combo_mix
+
+> models::ComboMix combo_mix(id, from, to, branch_id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | The combo's menu item id | [required] |
+**from** | **chrono::NaiveDate** |  | [required] |
+**to** | **chrono::NaiveDate** |  | [required] |
+**branch_id** | Option<**uuid::Uuid**> |  |  |
+
+### Return type
+
+[**models::ComboMix**](ComboMix.md)
 
 ### Authorization
 

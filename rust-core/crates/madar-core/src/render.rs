@@ -448,12 +448,21 @@ impl Renderer {
 
         // ── items ──
         for line in &r.lines {
-            self.item(line, cur);
+            if line.kind == crate::menu::KIND_COMBO {
+                self.combo_item(line, cur);
+            } else {
+                self.item(line, cur);
+            }
         }
         self.rule();
 
         // ── totals ──
-        self.row(&lab.subtotal, &m(r.subtotal_minor), RS_BODY, Weight::BOLD);
+        // The lines at their normal prices; each deal then comes off under
+        // it as its own row (C8), so the paper adds up.
+        self.row(&lab.subtotal, &m(r.gross_subtotal_minor()), RS_BODY, Weight::BOLD);
+        for d in &r.deals {
+            self.row(&d.name, &format!("−{}", m(d.discount_minor)), RS_BODY, Weight::BOLD);
+        }
         if r.discount_minor > 0 {
             self.row(
                 &lab.discount,
@@ -837,6 +846,9 @@ impl Renderer {
             }
             let name = name_with_size(&it.item, &it.size_label);
             self.row(&format!("{}× {}", it.qty.max(1), name), "", RS_TOTAL, Weight::BOLD);
+            if let Some(c) = it.combo.as_deref().filter(|s| !s.trim().is_empty()) {
+                self.indented_w(&format!("» {}", c.trim()), RS_SMALL, Weight::BOLD, 16);
+            }
             for m in it.modifiers.iter().filter(|m| !m.trim().is_empty()) {
                 self.indented(&format!("- {}", m.trim()), RS_SMALL, 16);
             }
@@ -865,14 +877,8 @@ impl Renderer {
     fn item(&mut self, line: &ReceiptLineView, cur: &str) {
         let name = name_with_size(&line.name, &line.size_label);
         let qty = line.qty.max(1);
-        let mods: Vec<&ReceiptModifierView> = if line.is_bundle {
-            line.components
-                .iter()
-                .flat_map(|c| c.addons.iter().chain(c.optionals.iter()))
-                .collect()
-        } else {
-            line.addons.iter().chain(line.optionals.iter()).collect()
-        };
+        let mods: Vec<&ReceiptModifierView> =
+            line.addons.iter().chain(line.optionals.iter()).collect();
         let paid: i64 = mods.iter().map(|m| m.price_minor.max(0)).sum();
         let per_unit = (line.line_total_minor % qty == 0).then(|| line.line_total_minor / qty);
         let base = per_unit.map(|u| u - paid).filter(|b| *b >= 0 && paid > 0);
@@ -901,22 +907,8 @@ impl Renderer {
                 Weight::BOLD,
             );
         }
-        if line.is_bundle {
-            for c in &line.components {
-                self.indented_w(
-                    &format!("– {}", name_with_size(&c.name, &c.size_label)),
-                    RS_SMALL,
-                    Weight::BOLD,
-                    16,
-                );
-                for mo in c.addons.iter().chain(c.optionals.iter()) {
-                    self.modifier(mo, cur, 32, priced);
-                }
-            }
-        } else {
-            for mo in line.addons.iter().chain(line.optionals.iter()) {
-                self.modifier(mo, cur, 16, priced);
-            }
+        for mo in line.addons.iter().chain(line.optionals.iter()) {
+            self.modifier(mo, cur, 16, priced);
         }
         if let Some(unit) = per_unit.filter(|_| priced) {
             self.gap(self.sx(2));
@@ -926,6 +918,33 @@ impl Renderer {
                 RS_BODY,
                 Weight::BOLD,
             );
+        }
+        self.gap(self.sx(6));
+    }
+
+    /// A combo (C12): its name with `n × P`, then each of its items indented —
+    /// name and size, `+surcharge` when it cost more — and the item's add-ons
+    /// indented once more with their prices. Whole-line figures throughout.
+    fn combo_item(&mut self, line: &ReceiptLineView, cur: &str) {
+        let qty = line.qty.max(1);
+        let head = if qty > 1 { format!("{}× {}", qty, line.name) } else { line.name.clone() };
+        self.row(&head, &money(line.unit_price_minor * qty, cur), RS_BODY, Weight::BOLD);
+        for p in &line.parts {
+            let name = name_with_size(&p.name, &p.size_label);
+            let left = if p.qty > 1 { format!("{}× {}", p.qty, name) } else { name };
+            if p.surcharge_minor > 0 {
+                self.row(
+                    &format!("   {left}"),
+                    &format!("+{}", money(p.surcharge_minor, cur)),
+                    RS_SMALL,
+                    Weight::BOLD,
+                );
+            } else {
+                self.indented_w(&left, RS_SMALL, Weight::BOLD, 16);
+            }
+            for mo in p.addons.iter().chain(p.optionals.iter()) {
+                self.modifier(mo, cur, 32, true);
+            }
         }
         self.gap(self.sx(6));
     }
@@ -1111,7 +1130,6 @@ mod tests {
                 qty: 2,
                 size_label: Some("Large".into()),
                 line_total_minor: 12000,
-                is_bundle: false,
                 reward_label: None,
                 staff_label: None,
                 staff_comp_minor: 0,
@@ -1120,7 +1138,10 @@ mod tests {
                     price_minor: 500,
                 }],
                 optionals: vec![],
-                components: vec![],
+                kind: "item".into(),
+                unit_price_minor: 5500,
+                parts: vec![],
+                deal_minor: 0,
             }],
             payment_label: "Cash".into(),
             subtotal_minor: 12500,
@@ -1151,6 +1172,7 @@ mod tests {
             created_at: "2026-06-24T18:30:00+03:00".into(),
             loyalty_notice: None,
             staff_notice: None,
+            deals: vec![],
             payments: vec![],
         }
     }
@@ -1624,6 +1646,7 @@ mod tests {
                 size_label: Some("كبير".into()), // "large"
                 modifiers: vec!["زيادة جبنة".into()],
                 note: Some("بدون بصل".into()), // "no onions"
+                combo: None,
             }],
         }
     }
@@ -1670,6 +1693,7 @@ mod tests {
             size_label: None,
             modifiers: vec![],
             note: None,
+            combo: None,
         });
         let one_bitmap = render_kitchen_chit(&slip, &kitchen_labels(), PRINT_WIDTH);
         let mut first_only = slip.clone();

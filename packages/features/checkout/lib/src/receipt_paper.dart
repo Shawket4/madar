@@ -214,9 +214,28 @@ class ReceiptPaper extends ConsumerWidget {
               ),
             const _Rule(),
           ],
-          for (final line in r.lines) _LineBlock(line: line, money: _money),
+          for (final line in r.lines)
+            if (line.kind == 'combo')
+              _ComboBlock(line: line, money: _money)
+            else
+              _LineBlock(line: line, money: _money),
           const _Rule(),
-          _MoneyRow(left: tr('order.subtotal'), right: _money(r.subtotalMinor)),
+          // With deals, the subtotal reads the lines at their normal prices
+          // and each deal is its own row under it, as the printed receipt has
+          // it (the core's `subtotal_minor` is net of them).
+          _MoneyRow(
+            left: tr('order.subtotal'),
+            right: _money(
+              r.subtotalMinor +
+                  r.deals.fold<int>(0, (sum, d) => sum + d.discountMinor),
+            ),
+          ),
+          for (final d in r.deals)
+            _MoneyRow(
+              key: ValueKey('receipt-deal-${d.name}'),
+              left: d.name,
+              right: '−${_money(d.discountMinor)}',
+            ),
           if (r.discountMinor > 0)
             _MoneyRow(
               left: tr('order.discount'),
@@ -323,11 +342,7 @@ class _LineBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final qty = line.qty < 1 ? 1 : line.qty;
-    final mods = line.isBundle
-        ? [
-            for (final c in line.components) ...[...c.addons, ...c.optionals],
-          ]
-        : [...line.addons, ...line.optionals];
+    final mods = [...line.addons, ...line.optionals];
     final paid = mods.fold<int>(
       0,
       (sum, m) => sum + (m.priceMinor > 0 ? m.priceMinor : 0),
@@ -348,25 +363,8 @@ class _LineBlock extends StatelessWidget {
           right: money(priced ? base : line.lineTotalMinor),
           bold: true,
         ),
-        if (line.isBundle)
-          for (final c in line.components) ...[
-            _Mono(
-              '  – ${_nameWithSize(c.name, c.sizeLabel)}',
-              size: _rowSize,
-              color: Paper.faint,
-              align: TextAlign.start,
-            ),
-            for (final m in [...c.addons, ...c.optionals])
-              _ModRow(
-                prefix: '    + ',
-                modifier: m,
-                money: money,
-                priced: priced,
-              ),
-          ]
-        else
-          for (final m in mods)
-            _ModRow(prefix: '  + ', modifier: m, money: money, priced: priced),
+        for (final m in mods)
+          _ModRow(prefix: '  + ', modifier: m, money: money, priced: priced),
         if (priced)
           _MoneyRow(
             left: '$qty × ${money(perUnit!)}',
@@ -382,6 +380,41 @@ class _LineBlock extends StatelessWidget {
             left: '  ★ $staff',
             right: '-${money(line.staffCompMinor)}',
           ),
+      ],
+    );
+  }
+}
+
+/// A combo, as printed (C12): `n× <combo> …… n×P`, then each of its items
+/// indented with its size and `+surcharge` when it cost more, and its add-ons
+/// indented once more with their prices.
+class _ComboBlock extends StatelessWidget {
+  const _ComboBlock({required this.line, required this.money});
+
+  final ReceiptLineView line;
+  final String Function(int minor) money;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: ValueKey('receipt-combo-${line.name}'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      spacing: _paperGap,
+      children: [
+        _MoneyRow(
+          left: '${line.qty}× ${line.name}',
+          right: money(line.unitPriceMinor * line.qty),
+          bold: true,
+        ),
+        for (final p in line.parts) ...[
+          _MoneyRow(
+            left: '  ${p.qty}× ${_nameWithSize(p.name, p.sizeLabel)}',
+            right: p.surchargeMinor > 0 ? '+${money(p.surchargeMinor)}' : '',
+          ),
+          for (final m in [...p.addons, ...p.optionals])
+            _ModRow(prefix: '    + ', modifier: m, money: money, priced: true),
+        ],
       ],
     );
   }

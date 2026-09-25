@@ -176,6 +176,7 @@ const _detail1042 = OrderDetailView(
   createdAt: '2026-09-12T19:31:00Z',
   lines: [
     OrderDetailLineView(
+      kind: 'item',
       name: 'Latte',
       qty: 2,
       sizeLabel: 'Large',
@@ -184,6 +185,7 @@ const _detail1042 = OrderDetailView(
       optionals: [],
     ),
     OrderDetailLineView(
+      kind: 'item',
       name: 'Espresso',
       qty: 1,
       lineTotalMinor: 3500,
@@ -191,6 +193,7 @@ const _detail1042 = OrderDetailView(
       optionals: [],
     ),
     OrderDetailLineView(
+      kind: 'item',
       name: 'Flat white',
       qty: 1,
       lineTotalMinor: 5000,
@@ -201,6 +204,7 @@ const _detail1042 = OrderDetailView(
 );
 
 const _receipt1042 = ReceiptView(
+  deals: [],
   localOrderId: 'o-1042',
   orderNumber: 1042,
   isVoided: false,

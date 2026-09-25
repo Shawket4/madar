@@ -148,6 +148,32 @@ pub struct OrderDetailLineView {
     pub addons: Vec<String>,
     /// Optional-field labels.
     pub optionals: Vec<String>,
+    /// `"item"`, `"combo"` (a combo's header: its parts follow it, and its
+    /// total is theirs) or `"combo_part"` (one item of the combo above,
+    /// drawn indented).
+    pub kind: String,
+}
+
+/// A line's kind as the server stores it (`line_kind`); a line from an
+/// older server is an item.
+fn line_kind(it: &models::OrderItemFull) -> &str {
+    it.line_kind.as_deref().unwrap_or(crate::menu::KIND_ITEM)
+}
+
+/// What a line comes to with its add-on and optional rows (the header of a
+/// combo carries no money: its parts do).
+fn with_extras(it: &models::OrderItemFull) -> i64 {
+    it.line_total as i64
+        + it.addons.iter().map(|a| a.line_total as i64).sum::<i64>()
+        + it.optionals.iter().map(|o| o.price as i64 * it.quantity.max(1) as i64).sum::<i64>()
+}
+
+/// The parts of a combo header, in the order the server returns them.
+fn parts_of<'a>(o: &'a models::OrderFull, header: &models::OrderItemFull) -> Vec<&'a models::OrderItemFull> {
+    o.items
+        .iter()
+        .filter(|p| p.combo_line_id == Some(header.id))
+        .collect()
 }
 
 /// A fetched order with its lines — drives the history detail + reprint.
@@ -303,8 +329,17 @@ pub(crate) fn refundable_lines(
     o.items
         .iter()
         .filter(|it| it.quantity > 0)
+        // C13: a combo is refunded as a whole — the sheet offers its header
+        // (the server spreads a header's units over every part), never a part
+        // (`COMBO_WHOLE_ONLY`).
+        .filter(|it| line_kind(it) != "combo_part")
         .map(|it| {
             let id = it.id.to_string();
+            let line_total = if line_kind(it) == crate::menu::KIND_COMBO {
+                parts_of(o, it).iter().map(|p| with_extras(p)).sum::<i64>()
+            } else {
+                i64::from(it.line_total)
+            };
             let done: i32 = refunds
                 .refunds
                 .iter()
@@ -315,10 +350,10 @@ pub(crate) fn refundable_lines(
             RefundableLineView {
                 order_item_id: id,
                 name: loc(&it.name_translations, &it.item_name, locale),
-                size_label: it.size_label.clone().filter(|s| !s.is_empty()),
+                size_label: crate::cart::real_size(it.size_label.clone()),
                 sold_qty: it.quantity,
                 refundable_qty: (it.quantity - done).max(0),
-                unit_share_minor: i64::from(it.line_total) / i64::from(it.quantity.max(1)),
+                unit_share_minor: line_total / i64::from(it.quantity.max(1)),
             }
         })
         .collect()
@@ -352,7 +387,7 @@ pub(crate) fn order_refunds_view(r: &models::OrderRefunds) -> OrderRefundsView {
 }
 
 /// Resolve a per-order snapshot name to the device locale. Every order row
-/// (item / addon / optional / bundle component) freezes both the base name
+/// (item / addon / optional) freezes both the base name
 /// AND its `name_translations` at sale time, so a past order reprints in
 /// whatever language the device is set to now — not the language it sold in.
 fn loc(translations: &serde_json::Value, base: &str, locale: &str) -> String {
@@ -386,8 +421,18 @@ pub(crate) fn order_detail_view(o: &models::OrderFull, locale: &str) -> OrderDet
             .map(|it| OrderDetailLineView {
                 name: loc(&it.name_translations, &it.item_name, locale),
                 qty: it.quantity as i64,
-                size_label: it.size_label.clone().filter(|s| !s.is_empty()),
-                line_total_minor: it.line_total as i64,
+                size_label: it
+                    .size_label
+                    .clone()
+                    .filter(|s| !s.is_empty() && !crate::cart::is_one_size(s)),
+                kind: line_kind(it).to_string(),
+                // A combo's header shows what its parts come to; a line in a
+                // deal shows its normal price (the deal is its own figure).
+                line_total_minor: if line_kind(it) == crate::menu::KIND_COMBO {
+                    parts_of(o, it).iter().map(|p| with_extras(p)).sum()
+                } else {
+                    it.line_total as i64 + it.deal_minor.unwrap_or(0).max(0) as i64
+                },
                 addons: it
                     .addons
                     .iter()
@@ -403,20 +448,80 @@ pub(crate) fn order_detail_view(o: &models::OrderFull, locale: &str) -> OrderDet
     }
 }
 
+/// A combo header and its parts as one receipt line (C12): `n × <name> ……
+/// n×P`, then each part with its size, its surcharge and its add-ons — the
+/// same layout the till printed when it sold it.
+fn combo_receipt_line(
+    o: &models::OrderFull,
+    header: &models::OrderItemFull,
+    locale: &str,
+) -> crate::checkout::ReceiptLineView {
+    use crate::checkout::{ReceiptLineView, ReceiptModifierView, ReceiptPartView};
+    let parts = parts_of(o, header);
+    ReceiptLineView {
+        name: loc(&header.name_translations, &header.item_name, locale),
+        qty: header.quantity as i64,
+        size_label: None,
+        line_total_minor: parts.iter().map(|p| with_extras(p)).sum(),
+        reward_label: None,
+        staff_label: None,
+        staff_comp_minor: 0,
+        addons: vec![],
+        optionals: vec![],
+        kind: crate::menu::KIND_COMBO.to_string(),
+        unit_price_minor: header.combo_unit_price.unwrap_or(0) as i64,
+        parts: parts
+            .iter()
+            .map(|p| ReceiptPartView {
+                name: loc(&p.name_translations, &p.item_name, locale),
+                qty: p.quantity as i64,
+                size_label: p
+                    .size_label
+                    .clone()
+                    .filter(|s| !s.is_empty() && !crate::cart::is_one_size(s)),
+                slot_name: p.combo_slot_name.clone().filter(|s| !s.is_empty()),
+                surcharge_minor: p.combo_surcharge.unwrap_or(0) as i64,
+                addons: p
+                    .addons
+                    .iter()
+                    .map(|a| ReceiptModifierView {
+                        name: addon_label(&a.addon_name, &a.name_translations, a.quantity, locale),
+                        price_minor: a.line_total as i64,
+                    })
+                    .collect(),
+                optionals: p
+                    .optionals
+                    .iter()
+                    .map(|op| ReceiptModifierView {
+                        name: loc(&op.name_translations, &op.field_name, locale),
+                        price_minor: op.price as i64 * p.quantity.max(1) as i64,
+                    })
+                    .collect(),
+            })
+            .collect(),
+        deal_minor: 0,
+    }
+}
+
 /// Project a fetched order into a printable receipt (reprint from history) —
-/// the full breakdown (modifiers, bundle components, delivery block) so a
+/// the full breakdown (modifiers, delivery block) so a
 /// reprint is byte-identical to the original. `locale` localizes the address
 /// "Unit"/"Floor" prefixes.
 pub(crate) fn order_to_receipt(
     o: &models::OrderFull,
     locale: &str,
 ) -> crate::checkout::ReceiptView {
-    use crate::checkout::{ReceiptComponentView, ReceiptLineView, ReceiptModifierView};
+    use crate::checkout::{ReceiptLineView, ReceiptModifierView};
 
     let lines = o
         .items
         .iter()
+        // A combo's parts print under its header, not as lines of their own.
+        .filter(|it| line_kind(it) != "combo_part")
         .map(|it| {
+            if line_kind(it) == crate::menu::KIND_COMBO {
+                return combo_receipt_line(o, it, locale);
+            }
             let addons = it
                 .addons
                 .iter()
@@ -433,39 +538,6 @@ pub(crate) fn order_to_receipt(
                     price_minor: op.price as i64,
                 })
                 .collect();
-            let components = it
-                .bundle_components
-                .as_ref()
-                .map(|cs| {
-                    cs.iter()
-                        .map(|c| ReceiptComponentView {
-                            name: loc(&c.name_translations, &c.item_name, locale),
-                            size_label: c.size_label.clone().flatten().filter(|s| !s.is_empty()),
-                            addons: c
-                                .addons
-                                .iter()
-                                .map(|a| ReceiptModifierView {
-                                    name: addon_label(
-                                        &a.addon_name,
-                                        &a.name_translations,
-                                        a.quantity,
-                                        locale,
-                                    ),
-                                    price_minor: a.unit_price as i64 * a.quantity.max(1) as i64,
-                                })
-                                .collect(),
-                            optionals: c
-                                .optionals
-                                .iter()
-                                .map(|op| ReceiptModifierView {
-                                    name: loc(&op.name_translations, &op.field_name, locale),
-                                    price_minor: op.price as i64,
-                                })
-                                .collect(),
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
             // A staff drink: the stored figures are NET of the comp (contract
             // §3) — the size part is off `line_total`, each pick's part off
             // that pick's own row. The receipt prints the NORMAL price and
@@ -478,19 +550,27 @@ pub(crate) fn order_to_receipt(
             ReceiptLineView {
                 name: loc(&it.name_translations, &it.item_name, locale),
                 qty: it.quantity as i64,
-                size_label: it.size_label.clone().filter(|s| !s.is_empty()),
+                size_label: crate::cart::real_size(it.size_label.clone()),
                 line_total_minor: it.line_total as i64 + staff_on_size,
                 staff_label: (staff_comp > 0 || it.staff_drink_id.is_some())
                     .then(|| crate::i18n::tr(locale, "staff_pool.badge")),
                 staff_comp_minor: staff_comp,
-                is_bundle: it.bundle_id.is_some(),
                 reward_label: it.is_reward.unwrap_or(false).then(|| {
                     crate::loyalty::reward_label(it.reward_units.unwrap_or(0) as i64, locale)
                 }),
                 addons,
                 optionals,
-                components,
+                kind: crate::menu::KIND_ITEM.to_string(),
+                unit_price_minor: it.unit_price as i64,
+                parts: vec![],
+                deal_minor: it.deal_minor.unwrap_or(0).max(0) as i64,
             }
+        })
+        .map(|mut l| {
+            // The stored figure is net of the deal; the receipt prints the
+            // normal price and the deal as its own row under the subtotal.
+            l.line_total_minor += l.deal_minor;
+            l
         })
         .collect();
 
@@ -579,6 +659,15 @@ pub(crate) fn order_to_receipt(
         created_at: o.created_at.to_rfc3339(),
         // Only a SPLIT lists its legs; one leg is the payment line already.
         staff_notice: None,
+        deals: o
+            .deals
+            .iter()
+            .flatten()
+            .map(|d| crate::checkout::ReceiptDealView {
+                name: loc(&d.name_translations, &d.name, locale),
+                discount_minor: d.discount as i64,
+            })
+            .collect(),
         loyalty_notice: o
             .loyalty_redemption_refused
             .clone()
@@ -914,44 +1003,6 @@ mod tests {
         models::OrderItemOptional::new(field.into(), uid(4), serde_json::json!({}), uid(5), price)
     }
 
-    fn comp_addon(name: &str, qty: i32, unit_price: i32) -> models::OrderBundleComponentAddon {
-        models::OrderBundleComponentAddon::new(
-            uid(6),
-            name.into(),
-            uid(7),
-            uid(8),
-            unit_price * qty,
-            serde_json::json!({}),
-            uid(9),
-            qty,
-            unit_price,
-        )
-    }
-
-    fn comp_optional(field: &str, price: i32) -> models::OrderBundleComponentOptional {
-        models::OrderBundleComponentOptional::new(
-            uid(10),
-            field.into(),
-            uid(11),
-            serde_json::json!({}),
-            uid(12),
-            price,
-        )
-    }
-
-    fn bundle_component(name: &str, size: Option<&str>) -> models::OrderBundleComponentFull {
-        let mut c = models::OrderBundleComponentFull::new(
-            vec![],
-            uid(13),
-            name.into(),
-            serde_json::json!({}),
-            vec![],
-            1,
-        );
-        c.size_label = size.map(|s| Some(s.to_string()));
-        c
-    }
-
     fn item(name: &str, qty: i32, line_total: i32) -> models::OrderItemFull {
         models::OrderItemFull::new(
             false,
@@ -1023,6 +1074,177 @@ mod tests {
 
     fn delivery_info() -> models::OrderDeliveryInfo {
         models::OrderDeliveryInfo::new("outside".into(), "01000000000".into())
+    }
+
+    // ---- combos and deals (COMBOS_CONTRACT §3.2, C12, C13) ---------------
+
+    /// The worked example sold twice, as the server returns it: the header
+    /// (no money) first, then its parts in slot order, each at its share
+    /// plus its surcharge; then a croissant line in a deal (net of it).
+    fn combo_order() -> models::OrderFull {
+        let header_id = uid(100);
+        let mut header = item("Lunch deal", 2, 0);
+        header.id = header_id;
+        header.unit_price = 0;
+        header.line_kind = Some("combo".into());
+        header.combo_unit_price = Some(15000);
+        header.name_translations = serde_json::json!({ "ar": "وجبة الغداء" });
+        let part =
+            |id: u8, name: &str, slot: &str, size: Option<&str>, share: i32, surcharge: i32| {
+                let mut p = item(name, 2, share + surcharge);
+                p.id = uid(id);
+                p.line_kind = Some("combo_part".into());
+                p.combo_line_id = Some(header_id);
+                p.combo_slot_name = Some(slot.into());
+                p.combo_share = Some(share);
+                p.combo_surcharge = Some(surcharge);
+                p.size_label = size.map(str::to_string);
+                p
+            };
+        let burger = part(101, "Burger", "Main", Some("one_size"), 17142, 0);
+        let fries = part(102, "Fries", "Side", None, 5716, 0);
+        let mut latte = part(103, "Latte", "Drink", Some("Large"), 7142, 2000);
+        latte.addons = vec![addon("Oat milk", 1, 1500)];
+        latte.addons[0].line_total = 3000; // the pick's add-on for both combos
+        let mut croissant = item("Croissant", 2, 9000);
+        croissant.id = uid(104);
+        croissant.unit_price = 5500;
+        croissant.deal_minor = Some(2000);
+        let mut o = order_full(vec![header, burger, fries, latte, croissant]);
+        o.deals = Some(vec![models::OrderDeal::new(
+            uid(110),
+            2000,
+            uid(111),
+            vec![models::OrderDealLine::new(2000, uid(104), 2)],
+            "Any 2 bites for 90".into(),
+            serde_json::json!({ "ar": "أي قطعتين بـ 90" }),
+            1,
+        )]);
+        o
+    }
+
+    #[test]
+    fn a_reprint_rebuilds_the_combo_from_its_header_and_parts() {
+        let r = order_to_receipt(&combo_order(), "en");
+        assert_eq!(
+            r.lines.len(),
+            2,
+            "the parts print under their header, not as lines"
+        );
+        let c = &r.lines[0];
+        assert_eq!(
+            (c.kind.as_str(), c.name.as_str(), c.qty, c.unit_price_minor),
+            ("combo", "Lunch deal", 2, 15000)
+        );
+        assert_eq!(c.line_total_minor, 17142 + 5716 + 9142 + 3000);
+        let parts: Vec<(&str, i64, Option<&str>, Option<&str>, i64)> = c
+            .parts
+            .iter()
+            .map(|p| {
+                (
+                    p.name.as_str(),
+                    p.qty,
+                    p.size_label.as_deref(),
+                    p.slot_name.as_deref(),
+                    p.surcharge_minor,
+                )
+            })
+            .collect();
+        assert_eq!(
+            parts,
+            vec![
+                ("Burger", 2, None, Some("Main"), 0),
+                ("Fries", 2, None, Some("Side"), 0),
+                ("Latte", 2, Some("Large"), Some("Drink"), 2000),
+            ]
+        );
+        assert_eq!(c.parts[2].addons[0].price_minor, 3000);
+        // The plain line prints at its normal price; the deal is its own row.
+        assert_eq!(
+            (r.lines[1].line_total_minor, r.lines[1].deal_minor),
+            (11000, 2000)
+        );
+        assert_eq!(r.deals.len(), 1);
+        assert_eq!(
+            (r.deals[0].name.as_str(), r.deals[0].discount_minor),
+            ("Any 2 bites for 90", 2000)
+        );
+        // In Arabic, the frozen translations.
+        let ar = order_to_receipt(&combo_order(), "ar");
+        assert_eq!(ar.lines[0].name, "وجبة الغداء");
+        assert_eq!(ar.deals[0].name, "أي قطعتين بـ 90");
+    }
+
+    #[test]
+    fn the_order_detail_shows_the_header_with_its_parts_total() {
+        let v = order_detail_view(&combo_order(), "en");
+        let kinds: Vec<(&str, i64)> = v
+            .lines
+            .iter()
+            .map(|l| (l.kind.as_str(), l.line_total_minor))
+            .collect();
+        assert_eq!(
+            kinds,
+            vec![
+                ("combo", 35000),
+                ("combo_part", 17142),
+                ("combo_part", 5716),
+                ("combo_part", 9142),
+                ("item", 11000)
+            ]
+        );
+        assert_eq!(v.lines[1].size_label, None, "one_size is no size");
+    }
+
+    #[test]
+    fn a_combo_is_refunded_whole_from_its_header() {
+        let o = combo_order();
+        let none = OrderRefundsView {
+            order_id: o.id.to_string(),
+            order_status: "completed".into(),
+            total_minor: 0,
+            refunded_minor: 0,
+            refunded_cash_minor: 0,
+            refundable_remaining_minor: 0,
+            refunds: vec![],
+        };
+        let lines = refundable_lines(&o, &none, "en");
+        // C13: the header only (never a part), and the croissants.
+        assert_eq!(
+            lines
+                .iter()
+                .map(|l| (l.order_item_id.clone(), l.sold_qty, l.refundable_qty))
+                .collect::<Vec<_>>(),
+            vec![(uid(100).to_string(), 2, 2), (uid(104).to_string(), 2, 2)]
+        );
+        // One combo is its parts' money with add-ons, over the header's units.
+        assert_eq!(lines[0].unit_share_minor, (17142 + 5716 + 9142 + 3000) / 2);
+        // A line in a deal refunds at its net per-unit figure.
+        assert_eq!(lines[1].unit_share_minor, 4500);
+
+        // One combo already refunded (named by its header): one left.
+        let mut done = none.clone();
+        done.refunds = vec![RefundView {
+            id: "r".into(),
+            order_id: o.id.to_string(),
+            amount_minor: 17500,
+            method: "Cash".into(),
+            is_cash: true,
+            reason: "other".into(),
+            note: None,
+            issued_at: String::new(),
+            issued_by_name: String::new(),
+            lines: vec![RefundLineView {
+                order_item_id: uid(100).to_string(),
+                item_name: "Lunch deal".into(),
+                qty: 1,
+                amount_minor: 17500,
+                restocked: false,
+            }],
+            queued: false,
+        }];
+        let lines = refundable_lines(&o, &done, "en");
+        assert_eq!(lines[0].refundable_qty, 1);
     }
 
     // ---- order_detail_view ---------------------------------------------
@@ -1177,48 +1399,11 @@ mod tests {
         let r = order_to_receipt(&o, "en");
         let line = &r.lines[0];
         assert_eq!(line.size_label.as_deref(), Some("Large"));
-        assert!(!line.is_bundle);
         assert_eq!(line.addons[0].name, "Oat milk ×2");
         assert_eq!(line.addons[0].price_minor, 1000); // what it adds: unit 500 × 2
         assert_eq!(line.addons[1].name, "Caramel");
         assert_eq!(line.optionals[0].name, "No sugar");
         assert_eq!(line.optionals[1].price_minor, 700);
-        assert!(line.components.is_empty());
-    }
-
-    #[test]
-    fn receipt_bundle_line_components_composed() {
-        let mut it = item("Combo", 1, 9000);
-        it.bundle_id = Some(uid(50)); // → is_bundle
-        let mut c1 = bundle_component("Burger", Some("Large"));
-        c1.addons = vec![comp_addon("Cheese", 2, 300)];
-        c1.optionals = vec![comp_optional("No onion", 0)];
-        let mut c2 = bundle_component("Fries", Some(""));
-        c2.size_label = Some(Some(String::new())); // blank component size → None
-        it.bundle_components = Some(vec![c1, c2]);
-        let o = order_full(vec![it]);
-        let r = order_to_receipt(&o, "en");
-        let line = &r.lines[0];
-        assert!(line.is_bundle);
-        assert_eq!(line.components.len(), 2);
-        assert_eq!(line.components[0].name, "Burger");
-        assert_eq!(line.components[0].size_label.as_deref(), Some("Large"));
-        assert_eq!(line.components[0].addons[0].name, "Cheese ×2");
-        assert_eq!(line.components[0].addons[0].price_minor, 600);
-        assert_eq!(line.components[0].optionals[0].name, "No onion");
-        assert_eq!(line.components[1].name, "Fries");
-        assert_eq!(line.components[1].size_label, None); // blank filtered
-    }
-
-    #[test]
-    fn receipt_bundle_id_without_components_yields_empty_vec() {
-        let mut it = item("Combo", 1, 9000);
-        it.bundle_id = Some(uid(50));
-        // bundle_components None → components default to empty.
-        let o = order_full(vec![it]);
-        let r = order_to_receipt(&o, "en");
-        assert!(r.lines[0].is_bundle);
-        assert!(r.lines[0].components.is_empty());
     }
 
     #[test]

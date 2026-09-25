@@ -49,6 +49,9 @@ const _tablets = <(String, Size)>[
 
 /// The same line once the core has marked it: normal 4500, [charged] still due.
 CartLineView _marked({int charged = 0}) => CartLineView(
+  dealCutMinor: 0,
+  kind: 'item',
+  parts: const [],
   key: 'k-latte|staff:d1',
   itemId: 'latte',
   name: 'Latte',
@@ -57,7 +60,6 @@ CartLineView _marked({int charged = 0}) => CartLineView(
   unitPriceMinor: 4500,
   qty: 1,
   lineTotalMinor: 4500,
-  bundleComponents: const [],
   staffDrink: CartStaffDrinkView(
     id: 'd1',
     note: 'for Sara',
@@ -67,6 +69,9 @@ CartLineView _marked({int charged = 0}) => CartLineView(
 );
 
 CartLineView _line() => const CartLineView(
+  dealCutMinor: 0,
+  kind: 'item',
+  parts: [],
   key: 'k-latte',
   itemId: 'latte',
   name: 'Latte',
@@ -75,7 +80,6 @@ CartLineView _line() => const CartLineView(
   unitPriceMinor: 4500,
   qty: 1,
   lineTotalMinor: 4500,
-  bundleComponents: [],
 );
 
 StaffPoolDay _day({int allowance = 5, int used = 0}) => StaffPoolDay(

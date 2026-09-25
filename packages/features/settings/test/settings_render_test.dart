@@ -218,6 +218,7 @@ const _waiterOutbox = [
 
 TicketLineView _line(String name, int qty, int minor, int round) =>
     TicketLineView(
+      isCombo: false,
       id: '$name-$round',
       name: name,
       qty: qty,

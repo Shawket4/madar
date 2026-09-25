@@ -1,5 +1,5 @@
 name: feature_order
-description: Madar POS catalog grid, cart, held-orders strip, item/bundle sheets, waiter mode.
+description: Madar POS catalog grid, cart, held-orders strip, item sheet, waiter mode.
 version: 0.1.0
 publish_to: none
 resolution: workspace

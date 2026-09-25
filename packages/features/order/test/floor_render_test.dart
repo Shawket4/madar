@@ -129,6 +129,7 @@ final _layout = FloorLayoutView(
 
 TicketLineView _line(String name, int qty, int minor, int round, int ago) =>
     TicketLineView(
+      isCombo: false,
       id: '$name-$round',
       menuItemId: name,
       name: name,
@@ -261,7 +262,6 @@ class _Fake implements MadarBridge {
     }
     if (n == #listCategories) return Future<List<CategoryView>>.value([]);
     if (n == #listMenuItems) return Future<List<MenuItemView>>.value([]);
-    if (n == #availableBundles) return Future<List<BundleView>>.value([]);
     if (n == #decideDraftAct) {
       return const ActDecisionView(outcome: 'allow', reason: '');
     }

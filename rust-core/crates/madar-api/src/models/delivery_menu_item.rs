@@ -23,6 +23,14 @@ pub struct DeliveryMenuItem {
         skip_serializing_if = "Option::is_none"
     )]
     pub category_id: Option<Option<uuid::Uuid>>,
+    /// A kind=combo row: its slots with every choice priced for this channel (categories expanded to their available items). The server still prices the order.
+    #[serde(
+        rename = "combo",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub combo: Option<Option<Box<models::PublicCombo>>>,
     /// The item's base/default milk: the `milk_type` addon whose ingredient matches the item recipe's milk ingredient. The online customizer pre-selects it (mirrors the POS default-milk selection). `None` when the item has no milk in its recipe or no matching milk addon exists.
     #[serde(
         rename = "default_milk_addon_id",
@@ -47,6 +55,17 @@ pub struct DeliveryMenuItem {
         skip_serializing_if = "Option::is_none"
     )]
     pub image_url: Option<Option<String>>,
+    /// `item` | `combo` (combos module). Additive.
+    #[serde(rename = "kind")]
+    pub kind: String,
+    /// A kind=item row: its \"make it a meal\" upsell (C14), when that combo is on this menu.
+    #[serde(
+        rename = "meal",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub meal: Option<Option<Box<models::MealLink>>>,
     /// The item's modifier groups (unified model), channel-effective. Empty ⇒ the customizer falls back to `addons` + `allowed_addon_ids`.
     #[serde(rename = "modifier_groups")]
     pub modifier_groups: Vec<models::DeliveryModifierGroup>,
@@ -66,6 +85,7 @@ impl DeliveryMenuItem {
     pub fn new(
         allowed_addon_ids: Vec<uuid::Uuid>,
         id: uuid::Uuid,
+        kind: String,
         modifier_groups: Vec<models::DeliveryModifierGroup>,
         name: String,
         name_translations: serde_json::Value,
@@ -76,10 +96,13 @@ impl DeliveryMenuItem {
         DeliveryMenuItem {
             allowed_addon_ids,
             category_id: None,
+            combo: None,
             default_milk_addon_id: None,
             description: None,
             id,
             image_url: None,
+            kind,
+            meal: None,
             modifier_groups,
             name,
             name_translations,

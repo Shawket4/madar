@@ -40,6 +40,9 @@ pub struct MenuItemWithCosts {
     pub image_url: Option<String>,
     #[serde(rename = "is_active")]
     pub is_active: bool,
+    /// `item` | `combo` (combos module). A combo's price is its `one_size` row like any item; its slots are on `GET /combos/{id}`. Additive.
+    #[serde(rename = "kind", skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
     #[serde(rename = "name")]
     pub name: String,
     #[serde(rename = "name_translations")]
@@ -78,6 +81,7 @@ impl MenuItemWithCosts {
             image: None,
             image_url: None,
             is_active,
+            kind: None,
             name,
             name_translations,
             org_id,

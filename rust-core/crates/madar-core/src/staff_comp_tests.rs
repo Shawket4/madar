@@ -176,7 +176,7 @@ async fn marking_a_line_prices_it_by_the_rule_and_spends_nothing() {
 }
 
 #[tokio::test]
-async fn a_blank_note_a_bundle_and_a_table_cart_are_refused() {
+async fn a_blank_note_an_ineligible_item_and_a_table_cart_are_refused() {
     let core = testkit::offline_core("http://127.0.0.1:1", "").await;
     seed(&core, 5);
     let key = add_latte(&core, "Small", &[SYRUP_VANILLA], 1);
@@ -420,8 +420,8 @@ async fn tax_and_the_order_discount_see_the_charged_part_only() {
     // The same figures through the engine directly: a wholly free line.
     let b = crate::pricing::price_cart(crate::pricing::PriceCartInput {
         lines: vec![crate::pricing::CartLine {
-            quantity: 2, unit_price: 3000, is_bundle: false, reward_units: 0, staff_comp_minor: 99_999,
-            addons: vec![], optionals: vec![], bundle_components: vec![],
+            quantity: 2, unit_price: 3000, reward_units: 0, staff_comp_minor: 99_999, deal_minor: 0,
+            addons: vec![], optionals: vec![],
         }],
         discount_kind: crate::pricing::DiscountKind::None, discount_value: 0.0, tax_rate: 0.14, tax_inclusive: false,
         service_charge_rate: 0.0, service_charge_taxable: false, amount_tendered: None, cash_tip: 0,

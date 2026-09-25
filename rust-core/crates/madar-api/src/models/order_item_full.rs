@@ -13,13 +13,30 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OrderItemFull {
-    #[serde(rename = "bundle_id", skip_serializing_if = "Option::is_none")]
-    pub bundle_id: Option<uuid::Uuid>,
-    #[serde(rename = "bundle_unit_price", skip_serializing_if = "Option::is_none")]
-    pub bundle_unit_price: Option<i32>,
+    /// A part: its header's `id`.
+    #[serde(rename = "combo_line_id", skip_serializing_if = "Option::is_none")]
+    pub combo_line_id: Option<uuid::Uuid>,
+    /// A part: its share of the combo price, whole line.
+    #[serde(rename = "combo_share", skip_serializing_if = "Option::is_none")]
+    pub combo_share: Option<i32>,
+    /// A part: the slot it filled (soft: the slot may be gone since).
+    #[serde(rename = "combo_slot_id", skip_serializing_if = "Option::is_none")]
+    pub combo_slot_id: Option<uuid::Uuid>,
+    /// A part: the slot's name at the sale.
+    #[serde(rename = "combo_slot_name", skip_serializing_if = "Option::is_none")]
+    pub combo_slot_name: Option<String>,
+    /// A part: its choice and size surcharges, whole line.
+    #[serde(rename = "combo_surcharge", skip_serializing_if = "Option::is_none")]
+    pub combo_surcharge: Option<i32>,
+    /// A header: P per combo unit, as charged.
+    #[serde(rename = "combo_unit_price", skip_serializing_if = "Option::is_none")]
+    pub combo_unit_price: Option<i32>,
     /// True when any cost component could not be resolved.
     #[serde(rename = "cost_missing")]
     pub cost_missing: bool,
+    /// A plain line: what an applied deal took off it, already out of `line_total` (print it as a line discount, never subtract it again).
+    #[serde(rename = "deal_minor", skip_serializing_if = "Option::is_none")]
+    pub deal_minor: Option<i32>,
     #[serde(
         rename = "deductions_snapshot",
         deserialize_with = "Option::deserialize"
@@ -32,9 +49,12 @@ pub struct OrderItemFull {
     pub is_reward: Option<bool>,
     #[serde(rename = "item_name")]
     pub item_name: String,
-    /// Full line COGS in piastres (recipe + addons + optionals + components). `null` ⟺ unknown.
+    /// Full line COGS in piastres (recipe + addons + optionals). `null` ⟺ unknown.
     #[serde(rename = "line_cost", skip_serializing_if = "Option::is_none")]
     pub line_cost: Option<i64>,
+    /// Combos (additive). `item` = a plain line; `combo` = a combo's HEADER (its `menu_item_id` is the combo; it carries no money: `unit_price` and `line_total` are 0, P is in `combo_unit_price`); `combo_part` = one chosen item of a combo, a real line of that item whose `line_total` is `combo_share + combo_surcharge` and whose `unit_price` stays the item's normal price at its size. Lines come header first, then its parts in slot order.
+    #[serde(rename = "line_kind", skip_serializing_if = "Option::is_none")]
+    pub line_kind: Option<String>,
     #[serde(rename = "line_total")]
     pub line_total: i32,
     #[serde(rename = "menu_item_id", skip_serializing_if = "Option::is_none")]
@@ -61,15 +81,13 @@ pub struct OrderItemFull {
     /// The `staff_drinks` row this line is (`GET /staff-pool/drinks`).
     #[serde(rename = "staff_drink_id", skip_serializing_if = "Option::is_none")]
     pub staff_drink_id: Option<uuid::Uuid>,
-    /// Recipe-only cost per unit in piastres (incl. swaps). `null` ⟺ unknown or bundle line.
+    /// Recipe-only cost per unit in piastres (incl. swaps). `null` ⟺ unknown.
     #[serde(rename = "unit_cost", skip_serializing_if = "Option::is_none")]
     pub unit_cost: Option<i64>,
     #[serde(rename = "unit_price")]
     pub unit_price: i32,
     #[serde(rename = "addons")]
     pub addons: Vec<models::OrderItemAddon>,
-    #[serde(rename = "bundle_components", skip_serializing_if = "Option::is_none")]
-    pub bundle_components: Option<Vec<models::OrderBundleComponentFull>>,
     #[serde(rename = "optionals")]
     pub optionals: Vec<models::OrderItemOptional>,
 }
@@ -89,14 +107,20 @@ impl OrderItemFull {
         optionals: Vec<models::OrderItemOptional>,
     ) -> OrderItemFull {
         OrderItemFull {
-            bundle_id: None,
-            bundle_unit_price: None,
+            combo_line_id: None,
+            combo_share: None,
+            combo_slot_id: None,
+            combo_slot_name: None,
+            combo_surcharge: None,
+            combo_unit_price: None,
             cost_missing,
+            deal_minor: None,
             deductions_snapshot,
             id,
             is_reward: None,
             item_name,
             line_cost: None,
+            line_kind: None,
             line_total,
             menu_item_id: None,
             name_translations,
@@ -111,7 +135,6 @@ impl OrderItemFull {
             unit_cost: None,
             unit_price,
             addons,
-            bundle_components: None,
             optionals,
         }
     }

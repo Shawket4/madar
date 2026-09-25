@@ -234,6 +234,7 @@ mod tests {
             optional_fields: optionals,
             recipes,
             recipe_steps: vec![],
+            kind: "item".into(),
         }
     }
 

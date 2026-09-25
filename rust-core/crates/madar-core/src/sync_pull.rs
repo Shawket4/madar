@@ -453,6 +453,21 @@ pub(crate) const ALL_TYPES: &[&str] = SYNCED_TYPES;
 /// is applied when a server sends it, but a server that predates it still
 /// completes — a till never waits on the customer list to open.
 pub(crate) const REQUIRED_TYPES: &[&str] = madar_sync::REQUIRED_TYPES;
+/// Types this client no longer reads. `bundle` (combos, removed 2026-09): the
+/// server still lists it with no rows so older tills complete their snapshot,
+/// and madar-shared v0.4.0 still names it required. This client stores what
+/// arrives like any other row and never reads it, and does not wait for it: a
+/// server that stops sending it still completes a snapshot here.
+pub(crate) const RETIRED_TYPES: &[&str] = &["bundle"];
+
+/// Whether a snapshot covering `covered` is complete: every required type
+/// except the retired ones.
+pub(crate) fn covers_required(covered: &[String]) -> bool {
+    REQUIRED_TYPES
+        .iter()
+        .filter(|t| !RETIRED_TYPES.contains(t))
+        .all(|t| covered.iter().any(|x| x == t))
+}
 /// Ledger types: never checksummed; replaced only inside the full snapshot's window.
 /// `staff_drink` included: it is sent inside the 48 h window and paged with the
 /// other ledger rows, so a snapshot page missing a drink says nothing about it.
@@ -774,7 +789,7 @@ pub(crate) fn apply_page_with(
                 }
                 None => types.clone(),
             };
-            let all = REQUIRED_TYPES.iter().all(|t| covered.iter().any(|x| x == t));
+            let all = covers_required(&covered);
             let last_page = paging.is_none() || !resp.has_more;
             if move_cursor && all && last_page {
                 if let Some(next) = next {
@@ -1347,6 +1362,24 @@ impl MadarCore {
                 .collect();
             if let Ok(raw) = serde_json::to_string(&addons) {
                 let _ = store.kv_put(crate::menu::K_ADDONS, &raw);
+                self.invalidate_catalog_cache();
+            }
+        }
+        // The branch's deal rules (COMBOS_CONTRACT §5), in the `DealRule`
+        // shape the rows already carry (branch-resolved `is_active`, the
+        // channel switches in `sell`), once the server sends the type.
+        if feed_has_type(store, branch, "deal_rule") {
+            let deals: Vec<serde_json::Value> = rows_of_type(store, branch, "deal_rule")
+                .into_iter()
+                .map(|mut d| {
+                    if let Some(m) = d.as_object_mut() {
+                        m.remove("seq");
+                    }
+                    d
+                })
+                .collect();
+            if let Ok(raw) = serde_json::to_string(&deals) {
+                let _ = store.kv_put(crate::menu::K_DEALS, &raw);
                 self.invalidate_catalog_cache();
             }
         }
@@ -1969,6 +2002,25 @@ mod tests {
         let all = full(ALL_TYPES, vec![], 40);
         apply_page(&store, B, &all, &Protected::new(), true).unwrap();
         assert_eq!(cursor(&store).as_deref(), Some("40"));
+    }
+
+    /// Combos were removed (2026-09). The server still lists `bundle` with no
+    /// rows, and a snapshot that carries it (empty, or with a row an older
+    /// server projected) applies without error. A server that stops listing
+    /// it still completes the snapshot and moves the cursor.
+    #[test]
+    fn the_retired_bundle_type_is_ignored_and_never_required() {
+        let store = Store::open("").unwrap();
+        let with_empty = full(ALL_TYPES, vec![], 40);
+        apply_page(&store, B, &with_empty, &Protected::new(), true).unwrap();
+        assert_eq!(cursor(&store).as_deref(), Some("40"));
+        let with_row = full(ALL_TYPES, vec![("bundle", serde_json::json!({"id":"b1","seq":41,"name":"Combo"}))], 41);
+        apply_page(&store, B, &with_row, &Protected::new(), true).unwrap();
+        assert_eq!(cursor(&store).as_deref(), Some("41"));
+        let without: Vec<&str> = ALL_TYPES.iter().copied().filter(|t| *t != "bundle").collect();
+        apply_page(&store, B, &full(&without, vec![], 50), &Protected::new(), true).unwrap();
+        assert_eq!(cursor(&store).as_deref(), Some("50"), "no longer waits for bundle");
+        assert!(!covers_required(&["bundle".to_string()]));
     }
 
     #[test]

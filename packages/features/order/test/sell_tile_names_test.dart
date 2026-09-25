@@ -33,6 +33,7 @@ const _names = [
 ];
 
 MenuItemView _item(String name, int i) => MenuItemView(
+  kind: 'item',
   id: 'i$i',
   name: name,
   basePriceMinor: 4500 + i * 1250,

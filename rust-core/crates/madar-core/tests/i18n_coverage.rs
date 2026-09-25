@@ -91,10 +91,12 @@ fn every_en_key_has_an_ar_translation() {
 fn every_ar_key_has_an_en_translation() {
     let en = en_keys();
     let ar = ar_keys();
-    // Arabic has more plural forms than English: `<key>_two`, `<key>_few`
-    // (3–10) and `<key>_many` (11–99) live only in AR, next to a key EN has.
+    // Arabic has more plural forms than English: `<key>_zero`, `<key>_two`,
+    // `<key>_few` (3–10) and `<key>_many` (11–99) live only in AR, next to a
+    // key EN has (i18n.rs PLURAL FORMS; the inline
+    // `ar_has_no_orphan_keys_absent_from_en` allows the same).
     let arabic_only_plural = |k: &str| {
-        ["_two", "_few", "_many"]
+        ["_zero", "_two", "_few", "_many"]
             .iter()
             .any(|s| k.strip_suffix(s).is_some_and(|base| en.contains(base)))
     };

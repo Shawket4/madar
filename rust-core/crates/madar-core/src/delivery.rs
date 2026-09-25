@@ -248,6 +248,7 @@ fn project_line(l: &serde_json::Value) -> crate::tickets::TicketLineView {
         // own clock, which the caller already shows above the list.
         round_number: 1,
         round_fired_at: String::new(),
+        is_combo: false,
     }
 }
 

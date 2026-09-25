@@ -6,10 +6,13 @@ Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**apply_rules**](MenuApi.md#apply_rules) | **POST** /packaging-rules/apply | 
 [**catalog_sync**](MenuApi.md#catalog_sync) | **GET** /catalog/sync | 
+[**combo_economics**](MenuApi.md#combo_economics) | **POST** /combos/economics | 
 [**create_addon_item**](MenuApi.md#create_addon_item) | **POST** /addon-items | 
 [**create_addon_slot**](MenuApi.md#create_addon_slot) | **POST** /menu-items/{id}/addon-slots | 
 [**create_base**](MenuApi.md#create_base) | **POST** /recipe-bases | 
 [**create_category**](MenuApi.md#create_category) | **POST** /categories | 
+[**create_combo**](MenuApi.md#create_combo) | **POST** /combos | 
+[**create_deal**](MenuApi.md#create_deal) | **POST** /deals | 
 [**create_group**](MenuApi.md#create_group) | **POST** /modifier-groups | 
 [**create_menu_item**](MenuApi.md#create_menu_item) | **POST** /menu-items | 
 [**create_option**](MenuApi.md#create_option) | **POST** /modifier-groups/{gid}/options | 
@@ -20,8 +23,11 @@ Method | HTTP request | Description
 [**delete_addon_slot**](MenuApi.md#delete_addon_slot) | **DELETE** /menu-items/{id}/addon-slots/{slot_id} | 
 [**delete_base**](MenuApi.md#delete_base) | **DELETE** /recipe-bases/{id} | 
 [**delete_branch_addon_override**](MenuApi.md#delete_branch_addon_override) | **DELETE** /branch-addon-overrides | 
+[**delete_branch_channels**](MenuApi.md#delete_branch_channels) | **DELETE** /settings/combos/branches/{branch_id} | 
 [**delete_branch_menu_override**](MenuApi.md#delete_branch_menu_override) | **DELETE** /branch-menu-overrides | 
 [**delete_category**](MenuApi.md#delete_category) | **DELETE** /categories/{id} | 
+[**delete_deal**](MenuApi.md#delete_deal) | **DELETE** /deals/{id} | 
+[**delete_deal_branch**](MenuApi.md#delete_deal_branch) | **DELETE** /deals/{id}/branches/{branch_id} | 
 [**delete_group**](MenuApi.md#delete_group) | **DELETE** /modifier-groups/{gid} | 
 [**delete_menu_item**](MenuApi.md#delete_menu_item) | **DELETE** /menu-items/{id} | 
 [**delete_option**](MenuApi.md#delete_option) | **DELETE** /modifier-options/{oid} | 
@@ -33,11 +39,13 @@ Method | HTTP request | Description
 [**duplicate_item**](MenuApi.md#duplicate_item) | **POST** /menu-items/{id}/duplicate | 
 [**get_base**](MenuApi.md#get_base) | **GET** /recipe-bases/{id} | 
 [**get_base_usage**](MenuApi.md#get_base_usage) | **GET** /recipe-bases/{id}/usage | 
+[**get_combo**](MenuApi.md#get_combo) | **GET** /combos/{id} | 
 [**get_group_usage**](MenuApi.md#get_group_usage) | **GET** /modifier-groups/{gid}/usage | 
 [**get_item_cost**](MenuApi.md#get_item_cost) | **GET** /menu-items/{id}/cost | 
 [**get_menu_item**](MenuApi.md#get_menu_item) | **GET** /menu-items/{id} | 
 [**get_menu_lint**](MenuApi.md#get_menu_lint) | **GET** /menu/lint | 
 [**get_recipe_link**](MenuApi.md#get_recipe_link) | **GET** /menu-items/{id}/recipe-link | 
+[**get_settings**](MenuApi.md#get_settings) | **GET** /settings/combos | 
 [**get_studio**](MenuApi.md#get_studio) | **GET** /menu-items/{id}/studio | 
 [**list_addon_catalog**](MenuApi.md#list_addon_catalog) | **GET** /addon-items/catalog | 
 [**list_addon_items**](MenuApi.md#list_addon_items) | **GET** /addon-items | 
@@ -47,6 +55,8 @@ Method | HTTP request | Description
 [**list_branch_addon_overrides**](MenuApi.md#list_branch_addon_overrides) | **GET** /branch-addon-overrides | 
 [**list_branch_menu_overrides**](MenuApi.md#list_branch_menu_overrides) | **GET** /branch-menu-overrides | 
 [**list_categories**](MenuApi.md#list_categories) | **GET** /categories | 
+[**list_combos**](MenuApi.md#list_combos) | **GET** /combos | 
+[**list_deals**](MenuApi.md#list_deals) | **GET** /deals | 
 [**list_groups**](MenuApi.md#list_groups) | **GET** /modifier-groups | 
 [**list_menu_catalog**](MenuApi.md#list_menu_catalog) | **GET** /costing/catalog | 
 [**list_menu_items**](MenuApi.md#list_menu_items) | **GET** /menu-items | 
@@ -59,10 +69,14 @@ Method | HTTP request | Description
 [**preview_menu_item**](MenuApi.md#preview_menu_item) | **POST** /menu-items/{id}/preview | 
 [**put_allowed_addons**](MenuApi.md#put_allowed_addons) | **PUT** /menu-items/{id}/allowed-addons | 
 [**put_base_lines**](MenuApi.md#put_base_lines) | **PUT** /recipe-bases/{id}/lines | 
+[**put_branch_channels**](MenuApi.md#put_branch_channels) | **PUT** /settings/combos/branches/{branch_id} | 
+[**put_deal_branch**](MenuApi.md#put_deal_branch) | **PUT** /deals/{id}/branches/{branch_id} | 
 [**put_item_options**](MenuApi.md#put_item_options) | **PUT** /menu-items/{id}/options | 
+[**put_meal**](MenuApi.md#put_meal) | **PUT** /menu-items/{id}/meal | 
 [**put_modifier_groups**](MenuApi.md#put_modifier_groups) | **PUT** /menu-items/{id}/modifier-groups | 
 [**put_option_recipe**](MenuApi.md#put_option_recipe) | **PUT** /modifier-options/{oid}/recipe | 
 [**put_price_override**](MenuApi.md#put_price_override) | **PUT** /menu-price-overrides | 
+[**put_settings**](MenuApi.md#put_settings) | **PUT** /settings/combos | 
 [**put_size_base**](MenuApi.md#put_size_base) | **PUT** /menu-item-sizes/{size_id}/base | 
 [**put_size_recipe**](MenuApi.md#put_size_recipe) | **PUT** /menu-item-sizes/{size_id}/recipe | 
 [**put_sizes**](MenuApi.md#put_sizes) | **PUT** /menu-items/{id}/sizes | 
@@ -70,6 +84,8 @@ Method | HTTP request | Description
 [**update_addon_item**](MenuApi.md#update_addon_item) | **PATCH** /addon-items/{id} | 
 [**update_addon_slot**](MenuApi.md#update_addon_slot) | **PATCH** /menu-items/{id}/addon-slots/{slot_id} | 
 [**update_category**](MenuApi.md#update_category) | **PATCH** /categories/{id} | 
+[**update_combo**](MenuApi.md#update_combo) | **PUT** /combos/{id} | 
+[**update_deal**](MenuApi.md#update_deal) | **PUT** /deals/{id} | 
 [**update_menu_item**](MenuApi.md#update_menu_item) | **PATCH** /menu-items/{id} | 
 [**update_optional_field**](MenuApi.md#update_optional_field) | **PATCH** /menu-items/{id}/optionals/{field_id} | 
 [**upsert_addon_override**](MenuApi.md#upsert_addon_override) | **POST** /menu-items/{id}/overrides | 
@@ -129,6 +145,34 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## combo_economics
+
+> models::ComboEconomics combo_economics(combo_economics_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**combo_economics_request** | [**ComboEconomicsRequest**](ComboEconomicsRequest.md) |  | [required] |
+
+### Return type
+
+[**models::ComboEconomics**](ComboEconomics.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
@@ -234,6 +278,62 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::Category**](Category.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## create_combo
+
+> models::Combo create_combo(combo_write)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**combo_write** | [**ComboWrite**](ComboWrite.md) |  | [required] |
+
+### Return type
+
+[**models::Combo**](Combo.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## create_deal
+
+> models::DealRule create_deal(deal_write)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**deal_write** | [**DealWrite**](DealWrite.md) |  | [required] |
+
+### Return type
+
+[**models::DealRule**](DealRule.md)
 
 ### Authorization
 
@@ -532,6 +632,34 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## delete_branch_channels
+
+> delete_branch_channels(branch_id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**branch_id** | **uuid::Uuid** | Branch ID | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## delete_branch_menu_override
 
 > delete_branch_menu_override(branch_id, menu_item_id)
@@ -572,6 +700,63 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **id** | **uuid::Uuid** | Category ID | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## delete_deal
+
+> delete_deal(id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Deal rule ID | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## delete_deal_branch
+
+> delete_deal_branch(id, branch_id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Deal rule ID | [required] |
+**branch_id** | **uuid::Uuid** | Branch ID | [required] |
 
 ### Return type
 
@@ -899,6 +1084,35 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## get_combo
+
+> models::Combo get_combo(id, branch_id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | The combo's menu item id | [required] |
+**branch_id** | Option<**uuid::Uuid**> | Price the economics for this branch; omitted = the org's catalogue. |  |
+
+### Return type
+
+[**models::Combo**](Combo.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## get_group_usage
 
 > Vec<models::GroupUsageItem> get_group_usage(gid)
@@ -1027,6 +1241,31 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::RecipeLinkInfo**](RecipeLinkInfo.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## get_settings
+
+> models::ComboSettings get_settings()
+
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**models::ComboSettings**](ComboSettings.md)
 
 ### Authorization
 
@@ -1288,6 +1527,66 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::Category>**](Category.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## list_combos
+
+> models::PaginatedCombos list_combos(q, category_id, is_active, page, per_page)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**q** | Option<**String**> | Name search (EN or AR). |  |
+**category_id** | Option<**uuid::Uuid**> |  |  |
+**is_active** | Option<**bool**> |  |  |
+**page** | Option<**i64**> |  |  |
+**per_page** | Option<**i64**> |  |  |
+
+### Return type
+
+[**models::PaginatedCombos**](PaginatedCombos.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## list_deals
+
+> Vec<models::DealRule> list_deals(is_active)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**is_active** | Option<**bool**> |  |  |
+
+### Return type
+
+[**Vec<models::DealRule>**](DealRule.md)
 
 ### Authorization
 
@@ -1653,6 +1952,65 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## put_branch_channels
+
+> put_branch_channels(branch_id, channel_override)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**branch_id** | **uuid::Uuid** | Branch ID | [required] |
+**channel_override** | [**ChannelOverride**](ChannelOverride.md) |  | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## put_deal_branch
+
+> put_deal_branch(id, branch_id, deal_branch_write)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Deal rule ID | [required] |
+**branch_id** | **uuid::Uuid** | Branch ID | [required] |
+**deal_branch_write** | [**DealBranchWrite**](DealBranchWrite.md) |  | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## put_item_options
 
 > Vec<models::ItemOptionOut> put_item_options(id, put_item_options_request)
@@ -1669,6 +2027,35 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::ItemOptionOut>**](ItemOptionOut.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## put_meal
+
+> put_meal(id, meal_link_write)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | A kind=item menu item | [required] |
+**meal_link_write** | [**MealLinkWrite**](MealLinkWrite.md) |  | [required] |
+
+### Return type
+
+ (empty response body)
 
 ### Authorization
 
@@ -1755,6 +2142,34 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::PriceOverrideOut**](PriceOverrideOut.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## put_settings
+
+> models::ComboSettings put_settings(combo_settings_write)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**combo_settings_write** | [**ComboSettingsWrite**](ComboSettingsWrite.md) |  | [required] |
+
+### Return type
+
+[**models::ComboSettings**](ComboSettings.md)
 
 ### Authorization
 
@@ -1958,6 +2373,64 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::Category**](Category.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## update_combo
+
+> models::Combo update_combo(id, combo_write)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | The combo's menu item id | [required] |
+**combo_write** | [**ComboWrite**](ComboWrite.md) |  | [required] |
+
+### Return type
+
+[**models::Combo**](Combo.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## update_deal
+
+> models::DealRule update_deal(id, deal_write)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Deal rule ID | [required] |
+**deal_write** | [**DealWrite**](DealWrite.md) |  | [required] |
+
+### Return type
+
+[**models::DealRule**](DealRule.md)
 
 ### Authorization
 

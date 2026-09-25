@@ -86,6 +86,8 @@ pub struct _TicketLineView {
     /// Which visit to the table this line arrived on, and when (RFC3339).
     pub round_number: i32,
     pub round_fired_at: String,
+    /// A combo line (no reward is taken on it).
+    pub is_combo: bool,
 }
 
 impl MadarBridge {

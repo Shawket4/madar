@@ -77,6 +77,39 @@ impl PricingMirror {
     }
 }
 
+/// The rule's view of a combo at this branch (COMBOS_CONTRACT §6): its price
+/// P is the combo row's own price as a sizeless line costs it (the branch's
+/// price, else its `one_size`), and its slots and windows are the row's.
+pub(crate) fn combo_view_for(
+    def: &menu::ComboDef,
+    combo_item: &MenuItemView,
+    pricing: &PricingMirror,
+) -> madar_catalog::combo::ComboView {
+    let view = pricing.view_for(combo_item, &[]);
+    let price =
+        madar_catalog::unit_price(&view.item, None).unwrap_or(combo_item.base_price_minor);
+    madar_catalog::combo::ComboView {
+        id: def.id.clone(),
+        price,
+        is_active: def.is_active && combo_item.is_active,
+        slots: def
+            .slots
+            .iter()
+            .map(|s| madar_catalog::combo::SlotView {
+                id: s.id.clone(),
+                name: s.name.clone(),
+                sort: s.sort,
+                min: s.min,
+                max: s.max,
+                default_item_id: s.default_item_id.clone(),
+                default_size_label: s.default_size_label.clone(),
+                choices: s.choices.clone(),
+            })
+            .collect(),
+        windows: def.windows.clone(),
+    }
+}
+
 /// An option from the legacy `/addon-items` fields: its type, price and
 /// ingredient lines (no group: the swap family is the type's).
 pub(crate) fn legacy_option(a: &AddonItemView) -> OptionView {
@@ -257,7 +290,7 @@ mod tests {
     //! through this device's mirror: the feed rows go into the kv mirror the
     //! catalogue refresh writes, and the cart prices every case from there.
     use super::*;
-    use crate::cart::{self, AddonSelection, BundleComponentSelection};
+    use crate::cart::{self, AddonSelection};
     use madar_catalog::vectors::{Expected, Vectors};
     use serde_json::json;
 
@@ -377,45 +410,9 @@ mod tests {
                 .iter()
                 .all(|p| addons.iter().any(|a| a.id == p.id));
             let size = case.selection.size_label.clone();
+            // A combo component's pricing (madar-catalog v0.4.0 still has
+            // those cases): combos were removed, so the till never prices one.
             if case.part == "component" {
-                let bundle = menu::BundleView {
-                    id: "b".into(),
-                    name: "b".into(),
-                    description: None,
-                    price_minor: 0,
-                    image_url: None,
-                    local_image_path: None,
-                    is_available: true,
-                    available_from_date: None,
-                    available_until_date: None,
-                    available_from_time: None,
-                    available_until_time: None,
-                    components: vec![],
-                };
-                let line = cart::resolve_bundle_line(
-                    &bundle,
-                    &items,
-                    &addons,
-                    &pricing,
-                    &[BundleComponentSelection {
-                        item_id: item.id.clone(),
-                        size_label: size,
-                        qty: 1,
-                        addons: sels,
-                        optional_field_ids: case.selection.optionals.clone(),
-                    }],
-                    1,
-                );
-                let line = serde_json::to_value(&line).unwrap();
-                let comp = &line["bundle_components"][0];
-                let Expected::Component(p) = &case.expected else {
-                    panic!("{}: {:?}", case.name, case.expected)
-                };
-                assert!(offered, "{}", case.name);
-                let (a, o) = expected_options(p);
-                assert_eq!(priced_addons(&comp["addons"]), a, "{}", case.name);
-                assert_eq!(priced_optionals(&comp["optionals"]), o, "{}", case.name);
-                checked += 1;
                 continue;
             }
             let line = cart::resolve_line(
@@ -478,7 +475,6 @@ mod tests {
                         case.name
                     );
                 }
-                other => panic!("{}: {other:?}", case.name),
             }
         }
         assert!(checked >= 45, "only {checked} cases priced end to end");

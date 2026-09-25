@@ -43,6 +43,7 @@ TicketLineView _line(
   String? size,
   List<String> mods = const [],
 }) => TicketLineView(
+  isCombo: false,
   id: '$name-$round',
   name: name,
   qty: qty,

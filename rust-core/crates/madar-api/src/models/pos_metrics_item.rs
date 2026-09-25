@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PosMetricsItem {
-    /// The menu item or bundle; null for a line with neither.
+    /// The menu item; null for a line with none.
     #[serde(
         rename = "item_id",
         default,

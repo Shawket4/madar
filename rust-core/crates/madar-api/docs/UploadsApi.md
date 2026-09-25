@@ -4,39 +4,9 @@ All URIs are relative to *http://localhost:8080*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
-[**upload_bundle_image**](UploadsApi.md#upload_bundle_image) | **POST** /uploads/bundles/{bundle_id} | 
 [**upload_category_image**](UploadsApi.md#upload_category_image) | **POST** /uploads/categories/{category_id} | 
 [**upload_menu_item_image**](UploadsApi.md#upload_menu_item_image) | **POST** /uploads/menu-items/{menu_item_id} | 
 
-
-
-## upload_bundle_image
-
-> models::UploadResponse upload_bundle_image(bundle_id, image)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**bundle_id** | **uuid::Uuid** | Bundle ID | [required] |
-**image** | **std::path::PathBuf** | Image file (JPEG, PNG, WebP, GIF still, BMP). Type is sniffed from bytes. | [required] |
-
-### Return type
-
-[**models::UploadResponse**](UploadResponse.md)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: multipart/form-data
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
 ## upload_category_image

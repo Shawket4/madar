@@ -46,7 +46,7 @@ pub(crate) const K_KITCHEN_NOTES: &str = "cart:kitchen_notes";
 /// kitchen-chit only, cleared when the whole-cart chit prints.
 pub(crate) const K_KITCHEN_NOTE: &str = "cart:kitchen_note";
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 struct StoredAddon {
     addon_item_id: String,
     name: String,
@@ -55,31 +55,15 @@ struct StoredAddon {
     qty: i64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 struct StoredOptional {
     optional_field_id: String,
     name: String,
     price_minor: i64,
 }
 
-/// One configured component inside a bundle line. The component's base/size price
-/// is NEVER charged (the bundle's fixed price covers it); only its addons +
-/// optionals add money. Mirrors Flutter's `BundleComponentSnapshot`.
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct StoredBundleComponent {
-    item_id: String,
-    name: String,
-    qty: i64,
-    size_label: Option<String>,
-    addons: Vec<StoredAddon>,
-    optionals: Vec<StoredOptional>,
-}
-
 /// The persisted cart line. New modifier fields default in (forward-compatible).
-/// Opaque to callers — only `resolve_line`/`resolve_bundle_line`/`add_resolved`
-/// construct/consume it. A bundle line sets `bundle_id` + `bundle_components`,
-/// `unit_price_minor` = the fixed bundle price, and leaves its own
-/// `addons`/`optionals` empty (component extras carry the up-charges).
+/// Opaque to callers — only `resolve_line`/`add_resolved` construct/consume it.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct StoredLine {
     item_id: String,
@@ -95,14 +79,98 @@ pub(crate) struct StoredLine {
     optionals: Vec<StoredOptional>,
     #[serde(default)]
     notes: Option<String>,
-    #[serde(default)]
-    bundle_id: Option<String>,
-    #[serde(default)]
-    bundle_components: Vec<StoredBundleComponent>,
     /// The line is a STAFF DRINK (see [`StoredStaffMark`]). Rides the stored
     /// line, so it survives a restart with the cart.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     staff_drink: Option<StoredStaffMark>,
+    /// A COMBO line (COMBOS_CONTRACT §6): `item_id`/`name` are the combo's,
+    /// `unit_price_minor` is its price P, `qty` the combo units, and the picks
+    /// carry the money as charged (the shares of P, the surcharges, the
+    /// add-ons at their normal prices). A combo line has no add-ons of its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    combo: Option<StoredCombo>,
+    /// What applied deals take off this WHOLE line (`deals.rs`); 0 = none.
+    /// Kept beside the line so the view and the bill stay pure functions of
+    /// the stored lines; `deals::settle` rewrites it whenever the cart moves.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    deal_cut: i64,
+    /// The name of the deal that took `deal_cut` (the last applied).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    deal_name: Option<String>,
+}
+
+fn is_zero(v: &i64) -> bool {
+    *v == 0
+}
+
+/// A combo line's picks, in the order the combo prices them (slot order).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub(crate) struct StoredCombo {
+    pub picks: Vec<StoredPick>,
+}
+
+/// One pick of a combo line: a part line on the order (`combo_part`).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub(crate) struct StoredPick {
+    pub slot_id: String,
+    #[serde(default)]
+    pub slot_name: String,
+    pub item_id: String,
+    pub name: String,
+    /// The size as charged (the pick's, else the size the combo includes).
+    #[serde(default)]
+    pub size_label: Option<String>,
+    /// Units per combo unit.
+    pub qty: i64,
+    /// The item's NORMAL price at that size (`unit_price` on the part line).
+    pub unit_price_minor: i64,
+    /// This part's share of ONE combo price.
+    pub share_minor: i64,
+    /// Per pick unit: the choice's surcharge plus a bigger size's.
+    pub surcharge_minor: i64,
+    #[serde(default)]
+    addons: Vec<StoredAddon>,
+    #[serde(default)]
+    optionals: Vec<StoredOptional>,
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+impl StoredPick {
+    /// Per pick unit: its add-ons and optional fields.
+    fn extras(&self) -> i64 {
+        addon_optional_extras(&self.addons, &self.optionals)
+    }
+
+    /// The part's own money for `n` combo units: its share, its surcharges
+    /// and its add-ons.
+    fn total(&self, n: i64) -> i64 {
+        n * (self.share_minor + self.qty * (self.surcharge_minor + self.extras()))
+    }
+
+    /// The pick as the host re-submits it (an edit, a make-it-a-meal draft).
+    pub(crate) fn input(&self) -> crate::combos::ComboPickInput {
+        crate::combos::ComboPickInput {
+            slot_id: self.slot_id.clone(),
+            item_id: self.item_id.clone(),
+            size_label: self.size_label.clone(),
+            qty: self.qty,
+            addons: self
+                .addons
+                .iter()
+                .map(|a| AddonSelection {
+                    addon_item_id: a.addon_item_id.clone(),
+                    qty: a.qty,
+                })
+                .collect(),
+            optional_field_ids: self
+                .optionals
+                .iter()
+                .map(|o| o.optional_field_id.clone())
+                .collect(),
+            notes: self.notes.clone(),
+        }
+    }
 }
 
 /// A cart line put on the branch's staff pool: the mark the teller saved on the
@@ -126,7 +194,7 @@ pub(crate) struct StoredStaffMark {
 
 /// A host-supplied addon choice (id + how many). The CORE resolves its price.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AddonSelection {
     pub addon_item_id: String,
     pub qty: i64,
@@ -161,22 +229,31 @@ pub struct CartOptionalView {
     pub price_minor: i64,
 }
 
-/// A configured component of a bundle cart line, for the bundle row breakdown.
+/// One part of a combo line, as the host renders it indented under the
+/// combo's name (and re-submits it when the combo is edited).
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CartBundleComponentView {
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct CartPartView {
+    pub slot_id: String,
+    pub slot_name: String,
     pub item_id: String,
-    pub name: String,
-    pub qty: i64,
+    pub item_name: String,
+    /// `None` for an item with no real size (`one_size`).
     pub size_label: Option<String>,
+    /// Units per combo unit.
+    pub qty: i64,
+    /// The item's normal price at its size.
+    pub unit_price_minor: i64,
+    /// Its share of ONE combo price.
+    pub share_minor: i64,
+    /// Per pick unit: what the choice and a bigger size add (0 = included).
+    pub surcharge_minor: i64,
     pub addons: Vec<CartAddonView>,
     pub optionals: Vec<CartOptionalView>,
+    pub notes: Option<String>,
 }
 
-/// A cart line as the host renders it (with the derived line total). When
-/// `bundle_id` is set the line is a bundle: `name` is the bundle name,
-/// `unit_price_minor` the fixed bundle price, and `bundle_components` the
-/// configured items (the row renders their breakdown).
+/// A cart line as the host renders it (with the derived line total).
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CartLineView {
@@ -191,8 +268,6 @@ pub struct CartLineView {
     pub unit_price_minor: i64,
     pub qty: i64,
     pub line_total_minor: i64,
-    pub bundle_id: Option<String>,
-    pub bundle_components: Vec<CartBundleComponentView>,
     /// A KITCHEN-ONLY note for this line — never sent with the order, never
     /// on the customer receipt. Joined in from [`K_KITCHEN_NOTES`] at read
     /// time, so `view()` itself stays a pure function of the stored lines.
@@ -202,6 +277,16 @@ pub struct CartLineView {
     /// leaves to pay. `line_total_minor` stays the NORMAL price — the host
     /// strikes it through and shows `charged_minor` beside it.
     pub staff_drink: Option<CartStaffDrinkView>,
+    /// `"item"` or `"combo"`. A combo's `unit_price_minor` is its price P,
+    /// `line_total_minor` the whole line with every surcharge and add-on,
+    /// and its picks are `parts` (its own `addons`/`optionals` stay empty).
+    pub kind: String,
+    pub parts: Vec<CartPartView>,
+    /// What an applied deal takes off this line (0 = none). Like a staff
+    /// drink, `line_total_minor` stays the NORMAL price; the host shows the
+    /// cut under it and the totals are already net of it.
+    pub deal_cut_minor: i64,
+    pub deal_name: Option<String>,
 }
 
 /// A cart line's staff-drink mark, as the host renders it.
@@ -327,7 +412,7 @@ fn norm(ctx: Ctx<'_>) -> Ctx<'_> {
     ctx.filter(|s| !s.is_empty())
 }
 
-fn key_for(table: Ctx<'_>, base: &str) -> String {
+pub(crate) fn key_for(table: Ctx<'_>, base: &str) -> String {
     match norm(table) {
         None => base.to_string(),
         Some(id) => format!("{base}@table:{id}"),
@@ -396,6 +481,7 @@ pub(crate) fn clear_all(store: &Store) -> CoreResult<()> {
         store.kv_put(&key_for(t, K_KITCHEN_NOTES), "{}")?;
         store.kv_put(&key_for(t, K_KITCHEN_NOTE), "")?;
         store.kv_put(&key_for(t, K_OWNER), "")?;
+        store.kv_put(&key_for(t, crate::deals::K_APPS), "[]")?;
     }
     store.kv_put(K_CONTEXT_TABLES, "[]")?;
     forget_legacy_context(store)
@@ -451,46 +537,28 @@ fn addon_optional_extras(addons: &[StoredAddon], optionals: &[StoredOptional]) -
 }
 
 fn line_extras(l: &StoredLine) -> i64 {
-    // A normal line's extras are its own addons/optionals; a bundle line's are
-    // the sum across its components (the fixed base already covers the items),
-    // each charged per component unit, as the server does.
     addon_optional_extras(&l.addons, &l.optionals)
-        + l.bundle_components
-            .iter()
-            .map(|c| {
-                madar_money::line::component_surcharge(
-                    addon_optional_extras(&c.addons, &c.optionals),
-                    c.qty,
-                    1,
-                )
-            })
-            .sum::<i64>()
 }
 
 fn line_total(l: &StoredLine) -> i64 {
+    // A combo: its parts' money (C6/C10), n × (P + surcharges + add-ons).
+    if let Some(c) = &l.combo {
+        return c.picks.iter().map(|p| p.total(l.qty)).sum();
+    }
     madar_money::line::line_total(&madar_money::line::LineShape {
         quantity: l.qty,
         unit_price: l.unit_price_minor,
-        is_bundle: l.bundle_id.is_some(),
         addons: addons_of(&l.addons),
         optionals: optionals_of(&l.optionals),
-        bundle_components: l
-            .bundle_components
-            .iter()
-            .map(|c| madar_money::line::BundleComponent {
-                quantity: c.qty,
-                addons: addons_of(&c.addons),
-                optionals: optionals_of(&c.optionals),
-            })
-            .collect(),
+        ..Default::default()
     })
 }
 
 /// What the staff pool takes off the WHOLE line: the per-unit comp times the
-/// quantity, never more than the line rings at, never on a bundle.
+/// quantity, never more than the line rings at.
 fn staff_comp(l: &StoredLine) -> i64 {
     match &l.staff_drink {
-        Some(m) if l.bundle_id.is_none() => {
+        Some(m) => {
             (m.free_per_unit_minor.max(0) * l.qty.max(0)).clamp(0, line_total(l).max(0))
         }
         _ => 0,
@@ -509,35 +577,40 @@ fn signature(l: &StoredLine) -> String {
 }
 
 fn base_signature(l: &StoredLine) -> String {
-    // A bundle keys by its id + each component's full selection, so identical
-    // configurations merge (qty++) and differently-configured ones stay distinct.
-    if let Some(bid) = &l.bundle_id {
-        let comps: Vec<String> = l
-            .bundle_components
+    // A combo keys by its picks (`combo:<id>|<picks>`), so two identical
+    // combos merge their quantity and two different ones never do.
+    if let Some(c) = &l.combo {
+        let picks: Vec<String> = c
+            .picks
             .iter()
-            .map(|c| {
-                let mut a: Vec<String> = c
+            .map(|p| {
+                let mut addons: Vec<String> = p
                     .addons
                     .iter()
-                    .map(|x| format!("{}:{}", x.addon_item_id, x.qty))
+                    .map(|a| format!("{}:{}", a.addon_item_id, a.qty))
                     .collect();
-                a.sort();
-                let mut o: Vec<String> = c
-                    .optionals
-                    .iter()
-                    .map(|x| x.optional_field_id.clone())
-                    .collect();
-                o.sort();
+                addons.sort();
+                let mut opts: Vec<String> =
+                    p.optionals.iter().map(|o| o.optional_field_id.clone()).collect();
+                opts.sort();
                 format!(
-                    "{}@{}#{}#{}",
-                    c.item_id,
-                    c.size_label.as_deref().unwrap_or(""),
-                    a.join(","),
-                    o.join(",")
+                    "{}:{}:{}:{}:{}:{}:{}",
+                    p.slot_id,
+                    p.item_id,
+                    p.size_label.as_deref().unwrap_or(""),
+                    p.qty,
+                    addons.join(","),
+                    opts.join(","),
+                    p.notes.as_deref().unwrap_or(""),
                 )
             })
             .collect();
-        return format!("bundle:{}|{}", bid, comps.join(";"));
+        return format!(
+            "combo:{}|{}|{}",
+            l.item_id,
+            picks.join(";"),
+            l.notes.as_deref().unwrap_or("")
+        );
     }
     if l.size_label.is_none() && l.addons.is_empty() && l.optionals.is_empty() && l.notes.is_none()
     {
@@ -596,36 +669,6 @@ fn view(lines: &[StoredLine]) -> Vec<CartLineView> {
             unit_price_minor: l.unit_price_minor,
             qty: l.qty,
             line_total_minor: line_total(l),
-            bundle_id: l.bundle_id.clone(),
-            bundle_components: l
-                .bundle_components
-                .iter()
-                .map(|c| CartBundleComponentView {
-                    item_id: c.item_id.clone(),
-                    name: c.name.clone(),
-                    qty: c.qty,
-                    size_label: c.size_label.clone(),
-                    addons: c
-                        .addons
-                        .iter()
-                        .map(|a| CartAddonView {
-                            addon_item_id: a.addon_item_id.clone(),
-                            name: a.name.clone(),
-                            qty: a.qty,
-                            price_modifier_minor: a.price_modifier_minor,
-                        })
-                        .collect(),
-                    optionals: c
-                        .optionals
-                        .iter()
-                        .map(|o| CartOptionalView {
-                            optional_field_id: o.optional_field_id.clone(),
-                            name: o.name.clone(),
-                            price_minor: o.price_minor,
-                        })
-                        .collect(),
-                })
-                .collect(),
             kitchen_note: None,
             staff_drink: l.staff_drink.as_ref().map(|m| CartStaffDrinkView {
                 id: m.id.clone(),
@@ -633,8 +676,128 @@ fn view(lines: &[StoredLine]) -> Vec<CartLineView> {
                 comp_minor: staff_comp(l),
                 charged_minor: line_total(l) - staff_comp(l),
             }),
+            kind: if l.combo.is_some() {
+                menu::KIND_COMBO.to_string()
+            } else {
+                menu::KIND_ITEM.to_string()
+            },
+            parts: l.combo.as_ref().map(parts_view).unwrap_or_default(),
+            deal_cut_minor: deal_cut(l),
+            deal_name: l.deal_name.clone().filter(|_| deal_cut(l) > 0),
         })
         .collect()
+}
+
+/// A line's deal cut, never more than the line rings at.
+fn deal_cut(l: &StoredLine) -> i64 {
+    if l.combo.is_some() || l.staff_drink.is_some() {
+        return 0;
+    }
+    l.deal_cut.clamp(0, line_total(l).max(0))
+}
+
+fn addon_views(addons: &[StoredAddon]) -> Vec<CartAddonView> {
+    addons
+        .iter()
+        .map(|a| CartAddonView {
+            addon_item_id: a.addon_item_id.clone(),
+            name: a.name.clone(),
+            qty: a.qty,
+            price_modifier_minor: a.price_modifier_minor,
+        })
+        .collect()
+}
+
+fn optional_views(optionals: &[StoredOptional]) -> Vec<CartOptionalView> {
+    optionals
+        .iter()
+        .map(|o| CartOptionalView {
+            optional_field_id: o.optional_field_id.clone(),
+            name: o.name.clone(),
+            price_minor: o.price_minor,
+        })
+        .collect()
+}
+
+fn parts_view(c: &StoredCombo) -> Vec<CartPartView> {
+    c.picks
+        .iter()
+        .map(|p| CartPartView {
+            slot_id: p.slot_id.clone(),
+            slot_name: p.slot_name.clone(),
+            item_id: p.item_id.clone(),
+            item_name: p.name.clone(),
+            size_label: p.size_label.clone().filter(|s| !is_one_size(s)),
+            qty: p.qty,
+            unit_price_minor: p.unit_price_minor,
+            share_minor: p.share_minor,
+            surcharge_minor: p.surcharge_minor,
+            addons: addon_views(&p.addons),
+            optionals: optional_views(&p.optionals),
+            notes: p.notes.clone(),
+        })
+        .collect()
+}
+
+/// The catalogue's sentinel for an item with no real size.
+pub(crate) fn is_one_size(label: &str) -> bool {
+    label.trim().eq_ignore_ascii_case("one_size")
+}
+
+/// A size as a person reads it: `None` for no size, an empty label, or the
+/// `one_size` placeholder (which the server stores on a combo's single-size
+/// parts where a plain line stores null). Every size read from the server or
+/// printed on paper goes through this, so "one_size" never reaches a teller,
+/// a cook or a customer.
+pub(crate) fn real_size(label: Option<String>) -> Option<String> {
+    label.filter(|s| !s.trim().is_empty() && !is_one_size(s))
+}
+
+/// The bill lines a cart line enters the pricing engine as: a plain line is
+/// one; a combo is one per part (contract §4: "the parts enter the bill as
+/// ordinary `BillLine`s"), each at its share plus its surcharges for one
+/// combo unit, with its add-ons per pick unit — so Σ the parts is the combo
+/// line to the piastre. Rewards and staff comps are the caller's to set;
+/// neither ever lands on a combo.
+pub(crate) fn bill_lines_of_view(l: &CartLineView) -> Vec<pricing::CartLine> {
+    let addons_of = |addons: &[CartAddonView], times: i64| -> Vec<pricing::AddonSel> {
+        addons
+            .iter()
+            .map(|a| pricing::AddonSel {
+                price_modifier: a.price_modifier_minor,
+                quantity: a.qty * times,
+            })
+            .collect()
+    };
+    let optionals_of = |optionals: &[CartOptionalView], times: i64| -> Vec<pricing::OptionalSel> {
+        (0..times.max(0))
+            .flat_map(|_| optionals.iter().map(|o| pricing::OptionalSel { price: o.price_minor }))
+            .collect()
+    };
+    if l.kind == menu::KIND_COMBO {
+        return l
+            .parts
+            .iter()
+            .map(|p| pricing::CartLine {
+                quantity: l.qty,
+                unit_price: p.share_minor + p.qty * p.surcharge_minor,
+                reward_units: 0,
+                staff_comp_minor: 0,
+                deal_minor: 0,
+                addons: addons_of(&p.addons, p.qty),
+                optionals: optionals_of(&p.optionals, p.qty),
+            })
+            .collect();
+    }
+    vec![pricing::CartLine {
+        quantity: l.qty,
+        unit_price: l.unit_price_minor,
+        reward_units: 0,
+        staff_comp_minor: 0,
+        deal_minor: l.deal_cut_minor,
+        addons: addons_of(&l.addons, 1),
+        optionals: optionals_of(&l.optionals, 1),
+    }]
 }
 
 /// Resolve a configured line's charged prices from the cached catalog: the
@@ -677,10 +840,92 @@ pub(crate) fn resolve_line(
         addons: priced.0,
         optionals: priced.1,
         notes,
-        bundle_id: None,
-        bundle_components: vec![],
         staff_drink: None,
+        combo: None,
+        deal_cut: 0,
+        deal_name: None,
     }
+}
+
+/// Resolve a COMBO line from the cached catalogue (COMBOS_CONTRACT §4, §6):
+/// the picks against the combo's slots, then madar-shared's
+/// `madar_catalog::combo::quote` — the server's rule — splits P over the
+/// parts by their menu prices and prices each pick's size surcharge and
+/// add-ons. The figures are recorded VERBATIM on the line (the offline
+/// receipt equals the server's record; replay sends them as charged).
+///
+/// A pick naming an item this till does not have is refused as not allowed
+/// in its slot (the host only offers what the slot admits).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn resolve_combo_line(
+    def: &menu::ComboDef,
+    combo_item: &menu::MenuItemView,
+    items: &[menu::MenuItemView],
+    addon_catalog: &[menu::AddonItemView],
+    pricing: &PricingMirror,
+    picks: &[crate::combos::ComboPickInput],
+    qty: i64,
+    notes: Option<String>,
+) -> Result<StoredLine, madar_catalog::combo::ComboRefusal> {
+    let (view, ins) =
+        crate::combos::rule_inputs(def, combo_item, items, addon_catalog, pricing, picks)?;
+    let quote = madar_catalog::combo::quote(&view, &ins, qty.max(1))?;
+    let stored = quote
+        .parts
+        .iter()
+        .map(|part| {
+            let input = &picks[part.pick_index];
+            let item = items
+                .iter()
+                .find(|i| i.id == part.menu_item_id)
+                .expect("rule_inputs found every pick's item");
+            let (addons, optionals) = stored_options(item, addon_catalog, &part.options);
+            StoredPick {
+                slot_id: part.slot_id.clone(),
+                slot_name: def
+                    .slots
+                    .iter()
+                    .find(|s| s.id == part.slot_id)
+                    .map(|s| s.name.clone())
+                    .unwrap_or_default(),
+                item_id: item.id.clone(),
+                name: item.name.clone(),
+                size_label: Some(part.size_label.clone()),
+                qty: part.pick_quantity,
+                unit_price_minor: part.unit_price,
+                share_minor: part.share_unit,
+                surcharge_minor: part.surcharge_unit,
+                addons,
+                optionals,
+                notes: input.notes.clone().filter(|n| !n.trim().is_empty()),
+            }
+        })
+        .collect();
+    Ok(StoredLine {
+        item_id: combo_item.id.clone(),
+        name: combo_item.name.clone(),
+        unit_price_minor: quote.price,
+        qty: quote.quantity,
+        size_label: None,
+        addons: vec![],
+        optionals: vec![],
+        notes: notes.filter(|n| !n.trim().is_empty()),
+        staff_drink: None,
+        combo: Some(StoredCombo { picks: stored }),
+        deal_cut: 0,
+        deal_name: None,
+    })
+}
+
+/// The combo line a stored line holds, as the host re-submits it.
+pub(crate) fn combo_picks(store: &Store, ctx: Ctx<'_>, line_key: &str) -> CoreResult<Option<(String, Vec<crate::combos::ComboPickInput>, i64, Option<String>)>> {
+    Ok(load(store, ctx)?
+        .into_iter()
+        .find(|l| signature(l) == line_key)
+        .and_then(|l| {
+            let c = l.combo.as_ref()?;
+            Some((l.item_id.clone(), c.picks.iter().map(StoredPick::input).collect(), l.qty, l.notes.clone()))
+        }))
 }
 
 /// The options and optional fields of a selection, priced by the shared rule
@@ -695,7 +940,26 @@ fn price_selection(
     addon_sels: &[AddonSelection],
     optional_ids: &[String],
 ) -> (Vec<StoredAddon>, Vec<StoredOptional>) {
-    let selection = madar_catalog::Selection {
+    let selection =
+        selection_for(item, addon_catalog, view, size_label, addon_sels, optional_ids);
+    // Every picked option is in the view, so the rule cannot refuse.
+    let priced = madar_catalog::price_options(view, &selection).unwrap_or_default();
+    stored_options(item, addon_catalog, &priced)
+}
+
+/// A selection in the rule's vocabulary, after the till's own normalisation:
+/// an option the catalogue does not know is dropped, and an item-private
+/// option picked through the addon sheet is an optional field (F17). Shared
+/// by a plain line and a combo's pick.
+pub(crate) fn selection_for(
+    item: &menu::MenuItemView,
+    addon_catalog: &[menu::AddonItemView],
+    view: &madar_catalog::CatalogView,
+    size_label: Option<&str>,
+    addon_sels: &[AddonSelection],
+    optional_ids: &[String],
+) -> madar_catalog::Selection {
+    madar_catalog::Selection {
         size_label: size_label.map(str::to_string),
         options: addon_sels
             .iter()
@@ -706,9 +970,15 @@ fn price_selection(
             })
             .collect(),
         optionals: optional_selection(item, addon_catalog, addon_sels, optional_ids),
-    };
-    // Every picked option is in the view, so the rule cannot refuse.
-    let priced = madar_catalog::price_options(view, &selection).unwrap_or_default();
+    }
+}
+
+/// The rule's priced options as the cart stores them (with their names).
+fn stored_options(
+    item: &menu::MenuItemView,
+    addon_catalog: &[menu::AddonItemView],
+    priced: &madar_catalog::PricedOptions,
+) -> (Vec<StoredAddon>, Vec<StoredOptional>) {
     let addons = priced
         .options
         .iter()
@@ -762,68 +1032,6 @@ fn optional_selection(
         }
     }
     ids.into_iter().cloned().collect()
-}
-
-/// A host-supplied configured component of a bundle (which item, its size, and
-/// the chosen addons/optionals). The CORE resolves the charged extra prices.
-#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug)]
-pub struct BundleComponentSelection {
-    pub item_id: String,
-    pub size_label: Option<String>,
-    pub qty: i64,
-    pub addons: Vec<AddonSelection>,
-    pub optional_field_ids: Vec<String>,
-}
-
-/// Build a bundle cart line: the fixed bundle price as the unit price, plus each
-/// component with its addon/optional up-charges resolved from the catalog (the
-/// shared rule, at the component's size). The component base/size price is
-/// never charged (Flutter parity).
-pub(crate) fn resolve_bundle_line(
-    bundle: &menu::BundleView,
-    items: &[menu::MenuItemView],
-    addon_catalog: &[menu::AddonItemView],
-    pricing: &PricingMirror,
-    components: &[BundleComponentSelection],
-    qty: i64,
-) -> StoredLine {
-    let bundle_components = components
-        .iter()
-        .filter_map(|sel| {
-            let item = items.iter().find(|i| i.id == sel.item_id)?;
-            let view = pricing.view_for(item, addon_catalog);
-            let (addons, optionals) = price_selection(
-                item,
-                addon_catalog,
-                &view,
-                sel.size_label.as_deref(),
-                &sel.addons,
-                &sel.optional_field_ids,
-            );
-            Some(StoredBundleComponent {
-                item_id: item.id.clone(),
-                name: item.name.clone(),
-                qty: sel.qty.max(1),
-                size_label: sel.size_label.clone(),
-                addons,
-                optionals,
-            })
-        })
-        .collect();
-    StoredLine {
-        item_id: bundle.id.clone(),
-        name: bundle.name.clone(),
-        unit_price_minor: bundle.price_minor,
-        qty: qty.max(1),
-        size_label: None,
-        addons: vec![],
-        optionals: vec![],
-        notes: None,
-        bundle_id: Some(bundle.id.clone()),
-        bundle_components,
-        staff_drink: None,
-    }
 }
 
 /// Every active addon offered for `item`, with the price it is charged alone
@@ -1388,11 +1596,11 @@ pub(crate) fn replace_resolved(
             detail: "that line is no longer in the cart".into(),
         });
     };
-    // An edited staff drink is still one: the mark follows the line (a bundle
-    // can never carry it). Its comp is recomputed by the caller.
+    // An edited staff drink is still one: the mark follows the line. Its comp
+    // is recomputed by the caller.
     let old = lines.remove(at);
     let mut line = line;
-    if line.bundle_id.is_none() && line.item_id == old.item_id {
+    if line.item_id == old.item_id {
         line.staff_drink = old.staff_drink;
     }
     let sig = signature(&line);
@@ -1416,14 +1624,22 @@ pub(crate) fn replace_resolved(
 pub struct LinePreviewView {
     /// One unit: the size's price plus every extra.
     pub unit_total_minor: i64,
-    /// One unit's extras only (addons + optionals) — what a bundle component
-    /// charges on top of the bundle price.
+    /// One unit's extras only (addons + optionals).
     pub extras_minor: i64,
     /// The whole line at its quantity.
     pub line_total_minor: i64,
 }
 
 pub(crate) fn preview_line(line: &StoredLine) -> LinePreviewView {
+    if line.combo.is_some() {
+        let total = line_total(line);
+        let unit = total / line.qty.max(1);
+        return LinePreviewView {
+            unit_total_minor: unit,
+            extras_minor: unit - line.unit_price_minor,
+            line_total_minor: total,
+        };
+    }
     let extras = line_extras(line);
     LinePreviewView {
         unit_total_minor: line.unit_price_minor + extras,
@@ -1452,9 +1668,10 @@ pub(crate) fn add(
             addons: vec![],
             optionals: vec![],
             notes: None,
-            bundle_id: None,
-            bundle_components: vec![],
             staff_drink: None,
+            combo: None,
+            deal_cut: 0,
+            deal_name: None,
         },
     )
 }
@@ -1522,6 +1739,7 @@ pub(crate) fn restore_last_removed(store: &Store, ctx: Ctx<'_>) -> CoreResult<Ve
 /// Empty the cart + its discount (e.g. after checkout or on sign-out).
 pub(crate) fn clear(store: &Store, ctx: Ctx<'_>) -> CoreResult<()> {
     clear_discount(store, ctx)?;
+    crate::deals::clear(store, ctx)?;
     set_note(store, ctx, None)?;
     store.kv_put(&ctx_key(ctx, K_LAST_REMOVED)?, "[]")?; // a stale undo must not resurrect a sold line
     store.kv_put(&key_for(ctx, K_META), "{}")?; // the spent cart forgets its name/draft/booking
@@ -1539,8 +1757,6 @@ pub(crate) fn clear(store: &Store, ctx: Ctx<'_>) -> CoreResult<()> {
 /// Why a mark left a line by itself. The host toasts the translated reason.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum StaffMarkDrop {
-    /// The line became a bundle / is one.
-    Bundle,
     /// The item is no longer on the pool's list (a settings sync), or the pool
     /// was switched off.
     NotEligible,
@@ -1551,12 +1767,18 @@ pub(crate) enum StaffMarkDrop {
 impl StaffMarkDrop {
     pub fn key(self) -> &'static str {
         match self {
-            Self::Bundle => "staff_pool.dropped.bundle",
+
             Self::NotEligible => "staff_pool.dropped.not_eligible",
             Self::TableBill => "staff_pool.dropped.table",
         }
     }
 }
+
+/// The core's refusal of a staff drink on a combo line (`combo.staff_drink`).
+pub const STAFF_DRINK_IN_COMBO: &str = "A staff drink can't be part of a combo.";
+/// The core's refusal of a staff drink on a line in a deal (`deal.staff_drink`).
+pub const STAFF_DRINK_IN_DEAL: &str =
+    "This item is in a deal. Remove the deal before making it a staff drink.";
 
 /// A marked line as the pool and the comp rule need to see it.
 #[derive(Clone, Debug)]
@@ -1567,7 +1789,6 @@ pub(crate) struct StaffMarkedLine {
     pub name: String,
     pub size_label: Option<String>,
     pub qty: i64,
-    pub is_bundle: bool,
     pub mark: StoredStaffMark,
     pub line_total_minor: i64,
     pub comp_minor: i64,
@@ -1608,7 +1829,6 @@ pub(crate) fn staff_marked(store: &Store, ctx: Ctx<'_>) -> CoreResult<Vec<StaffM
                 name: l.name.clone(),
                 size_label: l.size_label.clone(),
                 qty: l.qty,
-                is_bundle: l.bundle_id.is_some(),
                 mark,
                 line_total_minor: line_total(l),
                 comp_minor: staff_comp(l),
@@ -1617,8 +1837,8 @@ pub(crate) fn staff_marked(store: &Store, ctx: Ctx<'_>) -> CoreResult<Vec<StaffM
         .collect())
 }
 
-/// Put `mark` on the line keyed `line_key`. A bundle refuses; a key no longer
-/// in the cart refuses. Returns the lines (the marked line has a NEW key).
+/// Put `mark` on the line keyed `line_key`. A key no longer in the cart
+/// refuses. Returns the lines (the marked line has a NEW key).
 pub(crate) fn mark_staff(
     store: &Store,
     ctx: Ctx<'_>,
@@ -1632,10 +1852,18 @@ pub(crate) fn mark_staff(
             detail: "that line is no longer in the cart".into(),
         });
     };
-    if l.bundle_id.is_some() {
+    // C15: never inside a combo; and a line never carries both a deal and a
+    // staff comp (contract §1.2).
+    if l.combo.is_some() {
         return Err(CoreError::Validation {
-            field: "item".into(),
-            detail: "a bundle cannot be a staff drink".into(),
+            field: "line".into(),
+            detail: STAFF_DRINK_IN_COMBO.into(),
+        });
+    }
+    if l.deal_cut > 0 {
+        return Err(CoreError::Validation {
+            field: "line".into(),
+            detail: STAFF_DRINK_IN_DEAL.into(),
         });
     }
     l.staff_drink = Some(mark);
@@ -1705,11 +1933,7 @@ pub(crate) fn set_staff_comps(
     let mut changed = false;
     for l in lines.iter_mut() {
         let Some(mark) = l.staff_drink.clone() else { continue };
-        let verdict = if l.bundle_id.is_some() {
-            Err(StaffMarkDrop::Bundle)
-        } else {
-            decide(&StaffCompLine { line: l })
-        };
+        let verdict = decide(&StaffCompLine { line: l });
         match verdict {
             Ok(free) if free == mark.free_per_unit_minor => {}
             Ok(free) => {
@@ -1872,6 +2096,65 @@ fn legacy_comp_groups(
     }
 }
 
+// ── deals (a line's cut; `deals.rs` decides it) ──────────────────────────────
+
+/// One cart line as a deal reads it (COMBOS_CONTRACT §5): only a plain line
+/// takes part — never a combo, never a staff drink.
+#[derive(Clone, Debug)]
+pub(crate) struct DealCandidate {
+    pub key: String,
+    /// Its position in the cart (= its index in the order's `items[]`).
+    pub index: usize,
+    pub item_id: String,
+    pub size_label: Option<String>,
+    /// One unit at its size, no add-ons (a deal covers the item price only).
+    pub unit_price_minor: i64,
+    pub qty: i64,
+    pub eligible: bool,
+}
+
+pub(crate) fn deal_candidates(store: &Store, ctx: Ctx<'_>) -> CoreResult<Vec<DealCandidate>> {
+    Ok(load(store, ctx)?
+        .iter()
+        .enumerate()
+        .map(|(index, l)| DealCandidate {
+            key: signature(l),
+            index,
+            item_id: l.item_id.clone(),
+            size_label: l.size_label.clone(),
+            unit_price_minor: l.unit_price_minor,
+            qty: l.qty,
+            eligible: l.combo.is_none() && l.staff_drink.is_none(),
+        })
+        .collect())
+}
+
+/// Rewrite every line's deal cut: `cuts` maps a line key to (cut, deal name);
+/// a line not named carries none. Nothing is written when nothing changed.
+pub(crate) fn set_deal_cuts(
+    store: &Store,
+    ctx: Ctx<'_>,
+    cuts: &HashMap<String, (i64, String)>,
+) -> CoreResult<()> {
+    let mut lines = load(store, ctx)?;
+    let mut changed = false;
+    for l in lines.iter_mut() {
+        let (cut, name) = match cuts.get(&signature(l)) {
+            Some((c, n)) => (*c, Some(n.clone())),
+            None => (0, None),
+        };
+        if l.deal_cut != cut || l.deal_name != name {
+            l.deal_cut = cut;
+            l.deal_name = name;
+            changed = true;
+        }
+    }
+    if changed {
+        save(store, ctx, &lines)?;
+    }
+    Ok(())
+}
+
 // ── cart payload (the wire shape a held order carries) ───────────────────────
 //
 // A server-backed held order stores the WHOLE working cart as one opaque JSON
@@ -1889,6 +2172,8 @@ pub(crate) fn cart_payload(store: &Store, ctx: Ctx<'_>) -> CoreResult<serde_json
         "discount_manual": manual_discount(store, ctx)?,
         "discount_approval": discount_approval(store, ctx)?,
         "note": note(store, ctx)?,
+        // Additive: the deals applied on it park with it (`deals.rs`).
+        "deals": crate::deals::apps_json(store, ctx),
     }))
 }
 
@@ -1922,6 +2207,7 @@ pub(crate) fn set_cart_payload(
         set_discount_approval(store, ctx, Some(&a))?;
     }
     set_note(store, ctx, payload.get("note").and_then(|v| v.as_str()))?;
+    crate::deals::restore_apps(store, ctx, payload.get("deals"))?;
     store.kv_put(&ctx_key(ctx, K_LAST_REMOVED)?, "[]")?; // a stale undo must not leak across orders
     save(store, ctx, &lines)?;
     Ok(view(&lines))
@@ -2277,52 +2563,17 @@ fn kind_from_dtype(dtype: &str) -> DiscountKind {
     }
 }
 
-/// Map a stored line to the pricing engine's `CartLine` (the money input).
-fn priced(l: &StoredLine) -> pricing::CartLine {
-    pricing::CartLine {
-        quantity: l.qty,
-        unit_price: l.unit_price_minor,
-        is_bundle: l.bundle_id.is_some(),
-        reward_units: 0,
-        staff_comp_minor: staff_comp(l),
-        addons: l
-            .addons
-            .iter()
-            .map(|a| pricing::AddonSel {
-                price_modifier: a.price_modifier_minor,
-                quantity: a.qty,
-            })
-            .collect(),
-        optionals: l
-            .optionals
-            .iter()
-            .map(|o| pricing::OptionalSel {
-                price: o.price_minor,
-            })
-            .collect(),
-        bundle_components: l
-            .bundle_components
-            .iter()
-            .map(|c| pricing::BundleComponentSel {
-                quantity: c.qty,
-                addons: c
-                    .addons
-                    .iter()
-                    .map(|a| pricing::AddonSel {
-                        price_modifier: a.price_modifier_minor,
-                        quantity: a.qty,
-                    })
-                    .collect(),
-                optionals: c
-                    .optionals
-                    .iter()
-                    .map(|o| pricing::OptionalSel {
-                        price: o.price_minor,
-                    })
-                    .collect(),
-            })
-            .collect(),
+/// Map a stored line to the pricing engine's `CartLine`s (the money input):
+/// one for a plain line, one per part for a combo ([`bill_lines_of_view`]).
+fn priced(l: &StoredLine) -> Vec<pricing::CartLine> {
+    let v = view(std::slice::from_ref(l)).remove(0);
+    let mut out = bill_lines_of_view(&v);
+    if l.combo.is_none() {
+        if let Some(first) = out.first_mut() {
+            first.staff_comp_minor = staff_comp(l);
+        }
     }
+    out
 }
 
 /// Price the cart under `policy` via the pricing engine, applying the selected
@@ -2352,12 +2603,18 @@ pub(crate) fn totals_with_rewards(
         lines: lines
             .iter()
             .enumerate()
-            .map(|(i, l)| {
-                let mut line = priced(l);
-                if !line.is_bundle && line.staff_comp_minor == 0 && l.staff_drink.is_none() {
-                    line.reward_units = reward_units.get(&i).copied().unwrap_or(0);
+            .flat_map(|(i, l)| {
+                let mut out = priced(l);
+                // A reward covers units of a plain line only: never a staff
+                // drink, a combo (C7) or a line in a deal.
+                let rewardable =
+                    l.staff_drink.is_none() && l.combo.is_none() && deal_cut(l) == 0;
+                if let (true, Some(line)) = (rewardable, out.first_mut()) {
+                    if line.staff_comp_minor == 0 {
+                        line.reward_units = reward_units.get(&i).copied().unwrap_or(0);
+                    }
                 }
-                line
+                out
             })
             .collect(),
         discount_kind,
@@ -2418,9 +2675,10 @@ mod tests {
                 price_minor: optional,
             }],
             notes: None,
-            bundle_id: None,
-            bundle_components: vec![],
             staff_drink: None,
+            combo: None,
+            deal_cut: 0,
+            deal_name: None,
         }
     }
 
@@ -2527,6 +2785,7 @@ mod tests {
                 org_ingredient_id: Some("ing-oat".into()),
             }],
             recipe_steps: vec![],
+            kind: "item".into(),
         }
     }
 
@@ -3775,102 +4034,6 @@ mod tests {
         assert!(discount_id(&s, None).unwrap().is_none());
     }
 
-    fn bundle() -> menu::BundleView {
-        menu::BundleView {
-            id: "b1".into(),
-            name: "Morning Combo".into(),
-            description: None,
-            price_minor: 10000,
-            image_url: None,
-            local_image_path: None,
-            is_available: true,
-            available_from_date: None,
-            available_until_date: None,
-            available_from_time: None,
-            available_until_time: None,
-            components: vec![],
-        }
-    }
-
-    fn combo_component() -> BundleComponentSelection {
-        // Latte, Large, + almond milk (milk_type 2000 − oat base 1500 = +500 swap
-        // delta) + vanilla optional (+300). Component base/size price NOT charged.
-        BundleComponentSelection {
-            item_id: "latte".into(),
-            size_label: Some("Large".into()),
-            qty: 1,
-            addons: vec![AddonSelection {
-                addon_item_id: "almond".into(),
-                qty: 1,
-            }],
-            optional_field_ids: vec!["van".into()],
-        }
-    }
-
-    #[test]
-    fn bundle_line_charges_fixed_price_plus_component_extras() {
-        let s = store();
-        let line = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[combo_component()],
-            1,
-        );
-        add_resolved(&s, None, line).unwrap();
-        let lines = lines(&s, None).unwrap();
-        assert_eq!(lines.len(), 1);
-        let l = &lines[0];
-        assert_eq!(l.bundle_id.as_deref(), Some("b1"));
-        assert_eq!(l.unit_price_minor, 10000, "fixed bundle price");
-        // (10000 base + 500 almond delta + 300 vanilla) × 1
-        assert_eq!(l.line_total_minor, 10800);
-        assert_eq!(l.bundle_components.len(), 1);
-        assert_eq!(l.bundle_components[0].name, "Latte");
-        assert_eq!(l.bundle_components[0].size_label.as_deref(), Some("Large"));
-    }
-
-    #[test]
-    fn identical_bundle_configs_merge_distinct_ones_dont() {
-        let s = store();
-        let a = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[combo_component()],
-            1,
-        );
-        add_resolved(&s, None, a).unwrap();
-        // Same config again → merges (qty 2, one line).
-        let b = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[combo_component()],
-            1,
-        );
-        add_resolved(&s, None, b).unwrap();
-        assert_eq!(lines(&s, None).unwrap().len(), 1);
-        assert_eq!(lines(&s, None).unwrap()[0].qty, 2);
-        // A different component config → a separate line.
-        let mut plain = combo_component();
-        plain.addons = vec![];
-        plain.optional_field_ids = vec![];
-        let c = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[plain],
-            1,
-        );
-        add_resolved(&s, None, c).unwrap();
-        assert_eq!(lines(&s, None).unwrap().len(), 2);
-    }
-
     // ── add / merge edge cases ────────────────────────────────────────────────
 
     #[test]
@@ -4429,101 +4592,6 @@ mod tests {
             &crate::catalog_pricing::PricingMirror::default(),
         );
         assert!(v.iter().all(|a| a.addon_item_id != "retired"));
-    }
-
-    // ── bundle pricing / component resolution ─────────────────────────────────
-
-    #[test]
-    fn resolve_bundle_line_uses_fixed_price_and_clamps_qty() {
-        let line = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[combo_component()],
-            0,
-        );
-        assert_eq!(line.unit_price_minor, 10000); // fixed bundle price
-        assert_eq!(line.qty, 1); // qty clamped up from 0
-        assert!(line.addons.is_empty()); // bundle's own addons stay empty
-        assert!(line.optionals.is_empty());
-        assert_eq!(line.bundle_id.as_deref(), Some("b1"));
-    }
-
-    #[test]
-    fn resolve_bundle_line_drops_components_with_unknown_item() {
-        let mut ghost = combo_component();
-        ghost.item_id = "not-in-catalog".into();
-        // One good + one ghost component → only the resolvable one survives.
-        let line = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[combo_component(), ghost],
-            1,
-        );
-        assert_eq!(line.bundle_components.len(), 1);
-        assert_eq!(line.bundle_components[0].item_id, "latte");
-    }
-
-    #[test]
-    fn resolve_bundle_line_with_no_components_charges_only_base() {
-        let line = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[],
-            2,
-        );
-        assert!(line.bundle_components.is_empty());
-        // (10000 base + 0 extras) × 2 = 20000.
-        assert_eq!(line_total(&line), 20000);
-    }
-
-    #[test]
-    fn bundle_component_qty_scales_extras_like_the_server() {
-        // A component qty of 5 multiplies its addon/optional up-charge: each of
-        // the five is configured the same, and the server charges (and deducts
-        // stock for) every one — `(addons + optionals) × comp qty × line qty`
-        // (owner decision, madar-shared M3). It used to count them once.
-        let mut comp = combo_component();
-        comp.qty = 5;
-        let line = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[comp],
-            1,
-        );
-        assert_eq!(line.bundle_components[0].qty, 5);
-        // 10000 base + (500 almond delta + 300 vanilla) × 5 = 14000.
-        assert_eq!(line_total(&line), 14000);
-        assert_eq!(priced(&line).bundle_components[0].quantity, 5, "the engine sees it too");
-    }
-
-    #[test]
-    fn bundle_totals_flow_through_pricing_engine() {
-        let s = store();
-        add_resolved(
-            &s,
-            None,
-            resolve_bundle_line(
-                &bundle(),
-                &[item()],
-                &catalog(),
-                &crate::catalog_pricing::PricingMirror::default(),
-                &[combo_component()],
-                2,
-            ),
-        )
-        .unwrap();
-        let t = totals(&s, None, &tax_policy_at(0.0)).unwrap();
-        assert_eq!(t.item_count, 2);
-        // (10000 + 500 + 300) × 2 = 21600.
-        assert_eq!(t.subtotal_minor, 21600);
     }
 
     // ── drafts ────────────────────────────────────────────────────────────────

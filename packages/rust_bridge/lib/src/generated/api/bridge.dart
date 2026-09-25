@@ -139,11 +139,6 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<String> ids,
   });
 
-  /// Bundles orderable right now — status active and within their date/time
-  /// window at `now` (branch-local). The host passes its local time so the
-  /// window is evaluated in the till's timezone (Flutter parity).
-  Future<List<BundleView>> availableBundles({required String nowRfc3339});
-
   Future<List<PaymentMethodView>> availablePaymentMethods();
 
   /// API base URL the core will talk to (from `.env`).
@@ -181,6 +176,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// synced teller row; unknown means no.
   bool can({required String cap});
 
+  /// Whether the signed-in person may apply a deal (`orders.deals.apply`).
+  bool canApplyDeals();
+
   /// Not held, but the owner lets this person ask a manager to approve it.
   bool canAskManager({required String cap});
 
@@ -209,13 +207,14 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required PlatformInt64 unitPriceMinor,
   });
 
-  /// Add a configured BUNDLE line: the fixed bundle price + each component's
-  /// chosen item/size/addons/optionals, up-charges resolved from the catalog.
-  Future<List<CartLineView>> cartAddBundle({
+  /// Add a combo line (identical combos merge). Refused, in the teller's
+  /// words, when a slot is short or the combo is not on sale now.
+  Future<List<CartLineView>> cartAddCombo({
     String? tableId,
-    required String bundleId,
-    required List<BundleComponentSelection> components,
+    required String comboId,
+    required List<ComboPickInput> picks,
     required PlatformInt64 qty,
+    String? notes,
   });
 
   /// Add a CONFIGURED line (size + addons + optionals + notes). The core
@@ -229,6 +228,15 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<String> optionalFieldIds,
     required PlatformInt64 qty,
     String? notes,
+  });
+
+  /// The deals applied on the cart.
+  List<AppliedDealView> cartAppliedDeals({String? tableId});
+
+  /// Apply the suggested deal (the teller's tap).
+  Future<List<CartLineView>> cartApplyDeal({
+    String? tableId,
+    required String dealId,
   });
 
   /// The bill's subtotal so far plus this round's.
@@ -261,6 +269,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? tableId,
     required String lineKey,
   });
+
+  /// A combo line in the cart as a draft to edit on the sheet.
+  Future<ComboDraft> cartComboDraft({String? tableId, required String lineKey});
+
+  /// The deals this cart qualifies for now, best first. Never applied.
+  List<DealSuggestion> cartDealSuggestions({String? tableId});
 
   /// The cart's discount: kind, figures, what it takes off, who approved.
   Future<CartDiscountView> cartDiscount({String? tableId});
@@ -302,6 +316,13 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The current cart lines (empty when none).
   Future<List<CartLineView>> cartLines({String? tableId});
 
+  /// "Make it a meal" from an item line: the draft pre-filled with the
+  /// line's item in its slot; save it with `cart_replace_combo`.
+  Future<ComboDraft> cartMakeItAMeal({
+    String? tableId,
+    required String lineKey,
+  });
+
   /// One context's cart meta (`None` = takeaway): name, parked-order id,
   /// booking, table label, guest, covers, started_at. Persisted in the core.
   Future<CartMeta> cartMeta({String? tableId});
@@ -313,6 +334,23 @@ abstract class MadarBridge implements RustOpaqueInterface {
   Future<List<CartLineView>> cartRemove({
     String? tableId,
     required String itemId,
+  });
+
+  /// Take an applied deal off the cart.
+  Future<List<CartLineView>> cartRemoveDeal({
+    String? tableId,
+    required String applicationId,
+  });
+
+  /// Replace a cart line with a combo in one write: an edited combo, or
+  /// "make it a meal" turning an item line into its combo.
+  Future<List<CartLineView>> cartReplaceCombo({
+    String? tableId,
+    required String lineKey,
+    required String comboId,
+    required List<ComboPickInput> picks,
+    required PlatformInt64 qty,
+    String? notes,
   });
 
   /// EDIT a configured line: resolve, then swap it in for `line_key` in one
@@ -459,6 +497,21 @@ abstract class MadarBridge implements RustOpaqueInterface {
   });
 
   Future<CloseTillPreviewView> closeTillPreview();
+
+  /// The combo sheet for a `kind == "combo"` item: slots, priced choices,
+  /// sizes with what they add, and whether it is on sale now. Offline.
+  ComboDetail? comboDetail({required String itemId});
+
+  /// The picks a fresh combo opens with (every slot's default).
+  ComboDraft? comboNewDraft({required String itemId});
+
+  /// The combo sheet's live figures for the picks so far (× `qty`).
+  Future<ComboQuoteView> comboQuote({
+    String? tableId,
+    required String comboId,
+    required List<ComboPickInput> picks,
+    required PlatformInt64 qty,
+  });
 
   /// Mark a restored draft COMPLETED after its cart checked out — the host
   /// calls this right after a successful ring-up of a resumed draft.
@@ -719,6 +772,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   bool isRtl();
 
+  /// "Make it a meal" from the item sheet, before the item is in the cart.
+  Future<ComboDraft> itemMealDraft({
+    required String itemId,
+    String? sizeLabel,
+    required List<AddonSelection> addons,
+    required List<String> optionalFieldIds,
+    required PlatformInt64 qty,
+    String? notes,
+  });
+
   /// Bump a kitchen line (mark it done at its station). Outbox-first.
   Future<void> kdsBump({required String itemId});
 
@@ -734,6 +797,14 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// Un-bump a kitchen line (undo a mistaken bump). Same outbox-first path.
   Future<void> kdsUnbump({required String itemId});
+
+  /// A cart line as the round's single-dish chits (the fire print): one
+  /// per dish, a combo's items each tagged with it (C12).
+  List<KitchenChit> kitchenChitsForLine({
+    required CartLineView line,
+    String? tableLabel,
+    String? ticketRef,
+  });
 
   /// Where the branch expects a fired round to be seen: `kds`, `till`,
   /// `both`, or `off`. `null` means this device has never reached the
@@ -923,6 +994,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     ApprovalView? approval,
   });
 
+  /// "Make it a meal +X" for an item, when it has a meal on sale now.
+  MealOffer? mealOffer({required String itemId});
+
   /// Reflect a status the server will derive anyway (dirty after checkout,
   /// free after a void or move) in the local canvas. Queues nothing.
   Future<void> mirrorTableStatus({
@@ -1075,7 +1149,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// `refresh_floor` does this too).
   Future<void> refreshArrivals();
 
-  /// Pull the branch-effective catalog (items + categories + addons + bundles +
+  /// Pull the branch-effective catalog (items + categories + addons +
   /// payment methods + discounts) and mirror the canonical JSON into the local
   /// store. Online-only; the offline reads (`list_*`) then serve this mirror.
   /// Atomic-ish: every stream is fetched before any is written, so a mid-pull
@@ -1222,7 +1296,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
   Future<int> retryTillOutbox({required String tillId});
 
   /// Apply the reward rules to the asked picks (cap, balance, catalogue,
-  /// bundles, shrunk or removed lines) and describe every line.
+  /// shrunk or removed lines) and describe every line.
   RewardBoardView rewardBoard({
     required List<RewardLineInput> lines,
     required LoyaltyScanView scan,
@@ -1449,6 +1523,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// services, and a stale copy would quietly answer a question about money
   /// with last week's numbers.
   Future<TableHistoryView> tableHistory({required String tableId});
+
+  /// Why applied deals came off since the last ask, each a sentence for
+  /// the shell toast. Draining.
+  Future<List<String>> takeDealNotices({String? tableId});
 
   /// What to tell the teller about pay-outs sent since the last ask: an
   /// expense-advance tag the server refused, the pay-out itself kept (D10).
