@@ -1135,11 +1135,12 @@ class _QueuedMarkPainter extends CustomPainter {
 }
 
 /// The animated brand lockup — the Madar symbol RECREATED in vector (ink
-/// orbit ring, fused satellite, teal planet) so the mark itself is alive:
-/// the satellite rides the ring on a slow revolution while the planet
-/// breathes and exhales a faint teal ring and the satellite twinkles (the
-/// picked "quiet pulse × living orbit" mix). The typed wordmark sits
-/// beneath. Theme-aware like the PNG marks (ink ↔ paper).
+/// orbit ring and planet, Teal deep satellite: the app icon's colouring, as
+/// the PNG marks) so the mark itself is alive: the satellite rides the ring
+/// on a slow revolution while the planet breathes and exhales a faint ring
+/// and the satellite twinkles (the picked "quiet pulse × living orbit" mix).
+/// The typed wordmark sits beneath. Theme-aware like the PNG marks (ink ↔
+/// paper); the satellite is [MadarBrandColors.satellite] on every ground.
 class AnimatedBrandMark extends StatefulWidget {
   /// Creates the mark.
   const AnimatedBrandMark({
@@ -1161,7 +1162,7 @@ class AnimatedBrandMark extends StatefulWidget {
   /// wordmark under it would be unreadable rather than decorative.
   final bool wordmark;
 
-  /// Overrides the ink the ring and satellite are drawn in. Default is
+  /// Overrides the ink the ring and planet are drawn in. Default is
   /// `textPrimary`, which flips with the theme like the PNG marks do — pass
   /// this only where the mark sits on a surface that is NOT the ambient
   /// background, such as the rail's accent square.
@@ -1206,9 +1207,6 @@ class _AnimatedBrandMarkState extends State<AnimatedBrandMark>
                 // textPrimary mirrors the PNG marks: ink on paper, paper
                 // on ink — the reversed variant for free.
                 ink: widget.ink ?? colors.textPrimary,
-                accent: widget.ink == null
-                    ? colors.accent
-                    : colors.textOnAccent,
               ),
             ),
           ),
@@ -1227,13 +1225,13 @@ class _BrandMarkPainter extends CustomPainter {
     required this.orbit,
     required this.pulse,
     required this.ink,
-    required this.accent,
   });
 
   final double orbit;
   final double pulse;
+
+  /// The ring and the planet (and the planet's exhale).
   final Color ink;
-  final Color accent;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1258,10 +1256,11 @@ class _BrandMarkPainter extends CustomPainter {
     canvas.drawCircle(
       c + Offset(math.cos(angle), math.sin(angle)) * 44 * u,
       13 * u,
-      Paint()..color = ink.withValues(alpha: 1 - 0.45 * wave),
+      Paint()
+        ..color = MadarBrandColors.satellite.withValues(alpha: 1 - 0.45 * wave),
     );
 
-    // The planet exhales a faint teal ring (stays inside the orbit)…
+    // The planet exhales a faint ring (stays inside the orbit)…
     final emitT = Curves.easeOut.transform((pulse / 0.7).clamp(0, 1));
     if (emitT < 1) {
       canvas.drawCircle(
@@ -1270,18 +1269,15 @@ class _BrandMarkPainter extends CustomPainter {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2 * u
-          ..color = accent.withValues(alpha: 0.5 * (1 - emitT)),
+          ..color = ink.withValues(alpha: 0.5 * (1 - emitT)),
       );
     }
 
     // …and breathes.
-    canvas.drawCircle(c, 16 * u * (1 + 0.1 * wave), Paint()..color = accent);
+    canvas.drawCircle(c, 16 * u * (1 + 0.1 * wave), Paint()..color = ink);
   }
 
   @override
   bool shouldRepaint(_BrandMarkPainter old) =>
-      old.orbit != orbit ||
-      old.pulse != pulse ||
-      old.ink != ink ||
-      old.accent != accent;
+      old.orbit != orbit || old.pulse != pulse || old.ink != ink;
 }

@@ -32,7 +32,11 @@ class NotificationService {
     try {
       await plugin.initialize(
         settings: const InitializationSettings(
-          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          // The status-bar icon: the orbit as a white silhouette (Android
+          // draws a small icon from its alpha only, so the launcher tile
+          // came out as a white square). res/raw/keep.xml keeps it through
+          // release resource shrinking, which cannot see this string.
+          android: AndroidInitializationSettings('@drawable/ic_stat_madar'),
           iOS: DarwinInitializationSettings(),
           macOS: DarwinInitializationSettings(),
         ),

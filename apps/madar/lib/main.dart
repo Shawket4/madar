@@ -8,6 +8,7 @@ import 'package:madar/app/boot.dart';
 import 'package:madar/app/connectivity.dart';
 import 'package:madar/app/observability.dart';
 import 'package:madar/app/shell.dart';
+import 'package:madar/app/splash_mark.dart';
 
 void main() {
   // Crash reporting wraps the WHOLE bootstrap so errors thrown while the
@@ -197,8 +198,14 @@ class _ReadyScopeState extends State<_ReadyScope> {
   }
 }
 
+/// The boot splash, after the OS one: the same orbit at the same size (see
+/// [SplashOrbit]), with a progress bar under it while the core starts. The
+/// top spacer balances the bar so the orbit stays centred, where the native
+/// splash left it.
 class _Splash extends StatelessWidget {
   const _Splash();
+
+  static const double _barHeight = 3;
 
   @override
   Widget build(BuildContext context) {
@@ -207,12 +214,13 @@ class _Splash extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const MadarSymbol(size: 72),
+            const SizedBox(height: Space.lg + _barHeight),
+            SplashOrbit(dark: Theme.of(context).brightness == Brightness.dark),
             const SizedBox(height: Space.lg),
             SizedBox(
               width: 120,
               child: LinearProgressIndicator(
-                minHeight: 3,
+                minHeight: _barHeight,
                 borderRadius: BorderRadius.circular(Radii.pill),
               ),
             ),
