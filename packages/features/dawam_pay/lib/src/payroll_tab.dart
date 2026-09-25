@@ -76,7 +76,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
               child: MadarListRow.nav(
                 glyph: MadarGlyph.banknote,
                 title: tr('staff.unsettled_title', {
-                  'period': '${dayMonth(u.start)} – ${dayMonth(u.end)}',
+                  'period': periodName(u.start, u.end),
                 }),
                 meta: u.status == PeriodStatus.open
                     ? tr('staff.unsettled_draft', {
@@ -635,3 +635,17 @@ String adjustmentMeta(Adj a, String by) => [
   ],
   dayMonth(a.at),
 ].join(' · ');
+
+/// A pay period's name (A5): a calendar month by its name ("Aug 2026") when
+/// it is exactly one, anything else by its dates ("26 Jul – 25 Aug").
+String periodName(DateTime start, DateTime end) {
+  final last = DateTime(start.year, start.month + 1, 0);
+  final whole =
+      start.day == 1 &&
+      end.year == last.year &&
+      end.month == last.month &&
+      end.day == last.day;
+  return whole
+      ? '${tr('staff.month_${start.month}')} ${start.year}'
+      : '${dayMonth(start)} – ${dayMonth(end)}';
+}
