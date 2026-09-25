@@ -408,7 +408,9 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
                 child: Text(
                   _inst == 1
                       ? tr('staff.in_full_next_payslip')
-                      : tr('staff.installments_count', {'inst': _inst}),
+                      : trCount('staff.installments_count', _inst, {
+                          'inst': _inst,
+                        }),
                   style: MadarType.body,
                 ),
               ),

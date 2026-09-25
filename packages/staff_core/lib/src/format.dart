@@ -37,6 +37,33 @@ String tr(String key, [Map<String, Object> args = const {}]) {
   return s;
 }
 
+/// The CLDR plural category of a count [n] in [lang] (the language on
+/// screen by default): English `one` / `other`; Arabic `zero`, `one`, `two`,
+/// `few` (3–10), `many` (11–99) and `other` (100, 101, 102, …), counted on
+/// the last two digits as Arabic counts (103 is few, 111 many).
+String pluralOf(int n, [String? lang]) {
+  final c = n.abs();
+  if ((lang ?? currentLang) != 'ar') return c == 1 ? 'one' : 'other';
+  final r = c % 100;
+  return switch (c) {
+    0 => 'zero',
+    1 => 'one',
+    2 => 'two',
+    _ when r >= 3 && r <= 10 => 'few',
+    _ when r >= 11 => 'many',
+    _ => 'other',
+  };
+}
+
+/// [tr] for a phrase with a count [n]: the core's form for it, `<key>_one`,
+/// `_two`, `_few`, `_many` (i18n.rs, PLURAL FORMS), else [key] itself, the
+/// "other" form. [args] fills it as [tr] does, the count included ("1
+/// person has no salary", never "1 people have").
+String trCount(String key, int n, [Map<String, Object> args = const {}]) {
+  final form = '${key}_${pluralOf(n)}';
+  return tr(words(form) == form ? key : form, args);
+}
+
 /// Content that arrives already bilingual (names; what the server words).
 String loc(Bilingual b) => isAr ? b.ar : b.en;
 

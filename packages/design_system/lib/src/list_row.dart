@@ -53,9 +53,10 @@ class MadarListRow extends StatelessWidget {
     this.valueText,
     this.onTap,
     this.trailing,
+    this.titleLines = 1,
+    this.metaLines = 1,
     super.key,
   }) : variant = MadarListRowVariant.nav,
-       titleLines = 1,
        chevron = true,
        minor = null,
        currency = '',
@@ -78,6 +79,7 @@ class MadarListRow extends StatelessWidget {
     super.key,
   }) : variant = MadarListRowVariant.ledger,
        titleLines = 1,
+       metaLines = 1,
        chevron = true,
        glyph = null,
        valueText = null,
@@ -107,6 +109,7 @@ class MadarListRow extends StatelessWidget {
     this.trailing,
     this.chevron = true,
     this.titleLines = 1,
+    this.metaLines = 1,
     super.key,
   }) : variant = MadarListRowVariant.bill,
        glyph = null;
@@ -121,6 +124,7 @@ class MadarListRow extends StatelessWidget {
     super.key,
   }) : variant = MadarListRowVariant.pick,
        titleLines = 1,
+       metaLines = 1,
        chevron = true,
        minor = null,
        currency = '',
@@ -138,13 +142,19 @@ class MadarListRow extends StatelessWidget {
   /// Localised; one line, ellipsised (a bill may allow [titleLines]).
   final String title;
 
-  /// Bill: the lines the title may wrap to before it is ellipsised — a
-  /// record read in full (the staff app's inbox notice). One elsewhere.
+  /// Bill and nav: the lines the title may wrap to before it is ellipsised —
+  /// a record read in full (the staff app's inbox notice, the Payroll
+  /// banner naming a month not fully paid). One elsewhere.
   final int titleLines;
 
   /// The second line — who, when, how. One line, ellipsised. Build it with
   /// `' · '` between facts; isolate figures with `MadarFormat.ltr`.
   final String? meta;
+
+  /// Bill and nav: the lines [meta] may wrap to before it is ellipsised — a
+  /// line that must be read in full (why a request was declined, how much a
+  /// month still owes). One elsewhere.
+  final int metaLines;
 
   /// A leading glyph (nav, pick).
   final MadarGlyph? glyph;
@@ -310,7 +320,7 @@ class MadarListRow extends StatelessWidget {
                   if (meta != null)
                     Text(
                       meta!,
-                      maxLines: 1,
+                      maxLines: metaLines,
                       overflow: TextOverflow.ellipsis,
                       style: MadarType.bodySm.copyWith(
                         color: colors.textSecondary,

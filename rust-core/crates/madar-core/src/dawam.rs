@@ -897,7 +897,7 @@ pub(crate) fn money_words(locale: &str, code: &str, body: &str) -> String {
         .collect();
     let server = || v.get("error").and_then(Value::as_str).map_or_else(|| body.to_string(), str::to_string);
     let key = format!("staff.err_{}", code.to_lowercase());
-    let words = i18n::tr(locale, &key);
+    let words = i18n::tr_counted(locale, &key, &args);
     let out = fill(&words, &args);
     if words != key && !out.contains('{') {
         return out;
@@ -926,7 +926,7 @@ pub(crate) fn punch_words(locale: &str, code: &str, body: &str, tz: chrono_tz::T
         .collect();
     let server = || v.get("error").and_then(Value::as_str).map_or_else(|| body.to_string(), str::to_string);
     let key = format!("staff.err_{}", code.to_lowercase());
-    let words = i18n::tr(locale, &key);
+    let words = i18n::tr_counted(locale, &key, &args);
     let out = fill(&words, &args);
     // No words for it, or a figure the server didn't send: its own sentence.
     if words == key || out.contains('{') { server() } else { out }
@@ -1164,7 +1164,7 @@ pub(crate) fn refusal_words(locale: &str, code: &str, body: &str) -> String {
         "OTP_TOO_MANY_TRIES" => "staff.too_many_tries_send_a_new".to_string(),
         _ => base,
     };
-    let words = i18n::tr(locale, &key);
+    let words = i18n::tr_counted(locale, &key, &args);
     let out = fill(&words, &args);
     if words != key && !out.contains('{') {
         return out;
@@ -3623,7 +3623,7 @@ impl MadarCore {
         // Suggestions and holidays.
         for g in rows("dawam_suggestions") {
             let args: BTreeMap<String, String> = g["reason_args"].as_object().into_iter().flatten().map(|(k, v)| (k.clone(), v.as_str().map_or_else(|| v.to_string(), str::to_string))).collect();
-            let why = fill(&i18n::tr(&locale, &s(g, "reason_key")), &args);
+            let why = fill(&i18n::tr_counted(&locale, &s(g, "reason_key"), &args), &args);
             let d = date(g, "date").unwrap_or(today);
             let from = so(g, "from_employee_id");
             let text = match &from {
@@ -3907,7 +3907,8 @@ fn notice_text(locale: &str, key: &str, args: &Value) -> String {
         };
         filled.insert(k.clone(), text);
     }
-    fill(&i18n::tr(locale, key), &filled)
+    // A counted notice in its count's form ("1 open shift", i18n PLURAL FORMS).
+    fill(&i18n::tr_counted(locale, key, &filled), &filled)
 }
 
 /// A payslip's lines from the server's figures and breakdown (PAY-2: the
@@ -4004,7 +4005,8 @@ fn rule_words(l: &Value, lang: &str) -> String {
             let vars: BTreeMap<String, String> = l.get("reason_vars").and_then(Value::as_object).into_iter().flatten()
                 .map(|(k, v)| (k.clone(), v.as_str().map_or_else(|| v.to_string(), str::to_string)))
                 .collect();
-            fill(&crate::i18n::tr(lang, &format!("staff.pay_reason_{code}")), &vars)
+            let key = format!("staff.pay_reason_{code}");
+            fill(&crate::i18n::tr_counted(lang, &key, &vars), &vars)
         }
         None => s(l, "reason"),
     }
@@ -8212,5 +8214,45 @@ mod tests {
         let a: Act = serde_json::from_str(r#"{"action":"file","kind":"lateArrival","from":"2026-09-22","time":570}"#).unwrap();
         assert!(!a.queueable());
         assert!(serde_json::from_str::<Act>(r#"{"action":"read_all"}"#).is_ok());
+    }
+
+    /// POLISH (FINAL device checks): a phrase the core fills with a count
+    /// reads in that count's form (i18n PLURAL FORMS) — the week's open
+    /// shifts in the inbox, the tries a code has left, a late deduction's
+    /// minutes, the check-in window's minutes: never "1 open shifts",
+    /// "1 tries left", "Late by 1 minutes", "بـ10 دقيقة".
+    #[test]
+    fn a_counted_phrase_the_core_fills_takes_its_form() {
+        let week = |lang: &str, count: i64| notice_text(lang, "staff.n_open_shifts_week", &json!({ "week_start": "2026-10-03", "count": count, "branch_id": "b1" }));
+        assert_eq!(week("en", 1), "1 open shift in the week of 3 Oct — claim it in Shifts");
+        assert_eq!(week("en", 2), "2 open shifts in the week of 3 Oct — claim one in Shifts");
+        assert_eq!(week("en", 4), "4 open shifts in the week of 3 Oct — claim one in Shifts");
+        assert_eq!(week("ar", 1), "وردية متاحة واحدة في أسبوع 3 أكتوبر — احجزها من الورديات");
+        assert_eq!(week("ar", 2), "ورديتين متاحتين في أسبوع 3 أكتوبر — احجز واحدة من الورديات");
+        assert_eq!(week("ar", 4), "4 ورديات متاحة في أسبوع 3 أكتوبر — احجز واحدة من الورديات");
+        assert_eq!(week("ar", 12), "12 وردية متاحة في أسبوع 3 أكتوبر — احجز واحدة من الورديات");
+
+        let body = |code: &str, vars: Value| json!({ "error": "SERVER ENGLISH", "code": code, "vars": vars }).to_string();
+        let tries = |lang: &str, left: i64| refusal_words(lang, "OTP_WRONG", &body("OTP_WRONG", json!({ "attempts_left": left })));
+        assert_eq!(tries("en", 1), "Wrong code · 1 try left");
+        assert_eq!(tries("en", 3), "Wrong code · 3 tries left");
+        assert_eq!(tries("ar", 1), "كود غلط · فاضل محاولة واحدة");
+        assert_eq!(tries("ar", 2), "كود غلط · فاضل محاولتين");
+        assert_eq!(tries("ar", 4), "كود غلط · فاضل 4 محاولات");
+
+        let late = |lang: &str, m: i64| rule_words(&json!({ "reason_code": "late", "reason_vars": { "minutes": m }, "reason": "late" }), lang);
+        assert_eq!(late("en", 1), "Late by 1 minute");
+        assert_eq!(late("en", 55), "Late by 55 minutes");
+        assert_eq!(late("ar", 1), "تأخير دقيقة واحدة");
+        assert_eq!(late("ar", 2), "تأخير دقيقتين");
+        assert_eq!(late("ar", 5), "تأخير 5 دقايق");
+        assert_eq!(late("ar", 55), "تأخير 55 دقيقة");
+
+        let tz: chrono_tz::Tz = "Africa/Cairo".parse().unwrap();
+        let early = |lang: &str, m: i64| punch_words(lang, "CHECKIN_TOO_EARLY", &body("CHECKIN_TOO_EARLY", json!({ "shift": "Evening", "minutes": m, "opens_at": "2026-09-24T11:00:00Z" })), tz);
+        assert!(early("en", 1).ends_with(", 1 min before it starts."), "{}", early("en", 1));
+        assert!(early("ar", 1).ends_with("قبلها بدقيقة."), "{}", early("ar", 1));
+        assert!(early("ar", 10).ends_with("قبلها بـ10 دقايق."), "{}", early("ar", 10));
+        assert!(early("ar", 30).ends_with("قبلها بـ30 دقيقة."), "{}", early("ar", 30));
     }
 }

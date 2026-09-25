@@ -69,17 +69,21 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
       width: MadarContentWidth.full,
       children: [
         // Older months not fully paid (H2-P1): each opens with its actions.
+        // Its month and amount are read in full: on a phone one line cut
+        // both ("isn't fully paid …", "EGP 87…").
         if (!older)
           for (final u in store.unsettled)
             MadarCard(
               flush: true,
               child: MadarListRow.nav(
                 glyph: MadarGlyph.banknote,
+                titleLines: 3,
+                metaLines: 3,
                 title: tr('staff.unsettled_title', {
                   'period': periodName(u.start, u.end),
                 }),
                 meta: u.status == PeriodStatus.open
-                    ? tr('staff.unsettled_draft', {
+                    ? trCount('staff.unsettled_draft', u.people, {
                         'people': u.people,
                         'amount': egp(u.net),
                       })
@@ -302,7 +306,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
         for (final a in store.advances)
           MadarListRow.bill(
             title: name(store.emp(a.emp)),
-            meta: tr('staff.installment_s', {
+            meta: trCount('staff.installment_s', a.installments, {
               'amount': egp(a.amount),
               'installments': a.installments,
               'date': a.date,
@@ -354,7 +358,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
           NoticeBanner(text: text, tone: ChipTone.danger),
         if (carries.isNotEmpty)
           NoticeBanner(
-            text: tr('staff.shortfall_list', {
+            text: trCount('staff.shortfall_list', carries.length, {
               'count': carries.length,
               'names': carries
                   .map((s) => name(store.emp(s.emp)))

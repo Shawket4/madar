@@ -750,8 +750,15 @@ void main() {
         r'"(staff\.n_[a-z_]+)"',
       ).allMatches(words).map((m) => m.group(1)!).toSet();
       final toInbox = {'staff.n_new_phone', 'staff.n_title'};
+      // A plural form of a counted notice (`staff.n_open_shifts_week_one`,
+      // i18n.rs PLURAL FORMS) is words, never a key the server sends.
+      bool form(String k) =>
+          RegExp(r'_(zero|one|two|few|many)$').hasMatch(k) &&
+          keys.contains(k.substring(0, k.lastIndexOf('_')));
       for (final k in keys) {
-        if (toInbox.contains(k) || k.startsWith('staff.n_kind')) continue;
+        if (toInbox.contains(k) || k.startsWith('staff.n_kind') || form(k)) {
+          continue;
+        }
         expect(
           pushTarget(k).tab,
           isNot('inbox'),

@@ -115,8 +115,40 @@ String? cancelledWords(Req r, String? me, String? Function(String id) nameOf) {
 /// who and why before my own note, so the line's cut never hides it.
 String reqMeta(Req r, String? me, String? Function(String id) nameOf) {
   final cancelled = cancelledWords(r, me, nameOf);
-  return [reqWhen(r), ?cancelled, if (r.note.isNotEmpty) r.note].join(' · ');
+  return [
+    reqWhen(r),
+    ?cancelled,
+    ?declineReason(r),
+    if (r.note.isNotEmpty) r.note,
+  ].join(' · ');
 }
+
+/// The lines a request row's meta may take: a row that carries words — my
+/// note, why it was declined, who cancelled it and why — is read in full
+/// (on a phone one line cut them: "until 9:30 AM …", "… · R…"; an Arabic
+/// excuse with its note and times takes five beside its pill), up to eight
+/// for a note that runs on; a row that says only when keeps one line.
+int reqMetaLines(Req r) =>
+    r.note.trim().isNotEmpty ||
+        declineReason(r) != null ||
+        (r.status == ReqStatus.cancelled && r.cancelledBy != null)
+    ? 8
+    : 1;
+
+/// Why a request of mine was declined (decision #8: a decline needs a
+/// reason, and the person who asked sees it): the server's decision note.
+String? declineReason(Req r) {
+  final note = r.decisionNote?.trim() ?? '';
+  if (r.status != ReqStatus.rejected || note.isEmpty) return null;
+  return tr('staff.decline_reason', {'note': note});
+}
+
+/// What taking back a request of mine says: a claim on an open shift is
+/// withdrawn, as its row then reads (B-H1-5: the server keeps a withdrawn
+/// claim apart from a cancel), anything else cancelled.
+String takenBackWords(Req r) => r.kind == ReqKind.openShift
+    ? tr('staff.claim_withdrawn')
+    : tr('staff.cancelled');
 
 /// " · half day", with its half when the server says which (RQ-8).
 String halfSuffix(String? half) => switch (half) {
@@ -154,7 +186,7 @@ String reqWhen(Req r) {
     ReqKind.correction when window.isNotEmpty => '$d · $ltrWindow',
     ReqKind.salaryAdvance =>
       '${egp(r.amount)} · '
-          '${r.installments == 1 ? tr('staff.next_payslip') : tr('staff.months', {'installments': r.installments})}',
+          '${r.installments == 1 ? tr('staff.next_payslip') : trCount('staff.months', r.installments, {'installments': r.installments})}',
     ReqKind.overtime => '$d · ${mins(r.minutes)}',
     _ => d,
   };
@@ -181,23 +213,30 @@ class _ReqRow extends ConsumerWidget {
         final e = store.emps[id];
         return e == null ? null : name(e);
       }),
+      metaLines: reqMetaLines(r),
       status: reqStatus(r, store.me),
       onTap: !cancellable
           ? null
           : r.status == ReqStatus.approved
           ? () => _cancelApproved(context)
           : () async {
+              // A claim is withdrawn, as its row then reads; the rest cancelled.
+              final claim = r.kind == ReqKind.openShift;
               final ok = await showMadarConfirm(
                 context,
-                title: tr('staff.cancel_this_request'),
-                confirmLabel: tr('staff.cancel_request'),
+                title: claim
+                    ? tr('staff.withdraw_this_claim')
+                    : tr('staff.cancel_this_request'),
+                confirmLabel: claim
+                    ? tr('staff.withdraw')
+                    : tr('staff.cancel_request'),
                 cancelLabel: tr('staff.keep'),
               );
               if (ok) {
                 await attempt(
                   ref,
                   () => store.cancel(r),
-                  ok: tr('staff.cancelled'),
+                  ok: takenBackWords(r),
                 );
               }
             },

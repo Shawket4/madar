@@ -78,7 +78,7 @@ class PayTab extends ConsumerWidget {
           for (final a in advs)
             MadarListRow.bill(
               title: egp(a.amount),
-              meta: tr('staff.installment_s_left', {
+              meta: trCount('staff.installment_s_left', a.installments, {
                 'date': a.date,
                 'installments': a.installments,
                 'amount': egp(a.outstanding),
