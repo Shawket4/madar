@@ -47,7 +47,6 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
         if (!mounted) return;
         final n = ref.read(incomingProvider.notifier);
         unawaited(n.loadOpenTickets());
-        unawaited(n.loadTill());
       }),
     );
   }
@@ -74,7 +73,7 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
       return;
     }
     final bridge = ref.read(bridgeProvider);
-    final tillOpen = ref.read(incomingProvider).tillOpen ?? false;
+    final tillOpen = ref.read(shellProvider).tillOpen;
     final charge = await showMadarSheet<bool>(
       context,
       size: SheetSize.large,
@@ -130,7 +129,8 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
     final loaded = ref.watch(incomingProvider.select((s) => s.ticketsLoaded));
     final labels = ref.watch(incomingProvider.select((s) => s.tableLabels));
     final hasFloor = ref.watch(incomingProvider.select((s) => s.hasFloor));
-    final tillOpen = ref.watch(incomingProvider.select((s) => s.tillOpen));
+    // Charge books onto THE till — the shell's, the one owner.
+    final tillOpen = ref.watch(shellProvider.select((s) => s.tillOpen));
     final error = ref.watch(incomingProvider.select((s) => s.error));
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
@@ -161,7 +161,7 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
       );
     }
 
-    final chargeReady = tillOpen ?? false;
+    final chargeReady = tillOpen;
     Widget chargeFor(TicketView b) => MadarButton(
       label: bridge.trOr(QueueKeys.chargeBill),
       size: MadarButtonSize.compact,
@@ -279,7 +279,7 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
     final banners = <Widget>[
       // Charge books onto THIS till's till. Say so once, at the top, instead
       // of every row's button greyed with no reason.
-      if (tillOpen == false)
+      if (!tillOpen)
         NoticeBanner(text: bridge.trOr(QueueKeys.needTill), icon: 'lock'),
       if (error != null && bills.isNotEmpty)
         NoticeBanner(

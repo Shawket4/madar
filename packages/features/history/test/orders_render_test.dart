@@ -445,6 +445,8 @@ class _FakeBridge implements MadarBridge {
       // window, yesterday's sales are not.
       return DateTime.parse(at).isAfter(DateTime.utc(2026, 9, 11, 20));
     }
+    // The one owner's sync read: this person's OWN open till, or none.
+    if (name == #ownOpenTill) return _till;
     if (name == #currentTill || name == #refreshTill) {
       return Future<TillView?>.value(_till);
     }

@@ -110,7 +110,7 @@ class _Tills extends ConsumerWidget {
   ) async {
     final state = ref.read(tillHistoryProvider);
     if (state.reportLoadingId != null) return;
-    if (s.isOpen && s.id == state.live?.id) {
+    if (s.isOpen && s.id == ref.read(shellProvider).till?.id) {
       await showMadarSheet<void>(
         context,
         size: SheetSize.large,
@@ -134,7 +134,8 @@ class _Tills extends ConsumerWidget {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final tills = ref.watch(tillHistoryProvider.select((s) => s.tills));
-    final live = ref.watch(tillHistoryProvider.select((s) => s.live));
+    // The live till pinned on top — the shell's, the one owner.
+    final live = ref.watch(shellProvider.select((s) => s.till));
     final loading = ref.watch(tillHistoryProvider.select((s) => s.loading));
     final loadError = ref.watch(tillHistoryProvider.select((s) => s.loadError));
     final reportLoadingId = ref.watch(

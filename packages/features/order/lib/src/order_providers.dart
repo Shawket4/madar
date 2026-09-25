@@ -56,7 +56,6 @@ class OrderState {
   const OrderState({
     required this.isWaiter,
     required this.currency,
-    this.till,
     this.categories = const [],
     this.menuItems = const [],
     this.bundles = const [],
@@ -88,7 +87,12 @@ class OrderState {
   /// isWaiterDevice — a session-role check, re-derived on [OrderNotifier.init]).
   final bool isWaiter;
   final String currency;
-  final TillView? till;
+
+  // Which till is open, and whether one is, is NOT kept here: it is the
+  // shell's (`shellProvider.till`), the one owner every screen reads. This
+  // state used to hold a copy loaded once per person — while the device was
+  // still locked — and the cart went on saying "No till is open" after the
+  // teller opened one (owner report 2026-09-25).
 
   /// The signed-in person, as the server names them. The waiter's Bills tab
   /// groups MINE by matching this against `TicketView.waiterName` — a string
@@ -108,10 +112,6 @@ class OrderState {
   /// `fireTicket(guestCount)` with the first round, which is where the server
   /// records it. A table cleared or unseated drops its entry.
   final Map<String, int> pendingCovers;
-
-  /// A drawer is open on this till. Taking money needs one; seating and
-  /// firing do not.
-  bool get tillOpen => till?.isOpen ?? false;
 
   // ── catalog ──────────────────────────────────────────────────────────────
   final List<CategoryView> categories;
@@ -173,7 +173,6 @@ class OrderState {
   OrderState copyWith({
     bool? isWaiter,
     String? currency,
-    Object? till = _unset,
     List<CategoryView>? categories,
     List<MenuItemView>? menuItems,
     List<BundleView>? bundles,
@@ -201,7 +200,6 @@ class OrderState {
   }) => OrderState(
     isWaiter: isWaiter ?? this.isWaiter,
     currency: currency ?? this.currency,
-    till: identical(till, _unset) ? this.till : till as TillView?,
     categories: categories ?? this.categories,
     menuItems: menuItems ?? this.menuItems,
     bundles: bundles ?? this.bundles,
@@ -354,7 +352,7 @@ class OrderNotifier extends Notifier<OrderState> {
       await Future.wait([loadCatalog(), loadOpenTickets()]);
     } else {
       await Future.wait([
-        reconcileTill(),
+        ref.read(shellProvider.notifier).reconcileTill(),
         loadCatalog(),
         loadTillStats(),
         loadOpenTickets(),
@@ -400,20 +398,6 @@ class OrderNotifier extends Notifier<OrderState> {
       tillSalesMinor: stats.salesMinor,
       tillOrderCount: stats.orderCount,
     );
-  }
-
-  /// Sync the open till with the server (online) or read the cache. The
-  /// core may discover the till was force-closed — the route can move, so
-  /// the shell is refreshed.
-  Future<void> reconcileTill() async {
-    TillView? till;
-    try {
-      till = await _bridge.refreshTill();
-    } on MadarError {
-      till = await _quiet<TillView?>(_bridge.currentTill);
-    }
-    state = state.copyWith(till: till);
-    _refreshShell();
   }
 
   // ── catalog ────────────────────────────────────────────────────────────────
@@ -1333,7 +1317,9 @@ class OrderNotifier extends Notifier<OrderState> {
     /// by the floor beneath it and once by the bill itself.
     bool askToClear = true,
   }) async {
-    final tillId = state.till?.id;
+    // THE till, from its one owner — never a copy that could name the till
+    // before a close and reopen.
+    final tillId = ref.read(shellProvider).till?.id;
     if (tillId == null) {
       state = state.copyWith(error: const UiText.key('waiter.need_shift'));
       return false;
@@ -1617,7 +1603,7 @@ class OrderNotifier extends Notifier<OrderState> {
       ref.read(reauthRequestProvider.notifier).request();
     }
     if (!wasOnline && online && !state.isWaiter) {
-      await reconcileTill();
+      await ref.read(shellProvider.notifier).reconcileTill();
     }
   }
 
@@ -1653,7 +1639,7 @@ class OrderNotifier extends Notifier<OrderState> {
       ref.read(reauthRequestProvider.notifier).request();
     }
     if (!wasOnline && status.online && !state.isWaiter) {
-      await reconcileTill();
+      await ref.read(shellProvider.notifier).reconcileTill();
     }
   }
 

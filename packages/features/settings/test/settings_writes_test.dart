@@ -23,6 +23,11 @@ class _Bridge implements MadarBridge {
     if (name == #deviceConfig) {
       return const DeviceConfigView(reconfiguring: false, configured: true);
     }
+    // The one owner's sync read: this person's OWN open till, or none.
+    if (name == #ownOpenTill) {
+      final t = till;
+      return (t?.isOpen ?? false) ? t : null;
+    }
     if (name == #currentTill) return Future<TillView?>.value(till);
     if (name == #setDeviceLanHub) {
       return refuseHub

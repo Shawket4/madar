@@ -399,6 +399,24 @@ class _FakeBridge implements MadarBridge {
     if (name == #cartLines) {
       return Future<List<CartLineView>>.value(const []);
     }
+    // The one owner's sync read: this person's OWN open till, or none.
+    if (name == #ownOpenTill) {
+      final t = tillOpen
+          ? const TillView(
+              id: 'sh-1',
+              branchId: 'b1',
+              tellerId: 'u1',
+              tellerName: 'Sara',
+              openingCashMinor: 50000,
+              openedAt: '2026-09-10T09:00:00Z',
+              status: 'open',
+              isOpen: true,
+              verification: 'server',
+              openedWhileAnotherOpen: false,
+            )
+          : null;
+      return (t?.isOpen ?? false) ? t : null;
+    }
     if (name == #currentTill) {
       return Future<TillView?>.value(
         tillOpen

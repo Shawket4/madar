@@ -10,6 +10,17 @@
 /// tab's no-till home (`embedded`) the shell already carries the
 /// connectivity chrome, so the pinned banners stay off and the tab can hang
 /// something under the card (a manager's drawers).
+///
+/// The form is NEVER on screen while a till is open (owner report
+/// 2026-09-25). Whether one is comes from the shell — the one owner of the
+/// till — and three layers hold it:
+/// * the way in: the Till tab renders this only with no till, and
+///   `openTillPage` refuses to push [OpenTillPage] over an open one;
+/// * the screen: over an open till it renders nothing, and [OpenTillPage]
+///   takes itself off the stack the moment a till opens, wherever it opened;
+/// * the action: submit never asks the core for a second till, and the core
+///   answers `already_open` rather than minting one; either way the shell's
+///   chrome says so (`tillAlreadyOpenProvider`).
 library;
 
 import 'dart:async';
@@ -66,6 +77,12 @@ class _OpenTillScreenState extends ConsumerState<OpenTillScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Never over an open till, whoever hosts this: nothing to count and
+    // nothing to submit. The host moves on in the same frame (the Till tab
+    // shows the drawer, [OpenTillPage] leaves the stack).
+    if (ref.watch(shellProvider.select((s) => s.tillOpen))) {
+      return const SizedBox.shrink();
+    }
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     // Narrow slices: the heartbeat chrome repaints alone every 15s.
@@ -505,6 +522,83 @@ class _SwitchPersonOnly extends ConsumerWidget {
           onTap: () => unawaited(ref.read(openTillProvider.notifier).signOut()),
         ),
       ],
+    );
+  }
+}
+
+// ─── The form as a page of its own ──────────────────────────────────────────
+
+/// Push the opening form as a page over the tab [context] sits in — but only
+/// while NO till is open. With one open there is nothing to open: the page is
+/// not pushed, and the shell's chrome says the till is already open.
+///
+/// The one way into [OpenTillPage]: the route-level half of the guard.
+Future<void> openTillPage(BuildContext context, WidgetRef ref) async {
+  final alreadyOpen = ref.read(tillAlreadyOpenProvider.notifier);
+  // The one owner, re-read against the core first: the frame that offered
+  // the way in may be a beat older than the till.
+  await ref.read(shellProvider.notifier).reconcileTill();
+  if (!context.mounted) return;
+  if (ref.read(shellProvider).tillOpen) {
+    alreadyOpen.bump();
+    return;
+  }
+  await MadarPages.push<void>(context, (_) => const OpenTillPage());
+}
+
+/// The opening form pushed over another tab (Sell's "Open till"), reached
+/// only through [openTillPage].
+///
+/// It is never on screen with a till open: the push is refused over an open
+/// till, and a page already up when a till opens — through this form, on the
+/// Till tab, or by a pull from another device — takes itself off the stack
+/// the moment the shell says so.
+class OpenTillPage extends ConsumerStatefulWidget {
+  /// Creates the page. Use [openTillPage] to show it.
+  const OpenTillPage({super.key});
+
+  @override
+  ConsumerState<OpenTillPage> createState() => _OpenTillPageState();
+}
+
+class _OpenTillPageState extends ConsumerState<OpenTillPage> {
+  bool _left = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Already open by the time the page mounted (a race with the way in):
+    // leave at once.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && ref.read(shellProvider).tillOpen) _leave();
+    });
+  }
+
+  /// Take THIS page off its stack — never whatever happens to be on top.
+  void _leave() {
+    if (_left || !mounted) return;
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isActive) return;
+    _left = true;
+    final nav = Navigator.of(context);
+    if (route.isCurrent) {
+      nav.pop();
+    } else {
+      nav.removeRoute(route);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bridge = ref.bridge;
+    ref.listen(shellProvider.select((s) => s.tillOpen), (_, open) {
+      if (open) _leave();
+    });
+    return MadarPageScaffold(
+      width: MadarContentWidth.form,
+      title: bridge.tr(key: 'sell.open_till'),
+      bodyInset: false,
+      body: const OpenTillScreen(embedded: true),
     );
   }
 }

@@ -108,7 +108,8 @@ class _CloseTillScreenState extends ConsumerState<CloseTillScreen> {
   Widget build(BuildContext context) {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
-    final till = ref.watch(closeTillProvider.select((s) => s.till));
+    // The till being closed — the shell's, the one owner.
+    final till = ref.watch(shellProvider.select((s) => s.till));
     final orderCount = ref.watch(closeTillProvider.select((s) => s.orderCount));
 
     final subtitle = [

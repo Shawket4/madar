@@ -103,8 +103,8 @@ class _Fake implements MadarBridge {
   Completer<ReceiptView> checkoutGate = Completer<ReceiptView>();
   Completer<String?> settleGate = Completer<String?>();
 
-  /// Released by the test: the till lookup. Null answers at once.
-  Completer<TillView?>? till;
+  /// The core's till: open unless a test closes it.
+  bool tillOpen = true;
 
   int checkoutCalls = 0;
   int settleCalls = 0;
@@ -176,8 +176,10 @@ class _Fake implements MadarBridge {
       );
     }
     if (name == #cartLines) return Future<List<CartLineView>>.value(const []);
+    // The one owner's sync read: this person's OWN open till, or none.
+    if (name == #ownOpenTill) return tillOpen ? _openTill : null;
     if (name == #currentTill) {
-      return till?.future ?? Future<TillView?>.value(_openTill);
+      return Future<TillView?>.value(tillOpen ? _openTill : null);
     }
     if (name == #checkout) {
       checkoutCalls += 1;
@@ -403,26 +405,25 @@ void main() {
     expect(bridge.settledSplits, isEmpty);
   });
 
-  testWidgets('a bill cannot charge before the shift lookup answers', (
-    tester,
-  ) async {
-    final bridge = _Fake()..till = Completer<TillView?>();
+  testWidgets('a bill cannot charge without a till, and the bar follows the '
+      'one owner the moment a till opens', (tester) async {
+    final bridge = _Fake()..tillOpen = false;
     final container = await _mount(tester, bridge);
     final session = container.read(checkoutProvider.notifier);
     final keep = container.listen(checkoutProvider, (_, _) {});
     addTearDown(keep.close);
-    final started = session.start(
-      const ChargeTarget.bill(_ticket, tableLabel: 'T1'),
-    );
-    await tester.pump();
+    await session.start(const ChargeTarget.bill(_ticket, tableLabel: 'T1'));
     session.setTendered(10000);
-    expect(container.read(checkoutProvider).block, ChargeBlock.loading);
+    expect(container.read(checkoutProvider).block, ChargeBlock.noTill);
     expect(container.read(checkoutProvider).canChargeExact, isFalse);
     await session.charge();
-    expect(bridge.settleCalls, 0, reason: 'no shift id to settle against');
+    expect(bridge.settleCalls, 0, reason: 'no till id to settle against');
 
-    bridge.till!.complete(_openTill);
-    await started;
+    // The till opens (here, on the Till tab, by a pull): the shell re-reads,
+    // and the drawer that is already up follows — no new session, no lookup.
+    bridge.tillOpen = true;
+    container.read(shellProvider.notifier).refresh();
+    expect(container.read(checkoutProvider).tillId, _openTill.id);
     expect(container.read(checkoutProvider).block, ChargeBlock.none);
   });
 

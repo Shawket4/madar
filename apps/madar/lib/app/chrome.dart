@@ -564,14 +564,10 @@ class _RoleShellState extends ConsumerState<RoleShell> {
   }
 
   Future<void> _signOut() async {
-    // Nobody signs out mid-till — the drawer has to be counted first.
+    // Nobody signs out mid-till — the drawer has to be counted first. THE
+    // till is the shell's, the one owner.
     final bridge = ref.read(bridgeProvider);
-    TillView? till;
-    try {
-      till = await bridge.currentTill();
-    } on Exception catch (_) {}
-    if (!mounted) return;
-    if (till?.isOpen ?? false) {
+    if (ref.read(shellProvider).tillOpen) {
       ref
           .read(chromeProvider.notifier)
           .showToast(
@@ -668,12 +664,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       case ReauthOutcome.switchTeller:
         // A different person signs in: the drawer closes first when one is
         // open (the close screen routes onward); a waiter has none to close.
-        TillView? till;
-        try {
-          till = await ref.read(bridgeProvider).currentTill();
-        } on Exception catch (_) {}
-        if (!mounted) return;
-        if (till?.isOpen ?? false) {
+        if (ref.read(shellProvider).tillOpen) {
           _openOwned(_OwnedPage.closeTill);
         } else {
           await _signOut();
@@ -757,6 +748,17 @@ class _RoleShellState extends ConsumerState<RoleShell> {
         if (next is AppRoute_OpenTill && prev is! AppRoute_OpenTill) {
           _select(_Tab.till);
         }
+      })
+      // An open met a till that was already open here: nothing new was
+      // opened, and the teller is told so over whichever tab they land on.
+      ..listen(tillAlreadyOpenProvider, (_, _) {
+        ref
+            .read(chromeProvider.notifier)
+            .showToast(
+              _t('till.already_open'),
+              tone: ChipTone.info,
+              icon: 'lock.open',
+            );
       });
     // Locale switches must re-resolve every chrome string.
     ref.watch(localeProvider);
@@ -974,7 +976,7 @@ class _PersonSheet extends ConsumerWidget {
     final bridge = ref.bridge;
     final session = ref.watch(shellProvider.select((s) => s.session));
     final online = ref.watch(outboxProvider.select((s) => s.online));
-    final tillOpen = ref.watch(orderProvider.select((s) => s.tillOpen));
+    final tillOpen = ref.watch(shellProvider.select((s) => s.tillOpen));
     final name = session?.displayName ?? '';
     final role = session?.role ?? '';
     final roleWord = bridge.tr(key: 'role.$role');

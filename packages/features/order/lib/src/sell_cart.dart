@@ -86,7 +86,15 @@ class SellCta {
 /// needs an open till, and is refused outright where the shop puts every sale
 /// on a table, because the server refuses it too and saying so here is kinder
 /// than saying so after the tender.
-SellCta sellCtaFor(OrderState s, CartState c, MadarBridge bridge) {
+///
+/// [tillOpen] is the shell's (`shellProvider.tillOpen`) — the one owner of
+/// the till — never a copy this surface loaded for itself.
+SellCta sellCtaFor(
+  OrderState s,
+  CartState c,
+  MadarBridge bridge, {
+  required bool tillOpen,
+}) {
   final sendsToKitchen =
       s.isWaiter || c.tableId != null || cartTicket(s, c) != null;
   final count = c.totals.itemCount;
@@ -103,7 +111,7 @@ SellCta sellCtaFor(OrderState s, CartState c, MadarBridge bridge) {
   var needsTill = false;
   if (s.requireTableForOrders) {
     reason = orderWord(bridge, 'sell.table_required');
-  } else if (!s.tillOpen) {
+  } else if (!tillOpen) {
     reason = orderWord(bridge, 'sell.no_shift');
     needsTill = true;
   }
@@ -169,7 +177,12 @@ class SellCart extends ConsumerWidget {
     final bridge = ref.bridge;
     final state = ref.watch(orderProvider);
     final cart = ref.watch(cartProvider(tableId));
-    final cta = sellCtaFor(state, cart, bridge);
+    final cta = sellCtaFor(
+      state,
+      cart,
+      bridge,
+      tillOpen: ref.watch(shellProvider.select((s) => s.tillOpen)),
+    );
     final ticket = cartTicket(state, cart);
     final lines = cart.lines;
     final tableLabel = cartTableLabel(state, cart);
@@ -1270,7 +1283,12 @@ class SellBar extends ConsumerWidget {
     final bridge = ref.bridge;
     final state = ref.watch(orderProvider);
     final cart = ref.watch(cartProvider(tableId));
-    final cta = sellCtaFor(state, cart, bridge);
+    final cta = sellCtaFor(
+      state,
+      cart,
+      bridge,
+      tillOpen: ref.watch(shellProvider.select((s) => s.tillOpen)),
+    );
     if (cta.itemCount <= 0) return const SizedBox.shrink();
     final isBusy = cart.isBusy;
     final figure = cta.sendsToKitchen

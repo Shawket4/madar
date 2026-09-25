@@ -430,6 +430,21 @@ class _FakeBridge implements MadarBridge {
       return Future<List<TicketView>>.value(tickets);
     }
     if (name == #floorLayout) return Future<FloorLayoutView>.value(_layout);
+    // The one owner's sync read: this person's OWN open till, or none.
+    if (name == #ownOpenTill) {
+      return const TillView(
+        id: 'sh-1',
+        branchId: 'b',
+        tellerId: 'u',
+        tellerName: 'Sara',
+        openingCashMinor: 85000,
+        openedAt: '2026-09-10T17:00:00Z',
+        status: 'open',
+        isOpen: true,
+        verification: 'server',
+        openedWhileAnotherOpen: false,
+      );
+    }
     if (name == #currentTill) {
       return Future<TillView?>.value(
         const TillView(
