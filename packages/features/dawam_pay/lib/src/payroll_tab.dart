@@ -69,12 +69,16 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
       width: MadarContentWidth.full,
       children: [
         // Older months not fully paid (H2-P1): each opens with its actions.
+        // Its month and amount are read in full: on a phone one line cut
+        // both ("isn't fully paid …", "EGP 87…").
         if (!older)
           for (final u in store.unsettled)
             MadarCard(
               flush: true,
               child: MadarListRow.nav(
                 glyph: MadarGlyph.banknote,
+                titleLines: 3,
+                metaLines: 3,
                 title: tr('staff.unsettled_title', {
                   'period': periodName(u.start, u.end),
                 }),

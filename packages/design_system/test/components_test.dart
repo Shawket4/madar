@@ -476,6 +476,36 @@ void main() {
       expect(metas, [1, 3]);
     });
 
+    // H2-P1 (FINAL device check): the Payroll banner, a nav row, cut its
+    // month and its amount on a phone; a nav row may wrap both.
+    testWidgets("a nav row's title and meta wrap to their lines", (
+      tester,
+    ) async {
+      const title = "26 Jul – 25 Aug isn't fully paid yet";
+      const meta = 'Not approved yet · 13 people · EGP 87,010.46';
+      await tester.pumpWidget(
+        _app(
+          const Scaffold(
+            body: Column(
+              children: [
+                MadarListRow.nav(title: title, meta: meta),
+                MadarListRow.nav(
+                  title: title,
+                  meta: meta,
+                  titleLines: 3,
+                  metaLines: 2,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      List<int?> lines(String s) =>
+          tester.widgetList<Text>(find.text(s)).map((t) => t.maxLines).toList();
+      expect(lines(title), [1, 3]);
+      expect(lines(meta), [1, 2]);
+    });
+
     testWidgets('a status pill always carries a glyph', (tester) async {
       await tester.pumpWidget(
         _app(
