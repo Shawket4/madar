@@ -13,6 +13,18 @@ const String _semanticLabel = 'Madar';
 bool _isDark(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark;
 
+/// Colours of the Madar orbit that are the brand's own, not the theme's.
+///
+/// Since 2026-09-25 the orbit wears the app icon's colouring everywhere: the
+/// ring and the centre dot in the ground's ink (Ink on light, Paper on dark)
+/// and the satellite in Madar Teal deep on both (the Madar Design System
+/// kit's "THE ORBIT'S COLOURS"). The PNG marks below carry it baked in; a
+/// mark drawn in vector (`AnimatedBrandMark`) takes the satellite from here.
+abstract final class MadarBrandColors {
+  /// Madar Teal deep, #0D6273: the orbit's satellite on every ground.
+  static const Color satellite = Color(0xFF0D6273);
+}
+
 /// The full Madar logo lockup (symbol + wordmark).
 ///
 /// Renders the Latin lockup by default; set [arabic] for the Arabic
