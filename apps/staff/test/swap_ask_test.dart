@@ -43,6 +43,7 @@ void main() {
       );
       await frames(t, 30);
       expect(t.takeException(), isNull);
+      await openSwaps(t);
       final store = testContainer.read(dawamProvider);
       expect(store.shifts.where((s) => s.id == theirs), isEmpty);
       final asker = name(store.emp('e4'));

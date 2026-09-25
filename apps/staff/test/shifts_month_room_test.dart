@@ -43,9 +43,9 @@ void main() {
       );
       await frames(t, 30);
       expect(
-        find.text(tr('staff.cancel_swap')),
-        findsNWidgets(2),
-        reason: 'two swap cards are up',
+        find.text(tr('staff.swaps_waiting', {'count': 2})),
+        findsOneWidget,
+        reason: 'two swaps wait, folded into one line (minor #23)',
       );
       expect(
         find.text(tr('staff.not_published_yet_you_ll_get')),

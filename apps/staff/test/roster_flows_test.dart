@@ -68,6 +68,7 @@ void main() {
     testWidgets('I take back a swap I asked for · $lang', (t) async {
       await pumpApp(t, lang: lang, who: 'e1', tab: 2);
       await frames(t);
+      await openSwaps(t);
       await tapText(t, tr('staff.cancel_swap'));
       expect(lastAct(), {'action': 'cancel', 'req': 'w|w1'});
       await finish(t);
