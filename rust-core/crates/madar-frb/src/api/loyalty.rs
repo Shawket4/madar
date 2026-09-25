@@ -125,6 +125,10 @@ pub struct _RewardLineInput {
     pub qty: i32,
     pub line_total_minor: i64,
     pub is_staff_drink: bool,
+    /// A combo line: its items earn stamps, but no reward inside it (C7).
+    pub in_combo: bool,
+    /// A line in an applied deal: never a reward too.
+    pub in_deal: bool,
 }
 
 #[frb(mirror(RewardPick))]

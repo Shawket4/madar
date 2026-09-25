@@ -947,3 +947,28 @@ impl crate::MadarCore {
 
 /// The refusal of a combo id the menu does not have.
 pub const UNKNOWN_COMBO: &str = "unknown combo";
+
+impl crate::MadarCore {
+    /// A cart line as the round's single-dish kitchen chits (the fire print):
+    /// one per dish — a combo's items each tagged with it (C12). The time is
+    /// the branch's; the teller is the signed-in person.
+    pub fn kitchen_chits_for_line(
+        &self,
+        line: cart::CartLineView,
+        table_label: Option<String>,
+        ticket_ref: Option<String>,
+    ) -> Vec<crate::receipt::KitchenChit> {
+        let loc = self.current_locale();
+        let at = crate::timefmt::format(
+            &self.store,
+            &self.corrected_now().to_rfc3339(),
+            crate::timefmt::TimeStyle::Time,
+            &loc,
+        );
+        let teller = self
+            .current_session()
+            .map(|s| s.display_name)
+            .filter(|n| !n.trim().is_empty());
+        crate::receipt::chits_for_cart_line(&line, table_label, ticket_ref, at, teller, &loc)
+    }
+}

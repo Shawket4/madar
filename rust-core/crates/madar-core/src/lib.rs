@@ -188,7 +188,11 @@ pub fn ffi_surface_version() -> u32 {
     // 4: core-driven realtime — `start_realtime(listener, player)` + the
     //    `RealtimePlayer` callback (the core owns topics-per-role + the alert
     //    decision/dedup/localized text; the host just plays ping/notification/haptic).
-    4
+    // 5: combos and deals (COMBOS_CONTRACT §6) — `combo_detail`/`meal_offer`/
+    //    `combo_quote`/`cart_*_combo`/`cart_make_it_a_meal`/deal suggestions;
+    //    `CartLineView.kind/parts/deal_*`, `ReceiptLineView.kind/parts/…`,
+    //    `KitchenChit.combo`, `KdsLineView.combo`, `MenuItemView.kind`.
+    5
 }
 
 /// Smoke-test call used to prove the binding pipeline end-to-end from each host.
@@ -9458,7 +9462,7 @@ mod tests {
         // 1: realtime SSE + AppRoute payload variants. 2: core-owned device config.
         // 3: LAN offline relay surface. 4: core-driven realtime (start_realtime +
         // RealtimePlayer). Every breaking FFI change MUST bump this and this assertion.
-        assert_eq!(ffi_surface_version(), 4);
+        assert_eq!(ffi_surface_version(), 5);
     }
 
     #[test]

@@ -7,8 +7,8 @@ use crate::api::bridge::MadarBridge;
 use crate::api::error::MadarError;
 
 pub use madar_core::checkout::{
-    CashQuickTenderView, CheckoutInput, CheckoutSplit, ReceiptLineView, ReceiptModifierView,
-    ReceiptPaymentView, ReceiptView, TenderSummaryView,
+    CashQuickTenderView, CheckoutInput, CheckoutSplit, ReceiptDealView, ReceiptLineView,
+    ReceiptModifierView, ReceiptPartView, ReceiptPaymentView, ReceiptView, TenderSummaryView,
 };
 pub use madar_core::orders::{
     OrderDetailLineView, OrderDetailView, OrderRefundsView, OrderSearchPage, OrderSummaryView,
@@ -114,6 +114,33 @@ pub struct _ReceiptLineView {
     pub staff_comp_minor: i64,
     pub addons: Vec<ReceiptModifierView>,
     pub optionals: Vec<ReceiptModifierView>,
+    /// `"item"` or `"combo"`: a combo prints `n × <name> …… n×P`, then its
+    /// items indented.
+    pub kind: String,
+    /// One unit before its extras (a combo's P).
+    pub unit_price_minor: i64,
+    pub parts: Vec<ReceiptPartView>,
+    /// What a deal took off this line; the line prints at its normal price.
+    pub deal_minor: i64,
+}
+
+/// One item of a combo on the receipt (whole-line figures).
+#[frb(mirror(ReceiptPartView))]
+pub struct _ReceiptPartView {
+    pub name: String,
+    pub qty: i64,
+    pub size_label: Option<String>,
+    pub slot_name: Option<String>,
+    pub surcharge_minor: i64,
+    pub addons: Vec<ReceiptModifierView>,
+    pub optionals: Vec<ReceiptModifierView>,
+}
+
+/// A deal row, printed under the subtotal.
+#[frb(mirror(ReceiptDealView))]
+pub struct _ReceiptDealView {
+    pub name: String,
+    pub discount_minor: i64,
 }
 
 /// The order confirmation / receipt summary.
@@ -176,6 +203,8 @@ pub struct _ReceiptView {
     /// After a sale with staff drinks: how the pool stands, or that this server
     /// does not support free staff drinks yet. For the done card; never printed.
     pub staff_notice: Option<String>,
+    /// The deals on the order; `subtotal_minor` is net of them.
+    pub deals: Vec<ReceiptDealView>,
 }
 
 /// One tender on a split receipt.
@@ -301,6 +330,8 @@ pub struct _OrderDetailLineView {
     pub addons: Vec<String>,
     /// Optional-field labels.
     pub optionals: Vec<String>,
+    /// `"item"`, `"combo"` (its parts follow) or `"combo_part"` (indented).
+    pub kind: String,
 }
 
 /// A fetched order with its lines — drives the history detail + reprint.

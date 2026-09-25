@@ -6,8 +6,9 @@ use flutter_rust_bridge::frb;
 use crate::api::bridge::MadarBridge;
 use crate::api::error::MadarError;
 
+pub use madar_core::deals::{AppliedDealView, DealSuggestion};
 pub use madar_core::cart::{
-    AddonSelection, CartAddonView, CartLineView, CartOptionalView, CartStaffDrinkView, CartStaffSummary, CartTotals, CartMeta, DraftSwitchView, DraftView, GroupViolationView, HeldParkInput,
+    AddonSelection, CartAddonView, CartLineView, CartOptionalView, CartPartView, CartStaffDrinkView, CartStaffSummary, CartTotals, CartMeta, DraftSwitchView, DraftView, GroupViolationView, HeldParkInput,
     ItemAddonView, LinePreviewView, ModifierGroupKind, ModifierGroupView, ModifierOptionView,
 };
 pub use madar_core::recipe::ComputedRecipeLineView;
@@ -108,6 +109,60 @@ pub struct _CartLineView {
     /// Set when the line is a STAFF DRINK. `line_total_minor` stays the normal
     /// price; this carries the comp and what is still charged.
     pub staff_drink: Option<CartStaffDrinkView>,
+    /// `"item"` or `"combo"`. A combo's `unit_price_minor` is its price P,
+    /// `line_total_minor` the whole line, and its items are `parts`.
+    pub kind: String,
+    pub parts: Vec<CartPartView>,
+    /// What an applied deal takes off this line (0 = none);
+    /// `line_total_minor` stays the normal price.
+    pub deal_cut_minor: i64,
+    pub deal_name: Option<String>,
+}
+
+/// One item of a combo line, drawn indented under the combo.
+#[frb(mirror(CartPartView))]
+pub struct _CartPartView {
+    pub slot_id: String,
+    pub slot_name: String,
+    pub item_id: String,
+    pub item_name: String,
+    /// `None` for an item with no real size.
+    pub size_label: Option<String>,
+    /// Units per combo.
+    pub qty: i64,
+    /// The item's normal price at its size.
+    pub unit_price_minor: i64,
+    /// Its share of ONE combo price.
+    pub share_minor: i64,
+    /// Per unit: what the choice and a bigger size add (0 = included).
+    pub surcharge_minor: i64,
+    pub addons: Vec<CartAddonView>,
+    pub optionals: Vec<CartOptionalView>,
+    pub notes: Option<String>,
+}
+
+/// A deal the cart qualifies for — the teller taps it to apply (C8).
+#[frb(mirror(DealSuggestion))]
+pub struct _DealSuggestion {
+    pub deal_id: String,
+    pub name: String,
+    pub times: i64,
+    /// "Applies twice", localized.
+    pub times_label: String,
+    pub saving_minor: i64,
+    pub line_keys: Vec<String>,
+}
+
+/// A deal applied on the cart.
+#[frb(mirror(AppliedDealView))]
+pub struct _AppliedDealView {
+    /// Pass to `cart_remove_deal`.
+    pub id: String,
+    pub deal_id: String,
+    pub name: String,
+    pub times: i64,
+    pub discount_minor: i64,
+    pub line_keys: Vec<String>,
 }
 
 /// A cart line's staff-drink mark.
@@ -587,5 +642,137 @@ impl MadarBridge {
     /// computed through the pricing engine.
     pub fn cart_totals(&self, table_id: Option<String>) -> Result<CartTotals, MadarError> {
         self.inner.cart_totals(table_id).map_err(MadarError::from)
+    }
+
+    // ── combos (COMBOS_CONTRACT §6) ──────────────────────────────────────
+
+    /// The combo sheet's live figures for the picks so far (× `qty`).
+    pub fn combo_quote(
+        &self,
+        table_id: Option<String>,
+        combo_id: String,
+        picks: Vec<crate::api::catalog::ComboPickInput>,
+        qty: i64,
+    ) -> Result<crate::api::catalog::ComboQuoteView, MadarError> {
+        self.inner
+            .combo_quote(table_id, combo_id, picks, qty)
+            .map_err(MadarError::from)
+    }
+
+    /// Add a combo line (identical combos merge). Refused, in the teller's
+    /// words, when a slot is short or the combo is not on sale now.
+    pub fn cart_add_combo(
+        &self,
+        table_id: Option<String>,
+        combo_id: String,
+        picks: Vec<crate::api::catalog::ComboPickInput>,
+        qty: i64,
+        notes: Option<String>,
+    ) -> Result<Vec<CartLineView>, MadarError> {
+        self.inner
+            .cart_add_combo(table_id, combo_id, picks, qty, notes)
+            .map_err(MadarError::from)
+    }
+
+    /// Replace a cart line with a combo in one write: an edited combo, or
+    /// "make it a meal" turning an item line into its combo.
+    pub fn cart_replace_combo(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+        combo_id: String,
+        picks: Vec<crate::api::catalog::ComboPickInput>,
+        qty: i64,
+        notes: Option<String>,
+    ) -> Result<Vec<CartLineView>, MadarError> {
+        self.inner
+            .cart_replace_combo(table_id, line_key, combo_id, picks, qty, notes)
+            .map_err(MadarError::from)
+    }
+
+    /// A combo line in the cart as a draft to edit on the sheet.
+    pub fn cart_combo_draft(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+    ) -> Result<crate::api::catalog::ComboDraft, MadarError> {
+        self.inner
+            .cart_combo_draft(table_id, line_key)
+            .map_err(MadarError::from)
+    }
+
+    /// "Make it a meal" from an item line: the draft pre-filled with the
+    /// line's item in its slot; save it with `cart_replace_combo`.
+    pub fn cart_make_it_a_meal(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+    ) -> Result<crate::api::catalog::ComboDraft, MadarError> {
+        self.inner
+            .cart_make_it_a_meal(table_id, line_key)
+            .map_err(MadarError::from)
+    }
+
+    /// "Make it a meal" from the item sheet, before the item is in the cart.
+    pub fn item_meal_draft(
+        &self,
+        item_id: String,
+        size_label: Option<String>,
+        addons: Vec<AddonSelection>,
+        optional_field_ids: Vec<String>,
+        qty: i64,
+        notes: Option<String>,
+    ) -> Result<crate::api::catalog::ComboDraft, MadarError> {
+        self.inner
+            .item_meal_draft(item_id, size_label, addons, optional_field_ids, qty, notes)
+            .map_err(MadarError::from)
+    }
+
+    // ── deals (C8: suggested, the teller applies) ────────────────────────
+
+    /// The deals this cart qualifies for now, best first. Never applied.
+    #[frb(sync)]
+    pub fn cart_deal_suggestions(&self, table_id: Option<String>) -> Vec<DealSuggestion> {
+        self.inner.cart_deal_suggestions(table_id)
+    }
+
+    /// The deals applied on the cart.
+    #[frb(sync)]
+    pub fn cart_applied_deals(&self, table_id: Option<String>) -> Vec<AppliedDealView> {
+        self.inner.cart_applied_deals(table_id)
+    }
+
+    /// Whether the signed-in person may apply a deal (`orders.deals.apply`).
+    #[frb(sync)]
+    pub fn can_apply_deals(&self) -> bool {
+        self.inner.can_apply_deals()
+    }
+
+    /// Apply the suggested deal (the teller's tap).
+    pub fn cart_apply_deal(
+        &self,
+        table_id: Option<String>,
+        deal_id: String,
+    ) -> Result<Vec<CartLineView>, MadarError> {
+        self.inner
+            .cart_apply_deal(table_id, deal_id)
+            .map_err(MadarError::from)
+    }
+
+    /// Take an applied deal off the cart.
+    pub fn cart_remove_deal(
+        &self,
+        table_id: Option<String>,
+        application_id: String,
+    ) -> Result<Vec<CartLineView>, MadarError> {
+        self.inner
+            .cart_remove_deal(table_id, application_id)
+            .map_err(MadarError::from)
+    }
+
+    /// Why applied deals came off since the last ask, each a sentence for
+    /// the shell toast. Draining.
+    pub fn take_deal_notices(&self, table_id: Option<String>) -> Vec<String> {
+        self.inner.take_deal_notices(table_id)
     }
 }

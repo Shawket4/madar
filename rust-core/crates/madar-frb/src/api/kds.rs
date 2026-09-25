@@ -5,7 +5,7 @@ use flutter_rust_bridge::frb;
 use crate::api::bridge::MadarBridge;
 use crate::api::error::MadarError;
 
-pub use madar_core::kds::{KdsLineView, KdsStationView, KdsTicketView};
+pub use madar_core::kds::{KdsComboTag, KdsLineView, KdsStationView, KdsTicketView};
 
 /// A kitchen station (Grill, Bar…) for the KDS station picker + chit printing.
 #[frb(mirror(KdsStationView))]
@@ -47,6 +47,15 @@ pub struct _KdsLineView {
     pub station_id: Option<String>,
     pub station_name: Option<String>,
     pub bumped: bool,
+    /// The combo this line is one item of (C12).
+    pub combo: Option<KdsComboTag>,
+}
+
+/// A kitchen line's combo: every item of one combo shares `line_id`.
+#[frb(mirror(KdsComboTag))]
+pub struct _KdsComboTag {
+    pub line_id: String,
+    pub name: String,
 }
 
 impl MadarBridge {

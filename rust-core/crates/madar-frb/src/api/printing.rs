@@ -57,6 +57,18 @@ impl MadarBridge {
         self.inner.render_kitchen_chit(chit, width, brand)
     }
 
+    /// A cart line as the round's single-dish chits (the fire print): one
+    /// per dish, a combo's items each tagged with it (C12).
+    #[frb(sync)]
+    pub fn kitchen_chits_for_line(
+        &self,
+        line: crate::api::cart::CartLineView,
+        table_label: Option<String>,
+        ticket_ref: Option<String>,
+    ) -> Vec<KitchenChit> {
+        self.inner.kitchen_chits_for_line(line, table_label, ticket_ref)
+    }
+
     /// ONE cart line as a kitchen chit, sent early from the cart (the per-line
     /// print button). Renders the chit with the kitchen chit renderer and
     /// routes it like a fired round: the item's station printer, else the
@@ -175,6 +187,8 @@ pub struct _KitchenChit {
     pub ticket_ref: Option<String>,
     pub at: String,
     pub teller: Option<String>,
+    /// The combo this dish belongs to, already worded ("In Lunch deal").
+    pub combo: Option<String>,
 }
 
 /// Mirrors `madar_core::receipt::ChitLineView` — one printed chit line for the
@@ -227,6 +241,8 @@ pub struct _KitchenSlipItem {
     pub size_label: Option<String>,
     pub modifiers: Vec<String>,
     pub note: Option<String>,
+    /// The combo this dish belongs to, already worded ("In Lunch deal").
+    pub combo: Option<String>,
 }
 
 /// Mirrors `madar_core::receipt::KitchenSlip` — a kitchen slip: one header,

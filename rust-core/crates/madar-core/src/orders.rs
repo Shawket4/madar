@@ -329,8 +329,17 @@ pub(crate) fn refundable_lines(
     o.items
         .iter()
         .filter(|it| it.quantity > 0)
+        // C13: a combo is refunded as a whole — the sheet offers its header
+        // (the server spreads a header's units over every part), never a part
+        // (`COMBO_WHOLE_ONLY`).
+        .filter(|it| line_kind(it) != "combo_part")
         .map(|it| {
             let id = it.id.to_string();
+            let line_total = if line_kind(it) == crate::menu::KIND_COMBO {
+                parts_of(o, it).iter().map(|p| with_extras(p)).sum::<i64>()
+            } else {
+                i64::from(it.line_total)
+            };
             let done: i32 = refunds
                 .refunds
                 .iter()
@@ -344,7 +353,7 @@ pub(crate) fn refundable_lines(
                 size_label: it.size_label.clone().filter(|s| !s.is_empty()),
                 sold_qty: it.quantity,
                 refundable_qty: (it.quantity - done).max(0),
-                unit_share_minor: i64::from(it.line_total) / i64::from(it.quantity.max(1)),
+                unit_share_minor: line_total / i64::from(it.quantity.max(1)),
             }
         })
         .collect()
