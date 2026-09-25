@@ -48,6 +48,7 @@ KdsLineView _line(
   String? notes,
   String? station,
   bool bumped = false,
+  String? combo,
 }) => KdsLineView(
   id: id,
   name: name,
@@ -58,6 +59,7 @@ KdsLineView _line(
   stationId: station == null ? null : 'st-${station.toLowerCase()}',
   stationName: station,
   bumped: bumped,
+  combo: combo == null ? null : KdsComboTag(lineId: 'c-1', name: combo),
 );
 
 /// A pass mid-service: a fresh round, one going amber, one gone red with a
@@ -89,8 +91,20 @@ List<KdsTicketView> _tickets({bool arabic = false}) => [
     status: 'firing',
     createdAt: _ago(14),
     items: [
-      _line('l-3', arabic ? 'برجر' : 'Burger', bumped: true),
-      _line('l-4', arabic ? 'بطاطس' : 'Fries', qty: 2, bumped: true),
+      // Two items of one combo, each made at its station, tagged (C12).
+      _line(
+        'l-3',
+        arabic ? 'برجر' : 'Burger',
+        bumped: true,
+        combo: arabic ? 'وجبة الغداء' : 'Lunch deal',
+      ),
+      _line(
+        'l-4',
+        arabic ? 'بطاطس' : 'Fries',
+        qty: 2,
+        bumped: true,
+        combo: arabic ? 'وجبة الغداء' : 'Lunch deal',
+      ),
       _line(
         'l-5',
         arabic ? 'كيك' : 'Cake',
@@ -244,8 +258,9 @@ class _FakeBridge implements MadarBridge {
     final name = invocation.memberName;
     if (name == #tr) {
       final key = invocation.namedArguments[#key] as String? ?? '';
-      // A missing key comes back as the key — exactly what the core does.
-      return (rtl ? _ar : _en)[key] ?? key;
+      // Else the core's own words; a key it lacks comes back as the key —
+      // exactly what the core does.
+      return (rtl ? _ar : _en)[key] ?? coreWord(key, arabic: rtl);
     }
     if (name == #isRtl) return rtl;
     if (name == #kdsList) {
@@ -292,6 +307,7 @@ class _FakeBridge implements MadarBridge {
                     stationId: l.stationId,
                     stationName: l.stationName,
                     bumped: true,
+                    combo: l.combo,
                   )
                 else
                   l,
@@ -458,6 +474,7 @@ void main() {
     // Four cards still cooking, one done.
     expect(find.text('Done'), findsNWidgets(4));
     expect(find.text('READY'), findsOneWidget);
+    expect(find.text('In Lunch deal'), findsNWidgets(2));
     await _snap(tester, 'ipad');
   });
 
@@ -499,6 +516,15 @@ void main() {
   testWidgets('the board in Arabic, mirrored', (tester) async {
     await _mount(tester, size: _ipad, bridge: _FakeBridge(rtl: true));
     expect(find.text('الشواية'), findsOneWidget);
+    expect(
+      find.text(
+        coreWord(
+          'combo.in_combo',
+          arabic: true,
+        ).replaceAll('{combo}', 'وجبة الغداء'),
+      ),
+      findsNWidgets(2),
+    );
     // The age reads in the Queue's elapsed format, laid out RTL (never
     // forced LTR — MadarFormat.elapsed's Arabic contract).
     final age = tester.widget<Text>(find.text('7 د').first);

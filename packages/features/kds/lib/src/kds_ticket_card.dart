@@ -315,6 +315,21 @@ class _LineRowState extends State<_LineRow> {
                             decorationColor: colors.textMuted,
                           ),
                         ),
+                        // One item of a combo: its station makes it, and
+                        // the tag says which combo it goes out with (C12).
+                        if (line.combo case final combo?)
+                          Consumer(
+                            builder: (context, ref, _) => Text(
+                              ref.bridge
+                                  .tr(key: 'combo.in_combo')
+                                  .replaceAll('{combo}', combo.name),
+                              key: ValueKey('kds-combo-${line.id}'),
+                              style: MadarType.bodySm.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: colors.accent,
+                              ),
+                            ),
+                          ),
                         if (line.modifiers.isNotEmpty)
                           Text(
                             line.modifiers.join(', '),
