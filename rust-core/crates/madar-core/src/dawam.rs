@@ -960,6 +960,9 @@ pub(crate) const ROSTER_CODES: &[&str] = &[
 /// vars in the phone's language ([`refusal_words`]), for `staff_call`,
 /// `dawam_srv` and the outbox alike.
 pub(crate) const REFUSAL_CODES: &[&str] = &[
+    // An offline punch dated in the future or too old (A5): final.
+    "PUNCH_IN_FUTURE",
+    "PUNCH_TOO_OLD",
     "ABOVE_LIMIT",
     "ACCOUNT_NOT_ACTIVE",
     "ADJUSTMENT_KIND_INVALID",
@@ -1159,6 +1162,20 @@ pub(crate) fn refusal_words(locale: &str, code: &str, body: &str) -> String {
 /// standing in for a missing one.
 fn is_code(code: &str) -> bool {
     !code.is_empty() && code.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+}
+
+/// The words a REASON_REQUIRED asks with, from the call it refused (A5):
+/// the server sends it with no vars from several places.
+pub(crate) fn reason_required_key(method: &str, path: &str) -> &'static str {
+    let path = path.split('?').next().unwrap_or(path);
+    match (method, path) {
+        ("POST", "/staff/adjustments") => "staff.err_reason_required_add",
+        ("POST", p) if p.starts_with("/staff/adjustments/") && p.ends_with("/stop") => "staff.err_reason_required_stop",
+        ("POST", "/staff/attendance/punch") => "staff.err_reason_required_punch",
+        (_, p) if p.starts_with("/staff/expense-advances/") => "staff.err_reason_required_expense",
+        // Declining a pay line or an advance (D8).
+        _ => "staff.err_reason_required",
+    }
 }
 
 /// Refusals that mean the picture is stale (someone else decided, claimed or
@@ -2283,6 +2300,9 @@ impl MadarCore {
             CoreError::Server { .. } if code == "PERIOD_CLOSED" => {
                 SendOutcome::Dead(i18n::tr(&loc, if live { "staff.err_period_closed_punch" } else { "staff.err_queued_period_closed" }))
             }
+            // An offline punch dated in the future or too old (A5): worded
+            // already, final, never sent again.
+            CoreError::Server { detail, .. } if code == "PUNCH_IN_FUTURE" || code == "PUNCH_TOO_OLD" => SendOutcome::Dead(detail),
             // Nothing open to close: a manager or the till closed it meanwhile.
             CoreError::Server { .. } if code == "NOT_CLOCKED_IN" => SendOutcome::Dead(i18n::tr(&loc, "staff.err_already_clocked_out")),
             // Worded already (the fence, the window, location, already in…).
@@ -6900,6 +6920,112 @@ mod tests {
         assert_eq!(say("en", "LEAVE_PAY_REQUIRED", json!({})), tr("en", "staff.err_leave_pay_required"));
         // A figure the server didn't send: its own sentence, never a "{…}".
         assert_eq!(say("en", "RANGE_TOO_WIDE", json!({})), "SERVER ENGLISH");
+    }
+
+    /// A5: a queued punch refused as too old (PUNCH_TOO_OLD) is a final
+    /// refusal, said once in the phone's language, never sent again.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_offline_punch_too_old_is_said_in_arabic_and_never_retried() {
+        use crate::testkit::{online_core, Stub, StubResponse, BRANCH, TELLER};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        const FENCE: &str = r#"{"error":"That punch is more than 7 days old; ask your manager to add it.","code":"PUNCH_TOO_OLD","vars":{"at":"2026-09-10T08:00:00Z","max_days":7}}"#;
+        let up = Arc::new(AtomicBool::new(true));
+        let flag = up.clone();
+        let cairo = Utc::now().with_timezone(&chrono_tz::Africa::Cairo);
+        let today = cairo.date_naive().to_string();
+        let hms = |t: NaiveTime| format!("{}:00", hhmm((t.hour() * 60 + t.minute()) as i64));
+        let (start, end) = (hms(cairo.time() - Duration::hours(1)), hms(cairo.time() + Duration::hours(3)));
+        let stub = Stub::start(move |r| {
+            if !flag.load(Ordering::SeqCst) {
+                return Some(StubResponse::hangup());
+            }
+            let path = r.path.split('?').next().unwrap_or_default();
+            Some(match path {
+                "/staff/me/context" => StubResponse::json(200, json!({
+                    "role": "employee", "org_name": "Nile Café", "caps": [],
+                    "branches": [{ "id": BRANCH, "name": "Zamalek", "geo_radius_meters": 200,
+                                   "latitude": 30.0609, "longitude": 31.2197, "timezone": "Africa/Cairo" }],
+                    "work_shifts": [{ "id": "w1", "name": "Morning", "branch_id": BRANCH,
+                                      "start_time": start, "end_time": end, "grace_minutes": 10 }],
+                    "people": [{ "employee_id": TELLER, "name": "Sara", "role": "employee", "branch_ids": [BRANCH],
+                                 "base_salary_piastres": 900000, "pay_method": "cash", "cant_work_days": [] }],
+                    "settings": { "period_start_day": 26, "advance_cap_percent": "50" },
+                })),
+                "/staff/me/roster" => StubResponse::json(200, json!({
+                    "shifts": [{ "employee_id": TELLER, "date": today, "work_shift_id": "w1" }],
+                    "team": [], "open_shifts": [], "swaps": [], "unpublished_weeks": [],
+                })),
+                "/staff/me/check-in" => StubResponse::text(400, FENCE),
+                "/health" => StubResponse::text(200, "ok"),
+                p if p.ends_with("estimate") || p.ends_with("context") => StubResponse::json(200, json!({})),
+                _ => StubResponse::json(200, json!([])),
+            })
+        })
+        .await;
+        let core = online_core(&stub.base, "").await;
+        core.set_online(true);
+        core.set_locale("ar".into());
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let shift = snap["my_now"][0].as_str().expect("today's shift is mine").to_string();
+
+        // Offline, 1.2 km away: the punch waits on the phone.
+        up.store(false, Ordering::SeqCst);
+        let fix = DawamFix { latitude: 30.07, longitude: 31.22, accuracy: Some(8.0), ..Default::default() };
+        let act = json!({ "action": "clock_in", "shift": shift, "fix": fix }).to_string();
+        let snap: Value = serde_json::from_str(&core.dawam_do(act).await.unwrap()).unwrap();
+        assert_eq!(snap["queued"], 1);
+
+        // Back online, the poll sends it and the server refuses it.
+        stub.seen.lock().unwrap().clear(); // it logs the attempts it hung up on
+        up.store(true, Ordering::SeqCst);
+        let snap: Value = serde_json::from_str(&core.dawam_sync().await.unwrap()).unwrap();
+        assert_eq!(stub.requests("/staff/me/check-in").len(), 1, "sent once");
+        assert_eq!(snap["queued"], 0, "it left the queue");
+        let said = i18n::tr("ar", "staff.err_punch_too_old").replace("{max_days}", "7");
+        assert_eq!(snap["refused"], json!([said]), "said once, in the phone's words");
+        assert_eq!(snap["stuck"], json!([]), "not parked where no screen looks");
+        assert!(snap["active_shift"].is_null(), "the refused punch no longer shows as made");
+
+        let snap: Value = serde_json::from_str(&core.dawam_sync().await.unwrap()).unwrap();
+        assert_eq!(snap["refused"], json!([]));
+        assert_eq!(stub.requests("/staff/me/check-in").len(), 1, "never resent");
+    }
+
+    /// A5: REASON_REQUIRED says what the reason is for, from the call the
+    /// core made (it comes with no vars): adding a line, stopping a monthly
+    /// line, punching for someone, correcting an expense advance, declining.
+    #[test]
+    fn a_missing_reason_is_asked_for_what_was_sent() {
+        for (m, p, key) in [
+            ("POST", "/staff/adjustments", "staff.err_reason_required_add"),
+            ("POST", "/staff/adjustments/bonus/m1/stop", "staff.err_reason_required_stop"),
+            ("POST", "/staff/attendance/punch", "staff.err_reason_required_punch"),
+            ("PATCH", "/staff/expense-advances/x1", "staff.err_reason_required_expense"),
+            ("DELETE", "/staff/expense-advances/x1?reason=", "staff.err_reason_required_expense"),
+            ("PATCH", "/staff/adjustments/bonus/b1/decision", "staff.err_reason_required"),
+            ("PATCH", "/staff/advances/v1/review", "staff.err_reason_required"),
+        ] {
+            assert_eq!(reason_required_key(m, p), key, "{m} {p}");
+            for lang in ["en", "ar"] {
+                assert_ne!(i18n::tr(lang, key), key, "{key} {lang}");
+            }
+            assert_ne!(i18n::tr("en", key), i18n::tr("ar", key));
+        }
+    }
+
+    /// A5: an offline punch the server refuses as dated in the future or too
+    /// old (PUNCH_IN_FUTURE / PUNCH_TOO_OLD, 400) reads in the phone's
+    /// language and leaves the queue for good.
+    #[test]
+    fn an_offline_punch_too_old_or_in_the_future_is_worded() {
+        let future = r#"{"error":"That punch is dated in the future","code":"PUNCH_IN_FUTURE","vars":{"at":"2026-09-26T08:00:00Z"}}"#;
+        let old = r#"{"error":"Too old","code":"PUNCH_TOO_OLD","vars":{"at":"2026-09-10T08:00:00Z","max_days":7}}"#;
+        assert!(REFUSAL_CODES.contains(&"PUNCH_IN_FUTURE") && REFUSAL_CODES.contains(&"PUNCH_TOO_OLD"));
+        assert_eq!(refusal_words("en", "PUNCH_IN_FUTURE", future), i18n::tr("en", "staff.err_punch_in_future"));
+        assert_eq!(refusal_words("ar", "PUNCH_TOO_OLD", old), i18n::tr("ar", "staff.err_punch_too_old").replace("{max_days}", "7"));
+        assert!(refusal_words("en", "PUNCH_TOO_OLD", old).contains("7 days"));
     }
 
     /// The same words reach the person through a staff call (LEAVE_PAY_REQUIRED

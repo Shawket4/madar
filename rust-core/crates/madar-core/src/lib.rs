@@ -13242,9 +13242,18 @@ impl MadarCore {
         path: &str,
         body: Option<&serde_json::Value>,
     ) -> Result<String, CoreError> {
+        let m = method.as_str().to_string();
         let r = self.api.send_json_raw(method, path, body).await;
         self.keep_staff_token();
-        r.map_err(|(e, raw)| self.staff_refusal(e, raw))
+        r.map_err(|(e, raw)| match self.staff_refusal(e, raw) {
+            // A reason asked for what was sent (A5): the server's code says
+            // only that one is missing.
+            CoreError::Server { status, code, .. } if code == "REASON_REQUIRED" => {
+                let detail = i18n::tr(&self.current_locale(), dawam::reason_required_key(&m, path));
+                CoreError::Server { status, code, detail }
+            }
+            e => e,
+        })
     }
 
     /// A staff refusal in the person's language: a coded one from the
