@@ -835,7 +835,7 @@ pub(crate) const ROSTER_CODES: &[&str] = &[
 /// The server's plain refusals carry its error kind in front ("Conflict:
 /// Someone already claimed that shift."): the person reads the sentence only
 /// (E2E roster: the toast said "Conflict: …").
-fn plain_sentence(detail: &str) -> String {
+pub(crate) fn plain_sentence(detail: &str) -> String {
     ["Conflict: ", "Bad request: ", "Not found: ", "Forbidden: "]
         .iter()
         .find_map(|p| detail.strip_prefix(p))
@@ -1635,9 +1635,10 @@ impl MadarCore {
     /// error. The punch the person just made and waits on (`LIVE_OP`) is
     /// refused on their screen in the server's words, in theirs where the
     /// core has them (E2E clocking C2, BC-3). One sent later from the queue (a
-    /// punch made offline, sent on reconnect) becomes the red toast, worded
-    /// in the phone's language, never the core's or the server's English
-    /// (S-035/S-036).
+    /// punch made offline, sent on reconnect) becomes the red toast: the
+    /// core's words in the phone's language when it has them, else, as the
+    /// till's Sync list does, the server's own sentence on an English phone
+    /// and the sentence for what was refused on an Arabic one (S-035/S-036).
     ///
     /// A 409 is "the server already holds it" only for a resend, an uncoded
     /// check-out or a ping (`conflict_means_held`), and, sent later, for
@@ -1650,8 +1651,20 @@ impl MadarCore {
             CoreError::Server { code, .. } => code.clone(),
             _ => String::new(),
         };
-        // A refusal sent later, when the core has no words of its own for it.
+        // A refusal sent later that the core has no words of its own for:
+        // the rule of the till's Sync list (`outbox_words::server_sentence`).
+        // The server writes English, so an English phone reads its sentence;
+        // an Arabic one the sentence for what was refused.
+        let said = match &e {
+            CoreError::Server { status, detail, .. } => Some((*status, detail.clone())),
+            CoreError::Validation { detail, .. } => Some((400, detail.clone())),
+            CoreError::Forbidden { action, .. } => Some((403, action.clone())),
+            _ => None,
+        };
         let queued = || {
+            if let Some(words) = said.as_ref().and_then(|(status, text)| crate::outbox_words::server_sentence(&loc, *status, text)) {
+                return SendOutcome::Dead(words);
+            }
             let key = match item.op_type.as_str() {
                 "dawam_check_in" => "staff.err_queued_refused_in",
                 "dawam_check_out" => "staff.err_queued_refused_out",
@@ -3737,9 +3750,11 @@ mod tests {
     /// can refuse a queued punch reads in the phone's language when the toast
     /// says it. It stored classify_send's English "the server does not have
     /// what this needs yet — You are not checked in" for a check-out with
-    /// nothing open, the server's English for an uncoded 400, and a month
-    /// already closed (409 PERIOD_CLOSED) was acked as if applied and dropped
-    /// without a word. A refused ping is dropped quietly (nobody made it).
+    /// nothing open, the server's English for an uncoded 400 on an Arabic
+    /// phone, and a month already closed (409 PERIOD_CLOSED) was acked as if
+    /// applied and dropped without a word. An uncoded refusal keeps the
+    /// server's sentence on an English phone, as the till's Sync list does
+    /// (the server writes English). A refused ping is dropped quietly.
     #[tokio::test(flavor = "multi_thread")]
     async fn every_refused_queued_punch_is_said_in_the_phones_language() {
         use crate::testkit::{online_core, Stub, StubResponse, BRANCH, TELLER};
@@ -3786,11 +3801,15 @@ mod tests {
             }
             let snap: Value = serde_json::from_str(&core.dawam_sync().await.unwrap()).unwrap();
             assert_eq!(snap["queued"], 0, "{lang}: nothing left waiting");
-            let want: Vec<String> = ["staff.err_already_clocked_out", "staff.err_queued_period_closed", "staff.err_queued_refused_in"]
+            let mut want: Vec<String> = ["staff.err_already_clocked_out", "staff.err_queued_period_closed", "staff.err_queued_refused_in"]
                 .iter()
                 .map(|k| i18n::tr(lang, k))
                 .collect();
             assert!(want.iter().all(|w| !w.starts_with("staff.")), "{lang}: words exist: {want:?}");
+            if lang == "en" {
+                // No code: an English phone reads the server's own sentence.
+                want[2] = "That punch is dated in the future.".into();
+            }
             assert_eq!(snap["refused"], json!(want), "{lang}: the duplicate check-in is no refusal, the ping says nothing");
             if lang == "ar" {
                 assert!(want.iter().all(|w| !w.chars().any(|c| c.is_ascii_alphabetic())), "{want:?}");

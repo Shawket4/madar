@@ -897,7 +897,7 @@ pub(crate) fn status_to_error(status: u16, body: &str) -> CoreError {
 /// Pull a human message out of the backend's `{ "error": "…" }` envelope
 /// (`errors.rs::ErrorBody`); tolerate `message`/`detail` shapes from any
 /// middleware too.
-fn extract_error_message(body: &str) -> Option<String> {
+pub(crate) fn extract_error_message(body: &str) -> Option<String> {
     let v: serde_json::Value = serde_json::from_str(body).ok()?;
     for key in ["error", "message", "detail"] {
         if let Some(s) = v.get(key).and_then(|x| x.as_str()) {
@@ -931,6 +931,13 @@ fn reason(status: u16) -> &'static str {
         .ok()
         .and_then(|s| s.canonical_reason())
         .unwrap_or("error")
+}
+
+/// A bare HTTP reason ("Bad Request", "Conflict"): what `status_to_error`
+/// carries when the answer was not our envelope (a proxy's page), never the
+/// server's own sentence.
+pub(crate) fn is_reason_phrase(text: &str) -> bool {
+    (400..600).any(|s| reason(s) == text)
 }
 
 #[cfg(test)]
