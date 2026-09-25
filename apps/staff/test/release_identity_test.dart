@@ -47,7 +47,15 @@ void main() {
 
     test('an adaptive icon with a themed layer, not the template', () {
       final xml = _read('$res/mipmap-anydpi-v26/ic_launcher.xml');
-      expect(xml, contains('@mipmap/ic_launcher_foreground'));
+      // Brand v2 draws the layers as vector drawables (PNG fallbacks per
+      // density stay below); either kind is an adaptive icon.
+      expect(
+        xml,
+        anyOf(
+          contains('@drawable/ic_launcher_foreground'),
+          contains('@mipmap/ic_launcher_foreground'),
+        ),
+      );
       expect(xml, contains('<monochrome'));
       for (final dpi in ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
         for (final f in [

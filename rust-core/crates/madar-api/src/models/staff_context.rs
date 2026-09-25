@@ -34,6 +34,9 @@ pub struct StaffContext {
     /// The HR capabilities I hold (`hr.*` keys) — through my Madar account; empty for an employee with none. The app gates tabs on these (PM-4).
     #[serde(rename = "caps")]
     pub caps: Vec<String>,
+    /// The capabilities I hold at EVERY branch: the list `GET /authz/me` puts in `everywhere`, for the business-wide acts (the rules, payroll, public holidays: `hr.rules.edit`, D3). Empty without a Madar account.
+    #[serde(rename = "caps_everywhere")]
+    pub caps_everywhere: Vec<String>,
     /// My ceiling on a deduction (AD-5: separate from the bonus limit).
     #[serde(
         rename = "deduction_limit_piastres",
@@ -85,6 +88,7 @@ impl StaffContext {
     pub fn new(
         branches: Vec<models::ContextBranch>,
         caps: Vec<String>,
+        caps_everywhere: Vec<String>,
         employee_id: uuid::Uuid,
         modules: Vec<String>,
         name: String,
@@ -100,6 +104,7 @@ impl StaffContext {
             advance_limit_percent: None,
             branches,
             caps,
+            caps_everywhere,
             deduction_limit_piastres: None,
             employee_id,
             modules,

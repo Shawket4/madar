@@ -2,6 +2,16 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:staff_core/staff_core.dart';
 
+/// Where a new pay line lands when this month's payroll is already approved
+/// (minor #27): "Lands in the 26 Oct – 25 Nov pay: …". Null while this month
+/// is open.
+String? linesLandWords(({DateTime from, DateTime to})? land) => land == null
+    ? null
+    : tr('staff.lands_in', {
+        'from': dayMonth(land.from),
+        'to': dayMonth(land.to),
+      });
+
 /// A bonus or deduction — one-off (AD-1, AD-2) or every month (AD-3), an
 /// amount or a % of salary. Over the manager's limit it waits for the owner
 /// (AD-5). [emp] fixes the person; otherwise one is picked here.
@@ -87,6 +97,8 @@ Future<void> adjustmentSheet(BuildContext context, {String? emp}) {
               placeholder: tr('staff.reason_the_employee_sees_it'),
               kind: MadarFieldKind.note,
             ),
+            if (linesLandWords(store.linesLand) case final lands?)
+              NoticeBanner(text: lands, tone: ChipTone.info),
             if (store.user.role != Role.owner)
               Text(
                 tr('staff.over_waits_for_the_owner_before', {
@@ -167,10 +179,7 @@ Future<void> recordAdvanceSheet(BuildContext context, String emp) {
             kind: MadarFieldKind.decimal,
           ),
           Text(
-            tr('staff.outstanding_cap', {
-              'amount': egp(store.outstandingAdvances(emp)),
-              'amount2': egpOrDash(store.advanceCap(emp)),
-            }),
+            advanceCapLine(store, emp),
             style: MadarType.bodySm.copyWith(
               color: ctx.madarColors.textSecondary,
             ),

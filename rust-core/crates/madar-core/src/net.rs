@@ -274,17 +274,31 @@ impl ApiClient {
         path: &str,
         body: Option<&serde_json::Value>,
     ) -> CoreResult<String> {
+        self.send_json_raw(method, path, body).await.map_err(|(e, _)| e)
+    }
+
+    /// [`Self::send_json`], keeping a refusal as the server sent it (status
+    /// and body) beside its `CoreError`: a staff refusal is worded from its
+    /// code and vars (`dawam::refusal_words`), which the `CoreError` mapping
+    /// keeps only for a few families of codes. `None` when the server was
+    /// never reached.
+    pub(crate) async fn send_json_raw(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<&serde_json::Value>,
+    ) -> Result<String, (CoreError, Option<(u16, String)>)> {
         if self.staff_token_due() {
             match self.refresh_staff(self.bearer().as_deref()).await {
-                Err(e @ CoreError::Unauthenticated { .. }) => return Err(e),
+                Err(e @ CoreError::Unauthenticated { .. }) => return Err((e, None)),
                 // Anything else: the call itself says what is wrong.
                 _ => {}
             }
         }
         let sent = self.bearer();
         match self.send_json_once(method.clone(), path, body).await {
-            Err(CoreError::Unauthenticated { detail }) if self.is_staff() && detail == TOKEN_EXPIRED => {
-                self.refresh_staff(sent.as_deref()).await?;
+            Err((CoreError::Unauthenticated { detail }, _)) if self.is_staff() && detail == TOKEN_EXPIRED => {
+                self.refresh_staff(sent.as_deref()).await.map_err(|e| (e, None))?;
                 self.send_json_once(method, path, body).await
             }
             r => r,
@@ -296,7 +310,7 @@ impl ApiClient {
         method: reqwest::Method,
         path: &str,
         body: Option<&serde_json::Value>,
-    ) -> CoreResult<String> {
+    ) -> Result<String, (CoreError, Option<(u16, String)>)> {
         let url = format!("{}{}", self.base_url, path);
         let mut rb = self.http().request(method, &url);
         if let Some(b) = body {
@@ -305,14 +319,14 @@ impl ApiClient {
         if let Some(token) = self.bearer.read().unwrap_or_else(|e| e.into_inner()).clone() {
             rb = rb.bearer_auth(token);
         }
-        let resp = rb.send().await.map_err(|e| classify_reqwest(&e))?;
+        let resp = rb.send().await.map_err(|e| (classify_reqwest(&e), None))?;
         self.observe_clock(&resp);
         let status = resp.status();
-        let text = resp.text().await.map_err(|e| classify_reqwest(&e))?;
+        let text = resp.text().await.map_err(|e| (classify_reqwest(&e), None))?;
         if status.is_success() {
             Ok(text)
         } else {
-            Err(status_to_error(status.as_u16(), &text))
+            Err((status_to_error(status.as_u16(), &text), Some((status.as_u16(), text))))
         }
     }
 
@@ -789,6 +803,10 @@ pub(crate) const STAFF_CODES: &[&str] = &[
     // The till PIN punch (CL-13): only from the branch's till, with a till open.
     "TILL_ONLY",
     "NO_TILL_SESSION",
+    // Only the owner decides it (public holidays, decision #3).
+    "OWNER_ONLY",
+    // The whole business is paused (minor #13): said at sign-in.
+    "ORG_SUSPENDED",
 ];
 
 /// Dawam refusals the app words for the person (`MadarCore::staff_error`).
@@ -803,6 +821,14 @@ pub(crate) const DAWAM_CODES: &[&str] = &[
     "OVERLAPPING_REQUEST",
     // Nobody decides their own flag (E2E B-TEAM-1).
     "OWN_DECISION",
+    // A pay line, advance, overtime or cover someone else decided first, a
+    // flag someone else handled first, and a cover flag asked for anything
+    // but confirm or reject (H2-B2, H2-B3).
+    "ALREADY_DECIDED",
+    "FLAG_HANDLED",
+    "FLAG_COVER_CONFIRM_OR_REJECT",
+    // Declining a pay line or an advance says why (decision #8).
+    "REASON_REQUIRED",
 ];
 
 /// Map an HTTP status + raw body to a `CoreError` variant.
@@ -897,7 +923,7 @@ pub(crate) fn status_to_error(status: u16, body: &str) -> CoreError {
 /// Pull a human message out of the backend's `{ "error": "…" }` envelope
 /// (`errors.rs::ErrorBody`); tolerate `message`/`detail` shapes from any
 /// middleware too.
-fn extract_error_message(body: &str) -> Option<String> {
+pub(crate) fn extract_error_message(body: &str) -> Option<String> {
     let v: serde_json::Value = serde_json::from_str(body).ok()?;
     for key in ["error", "message", "detail"] {
         if let Some(s) = v.get(key).and_then(|x| x.as_str()) {
@@ -931,6 +957,13 @@ fn reason(status: u16) -> &'static str {
         .ok()
         .and_then(|s| s.canonical_reason())
         .unwrap_or("error")
+}
+
+/// A bare HTTP reason ("Bad Request", "Conflict"): what `status_to_error`
+/// carries when the answer was not our envelope (a proxy's page), never the
+/// server's own sentence.
+pub(crate) fn is_reason_phrase(text: &str) -> bool {
+    (400..600).any(|s| reason(s) == text)
 }
 
 #[cfg(test)]

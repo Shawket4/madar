@@ -21,7 +21,10 @@ pub struct ContextPerson {
         skip_serializing_if = "Option::is_none"
     )]
     pub advance_cap_piastres: Option<Option<i64>>,
-    /// Only for people whose pay the caller may see.
+    /// What they owe in salary advances is within the cap; never hidden, so a manager sees \"within cap\" / \"over cap\" without the figure (D7).
+    #[serde(rename = "advance_within_cap")]
+    pub advance_within_cap: bool,
+    /// Only for people whose pay the caller may see (null too when no salary is set: `salary_set`).
     #[serde(
         rename = "base_salary_piastres",
         default,
@@ -91,6 +94,9 @@ pub struct ContextPerson {
     /// `owner` · `manager` · `employee` (from the linked account; an employee with no account is `employee`).
     #[serde(rename = "role")]
     pub role: String,
+    /// A salary is on file (D9); false = \"not set\". Never hidden.
+    #[serde(rename = "salary_set")]
+    pub salary_set: bool,
     /// Their Madar account, when they have one.
     #[serde(
         rename = "user_id",
@@ -103,15 +109,18 @@ pub struct ContextPerson {
 
 impl ContextPerson {
     pub fn new(
+        advance_within_cap: bool,
         branch_ids: Vec<uuid::Uuid>,
         cant_work_days: Vec<i32>,
         employee_id: uuid::Uuid,
         name: String,
         pay_method: String,
         role: String,
+        salary_set: bool,
     ) -> ContextPerson {
         ContextPerson {
             advance_cap_piastres: None,
+            advance_within_cap,
             base_salary_piastres: None,
             branch_ids,
             cant_work_days,
@@ -126,6 +135,7 @@ impl ContextPerson {
             phone: None,
             pref_time: None,
             role,
+            salary_set,
             user_id: None,
         }
     }

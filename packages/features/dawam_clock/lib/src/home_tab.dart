@@ -248,9 +248,7 @@ class ShiftCard extends ConsumerWidget {
     final elapsed = s.inAt != null
         ? (s.outAt ?? now).difference(s.inAt!)
         : Duration.zero;
-    // This shift's own length: its own times when it has them, never the
-    // block's default (a 18:45–22:45 evening is 4 h, not 8).
-    final length = s.endAt.difference(s.startAt).inMinutes;
+    final length = shiftLength(s);
     final progress = canOut && length > 0
         ? (elapsed.inMinutes / length).clamp(0.0, 1.0)
         : null;
@@ -465,3 +463,8 @@ class _Tracking extends ConsumerWidget {
     );
   }
 }
+
+/// A shift's own length in minutes: its own times when it has them, never
+/// the block's default (a 18:45–22:45 evening is 4 h, not 8), and a cover's
+/// own window from the core (M-CV-2: a 20-minute cover is 20 minutes).
+int shiftLength(Shift s) => s.endAt.difference(s.startAt).inMinutes;

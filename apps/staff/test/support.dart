@@ -50,6 +50,17 @@ Future<void> frames(WidgetTester t, [int n = 20]) async {
   }
 }
 
+/// Opens the "Swaps waiting: N" line on Shifts (minor #23: the swap cards
+/// fold into it) and waits for its sheet.
+Future<void> openSwaps(WidgetTester t) async {
+  final f = find.textContaining(
+    tr('staff.swaps_waiting', {'count': ''}).trim(),
+  );
+  await t.ensureVisible(f.first);
+  await t.tap(f.first);
+  await frames(t, 30);
+}
+
 String fixture(String who) =>
     File('test/fixtures/$who.json').readAsStringSync();
 

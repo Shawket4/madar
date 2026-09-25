@@ -92,6 +92,41 @@ class _ApprovalsTabState extends ConsumerState<ApprovalsTab> {
               );
             },
           ),
+        // My own, which the owner decides (RQ-5, addendum 2): shown so they
+        // don't vanish, with nothing to decide.
+        if (store.waitingOwner case final mine when mine.isNotEmpty) ...[
+          MadarSectionHeader(text: tr('staff.yours_waiting_for_the_owner')),
+          for (final r in mine) _OwnCard(r, key: ValueKey('owner|${r.id}')),
+        ],
+      ],
+    );
+  }
+}
+
+/// My own pending request or claim, read-only: the owner decides it.
+class _OwnCard extends ConsumerWidget {
+  const _OwnCard(this.r, {super.key});
+
+  final Req r;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final store = ref.watch(dawamProvider);
+    return MadarCard.column(
+      children: [
+        _Who(
+          store.emp(r.emp),
+          kindLabel(r.kind),
+          r.created,
+          flag: MadarStatus(
+            tr('staff.waiting_for_the_owner'),
+            tone: MadarTone.warning,
+          ),
+        ),
+        Text(
+          [reqWhen(r), if (r.note.isNotEmpty) r.note].join(' · '),
+          style: MadarType.body,
+        ),
       ],
     );
   }
@@ -147,11 +182,27 @@ class _Who extends StatelessWidget {
 }
 
 class _Decide extends ConsumerWidget {
-  const _Decide({required this.yes, required this.no, this.yesLabel});
+  const _Decide({
+    required this.yes,
+    required this.no,
+    this.yesLabel,
+    this.askWhy = false,
+    this.warnAfterYes = false,
+  });
 
   final Future<void> Function() yes;
-  final Future<void> Function() no;
+
+  /// Declines; `why` is the reason typed when [askWhy].
+  final Future<void> Function(String? why) no;
   final String? yesLabel;
+
+  /// Declining asks why first (a pay line or an advance, decision #8): the
+  /// server refuses a rejection without a reason.
+  final bool askWhy;
+
+  /// An approval can come back with labour limits it breaks (an open-shift
+  /// claim, minor #26): said as a warning, never a block.
+  final bool warnAfterYes;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -166,7 +217,9 @@ class _Decide extends ConsumerWidget {
             variant: MadarButtonVariant.secondary,
             enabled: !offline,
             tooltip: tr('staff.needs_a_connection'),
-            onTap: () => attempt(ref, no, ok: tr('staff.declined')),
+            onTap: () => askWhy
+                ? declineWithReason(context, no)
+                : attempt(ref, () => no(null), ok: tr('staff.declined')),
           ),
         ),
         Expanded(
@@ -176,7 +229,20 @@ class _Decide extends ConsumerWidget {
             glyph: MadarGlyph.check,
             enabled: !offline,
             tooltip: tr('staff.needs_a_connection'),
-            onTap: () => attempt(ref, yes, ok: tr('staff.approved')),
+            onTap: () async {
+              if (!warnAfterYes) {
+                await attempt(ref, yes, ok: tr('staff.approved'));
+                return;
+              }
+              if (!await attempt(ref, yes)) return;
+              final broken = ref.read(dawamProvider).lastWarnings;
+              ref
+                  .read(toastProvider.notifier)
+                  .show(
+                    approvedWithWarnings(broken),
+                    tone: broken.isEmpty ? ChipTone.success : ChipTone.warning,
+                  );
+            },
           ),
         ),
       ],
@@ -218,7 +284,8 @@ class _AdjCard extends ConsumerWidget {
         ),
         _Decide(
           yes: () => store.decideAdj(a, yes: true),
-          no: () => store.decideAdj(a, yes: false),
+          no: (why) => store.decideAdj(a, yes: false, reason: why),
+          askWhy: true,
         ),
       ],
     );
@@ -292,10 +359,11 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
         'date': dayLabel(from),
         'duration': mins(r.minutes),
       }),
-      ReqKind.salaryAdvance => tr('staff.outstanding_cap', {
-        'amount': egp(store.outstandingAdvances(r.emp)),
-        'amount2': egpOrDash(store.advanceCap(r.emp)),
-      }),
+      ReqKind.salaryAdvance => advanceCapLine(
+        store,
+        r.emp,
+        within: r.withinCap,
+      ),
       _ => reqWhen(r),
     };
     return MadarCard.column(
@@ -317,6 +385,8 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
             '“${r.note}”',
             style: MadarType.bodySm.copyWith(color: c.textSecondary),
           ),
+        if (workedWarning(r, name(e)) case final worked?)
+          NoticeBanner(text: worked),
         if (_asksPay)
           MadarSegmented<bool>(
             items: [
@@ -364,7 +434,9 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
                 : null,
             installments: _inst,
           ),
-          no: () => store.decide(r, approve: false),
+          no: (why) => store.decide(r, approve: false, note: why),
+          askWhy: r.kind == ReqKind.salaryAdvance,
+          warnAfterYes: r.kind == ReqKind.openShift,
           yesLabel: r.kind == ReqKind.cover ? tr('staff.confirm_cover') : null,
         ),
         if (r.kind == ReqKind.cover)
@@ -376,3 +448,27 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
     );
   }
 }
+
+/// A leave or mission over days [who] already clocked in (minor #16): the
+/// punches stay; a mission's day is paid with no penalty. Null otherwise.
+String? workedWarning(Req r, String who) {
+  if (r.worked.isEmpty) return null;
+  final key = switch (r.kind) {
+    ReqKind.mission => 'staff.mission_over_worked',
+    ReqKind.leave => 'staff.leave_over_worked',
+    _ => null,
+  };
+  if (key == null) return null;
+  return tr(key, {'name': who, 'dates': r.worked.map(dayLabel).join(', ')});
+}
+
+/// "Approved", or "Approved. Mind: …" with the labour limits the approved
+/// day breaks (RU-13, minor #26).
+String approvedWithWarnings(List<(String, Map<String, Object>)> broken) =>
+    broken.isEmpty
+    ? tr('staff.approved')
+    : tr('staff.approved_mind', {
+        'warnings': [
+          for (final (key, args) in broken) tr(key, args),
+        ].join(isAr ? '، ' : '; '),
+      });

@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Madar teal (design_system `brand`). -->
-    <color name="ic_launcher_background">#0F7A8A</color>
+    <color name="ic_launcher_background">#14181E</color>
 </resources>

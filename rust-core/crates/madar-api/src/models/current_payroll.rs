@@ -16,6 +16,9 @@ pub struct CurrentPayroll {
     /// Earlier periods, newest first.
     #[serde(rename = "history")]
     pub history: Vec<models::PayrollPeriod>,
+    /// People on payroll with no salary set (D9): the preview rows with `salary_missing`; approval is refused until it is 0.
+    #[serde(rename = "missing_salary_count")]
+    pub missing_salary_count: i64,
     /// How many payslips are marked paid (a 'none' mark counts).
     #[serde(rename = "paid_count")]
     pub paid_count: i64,
@@ -35,6 +38,7 @@ pub struct CurrentPayroll {
 impl CurrentPayroll {
     pub fn new(
         history: Vec<models::PayrollPeriod>,
+        missing_salary_count: i64,
         paid_count: i64,
         payslips: Vec<models::Payslip>,
         period: models::PayrollPeriod,
@@ -43,6 +47,7 @@ impl CurrentPayroll {
     ) -> CurrentPayroll {
         CurrentPayroll {
             history,
+            missing_salary_count,
             paid_count,
             payslips,
             period: Box::new(period),

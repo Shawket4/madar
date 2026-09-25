@@ -9,6 +9,7 @@
 
 import 'package:app_core/app_core.dart';
 import 'package:app_core/testing.dart';
+import 'package:design_system/design_system.dart' show ChipTone;
 import 'package:feature_till/feature_till.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -33,6 +34,9 @@ class _CoreBridge implements MadarBridge {
   final List<CashMovementView> movements = [];
   final List<String> advances = [];
   int reportReads = 0;
+
+  /// What the core has to tell the teller about queued pay-outs (D10).
+  final List<String> payOutNotices = [];
 
   TillReportView _report() {
     final net = movements.fold<int>(0, (a, m) => a + m.amountMinor);
@@ -195,6 +199,11 @@ class _CoreBridge implements MadarBridge {
       movements.insert(0, m);
       return Future<CashMovementView>.value(m);
     }
+    if (name == #takePayOutNotices) {
+      final said = List.of(payOutNotices);
+      payOutNotices.clear();
+      return said;
+    }
     if (name == #listTills) return Future<List<TillView>>.value(const []);
     if (name == #syncStatus) {
       return SyncStatusView(
@@ -326,5 +335,26 @@ void main() {
       ..setAdvanceTo('u-amal', 'Amal')
       ..setDirection(isIn: true);
     expect(container.read(cashMovementsProvider).advanceTo, isNull);
+  });
+
+  // Decision #10: a queued pay-out whose expense-advance tag the server
+  // refused is recorded without it; the core says so once, and the Till
+  // shows it when the drawer moves.
+  test('a refused advance tag is told once on the Till (D10)', () async {
+    container.listen(tillProvider, (_, _) {});
+    await _settle();
+    expect(container.read(tillProvider).toast, isNull);
+    const said =
+        "Pay-out recorded; the advance tag was refused (Amal isn't an active "
+        'employee). Log the advance from the dashboard.';
+    bridge.payOutNotices.add(said);
+    container.read(drawerTickProvider.notifier).bump();
+    await _settle();
+    final toast = container.read(tillProvider).toast;
+    expect(toast?.text, said);
+    expect(toast?.tone, ChipTone.warning);
+    container.read(drawerTickProvider.notifier).bump();
+    await _settle();
+    expect(container.read(tillProvider).toast?.id, toast?.id, reason: 'once');
   });
 }

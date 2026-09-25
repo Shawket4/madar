@@ -89,7 +89,12 @@ void main() {
       return coreWord(key, arabic: lang == 'ar');
     };
     addTearDown(() => wordsIn = (lang, key) => key);
-    await payslipPdf(slip: slip, person: 'Amal', business: 'Cafe', arabic: true);
+    await payslipPdf(
+      slip: slip,
+      person: 'Amal',
+      business: 'Cafe',
+      arabic: true,
+    );
     expect(asked, contains('staff.pdf_approved'));
     expect(asked, isNot(contains('staff.paid_with_method')));
   });

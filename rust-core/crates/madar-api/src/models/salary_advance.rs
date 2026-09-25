@@ -15,9 +15,14 @@ use serde::{Deserialize, Serialize};
 pub struct SalaryAdvance {
     #[serde(rename = "amount_piastres")]
     pub amount_piastres: i64,
-    /// The owner's cap on what this person may owe in advances, in piastres (AV-5) — the server's figure, so no client recomputes it.
-    #[serde(rename = "cap_piastres")]
-    pub cap_piastres: i64,
+    /// The owner's cap on what this person may owe in advances, in piastres (AV-5) — the server's figure, so no client recomputes it. Null for a caller who may not read this person's salary: the cap is half the salary, so it would give it away (owner decision D7). The person always sees their own.
+    #[serde(
+        rename = "cap_piastres",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cap_piastres: Option<Option<i64>>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(
@@ -75,12 +80,14 @@ pub struct SalaryAdvance {
     pub status: String,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
+    /// What is owed (pending ones counted) is within the cap: what a manager sees instead of the cap (D7). False = over it: only the owner can approve more.
+    #[serde(rename = "within_cap")]
+    pub within_cap: bool,
 }
 
 impl SalaryAdvance {
     pub fn new(
         amount_piastres: i64,
-        cap_piastres: i64,
         created_at: chrono::DateTime<chrono::FixedOffset>,
         employee_id: uuid::Uuid,
         id: uuid::Uuid,
@@ -91,10 +98,11 @@ impl SalaryAdvance {
         remaining_piastres: i64,
         status: String,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
+        within_cap: bool,
     ) -> SalaryAdvance {
         SalaryAdvance {
             amount_piastres,
-            cap_piastres,
+            cap_piastres: None,
             created_at,
             decided_at: None,
             decided_by: None,
@@ -110,6 +118,7 @@ impl SalaryAdvance {
             remaining_piastres,
             status,
             updated_at,
+            within_cap,
         }
     }
 }

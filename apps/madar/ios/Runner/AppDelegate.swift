@@ -17,6 +17,23 @@ import UserNotifications
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  // Everything the till is told while it is open (a live order, a booking,
+  // a push) shows as a banner, stays in the list and plays its sound. The
+  // plugins still see each one first (firebase_messaging hands a push to
+  // Dart's onMessage), but their answers are not the till's: Flutter asks
+  // them all and iOS takes the first, and firebase_messaging, asked before
+  // the local notifications, answers every notification with its own
+  // foreground options (no banner, or nothing at all before Firebase has
+  // started), which hid the live alerts' banners (E2E B-POS-4b).
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    super.userNotificationCenter(center, willPresent: notification) { _ in }
+    completionHandler([.banner, .list, .sound, .badge])
+  }
+
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
   }

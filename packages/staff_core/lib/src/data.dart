@@ -40,7 +40,16 @@ enum ReqKind {
   overtime,
 }
 
-enum ReqStatus { awaitingPeer, pending, approved, rejected, cancelled }
+/// [withdrawn]: a claim on an open shift its claimer took back while it
+/// waited (B-H1-5); the server keeps it apart from a cancel.
+enum ReqStatus {
+  awaitingPeer,
+  pending,
+  approved,
+  rejected,
+  cancelled,
+  withdrawn,
+}
 
 enum PeriodStatus { open, approved, paid }
 
@@ -81,6 +90,19 @@ DateTime? branchWall(String v) {
 }
 
 List<J> _list(Object? v) => (v as List<dynamic>? ?? const []).cast<J>();
+
+/// The core's labour warnings (RU-13): `[key, {args}]` pairs, a `date`
+/// argument read as a date.
+List<(String, Map<String, Object>)> _warningList(Object? list) => [
+  for (final w in (list as List<dynamic>?) ?? const [])
+    (
+      (w as List<dynamic>)[0] as String,
+      {
+        for (final e in (w[1] as J).entries)
+          e.key: e.key == 'date' ? _date(e.value) : e.value as Object,
+      },
+    ),
+];
 int _int(Object? v) => (v as num?)?.round() ?? 0;
 T _enum<T extends Enum>(List<T> values, Object? name, T fallback) =>
     values.where((e) => e.name == name).firstOrNull ?? fallback;
@@ -154,6 +176,7 @@ class Emp implements Bilingual {
     this.pay, {
     this.account = '',
     this.device = '',
+    this.salarySet = true,
   });
   final String id;
   @override
@@ -163,7 +186,13 @@ class Emp implements Bilingual {
   final String phone;
   final Role role;
   final List<String> branches;
-  final int salary; // piastres per month
+
+  /// Piastres per month; null when not set or hidden from me (decision
+  /// #9: shown "—", never a made-up 0). [salarySet] tells which.
+  final int? salary;
+
+  /// A salary is set; false reads "Salary not set".
+  final bool salarySet;
   final String gender;
   final DateTime hired;
   final PayMethod pay;
@@ -200,11 +229,17 @@ class Shift {
 
   /// A cover's own row (the coverer's): whose shift it covered (CV-7).
   String? coverOf;
+
+  /// That cover's decision: `pending` · `confirmed` · `rejected`.
+  String? coverStatus;
   DateTime? inAt;
   DateTime? outAt;
   Method? inMethod;
   Method? outMethod;
   String? punchReason;
+
+  /// Why someone else punched this person out (BC-1).
+  String? outReason;
   String? leave; // 'paid' | 'unpaid'
   bool halfLeave = false;
   String? leaveHalf; // 'first' | 'second' (RQ-8)
@@ -292,6 +327,10 @@ class Req {
   String? decidedBy;
   String? decisionNote;
 
+  /// An advance asked for: owed with it, within the cap (the server's word;
+  /// a manager never sees the cap itself, decision #7).
+  bool? withinCap;
+
   /// Who cancelled it and why (RQ-F6); decided_by stays the approver's.
   String? cancelledBy;
   String? cancelNote;
@@ -302,6 +341,10 @@ class Req {
 
   /// Every day it covers can still change (RQ-4, B13), from the core.
   bool monthOpen = true;
+
+  /// A leave or mission's days the person already clocked in (minor #16):
+  /// the approver is warned.
+  List<DateTime> worked = const [];
 }
 
 /// What the server made of a request just filed (RQ-5): approved at once for
@@ -324,6 +367,8 @@ class Adj {
     this.recurring = false,
     this.status = 'active',
     this.waived = false,
+    this.endsOn,
+    this.rule,
   });
   final String id;
   final String emp;
@@ -331,6 +376,14 @@ class Adj {
   final String by;
   final bool bonus;
   final bool recurring;
+
+  /// A stopped every-month line's last day: it counts until then, the end
+  /// of the month that was open when it was stopped (decision #6).
+  final DateTime? endsOn;
+
+  /// A rule-made line, the core's words ("Rule · absence"); null for a line
+  /// someone added (minor #30).
+  final String? rule;
 
   /// A waived rule deduction: struck through, charged nothing (AD-6, AD-8).
   final bool waived;
@@ -351,8 +404,9 @@ class Advance {
     this.installments,
     this.date,
     this.by,
-    this.collected,
-  );
+    this.collected, {
+    this.withinCap,
+  });
   final String id;
   final String emp;
   final String by;
@@ -360,6 +414,9 @@ class Advance {
   final int installments;
   final DateTime date;
   final int collected;
+
+  /// What they owe is within the cap (the server's word, decision #7).
+  final bool? withinCap;
   int get outstanding => amount - collected;
   int get installment => (amount / installments).ceil();
 }
@@ -440,6 +497,7 @@ class Slip {
     this.carryOut,
     this.collected, {
     this.frozen = false,
+    this.salaryMissing = false,
   });
   final String emp;
   final DateTime start;
@@ -449,6 +507,10 @@ class Slip {
   final int carryOut;
   final Map<String, int> collected; // advance id -> taken this slip
   final bool frozen;
+
+  /// On payroll with no salary set (decision #9): the Salary line reads
+  /// "—" and approval waits for it.
+  final bool salaryMissing;
   int get earned => lines
       .where((l) => l.amount > 0 && !l.waived)
       .fold(0, (s, l) => s + l.amount);
@@ -472,6 +534,30 @@ class Period {
   /// never block a reopen (PAY-6, D16).
   final Set<String> settled = {};
   final Map<String, Slip> frozen = {};
+
+  /// An older month's live preview while it is still a draft (H2-P1).
+  final Map<String, Slip> live = {};
+}
+
+/// An older month not fully paid (H2-P1): a draft never approved, or
+/// approved with someone unpaid. It opens by its [id] with its actions.
+class Unsettled {
+  const Unsettled(
+    this.id,
+    this.start,
+    this.end,
+    this.status, {
+    required this.net,
+    required this.paidCount,
+    required this.people,
+  });
+  final String id;
+  final DateTime start;
+  final DateTime end;
+  final PeriodStatus status;
+  final int net;
+  final int paidCount;
+  final int people;
 }
 
 class Suggestion implements Bilingual {
@@ -623,6 +709,14 @@ class DawamStore extends ChangeNotifier {
   /// The owner saved the rules; until then nobody clocks in (RU-1).
   bool rulesSaved = true;
 
+  /// The last refresh was refused by the server's limiter (429): the saved
+  /// picture stands (addendum 2).
+  bool throttled = false;
+
+  /// The pay month a new pay line lands in when this month's payroll is
+  /// already approved or paid (minor #27); null while this month is open.
+  ({DateTime from, DateTime to})? linesLand;
+
   /// The org's modules (`pos`, `dawam`).
   List<String> modules = const ['pos', 'dawam'];
 
@@ -651,6 +745,9 @@ class DawamStore extends ChangeNotifier {
   bool offline = false;
   int queued = 0;
   List<String> stuck = const [];
+
+  /// Queued punches the server refused, in the picture just read.
+  List<String> _refused = const [];
   Role role = Role.employee;
   String orgName = '';
   bool canManage = false;
@@ -664,6 +761,10 @@ class DawamStore extends ChangeNotifier {
   bool canTeam = false;
   bool canApprove = false;
   bool canSchedule = false;
+
+  /// Sets or dismisses public holidays: the owner's (decision #3). Everyone
+  /// else reads them.
+  bool decidesHolidays = false;
   bool? insideNow;
   double? distance;
 
@@ -685,19 +786,37 @@ class DawamStore extends ChangeNotifier {
   final suggestions = <Suggestion>[];
   final holidays = <Holiday>[];
   final published = <String>{};
+
+  /// The dates the picture holds in full, from–to (H2-01): this week, four
+  /// back and three ahead, and what a screen asked for. Null from a core
+  /// that doesn't say: it holds whatever it shows.
+  List<(DateTime, DateTime)>? loaded;
+
+  /// A screen is fetching the dates it shows ([viewRange]).
+  bool viewing = false;
+  String? _viewingKey;
   final history = <Period>[];
+
+  /// Older months not fully paid, oldest first (H2-P1).
+  List<Unsettled> unsettled = const [];
   Period period = Period(DateTime(2000), DateTime(2000));
   final _slips = <String, Slip>{};
   final _cap = <String, int>{};
+  final _within = <String, bool>{};
   final _outstanding = <String, int>{};
   final _warnings = <String, List<(String, Map<String, Object>)>>{};
   List<String> _myNow = const [];
   String? _active;
   List<String> _coverable = const [];
   List<String> _inbox = const [];
+  List<String> _waitingOwner = const [];
 
   /// The server's answer to the last filing, from the picture it came with.
   Filed? lastFiled;
+
+  /// The labour limits the last approved claim's day breaks (RU-13, minor
+  /// #26): a warning for the approver, never a block.
+  List<(String, Map<String, Object>)> lastWarnings = const [];
   List<String> _adjInbox = const [];
   List<String> _openFlags = const [];
 
@@ -708,6 +827,10 @@ class DawamStore extends ChangeNotifier {
 
   /// Paid through Dawam (the server says). Off: no estimate on the Pay tab.
   bool onPayroll = true;
+
+  /// People on this month's payroll with no salary set (decision #9):
+  /// approval is blocked while above 0.
+  int missingSalaryCount = 0;
 
   /// When the core last fetched the picture from the server (its
   /// `fetched_at`, ms): a pull that did not move it never reached the server.
@@ -778,9 +901,11 @@ class DawamStore extends ChangeNotifier {
     me = v['me'] as String;
     _skew = (_at(v['now']) ?? DateTime.now()).difference(DateTime.now());
     offline = v['online'] != true;
+    throttled = v['throttled'] == true;
     fetchedAt = _int(v['fetched_at']);
     queued = _int(v['queued']);
     stuck = (v['stuck'] as List<dynamic>).cast<String>();
+    _refused = ((v['refused'] as List<dynamic>?) ?? const []).cast<String>();
     role = _enum(Role.values, v['role'], Role.employee);
     orgName = v['org_name'] as String;
     canManage = v['can_manage'] == true;
@@ -790,6 +915,7 @@ class DawamStore extends ChangeNotifier {
     canTeam = tabs['team'] == true;
     canApprove = tabs['approvals'] == true;
     canSchedule = tabs['schedule'] == true;
+    decidesHolidays = v['decides_holidays'] == true;
     myBranches = (v['my_branches'] as List<dynamic>).cast<String>();
     insideNow = v['inside'] as bool?;
     distance = (v['distance_m'] as num?)?.toDouble();
@@ -806,6 +932,13 @@ class DawamStore extends ChangeNotifier {
       );
     });
     chargePhone = v['charge_phone'] == true;
+    linesLand = switch (v['lines_land']) {
+      {'later': true, 'start': final String a, 'end': final String z} => (
+        from: DateTime.parse(a),
+        to: DateTime.parse(z),
+      ),
+      _ => null,
+    };
     modules = ((v['modules'] as List<dynamic>?) ?? const ['pos', 'dawam'])
         .cast<String>();
     coverage = ((v['coverage'] as J?) ?? const {}).map(
@@ -875,12 +1008,13 @@ class DawamStore extends ChangeNotifier {
               p['phone'] as String,
               _enum(Role.values, p['role'], Role.employee),
               (p['branches'] as List<dynamic>).cast<String>(),
-              _int(p['salary']),
+              (p['salary'] as num?)?.round(),
               p['gender'] as String,
               _date(p['hired']),
               _enum(PayMethod.values, p['pay'], PayMethod.cash),
               account: p['account'] as String,
               device: p['device'] as String,
+              salarySet: p['salary_set'] != false,
             )
             ..deviceSince = _at(p['device_since'])
             ..prefTime = p['pref_time'] as String?
@@ -903,6 +1037,7 @@ class DawamStore extends ChangeNotifier {
             ..edited = s['edited'] == true
             ..ownDay = s['own_day'] == true
             ..coverBy = s['cover_by'] as String?
+            ..coverStatus = s['cover_status'] as String?
             ..coverOf = s['cover_of'] as String?
             ..inAt = _at(s['in_at'])
             ..outAt = _at(s['out_at'])
@@ -913,6 +1048,7 @@ class DawamStore extends ChangeNotifier {
                 ? null
                 : _enum(Method.values, s['out_method'], Method.app)
             ..punchReason = s['punch_reason'] as String?
+            ..outReason = s['out_reason'] as String?
             ..leave = s['leave'] as String?
             ..halfLeave = s['half_leave'] == true
             ..mission = s['mission'] == true
@@ -932,6 +1068,22 @@ class DawamStore extends ChangeNotifier {
         published.add('${sh.template.branch}|${weekStart(sh.date)}');
       }
     }
+    // The weeks the server published, shifts in them or not (H2-03).
+    for (final w in (v['published_weeks'] as List<dynamic>?) ?? const []) {
+      final s = w as String;
+      final i = s.lastIndexOf('|');
+      if (i > 0) {
+        published.add('${s.substring(0, i)}|${_date(s.substring(i + 1))}');
+      }
+    }
+    final held = v['loaded'];
+    loaded = held is List<dynamic>
+        ? [
+            for (final r in held)
+              if (r is List<dynamic> && r.length == 2)
+                (_date(r[0]), _date(r[1])),
+          ]
+        : null;
     _myNow = (v['my_now'] as List<dynamic>).cast<String>();
     _active = v['active_shift'] as String?;
     _coverable = (v['coverable'] as List<dynamic>).cast<String>();
@@ -975,15 +1127,23 @@ class DawamStore extends ChangeNotifier {
           ..paidDefault = r['paid_default'] as bool?
           ..leaveHalf = r['leave_half'] as String?
           ..monthOpen = r['month_open'] != false
+          ..worked = [
+            for (final d in (r['worked'] as List<dynamic>?) ?? const [])
+              _date(d),
+          ]
           ..decidedBy = r['decided_by'] as String?
           ..decisionNote = r['decision_note'] as String?
+          ..withinCap = r['within_cap'] as bool?
           ..cancelledBy = r['cancelled_by'] as String?
           ..cancelNote = r['cancel_note'] as String?
           ..cancelledByName = r['cancelled_by_name'] as String?,
       );
     }
     _inbox = (v['inbox'] as List<dynamic>).cast<String>();
+    _waitingOwner = ((v['waiting_owner'] as List<dynamic>?) ?? const [])
+        .cast<String>();
     final filed = v['filed'];
+    lastWarnings = filed is J ? _warningList(filed['warnings']) : const [];
     lastFiled = filed is J
         ? (
             id: filed['id'] as String,
@@ -1007,6 +1167,11 @@ class DawamStore extends ChangeNotifier {
           recurring: a['recurring'] == true,
           status: a['status'] as String,
           waived: a['waived'] == true,
+          endsOn: switch (a['ends_on']) {
+            final String d => DateTime.tryParse(d),
+            _ => null,
+          },
+          rule: a['rule'] as String?,
         ),
       );
     }
@@ -1021,6 +1186,7 @@ class DawamStore extends ChangeNotifier {
           _at(a['date']) ?? now,
           a['by'] as String,
           _int(a['collected']),
+          withinCap: a['within_cap'] as bool?,
         ),
       );
     }
@@ -1065,6 +1231,18 @@ class DawamStore extends ChangeNotifier {
 
     period = readPeriod(v['period'] as J);
     history.addAll(_list(v['history']).map(readPeriod));
+    unsettled = [
+      for (final u in _list(v['unsettled']))
+        Unsettled(
+          u['id'] as String,
+          _date(u['start']),
+          _date(u['end']),
+          _enum(PeriodStatus.values, u['status'], PeriodStatus.open),
+          net: _int(u['net']),
+          paidCount: _int(u['paid_count']),
+          people: _int(u['people']),
+        ),
+    ];
     for (final s in _list(v['slips'])) {
       final slip = Slip(
         s['emp'] as String,
@@ -1073,21 +1251,25 @@ class DawamStore extends ChangeNotifier {
         [
           for (final l in _list(s['lines']))
             Line(
-              l['key'] as String,
-              l['en'] as String,
-              l['ar'] as String,
-              _int(l['amount']),
-              rule: l['rule'] == true,
-              manual: l['manual'] as String?,
-              date: l['date'] is String
-                  ? DateTime.tryParse(l['date'] as String)
-                  : null,
-            )..waived = l['waived'] == true,
+                l['key'] as String,
+                l['en'] as String,
+                l['ar'] as String,
+                _int(l['amount']),
+                rule: l['rule'] == true,
+                manual: l['manual'] as String?,
+                date: l['date'] is String
+                    ? DateTime.tryParse(l['date'] as String)
+                    : null,
+              )
+              ..waived = l['waived'] == true
+              // Why it was waived (AD-6, minor #29).
+              ..note = l['note'] as String?,
         ],
         _int(s['net']),
         _int(s['carry_out']),
         (s['collected'] as J).map((k, x) => MapEntry(k, _int(x))),
         frozen: s['frozen'] == true,
+        salaryMissing: s['salary_missing'] == true,
       );
       final p = [
         period,
@@ -1095,8 +1277,15 @@ class DawamStore extends ChangeNotifier {
       ].where((p) => sameDay(p.start, slip.start)).firstOrNull;
       if (slip.frozen && p != null) p.frozen[slip.emp] = slip;
       if (p == period) _slips[slip.emp] = slip;
+      // An older draft month's preview (H2-P1).
+      if (!slip.frozen && p != null && p != period) p.live[slip.emp] = slip;
     }
+    _cap.clear();
     (v['advance_cap'] as J).forEach((k, x) => _cap[k] = _int(x));
+    _within.clear();
+    ((v['advance_within'] as J?) ?? const {}).forEach(
+      (k, x) => _within[k] = x == true,
+    );
     _outstanding.clear();
     (v['outstanding'] as J).forEach((k, x) => _outstanding[k] = _int(x));
     for (final g in _list(v['suggestions'])) {
@@ -1125,18 +1314,9 @@ class DawamStore extends ChangeNotifier {
       );
     }
     _warnings.clear();
-    (v['warnings'] as J).forEach((k, list) {
-      _warnings[k] = [
-        for (final w in list as List<dynamic>)
-          (
-            (w as List<dynamic>)[0] as String,
-            {
-              for (final e in (w[1] as J).entries)
-                e.key: e.key == 'date' ? _date(e.value) : e.value as Object,
-            },
-          ),
-      ];
-    });
+    (v['warnings'] as J).forEach(
+      (k, list) => _warnings[k] = _warningList(list),
+    );
     final st = v['settings'] as J;
     holidayMult = (st['holiday_mult'] as num).toDouble();
     advanceCapPct = (st['advance_cap_pct'] as num).toDouble();
@@ -1145,6 +1325,7 @@ class DawamStore extends ChangeNotifier {
     managerBonusLimit = limit ?? 1 << 40;
     managerDeductLimit = (st['deduction_limit'] as int?) ?? limit ?? 1 << 40;
     onPayroll = v['on_payroll'] != false;
+    missingSalaryCount = _int(v['missing_salary_count']);
     rulesSaved = st['rules_saved'] != false;
     _schedulePings();
     notifyListeners();
@@ -1161,6 +1342,32 @@ class DawamStore extends ChangeNotifier {
   };
 
   // ── what the screens read ──
+  /// The picture holds every date from [from] to [to] (H2-01). A screen
+  /// showing other dates asks for them ([viewRange]) and edits nothing there.
+  bool holds(DateTime from, DateTime to) {
+    final held = loaded;
+    if (held == null) return true;
+    for (
+      var d = dateOnly(from);
+      !d.isAfter(to);
+      d = DateTime(d.year, d.month, d.day + 1)
+    ) {
+      if (!held.any((r) => !d.isBefore(r.$1) && !d.isAfter(r.$2))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Why [from]–[to] can't be shown or edited, in words: the phone doesn't
+  /// hold it yet (H2-01). Null when it does.
+  String? notHeld(DateTime from, DateTime to) {
+    if (holds(from, to)) return null;
+    if (viewing) return tr('staff.week_loading');
+    if (offline) return tr('staff.week_needs_connection');
+    return tr('staff.week_couldnt_load');
+  }
+
   Iterable<Emp> get visibleEmps => emps.values; // the server scoped them (RO-6)
   bool isPublished(Shift s) => s.published;
   List<Shift> shiftsOn(String emp, DateTime d) =>
@@ -1174,6 +1381,13 @@ class DawamStore extends ChangeNotifier {
   List<Shift> coverable() => [for (final id in _coverable) ?_shift(id)];
   int lateMinutes(Shift s) => s.lateMinutes;
   bool isAbsent(Shift s) => s.absent;
+
+  /// A manager's own pending requests and claims: the owner decides them
+  /// (RQ-5); Approvals lists them read-only (addendum 2).
+  List<Req> get waitingOwner => [
+    for (final id in _waitingOwner) ?reqs.where((r) => r.id == id).firstOrNull,
+  ];
+
   List<Req> get inbox => [
     for (final id in _inbox) ?reqs.where((r) => r.id == id).firstOrNull,
   ];
@@ -1189,11 +1403,15 @@ class DawamStore extends ChangeNotifier {
   /// The server's cap on what [emp] may owe (AV-5), or null when the server
   /// sent none (their pay is hidden from me). It is never worked out here.
   int? advanceCap(String emp) => _cap[emp];
+
+  /// Whether what [emp] owes is within the cap, the server's word for
+  /// someone whose cap I may not see (decision #7); null = not said.
+  bool? advanceWithin(String emp) => _within[emp];
   List<(String, Map<String, Object>)> warnings(String emp, DateTime ws) =>
       _warnings['$emp|${_d(ws)}'] ?? const [];
   Slip slip(String empId, Period p) =>
       p.frozen[empId] ??
-      (identical(p, period) ? _slips[empId] : null) ??
+      (identical(p, period) ? _slips[empId] : p.live[empId]) ??
       Slip(
         empId,
         p.start,
@@ -1211,7 +1429,11 @@ class DawamStore extends ChangeNotifier {
       ? p.frozen.values.toList()
       : identical(p, period)
       ? _slips.values.where((s) => !s.frozen).toList()
-      : const [];
+      : p.live.values.toList();
+
+  /// This month or an older one, by id (H2-P1).
+  Period? periodById(String id) =>
+      [period, ...history].where((p) => p.id == id).firstOrNull;
   List<Slip> payslipsOf(String emp) => [
     ?period.frozen[emp],
     for (final h in history) ?h.frozen[emp],
@@ -1229,6 +1451,10 @@ class DawamStore extends ChangeNotifier {
     String code, {
     String? orgId,
   }) async {
+    // The last sign-out ends in the background (the server, Firebase, then
+    // the core): verified first, the new session would be wiped by it, and
+    // the notice's "I agree" would have no one to send for (E2E roster m3).
+    await _signingOut;
     final v = await backend.otpVerify(phone, code, orgId: orgId);
     if (v['needs_org'] == true) {
       return [
@@ -1279,6 +1505,15 @@ class DawamStore extends ChangeNotifier {
     }
     _applySafely(json);
     if (!privacyAccepted) throw failed();
+    // "Always" location is asked now, right after the notice that explains
+    // tracking (minor #12), so the first clock-in doesn't wait on a prompt.
+    // An answer never undoes the acceptance.
+    try {
+      alwaysLocation = await backend.alwaysLocation();
+    } on Object {
+      alwaysLocation = false;
+    }
+    notifyListeners();
   }
 
   /// Take a fresh reading for the fence line (Home opening, a resume). The
@@ -1303,13 +1538,16 @@ class DawamStore extends ChangeNotifier {
     }
   }
 
+  /// The sign-out still finishing, which the next sign-in waits for.
+  Future<void> _signingOut = Future<void>.value();
+
   void signOut() {
     stop();
     _trackingOn = false;
     unawaited(backend.tracking(on: false));
     // Never fall back to the last person's picture.
     _lastGood = null;
-    unawaited(backend.signOut());
+    _signingOut = backend.signOut().catchError((Object _) {});
     me = null;
     pendingUser = null;
     notifyListeners();
@@ -1365,7 +1603,9 @@ class DawamStore extends ChangeNotifier {
     if (me == null) return;
     final before = fetchedAt;
     if (!await _fetch()) return; // refused: the toast already said why
-    if (offline) {
+    if (throttled) {
+      failures.add(tr('staff.refresh_throttled'));
+    } else if (offline) {
       failures.add(tr('staff.refresh_offline'));
     } else if (fetchedAt <= before) {
       failures.add(tr('staff.refresh_failed'));
@@ -1473,6 +1713,11 @@ class DawamStore extends ChangeNotifier {
     try {
       _apply(json);
       _lastGood = json;
+      // A queued punch the server refused after its screen moved on (a
+      // clock-out made offline, sent on reconnect): the core says it once,
+      // and it shows as a red toast (S-035/S-036). Never again from a
+      // re-applied last picture.
+      _refused.forEach(failures.add);
     } on Object catch (e, st) {
       // `_apply` clears as it reads: put the last good picture back.
       final good = _lastGood;
@@ -1511,6 +1756,34 @@ class DawamStore extends ChangeNotifier {
     await _run(
       () => backend.act({...action, if (fix != null) 'fix': _fixJson(fix)}),
     );
+  }
+
+  /// A screen shows [from]–[to] (the board's week, a calendar page): dates
+  /// the picture doesn't hold are fetched and kept for later refreshes
+  /// (H2-01). [viewing] while they come; a refusal arrives on [failures].
+  Future<void> viewRange(DateTime from, DateTime to) async {
+    final a = dateOnly(from);
+    var z = dateOnly(to);
+    // One read spans at most 62 days (the server's limit).
+    final most = DateTime(a.year, a.month, a.day + 62);
+    if (z.isAfter(most)) z = most;
+    if (me == null || holds(a, z)) return;
+    final key = '${_d(a)}|${_d(z)}';
+    if (_viewingKey == key) return;
+    _viewingKey = key;
+    viewing = true;
+    notifyListeners();
+    try {
+      await _run(
+        () => backend.act({'action': 'view_range', 'from': _d(a), 'to': _d(z)}),
+      );
+    } finally {
+      if (_viewingKey == key) {
+        _viewingKey = null;
+        viewing = false;
+      }
+      notifyListeners();
+    }
   }
 
   // ── what the screens do: each is one core action ──
@@ -1633,8 +1906,13 @@ class DawamStore extends ChangeNotifier {
     return lastFiled;
   }
 
-  Future<void> decideAdj(Adj a, {required bool yes}) =>
-      _act({'action': 'decide_adj', 'adj': a.id, 'yes': yes});
+  /// [reason]: why it is declined, required to decline (decision #8).
+  Future<void> decideAdj(Adj a, {required bool yes, String? reason}) => _act({
+    'action': 'decide_adj',
+    'adj': a.id,
+    'yes': yes,
+    'reason': ?reason,
+  });
   Future<void> deleteAdj(String adjId) =>
       _act({'action': 'delete_adj', 'adj': adjId});
 
@@ -1661,26 +1939,46 @@ class DawamStore extends ChangeNotifier {
         'purpose': purpose,
         'via': via,
       });
+  // Every day write names the board's [branch]: a business-wide block set
+  // there is worked there (H2-B8).
   Future<void> setDay(String emp, DateTime d, String? tpl, String branch) =>
-      _act({'action': 'set_day', 'emp': emp, 'date': _d(d), 'tpl': tpl});
+      _act({
+        'action': 'set_day',
+        'emp': emp,
+        'date': _d(d),
+        'tpl': tpl,
+        'branch': branch,
+      });
 
   /// Every block [emp] works on [d] (a split day); empty = a day off.
-  Future<void> setShifts(String emp, DateTime d, List<String> tpls) => _act({
+  Future<void> setShifts(
+    String emp,
+    DateTime d,
+    List<String> tpls, {
+    String? branch,
+  }) => _act({
     'action': 'set_shifts',
     'emp': emp,
     'date': _d(d),
     'blocks': [
       for (final t in tpls) {'tpl': t},
     ],
+    'branch': ?branch,
   });
 
   /// One more block on the date; the rest of the day stays.
-  Future<void> addBlock(String emp, DateTime d, String tpl) =>
-      _act({'action': 'add_block', 'emp': emp, 'date': _d(d), 'tpl': tpl});
+  Future<void> addBlock(String emp, DateTime d, String tpl, {String? branch}) =>
+      _act({
+        'action': 'add_block',
+        'emp': emp,
+        'date': _d(d),
+        'tpl': tpl,
+        'branch': ?branch,
+      });
 
   /// Take this shift off its date; the rest of the day stays.
-  Future<void> removeBlock(Shift s) =>
-      _act({'action': 'remove_block', 'shift': s.id});
+  Future<void> removeBlock(Shift s, {String? branch}) =>
+      _act({'action': 'remove_block', 'shift': s.id, 'branch': ?branch});
 
   /// Back to the usual pattern for that date.
   Future<void> resetDay(String emp, DateTime d) =>
@@ -1706,10 +2004,16 @@ class DawamStore extends ChangeNotifier {
   /// Ask a colleague to swap: [mine] is MY shift, [theirs] the colleague's.
   Future<void> askSwap(Shift mine, Shift theirs) =>
       _act({'action': 'ask_swap', 'mine': mine.id, 'theirs': theirs.id});
-  Future<void> moveShift(Shift s, DateTime day, String tpl) =>
-      _act({'action': 'move_shift', 'shift': s.id, 'day': _d(day), 'tpl': tpl});
-  Future<void> assign(Shift s, String? emp) =>
-      _act({'action': 'assign', 'shift': s.id, 'emp': emp});
+  Future<void> moveShift(Shift s, DateTime day, String tpl, {String? branch}) =>
+      _act({
+        'action': 'move_shift',
+        'shift': s.id,
+        'day': _d(day),
+        'tpl': tpl,
+        'branch': ?branch,
+      });
+  Future<void> assign(Shift s, String? emp, {String? branch}) =>
+      _act({'action': 'assign', 'shift': s.id, 'emp': emp, 'branch': ?branch});
   Future<void> postOpen(String branch, DateTime d, String tpl) => _act({
     'action': 'post_open',
     'branch': branch,
@@ -1743,11 +2047,18 @@ class DawamStore extends ChangeNotifier {
     'note': ?note,
   });
   Future<void> readAll() => _act({'action': 'read_all'});
-  Future<void> approvePayroll() => _act({'action': 'approve_payroll'});
+
+  /// Every payroll action names its month; none = this month (H2-P1).
+  Future<void> approvePayroll({String? period}) =>
+      _act({'action': 'approve_payroll', 'period': ?period});
 
   /// Back to a live preview; the reason goes to the audit log (AD-9).
-  Future<void> reopenPayroll(String reason) =>
-      _act({'action': 'reopen_payroll', 'reason': reason});
-  Future<void> markPaid(String emp, PayMethod m) =>
-      _act({'action': 'mark_paid', 'emp': emp, 'method': m.name});
+  Future<void> reopenPayroll(String reason, {String? period}) =>
+      _act({'action': 'reopen_payroll', 'reason': reason, 'period': ?period});
+  Future<void> markPaid(String emp, PayMethod m, {String? period}) => _act({
+    'action': 'mark_paid',
+    'emp': emp,
+    'method': m.name,
+    'period': ?period,
+  });
 }

@@ -115,6 +115,10 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
     final days = _days(ws);
     final end = days.last;
     final thisWeek = sameDay(ws, weekStart(store.today));
+    // The week on show is on the phone, or why not (H2-01): past what the
+    // phone holds it is fetched, and nothing there is edited blind.
+    final away = store.notHeld(ws, end);
+    final held = away == null;
     final pub = store.published.contains('$branch|$ws');
     final sugg = store.suggestions.where((g) => g.branch == branch).toList();
     final hols = store.holidays
@@ -262,12 +266,18 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
         ),
       ],
     );
-    final status = MadarStatusPill.of(
-      pub ? tr('staff.published') : tr('staff.draft'),
-      tone: pub ? MadarTone.success : MadarTone.warning,
-      glyph: pub ? MadarGlyph.check : MadarGlyph.edit,
-    );
-    final review = sugg.length + hols.length;
+    // Draft only when the server says the week isn't published (H2-03);
+    // nothing said about a week the phone doesn't hold.
+    final status = held
+        ? MadarStatusPill.of(
+            pub ? tr('staff.published') : tr('staff.draft'),
+            tone: pub ? MadarTone.success : MadarTone.warning,
+            glyph: pub ? MadarGlyph.check : MadarGlyph.edit,
+          )
+        : null;
+    // Only the owner decides a holiday (decision #3): for anyone else an
+    // undecided one is news, not something waiting on them.
+    final review = sugg.length + (store.decidesHolidays ? hols.length : 0);
     final actions = <Widget>[
       if (!thisWeek)
         MadarChip(
@@ -277,7 +287,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
             _day = null;
           }),
         ),
-      if (!pub)
+      if (held && !pub)
         MadarButton(
           label: tr('staff.publish_week'),
           glyph: MadarGlyph.check,
@@ -343,7 +353,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                 spacing: Space.sm,
                 children: [
                   Expanded(child: nav),
-                  status,
+                  ?status,
                 ],
               ),
               Wrap(
@@ -374,7 +384,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                     spacing: Space.sm,
                     children: [
                       Expanded(child: nav),
-                      status,
+                      ?status,
                       ...actions,
                     ],
                   )
@@ -383,7 +393,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                     spacing: Space.sm,
                     children: [
                       Expanded(child: nav),
-                      status,
+                      ?status,
                     ],
                   ),
                   Wrap(
@@ -449,6 +459,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
             spacing: Space.md,
             children: [
               bar,
+              if (away != null) NoticeBanner(text: away, tone: ChipTone.info),
               Expanded(child: body),
               if (!phone)
                 Text(
@@ -462,10 +473,25 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
     );
   }
 
-  void _goWeek(int days) => setState(() {
-    _week = DateTime(_week.year, _week.month, _week.day + days);
-    _day = null;
-  });
+  void _goWeek(int days) {
+    setState(() {
+      _week = DateTime(_week.year, _week.month, _week.day + days);
+      _day = null;
+    });
+    // A week past what the phone holds is fetched (H2-01).
+    final ws = _week;
+    unawaited(_store.viewRange(ws, DateTime(ws.year, ws.month, ws.day + 6)));
+  }
+
+  /// One board edit, waited for (H2-04): the server's words on a refusal
+  /// (the sheet that asked stays open), [ok] once it is taken, then [done].
+  Future<void> _save(
+    Future<void> Function() call, {
+    required String ok,
+    VoidCallback? done,
+  }) async {
+    if (await attempt(ref, call, ok: ok)) done?.call();
+  }
 
   Future<void> _publish(String branch, DateTime ws) async {
     final ok = await showMadarConfirm(
@@ -492,12 +518,25 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
       unawaited(
         attempt(
           ref,
-          () => _store.moveShift(s, dateOnly(day), s.tpl),
+          () => _store.moveShift(
+            s,
+            dateOnly(day),
+            s.tpl,
+            branch: _branch(_store),
+          ),
           ok: tr('staff.moved_to', {'date': dayLabel(day)}),
         ),
       );
     } else {
-      unawaited(_store.assign(s, emp));
+      final to = emp == null ? null : _store.emps[emp];
+      unawaited(
+        _save(
+          () => _store.assign(s, emp, branch: _branch(_store)),
+          ok: to == null
+              ? tr('staff.open_shift_posted')
+              : tr('staff.given_to', {'name': name(to)}),
+        ),
+      );
     }
   }
 
@@ -543,12 +582,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
             ],
           ),
           if (e != null && e.cantWork.contains(s.date.weekday))
-            NoticeBanner(
-              text: tr('staff.said_they_can_t_work_s', {
-                'name': name(e),
-                'day': weekday(s.date.weekday),
-              }),
-            ),
+            NoticeBanner(text: cantWorkWords(name(e), s.date.weekday)),
           for (final (key, args) in warnings) NoticeBanner(text: tr(key, args)),
           Text(
             tr('staff.changes_this_date_only_the_standing'),
@@ -558,16 +592,11 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
             MadarListRow.nav(
               glyph: MadarGlyph.close,
               title: tr('staff.cancel_open_shift'),
-              onTap: () {
-                unawaited(
-                  attempt(
-                    ref,
-                    () => store.cancelOpen(s),
-                    ok: tr('staff.day_saved'),
-                  ),
-                );
-                close();
-              },
+              onTap: () => _save(
+                () => store.cancelOpen(s),
+                ok: tr('staff.day_saved'),
+                done: close,
+              ),
             ),
           if (e != null)
             DawamSection(
@@ -578,12 +607,18 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                     title: tplName(t),
                     meta: _blockHours(t, s.date),
                     selected: t.id == s.tpl,
-                    onTap: () {
-                      if (t.id != s.tpl) {
-                        unawaited(store.moveShift(s, dateOnly(s.date), t.id));
-                      }
-                      close();
-                    },
+                    onTap: () => t.id == s.tpl
+                        ? close()
+                        : _save(
+                            () => store.moveShift(
+                              s,
+                              dateOnly(s.date),
+                              t.id,
+                              branch: branch,
+                            ),
+                            ok: tr('staff.day_saved'),
+                            done: close,
+                          ),
                   ),
                 MadarListRow.nav(
                   glyph: MadarGlyph.clock,
@@ -605,35 +640,39 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                   MadarListRow.nav(
                     glyph: MadarGlyph.refresh,
                     title: tr('staff.block_times'),
-                    onTap: () {
-                      unawaited(store.setTimes(s, null, null));
-                      close();
-                    },
+                    onTap: () => _save(
+                      () => store.setTimes(s, null, null),
+                      ok: tr('staff.times_saved'),
+                      done: close,
+                    ),
                   ),
                 MadarListRow.nav(
                   glyph: MadarGlyph.minus,
                   title: tr('staff.remove_this_shift'),
-                  onTap: () {
-                    unawaited(store.removeBlock(s));
-                    close();
-                  },
+                  onTap: () => _save(
+                    () => store.removeBlock(s, branch: branch),
+                    ok: tr('staff.day_saved'),
+                    done: close,
+                  ),
                 ),
                 MadarListRow.nav(
                   glyph: MadarGlyph.close,
                   title: tr('staff.day_off'),
-                  onTap: () {
-                    unawaited(store.setDay(e.id, s.date, null, branch));
-                    close();
-                  },
+                  onTap: () => _save(
+                    () => store.setDay(e.id, s.date, null, branch),
+                    ok: tr('staff.day_saved'),
+                    done: close,
+                  ),
                 ),
                 if (s.ownDay || store.isOwnDay(e.id, s.date))
                   MadarListRow.nav(
                     glyph: MadarGlyph.calendar,
                     title: tr('staff.back_to_pattern'),
-                    onTap: () {
-                      unawaited(store.resetDay(e.id, s.date));
-                      close();
-                    },
+                    onTap: () => _save(
+                      () => store.resetDay(e.id, s.date),
+                      ok: tr('staff.day_saved'),
+                      done: close,
+                    ),
                   ),
               ],
             ),
@@ -648,23 +687,22 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                   MadarListRow.nav(
                     title: name(p),
                     meta: p.cantWork.contains(s.date.weekday)
-                        ? tr('staff.said_they_can_t_work_s', {
-                            'name': firstName(p),
-                            'day': weekday(s.date.weekday),
-                          })
+                        ? cantWorkWords(firstName(p), s.date.weekday)
                         : null,
-                    onTap: () {
-                      unawaited(store.giveShift(s, p.id));
-                      close();
-                    },
+                    onTap: () => _save(
+                      () => store.giveShift(s, p.id),
+                      ok: tr('staff.given_to', {'name': name(p)}),
+                      done: close,
+                    ),
                   ),
                 MadarListRow.nav(
                   glyph: MadarGlyph.plus,
                   title: tr('staff.open_shift_anyone_claims'),
-                  onTap: () {
-                    unawaited(store.assign(s, null));
-                    close();
-                  },
+                  onTap: () => _save(
+                    () => store.assign(s, null, branch: branch),
+                    ok: tr('staff.open_shift_posted'),
+                    done: close,
+                  ),
                 ),
               ],
             ),
@@ -678,6 +716,12 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
   Future<void> _add(String? emp, DateTime at) async {
     final d = dateOnly(at);
     final branch = _branch(_store);
+    // Never a day built from dates the phone doesn't hold (H2-01).
+    final away = _store.notHeld(d, d);
+    if (away != null) {
+      ref.read(toastProvider.notifier).show(away, tone: ChipTone.danger);
+      return;
+    }
     // Only the blocks worked on this weekday, at this day's times.
     final tpls =
         _store.tpls.values
@@ -714,10 +758,11 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
               MadarListRow.nav(
                 glyph: MadarGlyph.calendar,
                 title: tr('staff.back_to_pattern'),
-                onTap: () {
-                  unawaited(store.resetDay(emp, d));
-                  Navigator.of(ctx).maybePop();
-                },
+                onTap: () => _save(
+                  () => store.resetDay(emp, d),
+                  ok: tr('staff.day_saved'),
+                  done: () => Navigator.of(ctx).maybePop(),
+                ),
               ),
             ],
             DawamSection(
@@ -744,10 +789,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                   MadarListRow.pick(
                     title: name(p),
                     meta: p.cantWork.contains(d.weekday)
-                        ? tr('staff.said_they_can_t_work_s', {
-                            'name': firstName(p),
-                            'day': weekday(d.weekday),
-                          })
+                        ? cantWorkWords(firstName(p), d.weekday)
                         : null,
                     selected: who == p.id,
                     onTap: () => setS(() => who = p.id),
@@ -759,15 +801,22 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                   ? tr('staff.post_open_shift')
                   : tr('staff.add'),
               glyph: MadarGlyph.plus,
+              // Waited for (H2-04, owner bug 1: the sheet closed at once and
+              // a refusal, or nothing at all, followed).
               onTap: () {
                 final id = who;
-                if (id == null) {
-                  unawaited(store.postOpen(branch, d, tpl));
-                } else {
-                  // Beside whatever else they work that day (a split day).
-                  unawaited(store.addBlock(id, d, tpl));
-                }
-                Navigator.of(ctx).maybePop();
+                unawaited(
+                  _save(
+                    () => id == null
+                        ? store.postOpen(branch, d, tpl)
+                        // Beside whatever else they work that day (a split day).
+                        : store.addBlock(id, d, tpl, branch: branch),
+                    ok: id == null
+                        ? tr('staff.open_shift_posted')
+                        : tr('staff.added'),
+                    done: () => Navigator.of(ctx).maybePop(),
+                  ),
+                );
               },
             ),
           ],
@@ -844,7 +893,8 @@ class _Suggestions extends ConsumerWidget {
                       label: tr('staff.reject'),
                       size: MadarButtonSize.compact,
                       variant: MadarButtonVariant.secondary,
-                      onTap: () => store.rejectSuggestion(g),
+                      onTap: () =>
+                          attempt(ref, () => store.rejectSuggestion(g)),
                     ),
                   ),
                   Expanded(
@@ -852,7 +902,8 @@ class _Suggestions extends ConsumerWidget {
                       label: tr('staff.accept'),
                       size: MadarButtonSize.compact,
                       glyph: MadarGlyph.check,
-                      onTap: () => store.acceptSuggestion(g),
+                      onTap: () =>
+                          attempt(ref, () => store.acceptSuggestion(g)),
                     ),
                   ),
                 ],
@@ -889,31 +940,37 @@ class _HolidayPrompt extends ConsumerWidget {
           ],
         ),
         Text(
-          tr('staff.make_it_a_holiday_nobody_is', {
-            'holiday_mult': store.holidayMult,
-          }),
+          store.decidesHolidays
+              ? tr('staff.make_it_a_holiday_nobody_is', {
+                  'holiday_mult': store.holidayMult,
+                })
+              : tr('staff.holidays_owner_decides'),
           style: MadarType.bodySm.copyWith(color: c.textSecondary),
         ),
-        Row(
-          spacing: Space.sm,
-          children: [
-            Expanded(
-              child: MadarButton(
-                label: tr('staff.not_now'),
-                size: MadarButtonSize.compact,
-                variant: MadarButtonVariant.secondary,
-                onTap: () => store.decideHoliday(h, 'dismissed'),
+        // Managers see it read-only: the owner sets or dismisses it.
+        if (store.decidesHolidays)
+          Row(
+            spacing: Space.sm,
+            children: [
+              Expanded(
+                child: MadarButton(
+                  label: tr('staff.not_now'),
+                  size: MadarButtonSize.compact,
+                  variant: MadarButtonVariant.secondary,
+                  onTap: () =>
+                      attempt(ref, () => store.decideHoliday(h, 'dismissed')),
+                ),
               ),
-            ),
-            Expanded(
-              child: MadarButton(
-                label: tr('staff.set_as_holiday'),
-                size: MadarButtonSize.compact,
-                onTap: () => store.decideHoliday(h, 'holiday'),
+              Expanded(
+                child: MadarButton(
+                  label: tr('staff.set_as_holiday'),
+                  size: MadarButtonSize.compact,
+                  onTap: () =>
+                      attempt(ref, () => store.decideHoliday(h, 'holiday')),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
       ],
     );
   }

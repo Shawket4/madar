@@ -21,11 +21,29 @@ class PayrollTab extends ConsumerStatefulWidget {
 class _PayrollTabState extends ConsumerState<PayrollTab> {
   _View _view = _View.preview;
 
+  /// An older month opened from its banner (H2-P1); null = this month.
+  String? _periodId;
+
+  /// The month on screen: this one, or an older one still to settle.
+  Period _p(DawamStore store) =>
+      (_periodId == null ? null : store.periodById(_periodId!)) ?? store.period;
+
+  /// Whether an older month is on screen: its actions name it by id.
+  String? _older(DawamStore store) =>
+      identical(_p(store), store.period) ? null : _periodId;
+
+  /// People on the month's payroll with no salary: the server's count for
+  /// this month, the slips' own flag for an older one.
+  int _missing(DawamStore store, List<Slip> slips) => _older(store) == null
+      ? store.missingSalaryCount
+      : slips.where((s) => s.salaryMissing).length;
+
   @override
   Widget build(BuildContext context) {
     final store = ref.watch(dawamProvider);
     final c = context.madarColors;
-    final p = store.period;
+    final p = _p(store);
+    final older = _older(store) != null;
     // The server's run, not everyone visible (PAY-3): someone not on
     // payroll has no slip and no row (owner decision 2).
     final slips = store.runSlips(
@@ -50,6 +68,40 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
     return DawamPage(
       width: MadarContentWidth.full,
       children: [
+        // Older months not fully paid (H2-P1): each opens with its actions.
+        if (!older)
+          for (final u in store.unsettled)
+            MadarCard(
+              flush: true,
+              child: MadarListRow.nav(
+                glyph: MadarGlyph.banknote,
+                title: tr('staff.unsettled_title', {
+                  'period': '${dayMonth(u.start)} – ${dayMonth(u.end)}',
+                }),
+                meta: u.status == PeriodStatus.open
+                    ? tr('staff.unsettled_draft', {
+                        'people': u.people,
+                        'amount': egp(u.net),
+                      })
+                    : tr('staff.unsettled_approved', {
+                        'paid': u.paidCount,
+                        'people': u.people,
+                        'amount': egp(u.net),
+                      }),
+                onTap: () => setState(() => _periodId = u.id),
+              ),
+            )
+        else
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: MadarButton(
+              label: tr('staff.back_to_this_month'),
+              glyph: MadarGlyph.chevronBack,
+              size: MadarButtonSize.compact,
+              variant: MadarButtonVariant.ghost,
+              onTap: () => setState(() => _periodId = null),
+            ),
+          ),
         Row(
           children: [
             Expanded(
@@ -140,6 +192,8 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
   }
 
   List<Widget> _preview(DawamStore store, List<Slip> slips) => [
+    if (missingSalaryBanner(_missing(store, slips)) case final text?)
+      NoticeBanner(text: text, tone: ChipTone.danger),
     DawamSection(
       tr('staff.payroll_payslips'),
       children: [
@@ -152,6 +206,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
                   .branches
                   .map((b) => branchName(store, b))
                   .join(' · '),
+              if (s.salaryMissing) tr('staff.salary_not_set'),
               if (s.carryOut > 0)
                 tr('staff.carries', {'amount': egp(s.carryOut)}),
               if (s.carryIn > 0)
@@ -159,7 +214,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
             ].join(' · '),
             minor: s.net,
             currency: 'EGP',
-            rail: s.carryOut > 0 ? MadarTone.danger : null,
+            rail: s.carryOut > 0 || s.salaryMissing ? MadarTone.danger : null,
             onTap: () => _slip(s.emp),
           ),
       ],
@@ -174,8 +229,9 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
       children: [
-        SlipLines(store.slip(emp, store.period), manage: true),
-        if (store.period.status == PeriodStatus.open) ...[
+        SlipLines(store.slip(emp, _p(store)), manage: true),
+        if (_older(store) == null &&
+            store.period.status == PeriodStatus.open) ...[
           Text(
             tr('staff.tap_a_rule_line_to_waive'),
             style: MadarType.bodySm.copyWith(color: ctx.madarColors.textMuted),
@@ -208,14 +264,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
           for (final a in list)
             MadarListRow.bill(
               title: '${name(store.emp(a.emp))} · ${a.reason}',
-              meta: [
-                if (a.recurring)
-                  tr('staff.every_month')
-                else
-                  tr('staff.one_off'),
-                tr('staff.by_name', {'name': name(store.emp(a.by))}),
-                dayMonth(a.at),
-              ].join(' · '),
+              meta: adjustmentMeta(a, name(store.emp(a.by))),
               minor: a.bonus
                   ? a.value(store.emp(a.emp))
                   : -a.value(store.emp(a.emp)),
@@ -231,9 +280,13 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
                   tone: MadarTone.danger,
                 ),
                 'stopped' => MadarStatus(tr('staff.stopped')),
+                // Stopped from next month: it still counts this month.
+                _ when a.endsOn != null => MadarStatus(
+                  tr('staff.last_month_ends', {'date': dayMonth(a.endsOn!)}),
+                ),
                 _ => null,
               },
-              onTap: a.recurring && a.status == 'active'
+              onTap: a.recurring && a.status == 'active' && a.endsOn == null
                   ? () => _stop(a)
                   : null,
             ),
@@ -291,10 +344,14 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
   ];
 
   List<Widget> _payout(DawamStore store, List<Slip> slips) {
-    final p = store.period;
+    final p = _p(store);
+    final period = _older(store);
     if (p.status == PeriodStatus.open) {
       final carries = slips.where((s) => s.carryOut > 0).toList();
+      final blocked = _missing(store, slips) > 0;
       return [
+        if (missingSalaryBanner(_missing(store, slips)) case final text?)
+          NoticeBanner(text: text, tone: ChipTone.danger),
         if (carries.isNotEmpty)
           NoticeBanner(
             text: tr('staff.shortfall_list', {
@@ -308,6 +365,9 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
           label: tr('staff.approve_payroll'),
           amountMinor: slips.fold(0, (a, s) => a + s.net),
           currency: 'EGP',
+          // Approval is refused while someone on it has no salary (#9).
+          enabled: !blocked,
+          reason: blocked ? tr('staff.approve_blocked_salary_missing') : null,
           onTap: () async {
             final ok = await showMadarConfirm(
               context,
@@ -316,7 +376,14 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
               confirmLabel: tr('staff.approve_payroll_confirm'),
               cancelLabel: tr('staff.not_yet'),
             );
-            if (ok) await store.approvePayroll();
+            // Waited for (H2-11): the server's words, or what happened.
+            if (ok) {
+              await attempt(
+                ref,
+                () => store.approvePayroll(period: period),
+                ok: tr('staff.approved_payslips_frozen'),
+              );
+            }
           },
         ),
       ];
@@ -402,6 +469,13 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
             '${name(store.emp(a.emp))} · ${a.reason}',
             style: MadarType.body,
           ),
+          // Stop means from next month (decision #6).
+          Text(
+            tr('staff.stops_from_next_month'),
+            style: MadarType.bodySm.copyWith(
+              color: ctx.madarColors.textSecondary,
+            ),
+          ),
           MadarField(
             controller: reason,
             placeholder: tr('staff.reason_required'),
@@ -424,7 +498,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
               final done = await attempt(
                 ref,
                 () => store.stopAdj(a, reason.text.trim()),
-                ok: tr('staff.stopped'),
+                ok: tr('staff.stopped_from_next_month'),
               );
               if (done && ctx.mounted) Navigator.of(ctx).maybePop();
             },
@@ -466,7 +540,10 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
               }
               final done = await attempt(
                 ref,
-                () => store.reopenPayroll(reason.text.trim()),
+                () => store.reopenPayroll(
+                  reason.text.trim(),
+                  period: _older(store),
+                ),
                 ok: tr('staff.reopened_advances_were_not_collected_twice'),
               );
               if (done && ctx.mounted) Navigator.of(ctx).maybePop();
@@ -499,7 +576,10 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
             MadarButton(
               label: tr('staff.mark_paid'),
               onTap: () async {
-                final done = await attempt(ref, () => store.markPaid(emp, m));
+                final done = await attempt(
+                  ref,
+                  () => store.markPaid(emp, m, period: _older(store)),
+                );
                 if (done && ctx.mounted) Navigator.of(ctx).maybePop();
               },
             ),
@@ -519,7 +599,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
     builder: (ctx, ref, store) {
       final rows = [
         for (final e in store.emps.values)
-          if (e.pay == method) store.slip(e.id, store.period),
+          if (e.pay == method) store.slip(e.id, _p(store)),
       ];
       return MadarCard.column(
         spacing: 0,
@@ -542,3 +622,16 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
     },
   );
 }
+
+/// A pay line's second line: a rule-made one says so ("Rule · absence",
+/// minor #30), never "One-off · by —"; one someone added says how often and
+/// who.
+String adjustmentMeta(Adj a, String by) => [
+  if (a.rule case final rule?)
+    rule
+  else ...[
+    if (a.recurring) tr('staff.every_month') else tr('staff.one_off'),
+    tr('staff.by_name', {'name': by}),
+  ],
+  dayMonth(a.at),
+].join(' · ');

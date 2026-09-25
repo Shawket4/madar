@@ -40,11 +40,14 @@ final List<DateTime> _days = [
 
 /// The board's inputs, and what it sent back.
 class _Roster {
-  _Roster(MadarColors c, {required this.tight}) {
+  _Roster(MadarColors c, {required this.tight, this.focus = 4}) {
     _fill(c);
   }
 
   final bool tight;
+
+  /// Today's column (the board opens on it).
+  final int focus;
 
   final taps = <Shift>[];
   final empties = <(String?, DateTime)>[];
@@ -148,7 +151,7 @@ class _Roster {
         rows: rows(c),
         days: days,
         cardsAt: cardsAt,
-        focus: 4,
+        focus: focus,
         onTapCard: taps.add,
         onTapEmpty: (e, d) => empties.add((e, d)),
         onDrop: (s, e, d) => drops.add((s, e, d)),
@@ -157,7 +160,12 @@ class _Roster {
   );
 }
 
-Future<_Roster> _pump(WidgetTester tester, String lang, Size size) async {
+Future<_Roster> _pump(
+  WidgetTester tester,
+  String lang,
+  Size size, {
+  int focus = 4,
+}) async {
   currentLang = lang;
   tester.view.physicalSize = size * 3;
   tester.view.devicePixelRatio = 3;
@@ -176,6 +184,7 @@ Future<_Roster> _pump(WidgetTester tester, String lang, Size size) async {
               roster = _Roster(
                 context.madarColors,
                 tight: MadarLayout.of(context).isPhone,
+                focus: focus,
               );
               return Scaffold(
                 backgroundColor: context.madarColors.bg,
@@ -265,6 +274,16 @@ void main() {
     expect(find.text('19'), findsNothing);
   });
 
+  // Found with the fixtures written on a Friday: on a phone, a today late
+  // in the week (the last column) was never scrolled to; the board stayed
+  // on Saturday and today's cards were off screen.
+  testWidgets('a phone opens on today even when it is the last day', (t) async {
+    await _pump(t, 'en', const Size(390, 844), focus: 6);
+    await t.pump();
+    expect(find.text('25'), findsOneWidget, reason: "today's column shows");
+    expect(find.text('19'), findsNothing);
+  });
+
   testWidgets('tapping a card or an empty day reaches the screen', (t) async {
     final r = await _pump(t, 'en', const Size(1180, 820));
     await t.tap(find.byType(ShiftCard).first);
@@ -273,6 +292,20 @@ void main() {
     expect(r.empties, hasLength(1));
     expect(r.empties.single.$1, isNotNull, reason: 'a person, not open');
   });
+
+  // Minor #20: only an empty cell had a "+"; a second block on a worked day
+  // (a split day, SC-11) needed a detour. A filled day has one too.
+  for (final lang in ['en', 'ar']) {
+    testWidgets('a filled day has a + that adds to it · $lang', (t) async {
+      final r = await _pump(t, lang, const Size(1180, 820));
+      // Omar (e2) works two shifts on Wednesday the 23rd.
+      final add = find.byKey(const ValueKey('add|e2|2026-09-23'));
+      expect(add, findsOneWidget);
+      await t.tap(add);
+      expect(r.empties, [('e2', DateTime(2026, 9, 23))]);
+      expect(t.takeException(), isNull);
+    });
+  }
 
   testWidgets('a long-press drag moves a shift to another day', (t) async {
     final r = await _pump(t, 'en', const Size(1180, 820));

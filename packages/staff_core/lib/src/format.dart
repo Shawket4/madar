@@ -63,6 +63,15 @@ String hmMin(int minuteOfDay) =>
     hm(DateTime(2000).add(Duration(minutes: minuteOfDay)));
 
 String weekday(int w) => tr('staff.day_$w');
+
+/// A weekday that recurs: "Fridays" ("can't work on Fridays").
+String weekdays(int w) => tr('staff.weekdays_$w');
+
+/// "Omar said they can't work on Fridays." (E2E roster m1: the day in full,
+/// never "Fris").
+String cantWorkWords(String name, int w) =>
+    tr('staff.said_they_can_t_work_s', {'name': name, 'day': weekdays(w)});
+
 String dayMonth(DateTime d) => '${d.day} ${tr('staff.month_${d.month}')}';
 String dayLabel(DateTime d) => '${weekday(d.weekday)} ${dayMonth(d)}';
 String mins(int m) => m >= 60

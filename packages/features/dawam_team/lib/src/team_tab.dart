@@ -202,7 +202,21 @@ class _TeamTabState extends ConsumerState<TeamTab> {
           ref,
           () => store.resolve(f, how, deduct: deduct, reason: reason),
         );
-        if (ok && ctx.mounted) Navigator.of(ctx).maybePop();
+        if (!ok) return;
+        // Over my deduction limit the line waits for the owner and counts
+        // nothing yet (minor #33), as the bonus/deduction sheet says.
+        final limit = store.managerDeductLimit;
+        if (flagDeductionWaits(store.lastFiled)) {
+          ref
+              .read(toastProvider.notifier)
+              .show(
+                tr('staff.over_waits_for_the_owner_before', {
+                  'amount': egp(limit),
+                }),
+                tone: ChipTone.warning,
+              );
+        }
+        if (ctx.mounted) Navigator.of(ctx).maybePop();
       }
 
       final explain = switch (f.kind) {
@@ -275,12 +289,19 @@ class _TeamTabState extends ConsumerState<TeamTab> {
             ),
           // A cover flag's one act confirms the cover, which pays it (CV-5):
           // the button says so (E2E clocking S-208: it read "Ignore").
-          if (f.kind == FlagKind.cover)
+          if (f.kind == FlagKind.cover) ...[
             MadarButton(
               label: tr('staff.confirm_cover'),
               onTap: () => done('confirm'),
-            )
-          else
+            ),
+            // Confirmed or rejected, nothing else (H2-B3): rejected pays
+            // nothing and tells the coverer.
+            MadarButton(
+              label: tr('staff.reject_cover'),
+              variant: MadarButtonVariant.secondary,
+              onTap: () => done('reject'),
+            ),
+          ] else
             MadarButton(
               label: tr('staff.ignore'),
               variant: MadarButtonVariant.ghost,
@@ -509,3 +530,10 @@ class _DeductFormState extends ConsumerState<_DeductForm> {
     ],
   );
 }
+
+/// The core's answer to a flag's deduction: over my limit it waits for the
+/// owner (minor #33).
+bool flagDeductionWaits(Filed? filed) =>
+    filed != null &&
+    filed.id.startsWith('f|') &&
+    filed.status == ReqStatus.pending;

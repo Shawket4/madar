@@ -19,14 +19,16 @@ void main() {
           lang: lang,
           who: 'e1',
           core: (c) => c.edit = (v) {
+            // The fixture's own today (it is written on the day it runs).
+            final today = (v['now'] as String).substring(0, 10);
             for (final s in v['shifts'] as List<dynamic>) {
               final m = s as Map<String, dynamic>;
-              if (m['id'] == 'e1|2026-09-23|zM') {
+              if (m['id'] == 'e1|$today|zM') {
                 // 09:00–11:00 on a block that runs 08:00–16:00 by default.
                 m['start'] = 540;
                 m['end'] = 660;
                 m['edited'] = true;
-                m['in_at'] = '2026-09-23T09:00:00+03:00';
+                m['in_at'] = '${today}T09:00:00+03:00';
                 m['in_method'] = 'till';
               }
             }

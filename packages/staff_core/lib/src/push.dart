@@ -40,7 +40,9 @@ PushTarget pushTarget(String? key) {
     'learning_frozen' ||
     'learning_resumed' ||
     'fairness_ready' ||
-    'fairness_flagged' => (manage: true, tab: 'schedule'),
+    'fairness_flagged' ||
+    // A claim taken back: the shift is open again on the board.
+    'claim_withdrawn' => (manage: true, tab: 'schedule'),
     // A colleague punched on the till with their PIN (CL-13).
     'till_punch_in' || 'till_punch_out' => (manage: true, tab: 'team'),
     'request_approved' ||
@@ -61,6 +63,9 @@ PushTarget pushTarget(String? key) {
     'overtime_approved' ||
     'overtime_rejected' => (manage: false, tab: 'timesheet'),
     'charge_phone' => (manage: false, tab: 'home'),
+    // Someone was added with no salary (decision #9): the owner's Team,
+    // where that person is.
+    'salary_missing' => (manage: true, tab: 'team'),
     _ => _inbox,
   };
 }

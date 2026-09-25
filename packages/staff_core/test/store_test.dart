@@ -33,11 +33,16 @@ class _Backend implements DawamBackend {
 
   /// What the core says about the connection in the next picture.
   bool online = true;
+
+  /// Any other change to the picture a snapshot answers.
+  void Function(Map<String, dynamic>)? edit;
+
   @override
   Future<String> snapshot({required bool refresh}) async {
     if (refresh) refreshes++;
     final v = jsonDecode(_fixture()) as Map<String, dynamic>;
     v['online'] = online;
+    edit?.call(v);
     return jsonEncode(v);
   }
 
@@ -60,20 +65,38 @@ class _Backend implements DawamBackend {
     String phone,
     String code, {
     String? orgId,
-  }) async => {};
+  }) async {
+    log.add('verify');
+    return {'employee_id': 'e2'};
+  }
+
   @override
   Future<DawamFix?> locate() async => null;
   @override
   Stream<DawamFix> track() => const Stream.empty();
+  int alwaysAsks = 0;
   @override
-  Future<bool> alwaysLocation() async => true;
+  Future<bool> alwaysLocation() async {
+    alwaysAsks++;
+    return true;
+  }
+
   final trackingCalls = <bool>[];
   @override
   Future<void> tracking({required bool on}) async => trackingCalls.add(on);
   @override
   String? restoredUser() => 'e1';
+
+  /// Holds a sign-out open (Firebase forgetting the token can take 5 s).
+  Completer<void>? signOutGate;
+  final log = <String>[];
   @override
-  Future<void> signOut() async => signOuts++;
+  Future<void> signOut() async {
+    signOuts++;
+    log.add('signOut:start');
+    await signOutGate?.future;
+    log.add('signOut:done');
+  }
 }
 
 final _refused = DawamError(
@@ -129,9 +152,9 @@ void main() {
       backend
         ..online = false
         ..answer = () async => throw DawamError(
-        'This needs a connection.',
-        'This needs a connection.',
-      );
+          'This needs a connection.',
+          'This needs a connection.',
+        );
       final results = <bool>[];
       await t.pumpWidget(
         _screen(
@@ -186,6 +209,104 @@ void main() {
       store.stop();
     },
   );
+
+  // Decision #8: declining a pay line or an advance says why. The sheet
+  // sends nothing without a reason, then sends the typed one.
+  testWidgets('declining asks why and sends the reason (D8)', (t) async {
+    final (store, backend) = await _store();
+    final adj = Adj(
+      'a|bonus|b1',
+      'e2',
+      50000,
+      'Weekend',
+      'e3',
+      DateTime(2026, 9, 20),
+      DateTime(2026, 8, 26),
+      bonus: true,
+    );
+    await t.pumpWidget(
+      ProviderScope(
+        overrides: [dawamProvider.overrideWith((_) => store)],
+        child: MaterialApp(
+          theme: MadarTheme.light(),
+          home: Consumer(
+            builder: (context, ref, _) => Scaffold(
+              body: TextButton(
+                onPressed: () => declineWithReason(
+                  context,
+                  (why) => store.decideAdj(adj, yes: false, reason: why),
+                ),
+                child: const Text('decline'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.text('decline'));
+    await t.pumpAndSettle();
+    final send = find.widgetWithText(MadarButton, 'staff.decline');
+    await t.tap(send);
+    await t.pump();
+    expect(backend.acts, isEmpty, reason: 'no reason: nothing is sent');
+    await t.enterText(find.byType(TextField), '  Paid twice ');
+    await t.tap(send);
+    await t.pump(const Duration(milliseconds: 50));
+    expect(backend.acts.single, {
+      'action': 'decide_adj',
+      'adj': 'a|bonus|b1',
+      'yes': false,
+      'reason': 'Paid twice',
+    });
+    await t.pump(const Duration(seconds: 3));
+    store.stop();
+  });
+
+  // Minor #12: "Always" location is asked right after the privacy notice,
+  // which already explains tracking, so the first clock-in doesn't wait on
+  // a permission prompt.
+  test('agreeing to the notice asks for Always location at once', () async {
+    final (store, backend) = await _store();
+    expect(backend.alwaysAsks, 0);
+    await store.acceptPrivacy();
+    expect(backend.acts.single['action'], 'accept_privacy');
+    expect(backend.alwaysAsks, 1, reason: 'asked with the notice');
+    expect(store.alwaysLocation, isTrue);
+  });
+
+  // Minor #26: an approved claim that makes a long day comes back with the
+  // limits it breaks; the approver is warned, never blocked.
+  test('an approved claim carries the limits it breaks', () async {
+    final (store, backend) = await _store();
+    backend.answer = () async {
+      final v = jsonDecode(_fixture()) as Map<String, dynamic>;
+      v['filed'] = {
+        'id': 'o|o1',
+        'status': 'approved',
+        'to_owner': false,
+        'warnings': [
+          [
+            'staff.warn_day_hours',
+            {'date': '2026-09-27', 'hours': '8', 'worked': '11'},
+          ],
+        ],
+      };
+      return jsonEncode(v);
+    };
+    await store.decide(
+      Req('o|o1', ReqKind.openShift, 'e4', DateTime(2026, 9, 25)),
+      approve: true,
+    );
+    expect(store.lastWarnings, hasLength(1));
+    expect(store.lastWarnings.single.$1, 'staff.warn_day_hours');
+    expect(store.lastWarnings.single.$2['date'], DateTime(2026, 9, 27));
+    backend.answer = () async => _fixture();
+    await store.decide(
+      Req('o|o2', ReqKind.openShift, 'e4', DateTime(2026, 9, 25)),
+      approve: true,
+    );
+    expect(store.lastWarnings, isEmpty);
+  });
 
   group('attempt waits for the server (06 B1)', () {
     testWidgets('a refusal is shown in the server words, never a success', (
@@ -280,6 +401,30 @@ void main() {
   );
 
   test(
+    'a queued punch refused on reconnect is said once, as a red toast (S-035)',
+    () async {
+      // E2E posnotif S-035/S-036: a clock-out made offline was refused when
+      // the poll sent it; the core reported it and the app said nothing.
+      final (store, backend) = await _store();
+      const why = "You're 1201 m from the branch. Clock in within 200 m.";
+      String withRefused(List<String> r) => jsonEncode(
+        (jsonDecode(_fixture()) as Map<String, dynamic>)..['refused'] = r,
+      );
+      final failures = <String>[];
+      final sub = store.failures.stream.listen(failures.add);
+      backend.fetched = () async => withRefused([why]);
+      store.sync();
+      await Future<void>.delayed(Duration.zero);
+      expect(failures, [why]);
+      backend.fetched = () async => withRefused([]);
+      store.sync();
+      await Future<void>.delayed(Duration.zero);
+      expect(failures, [why], reason: 'the core says it once');
+      await sub.cancel();
+    },
+  );
+
+  test(
     'un-waiving, reopening and a flag deduction carry their reason',
     () async {
       final (store, backend) = await _store();
@@ -319,6 +464,55 @@ void main() {
       });
     },
   );
+
+  test('a screen asks the core only for dates the phone does not hold, one '
+      'ask at a time (H2-01)', () async {
+    final (store, backend) = await _store();
+    // An older core's picture: no `loaded` (the fixtures now carry one).
+    backend.edit = (v) => v.remove('loaded');
+    await store.refresh();
+    expect(
+      store.holds(DateTime(2000), DateTime(2100)),
+      isTrue,
+      reason: 'a core that says nothing holds whatever it shows',
+    );
+    final ws = weekStart(store.today);
+    DateTime at(int n) => DateTime(ws.year, ws.month, ws.day + n);
+    String d(DateTime x) =>
+        '${x.year}-${x.month.toString().padLeft(2, '0')}-'
+        '${x.day.toString().padLeft(2, '0')}';
+    final base = [d(at(-28)), d(at(27))];
+    String held(List<List<String>> spans) {
+      final v = jsonDecode(_fixture()) as Map<String, dynamic>;
+      v['loaded'] = spans;
+      return jsonEncode(v);
+    }
+
+    backend.edit = (v) => v['loaded'] = [base];
+    await store.refresh();
+    expect(store.holds(at(0), at(6)), isTrue);
+    expect(store.holds(at(21), at(34)), isFalse, reason: 'straddles the end');
+    await store.viewRange(at(0), at(6));
+    expect(backend.acts, isEmpty, reason: 'held already: nothing to ask');
+
+    final gate = Completer<String>();
+    backend.answer = () => gate.future;
+    final first = store.viewRange(at(28), at(34));
+    expect(store.viewing, isTrue);
+    unawaited(store.viewRange(at(28), at(34)));
+    expect(backend.acts, [
+      {'action': 'view_range', 'from': d(at(28)), 'to': d(at(34))},
+    ], reason: 'the same ask while the first is out goes once');
+    gate.complete(
+      held([
+        base,
+        [d(at(28)), d(at(34))],
+      ]),
+    );
+    await first;
+    expect(store.viewing, isFalse);
+    expect(store.holds(at(28), at(34)), isTrue);
+  });
 
   test('the server says who is on payroll and both pay-line limits', () async {
     final (store, _) = await _store();
@@ -365,6 +559,25 @@ void main() {
     },
   );
 
+  // E2E roster m3: signing out finishes in the background (the server,
+  // then Firebase, then the core). A code typed before it finished was
+  // verified first, and the old sign-out then wiped the new session: the
+  // notice's "I agree" had nobody to send for.
+  test('a new sign-in waits for the last sign-out to finish', () async {
+    final (store, backend) = await _store();
+    await Future<void>.delayed(Duration.zero); // restore's refresh lands
+    final gate = Completer<void>();
+    backend.signOutGate = gate;
+    store.signOut();
+    final verified = store.verifyCode('01000001003', '123456');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(backend.log, ['signOut:start'], reason: 'the code waits');
+    gate.complete();
+    expect(await verified, isNull);
+    expect(backend.log, ['signOut:start', 'signOut:done', 'verify']);
+    expect(store.pendingUser, 'e2');
+  });
+
   test('a snapshot with no clock does not crash', () async {
     final (store, backend) = await _store();
     final v = jsonDecode(_fixture()) as Map<String, dynamic>..remove('now');
@@ -372,6 +585,47 @@ void main() {
     await store.readAll();
     expect(store.now.difference(DateTime.now()).inSeconds.abs(), lessThan(5));
   });
+
+  test(
+    'my claims keep how they ended: approved, declined, withdrawn (B-H1-1)',
+    () async {
+      final (store, backend) = await _store();
+      final v = jsonDecode(_fixture()) as Map<String, dynamic>;
+      final requests = v['requests'] as List<dynamic>;
+      final base = requests.first as Map<String, dynamic>;
+      Map<String, dynamic> claim(String id, String status) => {
+        ...base,
+        'id': id,
+        'kind': 'openShift',
+        'emp': v['me'],
+        'status': status,
+        'created': '2026-09-24T10:30:00+03:00',
+        'from': '2026-10-24',
+        'shift': 'open|o1',
+      };
+      requests.addAll([
+        claim('o|o1', 'pending'),
+        claim('oc|c0', 'withdrawn'),
+        claim('oc|c2', 'approved'),
+        claim('oc|c3', 'rejected'),
+      ]);
+      backend.answer = () async => jsonEncode(v);
+      await store.readAll();
+      ReqStatus status(String id) =>
+          store.reqs.firstWhere((r) => r.id == id).status;
+      expect(status('o|o1'), ReqStatus.pending);
+      expect(status('oc|c0'), ReqStatus.withdrawn);
+      expect(status('oc|c2'), ReqStatus.approved);
+      expect(status('oc|c3'), ReqStatus.rejected);
+      // The chip says so in its own word, not "Cancelled" or "Pending".
+      expect(statusOf(ReqStatus.withdrawn).label, 'staff.withdrawn');
+      // When it was claimed, on the branch's wall clock (AT-1).
+      expect(
+        store.reqs.firstWhere((r) => r.id == 'oc|c0').created,
+        DateTime(2026, 9, 24, 10, 30),
+      );
+    },
+  );
 
   group('times are the branch wall clock (AT-1)', () {
     test('the offset is dropped, never converted to the phone zone', () {
@@ -419,6 +673,8 @@ void main() {
         tab: 'team',
       ));
       expect(pushTarget('staff.n_request'), (manage: true, tab: 'approvals'));
+      // Decision #9: someone added with no salary opens the owner's Team.
+      expect(pushTarget('staff.n_salary_missing'), (manage: true, tab: 'team'));
       expect(pushTarget('staff.n_week_published'), (
         manage: false,
         tab: 'shifts',
@@ -437,6 +693,11 @@ void main() {
         tab: 'timesheet',
       ));
       expect(pushTarget('staff.n_charge_phone'), (manage: false, tab: 'home'));
+      // A claim taken back: the shift is open again on the board (B-H1-5).
+      expect(pushTarget('staff.n_claim_withdrawn'), (
+        manage: true,
+        tab: 'schedule',
+      ));
       // The server tells the person when someone else cancels their request
       // (B-TEAM-3): it opens Requests like the approval did.
       expect(pushTarget('staff.n_request_cancelled'), (
@@ -473,10 +734,11 @@ void main() {
 
   group('staying up to date: pull and resume', () {
     /// The fixture as the core answers a fetch: [at] its `fetched_at`.
-    String answer(int at, {bool online = true}) {
+    String answer(int at, {bool online = true, bool throttled = false}) {
       final v = jsonDecode(_fixture()) as Map<String, dynamic>;
       v['fetched_at'] = at;
       v['online'] = online;
+      v['throttled'] = throttled;
       return jsonEncode(v);
     }
 
@@ -508,6 +770,16 @@ void main() {
       );
       expect(store.offline, isTrue);
       expect(failures, ['staff.refresh_offline']);
+    });
+
+    // Addendum 2: with the server's limiter on, a pull read "Couldn't reach
+    // the server". The server asked to slow down; the picture stays.
+    test('throttled: the toast says slow down, not unreachable', () async {
+      final (store, _, failures) = await pulled(
+        () => answer(100, throttled: true),
+      );
+      expect(failures, ['staff.refresh_throttled']);
+      expect(store.me, 'e1');
     });
 
     test('online, but the fetch never got an answer: said too', () async {
@@ -583,5 +855,96 @@ void main() {
     expect(readNumber(''), isNull);
     expect(readMoney(TextEditingController(text: '٤٠')), 4000);
     expect(readMoney(TextEditingController(text: '٠')), isNull);
+  });
+
+  // Minor #27: with this month's payroll approved, a new pay line lands in
+  // the first open month; the core says which, the sheet says so.
+  test('a new pay line says the month it lands in (M27)', () async {
+    final (store, backend) = await _store();
+    backend.edit = (v) => v['lines_land'] = {
+      'date': '2026-10-26',
+      'start': '2026-10-26',
+      'end': '2026-11-25',
+      'later': true,
+    };
+    await store.refresh();
+    expect(store.linesLand, (
+      from: DateTime(2026, 10, 26),
+      to: DateTime(2026, 11, 25),
+    ));
+    backend.edit = (v) => v['lines_land'] = {
+      'date': '2026-09-25',
+      'start': '2026-09-26',
+      'end': '2026-10-25',
+      'later': false,
+    };
+    await store.refresh();
+    expect(store.linesLand, isNull, reason: 'this month is open');
+    backend.edit = (v) => v.remove('lines_land');
+    await store.refresh();
+    expect(store.linesLand, isNull, reason: 'an older core says nothing');
+  });
+
+  // H2-P1: an older month not fully paid comes with its figures and its
+  // live preview, and every payroll action names its month.
+  test('an older unsettled month is read and settled by its id', () async {
+    final (store, backend) = await _store();
+    backend.edit = (v) {
+      (v['history'] as List<dynamic>).add({
+        'end': '2026-07-25',
+        'id': 'p0',
+        'paid_by': <String, dynamic>{},
+        'start': '2026-06-26',
+        'status': 'open',
+      });
+      final slip = Map<String, dynamic>.of(
+        (v['slips'] as List<dynamic>).first as Map<String, dynamic>,
+      );
+      (v['slips'] as List<dynamic>).add({
+        ...slip,
+        'start': '2026-06-26',
+        'end': '2026-07-25',
+        'frozen': false,
+        'net': 777700,
+      });
+      v['unsettled'] = [
+        {
+          'id': 'p0',
+          'start': '2026-06-26',
+          'end': '2026-07-25',
+          'status': 'open',
+          'net': 777700,
+          'paid_count': 0,
+          'people': 1,
+        },
+      ];
+    };
+    await store.refresh();
+    final u = store.unsettled.single;
+    expect(
+      (u.id, u.status, u.net, u.paidCount, u.people),
+      ('p0', PeriodStatus.open, 777700, 0, 1),
+    );
+    final p = store.periodById('p0')!;
+    expect(store.runSlips(p).single.net, 777700, reason: 'its live preview');
+    expect(
+      store.runSlips(store.period).any((s) => s.net == 777700),
+      isFalse,
+      reason: 'not this month',
+    );
+    await store.approvePayroll(period: 'p0');
+    expect(backend.acts.last, {'action': 'approve_payroll', 'period': 'p0'});
+    await store.markPaid('e1', PayMethod.cash, period: 'p0');
+    expect(backend.acts.last, {
+      'action': 'mark_paid',
+      'emp': 'e1',
+      'method': 'cash',
+      'period': 'p0',
+    });
+    await store.approvePayroll();
+    expect(backend.acts.last, {'action': 'approve_payroll'});
+    backend.edit = null;
+    await store.refresh();
+    expect(store.unsettled, isEmpty, reason: 'an older core says nothing');
   });
 }

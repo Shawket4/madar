@@ -329,6 +329,8 @@ async fn dawam_fixture_three_people_see_their_own_picture() {
     assert_eq!(e3["tabs"]["payroll"], true);
     assert_eq!(e1["tabs"], json!({ "team": false, "approvals": false, "schedule": false, "payroll": false }));
     assert_eq!(e3["adj_inbox"], json!(["a|bonus|a2"]));
+    // Public holidays are the owner's (decision #3); the manager reads them.
+    assert_eq!((e2["decides_holidays"].clone(), e3["decides_holidays"].clone()), (json!(false), json!(true)));
     assert_eq!(e3["history"][0]["status"], "paid");
     assert_eq!(e3["slips"].as_array().unwrap().iter().filter(|s| s["frozen"] == false).count(), 4);
 

@@ -27,6 +27,9 @@ pub struct AttendanceSettings {
         skip_serializing_if = "Option::is_none"
     )]
     pub branch_id: Option<Option<uuid::Uuid>>,
+    /// How a confirmed cover is paid (owner decision D5): `minute_rate` (the coverer's day rate ÷ 8 h × the minutes covered, CV-4; the default) or `full_block` (the covered block as a full day). A branch may override it (listed in `overridden`).
+    #[serde(rename = "cover_pay_mode")]
+    pub cover_pay_mode: String,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "default_overtime_multiplier")]
@@ -108,6 +111,7 @@ impl AttendanceSettings {
         absence_deduction_days: f64,
         advance_cap_percent: f64,
         auto_checkout_buffer_minutes: i32,
+        cover_pay_mode: String,
         created_at: chrono::DateTime<chrono::FixedOffset>,
         default_overtime_multiplier: f64,
         excused_time_paid_default: bool,
@@ -138,6 +142,7 @@ impl AttendanceSettings {
             advance_cap_percent,
             auto_checkout_buffer_minutes,
             branch_id: None,
+            cover_pay_mode,
             created_at,
             default_overtime_multiplier,
             excused_time_paid_default,

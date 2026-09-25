@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:design_system/design_system.dart';
 import 'package:feature_dawam_schedule/src/shift_calendar.dart';
 import 'package:flutter/material.dart';
@@ -7,11 +9,25 @@ import 'package:staff_core/staff_core.dart';
 /// My shifts on a calendar: published weeks only (SC-3), changes marked
 /// (SC-4), open shifts to claim (SC-9), swaps (SC-8), and my preferences
 /// (SC-12).
-class ShiftsTab extends ConsumerWidget {
+class ShiftsTab extends ConsumerStatefulWidget {
   const ShiftsTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ShiftsTab> createState() => _ShiftsTabState();
+}
+
+class _ShiftsTabState extends ConsumerState<ShiftsTab> {
+  /// The calendar page on show, once it has turned: past what the phone
+  /// holds, its dates are fetched (H2-01).
+  (DateTime, DateTime)? _page;
+
+  void _turned(DateTime from, DateTime to) {
+    setState(() => _page = (from, to));
+    unawaited(ref.read(dawamProvider).viewRange(from, to));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final store = ref.watch(dawamProvider);
     final c = context.madarColors;
     final me = store.me!;
@@ -41,9 +57,47 @@ class ShiftsTab extends ConsumerWidget {
                       store.user.branches.contains(s.template.branch))),
         )
         .toList();
+    final page = _page;
+    final away = page == null ? null : store.notHeld(page.$1, page.$2);
+    // The waiting swaps fold into one line that opens them (minor #23):
+    // cards above the calendar scrolled out of sight.
+    final waiting = swapsWaitingLine(asks: asks.length, mine: mine.length);
     final top = <Widget>[
-      for (final r in asks) _SwapAsk(r),
-      for (final r in mine) _MySwap(r),
+      if (away != null) NoticeBanner(text: away, tone: ChipTone.info),
+      if (waiting case (final title, final meta))
+        MadarCard(
+          flush: true,
+          child: MadarListRow.nav(
+            glyph: MadarGlyph.move,
+            title: title,
+            meta: meta,
+            onTap: () => showDawamSheet<void>(
+              context,
+              title: tr('staff.swaps'),
+              builder: (ctx, ref, store) {
+                final me = store.me!;
+                final asks = store.reqs.where(
+                  (r) => r.peer == me && r.status == ReqStatus.awaitingPeer,
+                );
+                final mine = store.reqs.where(
+                  (r) =>
+                      r.kind == ReqKind.swap &&
+                      r.emp == me &&
+                      (r.status == ReqStatus.awaitingPeer ||
+                          r.status == ReqStatus.pending),
+                );
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: Space.md,
+                  children: [
+                    for (final r in asks) _SwapAsk(r),
+                    for (final r in mine) _MySwap(r),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
       if (!nextPublished)
         NoticeBanner(
           text: tr('staff.not_published_yet_you_ll_get'),
@@ -64,6 +118,7 @@ class ShiftsTab extends ConsumerWidget {
           : '${tplName(s.template)} · '
                 '${branchName(store, s.template.branch)}',
       onTapShift: (s) => _tap(context, ref, s),
+      onRangeChanged: _turned,
       trailing: MadarChip(
         label: tr('staff.my_preferences'),
         glyph: MadarGlyph.star,
@@ -138,7 +193,7 @@ class ShiftsTab extends ConsumerWidget {
         await attempt(
           ref,
           () => store.claim(s),
-          ok: tr('staff.claimed_waiting_for_the_manager'),
+          ok: claimSentWords(store.user.role),
         );
       }
       return;
@@ -150,18 +205,13 @@ class ShiftsTab extends ConsumerWidget {
     context,
     title: tr('staff.swap_this_shift'),
     builder: (ctx, ref, store) {
-      final options =
-          store.shifts
-              .where(
-                (s) =>
-                    s.emp != null &&
-                    s.emp != store.me &&
-                    s.template.branch == mine.template.branch &&
-                    store.isPublished(s) &&
-                    s.startAt.isAfter(store.now),
-              )
-              .toList()
-            ..sort((a, b) => a.startAt.compareTo(b.startAt));
+      final days = swapChoices(
+        store.shifts,
+        mine,
+        me: store.me!,
+        now: store.now,
+        published: store.isPublished,
+      );
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.md,
@@ -180,25 +230,31 @@ class ShiftsTab extends ConsumerWidget {
             ],
           ),
           const OfflineNotice(),
-          DawamSection(
-            tr('staff.swap_with'),
-            children: [
-              for (final s in options.take(12))
-                MadarListRow.nav(
-                  title: name(store.emp(s.emp!)),
-                  meta: '${dayLabel(s.date)} · ${tplName(s.template)}',
-                  onTap: () async {
-                    // MY shift first, the colleague's second (06 B2).
-                    final sent = await attempt(
-                      ref,
-                      () => store.askSwap(mine, s),
-                      ok: tr('staff.asked', {'name': name(store.emp(s.emp!))}),
-                    );
-                    if (sent && ctx.mounted) Navigator.of(ctx).maybePop();
-                  },
-                ),
-            ],
-          ),
+          MadarSectionHeader(text: tr('staff.swap_with')),
+          if (days.isEmpty)
+            Text(tr('staff.no_shifts_to_swap'), style: MadarType.body),
+          for (final (day, shifts) in days)
+            DawamSection(
+              dayLabel(day),
+              children: [
+                for (final s in shifts)
+                  MadarListRow.nav(
+                    title: name(store.emp(s.emp!)),
+                    meta: '${tplName(s.template)} · ${shiftWindow(s)}',
+                    onTap: () async {
+                      // MY shift first, the colleague's second (06 B2).
+                      final sent = await attempt(
+                        ref,
+                        () => store.askSwap(mine, s),
+                        ok: tr('staff.asked', {
+                          'name': name(store.emp(s.emp!)),
+                        }),
+                      );
+                      if (sent && ctx.mounted) Navigator.of(ctx).maybePop();
+                    },
+                  ),
+              ],
+            ),
           Text(
             tr('staff.your_colleague_agrees_first_then_your'),
             style: MadarType.bodySm.copyWith(color: ctx.madarColors.textMuted),
@@ -384,4 +440,44 @@ class _MySwap extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// The colleagues' shifts I can ask to swap mine for: every one at my
+/// shift's branch in a published week that hasn't started, grouped by day,
+/// each day in start order (minor #19: every one, not the 12 soonest).
+List<(DateTime, List<Shift>)> swapChoices(
+  Iterable<Shift> shifts,
+  Shift mine, {
+  required String me,
+  required DateTime now,
+  required bool Function(Shift) published,
+}) {
+  final byDay = <DateTime, List<Shift>>{};
+  final picked =
+      shifts
+          .where(
+            (s) =>
+                s.emp != null &&
+                s.emp != me &&
+                s.template.branch == mine.template.branch &&
+                published(s) &&
+                s.startAt.isAfter(now),
+          )
+          .toList()
+        ..sort((a, b) => a.startAt.compareTo(b.startAt));
+  for (final s in picked) {
+    byDay.putIfAbsent(dateOnly(s.date), () => []).add(s);
+  }
+  return [for (final e in byDay.entries) (e.key, e.value)];
+}
+
+/// The one line the waiting swaps fold into (minor #23): how many, and how
+/// many wait on my answer; null when none.
+(String, String?)? swapsWaitingLine({required int asks, required int mine}) {
+  final n = asks + mine;
+  if (n == 0) return null;
+  return (
+    tr('staff.swaps_waiting', {'count': n}),
+    asks > 0 ? tr('staff.swaps_to_answer', {'count': asks}) : null,
+  );
 }

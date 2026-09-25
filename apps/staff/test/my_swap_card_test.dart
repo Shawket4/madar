@@ -31,6 +31,7 @@ void main() {
         },
       );
       await frames(t, 30);
+      await openSwaps(t);
       final store = testContainer.read(dawamProvider);
       final r = store.reqs.firstWhere((r) => r.kind == ReqKind.swap);
       expect(store.shifts.where((s) => s.id == r.shift), isEmpty);

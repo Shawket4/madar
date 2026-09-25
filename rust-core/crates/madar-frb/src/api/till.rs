@@ -315,6 +315,22 @@ impl MadarBridge {
         self.inner.record_expense_advance(amount_minor, note, person).await.map_err(MadarError::from)
     }
 
+    /// What to tell the teller about pay-outs sent since the last ask: an
+    /// expense-advance tag the server refused, the pay-out itself kept (D10).
+    /// Each sentence in the till's language, said once. Local; no network.
+    #[frb(sync)]
+    pub fn take_pay_out_notices(&self) -> Vec<String> {
+        self.inner.take_pay_out_notices()
+    }
+
+    /// Dawam is on for this org: the till offers "Clock in/out" and the
+    /// pay-out's "Expense advance to" (minor #40). True until the server said
+    /// otherwise at sign-in. Local; no network.
+    #[frb(sync)]
+    pub fn till_dawam_on(&self) -> bool {
+        self.inner.till_dawam_on()
+    }
+
     /// This branch's staff, for the expense-advance picker (the last list offline).
     pub async fn branch_people(&self) -> Result<Vec<BranchPersonView>, MadarError> {
         self.inner.branch_people().await.map_err(MadarError::from)

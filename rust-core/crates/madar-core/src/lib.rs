@@ -251,6 +251,8 @@ fn with_approval(
 
 /// The device's own credential from an activation code (POS_SIGNIN_OVERHAUL §4).
 pub(crate) const K_DEVICE_CREDENTIAL: &str = "device:credential";
+/// A staff call the server's limiter refused (429): worded "slow down".
+pub(crate) const RATE_LIMITED: &str = "RATE_LIMITED";
 
 /// The one refusal for a code that does not bind (see `activate_device`).
 pub(crate) const ACTIVATION_CODE_INVALID_DETAIL: &str = "activation code not valid";
@@ -1906,8 +1908,9 @@ impl MadarCore {
     ) -> SendOutcome {
         // Dawam punches and pings go to their own `/staff/*` endpoint. A 409
         // is the server already holding it only for a resend after a lost
-        // answer, or an uncoded check-out / any ping (`conflict_means_held`);
-        // a coded refusal (a closed month…) is a refusal.
+        // answer, or an uncoded check-out / any ping (`conflict_means_held`),
+        // or a queued check-in meeting "already checked in"; a coded refusal
+        // (a closed month…) is a refusal.
         if item.op_type.starts_with(dawam::OP_PREFIX) {
             // A punch is a claim about one person: it only ever goes under
             // their own token, so it waits for them to sign in again.
@@ -1925,17 +1928,12 @@ impl MadarCore {
                 Err(CoreError::Forbidden { resource, action }) if resource == dawam::PRIVACY_NOT_ACCEPTED => {
                     SendOutcome::Held(action)
                 }
-                // A first try refused with 409 (rules not saved, a closed
-                // month, a shift that can't be covered) is a refusal, shown
-                // once in the server's words — never a silent "done".
-                Err(CoreError::Server { status: 409, code, detail }) if !dawam::conflict_means_held(item, &code) => {
-                    // In the person's words where the core has them (a closed month).
-                    match self.staff_error(CoreError::Server { status: 409, code, detail }) {
-                        CoreError::Server { detail, .. } => SendOutcome::Dead(detail),
-                        other => SendOutcome::Dead(format!("{other:?}")),
-                    }
-                }
-                Err(e) => classify_send(e, Idem::Yes),
+                // Held, or a refusal (`dawam_refusal`, in dawam.rs): a
+                // first try refused with 409 is a refusal, never a silent
+                // "done" (E2E clocking C2); the punch the person waits on is
+                // said in the server's words, one sent later from the queue in
+                // the phone's language (the toast says it, S-036).
+                Err(e) => self.dawam_refusal(item, e),
             };
         }
         let (envelope, idem) = match self.replay_envelope(item) {
@@ -2078,6 +2076,46 @@ impl MadarCore {
                         SendOutcome::Acked(None)
                     }
                     _ => SendOutcome::Acked(None),
+                }
+            }
+            // A pay-out whose expense-advance tag is refused is still a
+            // pay-out (D10): sent again at once without the tag.
+            Err((e, raw)) => match self.drop_refused_advance_tag(item, &e) {
+                Some(untagged) => self.resend_untagged(&untagged, body_out, seq_out, refusal_out).await,
+                None => {
+                    *refusal_out = raw;
+                    classify_send(e, idem)
+                }
+            },
+        }
+    }
+
+    /// The pay-out again, its refused tag dropped (D10). Anything but an ack
+    /// leaves it queued as usual: the payload already carries no tag. A
+    /// refusal of the plain pay-out is kept for its wording, like any other.
+    async fn resend_untagged(
+        &self,
+        item: &store::OutboxItem,
+        body_out: &mut Option<serde_json::Value>,
+        seq_out: &mut Option<i64>,
+        refusal_out: &mut Option<(u16, String)>,
+    ) -> SendOutcome {
+        let (envelope, idem) = match self.replay_envelope(item) {
+            Ok(e) => e,
+            Err(outcome) => return outcome,
+        };
+        match self.api.post_json_seq_raw("/sync/replay", &envelope).await {
+            Ok((body, sync_seq)) => {
+                *seq_out = sync_seq;
+                if item.op_type == "lan_mirror" && body.trim().is_empty() {
+                    return SendOutcome::Acked(None);
+                }
+                match replay_backend_object(&body) {
+                    Some(v) => {
+                        *body_out = Some(v);
+                        SendOutcome::Acked(None)
+                    }
+                    None => SendOutcome::Offline,
                 }
             }
             Err((e, raw)) => {
@@ -6141,6 +6179,11 @@ impl MadarCore {
             {
                 session::cache_bundle(&self.store, &bundle, &snapshot);
             }
+        }
+        // Which modules the org has on: the till hides Dawam's punch and
+        // expense-advance tag when it is off (minor #40). Best-effort.
+        if let Some(org_id) = snapshot.org_id.as_deref() {
+            self.remember_org_modules(org_id).await;
         }
 
         // Effective capabilities at this branch (an older backend answers 404 and
@@ -13035,12 +13078,15 @@ impl MadarCore {
     pub async fn staff_otp_request(&self, phone: String) -> Result<Option<String>, CoreError> {
         let body = self
             .api
-            .send_json(
+            .send_json_raw(
                 reqwest::Method::POST,
                 "/auth/staff/otp/request",
                 Some(&serde_json::json!({ "phone": phone })),
             )
-            .await?;
+            .await
+            // A suspended person or business is told why (minor #13), a
+            // number nobody added or a code asked again too soon (CODES).
+            .map_err(|(e, raw)| self.staff_refusal(e, raw))?;
         let v: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
         Ok(v["dev_code"].as_str().map(str::to_string))
     }
@@ -13060,7 +13106,7 @@ impl MadarCore {
         use std::sync::atomic::Ordering::Relaxed;
         let body = self
             .api
-            .send_json(
+            .send_json_raw(
                 reqwest::Method::POST,
                 "/auth/staff/otp/verify",
                 Some(&serde_json::json!({
@@ -13068,7 +13114,8 @@ impl MadarCore {
                     "platform": platform, "model": model,
                 })),
             )
-            .await?;
+            .await
+            .map_err(|(e, raw)| self.staff_refusal(e, raw))?;
         let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| CoreError::Internal {
             detail: format!("decode: {e}"),
         })?;
@@ -13111,6 +13158,10 @@ impl MadarCore {
             token: Some(token.to_string()),
             authz: None,
         });
+        // The server just answered: online, with a clean count of failed
+        // calls. The last session's lone blip must not make this one's first
+        // blip read as offline (E2E roster m3).
+        self.set_online(true);
         // The host gets the session, never its secrets: the staff token and
         // the device token stay in the core (06 bug 14).
         let mut out = v;
@@ -13191,9 +13242,22 @@ impl MadarCore {
         path: &str,
         body: Option<&serde_json::Value>,
     ) -> Result<String, CoreError> {
-        let r = self.api.send_json(method, path, body).await;
+        let r = self.api.send_json_raw(method, path, body).await;
         self.keep_staff_token();
-        r.map_err(|e| self.staff_error(e))
+        r.map_err(|(e, raw)| self.staff_refusal(e, raw))
+    }
+
+    /// A staff refusal in the person's language: a coded one from the
+    /// server's own body with its vars (`dawam::refusal_words`), the rest as
+    /// [`Self::staff_error`] words them.
+    pub(crate) fn staff_refusal(&self, e: CoreError, raw: Option<(u16, String)>) -> CoreError {
+        if let Some((status, body)) = raw {
+            if let Some(code) = net::extract_error_code(&body).filter(|c| dawam::REFUSAL_CODES.contains(&c.as_str())) {
+                let detail = dawam::refusal_words(&self.current_locale(), &code, &body);
+                return CoreError::Server { status, code, detail };
+            }
+        }
+        self.staff_error(e)
     }
 
     /// Store the bearer a refresh put in place, so a cold start resumes with it.
@@ -13235,6 +13299,11 @@ impl MadarCore {
             "LEAVE_PAY_REQUIRED" => Some("staff.err_leave_pay_required"),
             "REQUEST_ALREADY_DECIDED" => Some("staff.err_request_already_decided"),
             "OVERLAPPING_REQUEST" => Some("staff.err_overlapping_request"),
+            "FLAG_HANDLED" => Some("staff.err_flag_handled"),
+            "FLAG_COVER_CONFIRM_OR_REJECT" => Some("staff.err_flag_cover_confirm_or_reject"),
+            "OWNER_ONLY" => Some("staff.err_owner_only"),
+            "ORG_SUSPENDED" => Some("staff.err_org_suspended"),
+            "REASON_REQUIRED" => Some("staff.err_reason_required"),
             _ => None,
         };
         let locale = self.current_locale();
@@ -13246,6 +13315,13 @@ impl MadarCore {
             CoreError::Forbidden { resource, action } => match key(&resource) {
                 Some(k) => CoreError::Forbidden { action: i18n::tr(&locale, k), resource },
                 None => CoreError::Forbidden { resource, action },
+            },
+            // The server's limiter (addendum 2): slow down, never "can't
+            // reach the server". A PIN throttle keeps its own wait.
+            CoreError::Server { status: 429, code, .. } if code != net::PIN_THROTTLED => CoreError::Server {
+                status: 429,
+                code: RATE_LIMITED.into(),
+                detail: i18n::tr(&locale, "staff.err_rate_limited"),
             },
             CoreError::Server { status, code, detail } => match key(&code) {
                 Some(k) => CoreError::Server { status, detail: i18n::tr(&locale, k), code },

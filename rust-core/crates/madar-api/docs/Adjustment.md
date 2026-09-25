@@ -7,6 +7,9 @@ Name | Type | Description | Notes
 **amount_piastres** | Option<**i64**> |  | [optional]
 **created_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **created_by** | Option<**uuid::Uuid**> |  | [optional]
+**decided_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
+**decided_by** | Option<**uuid::Uuid**> | Who decided a line that waited for the owner, when, and why (a rejection always says why, D8). | [optional]
+**decision_note** | Option<**String**> |  | [optional]
 **effective_date** | **chrono::NaiveDate** | The month it lands in (the first day of a recurring line, AD-1/AD-3). | 
 **employee_id** | **uuid::Uuid** |  | 
 **employee_name** | **String** |  | 

@@ -1444,6 +1444,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// with last week's numbers.
   Future<TableHistoryView> tableHistory({required String tableId});
 
+  /// What to tell the teller about pay-outs sent since the last ask: an
+  /// expense-advance tag the server refused, the pay-out itself kept (D10).
+  /// Each sentence in the till's language, said once. Local; no network.
+  List<String> takePayOutNotices();
+
   /// Why marks left their lines since the last ask, each already a sentence
   /// in the till's language. Re-checks the cart first. Local; no network.
   List<String> takeStaffDrinkNotices({String? tableId});
@@ -1465,6 +1470,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// The drawer arithmetic's cash-sales line, closed on the report's figure.
   PlatformInt64 tillCashSalesMinor({required TillReportView report});
+
+  /// Dawam is on for this org: the till offers "Clock in/out" and the
+  /// pay-out's "Expense advance to" (minor #40). True until the server said
+  /// otherwise at sign-in. Local; no network.
+  bool tillDawamOn();
 
   /// The signed-in person may see the open till's figures.
   bool tillFiguresVisible();

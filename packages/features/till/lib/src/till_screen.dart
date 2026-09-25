@@ -488,12 +488,14 @@ class _Links extends ConsumerWidget {
                 onTap: onWaste,
               ),
             ],
-            const MadarHairline.row(),
-            MadarListRow.nav(
-              title: t('staff.till_punch'),
-              glyph: MadarGlyph.clock,
-              onTap: () => unawaited(_punch(context, bridge)),
-            ),
+            if (tillDawamOn(bridge)) ...[
+              const MadarHairline.row(),
+              MadarListRow.nav(
+                title: t('staff.till_punch'),
+                glyph: MadarGlyph.clock,
+                onTap: () => unawaited(_punch(context, bridge)),
+              ),
+            ],
             const MadarHairline.row(),
             MadarListRow.nav(
               title: t('spot.button'),

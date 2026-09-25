@@ -110,3 +110,79 @@ class MadarWordmark extends StatelessWidget {
     );
   }
 }
+
+/// Dawam's mark, "the heavy d" (Dawam Design System v2): one round-capped
+/// stroke, 20 units of a 100-unit box, a lowercase d whose bowl opens to the
+/// left like an isolated dal (د). Drawn as a vector from the kit's geometry,
+/// so it is crisp at any size. Ink on light, Paper on dark (never tinted).
+class DawamSymbol extends StatelessWidget {
+  /// Creates the Dawam mark at [size] logical pixels.
+  const DawamSymbol({
+    super.key,
+    this.size = 48,
+    this.opacity = 1,
+    this.reversed,
+  });
+
+  /// Rendered width and height in logical pixels.
+  final double size;
+
+  /// Paint-level alpha (0–1), for faded watermarks.
+  final double opacity;
+
+  /// Force the light-on-dark (Paper) artwork regardless of the theme.
+  final bool? reversed;
+
+  /// Ink and Paper, the brand's only colours.
+  static const Color ink = Color(0xFF14181E);
+  static const Color paper = Color(0xFFEFF3F4);
+
+  @override
+  Widget build(BuildContext context) {
+    final colour = (reversed ?? _isDark(context)) ? paper : ink;
+    return Semantics(
+      label: 'Dawam',
+      image: true,
+      child: CustomPaint(
+        size: Size.square(size),
+        painter: _HeavyDPainter(colour.withValues(alpha: opacity)),
+      ),
+    );
+  }
+}
+
+class _HeavyDPainter extends CustomPainter {
+  const _HeavyDPainter(this.colour);
+
+  final Color colour;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // The kit's 100-unit box; the tight bbox is x 15–85, y 8–92.
+    canvas.scale(size.width / 100, size.height / 100);
+    final pen = Paint()
+      ..color = colour
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 20
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    // Stem, then the base running left and hooking up into the tail.
+    final body = Path()
+      ..moveTo(75, 18)
+      ..lineTo(75, 82)
+      ..lineTo(37, 82)
+      ..quadraticBezierTo(25, 82, 25, 70)
+      ..lineTo(25, 64);
+    // The head leaves the stem and curls up-left.
+    final head = Path()
+      ..moveTo(75, 46)
+      ..lineTo(47, 46)
+      ..quadraticBezierTo(39, 46, 35, 40);
+    canvas
+      ..drawPath(body, pen)
+      ..drawPath(head, pen);
+  }
+
+  @override
+  bool shouldRepaint(_HeavyDPainter old) => old.colour != colour;
+}
