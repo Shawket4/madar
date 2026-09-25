@@ -289,6 +289,10 @@ fn test_receipt(teller_name: Option<String>) -> ReceiptView {
             reward_label: None,
             staff_label: None,
             staff_comp_minor: 0,
+            kind: "item".into(),
+            // Every other line field (combo parts, deal cut, …) at its
+            // default, so a field the core adds never stops this app building.
+            ..Default::default()
         }],
         payment_label: "—".into(),
         subtotal_minor: 0,
@@ -320,6 +324,7 @@ fn test_receipt(teller_name: Option<String>) -> ReceiptView {
         payments: Vec::new(),
         loyalty_notice: None,
         staff_notice: None,
+        ..Default::default()
     }
 }
 
@@ -618,5 +623,28 @@ pub fn wire_settings(app_window: &AppWindow, app: &Arc<App>) {
             let _ = a.core.discard_outbox_item(id.to_string());
             sync_load(&a);
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The printer test page's receipt builds against the core's current
+    /// receipt types: a field added in the core (the combos' `kind`, `parts`,
+    /// `deal_minor`, the receipt's `deals`) must not stop this app compiling.
+    #[test]
+    fn test_receipt_is_one_plain_zero_line() {
+        let r = test_receipt(Some("Mariam".into()));
+        assert_eq!(r.local_order_id, "test-print");
+        assert_eq!(r.teller_name.as_deref(), Some("Mariam"));
+        assert_eq!(r.total_minor, 0);
+        assert!(r.deals.is_empty());
+        assert_eq!(r.lines.len(), 1);
+        let l = &r.lines[0];
+        assert_eq!((l.name.as_str(), l.qty, l.line_total_minor), ("TEST", 1, 0));
+        assert_eq!(l.kind, "item");
+        assert!(l.parts.is_empty());
+        assert_eq!(l.deal_minor, 0);
     }
 }
