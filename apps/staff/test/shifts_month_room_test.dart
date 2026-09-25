@@ -33,9 +33,17 @@ void main() {
             'id': 'w|w2',
             'status': 'pending',
           });
+          // Next week: the Saturday after the fixture's today (it is written
+          // on the day it runs). The server's published_weeks say so too.
+          final today = DateTime.parse((v['now'] as String).substring(0, 10));
+          final next = today.add(Duration(days: 7 - (today.weekday + 1) % 7));
+          final from = next.toIso8601String().substring(0, 10);
+          (v['published_weeks'] as List<dynamic>?)?.removeWhere(
+            (w) => (w as String).split('|').last.compareTo(from) >= 0,
+          );
           for (final sh
               in (v['shifts'] as List<dynamic>).cast<Map<String, dynamic>>()) {
-            if ((sh['date'] as String).compareTo('2026-09-26') >= 0) {
+            if ((sh['date'] as String).compareTo(from) >= 0) {
               sh['published'] = false;
             }
           }

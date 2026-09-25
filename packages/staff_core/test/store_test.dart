@@ -468,6 +468,9 @@ void main() {
   test('a screen asks the core only for dates the phone does not hold, one '
       'ask at a time (H2-01)', () async {
     final (store, backend) = await _store();
+    // An older core's picture: no `loaded` (the fixtures now carry one).
+    backend.edit = (v) => v.remove('loaded');
+    await store.refresh();
     expect(
       store.holds(DateTime(2000), DateTime(2100)),
       isTrue,
