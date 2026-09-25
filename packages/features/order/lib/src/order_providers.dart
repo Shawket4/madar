@@ -58,7 +58,6 @@ class OrderState {
     required this.currency,
     this.categories = const [],
     this.menuItems = const [],
-    this.bundles = const [],
     this.isLoadingCatalog = true,
     this.isSyncingData = false,
     this.drafts = const [],
@@ -116,7 +115,6 @@ class OrderState {
   // ── catalog ──────────────────────────────────────────────────────────────
   final List<CategoryView> categories;
   final List<MenuItemView> menuItems;
-  final List<BundleView> bundles;
   final bool isLoadingCatalog;
   final bool isSyncingData;
 
@@ -175,7 +173,6 @@ class OrderState {
     String? currency,
     List<CategoryView>? categories,
     List<MenuItemView>? menuItems,
-    List<BundleView>? bundles,
     bool? isLoadingCatalog,
     bool? isSyncingData,
     List<DraftView>? drafts,
@@ -202,7 +199,6 @@ class OrderState {
     currency: currency ?? this.currency,
     categories: categories ?? this.categories,
     menuItems: menuItems ?? this.menuItems,
-    bundles: bundles ?? this.bundles,
     isLoadingCatalog: isLoadingCatalog ?? this.isLoadingCatalog,
     isSyncingData: isSyncingData ?? this.isSyncingData,
     drafts: drafts ?? this.drafts,
@@ -441,14 +437,9 @@ class OrderNotifier extends Notifier<OrderState> {
     try {
       final categories = await _bridge.listCategories();
       final menuItems = await _bridge.listMenuItems();
-      final bundles = await _bridge.availableBundles(
-        nowRfc3339:
-            nowIso(), // an instant; the core reads it in the branch zone
-      );
       state = state.copyWith(
         categories: categories,
         menuItems: _synthCatalog > 1 ? _synthesize(menuItems) : menuItems,
-        bundles: bundles,
         isLoadingCatalog: false,
       );
     } on MadarError catch (e) {
@@ -457,7 +448,7 @@ class OrderNotifier extends Notifier<OrderState> {
   }
 
   /// Manual "sync server data" — re-pulls the catalog (menu, add-ons,
-  /// bundles, payment methods, discounts), then re-projects.
+  /// payment methods, discounts), then re-projects.
   Future<void> refreshServerData() async {
     if (state.isSyncingData) return;
     state = state.copyWith(isSyncingData: true);
@@ -1472,11 +1463,6 @@ class OrderNotifier extends Notifier<OrderState> {
         for (final a in line.addons)
           if (a.qty > 1) '${a.name} x${a.qty}' else a.name,
         for (final o in line.optionals) o.name,
-        for (final c in line.bundleComponents) ...[
-          '${c.qty}x ${c.name}',
-          for (final a in c.addons) '   ${a.name}',
-          for (final o in c.optionals) '   ${o.name}',
-        ],
       ];
       return await _bridge.renderKitchenChit(
         chit: KitchenChit(

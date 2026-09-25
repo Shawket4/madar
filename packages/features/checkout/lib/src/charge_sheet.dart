@@ -1069,7 +1069,7 @@ class _QuietRows extends StatelessWidget {
               quantity: s.rewardLines[l.line].qty,
               freeWord: tr('charge.free'),
               // The core's reason a row cannot take another: the shop's cap,
-              // the balance, a bundle. Said under the row, never guessed.
+              // the balance. Said under the row, never guessed.
               reason: l.canAdd || l.units > 0 ? null : l.blockedReason,
               onTap: l.claimable ? () => onToggleReward(l.line) : null,
             ),

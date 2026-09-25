@@ -15,7 +15,6 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart'
     show CartKitchenChitSheet, KitchenChitSheet;
 import 'package:feature_order/feature_order.dart';
-import 'package:feature_order/src/bundle_detail_sheet.dart';
 import 'package:feature_order/src/held_orders_strip.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/sell_cart.dart';
@@ -511,41 +510,7 @@ void main() {
           expect(find.byType(ItemDetailSheet), findsOneWidget);
           await _capture(tester, 'sell-item-$tag');
         });
-
-        testWidgets('sell bundle sheet $tag', (tester) async {
-          await _mount(
-            tester,
-            screen: const TakeawaySellScreen(),
-            size: size,
-            bridge: _FakeBridge(rtl: ar, bundles: const [_combo]),
-          );
-          await tester.tap(
-            find.widgetWithText(
-              MadarChip,
-              coreWord('order.combos', arabic: ar),
-            ),
-          );
-          await _settle(tester);
-          await tester.tap(find.text('Breakfast combo').last);
-          await _settle(tester);
-          expect(find.byType(BundleDetailSheet), findsOneWidget);
-          await _capture(tester, 'sell-bundle-$tag');
-        });
       }
     }
   }
 }
-
-const _combo = BundleView(
-  id: 'combo',
-  name: 'Breakfast combo',
-  priceMinor: 9000,
-  isAvailable: true,
-  components: [
-    BundleComponentView(
-      itemId: 'croissant',
-      itemName: 'Croissant',
-      quantity: 1,
-    ),
-  ],
-);

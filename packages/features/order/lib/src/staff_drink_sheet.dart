@@ -92,12 +92,9 @@ class StaffDrinkTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Not on a table's bill, not on a bundle, and not twice: a marked line's
-    // way back in is its badge.
-    if (!counterSale ||
-        tableId != null ||
-        line.bundleId != null ||
-        line.staffDrink != null) {
+    // Not on a table's bill and not twice: a marked line's way back in is its
+    // badge.
+    if (!counterSale || tableId != null || line.staffDrink != null) {
       return const SizedBox.shrink();
     }
     final preview = ref.watch(

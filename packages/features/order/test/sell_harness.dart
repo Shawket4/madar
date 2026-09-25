@@ -59,7 +59,6 @@ CartLineView _cartLine(String id, String name, int price, int qty) =>
       unitPriceMinor: price,
       qty: qty,
       lineTotalMinor: price * qty,
-      bundleComponents: const [],
     );
 
 final _cart = <CartLineView>[
@@ -269,8 +268,6 @@ const _en = {
   'ticket.status.ready': 'Ready',
   'order.all': 'All',
   'order.search': 'Search items',
-  'order.combos': 'Combos',
-  'order.configure': 'Configure',
   'order.subtotal': 'Subtotal',
   'order.total': 'Total',
   'order.tax': 'Tax',
@@ -376,12 +373,9 @@ const _ar = {
 };
 
 class _FakeBridge implements MadarBridge {
-  _FakeBridge({this.rtl = false, this.tillOpen = true, this.bundles = const []})
+  _FakeBridge({this.rtl = false, this.tillOpen = true})
     : role = 'teller',
       drafts = _drafts;
-
-  /// The combos the catalog offers — none unless a test needs the chip.
-  final List<BundleView> bundles;
 
   final String role;
 
@@ -508,9 +502,6 @@ class _FakeBridge implements MadarBridge {
       menuReads++;
       return Future<List<MenuItemView>>.value(_items);
     }
-    if (name == #availableBundles) {
-      return Future<List<BundleView>>.value(bundles);
-    }
     // Retargeting the cart parks whatever is in it first and may clear it —
     // both are bridge calls the fake has to answer or the whole flow throws.
     // Recorded, because the ORDER of them is the fix: park, clear, adopt.
@@ -567,11 +558,6 @@ class _FakeBridge implements MadarBridge {
       final id = invocation.namedArguments[#itemId] as String;
       final item = _items.firstWhere((i) => i.id == id);
       _cartOf(invocation).add(_cartLine(id, item.name, item.basePriceMinor, 1));
-      return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
-    }
-    if (name == #cartAddBundle) {
-      final id = invocation.namedArguments[#bundleId] as String;
-      _cartOf(invocation).add(_cartLine(id, 'Combo', 9000, 1));
       return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
     }
     if (name == #fireTicket) {
@@ -639,8 +625,6 @@ class _FakeBridge implements MadarBridge {
           unitPriceMinor: l.unitPriceMinor,
           qty: l.qty,
           lineTotalMinor: l.lineTotalMinor,
-          bundleId: l.bundleId,
-          bundleComponents: l.bundleComponents,
           kitchenNote: note,
         );
       }

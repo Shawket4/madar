@@ -57,7 +57,6 @@ CartLineView _marked({int charged = 0}) => CartLineView(
   unitPriceMinor: 4500,
   qty: 1,
   lineTotalMinor: 4500,
-  bundleComponents: const [],
   staffDrink: CartStaffDrinkView(
     id: 'd1',
     note: 'for Sara',
@@ -75,7 +74,6 @@ CartLineView _line() => const CartLineView(
   unitPriceMinor: 4500,
   qty: 1,
   lineTotalMinor: 4500,
-  bundleComponents: [],
 );
 
 StaffPoolDay _day({int allowance = 5, int used = 0}) => StaffPoolDay(

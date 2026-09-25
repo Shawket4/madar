@@ -45,21 +45,17 @@ const _lines = [
     qty: 2,
     sizeLabel: 'L',
     lineTotalMinor: 9000,
-    isBundle: false,
     staffCompMinor: 0,
     addons: [ReceiptModifierView(name: 'Oat milk', priceMinor: 1000)],
     optionals: [],
-    components: [],
   ),
   ReceiptLineView(
     name: 'Croissant',
     qty: 1,
     lineTotalMinor: 6500,
-    isBundle: false,
     staffCompMinor: 0,
     addons: [],
     optionals: [],
-    components: [],
   ),
 ];
 
@@ -71,12 +67,10 @@ List<ReceiptLineView> _staffLines({required bool arabic}) => [
     qty: 1,
     sizeLabel: 'L',
     lineTotalMinor: 11000,
-    isBundle: false,
     staffLabel: coreWord('staff_pool.badge', arabic: arabic),
     staffCompMinor: 6500,
     addons: const [ReceiptModifierView(name: 'Extra shot', priceMinor: 1500)],
     optionals: const [],
-    components: const [],
   ),
 ];
 

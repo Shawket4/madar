@@ -338,19 +338,6 @@ class CartNotifier extends Notifier<CartState> {
     return ok;
   }
 
-  /// Add a configured bundle at its fixed price.
-  Future<void> addBundle(
-    String bundleId,
-    List<BundleComponentSelection> components,
-  ) => _apply(
-    () => _bridge.cartAddBundle(
-      tableId: arg,
-      bundleId: bundleId,
-      components: components,
-      qty: 1,
-    ),
-  );
-
   Future<void> setQty(String lineKey, int qty) =>
       _apply(() => _bridge.cartSetQty(tableId: arg, itemId: lineKey, qty: qty));
 

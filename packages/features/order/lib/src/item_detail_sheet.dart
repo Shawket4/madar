@@ -12,24 +12,6 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:lottie/lottie.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// A host-only draft of one configured bundle component (what the
-/// per-component sheet pops in configure mode). [extrasMinor] is the
-/// resolved addon/optional up-charge, summed into the bundle's live total.
-@immutable
-class BundleComponentDraft {
-  const BundleComponentDraft({
-    required this.sizeLabel,
-    required this.addons,
-    required this.optionalIds,
-    required this.extrasMinor,
-  });
-
-  final String? sizeLabel;
-  final List<AddonSelection> addons;
-  final List<String> optionalIds;
-  final int extrasMinor;
-}
-
 /// Whether the size row is a real choice. One `one_size` row is a
 /// placeholder (see the importer), not something to render.
 bool _hasSizeChoice(List<ItemSizeView> sizes) =>
@@ -108,8 +90,6 @@ class ItemSheetArgs {
     required this.addons,
     this.groups = const [],
     this.editLine,
-    this.configureSeed,
-    this.isConfiguring = false,
     this.tableId,
   });
 
@@ -127,10 +107,6 @@ class ItemSheetArgs {
 
   /// Edit mode: the cart line being reconfigured (null = adding fresh).
   final CartLineView? editLine;
-
-  /// Configure mode: the previously saved component draft to seed from.
-  final BundleComponentDraft? configureSeed;
-  final bool isConfiguring;
 }
 
 /// The live selection inside one item-customization sheet.
@@ -211,7 +187,7 @@ class ItemConfigState {
 }
 
 /// Selection notifier for one sheet presentation — seeded from the args
-/// (edit line / configure seed / defaults), mutated by the chip taps.
+/// (edit line / defaults), mutated by the chip taps.
 class ItemConfigNotifier extends Notifier<ItemConfigState> {
   /// Creates the notifier for one family [arg].
   ItemConfigNotifier(this.arg);
@@ -382,20 +358,8 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
     var optionals = const <String>{};
     var size = item.sizes.firstOrNull?.label;
     var qty = 1;
-    final seed = args.configureSeed;
     final editLine = args.editLine;
-    if (args.isConfiguring) {
-      if (seed != null) {
-        size = seed.sizeLabel ?? size;
-        for (final a in seed.addons) {
-          _placeAddon(args, single, multi, a.addonItemId, a.qty);
-        }
-        optionals = seed.optionalIds.toSet();
-      } else {
-        _seedSwapDefaults(args, single);
-        _seedDefaultMilk(args, single);
-      }
-    } else if (editLine == null) {
+    if (editLine == null) {
       _seedSwapDefaults(args, single);
     }
     if (editLine != null) {
@@ -617,18 +581,12 @@ bool coreGroupIsSingle(ModifierGroupView g, List<ItemAddonView> addons) {
 /// Item customization — size, addons (per slot + global types), optional
 /// fields, live recipe preview, notes, qty. Prices come pre-resolved from
 /// the core; this only displays and sums.
-///
-/// Bundle-component configure mode: when [isConfiguring] the footer SAVES
-/// the selection back (pops a [BundleComponentDraft], no cart write), seeded
-/// from [configureSeed], and the qty stepper is hidden.
 class ItemDetailSheet extends ConsumerStatefulWidget {
   const ItemDetailSheet({
     required this.item,
     required this.addons,
     this.groups = const [],
     this.editLine,
-    this.configureSeed,
-    this.isConfiguring = false,
     this.tableId,
     super.key,
   });
@@ -649,10 +607,6 @@ class ItemDetailSheet extends ConsumerStatefulWidget {
 
   /// Edit mode: the cart line being reconfigured (null = adding fresh).
   final CartLineView? editLine;
-
-  /// Configure mode: the previously saved component draft to seed from.
-  final BundleComponentDraft? configureSeed;
-  final bool isConfiguring;
 
   @override
   ConsumerState<ItemDetailSheet> createState() => _ItemDetailSheetState();
@@ -676,8 +630,6 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     addons: widget.addons,
     groups: widget.groups,
     editLine: widget.editLine,
-    configureSeed: widget.configureSeed,
-    isConfiguring: widget.isConfiguring,
     tableId: widget.tableId,
   );
 
@@ -860,28 +812,9 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     return false;
   }
 
-  Future<void> _commit(ItemConfigState config, int extrasMinor) async {
+  Future<void> _commit(ItemConfigState config) async {
     if (!await _selectionValid(config)) return;
     if (!mounted) return;
-    if (widget.isConfiguring) {
-      if (config.committing) return;
-      // The extras for EXACTLY this selection: a tap that landed a moment
-      // before Save may not have been priced yet.
-      final notifier = ref.read(itemConfigProvider(_args).notifier);
-      await notifier.refreshPrice();
-      if (!mounted) return;
-      final extras =
-          ref.read(itemConfigProvider(_args)).price?.extrasMinor ?? extrasMinor;
-      await Navigator.of(context).maybePop(
-        BundleComponentDraft(
-          sizeLabel: config.size,
-          addons: config.selectedAddons,
-          optionalIds: config.optionals.toList(growable: false),
-          extrasMinor: extras,
-        ),
-      );
-      return;
-    }
     final notes = _notes.text.trim();
     final committed = await ref
         .read(itemConfigProvider(_args).notifier)
@@ -936,7 +869,6 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     // the header shows the item's own price and the footer no extras.
     final price = config.price;
     final headerTotal = price?.unitTotalMinor ?? _item.basePriceMinor;
-    final extrasMinor = price?.extrasMinor ?? 0;
 
     AddonGroup? firstUnsatisfied;
     for (final g in groups) {
@@ -953,15 +885,10 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
 
     final footerLabel = !canAdd
         ? '${bridge.tr(key: 'order.select_prefix')} ${firstUnsatisfied.title}'
-        : widget.isConfiguring
-        ? bridge.tr(key: 'order.save_component')
         : widget.editLine == null
         ? bridge.tr(key: 'order.add_to_cart')
         : bridge.tr(key: 'order.update_item');
-    // Configure mode sums only the extras (the bundle covers the base).
-    final footerPrice = widget.isConfiguring
-        ? extrasMinor
-        : (price?.lineTotalMinor ?? headerTotal);
+    final footerPrice = price?.lineTotalMinor ?? headerTotal;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1085,16 +1012,14 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                     _StepList(steps: _item.recipeSteps),
                     const SizedBox(height: Space.lg),
                   ],
-                  if (!widget.isConfiguring) ...[
-                    MadarSectionHeader(text: bridge.tr(key: 'order.notes')),
-                    const SizedBox(height: Space.sm),
-                    MadarField(
-                      controller: _notes,
-                      placeholder: bridge.tr(key: 'sell.item_note_hint'),
-                      kind: MadarFieldKind.note,
-                      icon: 'text.bubble',
-                    ),
-                  ],
+                  MadarSectionHeader(text: bridge.tr(key: 'order.notes')),
+                  const SizedBox(height: Space.sm),
+                  MadarField(
+                    controller: _notes,
+                    placeholder: bridge.tr(key: 'sell.item_note_hint'),
+                    kind: MadarFieldKind.note,
+                    icon: 'text.bubble',
+                  ),
                 ],
               ),
             ),
@@ -1108,11 +1033,10 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
             label: footerLabel,
             canAdd: canAdd,
             loading: config.committing,
-            showQty: !widget.isConfiguring,
             qty: config.qty,
             onDec: () => notifier.setQty(config.qty - 1),
             onInc: () => notifier.setQty(config.qty + 1),
-            onCommit: () => unawaited(_commit(config, extrasMinor)),
+            onCommit: () => unawaited(_commit(config)),
           ),
         ),
       ],
@@ -1350,7 +1274,6 @@ class _SheetFooter extends ConsumerWidget {
     required this.label,
     required this.canAdd,
     required this.loading,
-    required this.showQty,
     required this.qty,
     required this.onDec,
     required this.onInc,
@@ -1364,7 +1287,6 @@ class _SheetFooter extends ConsumerWidget {
 
   /// The commit is in flight — spinner on, taps blocked (double-tap guard).
   final bool loading;
-  final bool showQty;
   final int qty;
   final VoidCallback onDec;
   final VoidCallback onInc;
@@ -1393,25 +1315,23 @@ class _SheetFooter extends ConsumerWidget {
             const SizedBox(height: Space.md),
             Row(
               children: [
-                if (showQty) ...[
-                  StepButton(glyph: 'minus', onTap: onDec),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      minWidth: 24 + Space.sm * 2,
-                    ),
-                    child: Text(
-                      '$qty',
-                      textAlign: TextAlign.center,
-                      style: MadarType.h3.copyWith(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: colors.textPrimary,
-                      ),
+                StepButton(glyph: 'minus', onTap: onDec),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minWidth: 24 + Space.sm * 2,
+                  ),
+                  child: Text(
+                    '$qty',
+                    textAlign: TextAlign.center,
+                    style: MadarType.h3.copyWith(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: colors.textPrimary,
                     ),
                   ),
-                  StepButton(glyph: 'plus', onTap: onInc),
-                  const SizedBox(width: Space.md),
-                ],
+                ),
+                StepButton(glyph: 'plus', onTap: onInc),
+                const SizedBox(width: Space.md),
                 Expanded(
                   child: MadarButton(
                     label: label,
@@ -2292,7 +2212,7 @@ class _StepRow extends StatelessWidget {
   }
 }
 
-// ── Shared pieces (the item and bundle sheets) ─────────────────────────────
+// ── Shared pieces ──────────────────────────────────────────────────────────
 
 /// A circular stepper button (natives: 30.dp, [MotionSpec.pressScaleKey]-deep
 /// press).

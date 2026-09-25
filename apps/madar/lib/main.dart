@@ -22,7 +22,7 @@ void _bootstrap() {
   WidgetsFlutterBinding.ensureInitialized();
   // A POS shows a BOUNDED menu, not an endless feed — Flutter's default
   // 100 MB decoded-image cache is sized for the latter. 32 MB comfortably
-  // holds every cell-sized menu/bundle photo on screen plus scroll headroom
+  // holds every cell-sized menu photo on screen plus scroll headroom
   // (decodes are already bounded to cell size via ResizeImage) and returns
   // ~70 MB of headroom to low-RAM tablets.
   PaintingBinding.instance.imageCache.maximumSizeBytes = 32 << 20;

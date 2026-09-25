@@ -124,7 +124,6 @@ CartLineView _cartLine(String id, String name, int price, int qty) =>
       unitPriceMinor: price,
       qty: qty,
       lineTotalMinor: price * qty,
-      bundleComponents: const [],
     );
 
 final _cart = <CartLineView>[
@@ -866,9 +865,6 @@ class _FakeBridge implements MadarBridge {
       return Future<List<CategoryView>>.value(_categories);
     }
     if (name == #listMenuItems) return Future<List<MenuItemView>>.value(_items);
-    if (name == #availableBundles) {
-      return Future<List<BundleView>>.value(const []);
-    }
     if (name == #listItemModifierGroups) {
       return Future<List<ModifierGroupView>>.value(const []);
     }

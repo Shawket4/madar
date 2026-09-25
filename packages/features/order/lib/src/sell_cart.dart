@@ -314,9 +314,7 @@ class SellCart extends ConsumerWidget {
                           ticketRef: ticket?.ticketRef,
                           currency: state.currency,
                           counterSale: !cta.sendsToKitchen,
-                          onEdit: line.bundleId == null
-                              ? () => onEditLine(line)
-                              : null,
+                          onEdit: () => onEditLine(line),
                         ),
                     ],
                   ),
@@ -594,7 +592,6 @@ class _RoundLine extends ConsumerWidget {
       for (final a in line.addons)
         if (a.qty > 1) '${a.name} ×${a.qty}' else a.name,
       for (final o in line.optionals) o.name,
-      for (final c in line.bundleComponents) '${c.qty}× ${c.name}',
     ];
     final notes = line.notes?.trim();
 

@@ -323,11 +323,7 @@ class _LineBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final qty = line.qty < 1 ? 1 : line.qty;
-    final mods = line.isBundle
-        ? [
-            for (final c in line.components) ...[...c.addons, ...c.optionals],
-          ]
-        : [...line.addons, ...line.optionals];
+    final mods = [...line.addons, ...line.optionals];
     final paid = mods.fold<int>(
       0,
       (sum, m) => sum + (m.priceMinor > 0 ? m.priceMinor : 0),
@@ -348,25 +344,8 @@ class _LineBlock extends StatelessWidget {
           right: money(priced ? base : line.lineTotalMinor),
           bold: true,
         ),
-        if (line.isBundle)
-          for (final c in line.components) ...[
-            _Mono(
-              '  – ${_nameWithSize(c.name, c.sizeLabel)}',
-              size: _rowSize,
-              color: Paper.faint,
-              align: TextAlign.start,
-            ),
-            for (final m in [...c.addons, ...c.optionals])
-              _ModRow(
-                prefix: '    + ',
-                modifier: m,
-                money: money,
-                priced: priced,
-              ),
-          ]
-        else
-          for (final m in mods)
-            _ModRow(prefix: '  + ', modifier: m, money: money, priced: priced),
+        for (final m in mods)
+          _ModRow(prefix: '  + ', modifier: m, money: money, priced: priced),
         if (priced)
           _MoneyRow(
             left: '$qty × ${money(perUnit!)}',

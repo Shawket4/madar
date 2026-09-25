@@ -447,7 +447,6 @@ class _FakeBridge implements MadarBridge {
             menuItemId: l.menuItemId,
             qty: l.qty,
             lineTotalMinor: l.lineTotalMinor,
-            isBundle: false,
             isStaffDrink: false,
           ),
       ];

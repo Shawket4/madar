@@ -1,12 +1,11 @@
 // Order feature — CATALOG side (Part A). 1:1 port of the Flutter sources:
-//   catalog_column.dart      → CatalogColumn (tabs · search · item/bundle grid)
+//   catalog_column.dart      → CatalogColumn (tabs · search · item grid)
 //   item_detail_sheet.dart   → ItemDetailSheet (+ ItemSheet global)
-//   bundle_detail_sheet.dart → BundleDetailSheet (+ BundleSheet global)
 //   widgets.dart             → OrderActionButton / OrderField / OrderSectionTitle
 // The Flutter files are the specification; metrics/type/colors are verbatim.
 // All selection state lives in Rust (src/feature_order_catalog.rs — the
-// ItemConfigNotifier / BundleConfigNotifier ports); this file is a pure view:
-// data flows in through the three globals, intent flows out through callbacks.
+// ItemConfigNotifier port); this file is a pure view:
+// data flows in through the two globals, intent flows out through callbacks.
 import { T, Sp, Rd, Ic } from "tokens.slint";
 import { Press, Icon, Chip, Tone, Spinner } from "components.slint";
 import { Icons } from "icons.slint";
@@ -16,9 +15,9 @@ import { EmptyState } from "kit.slint";
 
 // One category tab. icon-key: "" = text only (custom category — the monogram
 // carries identity on the card, widgets.dart categoryIconName), "all",
-// "combos", or "cat.<key>" for the core style families.
+// or "cat.<key>" for the core style families.
 export struct CatalogTabData {
-    id: string,        // "" = All, "__combos__" = Combos, else category id
+    id: string,        // "" = All, else category id
     label: string,
     icon-key: string,
 }
@@ -36,15 +35,6 @@ export struct CatalogItemData {
     accent: color,
     bg-top: color,
     bg-bottom: color,
-}
-
-export struct BundleCardData {
-    id: string,
-    name: string,
-    includes-line: string,  // "${components.length} ${tr(order.bundle_includes)}"
-    price-label: string,
-    has-image: bool,
-    img: image,
 }
 
 // A size chip (label over its price).
@@ -98,14 +88,6 @@ export struct RecipeLineData {
     is-base: bool,
 }
 
-export struct BundleComponentRowData {
-    title: string,        // "2× Burger"
-    subtitle: string,     // "" hides; "Configure" / "size · +N"
-    configurable: bool,
-    configured: bool,
-    extras-label: string, // "+EGP 4.00" ("" hides)
-}
-
 // ── globals: data in / intent out ───────────────────────────────────────────
 
 // Catalog column state. The grid model arrives PRE-FILTERED from Rust
@@ -115,7 +97,6 @@ export global OrderCatalog {
     in property <[CatalogTabData]> tabs;
     in property <string> selected-tab: "";     // "" = All
     in property <[CatalogItemData]> items;
-    in property <[BundleCardData]> bundles;
     in property <bool> loading: true;          // isLoadingCatalog → skeleton
     in property <bool> searching: false;       // query non-empty → no-match empty state
 
@@ -137,7 +118,6 @@ export global OrderCatalog {
     callback select-tab(string /* tab id */);
     callback search-changed(string /* raw text */);
     callback item-tapped(string /* item id */);
-    callback bundle-tapped(string /* bundle id */);
     callback sync-menu();
 }
 
@@ -145,7 +125,6 @@ export global OrderCatalog {
 // ItemConfigNotifier port (seeded per presentation; auto-reset on open).
 export global ItemSheet {
     in-out property <bool> open: false;
-    in property <bool> configuring: false;   // bundle-component configure mode
     in property <string> item-name;
     in property <string> item-description;   // "" hides
     in property <string> header-total;       // Money.format'ed live unit total
@@ -164,7 +143,7 @@ export global ItemSheet {
     in-out property <string> notes-text;     // seeded from the edit line by Rust
     in property <int> qty: 1;
     in property <string> footer-total;
-    in property <string> footer-label;       // add/update/save/"Select X"
+    in property <string> footer-label;       // add/update/"Select X"
     in property <bool> can-add: true;
     in property <bool> committing: false;    // double-tap latch → spinner
 
@@ -193,35 +172,10 @@ export global ItemSheet {
     callback closed();   // slide-out finished — Rust clears the backing state
 }
 
-// Bundle configuration sheet state (BundleConfigNotifier port).
-export global BundleSheet {
-    in-out property <bool> open: false;
-    in property <string> bundle-name;
-    in property <string> bundle-description;  // "" hides
-    in property <string> price-label;          // header badge (fixed price)
-    in property <[BundleComponentRowData]> components;
-    in property <string> subtotal-value;       // base price, formatted
-    in property <string> extras-value;         // "+X" ("" hides the row)
-    in property <string> total-value;          // live total (base + extras)
-    in property <bool> can-add: true;
-    in property <bool> adding: false;
-    in property <string> footer-cta-label;     // tr add_to_cart / configure
-
-    in property <string> tr-bundle-includes;
-    in property <string> tr-subtotal;
-    in property <string> tr-extra;             // order.addon_extra
-    in property <string> tr-total;
-
-    callback component-tapped(int /* index */);
-    callback add();
-    callback closed();
-}
-
 // ── icon-key → glyph map (widgets.dart categoryIconName + the tab icons) ────
 global CatIcon {
     public pure function of(key: string) -> image {
         if (key == "all") { return Icons.square-grid-2x2-fill; }
-        if (key == "combos") { return Icons.square-stack-3d-up-fill; }
         if (key == "cat.coffee") { return Icons.cat-coffee; }
         if (key == "cat.mocha") { return Icons.cat-mocha; }
         if (key == "cat.tea") { return Icons.cat-tea; }
@@ -756,81 +710,6 @@ component MenuItemCard {
     }
 }
 
-// ── Bundle (combo) card — accent-gradient hero + Combo chip. ────────────────
-
-component BundleCard {
-    in property <BundleCardData> bundle;
-    in property <string> combo-label;
-    callback clicked;
-
-    Press {
-        width: parent.width; height: parent.height;
-        press-scale: 0.98;
-        clicked => { root.clicked(); }
-        Rectangle {
-            width: parent.width; height: parent.height;
-            background: T.surface;
-            border-radius: Rd.md;
-            border-width: 1px;
-            border-color: T.border;
-            clip: true;
-            VerticalLayout {
-                // ── Hero (accent gradient + optional photo @ .55 + chip) ──
-                Rectangle {
-                    vertical-stretch: 1;
-                    clip: true;
-                    Rectangle {
-                        width: parent.width; height: parent.height;
-                        background: @linear-gradient(135deg, T.accent 0%, T.accent.with-alpha(0.7) 100%);
-                    }
-                    if root.bundle.has-image: Image {
-                        width: parent.width; height: parent.height;
-                        source: root.bundle.img;
-                        image-fit: cover;
-                        opacity: 0.55;
-                    }
-                    Chip {
-                        x: T.rtl ? parent.width - self.width - Sp.sm : Sp.sm;
-                        y: Sp.sm;
-                        label: root.combo-label;
-                        tone: Tone.accent;
-                        has-icon: true;
-                        icon: Icons.bag-fill;
-                    }
-                }
-                // ── Footer (name · component count · price) ────────────────
-                footer := Rectangle {
-                    background: T.surface;
-                    height: fcol.preferred-height + 2 * Sp.md;
-                    fcol := VerticalLayout {
-                        x: Sp.md; y: Sp.md;
-                        width: parent.width - 2 * Sp.md;
-                        Text {
-                            text: root.bundle.name;
-                            color: T.text-primary;
-                            font-size: 14px; font-weight: 700;
-                            overflow: elide;
-                        }
-                        Rectangle { height: Sp.xs; }
-                        Text {
-                            text: root.bundle.includes-line;
-                            color: T.text-secondary;
-                            font-size: 11px; font-weight: 400;
-                            overflow: elide;
-                        }
-                        Rectangle { height: Sp.xs; }
-                        Text {
-                            text: root.bundle.price-label;
-                            color: T.accent;
-                            font-size: 14px; font-weight: 800;
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 // ── Skeleton card (pulsing placeholder while the catalog loads) ─────────────
 
 component SkeletonCard {
@@ -875,46 +754,11 @@ component SkeletonCard {
 // gutter 16, aspect kMenuCardAspect 0.94), padding Grid.padding 16.
 
 export component CatalogColumn {
-    property <bool> combos: OrderCatalog.selected-tab == "__combos__";
-
     VerticalLayout {
         CategoryTabs { }
 
-        // ── Combos tab: the bundle grid ────────────────────────────────────
-        if root.combos: bgrid := Flickable {
-            vertical-stretch: 1;
-            property <int> cols: Math.max(1, Math.ceil((self.width - 2 * 16px) / (208px + 16px)));
-            property <length> cell-w: (self.width - 2 * 16px - (self.cols - 1) * 16px) / self.cols;
-            property <length> cell-h: self.cell-w / 0.94;
-            property <int> row-count: Math.ceil(OrderCatalog.bundles.length / self.cols);
-            viewport-height: self.row-count * (self.cell-h + 16px) + 16px;
-            VerticalLayout {
-                padding: 16px;
-                spacing: 16px;
-                for r in bgrid.row-count: HorizontalLayout {
-                    spacing: 16px;
-                    alignment: T.rtl ? end : start;
-                    for c in bgrid.cols: Rectangle {
-                        width: bgrid.cell-w;
-                        height: bgrid.cell-h;
-                        property <int> idx: r * bgrid.cols + c;
-                        if self.idx < OrderCatalog.bundles.length: BundleCard {
-                            width: parent.width; height: parent.height;
-                            bundle: OrderCatalog.bundles[idx];
-                            combo-label: {
-                                // tr(order.combos) — reuse the Combos tab label.
-                                OrderCatalog.tabs.length > 1 && OrderCatalog.tabs[1].id == "__combos__"
-                                    ? OrderCatalog.tabs[1].label : "";
-                            }
-                            clicked => { OrderCatalog.bundle-tapped(OrderCatalog.bundles[idx].id); }
-                        }
-                    }
-                }
-            }
-        }
-
         // ── Items: search + skeleton / empty / grid ────────────────────────
-        if !root.combos: VerticalLayout {
+        VerticalLayout {
             vertical-stretch: 1;
             VerticalLayout {
                 padding: Sp.lg;
@@ -1593,8 +1437,8 @@ export component ItemDetailSheet {
                         Rectangle { height: Sp.md; }
                     }
 
-                    // Notes (hidden in bundle-component configure mode).
-                    if !ItemSheet.configuring: VerticalLayout {
+                    // Notes.
+                    VerticalLayout {
                         OrderSectionTitle { text: ItemSheet.tr-notes; }
                         Rectangle { height: Sp.sm; }
                         OrderField {
@@ -1621,8 +1465,8 @@ export component ItemDetailSheet {
                     }
                     Rectangle { height: Sp.md; }
                     HorizontalLayout {
-                        // Qty stepper — hidden in configure mode.
-                        if !ItemSheet.configuring: HorizontalLayout {
+                        // Qty stepper.
+                        HorizontalLayout {
                             OrderStepButton {
                                 y: (parent.height - self.height) / 2;
                                 glyph: Icons.minus;
@@ -1651,253 +1495,6 @@ export component ItemDetailSheet {
                             btn-enabled: ItemSheet.can-add;
                             loading: ItemSheet.committing;
                             clicked => { ItemSheet.commit(ItemSheet.notes-text); }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ── Bundle sheet pieces ──────────────────────────────────────────────────────
-
-// Base + extras — light sub-rows so the total carries weight.
-component BundleFooterRow {
-    in property <string> label;
-    in property <string> value;
-    preferred-height: Math.max(l.preferred-height, v.preferred-height);
-    min-height: self.preferred-height;
-    l := Text {
-        x: T.rtl ? parent.width - self.preferred-width : 0;
-        text: root.label;
-        color: T.text-secondary;
-        font-size: 13px; font-weight: 500;
-    }
-    v := Text {
-        x: T.rtl ? 0 : parent.width - self.preferred-width;
-        text: root.value;
-        color: T.text-secondary;
-        font-size: 13px; font-weight: 600;
-    }
-}
-
-// A bundle component row — status tile, qty× name + config summary, the
-// chosen extras up-charge, chevron when configurable.
-component ComponentTile {
-    in property <BundleComponentRowData> comp;
-    callback clicked;
-
-    // Leading status tile — navy "included" ✓ when fixed, success ✓ once
-    // configured, an accent slider glyph while it still needs configuring.
-    property <color> tile-bg: !comp.configurable ? T.navy-bg
-        : comp.configured ? T.success-bg : T.accent-bg;
-    property <color> glyph-color: !comp.configurable ? T.navy
-        : comp.configured ? T.success : T.accent;
-
-    preferred-height: trow.preferred-height + 2 * Sp.md;
-    min-height: trow.preferred-height + 2 * Sp.md;
-
-    Press {
-        width: parent.width; height: parent.height;
-        press-scale: 0.99;
-        press-enabled: root.comp.configurable;
-        clicked => { root.clicked(); }
-        Rectangle {
-            width: parent.width; height: parent.height;
-            background: T.surface;
-            border-radius: Rd.md;
-            border-width: 1px;
-            border-color: root.comp.configured ? T.accent.with-alpha(0.4) : T.border-light;
-            drop-shadow-color: T.shadow-card-color;
-            drop-shadow-blur: T.shadow-card-blur;
-            drop-shadow-offset-y: T.shadow-card-dy;
-            trow := HorizontalLayout {
-                x: Sp.md; y: Sp.md;
-                width: parent.width - 2 * Sp.md;
-                spacing: Sp.md;
-                Rectangle {
-                    y: (parent.height - self.height) / 2;
-                    width: 38px; height: 38px; // Metrics.iconTile
-                    border-radius: Rd.sm;
-                    background: root.tile-bg;
-                    Icon {
-                        x: (parent.width - self.width) / 2;
-                        y: (parent.height - self.height) / 2;
-                        width: Ic.md;
-                        source: root.comp.configurable && !root.comp.configured
-                            ? Icons.slider-horizontal-3 : Icons.checkmark-circle-fill;
-                        tint: root.glyph-color;
-                    }
-                }
-                VerticalLayout {
-                    horizontal-stretch: 1;
-                    alignment: center;
-                    Text {
-                        text: root.comp.title;
-                        color: T.text-primary;
-                        font-size: 15px; font-weight: 600; // MadarType.title
-                        overflow: elide;
-                    }
-                    if root.comp.subtitle != "": VerticalLayout {
-                        padding-top: 2px;
-                        Text {
-                            text: root.comp.subtitle;
-                            font-size: 12px;
-                            font-weight: root.comp.configured ? 600 : 500;
-                            color: root.comp.configured ? T.accent : T.text-secondary;
-                            overflow: elide;
-                        }
-                    }
-                }
-                if root.comp.extras-label != "": Text {
-                    vertical-alignment: center;
-                    text: root.comp.extras-label;
-                    color: T.accent;
-                    font-size: 12px; font-weight: 700;
-                }
-                if root.comp.configurable: Icon {
-                    y: (parent.height - self.height) / 2;
-                    width: Ic.sm;
-                    source: Icons.chevron-forward;
-                    tint: T.text-muted;
-                    transform-rotation: T.rtl ? 180deg : 0deg;
-                }
-            }
-        }
-    }
-}
-
-// ── Bundle (combo) configuration sheet. Each configurable component opens
-// the SAME ItemDetailSheet in configure mode (declare ItemDetailSheet AFTER
-// BundleDetailSheet in the screen so it stacks on top). ─────────────────────
-
-export component BundleDetailSheet {
-    bframe := HugSheet {
-        width: parent.width; height: parent.height;
-        open <=> BundleSheet.open;
-        dismissed => { BundleSheet.closed(); }
-
-        VerticalLayout {
-            // ── Header (name + description · price badge · close) ─────────
-            Rectangle {
-                background: T.surface;
-                height: bhrow.preferred-height + 2 * Sp.md + 1px;
-                VerticalLayout {
-                    bhrow := HorizontalLayout {
-                        padding-left: Sp.lg; padding-right: Sp.lg;
-                        padding-top: Sp.md; padding-bottom: Sp.md;
-                        VerticalLayout {
-                            horizontal-stretch: 1;
-                            alignment: start;
-                            Text {
-                                text: BundleSheet.bundle-name;
-                                color: T.text-primary;
-                                font-size: 18px; font-weight: 900;
-                                overflow: elide;
-                            }
-                            if BundleSheet.bundle-description != "": Text {
-                                text: BundleSheet.bundle-description;
-                                color: T.text-secondary;
-                                font-size: 12px; font-weight: 400;
-                                wrap: word-wrap;
-                                overflow: elide;
-                                max-height: 38px; // maxLines: 2
-                            }
-                        }
-                        Rectangle { width: Sp.sm; }
-                        Rectangle {
-                            height: 32px;
-                            width: bprice.preferred-width + 20px;
-                            border-radius: Rd.sm;
-                            background: T.navy-bg;
-                            bprice := Text {
-                                x: (parent.width - self.preferred-width) / 2;
-                                y: (parent.height - self.preferred-height) / 2;
-                                text: BundleSheet.price-label;
-                                color: T.navy;
-                                font-size: 14px; font-weight: 700;
-                            }
-                        }
-                        Rectangle { width: Sp.sm; }
-                        Press {
-                            width: 32px; preferred-height: 32px; min-height: 32px;
-                            clicked => { bframe.close(); }
-                            Rectangle {
-                                width: 32px; height: 32px;
-                                border-radius: Rd.sm;
-                                background: T.surface-alt;
-                                border-width: 1px;
-                                border-color: T.border;
-                                Icon {
-                                    x: (parent.width - self.width) / 2;
-                                    y: (parent.height - self.height) / 2;
-                                    width: Ic.sm;
-                                    source: Icons.xmark;
-                                    tint: T.text-muted;
-                                }
-                            }
-                        }
-                    }
-                    Rectangle { height: 1px; background: T.border; }
-                }
-            }
-
-            // ── Body: the component list ───────────────────────────────────
-            bbody := Flickable {
-                vertical-stretch: 1;
-                preferred-height: bcol.preferred-height;
-                viewport-height: bcol.preferred-height;
-                Rectangle {
-                    width: parent.width;
-                    height: Math.max(bcol.preferred-height, bbody.height);
-                    background: T.surface-alt;
-                }
-                bcol := VerticalLayout {
-                    width: parent.width;
-                    padding: Sp.lg;
-                    alignment: start;
-                    OrderSectionTitle { text: BundleSheet.tr-bundle-includes; }
-                    Rectangle { height: Sp.md; }
-                    for comp[i] in BundleSheet.components: VerticalLayout {
-                        ComponentTile {
-                            comp: comp;
-                            clicked => { BundleSheet.component-tapped(i); }
-                        }
-                        Rectangle { height: Sp.md; }
-                    }
-                }
-            }
-
-            // ── Footer (base + extras · tinted teal total · Add to cart) ──
-            Rectangle {
-                background: T.surface;
-                height: bfcol.preferred-height + 2 * Sp.lg + 1px;
-                VerticalLayout {
-                    Rectangle { height: 1px; background: T.border; }
-                    bfcol := VerticalLayout {
-                        padding: Sp.lg;
-                        BundleFooterRow {
-                            label: BundleSheet.tr-subtotal;
-                            value: BundleSheet.subtotal-value;
-                        }
-                        if BundleSheet.extras-value != "": VerticalLayout {
-                            padding-top: Sp.sm;
-                            BundleFooterRow {
-                                label: BundleSheet.tr-extra;
-                                value: BundleSheet.extras-value;
-                            }
-                        }
-                        Rectangle { height: Sp.sm; }
-                        GrandTotalBlock {
-                            label: BundleSheet.tr-total;
-                            total: BundleSheet.total-value;
-                        }
-                        Rectangle { height: Sp.md; }
-                        OrderActionButton {
-                            label: BundleSheet.footer-cta-label;
-                            btn-enabled: BundleSheet.can-add;
-                            loading: BundleSheet.adding;
-                            clicked => { BundleSheet.add(); }
                         }
                     }
                 }

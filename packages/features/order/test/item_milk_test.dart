@@ -90,7 +90,6 @@ CartLineView _line(List<String> addonIds) => CartLineView(
   unitPriceMinor: 4500,
   qty: 1,
   lineTotalMinor: 4500,
-  bundleComponents: const [],
 );
 
 List<String> _ids(ItemConfigState s) =>

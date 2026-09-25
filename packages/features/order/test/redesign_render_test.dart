@@ -15,7 +15,6 @@ import 'package:app_core/app_core.dart';
 import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/feature_order.dart';
-import 'package:feature_order/src/bundle_detail_sheet.dart';
 import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/sell_cart.dart';
@@ -83,7 +82,6 @@ CartLineView _cartLine(String id, String name, int price, int qty) =>
       unitPriceMinor: price,
       qty: qty,
       lineTotalMinor: price * qty,
-      bundleComponents: const [],
     );
 
 final _cart = <CartLineView>[
@@ -293,8 +291,6 @@ const _en = {
   'ticket.status.ready': 'Ready',
   'order.all': 'All',
   'order.search': 'Search items',
-  'order.combos': 'Combos',
-  'order.configure': 'Configure',
   'order.subtotal': 'Subtotal',
   'order.total': 'Total',
   'order.tax': 'Tax',
@@ -405,11 +401,7 @@ class _FakeBridge implements MadarBridge {
     this.rtl = false,
     this.tillOpen = true,
     this.drafts = _drafts,
-    this.bundles = const [],
   });
-
-  /// The combos the catalog offers — none unless a test needs the chip.
-  final List<BundleView> bundles;
 
   final String role;
 
@@ -536,9 +528,6 @@ class _FakeBridge implements MadarBridge {
       menuReads++;
       return Future<List<MenuItemView>>.value(_items);
     }
-    if (name == #availableBundles) {
-      return Future<List<BundleView>>.value(bundles);
-    }
     // Retargeting the cart parks whatever is in it first and may clear it —
     // both are bridge calls the fake has to answer or the whole flow throws.
     // Recorded, because the ORDER of them is the fix: park, clear, adopt.
@@ -608,11 +597,6 @@ class _FakeBridge implements MadarBridge {
       final id = invocation.namedArguments[#itemId] as String;
       final item = _items.firstWhere((i) => i.id == id);
       _cartOf(invocation).add(_cartLine(id, item.name, item.basePriceMinor, 1));
-      return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
-    }
-    if (name == #cartAddBundle) {
-      final id = invocation.namedArguments[#bundleId] as String;
-      _cartOf(invocation).add(_cartLine(id, 'Combo', 9000, 1));
       return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
     }
     if (name == #fireTicket) {
@@ -1710,20 +1694,6 @@ void _tableOrderTests() {
 
 // ── the add-to-cart flight ─────────────────────────────────────────────────
 
-const _combo = BundleView(
-  id: 'combo',
-  name: 'Breakfast combo',
-  priceMinor: 9000,
-  isAvailable: true,
-  components: [
-    BundleComponentView(
-      itemId: 'croissant',
-      itemName: 'Croissant',
-      quantity: 1,
-    ),
-  ],
-);
-
 /// A stand-in for the app shell's chrome around a tab: a top bar, a side rail
 /// (wide) or a bottom tab bar (narrow), and the tab's own nested navigator in
 /// between — the content area a flight must stay inside.
@@ -1869,13 +1839,8 @@ void _cartFlightTests() {
     for (final (device, size) in [('ipad', _ipad), ('phone', _phone)]) {
       for (final forTable in [false, true]) {
         final where = forTable ? 'a table Sell' : 'the Sell tab';
-        Future<void> open(WidgetTester tester, {_FakeBridge? bridge}) async {
-          await _mount(
-            tester,
-            screen: const TakeawaySellScreen(),
-            size: size,
-            bridge: bridge,
-          );
+        Future<void> open(WidgetTester tester) async {
+          await _mount(tester, screen: const TakeawaySellScreen(), size: size);
           if (!forTable) return;
           Navigator.of(tester.element(find.byType(TakeawaySellScreen))).push(
             MaterialPageRoute<void>(
@@ -1915,24 +1880,6 @@ void _cartFlightTests() {
           await tester.pump(const Duration(milliseconds: 600));
           expect(find.byType(ItemDetailSheet), findsNothing);
         });
-
-        testWidgets('bundle sheet Add on $where, $device', (tester) async {
-          await open(tester, bridge: _FakeBridge(bundles: const [_combo]));
-          await tester.tap(find.widgetWithText(MadarChip, 'Combos'));
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 400));
-          await tester.tap(find.text('Breakfast combo').last);
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 600));
-          final sheet = find.byType(BundleDetailSheet);
-          expect(sheet, findsOneWidget);
-          await tester.tap(
-            find.descendant(of: sheet, matching: find.byType(MadarButton)).last,
-          );
-          await _expectFlight(tester);
-          await tester.pump(const Duration(milliseconds: 600));
-          expect(find.byType(BundleDetailSheet), findsNothing);
-        });
       }
     }
 
@@ -1942,8 +1889,7 @@ void _cartFlightTests() {
     for (final (device, size) in [('ipad', _ipad), ('phone', _phone)]) {
       for (final reduced in [false, true]) {
         final how = reduced ? ', reduced motion' : '';
-        _FakeBridge empty({List<BundleView> bundles = const []}) =>
-            _FakeBridge(bundles: bundles)..carts[null] = [];
+        _FakeBridge empty() => _FakeBridge()..carts[null] = [];
 
         testWidgets('empty cart, first tile quick-add flies, $device$how', (
           tester,
@@ -1992,32 +1938,6 @@ void _cartFlightTests() {
           await _expectFlightOrPulse(tester, reduced: reduced);
           await tester.pump(const Duration(milliseconds: 600));
           expect(find.byType(ItemDetailSheet), findsNothing);
-        });
-
-        testWidgets('empty cart, first bundle sheet Add flies, $device$how', (
-          tester,
-        ) async {
-          await _mount(
-            tester,
-            screen: const TakeawaySellScreen(),
-            size: size,
-            bridge: empty(bundles: const [_combo]),
-            shell: true,
-            reduced: reduced,
-          );
-          await tester.tap(find.widgetWithText(MadarChip, 'Combos'));
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 400));
-          await tester.tap(find.text('Breakfast combo').last);
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 600));
-          final sheet = find.byType(BundleDetailSheet);
-          await tester.tap(
-            find.descendant(of: sheet, matching: find.byType(MadarButton)).last,
-          );
-          await _expectFlightOrPulse(tester, reduced: reduced);
-          await tester.pump(const Duration(milliseconds: 600));
-          expect(find.byType(BundleDetailSheet), findsNothing);
         });
       }
     }

@@ -39,7 +39,6 @@ const _latte = CartLineView(
   unitPriceMinor: 6000,
   qty: 1,
   lineTotalMinor: 6000,
-  bundleComponents: [],
 );
 
 const _totals = CartTotals(
