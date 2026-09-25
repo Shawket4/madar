@@ -233,6 +233,9 @@ pub struct Snapshot {
     /// People on this month's payroll with no salary set (decision #9): the
     /// server's count. Approval is refused while it is above 0.
     pub missing_salary_count: i64,
+    /// Where a bonus or deduction added now lands (minor #27): the first
+    /// month still open, from today's.
+    pub lines_land: LandsV,
     pub suggestions: Vec<SuggestionV>,
     pub holidays: Vec<HolidayV>,
     /// Labour-limit warnings (RU-13): `user|week_start` → core i18n keys + args.
@@ -500,6 +503,17 @@ pub struct ReqV {
     /// Every day it covers is in no approved or paid period: it can still be
     /// cancelled or changed (RQ-4, B13).
     pub month_open: bool,
+}
+
+/// The pay period a new pay line lands in (minor #27).
+#[derive(Serialize, Debug, Default)]
+pub struct LandsV {
+    /// The day it is dated: today, or the first day of the first open month.
+    pub date: String,
+    pub start: String,
+    pub end: String,
+    /// Not this month: this month's payroll is already approved or paid.
+    pub later: bool,
 }
 
 #[derive(Serialize, Debug)]
@@ -1863,11 +1877,21 @@ impl MadarCore {
             }
             Act::AddAdjustment { emp, bonus, amount, reason, pct, recurring } => {
                 let mut body = json!({ "employee_id": emp, "kind": if bonus { "bonus" } else { "deduction" }, "reason": reason, "recurring": recurring });
+                // This month already approved: the first open one (minor #27).
+                if snap.lines_land.later {
+                    body["effective_date"] = json!(snap.lines_land.date);
+                }
                 match pct {
                     Some(p) => body["percent_of_base"] = json!(p),
                     None => body["amount_piastres"] = json!(amount),
                 }
-                let row = self.dawam_srv("POST", "/staff/adjustments", Some(body)).await?;
+                let row = self.dawam_srv("POST", "/staff/adjustments", Some(body)).await.map_err(|e| match e {
+                    // The adder is a manager: never "ask your manager" (minor #27).
+                    CoreError::Server { status, code, .. } if code == "PERIOD_CLOSED" => {
+                        CoreError::Server { status, code, detail: i18n::tr(&locale, "staff.err_period_closed_line") }
+                    }
+                    e => e,
+                })?;
                 // What the server made of it (AD-5): over the adder's limit it
                 // waits for the owner, and the screen must say so, not "Added".
                 filed = Some(filed_of(if bonus { "a|bonus" } else { "a|deduction" }, &row));
@@ -2864,6 +2888,17 @@ impl MadarCore {
         for sh in shifts.iter_mut() {
             sh.month_open = open_span(&sh.date, &sh.date);
         }
+        // A new pay line lands in the first open month (minor #27): dated
+        // today while this month is open, else the next open month's start.
+        let mut lands = today;
+        for _ in 0..24 {
+            if open_span(&lands.to_string(), &lands.to_string()) {
+                break;
+            }
+            lands = period_around(lands, out.settings.period_start_day).1 + Duration::days(1);
+        }
+        let (a, z) = period_around(lands, out.settings.period_start_day);
+        out.lines_land = LandsV { date: lands.to_string(), start: a.to_string(), end: z.to_string(), later: lands != today };
         for r in out.requests.iter_mut() {
             r.month_open = match (r.from.as_deref(), r.to.as_deref()) {
                 (Some(a), z) => open_span(a, z.unwrap_or(a).max(a)),
@@ -5296,6 +5331,57 @@ mod tests {
         within.store(true, Ordering::SeqCst);
         let snap: Value = serde_json::from_str(&core.dawam_do(ask).await.unwrap()).unwrap();
         assert_eq!(snap["filed"]["to_owner"], json!(false));
+    }
+
+    /// Minor #27: a new bonus or deduction lands in the first open month.
+    /// Added after an early approval it was dated today, in the closed
+    /// month, and refused; now it is dated into the next open one, and the
+    /// snapshot says which, for the sheet's "lands in" line.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_new_pay_line_lands_in_the_first_open_month() {
+        use crate::testkit::StubResponse;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        let (a, z) = period_around(today_cairo(), 26);
+        let (na, nz) = period_around(z + Duration::days(1), 26);
+        let closed = Arc::new(AtomicBool::new(true));
+        let c = closed.clone();
+        let (stub, core) = cafe(&["hr.attendance.read", "hr.payroll.run", "hr.adjustments.create"], move |m, p, r| match (m, p) {
+            ("GET", "/staff/payroll/current") => Some(StubResponse::json(200, json!({
+                "period": { "id": "p1", "start_date": a.to_string(), "end_date": z.to_string(),
+                            "status": if c.load(Ordering::SeqCst) { "generated" } else { "draft" } },
+                "preview": [], "payslips": [], "history": [],
+            }))),
+            ("POST", "/staff/adjustments") if r.json()["employee_id"] == "e9" => Some(StubResponse::json(409, json!({
+                "error": "PERIOD_CLOSED: that month's payroll is approved", "code": "PERIOD_CLOSED" }))),
+            ("POST", "/staff/adjustments") => Some(StubResponse::json(201, json!({ "id": "b1", "kind": "bonus", "status": "approved" }))),
+            _ => None,
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(snap["lines_land"], json!({ "date": na.to_string(), "start": na.to_string(), "end": nz.to_string(), "later": true }));
+        // A closed month refused anyway is worded for the manager, not "ask your manager".
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            let err = core.dawam_do(json!({ "action": "add_adjustment", "emp": "e9", "bonus": true, "amount": 5000, "reason": "x" }).to_string()).await.unwrap_err();
+            match err {
+                CoreError::Server { code, detail, .. } => {
+                    assert_eq!(code, "PERIOD_CLOSED");
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_period_closed_line"));
+                }
+                e => panic!("{e:?}"),
+            }
+        }
+        core.set_locale("en".into());
+        let add = json!({ "action": "add_adjustment", "emp": "e4", "bonus": true, "amount": 5000, "reason": "Great week" }).to_string();
+        core.dawam_do(add.clone()).await.unwrap();
+        assert_eq!(posted(&stub, "/staff/adjustments")["effective_date"], json!(na.to_string()), "into the open month");
+
+        closed.store(false, Ordering::SeqCst);
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(snap["lines_land"]["later"], json!(false));
+        core.dawam_do(add).await.unwrap();
+        assert!(posted(&stub, "/staff/adjustments").get("effective_date").is_none(), "this month is open: the server dates it");
     }
 
     /// Owner decision #8 (D8): declining a pay line or an advance says why.

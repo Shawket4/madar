@@ -61,6 +61,8 @@ fn en(key: &str) -> Option<&'static str> {
         // Requests and rules (phase B): the server's closed month, what a
         // request needs before it goes, and what the server made of it.
         "staff.err_period_closed" => "That month's payroll is approved, so it can't change. Ask your manager to add it to the next month.",
+        "staff.err_period_closed_line" => "That month's payroll is approved, so the line can't go in it. Add it to the next month.",
+        "staff.lands_in" => "Lands in the {from} – {to} pay: this month's is approved.",
         "staff.err_advance_over_cap" => "That's over the advance cap: at most {more_piastres} more. Only the owner can approve it.",
         "staff.err_advance_over_cap_no_figures" => "Over the advance cap: only the owner can approve it.",
         "staff.advance_sent_owner_only" => "Sent. It's over your advance cap, so only the owner can approve this.",
@@ -2172,6 +2174,8 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.err_till_only" => "التسجيل بالرقم السري بيتعمل من كاشير الفرع بس.",
         "staff.err_no_till_session" => "افتح الكاشير الأول، وبعدين سجّل بالرقم السري.",
         "staff.err_period_closed" => "مرتبات الشهر ده اتعتمدت، فمينفعش يتغيّر. اطلب من مديرك يضيفه على الشهر اللي جاي.",
+        "staff.err_period_closed_line" => "مرتبات الشهر ده اتعتمدت، فالبند مينفعش يتحط فيه. ضيفه على الشهر اللي جاي.",
+        "staff.lands_in" => "هيتحسب في مرتب {from} – {to}: مرتبات الشهر ده اتعتمدت.",
         "staff.err_advance_over_cap" => "ده فوق حد السلف: أقصى حاجة {more_piastres} كمان. المالك بس هو اللي يقدر يوافق عليه.",
         "staff.err_advance_over_cap_no_figures" => "فوق حد السلف: المالك بس هو اللي يقدر يوافق عليه.",
         "staff.advance_sent_owner_only" => "اتبعت. ده فوق حد السلفة بتاعك، فالمالك بس هو اللي يقدر يوافق عليه.",
