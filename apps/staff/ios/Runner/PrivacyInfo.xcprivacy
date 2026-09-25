@@ -11,7 +11,8 @@
   - SystemBootTime: the core's monotonic clock times offline punches and pings
     between events inside the app (dawam.rs boot_ms, Rust's Instant).
   Collected: the location pings and punches, the phone number and name of the
-  sign-in, and the push token; all linked to the employee, none for tracking.
+  sign-in, the push token, and the notes typed into requests (leave, excuse,
+  swap, advance); all linked to the employee, none for tracking.
 -->
 <plist version="1.0">
 <dict>
@@ -95,6 +96,18 @@
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeDeviceID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherUserContent</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
 			<true/>
 			<key>NSPrivacyCollectedDataTypeTracking</key>

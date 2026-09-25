@@ -216,7 +216,15 @@ void main() {
         r'<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>\s*'
         r'</array>',
       ).allMatches(m).map((x) => x.group(1)).toSet();
-      expect(collected, {'PreciseLocation', 'PhoneNumber', 'Name', 'DeviceID'});
+      // OtherUserContent: the notes typed into leave, excuse, swap and
+      // advance requests (Magd's App Store answers list it too).
+      expect(collected, {
+        'PreciseLocation',
+        'PhoneNumber',
+        'Name',
+        'DeviceID',
+        'OtherUserContent',
+      });
 
       final pbx = _read('ios/Runner.xcodeproj/project.pbxproj');
       expect(pbx, contains('PrivacyInfo.xcprivacy in Resources */,'));
