@@ -13,6 +13,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: write # the format step commits formatting back to the branch
+
 concurrency:
   group: staff-ci-${{ github.ref }}
   cancel-in-progress: true
@@ -22,7 +25,11 @@ jobs:
     name: Analyze + staff tests
     runs-on: ubuntu-latest
     steps:
+      # On a PR, check out the branch itself (not the merge commit) so the
+      # formatting step below can commit to it.
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref || github.ref }}
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -49,11 +56,32 @@ jobs:
             packages/features/dawam_schedule \
             packages/features/dawam_team
 
-      - name: Format check
+      # Formats the Dart code instead of failing on it (owner, 2026-09-25: the
+      # failing format check kept breaking CI). Anything `dart format` changes is
+      # committed back to the branch by github-actions[bot] (main on a push, the
+      # PR branch on a pull request). A push made with GITHUB_TOKEN starts no new
+      # workflow run, so this cannot loop. A PR from a fork cannot be pushed to,
+      # so there it only warns.
+      - name: Format (auto-fix and commit)
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
         run: |
           git ls-files 'apps/staff/*.dart' 'packages/staff_core/*.dart' \
-            'packages/features/dawam_*/*.dart' \
-            | xargs dart format --set-exit-if-changed --output=none
+            'packages/features/dawam_*/*.dart' | xargs dart format > /dev/null
+          if git diff --quiet; then echo "Dart code already formatted."; exit 0; fi
+          echo "dart format changed:"; git diff --stat
+          if [ "$FORK" = "true" ]; then
+            echo "::warning::A fork's branch can't be pushed to: run dart format locally."; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -am "style: dart format (CI)"
+          for i in 1 2 3; do
+            git push -q origin "HEAD:$BRANCH" && { echo "Pushed the formatting to $BRANCH."; exit 0; }
+            git pull -q --rebase origin "$BRANCH" || { git rebase --abort; break; }
+          done
+          echo "::warning::Could not push the formatting to $BRANCH; it will be formatted on the next run."
 
       # The app's own workflows and every screen, AR/EN, phone and tablet.
       # The fixtures under apps/staff/test/fixtures are written by madar-core

@@ -12,6 +12,9 @@ on:
 # is why this workflow checked out a sibling copy; that copy is stale and no
 # longer compiles, so the build is now entirely in-tree.
 
+permissions:
+  contents: write # the format step commits formatting back to the branch
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -22,7 +25,11 @@ jobs:
     # macOS runner: the host test suite dlopen()s the cargo-built .dylib.
     runs-on: macos-26
     steps:
+      # On a PR, check out the branch itself (not the merge commit) so the
+      # formatting step below can commit to it.
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref || github.ref }}
 
       # rust-toolchain.toml pins 1.96.1 and every cross-compile target, so
       # rustup provisions exactly what the app ships with — no drift from
@@ -69,11 +76,31 @@ jobs:
       - name: Analyze
         run: flutter analyze .
 
-      # Not `dart format .` — that walks into the vendored cargokit package,
-      # which carries its own analysis_options and is not ours to restyle.
-      # git ls-files also keeps build outputs and untracked files out.
-      - name: Format check
-        run: git ls-files '*.dart' | grep -v '/cargokit/' | xargs dart format --set-exit-if-changed --output=none
+      # Formats the Dart code instead of failing on it (owner, 2026-09-25: the
+      # failing format check kept breaking CI). Anything `dart format` changes is
+      # committed back to the branch by github-actions[bot] (main on a push, the
+      # PR branch on a pull request). A push made with GITHUB_TOKEN starts no new
+      # workflow run, so this cannot loop. A PR from a fork cannot be pushed to,
+      # so there it only warns.
+      - name: Format (auto-fix and commit)
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+        run: |
+          git ls-files '*.dart' | grep -v '/cargokit/' | xargs dart format > /dev/null
+          if git diff --quiet; then echo "Dart code already formatted."; exit 0; fi
+          echo "dart format changed:"; git diff --stat
+          if [ "$FORK" = "true" ]; then
+            echo "::warning::A fork's branch can't be pushed to: run dart format locally."; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -am "style: dart format (CI)"
+          for i in 1 2 3; do
+            git push -q origin "HEAD:$BRANCH" && { echo "Pushed the formatting to $BRANCH."; exit 0; }
+            git pull -q --rebase origin "$BRANCH" || { git rebase --abort; break; }
+          done
+          echo "::warning::Could not push the formatting to $BRANCH; it will be formatted on the next run."
 
       # 9 bridge smoke tests against the release dylib. The QA-tagged E2E
       # suite self-skips without MADAR_QA_API (needs a live backend).
