@@ -38,4 +38,8 @@ void main() {
       reason: 'not a cover',
     );
   });
+
+  test("a cover's progress runs over its own window", () {
+    expect(shiftLength(cover('confirmed')), 20);
+  });
 }

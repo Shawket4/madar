@@ -18,7 +18,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -2271,7 +2271,18 @@ impl MadarCore {
                         shifts[ix].cover_by = Some(user.clone());
                     }
                 }
-                let (start, end) = owner_ix.map_or_else(|| tp.times_on(d), |ix| (shifts[ix].start, shifts[ix].end));
+                // The cover's own window: the record's scheduled instants at
+                // the branch's time, else the covered shift's, else the block's.
+                let wall = |x: Option<DateTime<Utc>>| {
+                    x.map(|t| {
+                        let l = t.with_timezone(&tz);
+                        i64::from(l.hour() * 60 + l.minute())
+                    })
+                };
+                let (start, end) = match (wall(at(r, "scheduled_start_at")), wall(at(r, "scheduled_end_at"))) {
+                    (Some(a), Some(z)) => (a, z),
+                    _ => owner_ix.map_or_else(|| tp.times_on(d), |ix| (shifts[ix].start, shifts[ix].end)),
+                };
                 shifts.push(ShiftV {
                     id: cid.clone(),
                     emp: Some(user.clone()),
@@ -4896,6 +4907,8 @@ mod tests {
             let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
             let cover = snap["shifts"].as_array().unwrap().iter().find(|x| x["id"] == "cover|cov").cloned().expect("my cover row");
             assert_eq!(cover["cover_status"], json!(status), "the cover's own status");
+            // 07:40Z–08:00Z is 10:40–11:00 in Cairo: 20 minutes, not Morning's 4 h.
+            assert_eq!((cover["start"].clone(), cover["end"].clone()), (json!(640), json!(660)), "{status}: the cover's own window");
         }
         assert_ne!(i18n::tr("en", "staff.cover_not_confirmed"), i18n::tr("ar", "staff.cover_not_confirmed"));
     }
