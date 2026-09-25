@@ -316,7 +316,14 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
               confirmLabel: tr('staff.approve_payroll_confirm'),
               cancelLabel: tr('staff.not_yet'),
             );
-            if (ok) await store.approvePayroll();
+            // Waited for (H2-11): the server's words, or what happened.
+            if (ok) {
+              await attempt(
+                ref,
+                store.approvePayroll,
+                ok: tr('staff.approved_payslips_frozen'),
+              );
+            }
           },
         ),
       ];
