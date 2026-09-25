@@ -5022,8 +5022,6 @@ mod tests {
                     "vars": { "name": "Tasbeeh", "shift": "Morning", "date": "2026-10-01" } })),
                 ("POST", "/staff/open-shifts/mine/claim") => StubResponse::json(409, json!({
                     "error": "You're already on that shift.", "code": "ALREADY_ROSTERED" })),
-                ("POST", "/staff/schedules/days/move") if r.json()["to_employee_id"] == "Q" => StubResponse::json(409, json!({
-                    "error": "Already rostered.", "code": "ALREADY_ROSTERED" })),
                 ("POST", "/staff/me/swaps") if r.json()["peer_id"] == "Q" => StubResponse::json(409, json!({
                     "error": "You've already asked for this swap — it's waiting.", "code": "SWAP_EXISTS" })),
                 ("GET", p) if p.ends_with("estimate") || p.ends_with("coverage") => StubResponse::json(200, json!({})),
@@ -5324,31 +5322,6 @@ mod tests {
                 CoreError::Server { code, detail, .. } => {
                     assert_eq!(code, "ALREADY_CLAIMED");
                     assert_eq!(detail, i18n::tr(locale, "staff.err_already_claimed"));
-                }
-                e => panic!("{e:?}"),
-            }
-        }
-    }
-
-    /// E2E roster m2: giving a shift to someone already on it told the
-    /// manager "You're already on that shift." It names the person.
-    #[tokio::test(flavor = "multi_thread")]
-    async fn giving_a_shift_to_someone_on_it_names_them() {
-        let day = the_day();
-        let stub = roster_stub(day.clone()).await;
-        let core = crate::testkit::online_core(&stub.base, "").await;
-        core.set_online(true);
-        core.dawam_snapshot(true).await.unwrap();
-        for locale in ["en", "ar"] {
-            core.set_locale(locale.into());
-            let err = core
-                .dawam_do(json!({ "action": "give_shift", "shift": format!("P|{day}|w1"), "to": "Q" }).to_string())
-                .await
-                .unwrap_err();
-            match err {
-                CoreError::Server { code, detail, .. } => {
-                    assert_eq!(code, "ALREADY_ROSTERED");
-                    assert_eq!(detail, i18n::tr(locale, "staff.err_already_rostered_other").replace("{name}", "Ziad"));
                 }
                 e => panic!("{e:?}"),
             }

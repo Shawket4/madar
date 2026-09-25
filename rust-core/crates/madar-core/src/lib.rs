@@ -2079,7 +2079,7 @@ impl MadarCore {
             // A pay-out whose expense-advance tag is refused is still a
             // pay-out (D10): sent again at once without the tag.
             Err((e, raw)) => match self.drop_refused_advance_tag(item, &e) {
-                Some(untagged) => self.resend_untagged(&untagged, body_out, seq_out).await,
+                Some(untagged) => self.resend_untagged(&untagged, body_out, seq_out, refusal_out).await,
                 None => {
                     *refusal_out = raw;
                     classify_send(e, idem)
@@ -2089,18 +2089,20 @@ impl MadarCore {
     }
 
     /// The pay-out again, its refused tag dropped (D10). Anything but an ack
-    /// leaves it queued as usual: the payload already carries no tag.
+    /// leaves it queued as usual: the payload already carries no tag. A
+    /// refusal of the plain pay-out is kept for its wording, like any other.
     async fn resend_untagged(
         &self,
         item: &store::OutboxItem,
         body_out: &mut Option<serde_json::Value>,
         seq_out: &mut Option<i64>,
+        refusal_out: &mut Option<(u16, String)>,
     ) -> SendOutcome {
         let (envelope, idem) = match self.replay_envelope(item) {
             Ok(e) => e,
             Err(outcome) => return outcome,
         };
-        match self.api.post_json_seq("/sync/replay", &envelope).await {
+        match self.api.post_json_seq_raw("/sync/replay", &envelope).await {
             Ok((body, sync_seq)) => {
                 *seq_out = sync_seq;
                 if item.op_type == "lan_mirror" && body.trim().is_empty() {
@@ -2114,7 +2116,10 @@ impl MadarCore {
                     None => SendOutcome::Offline,
                 }
             }
-            Err(e) => classify_send(e, idem),
+            Err((e, raw)) => {
+                *refusal_out = raw;
+                classify_send(e, idem)
+            }
         }
     }
 
