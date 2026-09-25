@@ -41,6 +41,14 @@ pub struct ErrorBody {
         skip_serializing_if = "Option::is_none"
     )]
     pub till: Option<Option<serde_json::Value>>,
+    /// The figures of a coded refusal (`CodedVars`), for the client's own wording. Omitted everywhere else.
+    #[serde(
+        rename = "vars",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub vars: Option<Option<serde_json::Value>>,
 }
 
 impl ErrorBody {
@@ -51,6 +59,7 @@ impl ErrorBody {
             error,
             retry_after_seconds: None,
             till: None,
+            vars: None,
         }
     }
 }

@@ -15,10 +15,21 @@ use serde::{Deserialize, Serialize};
 pub struct DecidePay {
     #[serde(rename = "approve")]
     pub approve: bool,
+    /// Why. Required to reject (400 `REASON_REQUIRED`, D8); optional to approve.
+    #[serde(
+        rename = "reason",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reason: Option<Option<String>>,
 }
 
 impl DecidePay {
     pub fn new(approve: bool) -> DecidePay {
-        DecidePay { approve }
+        DecidePay {
+            approve,
+            reason: None,
+        }
     }
 }

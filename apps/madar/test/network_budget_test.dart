@@ -141,6 +141,9 @@ class _CountingBridge implements MadarBridge {
     // touches the network — they are counted like any other call, and the
     // assertion below is on `networkCalls()`, not on the total.
     if (name == #lanPeerCount) return 0;
+    // What to tell the teller about a pay-out's refused advance tag (D10):
+    // a local read the Till makes when the drawer moves.
+    if (name == #takePayOutNotices) return const <String>[];
     if (name == #hasPermission) return true;
     // Everything else: a read the device cannot answer here. The providers
     // treat it as they treat an offline core.

@@ -2076,10 +2076,45 @@ impl MadarCore {
                     _ => SendOutcome::Acked(None),
                 }
             }
-            Err((e, raw)) => {
-                *refusal_out = raw;
-                classify_send(e, idem)
+            // A pay-out whose expense-advance tag is refused is still a
+            // pay-out (D10): sent again at once without the tag.
+            Err((e, raw)) => match self.drop_refused_advance_tag(item, &e) {
+                Some(untagged) => self.resend_untagged(&untagged, body_out, seq_out).await,
+                None => {
+                    *refusal_out = raw;
+                    classify_send(e, idem)
+                }
+            },
+        }
+    }
+
+    /// The pay-out again, its refused tag dropped (D10). Anything but an ack
+    /// leaves it queued as usual: the payload already carries no tag.
+    async fn resend_untagged(
+        &self,
+        item: &store::OutboxItem,
+        body_out: &mut Option<serde_json::Value>,
+        seq_out: &mut Option<i64>,
+    ) -> SendOutcome {
+        let (envelope, idem) = match self.replay_envelope(item) {
+            Ok(e) => e,
+            Err(outcome) => return outcome,
+        };
+        match self.api.post_json_seq("/sync/replay", &envelope).await {
+            Ok((body, sync_seq)) => {
+                *seq_out = sync_seq;
+                if item.op_type == "lan_mirror" && body.trim().is_empty() {
+                    return SendOutcome::Acked(None);
+                }
+                match replay_backend_object(&body) {
+                    Some(v) => {
+                        *body_out = Some(v);
+                        SendOutcome::Acked(None)
+                    }
+                    None => SendOutcome::Offline,
+                }
             }
+            Err(e) => classify_send(e, idem),
         }
     }
 
@@ -13036,7 +13071,9 @@ impl MadarCore {
                 "/auth/staff/otp/request",
                 Some(&serde_json::json!({ "phone": phone })),
             )
-            .await?;
+            .await
+            // A suspended person or business is told why (minor #13).
+            .map_err(|e| self.staff_error(e))?;
         let v: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
         Ok(v["dev_code"].as_str().map(str::to_string))
     }
@@ -13064,7 +13101,8 @@ impl MadarCore {
                     "platform": platform, "model": model,
                 })),
             )
-            .await?;
+            .await
+            .map_err(|e| self.staff_error(e))?;
         let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| CoreError::Internal {
             detail: format!("decode: {e}"),
         })?;
@@ -13238,6 +13276,9 @@ impl MadarCore {
             "ALREADY_DECIDED" => Some("staff.err_already_decided"),
             "FLAG_HANDLED" => Some("staff.err_flag_handled"),
             "FLAG_COVER_CONFIRM_OR_REJECT" => Some("staff.err_flag_cover_confirm_or_reject"),
+            "OWNER_ONLY" => Some("staff.err_owner_only"),
+            "ORG_SUSPENDED" => Some("staff.err_org_suspended"),
+            "REASON_REQUIRED" => Some("staff.err_reason_required"),
             _ => None,
         };
         let locale = self.current_locale();

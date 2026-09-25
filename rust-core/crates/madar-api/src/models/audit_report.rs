@@ -40,6 +40,14 @@ pub struct AuditReport {
         skip_serializing_if = "Option::is_none"
     )]
     pub from: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// Deduction overrides audit only: every waive, unwaive and override event with who, when and why, newest first (at most 500) — the history, so a waiver later undone still shows (owner decision D8, AT-10). Additive.
+    #[serde(
+        rename = "history",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub history: Option<Option<Vec<models::DeductionOverrideEvent>>>,
     #[serde(
         rename = "to",
         default,
@@ -66,6 +74,7 @@ impl AuditReport {
             by_reason,
             entries: None,
             from: None,
+            history: None,
             to: None,
             total_amount_minor,
             total_count,

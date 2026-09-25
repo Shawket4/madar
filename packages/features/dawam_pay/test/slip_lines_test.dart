@@ -46,6 +46,46 @@ void main() {
     });
   }
 
+  // Decision #9: a salary not set is "—" on the slip, never EGP 0.00, and
+  // the Payroll tab says how many people have none and blocks approval.
+  for (final lang in ['en', 'ar']) {
+    test('a salary not set reads "—" and blocks approval · $lang', () {
+      currentLang = lang;
+      final zero = Line('salary', 'Salary', 'المرتب', 0);
+      Slip slip({required bool missing}) => Slip(
+        'e4',
+        DateTime(2026, 8, 26),
+        DateTime(2026, 9, 25),
+        [zero, a],
+        0,
+        0,
+        const {},
+        salaryMissing: missing,
+      );
+      expect(slipLineValue(zero, slip(missing: true)), '—');
+      expect(
+        slipLineValue(a, slip(missing: true)),
+        isNull,
+        reason: 'only the salary line',
+      );
+      expect(
+        slipLineValue(zero, slip(missing: false)),
+        isNull,
+        reason: 'a real 0 is shown as 0',
+      );
+      expect(missingSalaryBanner(0), isNull);
+      final banner = missingSalaryBanner(2)!;
+      expect(banner, contains('2'));
+      expect(
+        banner,
+        coreWord(
+          'staff.payroll_salary_missing',
+          arabic: lang == 'ar',
+        ).replaceAll('{count}', '2'),
+      );
+    });
+  }
+
   test('the PDF lines carry the day too', () async {
     final slip = Slip(
       'e1',

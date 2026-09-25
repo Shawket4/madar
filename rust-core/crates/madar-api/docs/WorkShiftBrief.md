@@ -5,6 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **branch_id** | Option<**uuid::Uuid**> |  | [optional]
+**checkin_window_minutes** | **i32** | How long before its start a check-in opens — the window the server enforces (CL-3), so the app says \"opens at\" the same time. | 
 **crosses_midnight** | **bool** |  | 
 **day_times** | [**Vec<models::DayTime>**](DayTime.md) | Its own times on some weekdays; show that day's times. | 
 **end_time** | **String** |  | 

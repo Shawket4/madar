@@ -7,6 +7,9 @@ Name | Type | Description | Notes
 **amount_piastres** | Option<**i64**> |  | [optional]
 **created_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **created_by** | Option<**uuid::Uuid**> |  | [optional]
+**decided_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
+**decided_by** | Option<**uuid::Uuid**> | Who decided a line that waited for the owner, when, and why (a rejection always says why, D8). | [optional]
+**decision_note** | Option<**String**> |  | [optional]
 **effective_date** | **chrono::NaiveDate** | The month it lands in (the first day of a recurring line, AD-1/AD-3). | 
 **employee_id** | **uuid::Uuid** |  | 
 **employee_name** | **String** |  | 
@@ -17,6 +20,8 @@ Name | Type | Description | Notes
 **overridden_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **percent_of_base** | Option<**f64**> |  | [optional]
 **reason** | **String** |  | 
+**reason_code** | Option<**String**> | A rule-made line's reason as a code and its figures (`late` `{minutes}`, `absent_no_punch`, …), the payslip breakdown's own, so a client words it in its language (AT-13, E2E B-PAY-4). Null for a bonus and for a manual line (its `reason` is what was typed). | [optional]
+**reason_vars** | Option<**serde_json::Value**> |  | [optional]
 **recurring** | **bool** |  | 
 **source** | **String** |  | 
 **status** | **String** | `pending` (waits for the owner) · `approved` · `rejected` | 

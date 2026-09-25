@@ -789,6 +789,10 @@ pub(crate) const STAFF_CODES: &[&str] = &[
     // The till PIN punch (CL-13): only from the branch's till, with a till open.
     "TILL_ONLY",
     "NO_TILL_SESSION",
+    // Only the owner decides it (public holidays, decision #3).
+    "OWNER_ONLY",
+    // The whole business is paused (minor #13): said at sign-in.
+    "ORG_SUSPENDED",
 ];
 
 /// Dawam refusals the app words for the person (`MadarCore::staff_error`).
@@ -809,6 +813,8 @@ pub(crate) const DAWAM_CODES: &[&str] = &[
     "ALREADY_DECIDED",
     "FLAG_HANDLED",
     "FLAG_COVER_CONFIRM_OR_REJECT",
+    // Declining a pay line or an advance says why (decision #8).
+    "REASON_REQUIRED",
 ];
 
 /// Map an HTTP status + raw body to a `CoreError` variant.

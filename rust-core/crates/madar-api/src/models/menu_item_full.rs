@@ -57,6 +57,14 @@ pub struct MenuItemFull {
     pub allowed_addon_ids: Vec<uuid::Uuid>,
     #[serde(rename = "optional_fields")]
     pub optional_fields: Vec<models::OptionalField>,
+    /// How a sale line of this item is priced at the requested branch: madar-catalog's `ItemView` (sizes with their branch prices, the branch's item price, the recipe's swap bases and their candidates, the optional fields). The till prices with it exactly as the order path does. Present on `?full=true` lists; additive, older tills ignore it.
+    #[serde(
+        rename = "pricing",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub pricing: Option<Option<serde_json::Value>>,
     /// How the item is made, in order. Each preset step carries its animation's address and fingerprint, so a device downloads only what its own menu uses and never the whole library.
     #[serde(rename = "recipe_steps", skip_serializing_if = "Option::is_none")]
     pub recipe_steps: Option<Vec<models::RecipeStep>>,
@@ -104,6 +112,7 @@ impl MenuItemFull {
             all_sizes: None,
             allowed_addon_ids,
             optional_fields,
+            pricing: None,
             recipe_steps: None,
             recipes,
             sizes,

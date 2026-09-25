@@ -19,6 +19,7 @@ Name | Type | Description | Notes
 **net_piastres** | **i64** |  | 
 **overtime_minutes** | **i64** |  | 
 **overtime_piastres** | **i64** |  | 
+**salary_missing** | Option<**bool**> | On payroll with no salary set (owner decision D9): everything prices at 0, and approval is refused (409 SALARY_MISSING) until the owner sets it or marks them not on payroll. | [optional]
 **worked_days** | **f64** |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

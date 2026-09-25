@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StopAdjustment {
-    /// Why it stops (AD-9).
+    /// Why it stops (AD-9). Required: blank or missing is a 400.
     #[serde(
         rename = "reason",
         default,

@@ -63,6 +63,9 @@ PushTarget pushTarget(String? key) {
     'overtime_approved' ||
     'overtime_rejected' => (manage: false, tab: 'timesheet'),
     'charge_phone' => (manage: false, tab: 'home'),
+    // Someone was added with no salary (decision #9): the owner's Team,
+    // where that person is.
+    'salary_missing' => (manage: true, tab: 'team'),
     _ => _inbox,
   };
 }

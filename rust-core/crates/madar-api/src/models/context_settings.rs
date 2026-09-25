@@ -35,6 +35,14 @@ pub struct ContextSettings {
     /// The business saved its rules; nobody clocks in before (RU-1, DSH-6).
     #[serde(rename = "rules_saved")]
     pub rules_saved: bool,
+    /// When the rules were first saved; null until then. The sweep never marks absent (or charges) a shift that started before it (B-SETUP-5), so neither does the app (B-ONB-1).
+    #[serde(
+        rename = "rules_saved_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub rules_saved_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
 }
 
 impl ContextSettings {
@@ -59,6 +67,7 @@ impl ContextSettings {
             overtime_night_multiplier,
             period_start_day,
             rules_saved,
+            rules_saved_at: None,
         }
     }
 }

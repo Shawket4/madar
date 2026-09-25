@@ -21,10 +21,13 @@ pub struct Employee {
         skip_serializing_if = "Option::is_none"
     )]
     pub advance_cap_piastres: Option<Option<i64>>,
+    /// What they owe in salary advances (pending ones counted) is within the cap. Never hidden: what a manager sees instead of the cap (D7).
+    #[serde(rename = "advance_within_cap")]
+    pub advance_within_cap: bool,
     /// May sign in to the staff app with a WhatsApp code.
     #[serde(rename = "app_access")]
     pub app_access: bool,
-    /// `None` when the caller may not read this person's pay — see the module docs.
+    /// `None` when the caller may not read this person's pay — see the module docs — or when no salary is set (`salary_set` tells the two apart).
     #[serde(
         rename = "base_salary_piastres",
         default,
@@ -195,6 +198,9 @@ pub struct Employee {
         skip_serializing_if = "Option::is_none"
     )]
     pub role: Option<Option<String>>,
+    /// A salary is on file (owner decision D9): false = \"not set\" (someone a manager added or imported), shown as \"—\" and flagged by payroll. Never hidden: it says nothing about the amount.
+    #[serde(rename = "salary_set")]
+    pub salary_set: bool,
     #[serde(
         rename = "termination_date",
         default,
@@ -216,6 +222,7 @@ pub struct Employee {
 
 impl Employee {
     pub fn new(
+        advance_within_cap: bool,
         app_access: bool,
         branch_ids: Vec<uuid::Uuid>,
         cant_work_days: Vec<i32>,
@@ -227,10 +234,12 @@ impl Employee {
         on_payroll: bool,
         org_id: uuid::Uuid,
         pay_method: String,
+        salary_set: bool,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
     ) -> Employee {
         Employee {
             advance_cap_piastres: None,
+            advance_within_cap,
             app_access,
             base_salary_piastres: None,
             branch_ids,
@@ -262,6 +271,7 @@ impl Employee {
             photo_url: None,
             pref_time: None,
             role: None,
+            salary_set,
             termination_date: None,
             updated_at,
             user_id: None,

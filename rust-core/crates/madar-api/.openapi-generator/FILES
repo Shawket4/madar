@@ -217,6 +217,7 @@ docs/DecideRoster.md
 docs/DecideSuggestion.md
 docs/DecisionOut.md
 docs/DeductionLogRow.md
+docs/DeductionOverrideEvent.md
 docs/DeliveryAddonOption.md
 docs/DeliveryApi.md
 docs/DeliveryChannelSales.md
@@ -1039,6 +1040,7 @@ src/models/decide_roster.rs
 src/models/decide_suggestion.rs
 src/models/decision_out.rs
 src/models/deduction_log_row.rs
+src/models/deduction_override_event.rs
 src/models/delivery_addon_option.rs
 src/models/delivery_channel_sales.rs
 src/models/delivery_menu.rs

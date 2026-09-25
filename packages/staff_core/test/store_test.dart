@@ -74,8 +74,13 @@ class _Backend implements DawamBackend {
   Future<DawamFix?> locate() async => null;
   @override
   Stream<DawamFix> track() => const Stream.empty();
+  int alwaysAsks = 0;
   @override
-  Future<bool> alwaysLocation() async => true;
+  Future<bool> alwaysLocation() async {
+    alwaysAsks++;
+    return true;
+  }
+
   final trackingCalls = <bool>[];
   @override
   Future<void> tracking({required bool on}) async => trackingCalls.add(on);
@@ -204,6 +209,104 @@ void main() {
       store.stop();
     },
   );
+
+  // Decision #8: declining a pay line or an advance says why. The sheet
+  // sends nothing without a reason, then sends the typed one.
+  testWidgets('declining asks why and sends the reason (D8)', (t) async {
+    final (store, backend) = await _store();
+    final adj = Adj(
+      'a|bonus|b1',
+      'e2',
+      50000,
+      'Weekend',
+      'e3',
+      DateTime(2026, 9, 20),
+      DateTime(2026, 8, 26),
+      bonus: true,
+    );
+    await t.pumpWidget(
+      ProviderScope(
+        overrides: [dawamProvider.overrideWith((_) => store)],
+        child: MaterialApp(
+          theme: MadarTheme.light(),
+          home: Consumer(
+            builder: (context, ref, _) => Scaffold(
+              body: TextButton(
+                onPressed: () => declineWithReason(
+                  context,
+                  (why) => store.decideAdj(adj, yes: false, reason: why),
+                ),
+                child: const Text('decline'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.text('decline'));
+    await t.pumpAndSettle();
+    final send = find.widgetWithText(MadarButton, 'staff.decline');
+    await t.tap(send);
+    await t.pump();
+    expect(backend.acts, isEmpty, reason: 'no reason: nothing is sent');
+    await t.enterText(find.byType(TextField), '  Paid twice ');
+    await t.tap(send);
+    await t.pump(const Duration(milliseconds: 50));
+    expect(backend.acts.single, {
+      'action': 'decide_adj',
+      'adj': 'a|bonus|b1',
+      'yes': false,
+      'reason': 'Paid twice',
+    });
+    await t.pump(const Duration(seconds: 3));
+    store.stop();
+  });
+
+  // Minor #12: "Always" location is asked right after the privacy notice,
+  // which already explains tracking, so the first clock-in doesn't wait on
+  // a permission prompt.
+  test('agreeing to the notice asks for Always location at once', () async {
+    final (store, backend) = await _store();
+    expect(backend.alwaysAsks, 0);
+    await store.acceptPrivacy();
+    expect(backend.acts.single['action'], 'accept_privacy');
+    expect(backend.alwaysAsks, 1, reason: 'asked with the notice');
+    expect(store.alwaysLocation, isTrue);
+  });
+
+  // Minor #26: an approved claim that makes a long day comes back with the
+  // limits it breaks; the approver is warned, never blocked.
+  test('an approved claim carries the limits it breaks', () async {
+    final (store, backend) = await _store();
+    backend.answer = () async {
+      final v = jsonDecode(_fixture()) as Map<String, dynamic>;
+      v['filed'] = {
+        'id': 'o|o1',
+        'status': 'approved',
+        'to_owner': false,
+        'warnings': [
+          [
+            'staff.warn_day_hours',
+            {'date': '2026-09-27', 'hours': '8', 'worked': '11'},
+          ],
+        ],
+      };
+      return jsonEncode(v);
+    };
+    await store.decide(
+      Req('o|o1', ReqKind.openShift, 'e4', DateTime(2026, 9, 25)),
+      approve: true,
+    );
+    expect(store.lastWarnings, hasLength(1));
+    expect(store.lastWarnings.single.$1, 'staff.warn_day_hours');
+    expect(store.lastWarnings.single.$2['date'], DateTime(2026, 9, 27));
+    backend.answer = () async => _fixture();
+    await store.decide(
+      Req('o|o2', ReqKind.openShift, 'e4', DateTime(2026, 9, 25)),
+      approve: true,
+    );
+    expect(store.lastWarnings, isEmpty);
+  });
 
   group('attempt waits for the server (06 B1)', () {
     testWidgets('a refusal is shown in the server words, never a success', (
@@ -567,6 +670,11 @@ void main() {
         tab: 'team',
       ));
       expect(pushTarget('staff.n_request'), (manage: true, tab: 'approvals'));
+      // Decision #9: someone added with no salary opens the owner's Team.
+      expect(pushTarget('staff.n_salary_missing'), (
+        manage: true,
+        tab: 'team',
+      ));
       expect(pushTarget('staff.n_week_published'), (
         manage: false,
         tab: 'shifts',

@@ -456,6 +456,8 @@ pub struct ListEmployeesParams {
 #[derive(Clone, Debug)]
 pub struct ListExpenseAdvancesParams {
     pub employee_id: Option<String>,
+    /// Only the expenses logged at this branch (the expense's own branch, AV-9). A branch the caller can't read is refused (403).
+    pub branch_id: Option<String>,
 }
 
 /// struct for passing parameters to the method [`list_open_shifts`]
@@ -5466,6 +5468,9 @@ pub async fn list_expense_advances(
 
     if let Some(ref param_value) = params.employee_id {
         req_builder = req_builder.query(&[("employee_id", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.branch_id {
+        req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());

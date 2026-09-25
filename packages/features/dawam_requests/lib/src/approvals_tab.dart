@@ -147,11 +147,27 @@ class _Who extends StatelessWidget {
 }
 
 class _Decide extends ConsumerWidget {
-  const _Decide({required this.yes, required this.no, this.yesLabel});
+  const _Decide({
+    required this.yes,
+    required this.no,
+    this.yesLabel,
+    this.askWhy = false,
+    this.warnAfterYes = false,
+  });
 
   final Future<void> Function() yes;
-  final Future<void> Function() no;
+
+  /// Declines; `why` is the reason typed when [askWhy].
+  final Future<void> Function(String? why) no;
   final String? yesLabel;
+
+  /// Declining asks why first (a pay line or an advance, decision #8): the
+  /// server refuses a rejection without a reason.
+  final bool askWhy;
+
+  /// An approval can come back with labour limits it breaks (an open-shift
+  /// claim, minor #26): said as a warning, never a block.
+  final bool warnAfterYes;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -166,7 +182,9 @@ class _Decide extends ConsumerWidget {
             variant: MadarButtonVariant.secondary,
             enabled: !offline,
             tooltip: tr('staff.needs_a_connection'),
-            onTap: () => attempt(ref, no, ok: tr('staff.declined')),
+            onTap: () => askWhy
+                ? declineWithReason(context, no)
+                : attempt(ref, () => no(null), ok: tr('staff.declined')),
           ),
         ),
         Expanded(
@@ -176,7 +194,20 @@ class _Decide extends ConsumerWidget {
             glyph: MadarGlyph.check,
             enabled: !offline,
             tooltip: tr('staff.needs_a_connection'),
-            onTap: () => attempt(ref, yes, ok: tr('staff.approved')),
+            onTap: () async {
+              if (!warnAfterYes) {
+                await attempt(ref, yes, ok: tr('staff.approved'));
+                return;
+              }
+              if (!await attempt(ref, yes)) return;
+              final broken = ref.read(dawamProvider).lastWarnings;
+              ref
+                  .read(toastProvider.notifier)
+                  .show(
+                    approvedWithWarnings(broken),
+                    tone: broken.isEmpty ? ChipTone.success : ChipTone.warning,
+                  );
+            },
           ),
         ),
       ],
@@ -218,7 +249,8 @@ class _AdjCard extends ConsumerWidget {
         ),
         _Decide(
           yes: () => store.decideAdj(a, yes: true),
-          no: () => store.decideAdj(a, yes: false),
+          no: (why) => store.decideAdj(a, yes: false, reason: why),
+          askWhy: true,
         ),
       ],
     );
@@ -292,10 +324,11 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
         'date': dayLabel(from),
         'duration': mins(r.minutes),
       }),
-      ReqKind.salaryAdvance => tr('staff.outstanding_cap', {
-        'amount': egp(store.outstandingAdvances(r.emp)),
-        'amount2': egpOrDash(store.advanceCap(r.emp)),
-      }),
+      ReqKind.salaryAdvance => advanceCapLine(
+        store,
+        r.emp,
+        within: r.withinCap,
+      ),
       _ => reqWhen(r),
     };
     return MadarCard.column(
@@ -364,7 +397,9 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
                 : null,
             installments: _inst,
           ),
-          no: () => store.decide(r, approve: false),
+          no: (why) => store.decide(r, approve: false, note: why),
+          askWhy: r.kind == ReqKind.salaryAdvance,
+          warnAfterYes: r.kind == ReqKind.openShift,
           yesLabel: r.kind == ReqKind.cover ? tr('staff.confirm_cover') : null,
         ),
         if (r.kind == ReqKind.cover)
@@ -376,3 +411,14 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
     );
   }
 }
+
+/// "Approved", or "Approved. Mind: …" with the labour limits the approved
+/// day breaks (RU-13, minor #26).
+String approvedWithWarnings(List<(String, Map<String, Object>)> broken) =>
+    broken.isEmpty
+    ? tr('staff.approved')
+    : tr('staff.approved_mind', {
+        'warnings': [
+          for (final (key, args) in broken) tr(key, args),
+        ].join(isAr ? '، ' : '; '),
+      });

@@ -43,6 +43,7 @@ class SlipLines extends ConsumerWidget {
             for (final l in slip.lines)
               _Line(
                 l,
+                value: slipLineValue(l, slip),
                 onTap: open && (l.rule || l.manual != null)
                     ? () => _actions(context, ref, l)
                     : null,
@@ -176,11 +177,24 @@ class SlipLines extends ConsumerWidget {
 String lineLabel(Line l) =>
     l.date == null ? loc(l) : '${loc(l)} · ${dayMonth(l.date!)}';
 
+/// What a line shows in place of its figure: "—" for the salary of someone
+/// with no salary set (decision #9), never EGP 0.00; null = the figure.
+String? slipLineValue(Line l, Slip slip) =>
+    slip.salaryMissing && l.key == 'salary' ? '—' : null;
+
+/// The Payroll tab's warning while [count] people on it have no salary
+/// (decision #9); null when everyone has one.
+String? missingSalaryBanner(int count) =>
+    count > 0 ? tr('staff.payroll_salary_missing', {'count': count}) : null;
+
 class _Line extends StatelessWidget {
-  const _Line(this.l, {this.onTap});
+  const _Line(this.l, {this.onTap, this.value});
 
   final Line l;
   final VoidCallback? onTap;
+
+  /// Shown in place of the figure ("—" for a salary not set).
+  final String? value;
 
   @override
   Widget build(BuildContext context) {
@@ -189,8 +203,8 @@ class _Line extends StatelessWidget {
       children: [
         MadarSummaryLine(
           label: lineLabel(l),
-          minor: l.amount == 0 && l.waived ? null : l.amount,
-          value: l.waived ? tr('staff.waived_short') : null,
+          minor: (l.amount == 0 && l.waived) || value != null ? null : l.amount,
+          value: l.waived ? tr('staff.waived_short') : value,
           currency: 'EGP',
           signed: true,
           strike: l.waived,
@@ -206,6 +220,17 @@ class _Line extends StatelessWidget {
               l.note == null
                   ? tr('staff.waived_short')
                   : tr('staff.waived', {'note': l.note!}),
+              style: MadarType.bodySm.copyWith(
+                color: context.madarColors.textMuted,
+              ),
+            ),
+          )
+        // An overridden amount says why too (AD-6, minor #29).
+        else if (l.note case final note?)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
+            child: Text(
+              note,
               style: MadarType.bodySm.copyWith(
                 color: context.madarColors.textMuted,
               ),

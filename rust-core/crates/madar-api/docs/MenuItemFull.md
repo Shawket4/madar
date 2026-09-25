@@ -23,6 +23,7 @@ Name | Type | Description | Notes
 **all_sizes** | Option<[**Vec<models::ItemSize>**](ItemSize.md)> | Every size row, INCLUDING the synthetic `one_size` one. Additive: this is where price actually lives, and it is what the dashboard's size editor and new POS builds read. An item always has at least one entry. | [optional]
 **allowed_addon_ids** | **Vec<uuid::Uuid>** | Explicit per-item addon allowlist. Empty = no restriction (use org catalog). | 
 **optional_fields** | [**Vec<models::OptionalField>**](OptionalField.md) |  | 
+**pricing** | Option<**serde_json::Value**> | How a sale line of this item is priced at the requested branch: madar-catalog's `ItemView` (sizes with their branch prices, the branch's item price, the recipe's swap bases and their candidates, the optional fields). The till prices with it exactly as the order path does. Present on `?full=true` lists; additive, older tills ignore it. | [optional]
 **recipe_steps** | Option<[**Vec<models::RecipeStep>**](RecipeStep.md)> | How the item is made, in order. Each preset step carries its animation's address and fingerprint, so a device downloads only what its own menu uses and never the whole library. | [optional]
 **recipes** | [**Vec<models::MenuItemRecipe>**](MenuItemRecipe.md) |  | 
 **sizes** | [**Vec<models::ItemSize>**](ItemSize.md) | LEGACY SHAPE — unchanged for clients at or below v0.7.11: the synthetic `one_size` row that now carries a single-price item's price is hidden here, so an old till still sees a size-less item exactly as it did. | 

@@ -29,6 +29,14 @@ pub struct MyAuthz {
     pub capabilities: Vec<String>,
     #[serde(rename = "epoch")]
     pub epoch: i64,
+    /// The capabilities held at EVERY branch of the business — what an org-wide act (a department, a shift block, a public holiday, the rules) needs. `/authz/me` only; absent elsewhere. (E2E B-SETUP-3)
+    #[serde(
+        rename = "everywhere",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub everywhere: Option<Option<Vec<String>>>,
     /// Limits on held capabilities, by key; absent = unlimited.
     #[serde(rename = "limits")]
     pub limits: std::collections::HashMap<String, models::LimitsView>,
@@ -63,6 +71,7 @@ impl MyAuthz {
             branch_id: None,
             capabilities,
             epoch,
+            everywhere: None,
             limits,
             owner,
             platform,

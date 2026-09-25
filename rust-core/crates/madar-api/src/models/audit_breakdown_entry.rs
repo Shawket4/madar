@@ -15,6 +15,14 @@ use serde::{Deserialize, Serialize};
 pub struct AuditBreakdownEntry {
     #[serde(rename = "amount_minor")]
     pub amount_minor: i64,
+    /// A stable code for a label the SERVER wrote (`unspecified`, `correction_request`, `auto_closed`, a void reason), so a client words it in its own language (AT-13, E2E B-PAY-5). Absent for a person's own words (a typed reason, a name): `label` is the text.
+    #[serde(
+        rename = "code",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub code: Option<Option<String>>,
     #[serde(rename = "count")]
     pub count: i64,
     #[serde(rename = "label")]
@@ -25,6 +33,7 @@ impl AuditBreakdownEntry {
     pub fn new(amount_minor: i64, count: i64, label: String) -> AuditBreakdownEntry {
         AuditBreakdownEntry {
             amount_minor,
+            code: None,
             count,
             label,
         }

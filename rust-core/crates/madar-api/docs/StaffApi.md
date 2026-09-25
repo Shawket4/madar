@@ -122,7 +122,7 @@ Method | HTTP request | Description
 [**set_period_status**](StaffApi.md#set_period_status) | **PATCH** /staff/payroll/periods/{id}/status | Reopen an approved month (before anyone is paid) or close a paid one.
 [**set_staff_push_token**](StaffApi.md#set_staff_push_token) | **PUT** /staff/me/push-token | `PUT /staff/me/push-token` — the staff app registers its phone for the employee through the same `push_devices` table as `PUT /push/token` (app = `\"dawam\"`).
 [**staff_sign_out**](StaffApi.md#staff_sign_out) | **POST** /staff/me/sign-out | `POST /staff/me/sign-out` — the staff app signs out (APP-6, 06 B3): this phone's device is revoked, so its token can't be refreshed again, and the employee's Dawam pushes stop at once — a signed-out phone never shows the next person's names or amounts. Idempotent.
-[**stop_adjustment**](StaffApi.md#stop_adjustment) | **POST** /staff/adjustments/{kind}/{id}/stop | Stop a monthly line from the next period on; past payslips keep it (AD-3).
+[**stop_adjustment**](StaffApi.md#stop_adjustment) | **POST** /staff/adjustments/{kind}/{id}/stop | Stop a monthly line from the next period on: the open month and past payslips keep it (AD-3, owner decision D6).
 [**suggestions**](StaffApi.md#suggestions) | **GET** /staff/roster/suggestions | 
 [**team_presence**](StaffApi.md#team_presence) | **GET** /staff/team/presence | Who is in, late, absent or on leave right now.
 [**till_punch**](StaffApi.md#till_punch) | **POST** /staff/attendance/till-punch | A dead or forgotten phone in a Madar org: the person clocks in or out on the branch till with their till PIN (CL-13). Marked `till` (CL-16). The till is at the branch, so there is no geofence to check — which is why it is accepted ONLY from a real till (audit 03 P0): a POS session (never the Dawam app's) on the branch's registered POS device, proven by its credential when it has one, with a till session open on that device at that branch. Online only: a PIN is never queued. Wrong PINs slow down like the till's own sign-in, and the branch's managers are told.
@@ -2038,7 +2038,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_expense_advances
 
-> Vec<models::ExpenseAdvance> list_expense_advances(employee_id)
+> Vec<models::ExpenseAdvance> list_expense_advances(employee_id, branch_id)
 
 
 ### Parameters
@@ -2047,6 +2047,7 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **employee_id** | Option<**uuid::Uuid**> |  |  |
+**branch_id** | Option<**uuid::Uuid**> | Only the expenses logged at this branch (the expense's own branch, AV-9). A branch the caller can't read is refused (403). |  |
 
 ### Return type
 
@@ -3454,7 +3455,7 @@ This endpoint does not need any parameter.
 ## stop_adjustment
 
 > models::Adjustment stop_adjustment(kind, id, stop_adjustment)
-Stop a monthly line from the next period on; past payslips keep it (AD-3).
+Stop a monthly line from the next period on: the open month and past payslips keep it (AD-3, owner decision D6).
 
 ### Parameters
 

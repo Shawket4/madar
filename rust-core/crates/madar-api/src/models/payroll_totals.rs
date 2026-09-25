@@ -24,6 +24,12 @@ pub struct PayrollTotals {
     pub carry_out_piastres: i64,
     #[serde(rename = "deductions_piastres")]
     pub deductions_piastres: i64,
+    /// People on payroll with no salary set (D9); approval waits for them.
+    #[serde(
+        rename = "missing_salary_count",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub missing_salary_count: Option<i64>,
     #[serde(rename = "net_piastres")]
     pub net_piastres: i64,
     #[serde(rename = "overtime_piastres")]
@@ -50,6 +56,7 @@ impl PayrollTotals {
             bonuses_piastres,
             carry_out_piastres,
             deductions_piastres,
+            missing_salary_count: None,
             net_piastres,
             overtime_piastres,
             people,

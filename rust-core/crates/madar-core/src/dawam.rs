@@ -18,7 +18,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -205,6 +205,10 @@ pub struct Snapshot {
     pub self_approves: bool,
     /// Which manager tabs show, from `caps` (PM-4).
     pub tabs: ManageTabs,
+    /// Public holidays are the owner's (decision #3): set or dismissed only
+    /// by someone holding the rules right at every branch. Everyone else
+    /// reads them.
+    pub decides_holidays: bool,
     pub caps: Vec<String>,
     pub my_branches: Vec<String>,
     /// When the mirror last heard from the server (epoch ms; 0 = never).
@@ -229,11 +233,21 @@ pub struct Snapshot {
     pub history: Vec<PeriodV>,
     pub slips: Vec<SlipV>,
     /// Per person: the cap on outstanding advances, and what is outstanding (AV-5).
+    /// The cap only where the server shows it (the salary's visibility).
     pub advance_cap: BTreeMap<String, i64>,
+    /// Per person: what they owe is within the cap, the server's word for
+    /// someone whose cap I may not see (decision #7).
+    pub advance_within: BTreeMap<String, bool>,
     pub outstanding: BTreeMap<String, i64>,
     /// Paid through Dawam. Off (an app-using owner, say): no estimate, no
     /// payslips, but every other screen works.
     pub on_payroll: bool,
+    /// People on this month's payroll with no salary set (decision #9): the
+    /// server's count. Approval is refused while it is above 0.
+    pub missing_salary_count: i64,
+    /// Where a bonus or deduction added now lands (minor #27): the first
+    /// month still open, from today's.
+    pub lines_land: LandsV,
     pub suggestions: Vec<SuggestionV>,
     pub holidays: Vec<HolidayV>,
     /// Labour-limit warnings (RU-13): `user|week_start` → core i18n keys + args.
@@ -370,7 +384,12 @@ pub struct PersonV {
     pub phone: String,
     pub role: String,
     pub branches: Vec<String>,
-    pub salary: i64,
+    /// Monthly salary in piastres; `None` when not set or hidden from me
+    /// (`salary_set` tells which, decision #9). Never a made-up 0.
+    pub salary: Option<i64>,
+    /// A salary is set. False: "not set" (—), payroll can't be approved
+    /// while they are on it. An older server doesn't say: set.
+    pub salary_set: bool,
     pub gender: String,
     pub hired: String,
     pub pay: String,
@@ -413,6 +432,9 @@ pub struct ShiftV {
     /// A cover's own row (`cover|<record>`, the coverer's): whose shift it
     /// covered. The covered person's shift never takes the cover's punches.
     pub cover_of: Option<String>,
+    /// That cover's decision: `pending` · `confirmed` · `rejected` (a
+    /// rejected one is not paid and must not read like a confirmed one).
+    pub cover_status: Option<String>,
     pub in_at: Option<String>,
     pub out_at: Option<String>,
     pub in_method: Option<String>,
@@ -483,6 +505,9 @@ pub struct ReqV {
     pub can_decide: Option<bool>,
     /// A half-day leave's half: `first` or `second` (RQ-8).
     pub leave_half: Option<String>,
+    /// An advance asked for: what would be owed with it is within the cap
+    /// (the server's `within_cap`, decision #7).
+    pub within_cap: Option<bool>,
     /// The work shift (template) a late arrival, early departure or excuse
     /// is for (B4); `None` = the shift its time falls in.
     pub tpl: Option<String>,
@@ -498,6 +523,17 @@ pub struct ReqV {
     /// Every day it covers is in no approved or paid period: it can still be
     /// cancelled or changed (RQ-4, B13).
     pub month_open: bool,
+}
+
+/// The pay period a new pay line lands in (minor #27).
+#[derive(Serialize, Debug, Default)]
+pub struct LandsV {
+    /// The day it is dated: today, or the first day of the first open month.
+    pub date: String,
+    pub start: String,
+    pub end: String,
+    /// Not this month: this month's payroll is already approved or paid.
+    pub later: bool,
 }
 
 #[derive(Serialize, Debug)]
@@ -517,6 +553,13 @@ pub struct AdjV {
     pub period: String,
     pub recurring: bool,
     pub status: String,
+    /// A stopped every-month line's last day (`YYYY-MM-DD`): the end of the
+    /// month that was open when it was stopped (decision #6).
+    pub ends_on: Option<String>,
+    /// A rule-made line (lateness, absence…): "Rule · absence" in the
+    /// phone's language, never "One-off · by —" (minor #30). None for a
+    /// line someone added.
+    pub rule: Option<String>,
 }
 
 #[derive(Serialize, Debug)]
@@ -528,6 +571,8 @@ pub struct AdvanceV {
     pub date: String,
     pub by: String,
     pub collected: i64,
+    /// What they owe is within the cap (the server's `within_cap`).
+    pub within_cap: Option<bool>,
 }
 
 #[derive(Serialize, Debug)]
@@ -576,6 +621,8 @@ pub struct LineV {
     /// The day a bonus or deduction counts on (`YYYY-MM-DD`), so two lines
     /// with the same reason ("Late by 55 minutes") can be told apart (AD-6).
     pub date: Option<String>,
+    /// Why it was waived, or its amount overridden (AD-6, minor #29).
+    pub note: Option<String>,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -589,6 +636,9 @@ pub struct SlipV {
     pub collected: BTreeMap<String, i64>,
     /// The frozen payslip, not the live estimate (PAY-9).
     pub frozen: bool,
+    /// On payroll with no salary set (decision #9): its Salary line reads
+    /// "—", and approval waits until it is set.
+    pub salary_missing: bool,
 }
 
 #[derive(Serialize, Debug)]
@@ -662,7 +712,9 @@ pub enum Act {
         #[serde(default)] pct: Option<f64>,
         #[serde(default)] recurring: bool,
     },
-    DecideAdj { adj: String, yes: bool },
+    /// Declining says why (AD-9, decision #8): the server refuses a
+    /// rejection without a reason.
+    DecideAdj { adj: String, yes: bool, #[serde(default)] reason: Option<String> },
     DeleteAdj { adj: String },
     /// [reason]: why it stops (AD-9); the server refuses a stop without one.
     StopAdj {
@@ -766,12 +818,20 @@ pub(crate) const PUNCH_CODES: &[&str] = &[
     "MODULE_OFF",
     // A clock-out with nothing open (a manager or the till closed it).
     "NOT_CLOCKED_IN",
+    // A colleague is covering this shift (owner decision #1): every way of
+    // punching its owner in is refused, with the coverer's name.
+    "SHIFT_COVERED",
 ];
 
 /// The server's money refusals (E2E money BB2): the body is kept, and the
 /// core words them as `staff.err_<code in lower case>` with the server's
 /// figures, a `*_piastres` figure shown as money in the phone's language.
-pub(crate) const MONEY_CODES: &[&str] = &["ADVANCE_OVER_CAP"];
+pub(crate) const MONEY_CODES: &[&str] = &[
+    "ADVANCE_OVER_CAP",
+    // Approving payroll while someone on it has no salary (decision #9),
+    // with their `names`.
+    "SALARY_MISSING",
+];
 
 /// A money refusal in `locale`, from the server's body (`{error, code,
 /// vars}`); the server's own `error` when the body can't be read or the
@@ -785,6 +845,8 @@ pub(crate) fn money_words(locale: &str, code: &str, body: &str) -> String {
                 Value::Number(n) if k.ends_with("_piastres") => n.as_i64().map_or_else(|| n.to_string(), |p| egp(p, ar)),
                 Value::Number(n) => n.to_string(),
                 Value::String(t) => t.clone(),
+                // A list of names, as a sentence lists them.
+                Value::Array(a) => a.iter().map(|x| x.as_str().map_or_else(|| x.to_string(), str::to_string)).collect::<Vec<_>>().join(if ar { "، " } else { ", " }),
                 other => other.to_string(),
             };
             (k.clone(), text)
@@ -794,7 +856,14 @@ pub(crate) fn money_words(locale: &str, code: &str, body: &str) -> String {
     let key = format!("staff.err_{}", code.to_lowercase());
     let words = i18n::tr(locale, &key);
     let out = fill(&words, &args);
-    if words == key || out.contains('{') { server() } else { out }
+    if words != key && !out.contains('{') {
+        return out;
+    }
+    // Sent without its figures (the cap to a manager, decision #7): the
+    // same refusal with no amounts, when the core has words for that.
+    let bare = format!("{key}_no_figures");
+    let words = i18n::tr(locale, &bare);
+    if v.is_object() && words != bare && !words.contains('{') { words } else { server() }
 }
 
 /// A punch refusal in `locale`, from the server's body (`{error, code,
@@ -2023,7 +2092,13 @@ impl MadarCore {
                             "amount_piastres": amount, "installments": installments.unwrap_or(1),
                             "reason": Some(note).filter(|n| !n.is_empty()),
                         }))).await?;
-                        filed = Some(filed_of("v", &row));
+                        let mut f = filed_of("v", &row);
+                        // Over the cap only the owner can approve it (minor #34):
+                        // the server's `within_cap` on the new advance.
+                        if row.get("within_cap").and_then(Value::as_bool) == Some(false) {
+                            f["to_owner"] = json!(true);
+                        }
+                        filed = Some(f);
                     }
                     // `shift` is MINE, `shift2` the colleague's.
                     "swap" => {
@@ -2121,6 +2196,11 @@ impl MadarCore {
             }
             Act::Decide { req, approve, paid, amount, installments, note } => {
                 let id = tail(&req);
+                // Declining an advance says why (decision #8).
+                let note = note.map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
+                if !approve && req.starts_with("v|") && note.is_none() {
+                    return Err(invalid("staff.say_why_you_decline"));
+                }
                 // Pay is asked only of leave, an excuse and an early departure
                 // (RQ-7); any other kind's decision carries none.
                 let kind = snap.requests.iter().find(|r| r.id == req).map(|r| r.kind.clone()).unwrap_or_default();
@@ -2133,35 +2213,65 @@ impl MadarCore {
                         }
                         (format!("/staff/requests/{id}/decision"), body)
                     }
-                    "v" => (format!("/staff/advances/{id}/review"), json!({ "approve": approve, "amount_piastres": amount, "installments": installments, "note": note })),
+                    "v" => (
+                        format!("/staff/advances/{id}/review"),
+                        json!({ "approve": approve, "amount_piastres": amount, "installments": installments, "reason": note, "note": note }),
+                    ),
                     "w" => (format!("/staff/swaps/{id}/decision"), json!({ "approve": approve })),
                     "o" => (format!("/staff/open-shifts/{id}/decision"), json!({ "approve": approve })),
                     "c" => (format!("/staff/attendance/{id}/cover"), json!({ "approve": approve })),
                     "t" => (format!("/staff/attendance/{id}/overtime"), json!({ "approve": approve })),
                     other => return Err(CoreError::Validation { field: "req".into(), detail: other.into() }),
                 };
-                self.dawam_srv("PATCH", &path, Some(body)).await?;
+                let answer = self.dawam_srv("PATCH", &path, Some(body)).await?;
+                // An approved claim's day against the labour limits (RU-13,
+                // minor #26): a warning for the approver, never a block.
+                let broken: Vec<(String, Value)> = labour_warnings(arr(&answer, "warnings")).into_values().flatten().collect();
+                if req.starts_with("o|") && !broken.is_empty() {
+                    filed = Some(json!({ "id": req, "status": "approved", "to_owner": false, "warnings": broken }));
+                }
             }
             Act::Resolve { flag, how, deduct, reason } => {
                 let mut body = json!({ "action": how });
                 if deduct > 0 { body["amount_piastres"] = json!(deduct); }
                 if let Some(r) = reason.filter(|r| !r.trim().is_empty()) { body["reason"] = json!(r.trim()); }
                 self.dawam_srv("PATCH", &format!("/staff/flags/{flag}"), Some(body)).await?;
+                // Over my deduction limit the line waits for the owner (AD-5,
+                // minor #33): the server's limit, "above it, it waits".
+                let charges = matches!(how.as_str(), "deduct" | "excuse_unpaid");
+                if charges && snap.settings.deduction_limit.is_some_and(|limit| deduct > limit) {
+                    filed = Some(json!({ "id": format!("f|{flag}"), "status": "pending", "to_owner": true }));
+                }
             }
             Act::AddAdjustment { emp, bonus, amount, reason, pct, recurring } => {
                 let mut body = json!({ "employee_id": emp, "kind": if bonus { "bonus" } else { "deduction" }, "reason": reason, "recurring": recurring });
+                // This month already approved: the first open one (minor #27).
+                if snap.lines_land.later {
+                    body["effective_date"] = json!(snap.lines_land.date);
+                }
                 match pct {
                     Some(p) => body["percent_of_base"] = json!(p),
                     None => body["amount_piastres"] = json!(amount),
                 }
-                let row = self.dawam_srv("POST", "/staff/adjustments", Some(body)).await?;
+                let row = self.dawam_srv("POST", "/staff/adjustments", Some(body)).await.map_err(|e| match e {
+                    // The adder is a manager: never "ask your manager" (minor #27).
+                    CoreError::Server { status, code, .. } if code == "PERIOD_CLOSED" => {
+                        CoreError::Server { status, code, detail: i18n::tr(&locale, "staff.err_period_closed_line") }
+                    }
+                    e => e,
+                })?;
                 // What the server made of it (AD-5): over the adder's limit it
                 // waits for the owner, and the screen must say so, not "Added".
                 filed = Some(filed_of(if bonus { "a|bonus" } else { "a|deduction" }, &row));
             }
-            Act::DecideAdj { adj, yes } => {
+            Act::DecideAdj { adj, yes, reason } => {
                 let (_, kind, id) = parts(&adj);
-                self.dawam_srv("PATCH", &format!("/staff/adjustments/{kind}/{id}/decision"), Some(json!({ "approve": yes }))).await?;
+                let mut body = json!({ "approve": yes });
+                if !yes {
+                    let why = reason.map(|r| r.trim().to_string()).filter(|r| !r.is_empty()).ok_or_else(|| invalid("staff.say_why_you_decline"))?;
+                    body["reason"] = json!(why);
+                }
+                self.dawam_srv("PATCH", &format!("/staff/adjustments/{kind}/{id}/decision"), Some(body)).await?;
             }
             Act::DeleteAdj { adj } => {
                 let (_, kind, id) = parts(&adj);
@@ -2446,6 +2556,7 @@ impl MadarCore {
             can_payroll: manage_tabs(&caps).payroll,
             self_approves: caps.iter().any(|c| c == "hr.requests.self_approve"),
             tabs: manage_tabs(&caps),
+            decides_holidays: decides_holidays(&ctx),
             caps,
             fetched_at,
             privacy_accepted: ctx.get("privacy_accepted_at").is_some_and(|x| !x.is_null()),
@@ -2494,7 +2605,8 @@ impl MadarCore {
                 phone: s(p, "phone"),
                 role: role_of(&s(p, "role")).into(),
                 branches: arr(p, "branch_ids").iter().filter_map(Value::as_str).map(str::to_string).collect(),
-                salary: i(p, "base_salary_piastres"),
+                salary: p.get("base_salary_piastres").and_then(Value::as_i64),
+                salary_set: p.get("salary_set").and_then(Value::as_bool).unwrap_or(true),
                 gender: s(p, "gender"),
                 hired: so(p, "hire_date").unwrap_or_else(|| "2000-01-01".into()),
                 pay: so(p, "pay_method").unwrap_or_else(|| "cash".into()),
@@ -2649,11 +2761,23 @@ impl MadarCore {
                         shifts[ix].cover_by = Some(user.clone());
                     }
                 }
-                let (start, end) = owner_ix.map_or_else(|| tp.times_on(d), |ix| (shifts[ix].start, shifts[ix].end));
+                // The cover's own window: the record's scheduled instants at
+                // the branch's time, else the covered shift's, else the block's.
+                let wall = |x: Option<DateTime<Utc>>| {
+                    x.map(|t| {
+                        let l = t.with_timezone(&tz);
+                        i64::from(l.hour() * 60 + l.minute())
+                    })
+                };
+                let (start, end) = match (wall(at(r, "scheduled_start_at")), wall(at(r, "scheduled_end_at"))) {
+                    (Some(a), Some(z)) => (a, z),
+                    _ => owner_ix.map_or_else(|| tp.times_on(d), |ix| (shifts[ix].start, shifts[ix].end)),
+                };
                 shifts.push(ShiftV {
                     id: cid.clone(),
                     emp: Some(user.clone()),
                     cover_of: Some(owner.clone()),
+                    cover_status: so(r, "cover_status"),
                     tpl: wid.clone(),
                     date: d.to_string(),
                     published: true,
@@ -2880,6 +3004,7 @@ impl MadarCore {
                     installments: i(a, "installments").max(1),
                     note: s(a, "reason"),
                     decision_note: so(a, "decision_note"),
+                    within_cap: a.get("within_cap").and_then(Value::as_bool),
                     ..Default::default()
                 });
                 continue;
@@ -2895,12 +3020,16 @@ impl MadarCore {
                 date: so(a, "decided_at").unwrap_or_else(|| s(a, "created_at")),
                 by: actor(so(a, "decided_by")).unwrap_or_default(),
                 collected,
+                within_cap: a.get("within_cap").and_then(Value::as_bool),
             });
         }
         // The cap is the server's figure only (AV-5, AT-3, DW3): no percent
         // maths here — a person the server sends none for (salary hidden
         // from me) has none.
         out.advance_cap.extend(advance_caps(rows("dawam_people")));
+        out.advance_within.extend(
+            rows("dawam_people").iter().filter_map(|p| Some((s(p, "employee_id"), p.get("advance_within_cap")?.as_bool()?))),
+        );
         if let Some(cap) = estimate.get("advance_cap_piastres").and_then(Value::as_i64) {
             out.advance_cap.insert(me.clone(), cap);
         }
@@ -2912,12 +3041,27 @@ impl MadarCore {
         // Absent past its end with nothing to excuse it (the sweep's rule,
         // read ahead of the sweep so the day shows at once).
         let holiday_days: HashSet<String> = rows("dawam_holidays").iter().filter(|h| s(h, "decision") == "holiday").map(|h| s(h, "on_date")).collect();
+        // Nobody is absent before the business saved its rules (B-ONB-1):
+        // not while they are unsaved, nor on a shift that started before the
+        // first save. A server that doesn't send the save time: the plain rule.
+        let judged = |sh: &ShiftV| -> bool {
+            if !out.settings.rules_saved {
+                return false;
+            }
+            match st.get("rules_saved_at") {
+                None => true,
+                Some(v) => {
+                    let saved = v.as_str().and_then(|x| DateTime::parse_from_rfc3339(x).ok()).map(|d| d.with_timezone(&Utc));
+                    saved.zip(shift_start(sh, &tz)).is_some_and(|(saved, start)| start >= saved)
+                }
+            }
+        };
         for sh in shifts.iter_mut() {
             if tpl(&sh.tpl).is_none() {
                 continue;
             }
             let end = shift_end(sh, &tz);
-            if sh.emp.is_some() && sh.published && sh.in_at.is_none() && sh.leave.is_none() && !sh.mission && !holiday_days.contains(&sh.date) && end.is_some_and(|e| e < now) {
+            if sh.emp.is_some() && sh.published && sh.in_at.is_none() && sh.leave.is_none() && !sh.mission && !holiday_days.contains(&sh.date) && end.is_some_and(|e| e < now) && judged(sh) {
                 sh.absent = true;
             }
             if sh.cover_by.is_some() && sh.cover_by.as_deref() != sh.emp.as_deref() {
@@ -2968,10 +3112,14 @@ impl MadarCore {
 
         // Adjustments, expenses, the inbox.
         for a in rows("dawam_adjustments") {
+            // Stop means from next month (decision #6): the server ends the
+            // line on the open period's last day, so it stays active on the
+            // list until that day has passed.
+            let ends_on = date(a, "ends_on");
             let status = match s(a, "status").as_str() {
                 "pending" => "pendingOwner",
                 "rejected" => "rejected",
-                _ if a.get("ends_on").is_some_and(|x| !x.is_null()) => "stopped",
+                _ if ends_on.is_some_and(|e| e < today) => "stopped",
                 _ => "active",
             };
             let pct = a.get("percent_of_base").filter(|x| !x.is_null()).map(|_| f(a, "percent_of_base"));
@@ -2993,6 +3141,8 @@ impl MadarCore {
                 period: s(a, "effective_date"),
                 recurring: b(a, "recurring"),
                 status: status.into(),
+                ends_on: ends_on.map(|d| d.to_string()),
+                rule: rule_label(a, &locale),
             });
         }
         if out.role == "owner" {
@@ -3056,6 +3206,11 @@ impl MadarCore {
         for c in rows("dawam_preview") {
             out.slips.push(slip_of(c, &out.period, i(c, "base_piastres"), false));
         }
+        // The server's count; an older one sends none: the flagged rows.
+        out.missing_salary_count = current
+            .get("missing_salary_count")
+            .and_then(Value::as_i64)
+            .unwrap_or_else(|| out.slips.iter().filter(|x| x.salary_missing).count() as i64);
         if let Some(sl) = estimate.get("slip").filter(|x| x.is_object()) {
             if !out.slips.iter().any(|x| x.emp == s(sl, "employee_id")) {
                 out.slips.push(slip_of(sl, &out.period, i(sl, "base_piastres"), false));
@@ -3162,6 +3317,17 @@ impl MadarCore {
         for sh in shifts.iter_mut() {
             sh.month_open = open_span(&sh.date, &sh.date);
         }
+        // A new pay line lands in the first open month (minor #27): dated
+        // today while this month is open, else the next open month's start.
+        let mut lands = today;
+        for _ in 0..24 {
+            if open_span(&lands.to_string(), &lands.to_string()) {
+                break;
+            }
+            lands = period_around(lands, out.settings.period_start_day).1 + Duration::days(1);
+        }
+        let (a, z) = period_around(lands, out.settings.period_start_day);
+        out.lines_land = LandsV { date: lands.to_string(), start: a.to_string(), end: z.to_string(), later: lands != today };
         for r in out.requests.iter_mut() {
             r.month_open = match (r.from.as_deref(), r.to.as_deref()) {
                 (Some(a), z) => open_span(a, z.unwrap_or(a).max(a)),
@@ -3314,6 +3480,16 @@ pub(crate) fn manage_tabs(caps: &[String]) -> ManageTabs {
     ManageTabs { team: held("team"), approvals: held("approvals"), schedule: held("schedule"), payroll: held("payroll") }
 }
 
+/// Who decides public holidays (decision #3): `hr.rules.edit` held at
+/// every branch, as the server lists it in `caps_everywhere` (the same right
+/// as the rules). A server that doesn't send that list yet: the owner.
+fn decides_holidays(ctx: &Value) -> bool {
+    match ctx.get("caps_everywhere").and_then(Value::as_array) {
+        Some(all) => all.iter().any(|c| c.as_str() == Some("hr.rules.edit")),
+        None => role_of(&s(ctx, "role")) == "owner",
+    }
+}
+
 fn manages(ctx: &Value) -> bool {
     let caps: Vec<String> = arr(ctx, "caps").iter().filter_map(Value::as_str).map(str::to_string).collect();
     let t = manage_tabs(&caps);
@@ -3361,11 +3537,12 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
         manual: None,
         waived: false,
         date: None,
+        note: None,
     });
     let ot = i(s_, "overtime_piastres");
     if ot > 0 {
         let m = i(s_, "overtime_minutes");
-        lines.push(LineV { key: "ot".into(), en: format!("Overtime ({m} min)"), ar: format!("وقت إضافي ({m} د)"), amount: ot, rule: false, manual: None, waived: false, date: None });
+        lines.push(LineV { key: "ot".into(), en: format!("Overtime ({m} min)"), ar: format!("وقت إضافي ({m} د)"), amount: ot, rule: false, manual: None, waived: false, date: None, note: None });
     }
     for l in arr(bd, "bonuses") {
         let (en, ar) = match (s(l, "kind").as_str(), s(l, "reason")) {
@@ -3374,7 +3551,7 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
             (_, r) => (r.clone(), r),
         };
         let id = so(l, "id");
-        lines.push(LineV { key: format!("b|{}", id.clone().unwrap_or_default()), en, ar, amount: i(l, "piastres"), rule: false, manual: id.map(|x| format!("a|bonus|{x}")), waived: false, date: so(l, "effective_date") });
+        lines.push(LineV { key: format!("b|{}", id.clone().unwrap_or_default()), en, ar, amount: i(l, "piastres"), rule: false, manual: id.map(|x| format!("a|bonus|{x}")), waived: false, date: so(l, "effective_date"), note: None });
     }
     for l in arr(bd, "deductions") {
         let carry = s(l, "kind") == "carry";
@@ -3389,6 +3566,7 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
             manual: manual.then(|| format!("a|deduction|{id}")),
             waived: b(l, "waived"),
             date: so(l, "effective_date"),
+            note: so(l, "waive_reason").filter(|_| b(l, "waived")).or_else(|| so(l, "override_reason")).filter(|n| !n.trim().is_empty()),
         });
     }
     let mut collected = BTreeMap::new();
@@ -3398,9 +3576,33 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
             continue;
         }
         collected.insert(s(a, "id"), take);
-        lines.push(LineV { key: format!("adv|{}", s(a, "id")), en: "Advance installment".into(), ar: "قسط سلفة".into(), amount: -take, rule: false, manual: None, waived: false, date: None });
+        lines.push(LineV { key: format!("adv|{}", s(a, "id")), en: "Advance installment".into(), ar: "قسط سلفة".into(), amount: -take, rule: false, manual: None, waived: false, date: None, note: None });
     }
-    SlipV { emp: s(s_, "employee_id"), start: p.start.clone(), end: p.end.clone(), lines, net: i(s_, "net_piastres"), carry_out: i(s_, "carry_out_piastres"), collected, frozen }
+    SlipV {
+        emp: s(s_, "employee_id"),
+        start: p.start.clone(),
+        end: p.end.clone(),
+        lines,
+        net: i(s_, "net_piastres"),
+        carry_out: i(s_, "carry_out_piastres"),
+        collected,
+        frozen,
+        salary_missing: b(s_, "salary_missing"),
+    }
+}
+
+/// What made a rule line (minor #30): "Rule · late", "Rule · absence"…; None
+/// for a line someone added by hand.
+fn rule_label(a: &Value, locale: &str) -> Option<String> {
+    let key = match s(a, "source").as_str() {
+        "" | "manual" => return None,
+        "late_penalty" => "staff.rule_late",
+        "absence" => "staff.rule_absence",
+        "excused_unpaid" => "staff.rule_excuse",
+        "flag" => "staff.rule_flag",
+        _ => "staff.rule",
+    };
+    Some(i18n::tr(locale, key))
 }
 
 /// A deduction's words in [lang]: a rule-made line by the server's
@@ -3745,6 +3947,24 @@ mod tests {
         assert_eq!(sl.lines[0].date, None, "the salary line has no day");
     }
 
+
+    /// Minor #29 (AD-6): a waived line says why. The server's `waive_reason`
+    /// (or an overridden line's `override_reason`) rides the line as `note`.
+    #[test]
+    fn a_waived_line_carries_its_reason() {
+        let p = PeriodV { start: "2026-08-26".into(), end: "2026-09-25".into(), status: "open".into(), ..Default::default() };
+        let c = json!({ "employee_id": "u", "net_piastres": 0, "breakdown": { "deductions": [
+            { "id": "d1", "reason": "Absent", "piastres": 0, "source": "absence", "waived": true, "waive_reason": "Hospital visit" },
+            { "id": "d2", "reason": "Late", "piastres": 2_000, "source": "late_penalty", "override_reason": "Traffic on the ring road" },
+            { "id": "d3", "reason": "Late", "piastres": 5_000, "source": "late_penalty" }
+        ] } });
+        let sl = slip_of(&c, &p, 0, false);
+        let note = |k: &str| sl.lines.iter().find(|l| l.key == k).unwrap().note.clone();
+        assert_eq!(note("d|d1").as_deref(), Some("Hospital visit"));
+        assert_eq!(note("d|d2").as_deref(), Some("Traffic on the ring road"));
+        assert_eq!(note("d|d3"), None);
+        assert_eq!(sl.lines[0].note, None, "the salary line has none");
+    }
 
     /// The whole offline path (APP-8, CL-10, CL-11): clock in and ping with the
     /// server gone, see both on screen at once, then watch them reach the
@@ -4802,6 +5022,8 @@ mod tests {
                     "vars": { "name": "Tasbeeh", "shift": "Morning", "date": "2026-10-01" } })),
                 ("POST", "/staff/open-shifts/mine/claim") => StubResponse::json(409, json!({
                     "error": "You're already on that shift.", "code": "ALREADY_ROSTERED" })),
+                ("POST", "/staff/schedules/days/move") if r.json()["to_employee_id"] == "Q" => StubResponse::json(409, json!({
+                    "error": "Already rostered.", "code": "ALREADY_ROSTERED" })),
                 ("POST", "/staff/me/swaps") if r.json()["peer_id"] == "Q" => StubResponse::json(409, json!({
                     "error": "You've already asked for this swap — it's waiting.", "code": "SWAP_EXISTS" })),
                 ("GET", p) if p.ends_with("estimate") || p.ends_with("coverage") => StubResponse::json(200, json!({})),
@@ -5029,6 +5251,57 @@ mod tests {
         }
     }
 
+    /// Owner decision #7 (D7): a manager never sees the cap (it gives the
+    /// salary away). The server's over-cap refusal to a manager carries no
+    /// figures (`{over_cap: true}`) and reads "only the owner can approve";
+    /// the owner's keeps the figure. The advance cards and the record sheet
+    /// read the server's `within_cap` / `advance_within_cap`, never a cap.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_manager_sees_within_or_over_the_cap_never_the_figure() {
+        use crate::testkit::StubResponse;
+        let manager = r#"{"error":"That's over the advance cap. Only the owner can approve it.","code":"ADVANCE_OVER_CAP","vars":{"over_cap":true}}"#;
+        for lang in ["en", "ar"] {
+            let w = money_words(lang, "ADVANCE_OVER_CAP", manager);
+            assert_eq!(w, i18n::tr(lang, "staff.err_advance_over_cap_no_figures"), "{lang}");
+            assert!(!w.contains('{') && !w.chars().any(|c| c.is_ascii_digit()), "no amounts: {w}");
+        }
+        assert_eq!(money_words("en", "ADVANCE_OVER_CAP", manager), "Over the advance cap: only the owner can approve it.");
+        let owner = r#"{"error":"x","code":"ADVANCE_OVER_CAP","vars":{"over_cap":true,"more_piastres":165000,"more_egp":1650}}"#;
+        assert!(money_words("en", "ADVANCE_OVER_CAP", owner).contains("EGP 1,650.00"), "the owner keeps the figure");
+
+        let (_stub, core) = cafe(&["hr.attendance.read", "hr.advances.decide"], |m, p, _| match (m, p) {
+            ("GET", "/staff/me/context") => Some(StubResponse::json(200, json!({
+                "role": "manager", "org_name": "Nile Café", "caps": ["hr.attendance.read", "hr.advances.decide"],
+                "branches": [{ "id": crate::testkit::BRANCH, "name": "Zamalek", "timezone": "Africa/Cairo" }],
+                "work_shifts": [], "settings": { "period_start_day": 26 },
+                "people": [
+                    { "employee_id": crate::testkit::TELLER, "name": "Sara", "role": "manager", "branch_ids": [crate::testkit::BRANCH] },
+                    { "employee_id": "e4", "name": "Youssef", "role": "employee", "branch_ids": [crate::testkit::BRANCH],
+                      "base_salary_piastres": null, "advance_cap_piastres": null, "advance_within_cap": false },
+                    { "employee_id": "e5", "name": "Laila", "role": "employee", "branch_ids": [crate::testkit::BRANCH],
+                      "base_salary_piastres": null, "advance_cap_piastres": null, "advance_within_cap": true },
+                ],
+            }))),
+            ("GET", "/staff/payroll/advances") => Some(StubResponse::json(200, json!([
+                { "id": "v1", "employee_id": "e4", "status": "pending", "amount_piastres": 200000, "installments": 1,
+                  "created_at": "2026-09-20T09:00:00Z", "cap_piastres": null, "outstanding_piastres": 150000, "within_cap": false },
+                { "id": "v2", "employee_id": "e5", "status": "approved", "amount_piastres": 50000, "installments": 1,
+                  "remaining_piastres": 50000, "created_at": "2026-09-01T09:00:00Z", "cap_piastres": null, "within_cap": true },
+            ]))),
+            _ => None,
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(snap["advance_cap"], json!({}), "no cap figure for a manager");
+        assert_eq!(snap["advance_within"], json!({ "e4": false, "e5": true }));
+        let v1 = snap["requests"].as_array().unwrap().iter().find(|r| r["id"] == "v|v1").unwrap();
+        assert_eq!(v1["within_cap"], json!(false), "the pending advance: over the cap");
+        assert_eq!(snap["advances"][0]["within_cap"], json!(true));
+        for k in ["staff.outstanding_within_cap", "staff.outstanding_over_cap"] {
+            assert_ne!(i18n::tr("ar", k), i18n::tr("en", k), "{k}");
+        }
+    }
+
     /// E2E roster (Omar, iPhone): someone claimed the open shift first and the
     /// toast read "Conflict: Someone already claimed that shift." — the
     /// server's error kind in front, English on an Arabic phone. The kind goes;
@@ -5051,6 +5324,31 @@ mod tests {
                 CoreError::Server { code, detail, .. } => {
                     assert_eq!(code, "ALREADY_CLAIMED");
                     assert_eq!(detail, i18n::tr(locale, "staff.err_already_claimed"));
+                }
+                e => panic!("{e:?}"),
+            }
+        }
+    }
+
+    /// E2E roster m2: giving a shift to someone already on it told the
+    /// manager "You're already on that shift." It names the person.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn giving_a_shift_to_someone_on_it_names_them() {
+        let day = the_day();
+        let stub = roster_stub(day.clone()).await;
+        let core = crate::testkit::online_core(&stub.base, "").await;
+        core.set_online(true);
+        core.dawam_snapshot(true).await.unwrap();
+        for locale in ["en", "ar"] {
+            core.set_locale(locale.into());
+            let err = core
+                .dawam_do(json!({ "action": "give_shift", "shift": format!("P|{day}|w1"), "to": "Q" }).to_string())
+                .await
+                .unwrap_err();
+            match err {
+                CoreError::Server { code, detail, .. } => {
+                    assert_eq!(code, "ALREADY_ROSTERED");
+                    assert_eq!(detail, i18n::tr(locale, "staff.err_already_rostered_other").replace("{name}", "Ziad"));
                 }
                 e => panic!("{e:?}"),
             }
@@ -5147,6 +5445,34 @@ mod tests {
         }
     }
 
+    /// Owner decision #1 (D1): a shift a colleague is covering refuses
+    /// every punch for its owner, 409 `SHIFT_COVERED` `{coverer_name}`. The
+    /// phone and the manager's punch read it in the person's language, with
+    /// the coverer's name, and it is a refusal, never "already held".
+    #[test]
+    fn a_covered_shift_is_refused_with_the_coverers_name() {
+        let tz: chrono_tz::Tz = "Africa/Cairo".parse().unwrap();
+        let body = r#"{"error":"Bassem is covering this shift. A manager ends or rejects the cover first.","code":"SHIFT_COVERED","vars":{"coverer_name":"Bassem"}}"#;
+        let en = punch_words("en", "SHIFT_COVERED", body, tz);
+        let ar = punch_words("ar", "SHIFT_COVERED", body, tz);
+        assert_eq!(en, "Bassem is covering this shift. A manager has to end or reject the cover first.");
+        assert!(ar.contains("Bassem") && !ar.contains("covering"), "{ar}");
+        match crate::net::status_to_error(409, body) {
+            CoreError::Server { status, code, detail } => {
+                assert_eq!((status, code.as_str()), (409, "SHIFT_COVERED"));
+                assert!(detail.contains("\"vars\""), "the coverer's name survives: {detail}");
+            }
+            e => panic!("{e:?}"),
+        }
+        let first_try = store::OutboxItem {
+            seq: 1, id: "p".into(), op_type: "dawam_punch_for".into(), idempotency_key: "p".into(), payload: "{}".into(),
+            event_at: String::new(), status: "inflight".into(), attempts: 0, last_error: None, server_id: None,
+            depends_on_seq: None, next_attempt_at: 0, user_id: None, clock_offset_ms: None, till_id: None,
+            device_id: None, entity_type: None, entity_id: None,
+        };
+        assert!(!conflict_means_held(&first_try, "SHIFT_COVERED"), "a refusal, not a silent done");
+    }
+
     #[test]
     fn every_roster_refusal_and_notice_is_in_both_languages() {
         let keys = ROSTER_CODES.iter().map(|c| format!("staff.err_{}", c.to_lowercase())).chain(
@@ -5228,6 +5554,143 @@ mod tests {
         stub.seen.lock().unwrap().iter().rev().find(|r| r.method != "GET" && r.path.starts_with(path)).expect(path).json()
     }
 
+    /// B-ONB-1: nobody is absent before the business saved its rules. The
+    /// read-ahead marked a missed shift absent from before the first save,
+    /// so the app showed Youssef 6 absences where the server had 5. A shift
+    /// that started before `rules_saved_at` is never absent; while that is
+    /// null (or `rules_saved` is false) none is. A server that doesn't send
+    /// the field keeps the plain rule.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn no_shift_is_absent_before_the_rules_were_saved() {
+        use crate::testkit::{online_core, Stub, StubResponse, BRANCH, TELLER};
+        use std::sync::{Arc, Mutex};
+        let today = today_cairo();
+        let (before, after) = ((today - Duration::days(3)).to_string(), (today - Duration::days(1)).to_string());
+        let saved_at = format!("{}T10:00:00+03:00", today - Duration::days(2));
+        let settings = Arc::new(Mutex::new(json!({ "period_start_day": 26, "rules_saved": true, "rules_saved_at": saved_at })));
+        let answer = settings.clone();
+        let (b, a) = (before.clone(), after.clone());
+        let stub = Stub::start(move |r| {
+            let path = r.path.split('?').next().unwrap_or_default();
+            Some(match path {
+                "/staff/me/context" => StubResponse::json(200, json!({
+                    "role": "employee", "org_name": "Nile Café", "caps": [],
+                    "branches": [{ "id": BRANCH, "name": "Zamalek", "timezone": "Africa/Cairo" }],
+                    "work_shifts": [{ "id": "w1", "name": "Morning", "branch_id": BRANCH, "start_time": "08:00:00", "end_time": "12:00:00" }],
+                    "people": [{ "employee_id": TELLER, "name": "Youssef", "role": "employee", "branch_ids": [BRANCH] }],
+                    "settings": answer.lock().unwrap().clone(),
+                })),
+                "/staff/me/roster" => StubResponse::json(200, json!({
+                    "shifts": [{ "employee_id": TELLER, "date": b, "work_shift_id": "w1" },
+                               { "employee_id": TELLER, "date": a, "work_shift_id": "w1" }],
+                    "team": [], "open_shifts": [], "swaps": [], "unpublished_weeks": [],
+                })),
+                "/health" => StubResponse::text(200, "ok"),
+                p if p.ends_with("estimate") => StubResponse::json(200, json!({})),
+                _ => StubResponse::json(200, json!([])),
+            })
+        })
+        .await;
+        let core = online_core(&stub.base, "").await;
+        core.set_online(true);
+        let absent = |snap: &Value, d: &str| {
+            snap["shifts"].as_array().unwrap().iter().find(|x| x["date"] == d).map(|x| x["absent"].clone()).unwrap()
+        };
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(absent(&snap, &before), json!(false), "before the rules were saved: not absent");
+        assert_eq!(absent(&snap, &after), json!(true), "after: absent");
+
+        *settings.lock().unwrap() = json!({ "period_start_day": 26, "rules_saved": false, "rules_saved_at": null });
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!((absent(&snap, &before), absent(&snap, &after)), (json!(false), json!(false)), "rules never saved: nobody is absent");
+        *settings.lock().unwrap() = json!({ "period_start_day": 26, "rules_saved": true, "rules_saved_at": null });
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!((absent(&snap, &before), absent(&snap, &after)), (json!(false), json!(false)), "no save time yet: nobody is absent");
+        *settings.lock().unwrap() = json!({ "period_start_day": 26, "rules_saved": true });
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!((absent(&snap, &before), absent(&snap, &after)), (json!(true), json!(true)), "an older server: the plain rule");
+    }
+
+    /// Minor #13: signing in while one's account or the whole business is
+    /// suspended says why, in the phone's language: "Your account isn't
+    /// active. Ask your manager." or "This business is paused."
+    #[tokio::test]
+    async fn a_suspended_sign_in_says_why() {
+        let core = crate::testkit::offline_core("http://127.0.0.1:1", "").await;
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            for (body, key) in [
+                (r#"{"error":"This organisation is suspended","code":"ORG_SUSPENDED"}"#, "staff.err_org_suspended"),
+                (r#"{"error":"Employee inactive","code":"EMPLOYEE_INACTIVE"}"#, "staff.err_employee_inactive"),
+            ] {
+                match core.staff_error(crate::net::status_to_error(403, body)) {
+                    CoreError::Forbidden { action, .. } => assert_eq!(action, i18n::tr(lang, key), "{lang}"),
+                    e => panic!("{e:?}"),
+                }
+            }
+        }
+        assert_ne!(i18n::tr("en", "staff.err_org_suspended"), i18n::tr("ar", "staff.err_org_suspended"));
+
+        // Asked at the code request (the server refuses there, so no WhatsApp
+        // is sent), and at the code check.
+        let stub = crate::testkit::Stub::start(|r| {
+            r.path.starts_with("/auth/staff/otp/").then(|| {
+                crate::testkit::StubResponse::json(403, json!({ "error": "This organisation is suspended", "code": "ORG_SUSPENDED" }))
+            })
+        })
+        .await;
+        let core = crate::testkit::offline_core(&stub.base, "").await;
+        core.set_locale("ar".into());
+        let said = |e: CoreError| match e {
+            CoreError::Forbidden { action, .. } => action,
+            e => panic!("{e:?}"),
+        };
+        assert_eq!(said(core.staff_otp_request("01001234567".into()).await.unwrap_err()), i18n::tr("ar", "staff.err_org_suspended"));
+        let verify = core.staff_otp_verify("01001234567".into(), "123456".into(), None, None, None).await.unwrap_err();
+        assert_eq!(said(verify), i18n::tr("ar", "staff.err_org_suspended"));
+    }
+
+    /// Owner decision #3 (D3): public holidays are the owner's, like the
+    /// rules. The actions show only for someone holding `hr.rules.edit` at
+    /// every branch (the server's `caps_everywhere`); a server that doesn't
+    /// send that list yet: the owner. A manager's tap the server refuses
+    /// (403 OWNER_ONLY) reads in the phone's language.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn holidays_are_decided_by_the_owner_only() {
+        let owner = json!({ "role": "owner", "caps": ["hr.rules.edit"] });
+        let manager = json!({ "role": "manager", "caps": ["hr.rules.edit", "hr.schedule.edit"] });
+        assert!(decides_holidays(&owner), "an older server: the owner decides");
+        assert!(!decides_holidays(&manager), "an older server: a manager doesn't, whatever his caps at one branch");
+        let everywhere = json!({ "role": "manager", "caps_everywhere": ["hr.rules.edit"] });
+        assert!(decides_holidays(&everywhere), "the rules right held at every branch decides");
+        let one_branch = json!({ "role": "owner", "caps": ["hr.rules.edit"], "caps_everywhere": [] });
+        assert!(!decides_holidays(&one_branch), "the server's list wins over the role");
+
+        let (_stub, core) = cafe(&["hr.schedule.read", "hr.schedule.edit"], |m, p, _| {
+            (m == "PUT" && p.starts_with("/staff/holidays/")).then(|| {
+                crate::testkit::StubResponse::json(403, json!({ "error": "Only the owner decides public holidays.", "code": "OWNER_ONLY" }))
+            })
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(snap["decides_holidays"], json!(false), "a manager sees holidays read-only");
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            let err = core
+                .dawam_do(json!({ "action": "decide_holiday", "date": "2026-10-06", "decision": "holiday" }).to_string())
+                .await
+                .unwrap_err();
+            match err {
+                CoreError::Forbidden { resource, action } => {
+                    assert_eq!(resource, "OWNER_ONLY");
+                    assert_eq!(action, i18n::tr(lang, "staff.err_owner_only"), "{lang}");
+                }
+                e => panic!("{e:?}"),
+            }
+        }
+        assert_ne!(i18n::tr("en", "staff.err_owner_only"), i18n::tr("ar", "staff.err_owner_only"));
+    }
+
     /// RQ-9 (§3): a correction names the person's OWN record of the shift. A
     /// colleague's cover of it is theirs, and the server refuses it (404). A
     /// shift nobody clocked has no record: the correction names the shift.
@@ -5271,6 +5734,35 @@ mod tests {
         let act = json!({ "action": "file", "kind": "correction", "from": d, "shift": shift }).to_string();
         let err = core.dawam_do(act).await.unwrap_err();
         assert!(format!("{err:?}").contains(&i18n::tr("en", "staff.change_a_time_first")), "{err:?}");
+    }
+
+    /// The cover proof (M-CV-1, M-CV-2): the coverer's own cover row says
+    /// its status (a rejected cover must not read like a confirmed one), and
+    /// it spans the cover's own window, the record's scheduled instants,
+    /// never the block's default day (Home showed "8h 00m" for a 20-minute
+    /// cover when the covered shift was not in the coverer's picture).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_cover_row_has_its_own_status_and_window() {
+        use crate::testkit::{StubResponse, BRANCH, TELLER};
+        let d = today_cairo().to_string();
+        for status in ["pending", "confirmed", "rejected"] {
+            // I covered e4's shift; e4's roster is not in my picture.
+            let cov = json!({ "id": "cov", "employee_id": TELLER, "covered_employee_id": "e4", "business_date": d, "work_shift_id": "w1",
+                "branch_id": BRANCH, "status": "present", "cover_status": status, "check_in_method": "cover",
+                "scheduled_start_at": format!("{d}T07:40:00Z"), "scheduled_end_at": format!("{d}T08:00:00Z"),
+                "check_in_at": format!("{d}T07:41:00Z") });
+            let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+                ("GET", "/staff/me/attendance") => Some(StubResponse::json(200, json!([cov.clone()]))),
+                _ => None,
+            })
+            .await;
+            let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+            let cover = snap["shifts"].as_array().unwrap().iter().find(|x| x["id"] == "cover|cov").cloned().expect("my cover row");
+            assert_eq!(cover["cover_status"], json!(status), "the cover's own status");
+            // 07:40Z–08:00Z is 10:40–11:00 in Cairo: 20 minutes, not Morning's 4 h.
+            assert_eq!((cover["start"].clone(), cover["end"].clone()), (json!(640), json!(660)), "{status}: the cover's own window");
+        }
+        assert_ne!(i18n::tr("en", "staff.cover_not_confirmed"), i18n::tr("ar", "staff.cover_not_confirmed"));
     }
 
     /// E2E (posnotif, requests, clocking): a cover record shared the covered
@@ -5417,6 +5909,303 @@ mod tests {
         let act = json!({ "action": "stop_adj", "adj": "a|bonus|m1", "reason": "moved to a meal card" }).to_string();
         core.dawam_do(act).await.unwrap();
         assert_eq!(posted(&stub, "/staff/adjustments/bonus/m1/stop"), json!({ "reason": "moved to a meal card" }));
+    }
+
+    /// Owner decision #9 (D9): a salary can be "not set" (null), never a
+    /// silent 0. The snapshot tells "not set" (`salary_set` false) from
+    /// "hidden from me" (set, no figure); the payroll preview flags who has
+    /// none and how many, and approving while someone has none is refused
+    /// (409 SALARY_MISSING {names}) in the owner's language, naming them.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_salary_not_set_is_flagged_and_blocks_approval() {
+        use crate::testkit::{StubResponse, BRANCH, TELLER};
+        let (_stub, core) = cafe(&["hr.attendance.read", "hr.payroll.run"], |m, p, _| match (m, p) {
+            ("GET", "/staff/me/context") => Some(StubResponse::json(200, json!({
+                "role": "owner", "org_name": "Nile Café", "caps": ["hr.attendance.read", "hr.payroll.run"],
+                "branches": [{ "id": BRANCH, "name": "Zamalek", "timezone": "Africa/Cairo" }],
+                "work_shifts": [], "settings": { "period_start_day": 26 },
+                "people": [
+                    { "employee_id": TELLER, "name": "Hana", "role": "owner", "branch_ids": [BRANCH], "base_salary_piastres": 0, "salary_set": true },
+                    { "employee_id": "e4", "name": "Youssef", "role": "employee", "branch_ids": [BRANCH], "base_salary_piastres": null, "salary_set": false },
+                    { "employee_id": "e5", "name": "Laila", "role": "employee", "branch_ids": [BRANCH], "base_salary_piastres": 850000, "salary_set": true },
+                    { "employee_id": "e6", "name": "Omar", "role": "manager", "branch_ids": [BRANCH], "base_salary_piastres": null, "salary_set": true },
+                ],
+            }))),
+            ("GET", "/staff/payroll/current") => Some(StubResponse::json(200, json!({
+                "period": { "id": "p9", "start_date": "2026-08-26", "end_date": "2026-09-25", "status": "draft" },
+                "missing_salary_count": 1,
+                "totals": { "missing_salary_count": 1 },
+                "preview": [
+                    { "employee_id": "e4", "base_piastres": 0, "net_piastres": 0, "salary_missing": true, "breakdown": {} },
+                    { "employee_id": "e5", "base_piastres": 850000, "net_piastres": 850000, "salary_missing": false, "breakdown": {} },
+                ],
+                "payslips": [], "history": [],
+            }))),
+            ("POST", "/staff/payroll/periods/p9/generate") => Some(StubResponse::json(409, json!({
+                "error": "Set a salary for Youssef first.", "code": "SALARY_MISSING",
+                "vars": { "names": ["Youssef", "Mona"], "employee_ids": ["e4", "e7"] } }))),
+            _ => None,
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let person = |id: &str| snap["people"].as_array().unwrap().iter().find(|p| p["id"] == id).cloned().unwrap();
+        assert_eq!((person("e4")["salary"].clone(), person("e4")["salary_set"].clone()), (Value::Null, json!(false)), "not set");
+        assert_eq!((person("e6")["salary"].clone(), person("e6")["salary_set"].clone()), (Value::Null, json!(true)), "hidden from me");
+        assert_eq!(person("e5")["salary"], json!(850000));
+        assert_eq!(person(crate::testkit::TELLER)["salary"], json!(0), "a real 0 stays 0");
+        assert_eq!(snap["missing_salary_count"], json!(1));
+        let slip = |id: &str| snap["slips"].as_array().unwrap().iter().find(|x| x["emp"] == id).cloned().unwrap();
+        assert_eq!((slip("e4")["salary_missing"].clone(), slip("e5")["salary_missing"].clone()), (json!(true), json!(false)));
+
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            match core.dawam_do(json!({ "action": "approve_payroll" }).to_string()).await.unwrap_err() {
+                CoreError::Server { code, detail, .. } => {
+                    assert_eq!(code, "SALARY_MISSING");
+                    let sep = if lang == "ar" { "، " } else { ", " };
+                    assert!(detail.contains(&format!("Youssef{sep}Mona")), "{lang}: names them: {detail}");
+                    assert!(!detail.contains('[') && !detail.contains('{'), "{detail}");
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_salary_missing").replace("{names}", &format!("Youssef{sep}Mona")));
+                }
+                e => panic!("{e:?}"),
+            }
+        }
+        let args = json!({ "name": "Youssef", "employee_id": "e4", "by": "Omar" });
+        assert_eq!(
+            notice_text("en", "staff.n_salary_missing", &args),
+            "Omar added Youssef without a salary. Set it before approving payroll."
+        );
+        let n = notice_text("ar", "staff.n_salary_missing", &args);
+        assert!(n.contains("Youssef") && n.contains("Omar") && !n.contains('{'), "{n}");
+        for k in ["staff.payroll_salary_missing", "staff.salary_not_set", "staff.approve_blocked_salary_missing"] {
+            assert_ne!(i18n::tr("ar", k), i18n::tr("en", k), "{k}");
+        }
+    }
+
+    /// Minor #26 (RU-13): approving an open-shift claim that makes a long
+    /// day warns, never blocks. The server answers the decision with the
+    /// labour limits the day now breaks; the core hands them back with the
+    /// picture, as the board's warnings are (key + figures).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn approving_a_claim_returns_the_limits_it_breaks() {
+        use crate::testkit::StubResponse;
+        let day = (today_cairo() + Duration::days(2)).to_string();
+        let d = day.clone();
+        let (_stub, core) = cafe(&["hr.attendance.read", "hr.schedule.edit"], move |m, p, _| match (m, p) {
+            ("PATCH", "/staff/open-shifts/o1/decision") => Some(StubResponse::json(200, json!({ "status": "approved", "warnings": [
+                { "employee_id": "e4", "date": d, "kind": "day_hours", "minutes": 660, "limit_minutes": 480 },
+                { "employee_id": "e4", "date": d, "kind": "presence", "minutes": 780, "limit_minutes": 600 },
+            ] }))),
+            ("PATCH", "/staff/open-shifts/o2/decision") => Some(StubResponse::text(204, "")),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        let snap: Value = serde_json::from_str(&core.dawam_do(json!({ "action": "decide", "req": "o|o1", "approve": true }).to_string()).await.unwrap()).unwrap();
+        assert_eq!(snap["filed"]["id"], "o|o1");
+        assert_eq!(snap["filed"]["warnings"], json!([
+            ["staff.warn_day_hours", { "date": day, "hours": "8", "worked": "11" }],
+            ["staff.warn_presence", { "date": day, "hours": "10", "worked": "13" }],
+        ]));
+        let snap: Value = serde_json::from_str(&core.dawam_do(json!({ "action": "decide", "req": "o|o2", "approve": true }).to_string()).await.unwrap()).unwrap();
+        assert_eq!(snap.get("filed"), None, "an older server's 204 says nothing");
+    }
+
+    /// Minor #33: a deduction from a flag over the manager's deduction limit
+    /// waits for the owner, and the manager is told so, as the bonus and
+    /// deduction sheet does (the limit is the server's, "above it, the
+    /// deduction waits").
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_flag_deduction_over_my_limit_waits_for_the_owner() {
+        use crate::testkit::{StubResponse, BRANCH, TELLER};
+        let (_stub, core) = cafe(&["hr.attendance.read", "hr.deductions.create"], |m, p, _| match (m, p) {
+            ("GET", "/staff/me/context") => Some(StubResponse::json(200, json!({
+                "role": "manager", "org_name": "Nile Café", "caps": ["hr.attendance.read", "hr.deductions.create"],
+                "deduction_limit_piastres": 100_000,
+                "branches": [{ "id": BRANCH, "name": "Zamalek", "timezone": "Africa/Cairo" }],
+                "work_shifts": [], "settings": { "period_start_day": 26 },
+                "people": [
+                    { "employee_id": TELLER, "name": "Sara", "role": "manager", "branch_ids": [BRANCH] },
+                    { "employee_id": "e4", "name": "Youssef", "role": "employee", "branch_ids": [BRANCH] },
+                ],
+            }))),
+            ("PATCH", p) if p.starts_with("/staff/flags/") => Some(StubResponse::json(200, json!({ "id": "f1" }))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        let over = json!({ "action": "resolve", "flag": "f1", "how": "deduct", "deduct": 150_000, "reason": "Left for 3 h" });
+        let snap: Value = serde_json::from_str(&core.dawam_do(over.to_string()).await.unwrap()).unwrap();
+        assert_eq!(snap["filed"]["status"], "pending", "over the limit: waits for the owner");
+        let within = json!({ "action": "resolve", "flag": "f1", "how": "deduct", "deduct": 100_000, "reason": "Left" });
+        let snap: Value = serde_json::from_str(&core.dawam_do(within.to_string()).await.unwrap()).unwrap();
+        assert_eq!(snap.get("filed"), None, "at the limit: done");
+        let ignore = json!({ "action": "resolve", "flag": "f1", "how": "ignore" });
+        let snap: Value = serde_json::from_str(&core.dawam_do(ignore.to_string()).await.unwrap()).unwrap();
+        assert_eq!(snap.get("filed"), None, "no money: nothing waits");
+    }
+
+    /// Minor #34: an employee already over the advance cap may still ask;
+    /// the answer says only the owner can approve it (the server's
+    /// `within_cap` on the new advance, never worked out here).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_advance_asked_over_the_cap_goes_to_the_owner() {
+        use crate::testkit::StubResponse;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        let within = Arc::new(AtomicBool::new(false));
+        let w = within.clone();
+        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("POST", "/staff/me/advances") => Some(StubResponse::json(201, json!({
+                "id": "v9", "status": "pending", "amount_piastres": 50_000, "within_cap": w.load(Ordering::SeqCst),
+            }))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        let ask = json!({ "action": "file", "kind": "salaryAdvance", "amount": 50_000, "installments": 1 }).to_string();
+        let snap: Value = serde_json::from_str(&core.dawam_do(ask.clone()).await.unwrap()).unwrap();
+        assert_eq!(snap["filed"], json!({ "id": "v|v9", "status": "pending", "to_owner": true }), "over the cap: the owner's");
+        within.store(true, Ordering::SeqCst);
+        let snap: Value = serde_json::from_str(&core.dawam_do(ask).await.unwrap()).unwrap();
+        assert_eq!(snap["filed"]["to_owner"], json!(false));
+    }
+
+    /// Minor #27: a new bonus or deduction lands in the first open month.
+    /// Added after an early approval it was dated today, in the closed
+    /// month, and refused; now it is dated into the next open one, and the
+    /// snapshot says which, for the sheet's "lands in" line.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_new_pay_line_lands_in_the_first_open_month() {
+        use crate::testkit::StubResponse;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        let (a, z) = period_around(today_cairo(), 26);
+        let (na, nz) = period_around(z + Duration::days(1), 26);
+        let closed = Arc::new(AtomicBool::new(true));
+        let c = closed.clone();
+        let (stub, core) = cafe(&["hr.attendance.read", "hr.payroll.run", "hr.adjustments.create"], move |m, p, r| match (m, p) {
+            ("GET", "/staff/payroll/current") => Some(StubResponse::json(200, json!({
+                "period": { "id": "p1", "start_date": a.to_string(), "end_date": z.to_string(),
+                            "status": if c.load(Ordering::SeqCst) { "generated" } else { "draft" } },
+                "preview": [], "payslips": [], "history": [],
+            }))),
+            ("POST", "/staff/adjustments") if r.json()["employee_id"] == "e9" => Some(StubResponse::json(409, json!({
+                "error": "PERIOD_CLOSED: that month's payroll is approved", "code": "PERIOD_CLOSED" }))),
+            ("POST", "/staff/adjustments") => Some(StubResponse::json(201, json!({ "id": "b1", "kind": "bonus", "status": "approved" }))),
+            _ => None,
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(snap["lines_land"], json!({ "date": na.to_string(), "start": na.to_string(), "end": nz.to_string(), "later": true }));
+        // A closed month refused anyway is worded for the manager, not "ask your manager".
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            let err = core.dawam_do(json!({ "action": "add_adjustment", "emp": "e9", "bonus": true, "amount": 5000, "reason": "x" }).to_string()).await.unwrap_err();
+            match err {
+                CoreError::Server { code, detail, .. } => {
+                    assert_eq!(code, "PERIOD_CLOSED");
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_period_closed_line"));
+                }
+                e => panic!("{e:?}"),
+            }
+        }
+        core.set_locale("en".into());
+        let add = json!({ "action": "add_adjustment", "emp": "e4", "bonus": true, "amount": 5000, "reason": "Great week" }).to_string();
+        core.dawam_do(add.clone()).await.unwrap();
+        assert_eq!(posted(&stub, "/staff/adjustments")["effective_date"], json!(na.to_string()), "into the open month");
+
+        closed.store(false, Ordering::SeqCst);
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(snap["lines_land"]["later"], json!(false));
+        core.dawam_do(add).await.unwrap();
+        assert!(posted(&stub, "/staff/adjustments").get("effective_date").is_none(), "this month is open: the server dates it");
+    }
+
+    /// Owner decision #8 (D8): declining a pay line or an advance says why.
+    /// The core asks before sending (no call without a reason), sends it
+    /// (`reason` for a pay line; `note` and `reason` for an advance), and
+    /// the server's 400 REASON_REQUIRED reads in the phone's language.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn declining_a_pay_line_or_an_advance_needs_a_reason() {
+        use crate::testkit::StubResponse;
+        let (stub, core) = cafe(&["hr.attendance.read", "hr.payroll.run", "hr.advances.decide"], |m, p, _| match (m, p) {
+            ("GET", "/staff/payroll/advances") => Some(StubResponse::json(200, json!([
+                { "id": "v1", "employee_id": "e4", "status": "pending", "amount_piastres": 200000, "installments": 1,
+                  "created_at": "2026-09-20T09:00:00Z" },
+            ]))),
+            ("PATCH", _) => Some(StubResponse::json(200, json!({}))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        let patches = |stub: &crate::testkit::Stub| stub.seen.lock().unwrap().iter().filter(|r| r.method == "PATCH").count();
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            for act in [
+                json!({ "action": "decide_adj", "adj": "a|bonus|b1", "yes": false }),
+                json!({ "action": "decide_adj", "adj": "a|bonus|b1", "yes": false, "reason": "  " }),
+                json!({ "action": "decide", "req": "v|v1", "approve": false }),
+            ] {
+                match core.dawam_do(act.to_string()).await.unwrap_err() {
+                    CoreError::Validation { detail, .. } => assert_eq!(detail, i18n::tr(lang, "staff.say_why_you_decline"), "{lang} {act}"),
+                    e => panic!("{e:?}"),
+                }
+            }
+        }
+        assert_eq!(patches(&stub), 0, "nothing is sent without a reason");
+        core.dawam_do(json!({ "action": "decide_adj", "adj": "a|bonus|b1", "yes": false, "reason": " Paid twice " }).to_string()).await.unwrap();
+        assert_eq!(posted(&stub, "/staff/adjustments/bonus/b1/decision"), json!({ "approve": false, "reason": "Paid twice" }));
+        core.dawam_do(json!({ "action": "decide_adj", "adj": "a|bonus|b2", "yes": true }).to_string()).await.unwrap();
+        assert_eq!(posted(&stub, "/staff/adjustments/bonus/b2/decision"), json!({ "approve": true }), "approving needs none");
+        core.dawam_do(json!({ "action": "decide", "req": "v|v1", "approve": false, "note": "Owes too much" }).to_string()).await.unwrap();
+        let sent = posted(&stub, "/staff/advances/v1/review");
+        assert_eq!((sent["approve"].clone(), sent["note"].clone(), sent["reason"].clone()), (json!(false), json!("Owes too much"), json!("Owes too much")));
+
+        let refused = r#"{"error":"Say why you're rejecting it.","code":"REASON_REQUIRED"}"#;
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            match core.staff_error(crate::net::status_to_error(400, refused)) {
+                CoreError::Server { status, code, detail } => {
+                    assert_eq!((status, code.as_str()), (400, "REASON_REQUIRED"));
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_reason_required"));
+                }
+                e => panic!("{e:?}"),
+            }
+        }
+        assert_ne!(i18n::tr("en", "staff.err_reason_required"), i18n::tr("ar", "staff.err_reason_required"));
+    }
+
+    /// Owner decision #6 (D6): Stop means from next month. The server ends
+    /// the line at the end of the open period (`ends_on`), so this month
+    /// keeps it: the list shows it active, ending on that day, and only a
+    /// line whose end has passed reads "stopped".
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_stopped_line_stays_active_until_its_month_ends() {
+        use crate::testkit::StubResponse;
+        let (later, gone) = ((today_cairo() + Duration::days(10)).to_string(), (today_cairo() - Duration::days(3)).to_string());
+        let (l, g) = (later.clone(), gone.clone());
+        let (_stub, core) = cafe(&["hr.attendance.read", "hr.adjustments.create"], move |m, p, _| match (m, p) {
+            ("GET", "/staff/adjustments") => Some(StubResponse::json(200, json!([
+                { "id": "m1", "kind": "bonus", "employee_id": "e4", "status": "approved", "recurring": true,
+                  "amount_piastres": 30000, "reason": "Transport", "effective_date": "2026-08-26", "ends_on": l },
+                { "id": "m2", "kind": "bonus", "employee_id": "e4", "status": "approved", "recurring": true,
+                  "amount_piastres": 20000, "reason": "Meal", "effective_date": "2026-07-26", "ends_on": g },
+                { "id": "m3", "kind": "bonus", "employee_id": "e4", "status": "approved", "recurring": true,
+                  "amount_piastres": 10000, "reason": "Phone", "effective_date": "2026-07-26", "ends_on": null },
+            ]))),
+            _ => None,
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let line = |id: &str| snap["adjustments"].as_array().unwrap().iter().find(|a| a["id"] == id).cloned().unwrap();
+        assert_eq!((line("a|bonus|m1")["status"].clone(), line("a|bonus|m1")["ends_on"].clone()), (json!("active"), json!(later)), "this month keeps it");
+        assert_eq!(line("a|bonus|m2")["status"], json!("stopped"), "its last month is over");
+        assert_eq!((line("a|bonus|m3")["status"].clone(), line("a|bonus|m3")["ends_on"].clone()), (json!("active"), Value::Null));
+        for k in ["staff.stops_from_next_month", "staff.stopped_from_next_month", "staff.last_month_ends"] {
+            assert_ne!(i18n::tr("en", k), k);
+            assert_ne!(i18n::tr("ar", k), i18n::tr("en", k), "{k}");
+        }
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -5680,6 +6469,16 @@ mod tests {
             };
             assert_eq!(reason("d1"), json!(i18n::tr(lang, "staff.pay_reason_absent_no_punch")), "{lang}");
             assert_eq!(reason("d2"), json!("Broken glass"), "a typed reason stays as typed");
+            // Minor #30: a rule-made line says so ("Rule · absence"), not
+            // "One-off · by —".
+            let rule = |id: &str| {
+                snap["adjustments"].as_array().unwrap().iter().find(|a| a["id"] == json!(format!("a|deduction|{id}"))).unwrap()["rule"].clone()
+            };
+            assert_eq!(rule("d1"), json!(i18n::tr(lang, "staff.rule_absence")), "{lang}");
+            assert_eq!(rule("d2"), Value::Null, "a line added by hand");
+        }
+        for k in ["staff.rule_absence", "staff.rule_late", "staff.rule_excuse", "staff.rule_flag", "staff.rule"] {
+            assert_ne!(i18n::tr("ar", k), i18n::tr("en", k), "{k}");
         }
         assert_ne!(i18n::tr("ar", "staff.pay_reason_absent_no_punch"), "Absent — no check-in recorded");
     }

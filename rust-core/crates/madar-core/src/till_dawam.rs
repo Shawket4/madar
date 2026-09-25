@@ -6,9 +6,11 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::{CoreError, MadarCore, till};
+use crate::{CoreError, MadarCore, store, till};
 
 const K_BRANCH_PEOPLE: &str = "till_dawam.branch_people";
+/// What the till still has to tell the teller about queued pay-outs.
+const K_PAY_OUT_NOTICES: &str = "till_dawam.pay_out_notices";
 
 /// Someone at this branch, for the pay-out's "who took it" picker.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -83,6 +85,70 @@ impl MadarCore {
             }
             e => e,
         }
+    }
+
+    /// Sentences for the teller about pay-outs sent since the last ask (an
+    /// expense-advance tag the server refused), in the till's language; each
+    /// is said once. Local; no network.
+    pub fn take_pay_out_notices(&self) -> Vec<String> {
+        let kept: Vec<String> =
+            self.store.kv_get(K_PAY_OUT_NOTICES).ok().flatten().and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default();
+        if !kept.is_empty() {
+            let _ = self.store.kv_put(K_PAY_OUT_NOTICES, "[]");
+        }
+        kept
+    }
+
+    /// Owner decision #10: a queued pay-out tagged as an expense advance
+    /// whose TAG the server refuses (403 MODULE_OFF, 403 EMPLOYEE_INACTIVE,
+    /// 404 employee not found) is still a pay-out: the cash left the drawer.
+    /// The tag comes off the queued op (its place in the queue kept), the
+    /// teller is told once to log the advance from the dashboard, and the
+    /// caller re-sends it. `None` for anything else, which is handled as
+    /// before. A peer's LAN backup of the same pay-out drops the tag quietly:
+    /// the till that made it tells its own teller.
+    pub(crate) fn drop_refused_advance_tag(&self, item: &store::OutboxItem, e: &CoreError) -> Option<store::OutboxItem> {
+        let mirror = item.op_type == "lan_mirror";
+        if item.op_type != "cash_movement" && !mirror {
+            return None;
+        }
+        let mut payload: Value = serde_json::from_str(&item.payload).ok()?;
+        if mirror && payload["op"] != "cash_movement" {
+            return None;
+        }
+        let who = payload["request"]["expense_advance_to"].as_str()?.to_string();
+        let reason = match e {
+            CoreError::Forbidden { resource, .. } if resource == "EMPLOYEE_INACTIVE" => "till.advance_tag_inactive",
+            CoreError::Server { status: 403, code, .. } if code == "EMPLOYEE_INACTIVE" => "till.advance_tag_inactive",
+            CoreError::Server { status: 403, code, .. } if code == "MODULE_OFF" => "till.advance_tag_dawam_off",
+            // Only the tag's own 404: a pay-out on a till the server lacks is
+            // not this, and keeps its tag.
+            CoreError::Server { status: 404, detail, .. } if detail.to_lowercase().contains("employee") => "till.advance_tag_unknown",
+            _ => return None,
+        };
+        payload["request"].as_object_mut()?.remove("expense_advance_to");
+        let text = payload.to_string();
+        self.store.set_payload(item.seq, &text).ok()?;
+        if !mirror {
+            let locale = self.current_locale();
+            let name = self
+                .store
+                .kv_get(K_BRANCH_PEOPLE)
+                .ok()
+                .flatten()
+                .and_then(|j| serde_json::from_str::<Vec<BranchPersonView>>(&j).ok())
+                .and_then(|people| people.into_iter().find(|p| p.employee_id == who).map(|p| p.name))
+                .unwrap_or_else(|| crate::i18n::tr(&locale, "till.advance_tag_someone"));
+            let why = crate::i18n::tr(&locale, reason).replace("{name}", &name);
+            let said = crate::i18n::tr(&locale, "till.advance_tag_refused").replace("{reason}", &why);
+            let mut kept: Vec<String> =
+                self.store.kv_get(K_PAY_OUT_NOTICES).ok().flatten().and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default();
+            kept.push(said);
+            let _ = self.store.kv_put(K_PAY_OUT_NOTICES, &serde_json::to_string(&kept).unwrap_or_default());
+        }
+        self.push_diag("warn", format!("pay-out kept without its expense-advance tag: {reason}"));
+        self.store.emit_changes(crate::changes::tables_for_op("cash_movement"));
+        Some(store::OutboxItem { payload: text, ..item.clone() })
     }
 
     /// This branch's staff; the last list when offline.
@@ -230,6 +296,117 @@ mod tests {
         let ar = said(core.till_punch("1111".into()).await.unwrap_err());
         assert_eq!(ar, crate::i18n::tr("ar", "staff.err_module_off"));
         assert_ne!(ar, "staff.err_module_off", "the Arabic table has the words");
+    }
+
+    /// Owner decision #1 (D1): a PIN punch on a shift a colleague is
+    /// covering is refused (409 SHIFT_COVERED) and the till says who is
+    /// covering it, in the till's language.
+    #[tokio::test]
+    async fn a_pin_punch_on_a_covered_shift_names_the_coverer() {
+        let stub = Stub::start(|r| {
+            (r.path == "/staff/attendance/till-punch").then(|| {
+                StubResponse::json(409, json!({ "error": "Bassem is covering this shift. A manager ends or rejects the cover first.",
+                    "code": "SHIFT_COVERED", "vars": { "coverer_name": "Bassem" } }))
+            })
+        })
+        .await;
+        let core = testkit::online_core(&stub.base, "").await;
+        let said = |e: crate::CoreError| match e {
+            crate::CoreError::Validation { detail, .. } => detail,
+            e => panic!("{e:?}"),
+        };
+        let en = said(core.till_punch("1111".into()).await.unwrap_err());
+        assert_eq!(en, crate::i18n::tr("en", "staff.err_shift_covered").replace("{coverer_name}", "Bassem"));
+        core.set_locale("ar".into());
+        let ar = said(core.till_punch("1111".into()).await.unwrap_err());
+        assert_eq!(ar, crate::i18n::tr("ar", "staff.err_shift_covered").replace("{coverer_name}", "Bassem"));
+        assert!(core.current_session().is_some(), "a refusal signs nobody out");
+    }
+
+    /// Owner decision #10 (D10): the cash of a pay-out tagged as an expense
+    /// advance has left the drawer, so when the server refuses the TAG
+    /// (Dawam off, the person inactive or unknown) the pay-out is still
+    /// recorded: the core re-sends it without the tag, the queue never
+    /// holds it stuck, and the till is told once, in its language, to log
+    /// the advance from the dashboard.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_refused_advance_tag_keeps_the_pay_out_and_drops_the_tag() {
+        const AMAL: &str = "00000000-0000-0000-0000-00000000a3a1";
+        let cases = [
+            (403, json!({ "error": "That person isn't an active employee.", "code": "EMPLOYEE_INACTIVE", "vars": { "status": "suspended" } }), "till.advance_tag_inactive"),
+            (403, json!({ "error": "Expense advances need Dawam switched on.", "code": "MODULE_OFF", "vars": { "module": "dawam" } }), "till.advance_tag_dawam_off"),
+            (404, json!({ "error": "Not found: Employee not found" }), "till.advance_tag_unknown"),
+        ];
+        for (status, refusal, reason) in cases {
+            for lang in ["en", "ar"] {
+                let answer = refusal.clone();
+                let stub = Stub::start(move |r| {
+                    if r.path != "/sync/replay" {
+                        return Some(StubResponse::hangup());
+                    }
+                    let env = r.json();
+                    let tagged = env["request"].get("expense_advance_to").is_some_and(|x| !x.is_null());
+                    Some(match env["op"].as_str() {
+                        Some("cash_movement") if tagged => StubResponse::json(status, answer.clone()),
+                        Some("cash_movement") => StubResponse::json(201, json!({
+                            "id": "00000000-0000-0000-0000-00000000c001", "client_ref": env["request"]["client_ref"],
+                            "till_id": env["till_id"], "amount": env["request"]["amount"], "kind": "pay_out",
+                            "note": env["request"]["note"], "created_at": env["request"]["created_at"],
+                        })),
+                        _ => StubResponse::json(200, json!({})),
+                    })
+                })
+                .await;
+                let core = testkit::online_core(&stub.base, "").await;
+                core.set_locale(lang.into());
+                core.store.kv_put(super::K_BRANCH_PEOPLE, &json!([{ "employee_id": AMAL, "name": "Amal" }]).to_string()).unwrap();
+                core.open_till(10_000, None).await.unwrap();
+                let mv = core.record_expense_advance(5_000, "Milk".into(), AMAL.into()).await.unwrap();
+                core.drain_outbox().await.unwrap();
+                core.drain_outbox().await.unwrap();
+
+                let sent: Vec<serde_json::Value> =
+                    stub.requests("/sync/replay").iter().map(|r| r.json()).filter(|e| e["op"] == "cash_movement").collect();
+                assert_eq!(sent.len(), 2, "{reason}/{lang}: tagged, then once without the tag");
+                assert_eq!(sent[0]["request"]["expense_advance_to"], json!(AMAL));
+                assert!(sent[1]["request"].get("expense_advance_to").is_none_or(|x| x.is_null()), "{reason}: the tag is dropped");
+                assert_eq!(sent[1]["request"]["client_ref"], sent[0]["request"]["client_ref"], "the same pay-out, not a second one");
+                assert_eq!(sent[1]["request"]["amount"], json!(-5_000));
+                assert!(core.store.pending().unwrap().is_empty(), "{reason}: nothing left queued");
+                let dead: i64 = core.store.with_conn(|c| Ok(c.query_row("SELECT COUNT(*) FROM outbox WHERE status = 'dead'", [], |r| r.get(0))?)).unwrap();
+                assert_eq!(dead, 0, "{reason}: never stuck");
+                assert!(core.list_cash_movements().await.unwrap().iter().any(|m| m.id == mv.id), "the pay-out stays on the till");
+
+                let who = crate::i18n::tr(lang, reason).replace("{name}", "Amal");
+                let said = crate::i18n::tr(lang, "till.advance_tag_refused").replace("{reason}", &who);
+                assert_eq!(core.take_pay_out_notices(), vec![said.clone()], "{reason}/{lang}");
+                assert!(core.take_pay_out_notices().is_empty(), "told once");
+                assert!(!said.contains('{'), "{said}");
+            }
+        }
+    }
+
+    /// D10 only ever drops a TAG the server refused: a pay-out with no tag,
+    /// or a 404 that is not about the employee (a till the server lacks),
+    /// is handled as before.
+    #[tokio::test]
+    async fn only_a_refused_tag_is_dropped() {
+        let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+        let item = |payload: serde_json::Value| crate::store::OutboxItem {
+            seq: 1, id: "m".into(), op_type: "cash_movement".into(), idempotency_key: "m".into(), payload: payload.to_string(),
+            event_at: String::new(), status: "inflight".into(), attempts: 0, last_error: None, server_id: None,
+            depends_on_seq: None, next_attempt_at: 0, user_id: None, clock_offset_ms: None, till_id: None,
+            device_id: None, entity_type: None, entity_id: None,
+        };
+        let tagged = item(json!({ "till_id": "t", "request": { "amount": -500, "note": "x", "expense_advance_to": "e1" } }));
+        let plain = item(json!({ "till_id": "t", "request": { "amount": -500, "note": "x" } }));
+        let off = crate::CoreError::Server { status: 403, code: "MODULE_OFF".into(), detail: String::new() };
+        let no_till = crate::CoreError::Server { status: 404, code: "Not Found".into(), detail: "Not found: Till not found".into() };
+        assert!(core.drop_refused_advance_tag(&plain, &off).is_none(), "no tag: nothing to drop");
+        assert!(core.drop_refused_advance_tag(&tagged, &no_till).is_none(), "not the tag's refusal");
+        let other = crate::CoreError::Validation { field: String::new(), detail: "bad".into() };
+        assert!(core.drop_refused_advance_tag(&tagged, &other).is_none());
+        assert!(core.take_pay_out_notices().is_empty());
     }
 
     #[tokio::test]

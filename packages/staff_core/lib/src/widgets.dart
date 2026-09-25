@@ -382,3 +382,64 @@ String initialOf(String name) {
   final n = name.trim().characters;
   return n.isEmpty ? '·' : n.first;
 }
+
+/// What [emp] owes against the advance cap. The owner reads the cap's
+/// figure; anyone who may not see it (it gives the salary away) reads only
+/// "within cap" or "over cap: only the owner can approve" (decision #7),
+/// from [within] (an advance's own word) or the person's.
+String advanceCapLine(DawamStore store, String emp, {bool? within}) {
+  final owed = egp(store.outstandingAdvances(emp));
+  final cap = store.advanceCap(emp);
+  if (cap != null) {
+    return tr('staff.outstanding_cap', {'amount': owed, 'amount2': egp(cap)});
+  }
+  return switch (within ?? store.advanceWithin(emp)) {
+    true => tr('staff.outstanding_within_cap', {'amount': owed}),
+    false => tr('staff.outstanding_over_cap', {'amount': owed}),
+    null => tr('staff.outstanding_cap', {'amount': owed, 'amount2': '—'}),
+  };
+}
+
+/// Declining a pay line or an advance says why (AD-9, decision #8): a
+/// sheet asks for the reason and sends it; an empty one is not sent.
+Future<void> declineWithReason(
+  BuildContext context,
+  Future<void> Function(String why) no,
+) {
+  final reason = TextEditingController();
+  return showDawamSheet<void>(
+    context,
+    title: tr('staff.why_decline'),
+    builder: (ctx, ref, store) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
+      children: [
+        MadarField(
+          controller: reason,
+          placeholder: tr('staff.reason_required'),
+          kind: MadarFieldKind.note,
+          autofocus: true,
+        ),
+        MadarButton(
+          label: tr('staff.decline'),
+          variant: MadarButtonVariant.danger,
+          onTap: () async {
+            final why = reason.text.trim();
+            if (why.isEmpty) {
+              ref
+                  .read(toastProvider.notifier)
+                  .show(tr('staff.say_why_you_decline'), tone: ChipTone.danger);
+              return;
+            }
+            final done = await attempt(
+              ref,
+              () => no(why),
+              ok: tr('staff.declined'),
+            );
+            if (done && ctx.mounted) Navigator.of(ctx).maybePop();
+          },
+        ),
+      ],
+    ),
+  );
+}
