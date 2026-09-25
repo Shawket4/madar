@@ -76,6 +76,13 @@ const Map<String, String> coreDetailKeys = {
   'a reward can only be redeemed online': 'loyalty.reward_offline',
   // A line is a staff drink OR a reward, never both (the server refuses it).
   'a staff drink cannot also be taken as a reward': 'staff_pool.not_a_reward',
+  // A combo is priced as a whole, and a deal already took its cut: neither
+  // takes a reward or a staff drink on top (C7, C15).
+  "Rewards can't be used inside a combo.": 'combo.reward',
+  "This item is in a deal, so it can't also be a reward.": 'deal.reward',
+  "A staff drink can't be part of a combo.": 'combo.staff_drink',
+  'This item is in a deal. Remove the deal before making it a staff drink.':
+      'deal.staff_drink',
   'no order to add points to': 'err.no_order_points',
   'table is taken': 'err.table_taken',
   'both tables are empty': 'err.move_both_empty',
