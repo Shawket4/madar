@@ -235,19 +235,7 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   BranchView dco_decode_branch_view(dynamic raw);
 
   @protected
-  BundleComponentSelection dco_decode_bundle_component_selection(dynamic raw);
-
-  @protected
-  BundleComponentView dco_decode_bundle_component_view(dynamic raw);
-
-  @protected
-  BundleView dco_decode_bundle_view(dynamic raw);
-
-  @protected
   CartAddonView dco_decode_cart_addon_view(dynamic raw);
-
-  @protected
-  CartBundleComponentView dco_decode_cart_bundle_component_view(dynamic raw);
 
   @protected
   CartDiscountView dco_decode_cart_discount_view(dynamic raw);
@@ -451,23 +439,7 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<BranchView> dco_decode_list_branch_view(dynamic raw);
 
   @protected
-  List<BundleComponentSelection> dco_decode_list_bundle_component_selection(
-    dynamic raw,
-  );
-
-  @protected
-  List<BundleComponentView> dco_decode_list_bundle_component_view(dynamic raw);
-
-  @protected
-  List<BundleView> dco_decode_list_bundle_view(dynamic raw);
-
-  @protected
   List<CartAddonView> dco_decode_list_cart_addon_view(dynamic raw);
-
-  @protected
-  List<CartBundleComponentView> dco_decode_list_cart_bundle_component_view(
-    dynamic raw,
-  );
 
   @protected
   List<CartLineView> dco_decode_list_cart_line_view(dynamic raw);
@@ -602,11 +574,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
-
-  @protected
-  List<ReceiptComponentView> dco_decode_list_receipt_component_view(
-    dynamic raw,
-  );
 
   @protected
   List<ReceiptLineView> dco_decode_list_receipt_line_view(dynamic raw);
@@ -883,9 +850,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   RealtimeMessage dco_decode_realtime_message(dynamic raw);
-
-  @protected
-  ReceiptComponentView dco_decode_receipt_component_view(dynamic raw);
 
   @protected
   ReceiptLineView dco_decode_receipt_line_view(dynamic raw);
@@ -1322,25 +1286,7 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   BranchView sse_decode_branch_view(SseDeserializer deserializer);
 
   @protected
-  BundleComponentSelection sse_decode_bundle_component_selection(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  BundleComponentView sse_decode_bundle_component_view(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  BundleView sse_decode_bundle_view(SseDeserializer deserializer);
-
-  @protected
   CartAddonView sse_decode_cart_addon_view(SseDeserializer deserializer);
-
-  @protected
-  CartBundleComponentView sse_decode_cart_bundle_component_view(
-    SseDeserializer deserializer,
-  );
 
   @protected
   CartDiscountView sse_decode_cart_discount_view(SseDeserializer deserializer);
@@ -1590,25 +1536,7 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<BranchView> sse_decode_list_branch_view(SseDeserializer deserializer);
 
   @protected
-  List<BundleComponentSelection> sse_decode_list_bundle_component_selection(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<BundleComponentView> sse_decode_list_bundle_component_view(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<BundleView> sse_decode_list_bundle_view(SseDeserializer deserializer);
-
-  @protected
   List<CartAddonView> sse_decode_list_cart_addon_view(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<CartBundleComponentView> sse_decode_list_cart_bundle_component_view(
     SseDeserializer deserializer,
   );
 
@@ -1821,11 +1749,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
-
-  @protected
-  List<ReceiptComponentView> sse_decode_list_receipt_component_view(
-    SseDeserializer deserializer,
-  );
 
   @protected
   List<ReceiptLineView> sse_decode_list_receipt_line_view(
@@ -2196,11 +2119,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   RealtimeMessage sse_decode_realtime_message(SseDeserializer deserializer);
-
-  @protected
-  ReceiptComponentView sse_decode_receipt_component_view(
-    SseDeserializer deserializer,
-  );
 
   @protected
   ReceiptLineView sse_decode_receipt_line_view(SseDeserializer deserializer);
@@ -2741,28 +2659,7 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_branch_view(BranchView self, SseSerializer serializer);
 
   @protected
-  void sse_encode_bundle_component_selection(
-    BundleComponentSelection self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_bundle_component_view(
-    BundleComponentView self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_bundle_view(BundleView self, SseSerializer serializer);
-
-  @protected
   void sse_encode_cart_addon_view(CartAddonView self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_cart_bundle_component_view(
-    CartBundleComponentView self,
-    SseSerializer serializer,
-  );
 
   @protected
   void sse_encode_cart_discount_view(
@@ -3083,32 +2980,8 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
-  void sse_encode_list_bundle_component_selection(
-    List<BundleComponentSelection> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_bundle_component_view(
-    List<BundleComponentView> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_bundle_view(
-    List<BundleView> self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_list_cart_addon_view(
     List<CartAddonView> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_cart_bundle_component_view(
-    List<CartBundleComponentView> self,
     SseSerializer serializer,
   );
 
@@ -3370,12 +3243,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_receipt_component_view(
-    List<ReceiptComponentView> self,
     SseSerializer serializer,
   );
 
@@ -3853,12 +3720,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_realtime_message(
     RealtimeMessage self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_receipt_component_view(
-    ReceiptComponentView self,
     SseSerializer serializer,
   );
 

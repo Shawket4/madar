@@ -25,43 +25,6 @@ class AddonSelection {
           qty == other.qty;
 }
 
-/// A host-supplied configured component of a bundle (which item, its size, and
-/// the chosen addons/optionals). The CORE resolves the charged extra prices.
-class BundleComponentSelection {
-  final String itemId;
-  final String? sizeLabel;
-  final PlatformInt64 qty;
-  final List<AddonSelection> addons;
-  final List<String> optionalFieldIds;
-
-  const BundleComponentSelection({
-    required this.itemId,
-    this.sizeLabel,
-    required this.qty,
-    required this.addons,
-    required this.optionalFieldIds,
-  });
-
-  @override
-  int get hashCode =>
-      itemId.hashCode ^
-      sizeLabel.hashCode ^
-      qty.hashCode ^
-      addons.hashCode ^
-      optionalFieldIds.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is BundleComponentSelection &&
-          runtimeType == other.runtimeType &&
-          itemId == other.itemId &&
-          sizeLabel == other.sizeLabel &&
-          qty == other.qty &&
-          addons == other.addons &&
-          optionalFieldIds == other.optionalFieldIds;
-}
-
 class CartAddonView {
   final String addonItemId;
   final String name;
@@ -93,50 +56,7 @@ class CartAddonView {
           priceModifierMinor == other.priceModifierMinor;
 }
 
-/// A configured component of a bundle cart line, for the bundle row breakdown.
-class CartBundleComponentView {
-  final String itemId;
-  final String name;
-  final PlatformInt64 qty;
-  final String? sizeLabel;
-  final List<CartAddonView> addons;
-  final List<CartOptionalView> optionals;
-
-  const CartBundleComponentView({
-    required this.itemId,
-    required this.name,
-    required this.qty,
-    this.sizeLabel,
-    required this.addons,
-    required this.optionals,
-  });
-
-  @override
-  int get hashCode =>
-      itemId.hashCode ^
-      name.hashCode ^
-      qty.hashCode ^
-      sizeLabel.hashCode ^
-      addons.hashCode ^
-      optionals.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CartBundleComponentView &&
-          runtimeType == other.runtimeType &&
-          itemId == other.itemId &&
-          name == other.name &&
-          qty == other.qty &&
-          sizeLabel == other.sizeLabel &&
-          addons == other.addons &&
-          optionals == other.optionals;
-}
-
-/// A cart line as the host renders it (with the derived line total). When
-/// `bundle_id` is set the line is a bundle: `name` is the bundle name,
-/// `unit_price_minor` the fixed bundle price, and `bundle_components` the
-/// configured items (the row renders their breakdown).
+/// A cart line as the host renders it (with the derived line total).
 class CartLineView {
   /// Stable line key (the selection signature) — use for set_qty/remove/edit.
   final String key;
@@ -149,8 +69,6 @@ class CartLineView {
   final PlatformInt64 unitPriceMinor;
   final PlatformInt64 qty;
   final PlatformInt64 lineTotalMinor;
-  final String? bundleId;
-  final List<CartBundleComponentView> bundleComponents;
 
   /// A KITCHEN-ONLY note for this line — never on the checkout payload,
   /// never on the customer receipt. Cleared once this line's chit prints.
@@ -171,8 +89,6 @@ class CartLineView {
     required this.unitPriceMinor,
     required this.qty,
     required this.lineTotalMinor,
-    this.bundleId,
-    required this.bundleComponents,
     this.kitchenNote,
     this.staffDrink,
   });
@@ -189,8 +105,6 @@ class CartLineView {
       unitPriceMinor.hashCode ^
       qty.hashCode ^
       lineTotalMinor.hashCode ^
-      bundleId.hashCode ^
-      bundleComponents.hashCode ^
       kitchenNote.hashCode ^
       staffDrink.hashCode;
 
@@ -209,8 +123,6 @@ class CartLineView {
           unitPriceMinor == other.unitPriceMinor &&
           qty == other.qty &&
           lineTotalMinor == other.lineTotalMinor &&
-          bundleId == other.bundleId &&
-          bundleComponents == other.bundleComponents &&
           kitchenNote == other.kitchenNote &&
           staffDrink == other.staffDrink;
 }

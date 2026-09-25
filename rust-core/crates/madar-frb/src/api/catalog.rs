@@ -1,6 +1,5 @@
 //! Catalog / menu reads — FRB delegation over madar-core's local catalog
-//! mirror (menu items, categories, addons, bundles, payment methods,
-//! discounts) plus category styling and the org logo. Binding code only:
+//! mirror (menu items, categories, addons, payment methods, discounts) plus category styling and the org logo. Binding code only:
 //! every method is a one-line delegation through `self.inner`.
 
 use flutter_rust_bridge::frb;
@@ -10,9 +9,8 @@ use crate::api::error::MadarError;
 
 pub use madar_core::catstyle::CatStyleView;
 pub use madar_core::menu::{
-    AddonIngredientView, AddonItemView, AddonSlotView, BundleComponentView, BundleView,
-    CategoryView, DiscountView, ItemSizeView, MenuItemView, OptionalFieldView, PaymentMethodView,
-    RecipeLineView, RecipeStepView,
+    AddonIngredientView, AddonItemView, AddonSlotView, CategoryView, DiscountView, ItemSizeView,
+    MenuItemView, OptionalFieldView, PaymentMethodView, RecipeLineView, RecipeStepView,
 };
 
 /// A resolved category style: an icon key + four hex colours (`#RRGGBB`).
@@ -149,37 +147,6 @@ pub struct _AddonItemView {
     pub ingredients: Vec<AddonIngredientView>,
 }
 
-#[frb(mirror(BundleView))]
-pub struct _BundleView {
-    pub id: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub price_minor: i64,
-    pub image_url: Option<String>,
-    /// On-disk path of the CACHED image — see `_MenuItemView`.
-    pub local_image_path: Option<String>,
-    /// `status == active`. The date/time availability window (below) is gated in
-    /// the branch timezone by the cart/order context, not in this static read.
-    pub is_available: bool,
-    pub available_from_date: Option<String>,
-    pub available_until_date: Option<String>,
-    pub available_from_time: Option<String>,
-    pub available_until_time: Option<String>,
-    /// The bundle's component items (which menu item + how many). The detail
-    /// sheet configures each one through the normal item-customization flow.
-    pub components: Vec<BundleComponentView>,
-}
-
-/// One item that makes up a bundle (hydrated from the bundle list). The
-/// component's base price is never charged separately — the bundle price covers
-/// it; only its addon/optional up-charges add money.
-#[frb(mirror(BundleComponentView))]
-pub struct _BundleComponentView {
-    pub item_id: String,
-    pub item_name: String,
-    pub quantity: i64,
-}
-
 #[frb(mirror(PaymentMethodView))]
 pub struct _PaymentMethodView {
     pub id: String,
@@ -223,15 +190,6 @@ impl MadarBridge {
         self.inner.list_addon_catalog().map_err(MadarError::from)
     }
 
-    /// Bundles orderable right now — status active and within their date/time
-    /// window at `now` (branch-local). The host passes its local time so the
-    /// window is evaluated in the till's timezone (Flutter parity).
-    pub fn available_bundles(&self, now_rfc3339: String) -> Result<Vec<BundleView>, MadarError> {
-        self.inner
-            .available_bundles(now_rfc3339)
-            .map_err(MadarError::from)
-    }
-
     pub fn list_payment_methods(&self) -> Result<Vec<PaymentMethodView>, MadarError> {
         self.inner.list_payment_methods().map_err(MadarError::from)
     }
@@ -240,7 +198,7 @@ impl MadarBridge {
         self.inner.list_discounts().map_err(MadarError::from)
     }
 
-    /// Pull the branch-effective catalog (items + categories + addons + bundles +
+    /// Pull the branch-effective catalog (items + categories + addons +
     /// payment methods + discounts) and mirror the canonical JSON into the local
     /// store. Online-only; the offline reads (`list_*`) then serve this mirror.
     /// Atomic-ish: every stream is fetched before any is written, so a mid-pull

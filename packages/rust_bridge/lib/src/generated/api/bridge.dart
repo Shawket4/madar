@@ -139,11 +139,6 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<String> ids,
   });
 
-  /// Bundles orderable right now — status active and within their date/time
-  /// window at `now` (branch-local). The host passes its local time so the
-  /// window is evaluated in the till's timezone (Flutter parity).
-  Future<List<BundleView>> availableBundles({required String nowRfc3339});
-
   Future<List<PaymentMethodView>> availablePaymentMethods();
 
   /// API base URL the core will talk to (from `.env`).
@@ -207,15 +202,6 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String itemId,
     required String name,
     required PlatformInt64 unitPriceMinor,
-  });
-
-  /// Add a configured BUNDLE line: the fixed bundle price + each component's
-  /// chosen item/size/addons/optionals, up-charges resolved from the catalog.
-  Future<List<CartLineView>> cartAddBundle({
-    String? tableId,
-    required String bundleId,
-    required List<BundleComponentSelection> components,
-    required PlatformInt64 qty,
   });
 
   /// Add a CONFIGURED line (size + addons + optionals + notes). The core
@@ -1075,7 +1061,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// `refresh_floor` does this too).
   Future<void> refreshArrivals();
 
-  /// Pull the branch-effective catalog (items + categories + addons + bundles +
+  /// Pull the branch-effective catalog (items + categories + addons +
   /// payment methods + discounts) and mirror the canonical JSON into the local
   /// store. Online-only; the offline reads (`list_*`) then serve this mirror.
   /// Atomic-ish: every stream is fetched before any is written, so a mid-pull
@@ -1222,7 +1208,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
   Future<int> retryTillOutbox({required String tillId});
 
   /// Apply the reward rules to the asked picks (cap, balance, catalogue,
-  /// bundles, shrunk or removed lines) and describe every line.
+  /// shrunk or removed lines) and describe every line.
   RewardBoardView rewardBoard({
     required List<RewardLineInput> lines,
     required LoyaltyScanView scan,

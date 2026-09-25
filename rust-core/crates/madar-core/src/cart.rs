@@ -62,24 +62,8 @@ struct StoredOptional {
     price_minor: i64,
 }
 
-/// One configured component inside a bundle line. The component's base/size price
-/// is NEVER charged (the bundle's fixed price covers it); only its addons +
-/// optionals add money. Mirrors Flutter's `BundleComponentSnapshot`.
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct StoredBundleComponent {
-    item_id: String,
-    name: String,
-    qty: i64,
-    size_label: Option<String>,
-    addons: Vec<StoredAddon>,
-    optionals: Vec<StoredOptional>,
-}
-
 /// The persisted cart line. New modifier fields default in (forward-compatible).
-/// Opaque to callers — only `resolve_line`/`resolve_bundle_line`/`add_resolved`
-/// construct/consume it. A bundle line sets `bundle_id` + `bundle_components`,
-/// `unit_price_minor` = the fixed bundle price, and leaves its own
-/// `addons`/`optionals` empty (component extras carry the up-charges).
+/// Opaque to callers — only `resolve_line`/`add_resolved` construct/consume it.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct StoredLine {
     item_id: String,
@@ -95,10 +79,6 @@ pub(crate) struct StoredLine {
     optionals: Vec<StoredOptional>,
     #[serde(default)]
     notes: Option<String>,
-    #[serde(default)]
-    bundle_id: Option<String>,
-    #[serde(default)]
-    bundle_components: Vec<StoredBundleComponent>,
     /// The line is a STAFF DRINK (see [`StoredStaffMark`]). Rides the stored
     /// line, so it survives a restart with the cart.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -161,22 +141,7 @@ pub struct CartOptionalView {
     pub price_minor: i64,
 }
 
-/// A configured component of a bundle cart line, for the bundle row breakdown.
-#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CartBundleComponentView {
-    pub item_id: String,
-    pub name: String,
-    pub qty: i64,
-    pub size_label: Option<String>,
-    pub addons: Vec<CartAddonView>,
-    pub optionals: Vec<CartOptionalView>,
-}
-
-/// A cart line as the host renders it (with the derived line total). When
-/// `bundle_id` is set the line is a bundle: `name` is the bundle name,
-/// `unit_price_minor` the fixed bundle price, and `bundle_components` the
-/// configured items (the row renders their breakdown).
+/// A cart line as the host renders it (with the derived line total).
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CartLineView {
@@ -191,8 +156,6 @@ pub struct CartLineView {
     pub unit_price_minor: i64,
     pub qty: i64,
     pub line_total_minor: i64,
-    pub bundle_id: Option<String>,
-    pub bundle_components: Vec<CartBundleComponentView>,
     /// A KITCHEN-ONLY note for this line — never sent with the order, never
     /// on the customer receipt. Joined in from [`K_KITCHEN_NOTES`] at read
     /// time, so `view()` itself stays a pure function of the stored lines.
@@ -451,46 +414,25 @@ fn addon_optional_extras(addons: &[StoredAddon], optionals: &[StoredOptional]) -
 }
 
 fn line_extras(l: &StoredLine) -> i64 {
-    // A normal line's extras are its own addons/optionals; a bundle line's are
-    // the sum across its components (the fixed base already covers the items),
-    // each charged per component unit, as the server does.
     addon_optional_extras(&l.addons, &l.optionals)
-        + l.bundle_components
-            .iter()
-            .map(|c| {
-                madar_money::line::component_surcharge(
-                    addon_optional_extras(&c.addons, &c.optionals),
-                    c.qty,
-                    1,
-                )
-            })
-            .sum::<i64>()
 }
 
 fn line_total(l: &StoredLine) -> i64 {
+    // madar-shared v0.4.0's shape still has combo fields; they stay default.
     madar_money::line::line_total(&madar_money::line::LineShape {
         quantity: l.qty,
         unit_price: l.unit_price_minor,
-        is_bundle: l.bundle_id.is_some(),
         addons: addons_of(&l.addons),
         optionals: optionals_of(&l.optionals),
-        bundle_components: l
-            .bundle_components
-            .iter()
-            .map(|c| madar_money::line::BundleComponent {
-                quantity: c.qty,
-                addons: addons_of(&c.addons),
-                optionals: optionals_of(&c.optionals),
-            })
-            .collect(),
+        ..Default::default()
     })
 }
 
 /// What the staff pool takes off the WHOLE line: the per-unit comp times the
-/// quantity, never more than the line rings at, never on a bundle.
+/// quantity, never more than the line rings at.
 fn staff_comp(l: &StoredLine) -> i64 {
     match &l.staff_drink {
-        Some(m) if l.bundle_id.is_none() => {
+        Some(m) => {
             (m.free_per_unit_minor.max(0) * l.qty.max(0)).clamp(0, line_total(l).max(0))
         }
         _ => 0,
@@ -509,36 +451,6 @@ fn signature(l: &StoredLine) -> String {
 }
 
 fn base_signature(l: &StoredLine) -> String {
-    // A bundle keys by its id + each component's full selection, so identical
-    // configurations merge (qty++) and differently-configured ones stay distinct.
-    if let Some(bid) = &l.bundle_id {
-        let comps: Vec<String> = l
-            .bundle_components
-            .iter()
-            .map(|c| {
-                let mut a: Vec<String> = c
-                    .addons
-                    .iter()
-                    .map(|x| format!("{}:{}", x.addon_item_id, x.qty))
-                    .collect();
-                a.sort();
-                let mut o: Vec<String> = c
-                    .optionals
-                    .iter()
-                    .map(|x| x.optional_field_id.clone())
-                    .collect();
-                o.sort();
-                format!(
-                    "{}@{}#{}#{}",
-                    c.item_id,
-                    c.size_label.as_deref().unwrap_or(""),
-                    a.join(","),
-                    o.join(",")
-                )
-            })
-            .collect();
-        return format!("bundle:{}|{}", bid, comps.join(";"));
-    }
     if l.size_label.is_none() && l.addons.is_empty() && l.optionals.is_empty() && l.notes.is_none()
     {
         return l.item_id.clone();
@@ -596,36 +508,6 @@ fn view(lines: &[StoredLine]) -> Vec<CartLineView> {
             unit_price_minor: l.unit_price_minor,
             qty: l.qty,
             line_total_minor: line_total(l),
-            bundle_id: l.bundle_id.clone(),
-            bundle_components: l
-                .bundle_components
-                .iter()
-                .map(|c| CartBundleComponentView {
-                    item_id: c.item_id.clone(),
-                    name: c.name.clone(),
-                    qty: c.qty,
-                    size_label: c.size_label.clone(),
-                    addons: c
-                        .addons
-                        .iter()
-                        .map(|a| CartAddonView {
-                            addon_item_id: a.addon_item_id.clone(),
-                            name: a.name.clone(),
-                            qty: a.qty,
-                            price_modifier_minor: a.price_modifier_minor,
-                        })
-                        .collect(),
-                    optionals: c
-                        .optionals
-                        .iter()
-                        .map(|o| CartOptionalView {
-                            optional_field_id: o.optional_field_id.clone(),
-                            name: o.name.clone(),
-                            price_minor: o.price_minor,
-                        })
-                        .collect(),
-                })
-                .collect(),
             kitchen_note: None,
             staff_drink: l.staff_drink.as_ref().map(|m| CartStaffDrinkView {
                 id: m.id.clone(),
@@ -677,8 +559,6 @@ pub(crate) fn resolve_line(
         addons: priced.0,
         optionals: priced.1,
         notes,
-        bundle_id: None,
-        bundle_components: vec![],
         staff_drink: None,
     }
 }
@@ -762,68 +642,6 @@ fn optional_selection(
         }
     }
     ids.into_iter().cloned().collect()
-}
-
-/// A host-supplied configured component of a bundle (which item, its size, and
-/// the chosen addons/optionals). The CORE resolves the charged extra prices.
-#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug)]
-pub struct BundleComponentSelection {
-    pub item_id: String,
-    pub size_label: Option<String>,
-    pub qty: i64,
-    pub addons: Vec<AddonSelection>,
-    pub optional_field_ids: Vec<String>,
-}
-
-/// Build a bundle cart line: the fixed bundle price as the unit price, plus each
-/// component with its addon/optional up-charges resolved from the catalog (the
-/// shared rule, at the component's size). The component base/size price is
-/// never charged (Flutter parity).
-pub(crate) fn resolve_bundle_line(
-    bundle: &menu::BundleView,
-    items: &[menu::MenuItemView],
-    addon_catalog: &[menu::AddonItemView],
-    pricing: &PricingMirror,
-    components: &[BundleComponentSelection],
-    qty: i64,
-) -> StoredLine {
-    let bundle_components = components
-        .iter()
-        .filter_map(|sel| {
-            let item = items.iter().find(|i| i.id == sel.item_id)?;
-            let view = pricing.view_for(item, addon_catalog);
-            let (addons, optionals) = price_selection(
-                item,
-                addon_catalog,
-                &view,
-                sel.size_label.as_deref(),
-                &sel.addons,
-                &sel.optional_field_ids,
-            );
-            Some(StoredBundleComponent {
-                item_id: item.id.clone(),
-                name: item.name.clone(),
-                qty: sel.qty.max(1),
-                size_label: sel.size_label.clone(),
-                addons,
-                optionals,
-            })
-        })
-        .collect();
-    StoredLine {
-        item_id: bundle.id.clone(),
-        name: bundle.name.clone(),
-        unit_price_minor: bundle.price_minor,
-        qty: qty.max(1),
-        size_label: None,
-        addons: vec![],
-        optionals: vec![],
-        notes: None,
-        bundle_id: Some(bundle.id.clone()),
-        bundle_components,
-        staff_drink: None,
-    }
 }
 
 /// Every active addon offered for `item`, with the price it is charged alone
@@ -1388,11 +1206,11 @@ pub(crate) fn replace_resolved(
             detail: "that line is no longer in the cart".into(),
         });
     };
-    // An edited staff drink is still one: the mark follows the line (a bundle
-    // can never carry it). Its comp is recomputed by the caller.
+    // An edited staff drink is still one: the mark follows the line. Its comp
+    // is recomputed by the caller.
     let old = lines.remove(at);
     let mut line = line;
-    if line.bundle_id.is_none() && line.item_id == old.item_id {
+    if line.item_id == old.item_id {
         line.staff_drink = old.staff_drink;
     }
     let sig = signature(&line);
@@ -1416,8 +1234,7 @@ pub(crate) fn replace_resolved(
 pub struct LinePreviewView {
     /// One unit: the size's price plus every extra.
     pub unit_total_minor: i64,
-    /// One unit's extras only (addons + optionals) — what a bundle component
-    /// charges on top of the bundle price.
+    /// One unit's extras only (addons + optionals).
     pub extras_minor: i64,
     /// The whole line at its quantity.
     pub line_total_minor: i64,
@@ -1452,8 +1269,6 @@ pub(crate) fn add(
             addons: vec![],
             optionals: vec![],
             notes: None,
-            bundle_id: None,
-            bundle_components: vec![],
             staff_drink: None,
         },
     )
@@ -1539,8 +1354,6 @@ pub(crate) fn clear(store: &Store, ctx: Ctx<'_>) -> CoreResult<()> {
 /// Why a mark left a line by itself. The host toasts the translated reason.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum StaffMarkDrop {
-    /// The line became a bundle / is one.
-    Bundle,
     /// The item is no longer on the pool's list (a settings sync), or the pool
     /// was switched off.
     NotEligible,
@@ -1551,7 +1364,7 @@ pub(crate) enum StaffMarkDrop {
 impl StaffMarkDrop {
     pub fn key(self) -> &'static str {
         match self {
-            Self::Bundle => "staff_pool.dropped.bundle",
+
             Self::NotEligible => "staff_pool.dropped.not_eligible",
             Self::TableBill => "staff_pool.dropped.table",
         }
@@ -1567,7 +1380,6 @@ pub(crate) struct StaffMarkedLine {
     pub name: String,
     pub size_label: Option<String>,
     pub qty: i64,
-    pub is_bundle: bool,
     pub mark: StoredStaffMark,
     pub line_total_minor: i64,
     pub comp_minor: i64,
@@ -1608,7 +1420,6 @@ pub(crate) fn staff_marked(store: &Store, ctx: Ctx<'_>) -> CoreResult<Vec<StaffM
                 name: l.name.clone(),
                 size_label: l.size_label.clone(),
                 qty: l.qty,
-                is_bundle: l.bundle_id.is_some(),
                 mark,
                 line_total_minor: line_total(l),
                 comp_minor: staff_comp(l),
@@ -1617,8 +1428,8 @@ pub(crate) fn staff_marked(store: &Store, ctx: Ctx<'_>) -> CoreResult<Vec<StaffM
         .collect())
 }
 
-/// Put `mark` on the line keyed `line_key`. A bundle refuses; a key no longer
-/// in the cart refuses. Returns the lines (the marked line has a NEW key).
+/// Put `mark` on the line keyed `line_key`. A key no longer in the cart
+/// refuses. Returns the lines (the marked line has a NEW key).
 pub(crate) fn mark_staff(
     store: &Store,
     ctx: Ctx<'_>,
@@ -1632,12 +1443,6 @@ pub(crate) fn mark_staff(
             detail: "that line is no longer in the cart".into(),
         });
     };
-    if l.bundle_id.is_some() {
-        return Err(CoreError::Validation {
-            field: "item".into(),
-            detail: "a bundle cannot be a staff drink".into(),
-        });
-    }
     l.staff_drink = Some(mark);
     let new_key = signature(l);
     save(store, ctx, &lines)?;
@@ -1705,11 +1510,7 @@ pub(crate) fn set_staff_comps(
     let mut changed = false;
     for l in lines.iter_mut() {
         let Some(mark) = l.staff_drink.clone() else { continue };
-        let verdict = if l.bundle_id.is_some() {
-            Err(StaffMarkDrop::Bundle)
-        } else {
-            decide(&StaffCompLine { line: l })
-        };
+        let verdict = decide(&StaffCompLine { line: l });
         match verdict {
             Ok(free) if free == mark.free_per_unit_minor => {}
             Ok(free) => {
@@ -2282,7 +2083,6 @@ fn priced(l: &StoredLine) -> pricing::CartLine {
     pricing::CartLine {
         quantity: l.qty,
         unit_price: l.unit_price_minor,
-        is_bundle: l.bundle_id.is_some(),
         reward_units: 0,
         staff_comp_minor: staff_comp(l),
         addons: l
@@ -2298,28 +2098,6 @@ fn priced(l: &StoredLine) -> pricing::CartLine {
             .iter()
             .map(|o| pricing::OptionalSel {
                 price: o.price_minor,
-            })
-            .collect(),
-        bundle_components: l
-            .bundle_components
-            .iter()
-            .map(|c| pricing::BundleComponentSel {
-                quantity: c.qty,
-                addons: c
-                    .addons
-                    .iter()
-                    .map(|a| pricing::AddonSel {
-                        price_modifier: a.price_modifier_minor,
-                        quantity: a.qty,
-                    })
-                    .collect(),
-                optionals: c
-                    .optionals
-                    .iter()
-                    .map(|o| pricing::OptionalSel {
-                        price: o.price_minor,
-                    })
-                    .collect(),
             })
             .collect(),
     }
@@ -2354,7 +2132,7 @@ pub(crate) fn totals_with_rewards(
             .enumerate()
             .map(|(i, l)| {
                 let mut line = priced(l);
-                if !line.is_bundle && line.staff_comp_minor == 0 && l.staff_drink.is_none() {
+                if line.staff_comp_minor == 0 && l.staff_drink.is_none() {
                     line.reward_units = reward_units.get(&i).copied().unwrap_or(0);
                 }
                 line
@@ -2418,8 +2196,6 @@ mod tests {
                 price_minor: optional,
             }],
             notes: None,
-            bundle_id: None,
-            bundle_components: vec![],
             staff_drink: None,
         }
     }
@@ -3775,102 +3551,6 @@ mod tests {
         assert!(discount_id(&s, None).unwrap().is_none());
     }
 
-    fn bundle() -> menu::BundleView {
-        menu::BundleView {
-            id: "b1".into(),
-            name: "Morning Combo".into(),
-            description: None,
-            price_minor: 10000,
-            image_url: None,
-            local_image_path: None,
-            is_available: true,
-            available_from_date: None,
-            available_until_date: None,
-            available_from_time: None,
-            available_until_time: None,
-            components: vec![],
-        }
-    }
-
-    fn combo_component() -> BundleComponentSelection {
-        // Latte, Large, + almond milk (milk_type 2000 − oat base 1500 = +500 swap
-        // delta) + vanilla optional (+300). Component base/size price NOT charged.
-        BundleComponentSelection {
-            item_id: "latte".into(),
-            size_label: Some("Large".into()),
-            qty: 1,
-            addons: vec![AddonSelection {
-                addon_item_id: "almond".into(),
-                qty: 1,
-            }],
-            optional_field_ids: vec!["van".into()],
-        }
-    }
-
-    #[test]
-    fn bundle_line_charges_fixed_price_plus_component_extras() {
-        let s = store();
-        let line = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[combo_component()],
-            1,
-        );
-        add_resolved(&s, None, line).unwrap();
-        let lines = lines(&s, None).unwrap();
-        assert_eq!(lines.len(), 1);
-        let l = &lines[0];
-        assert_eq!(l.bundle_id.as_deref(), Some("b1"));
-        assert_eq!(l.unit_price_minor, 10000, "fixed bundle price");
-        // (10000 base + 500 almond delta + 300 vanilla) × 1
-        assert_eq!(l.line_total_minor, 10800);
-        assert_eq!(l.bundle_components.len(), 1);
-        assert_eq!(l.bundle_components[0].name, "Latte");
-        assert_eq!(l.bundle_components[0].size_label.as_deref(), Some("Large"));
-    }
-
-    #[test]
-    fn identical_bundle_configs_merge_distinct_ones_dont() {
-        let s = store();
-        let a = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[combo_component()],
-            1,
-        );
-        add_resolved(&s, None, a).unwrap();
-        // Same config again → merges (qty 2, one line).
-        let b = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[combo_component()],
-            1,
-        );
-        add_resolved(&s, None, b).unwrap();
-        assert_eq!(lines(&s, None).unwrap().len(), 1);
-        assert_eq!(lines(&s, None).unwrap()[0].qty, 2);
-        // A different component config → a separate line.
-        let mut plain = combo_component();
-        plain.addons = vec![];
-        plain.optional_field_ids = vec![];
-        let c = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[plain],
-            1,
-        );
-        add_resolved(&s, None, c).unwrap();
-        assert_eq!(lines(&s, None).unwrap().len(), 2);
-    }
-
     // ── add / merge edge cases ────────────────────────────────────────────────
 
     #[test]
@@ -4429,101 +4109,6 @@ mod tests {
             &crate::catalog_pricing::PricingMirror::default(),
         );
         assert!(v.iter().all(|a| a.addon_item_id != "retired"));
-    }
-
-    // ── bundle pricing / component resolution ─────────────────────────────────
-
-    #[test]
-    fn resolve_bundle_line_uses_fixed_price_and_clamps_qty() {
-        let line = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[combo_component()],
-            0,
-        );
-        assert_eq!(line.unit_price_minor, 10000); // fixed bundle price
-        assert_eq!(line.qty, 1); // qty clamped up from 0
-        assert!(line.addons.is_empty()); // bundle's own addons stay empty
-        assert!(line.optionals.is_empty());
-        assert_eq!(line.bundle_id.as_deref(), Some("b1"));
-    }
-
-    #[test]
-    fn resolve_bundle_line_drops_components_with_unknown_item() {
-        let mut ghost = combo_component();
-        ghost.item_id = "not-in-catalog".into();
-        // One good + one ghost component → only the resolvable one survives.
-        let line = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[combo_component(), ghost],
-            1,
-        );
-        assert_eq!(line.bundle_components.len(), 1);
-        assert_eq!(line.bundle_components[0].item_id, "latte");
-    }
-
-    #[test]
-    fn resolve_bundle_line_with_no_components_charges_only_base() {
-        let line = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[],
-            2,
-        );
-        assert!(line.bundle_components.is_empty());
-        // (10000 base + 0 extras) × 2 = 20000.
-        assert_eq!(line_total(&line), 20000);
-    }
-
-    #[test]
-    fn bundle_component_qty_scales_extras_like_the_server() {
-        // A component qty of 5 multiplies its addon/optional up-charge: each of
-        // the five is configured the same, and the server charges (and deducts
-        // stock for) every one — `(addons + optionals) × comp qty × line qty`
-        // (owner decision, madar-shared M3). It used to count them once.
-        let mut comp = combo_component();
-        comp.qty = 5;
-        let line = resolve_bundle_line(
-            &bundle(),
-            &[item()],
-            &catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[comp],
-            1,
-        );
-        assert_eq!(line.bundle_components[0].qty, 5);
-        // 10000 base + (500 almond delta + 300 vanilla) × 5 = 14000.
-        assert_eq!(line_total(&line), 14000);
-        assert_eq!(priced(&line).bundle_components[0].quantity, 5, "the engine sees it too");
-    }
-
-    #[test]
-    fn bundle_totals_flow_through_pricing_engine() {
-        let s = store();
-        add_resolved(
-            &s,
-            None,
-            resolve_bundle_line(
-                &bundle(),
-                &[item()],
-                &catalog(),
-                &crate::catalog_pricing::PricingMirror::default(),
-                &[combo_component()],
-                2,
-            ),
-        )
-        .unwrap();
-        let t = totals(&s, None, &tax_policy_at(0.0)).unwrap();
-        assert_eq!(t.item_count, 2);
-        // (10000 + 500 + 300) × 2 = 21600.
-        assert_eq!(t.subtotal_minor, 21600);
     }
 
     // ── drafts ────────────────────────────────────────────────────────────────

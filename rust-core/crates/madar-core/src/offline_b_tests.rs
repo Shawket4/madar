@@ -17,8 +17,6 @@ async fn a_partial_catalog_failure_never_wipes_payment_methods_or_discounts() {
         let p = r.path.as_str();
         if p.starts_with("/menu-items") || p.starts_with("/addon-items") || p.starts_with("/categories") {
             Some(StubResponse::text(200, "[]"))
-        } else if p.starts_with("/bundles") {
-            Some(StubResponse::text(200, r#"{"data":[],"page":1,"per_page":500,"total":0,"total_pages":0}"#))
         } else if p.starts_with("/payment-methods") {
             Some(StubResponse::text(403, r#"{"error":"forbidden"}"#))
         } else if p.starts_with("/discounts") {

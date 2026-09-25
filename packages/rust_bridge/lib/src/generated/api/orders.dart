@@ -443,35 +443,6 @@ class OrderSummaryView {
           displayNumber == other.displayNumber;
 }
 
-/// One component of a bundle line on the receipt, with its own modifiers.
-class ReceiptComponentView {
-  final String name;
-  final String? sizeLabel;
-  final List<ReceiptModifierView> addons;
-  final List<ReceiptModifierView> optionals;
-
-  const ReceiptComponentView({
-    required this.name,
-    this.sizeLabel,
-    required this.addons,
-    required this.optionals,
-  });
-
-  @override
-  int get hashCode =>
-      name.hashCode ^ sizeLabel.hashCode ^ addons.hashCode ^ optionals.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ReceiptComponentView &&
-          runtimeType == other.runtimeType &&
-          name == other.name &&
-          sizeLabel == other.sizeLabel &&
-          addons == other.addons &&
-          optionals == other.optionals;
-}
-
 /// One line on the receipt the host shows after placing an order.
 class ReceiptLineView {
   final String name;
@@ -480,9 +451,6 @@ class ReceiptLineView {
   /// Size variant ("(Large)"), printed inline after the name when present.
   final String? sizeLabel;
   final PlatformInt64 lineTotalMinor;
-
-  /// A bundle/combo line — its breakdown is in `components`, not `addons`.
-  final bool isBundle;
   final String? rewardLabel;
 
   /// "Staff drink" when the pool comped this line: it shows at its NORMAL
@@ -491,20 +459,17 @@ class ReceiptLineView {
   final PlatformInt64 staffCompMinor;
   final List<ReceiptModifierView> addons;
   final List<ReceiptModifierView> optionals;
-  final List<ReceiptComponentView> components;
 
   const ReceiptLineView({
     required this.name,
     required this.qty,
     this.sizeLabel,
     required this.lineTotalMinor,
-    required this.isBundle,
     this.rewardLabel,
     this.staffLabel,
     required this.staffCompMinor,
     required this.addons,
     required this.optionals,
-    required this.components,
   });
 
   @override
@@ -513,13 +478,11 @@ class ReceiptLineView {
       qty.hashCode ^
       sizeLabel.hashCode ^
       lineTotalMinor.hashCode ^
-      isBundle.hashCode ^
       rewardLabel.hashCode ^
       staffLabel.hashCode ^
       staffCompMinor.hashCode ^
       addons.hashCode ^
-      optionals.hashCode ^
-      components.hashCode;
+      optionals.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -530,13 +493,11 @@ class ReceiptLineView {
           qty == other.qty &&
           sizeLabel == other.sizeLabel &&
           lineTotalMinor == other.lineTotalMinor &&
-          isBundle == other.isBundle &&
           rewardLabel == other.rewardLabel &&
           staffLabel == other.staffLabel &&
           staffCompMinor == other.staffCompMinor &&
           addons == other.addons &&
-          optionals == other.optionals &&
-          components == other.components;
+          optionals == other.optionals;
 }
 
 /// A priced modifier on a receipt line (an addon or a chosen optional).

@@ -352,7 +352,7 @@ pub(crate) fn order_refunds_view(r: &models::OrderRefunds) -> OrderRefundsView {
 }
 
 /// Resolve a per-order snapshot name to the device locale. Every order row
-/// (item / addon / optional / bundle component) freezes both the base name
+/// (item / addon / optional) freezes both the base name
 /// AND its `name_translations` at sale time, so a past order reprints in
 /// whatever language the device is set to now — not the language it sold in.
 fn loc(translations: &serde_json::Value, base: &str, locale: &str) -> String {
@@ -404,14 +404,14 @@ pub(crate) fn order_detail_view(o: &models::OrderFull, locale: &str) -> OrderDet
 }
 
 /// Project a fetched order into a printable receipt (reprint from history) —
-/// the full breakdown (modifiers, bundle components, delivery block) so a
+/// the full breakdown (modifiers, delivery block) so a
 /// reprint is byte-identical to the original. `locale` localizes the address
 /// "Unit"/"Floor" prefixes.
 pub(crate) fn order_to_receipt(
     o: &models::OrderFull,
     locale: &str,
 ) -> crate::checkout::ReceiptView {
-    use crate::checkout::{ReceiptComponentView, ReceiptLineView, ReceiptModifierView};
+    use crate::checkout::{ReceiptLineView, ReceiptModifierView};
 
     let lines = o
         .items
@@ -433,39 +433,6 @@ pub(crate) fn order_to_receipt(
                     price_minor: op.price as i64,
                 })
                 .collect();
-            let components = it
-                .bundle_components
-                .as_ref()
-                .map(|cs| {
-                    cs.iter()
-                        .map(|c| ReceiptComponentView {
-                            name: loc(&c.name_translations, &c.item_name, locale),
-                            size_label: c.size_label.clone().flatten().filter(|s| !s.is_empty()),
-                            addons: c
-                                .addons
-                                .iter()
-                                .map(|a| ReceiptModifierView {
-                                    name: addon_label(
-                                        &a.addon_name,
-                                        &a.name_translations,
-                                        a.quantity,
-                                        locale,
-                                    ),
-                                    price_minor: a.unit_price as i64 * a.quantity.max(1) as i64,
-                                })
-                                .collect(),
-                            optionals: c
-                                .optionals
-                                .iter()
-                                .map(|op| ReceiptModifierView {
-                                    name: loc(&op.name_translations, &op.field_name, locale),
-                                    price_minor: op.price as i64,
-                                })
-                                .collect(),
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
             // A staff drink: the stored figures are NET of the comp (contract
             // §3) — the size part is off `line_total`, each pick's part off
             // that pick's own row. The receipt prints the NORMAL price and
@@ -483,13 +450,11 @@ pub(crate) fn order_to_receipt(
                 staff_label: (staff_comp > 0 || it.staff_drink_id.is_some())
                     .then(|| crate::i18n::tr(locale, "staff_pool.badge")),
                 staff_comp_minor: staff_comp,
-                is_bundle: it.bundle_id.is_some(),
                 reward_label: it.is_reward.unwrap_or(false).then(|| {
                     crate::loyalty::reward_label(it.reward_units.unwrap_or(0) as i64, locale)
                 }),
                 addons,
                 optionals,
-                components,
             }
         })
         .collect();
@@ -914,44 +879,6 @@ mod tests {
         models::OrderItemOptional::new(field.into(), uid(4), serde_json::json!({}), uid(5), price)
     }
 
-    fn comp_addon(name: &str, qty: i32, unit_price: i32) -> models::OrderBundleComponentAddon {
-        models::OrderBundleComponentAddon::new(
-            uid(6),
-            name.into(),
-            uid(7),
-            uid(8),
-            unit_price * qty,
-            serde_json::json!({}),
-            uid(9),
-            qty,
-            unit_price,
-        )
-    }
-
-    fn comp_optional(field: &str, price: i32) -> models::OrderBundleComponentOptional {
-        models::OrderBundleComponentOptional::new(
-            uid(10),
-            field.into(),
-            uid(11),
-            serde_json::json!({}),
-            uid(12),
-            price,
-        )
-    }
-
-    fn bundle_component(name: &str, size: Option<&str>) -> models::OrderBundleComponentFull {
-        let mut c = models::OrderBundleComponentFull::new(
-            vec![],
-            uid(13),
-            name.into(),
-            serde_json::json!({}),
-            vec![],
-            1,
-        );
-        c.size_label = size.map(|s| Some(s.to_string()));
-        c
-    }
-
     fn item(name: &str, qty: i32, line_total: i32) -> models::OrderItemFull {
         models::OrderItemFull::new(
             false,
@@ -1177,48 +1104,11 @@ mod tests {
         let r = order_to_receipt(&o, "en");
         let line = &r.lines[0];
         assert_eq!(line.size_label.as_deref(), Some("Large"));
-        assert!(!line.is_bundle);
         assert_eq!(line.addons[0].name, "Oat milk ×2");
         assert_eq!(line.addons[0].price_minor, 1000); // what it adds: unit 500 × 2
         assert_eq!(line.addons[1].name, "Caramel");
         assert_eq!(line.optionals[0].name, "No sugar");
         assert_eq!(line.optionals[1].price_minor, 700);
-        assert!(line.components.is_empty());
-    }
-
-    #[test]
-    fn receipt_bundle_line_components_composed() {
-        let mut it = item("Combo", 1, 9000);
-        it.bundle_id = Some(uid(50)); // → is_bundle
-        let mut c1 = bundle_component("Burger", Some("Large"));
-        c1.addons = vec![comp_addon("Cheese", 2, 300)];
-        c1.optionals = vec![comp_optional("No onion", 0)];
-        let mut c2 = bundle_component("Fries", Some(""));
-        c2.size_label = Some(Some(String::new())); // blank component size → None
-        it.bundle_components = Some(vec![c1, c2]);
-        let o = order_full(vec![it]);
-        let r = order_to_receipt(&o, "en");
-        let line = &r.lines[0];
-        assert!(line.is_bundle);
-        assert_eq!(line.components.len(), 2);
-        assert_eq!(line.components[0].name, "Burger");
-        assert_eq!(line.components[0].size_label.as_deref(), Some("Large"));
-        assert_eq!(line.components[0].addons[0].name, "Cheese ×2");
-        assert_eq!(line.components[0].addons[0].price_minor, 600);
-        assert_eq!(line.components[0].optionals[0].name, "No onion");
-        assert_eq!(line.components[1].name, "Fries");
-        assert_eq!(line.components[1].size_label, None); // blank filtered
-    }
-
-    #[test]
-    fn receipt_bundle_id_without_components_yields_empty_vec() {
-        let mut it = item("Combo", 1, 9000);
-        it.bundle_id = Some(uid(50));
-        // bundle_components None → components default to empty.
-        let o = order_full(vec![it]);
-        let r = order_to_receipt(&o, "en");
-        assert!(r.lines[0].is_bundle);
-        assert!(r.lines[0].components.is_empty());
     }
 
     #[test]

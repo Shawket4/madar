@@ -35,7 +35,7 @@ pub const DELIVERY: &str = "delivery";
 pub const BOOKINGS: &str = "bookings";
 /// Floor sections, tables, occupancies, transfers.
 pub const FLOOR: &str = "floor";
-/// Menu, categories, addons, bundles, discounts, settings.
+/// Menu, categories, addons, discounts, settings.
 pub const CATALOG: &str = "catalog";
 /// Payment methods and their availability.
 pub const PAYMENT_METHODS: &str = "payment_methods";

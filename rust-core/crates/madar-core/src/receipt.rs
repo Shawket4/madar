@@ -124,7 +124,7 @@ pub fn escpos(receipt: &ReceiptView, ctx: &EscPosCtx, brand: PrinterBrand) -> Ve
 /// Build the visible line list — pure, no bytes. Golden-tested. Reproduces the
 /// Flutter `printer_service.dart` receipt structure top-to-bottom: header +
 /// delivery flag, order meta, delivery block, item lines with their full
-/// modifier/bundle breakdown, totals, payment/teller footer, thank-you.
+/// modifier breakdown, totals, payment/teller footer, thank-you.
 pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
     let w = ctx.width.max(16) as usize;
     let cur = &ctx.currency;
@@ -235,27 +235,11 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
                 w,
             )));
         }
-        if l.is_bundle {
-            for c in &l.components {
-                let cname = match &c.size_label {
-                    Some(s) => format!("{} ({})", c.name, s),
-                    None => c.name.clone(),
-                };
-                out.push(Line::plain(format!("  - {}", cname)));
-                for m in &c.addons {
-                    push_modifier(&mut out, "    + ", m, cur, w);
-                }
-                for m in &c.optionals {
-                    push_modifier(&mut out, "    + ", m, cur, w);
-                }
-            }
-        } else {
-            for m in &l.addons {
-                push_modifier(&mut out, "  + ", m, cur, w);
-            }
-            for m in &l.optionals {
-                push_modifier(&mut out, "  + ", m, cur, w);
-            }
+        for m in &l.addons {
+            push_modifier(&mut out, "  + ", m, cur, w);
+        }
+        for m in &l.optionals {
+            push_modifier(&mut out, "  + ", m, cur, w);
         }
     }
     out.push(Line::plain(divider(w)));
@@ -834,7 +818,7 @@ pub(crate) fn short_id(id: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::checkout::{ReceiptComponentView, ReceiptLineView, ReceiptPaymentView, ReceiptView};
+    use crate::checkout::{ReceiptLineView, ReceiptPaymentView, ReceiptView};
 
     #[test]
     fn till_report_layout_has_drawer_lines_and_methods() {
@@ -1048,13 +1032,11 @@ mod tests {
             qty,
             size_label: None,
             line_total_minor: total,
-            is_bundle: false,
             reward_label: None,
             staff_label: None,
             staff_comp_minor: 0,
             addons: vec![],
             optionals: vec![],
-            components: vec![],
         }
     }
 
@@ -1295,7 +1277,7 @@ mod tests {
     }
 
     #[test]
-    fn layout_delivery_with_modifiers_and_bundle() {
+    fn layout_delivery_with_modifiers() {
         let mut r = cash_receipt();
         r.is_delivery = true;
         r.delivery_channel = Some("outside".into());
@@ -1314,19 +1296,7 @@ mod tests {
             name: "No sugar".into(),
             price_minor: 0,
         }];
-        // A bundle line with one configured component.
-        let mut combo = line("Breakfast Combo", 1, 12000);
-        combo.is_bundle = true;
-        combo.components = vec![ReceiptComponentView {
-            name: "Eggs".into(),
-            size_label: None,
-            addons: vec![ReceiptModifierView {
-                name: "Cheese".into(),
-                price_minor: 500,
-            }],
-            optionals: vec![],
-        }];
-        r.lines = vec![latte, combo];
+        r.lines = vec![latte];
         let lines = layout(&r, &ctx());
         let text: Vec<&str> = lines.iter().map(|l| l.text.as_str()).collect();
         // Delivery flag with the channel label.
@@ -1344,11 +1314,6 @@ mod tests {
             .iter()
             .any(|t| t.trim_start().starts_with("+ Oat milk") && t.contains("+8.00 EGP")));
         assert!(text.iter().any(|t| t.trim() == "+ No sugar")); // free → no price
-                                                                // Bundle breakdown: a "- component" line and an indented "+ addon".
-        assert!(text.iter().any(|t| t.trim() == "- Eggs"));
-        assert!(text
-            .iter()
-            .any(|t| t.trim_start().starts_with("+ Cheese") && t.contains("+5.00 EGP")));
         // Delivery fee forces a Subtotal row and prints the fee.
         assert!(text.iter().any(|t| t.starts_with("Subtotal")));
         assert!(text
@@ -1800,7 +1765,7 @@ mod tests {
             .any(|l| l.text.starts_with("Customer") && l.text.ends_with("Walk-in")));
     }
 
-    // ── layout: item / modifier / bundle indentation depth ────────────────────
+    // ── layout: item / modifier indentation depth ─────────────────────────────
 
     #[test]
     fn layout_addon_indent_is_two_spaces_optional_after_addon() {
@@ -1817,7 +1782,7 @@ mod tests {
         r.lines = vec![latte];
         let lines = layout(&r, &ctx());
         let text: Vec<&str> = lines.iter().map(|l| l.text.as_str()).collect();
-        // Non-bundle modifiers use a two-space prefix "  + ".
+        // Modifiers use a two-space prefix "  + ".
         assert!(text
             .iter()
             .any(|t| t.starts_with("  + Vanilla") && t.contains("+3.00 EGP")));
@@ -1827,53 +1792,6 @@ mod tests {
         let i_addon = text.iter().position(|t| t.contains("Vanilla")).unwrap();
         let i_opt = text.iter().position(|t| t.contains("Extra hot")).unwrap();
         assert!(i_addon < i_opt);
-    }
-
-    #[test]
-    fn layout_bundle_component_and_addon_use_four_space_indent() {
-        let mut r = cash_receipt();
-        let mut combo = line("Combo", 1, 10000);
-        combo.is_bundle = true;
-        combo.components = vec![ReceiptComponentView {
-            name: "Burger".into(),
-            size_label: Some("Double".into()),
-            addons: vec![ReceiptModifierView {
-                name: "Bacon".into(),
-                price_minor: 700,
-            }],
-            optionals: vec![ReceiptModifierView {
-                name: "No onion".into(),
-                price_minor: 0,
-            }],
-        }];
-        r.lines = vec![combo];
-        let lines = layout(&r, &ctx());
-        let text: Vec<&str> = lines.iter().map(|l| l.text.as_str()).collect();
-        // Component line: "  - Burger (Double)" (size inlined).
-        assert!(text.iter().any(|t| *t == "  - Burger (Double)"));
-        // Bundle addon priced, four-space indent "    + ".
-        assert!(text
-            .iter()
-            .any(|t| t.starts_with("    + Bacon") && t.contains("+7.00 EGP")));
-        // Bundle free optional: four-space indent, no price.
-        assert!(text.iter().any(|t| *t == "    + No onion"));
-    }
-
-    #[test]
-    fn layout_non_bundle_ignores_components() {
-        // A line with components but is_bundle=false should NOT print them.
-        let mut r = cash_receipt();
-        let mut item = line("Solo", 1, 5000);
-        item.is_bundle = false;
-        item.components = vec![ReceiptComponentView {
-            name: "ShouldNotShow".into(),
-            size_label: None,
-            addons: vec![],
-            optionals: vec![],
-        }];
-        r.lines = vec![item];
-        let lines = layout(&r, &ctx());
-        assert!(!lines.iter().any(|l| l.text.contains("ShouldNotShow")));
     }
 
     #[test]
@@ -2442,19 +2360,6 @@ pub fn slip_item_for_cart_line(line: &crate::cart::CartLineView) -> KitchenSlipI
     for o in &line.optionals {
         modifiers.push(o.name.clone());
     }
-    for c in &line.bundle_components {
-        let name = match c.size_label.as_deref().filter(|s| !s.trim().is_empty()) {
-            Some(sz) => format!("{}x {} ({})", c.qty, c.name, sz.trim()),
-            None => format!("{}x {}", c.qty, c.name),
-        };
-        modifiers.push(name);
-        for a in &c.addons {
-            modifiers.push(format!("   {}", a.name));
-        }
-        for o in &c.optionals {
-            modifiers.push(format!("   {}", o.name));
-        }
-    }
     // This LINE's own order note (also on the receipt) and its own
     // kitchen-only note (never on the receipt, local-only) — joined so
     // neither is silently dropped when both are set. The CART-level notes
@@ -2690,8 +2595,8 @@ mod kitchen_chit_tests {
         }
     }
 
-    /// A cook chit is built from cart lines that ARE priced (addons, bundle
-    /// components, the line's own unit price) — this is the one place money
+    /// A cook chit is built from cart lines that ARE priced (addons, the
+    /// line's own unit price) — this is the one place money
     /// sits right next to what gets printed, so it is the one place a price
     /// could leak through by accident. `kitchen_slip_layout` is the shared
     /// structure both the preview and the raster renderer
@@ -2700,21 +2605,7 @@ mod kitchen_chit_tests {
     /// [`slip_for_kitchen_chit`]) the normal fire/checkout chit too.
     #[test]
     fn a_kitchen_chit_never_carries_a_price_currency_or_logo() {
-        let mut line = cart_line(); // unit 120.00, addons 5.00/9.00, total 360.00
-        line.bundle_id = Some("b1".into());
-        line.bundle_components = vec![crate::cart::CartBundleComponentView {
-            item_id: "c1".into(),
-            name: "Fries".into(),
-            qty: 1,
-            size_label: None,
-            addons: vec![crate::cart::CartAddonView {
-                addon_item_id: "a3".into(),
-                name: "Extra salt".into(),
-                qty: 1,
-                price_modifier_minor: 1000, // 10.00
-            }],
-            optionals: vec![],
-        }];
+        let line = cart_line(); // unit 120.00, addons 5.00/9.00, total 360.00
         let built = slip_for_cart_line(
             &line,
             Some("T9".into()),
@@ -2733,7 +2624,7 @@ mod kitchen_chit_tests {
         // Every money figure this line could possibly print, plus currency,
         // VAT and logo/QR/loyalty/promo markers — none belong on a chit.
         for forbidden in [
-            "EGP", "$", "5.00", "9.00", "10.00", "120.00", "360.00", "Total",
+            "EGP", "$", "5.00", "9.00", "120.00", "360.00", "Total",
             "Subtotal", "VAT", "Tax", "Discount", "QR", "logo", "loyalty",
             "points", "promo",
         ] {
@@ -2852,8 +2743,6 @@ mod kitchen_chit_tests {
             unit_price_minor: 12_000,
             qty: 3,
             line_total_minor: 36_000,
-            bundle_id: None,
-            bundle_components: vec![],
             kitchen_note: None,
             staff_drink: None,
         }

@@ -257,7 +257,7 @@ mod tests {
     //! through this device's mirror: the feed rows go into the kv mirror the
     //! catalogue refresh writes, and the cart prices every case from there.
     use super::*;
-    use crate::cart::{self, AddonSelection, BundleComponentSelection};
+    use crate::cart::{self, AddonSelection};
     use madar_catalog::vectors::{Expected, Vectors};
     use serde_json::json;
 
@@ -377,45 +377,9 @@ mod tests {
                 .iter()
                 .all(|p| addons.iter().any(|a| a.id == p.id));
             let size = case.selection.size_label.clone();
+            // A combo component's pricing (madar-catalog v0.4.0 still has
+            // those cases): combos were removed, so the till never prices one.
             if case.part == "component" {
-                let bundle = menu::BundleView {
-                    id: "b".into(),
-                    name: "b".into(),
-                    description: None,
-                    price_minor: 0,
-                    image_url: None,
-                    local_image_path: None,
-                    is_available: true,
-                    available_from_date: None,
-                    available_until_date: None,
-                    available_from_time: None,
-                    available_until_time: None,
-                    components: vec![],
-                };
-                let line = cart::resolve_bundle_line(
-                    &bundle,
-                    &items,
-                    &addons,
-                    &pricing,
-                    &[BundleComponentSelection {
-                        item_id: item.id.clone(),
-                        size_label: size,
-                        qty: 1,
-                        addons: sels,
-                        optional_field_ids: case.selection.optionals.clone(),
-                    }],
-                    1,
-                );
-                let line = serde_json::to_value(&line).unwrap();
-                let comp = &line["bundle_components"][0];
-                let Expected::Component(p) = &case.expected else {
-                    panic!("{}: {:?}", case.name, case.expected)
-                };
-                assert!(offered, "{}", case.name);
-                let (a, o) = expected_options(p);
-                assert_eq!(priced_addons(&comp["addons"]), a, "{}", case.name);
-                assert_eq!(priced_optionals(&comp["optionals"]), o, "{}", case.name);
-                checked += 1;
                 continue;
             }
             let line = cart::resolve_line(

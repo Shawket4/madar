@@ -145,24 +145,8 @@ pub struct ReceiptModifierView {
     pub price_minor: i64,
 }
 
-/// One component of a bundle line on the receipt, with its own modifiers —
-/// printed indented under the bundle header (Flutter `bundleComponents`).
-#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
-// Serialised ONLY to ride along with a queued sale's ledger row
-// (`ledger::local::LOCAL_RECEIPT`), so a receipt can be previewed
-// offline before it syncs. `default` keeps a stash written by an
-// older build readable after a field is added.
-#[serde(default)]
-pub struct ReceiptComponentView {
-    pub name: String,
-    pub size_label: Option<String>,
-    pub addons: Vec<ReceiptModifierView>,
-    pub optionals: Vec<ReceiptModifierView>,
-}
-
 /// One line on the receipt the host shows after placing an order. Carries the
-/// full modifier/bundle breakdown so the printed receipt matches Flutter's
+/// full modifier breakdown so the printed receipt matches Flutter's
 /// `printer_service.dart` item block exactly.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
@@ -177,8 +161,6 @@ pub struct ReceiptLineView {
     /// Size variant ("(Large)"), printed inline after the name when present.
     pub size_label: Option<String>,
     pub line_total_minor: i64,
-    /// A bundle/combo line — its breakdown is in `components`, not `addons`.
-    pub is_bundle: bool,
     /// "Reward" (or "Reward ×2") when a loyalty reward paid for units of this
     /// line — printed under it, on the receipt and the kitchen chit alike.
     pub reward_label: Option<String>,
@@ -190,7 +172,6 @@ pub struct ReceiptLineView {
     pub staff_comp_minor: i64,
     pub addons: Vec<ReceiptModifierView>,
     pub optionals: Vec<ReceiptModifierView>,
-    pub components: Vec<ReceiptComponentView>,
 }
 
 /// The order confirmation / receipt summary.
@@ -509,42 +490,12 @@ pub(crate) fn mint_order_ref(
 /// Map priced cart lines to the wire `OrderItemInput`s the backend records
 /// VERBATIM (client-authoritative pricing). Shared by the POS checkout AND the
 /// waiter ticket-fire path (a fired round is the same cart, minus payment), so a
-/// ticket settles into a byte-identical order. A bundle line carries its config in
-/// `bundle_components` with empty top-level addons/optionals (Flutter parity); a
-/// plain line records its menu-item id, size, charged unit price, addons + optionals.
+/// ticket settles into a byte-identical order. A line records its menu-item id,
+/// size, charged unit price, addons + optionals.
 pub(crate) fn lines_to_wire_items(lines: &[cart::CartLineView]) -> Vec<models::OrderItemInput> {
     lines
         .iter()
         .map(|l| {
-            if let Some(bid) = &l.bundle_id {
-                let comps: Vec<models::BundleComponentInput> = l
-                    .bundle_components
-                    .iter()
-                    .filter_map(|c| {
-                        let item_id = uuid::Uuid::parse_str(&c.item_id).ok()?;
-                        let mut ci = models::BundleComponentInput::new(item_id, c.qty as i32);
-                        let addons = component_addons(&c.addons);
-                        if !addons.is_empty() {
-                            ci.addons = Some(addons);
-                        }
-                        let opt_ids: Vec<uuid::Uuid> = c
-                            .optionals
-                            .iter()
-                            .filter_map(|o| uuid::Uuid::parse_str(&o.optional_field_id).ok())
-                            .collect();
-                        if !opt_ids.is_empty() {
-                            ci.optional_field_ids = Some(opt_ids);
-                        }
-                        ci.size_label = Some(c.size_label.clone());
-                        Some(ci)
-                    })
-                    .collect();
-                let mut item = models::OrderItemInput::new(l.qty as i32);
-                item.bundle_id = uuid::Uuid::parse_str(bid).ok().map(Some);
-                item.bundle_components = Some(comps);
-                item.unit_price = Some(Some(l.unit_price_minor as i32));
-                return item;
-            }
             // Addons carry their CHARGED unit price (swap delta / extra) verbatim.
             let addons = component_addons(&l.addons);
             let optional_ids: Vec<uuid::Uuid> = l
@@ -588,11 +539,9 @@ pub(crate) fn prepare(
     let branch_uuid = parse_uuid(branch_id, "branch_id")?;
     let shift_uuid = parse_uuid(till_id, "till_id")?;
     let reward_units = reward_units_by_line(&lines, &input.loyalty_redemptions)?;
-    // The cart's staff drinks. A bundle never carries one (the cart refuses the
-    // mark and drops it when a line becomes one); the filter is the last gate.
+    // The cart's staff drinks.
     let staff_lines: Vec<PreparedStaffLine> = cart::staff_marked(store, ctx)?
         .into_iter()
-        .filter(|m| !m.is_bundle)
         .map(|m| PreparedStaffLine {
             item_index: m.index,
             id: m.mark.id,
@@ -648,7 +597,6 @@ pub(crate) fn prepare(
             .map(|(i, l)| pricing::CartLine {
                 quantity: l.qty,
                 unit_price: l.unit_price_minor,
-                is_bundle: l.bundle_id.is_some(),
                 reward_units: reward_units.get(&i).copied().unwrap_or(0),
                 staff_comp_minor: staff_at(i).map_or(0, |s| s.comp_minor),
                 addons: l
@@ -664,28 +612,6 @@ pub(crate) fn prepare(
                     .iter()
                     .map(|o| pricing::OptionalSel {
                         price: o.price_minor,
-                    })
-                    .collect(),
-                bundle_components: l
-                    .bundle_components
-                    .iter()
-                    .map(|c| pricing::BundleComponentSel {
-                        quantity: c.qty,
-                        addons: c
-                            .addons
-                            .iter()
-                            .map(|a| pricing::AddonSel {
-                                price_modifier: a.price_modifier_minor,
-                                quantity: a.qty,
-                            })
-                            .collect(),
-                        optionals: c
-                            .optionals
-                            .iter()
-                            .map(|o| pricing::OptionalSel {
-                                price: o.price_minor,
-                            })
-                            .collect(),
                     })
                     .collect(),
             })
@@ -976,7 +902,7 @@ pub(crate) fn prepare(
 }
 
 /// The reward units the checkout asks for, per cart line, checked for shape:
-/// a line that exists, is not a bundle, one reward per line, and no more
+/// a line that exists, one reward per line, and no more
 /// units than the line holds. Affordability, the catalogue and the shop's cap
 /// are [`crate::loyalty::reward_board`]'s, checked against a fresh lookup
 /// before the sale is queued.
@@ -998,9 +924,6 @@ pub(crate) fn reward_units_by_line(
         let line = lines
             .get(i)
             .ok_or_else(|| bad("a reward names a line that is not in the cart"))?;
-        if line.bundle_id.is_some() {
-            return Err(bad("a bundle cannot be taken as a reward"));
-        }
         if line.staff_drink.is_some() {
             return Err(bad(STAFF_DRINK_NOT_A_REWARD));
         }
@@ -1014,7 +937,7 @@ pub(crate) fn reward_units_by_line(
     Ok(out)
 }
 
-/// Project a cart line into its printable receipt line — bundle-aware, carrying
+/// Project a cart line into its printable receipt line, carrying
 /// the full modifier breakdown so the receipt matches the order.
 fn receipt_line_from_cart(l: &cart::CartLineView) -> ReceiptLineView {
     let addons = l
@@ -1037,52 +960,21 @@ fn receipt_line_from_cart(l: &cart::CartLineView) -> ReceiptLineView {
             price_minor: o.price_minor,
         })
         .collect();
-    let components = l
-        .bundle_components
-        .iter()
-        .map(|c| ReceiptComponentView {
-            name: c.name.clone(),
-            size_label: c.size_label.clone().filter(|s| !s.is_empty()),
-            addons: c
-                .addons
-                .iter()
-                .map(|a| ReceiptModifierView {
-                    name: if a.qty > 1 {
-                        format!("{} ×{}", a.name, a.qty)
-                    } else {
-                        a.name.clone()
-                    },
-                    price_minor: a.price_modifier_minor * a.qty.max(1) as i64,
-                })
-                .collect(),
-            optionals: c
-                .optionals
-                .iter()
-                .map(|o| ReceiptModifierView {
-                    name: o.name.clone(),
-                    price_minor: o.price_minor,
-                })
-                .collect(),
-        })
-        .collect();
     ReceiptLineView {
         name: l.name.clone(),
         qty: l.qty,
         size_label: l.size_label.clone().filter(|s| !s.is_empty()),
         line_total_minor: l.line_total_minor,
-        is_bundle: l.bundle_id.is_some(),
         reward_label: None,
         staff_label: None,
         staff_comp_minor: 0,
         addons,
         optionals,
-        components,
     }
 }
 
 /// Wire `AddonInput`s from cart addons — the CHARGED unit price recorded
-/// verbatim (so an offline order equals the receipt). Shared by normal lines
-/// and bundle components.
+/// verbatim (so an offline order equals the receipt).
 fn component_addons(addons: &[cart::CartAddonView]) -> Vec<models::AddonInput> {
     addons
         .iter()
@@ -2548,7 +2440,7 @@ mod tests {
         assert_eq!(queued_cash_total(&store).unwrap(), 0);
     }
 
-    // ── receipt projection: size / modifiers / bundle components ──────────────
+    // ── receipt projection: size / modifiers ──────────────────────────────────
 
     fn cfg_addon(id: &str, kind: &str, price: i64) -> menu::AddonItemView {
         menu::AddonItemView {
@@ -2653,7 +2545,6 @@ mod tests {
         let rl = &p.receipt.lines[0];
         assert_eq!(rl.name, "Latte");
         assert_eq!(rl.size_label.as_deref(), Some("Large"));
-        assert!(!rl.is_bundle);
         // Two addons; the multi-qty one prints "name ×N".
         assert_eq!(rl.addons.len(), 2);
         let almond = rl.addons.iter().find(|a| a.name == "almond").unwrap();
@@ -2670,119 +2561,10 @@ mod tests {
         assert_eq!(rl.optionals[0].price_minor, 300);
         // line total = 6000 + 500 + 800*2 + 300 = 8400.
         assert_eq!(rl.line_total_minor, 8400);
-        assert!(rl.components.is_empty());
-    }
-
-    fn cfg_bundle() -> menu::BundleView {
-        menu::BundleView {
-            id: "b1".into(),
-            name: "Morning Combo".into(),
-            description: None,
-            price_minor: 10000,
-            image_url: None,
-            local_image_path: None,
-            is_available: true,
-            available_from_date: None,
-            available_until_date: None,
-            available_from_time: None,
-            available_until_time: None,
-            components: vec![],
-        }
-    }
-
-    #[test]
-    fn receipt_bundle_line_carries_components_with_their_modifiers() {
-        let store = Store::open("").unwrap();
-        seed_methods(&store);
-        let comp = cart::BundleComponentSelection {
-            item_id: "latte".into(),
-            size_label: Some("Large".into()),
-            qty: 1,
-            addons: vec![cart::AddonSelection {
-                addon_item_id: "almond".into(),
-                qty: 1,
-            }],
-            optional_field_ids: vec!["van".into()],
-        };
-        let line = cart::resolve_bundle_line(
-            &cfg_bundle(),
-            &[cfg_item()],
-            &cfg_catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[comp],
-            1,
-        );
-        cart::add_resolved(&store, None, line).unwrap();
-        let p = prep(&store, CASH, 20000).unwrap();
-        let rl = &p.receipt.lines[0];
-        assert!(rl.is_bundle);
-        assert_eq!(rl.name, "Morning Combo");
-        // Bundle lines carry no top-level addons/optionals — only components.
-        assert!(rl.addons.is_empty());
-        assert!(rl.optionals.is_empty());
-        assert_eq!(rl.components.len(), 1);
-        let c = &rl.components[0];
-        assert_eq!(c.name, "Latte");
-        assert_eq!(c.size_label.as_deref(), Some("Large"));
-        assert_eq!(c.addons.len(), 1);
-        assert_eq!(c.addons[0].name, "almond");
-        assert_eq!(c.addons[0].price_minor, 500);
-        assert_eq!(c.optionals.len(), 1);
-        assert_eq!(c.optionals[0].name, "Vanilla");
-        // line total = 10000 fixed + 500 almond delta + 300 vanilla = 10800.
-        assert_eq!(rl.line_total_minor, 10800);
-    }
-
-    /// M3 (madar-shared discovery; owner: the server is right): a bundle
-    /// component's add-ons are charged per component UNIT, as the server's
-    /// `component_surcharge` does — `(addons + optionals) × component qty ×
-    /// line qty` — and as its inventory deducts them. A bundle at 5000 with a
-    /// component ×2 and +500 on it rang 5500 here and 6000 on the server, so
-    /// every such sale was price-flagged, and a split or a reward on it failed.
-    #[test]
-    fn a_bundle_components_extras_are_charged_per_component_unit() {
-        let store = Store::open("").unwrap();
-        seed_methods(&store);
-        let mut bundle = cfg_bundle();
-        bundle.price_minor = 5000;
-        let comp = cart::BundleComponentSelection {
-            item_id: "latte".into(),
-            size_label: Some("Large".into()),
-            qty: 2,
-            addons: vec![cart::AddonSelection { addon_item_id: "almond".into(), qty: 1 }], // +500
-            optional_field_ids: vec![],
-        };
-        let line = cart::resolve_bundle_line(
-            &bundle,
-            &[cfg_item()],
-            &cfg_catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[comp],
-            1,
-        );
-        cart::add_resolved(&store, None, line).unwrap();
-        assert_eq!(cart::lines(&store, None).unwrap()[0].line_total_minor, 6000, "the cart's line");
-        let p = prepare(&store, None, "en", BRANCH, SHIFT, &mk_input(CASH, 10000), &tax_policy_at(0.14),
-            "2026-06-20T12:00:00+00:00".into())
-        .unwrap();
-        let r = &p.command.request;
-        // The server's figures: 5000 + 500 × 2 = 6000; 14% → 840; 6840.
-        assert_eq!(r.subtotal, Some(Some(6000)));
-        assert_eq!(r.tax_amount, Some(Some(840)));
-        assert_eq!(r.total_amount, Some(Some(6840)));
-        assert_eq!(p.receipt.lines[0].line_total_minor, 6000);
-        // Two of them: everything doubles, as on the server (× line qty).
-        cart::set_qty(&store, None, &cart::lines(&store, None).unwrap()[0].key, 2).unwrap();
-        let p = prepare(&store, None, "en", BRANCH, SHIFT, &mk_input(CASH, 20000), &tax_policy_at(0.14),
-            "2026-06-20T12:00:00+00:00".into())
-        .unwrap();
-        assert_eq!(p.command.request.subtotal, Some(Some(12000)));
-        assert_eq!(p.command.request.total_amount, Some(Some(13680)));
     }
 
     // The wire (CreateOrderRequest) parses cart ids as UUIDs, so the wire-shape
     // test needs UUID ids (the receipt projection above only copies strings).
-    const BUNDLE_UUID: &str = "00000000-0000-0000-0000-0000000000b1";
     const ITEM_UUID: &str = "00000000-0000-0000-0000-0000000000a1";
     const ALMOND_UUID: &str = "00000000-0000-0000-0000-0000000000a2";
     const VAN_UUID: &str = "00000000-0000-0000-0000-0000000000a3";
@@ -2808,66 +2590,6 @@ mod tests {
         vec![cfg_addon(ALMOND_UUID, "extra", 800)] // additive → full 800
     }
 
-    fn uuid_bundle() -> menu::BundleView {
-        let mut b = cfg_bundle();
-        b.id = BUNDLE_UUID.into();
-        b
-    }
-
-    #[test]
-    fn bundle_wire_item_carries_components_and_clears_top_level_modifiers() {
-        let store = Store::open("").unwrap();
-        seed_methods(&store);
-        let comp = cart::BundleComponentSelection {
-            item_id: ITEM_UUID.into(),
-            size_label: Some("Large".into()),
-            qty: 2,
-            addons: vec![cart::AddonSelection {
-                addon_item_id: ALMOND_UUID.into(),
-                qty: 1,
-            }],
-            optional_field_ids: vec![VAN_UUID.into()],
-        };
-        let line = cart::resolve_bundle_line(
-            &uuid_bundle(),
-            &[uuid_item()],
-            &uuid_catalog(),
-            &crate::catalog_pricing::PricingMirror::default(),
-            &[comp],
-            1,
-        );
-        cart::add_resolved(&store, None, line).unwrap();
-        let p = prep(&store, CASH, 20000).unwrap();
-        let item = &p.command.request.items[0];
-        // Bundle id set, top-level addons/optionals empty (absent or empty vec),
-        // components present.
-        assert_eq!(
-            item.bundle_id,
-            Some(Some(uuid::Uuid::parse_str(BUNDLE_UUID).unwrap()))
-        );
-        assert!(item.addons.as_ref().is_none_or(|v| v.is_empty()));
-        assert!(item
-            .optional_field_ids
-            .as_ref()
-            .is_none_or(|v| v.is_empty()));
-        let comps = item
-            .bundle_components
-            .as_ref()
-            .expect("bundle_components set");
-        assert_eq!(comps.len(), 1);
-        assert_eq!(comps[0].quantity, 2);
-        assert_eq!(comps[0].size_label, Some(Some("Large".into())));
-        // The component's chosen addon rode through with its charged price.
-        let cadd = comps[0].addons.as_ref().expect("component addons");
-        assert_eq!(cadd.len(), 1);
-        assert_eq!(cadd[0].unit_price, Some(Some(800)));
-        let copt = comps[0]
-            .optional_field_ids
-            .as_ref()
-            .expect("component optional ids");
-        assert_eq!(copt.len(), 1);
-    }
-
     #[test]
     fn normal_wire_item_carries_size_and_unit_price() {
         let store = Store::open("").unwrap();
@@ -2891,7 +2613,6 @@ mod tests {
         );
         assert_eq!(item.size_label, Some(Some("Large".into())));
         assert_eq!(item.unit_price, Some(Some(6000))); // Large size price recorded verbatim
-        assert_eq!(item.bundle_id, None);
     }
 
     // ── Receipt projection edge cases (closed test gaps found by cargo-mutants) ──
@@ -2938,59 +2659,6 @@ mod tests {
         assert_eq!(p2.receipt.customer_name, Some("Mona".into()));
     }
 
-    /// A BUNDLE-COMPONENT addon with qty>1 must render "name ×qty" on the receipt
-    /// (the top-level addon path was tested; the nested bundle one was not — this
-    /// kills the `>`→`<` mutant in receipt_line_from_cart's component branch).
-    #[test]
-    fn receipt_bundle_component_addon_shows_multiplier() {
-        let line = cart::CartLineView {
-            key: "k".into(),
-            item_id: "i".into(),
-            name: "Combo".into(),
-            size_label: None,
-            addons: vec![],
-            optionals: vec![],
-            notes: None,
-            unit_price_minor: 0,
-            qty: 1,
-            line_total_minor: 0,
-            bundle_id: Some("b".into()),
-            bundle_components: vec![cart::CartBundleComponentView {
-                item_id: "c".into(),
-                name: "Espresso".into(),
-                qty: 1,
-                size_label: None,
-                addons: vec![
-                    cart::CartAddonView {
-                        addon_item_id: "a1".into(),
-                        name: "Extra Shot".into(),
-                        qty: 2, // >1 → must show "×2"
-                        price_modifier_minor: 500,
-                    },
-                    cart::CartAddonView {
-                        addon_item_id: "a2".into(),
-                        name: "Oat Milk".into(),
-                        qty: 1, // ==1 → no multiplier
-                        price_modifier_minor: 300,
-                    },
-                ],
-                optionals: vec![],
-            }],
-            kitchen_note: None,
-            staff_drink: None,
-        };
-        let r = receipt_line_from_cart(&line);
-        let comp_addons = &r.components[0].addons;
-        assert_eq!(
-            comp_addons[0].name, "Extra Shot ×2",
-            "qty>1 must show the multiplier"
-        );
-        assert_eq!(
-            comp_addons[1].name, "Oat Milk",
-            "qty==1 must NOT show a multiplier"
-        );
-    }
-
     /// A line's kitchen-only note must never ride the checkout wire item or
     /// the customer receipt — it is a scribble for the cook, not the order.
     #[test]
@@ -3006,8 +2674,6 @@ mod tests {
             unit_price_minor: 5000,
             qty: 1,
             line_total_minor: 5000,
-            bundle_id: None,
-            bundle_components: vec![],
             kitchen_note: Some("no salt — allergy".into()),
             staff_drink: None,
         };

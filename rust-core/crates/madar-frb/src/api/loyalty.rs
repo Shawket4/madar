@@ -124,7 +124,6 @@ pub struct _RewardLineInput {
     pub menu_item_id: Option<String>,
     pub qty: i32,
     pub line_total_minor: i64,
-    pub is_bundle: bool,
     pub is_staff_drink: bool,
 }
 
@@ -230,7 +229,7 @@ impl MadarBridge {
     }
 
     /// Apply the reward rules to the asked picks (cap, balance, catalogue,
-    /// bundles, shrunk or removed lines) and describe every line.
+    /// shrunk or removed lines) and describe every line.
     #[frb(sync)]
     pub fn reward_board(
         &self,

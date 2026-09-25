@@ -1,4 +1,4 @@
-//! Core-owned caches of catalog files: menu/bundle photos and the org logo in
+//! Core-owned caches of catalog files: menu photos and the org logo in
 //! one store, recipe-step animations in another.
 //!
 //! The core downloads what the catalog references during `refresh_catalog`

@@ -29,12 +29,10 @@ fn build_input(u: &mut Unstructured) -> arbitrary::Result<PriceCartInput> {
         lines.push(CartLine {
             quantity: u.int_in_range(0..=1000)?,
             unit_price: u.int_in_range(0..=1_000_000)?,
-            is_bundle: false,
             reward_units: 0,
             staff_comp_minor: 0,
             addons,
             optionals,
-            bundle_components: vec![],
         });
     }
     let discount_kind =

@@ -865,14 +865,8 @@ impl Renderer {
     fn item(&mut self, line: &ReceiptLineView, cur: &str) {
         let name = name_with_size(&line.name, &line.size_label);
         let qty = line.qty.max(1);
-        let mods: Vec<&ReceiptModifierView> = if line.is_bundle {
-            line.components
-                .iter()
-                .flat_map(|c| c.addons.iter().chain(c.optionals.iter()))
-                .collect()
-        } else {
-            line.addons.iter().chain(line.optionals.iter()).collect()
-        };
+        let mods: Vec<&ReceiptModifierView> =
+            line.addons.iter().chain(line.optionals.iter()).collect();
         let paid: i64 = mods.iter().map(|m| m.price_minor.max(0)).sum();
         let per_unit = (line.line_total_minor % qty == 0).then(|| line.line_total_minor / qty);
         let base = per_unit.map(|u| u - paid).filter(|b| *b >= 0 && paid > 0);
@@ -901,22 +895,8 @@ impl Renderer {
                 Weight::BOLD,
             );
         }
-        if line.is_bundle {
-            for c in &line.components {
-                self.indented_w(
-                    &format!("– {}", name_with_size(&c.name, &c.size_label)),
-                    RS_SMALL,
-                    Weight::BOLD,
-                    16,
-                );
-                for mo in c.addons.iter().chain(c.optionals.iter()) {
-                    self.modifier(mo, cur, 32, priced);
-                }
-            }
-        } else {
-            for mo in line.addons.iter().chain(line.optionals.iter()) {
-                self.modifier(mo, cur, 16, priced);
-            }
+        for mo in line.addons.iter().chain(line.optionals.iter()) {
+            self.modifier(mo, cur, 16, priced);
         }
         if let Some(unit) = per_unit.filter(|_| priced) {
             self.gap(self.sx(2));
@@ -1111,7 +1091,6 @@ mod tests {
                 qty: 2,
                 size_label: Some("Large".into()),
                 line_total_minor: 12000,
-                is_bundle: false,
                 reward_label: None,
                 staff_label: None,
                 staff_comp_minor: 0,
@@ -1120,7 +1099,6 @@ mod tests {
                     price_minor: 500,
                 }],
                 optionals: vec![],
-                components: vec![],
             }],
             payment_label: "Cash".into(),
             subtotal_minor: 12500,

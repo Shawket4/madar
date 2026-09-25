@@ -407,7 +407,6 @@ class RewardLineInput {
   final String? menuItemId;
   final int qty;
   final PlatformInt64 lineTotalMinor;
-  final bool isBundle;
   final bool isStaffDrink;
 
   const RewardLineInput({
@@ -417,7 +416,6 @@ class RewardLineInput {
     this.menuItemId,
     required this.qty,
     required this.lineTotalMinor,
-    required this.isBundle,
     required this.isStaffDrink,
   });
 
@@ -429,7 +427,6 @@ class RewardLineInput {
       menuItemId.hashCode ^
       qty.hashCode ^
       lineTotalMinor.hashCode ^
-      isBundle.hashCode ^
       isStaffDrink.hashCode;
 
   @override
@@ -443,7 +440,6 @@ class RewardLineInput {
           menuItemId == other.menuItemId &&
           qty == other.qty &&
           lineTotalMinor == other.lineTotalMinor &&
-          isBundle == other.isBundle &&
           isStaffDrink == other.isStaffDrink;
 }
 

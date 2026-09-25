@@ -7,8 +7,8 @@ use crate::api::bridge::MadarBridge;
 use crate::api::error::MadarError;
 
 pub use madar_core::checkout::{
-    CashQuickTenderView, CheckoutInput, CheckoutSplit, ReceiptComponentView, ReceiptLineView,
-    ReceiptModifierView, ReceiptPaymentView, ReceiptView, TenderSummaryView,
+    CashQuickTenderView, CheckoutInput, CheckoutSplit, ReceiptLineView, ReceiptModifierView,
+    ReceiptPaymentView, ReceiptView, TenderSummaryView,
 };
 pub use madar_core::orders::{
     OrderDetailLineView, OrderDetailView, OrderRefundsView, OrderSearchPage, OrderSummaryView,
@@ -99,15 +99,6 @@ pub struct _ReceiptModifierView {
     pub price_minor: i64,
 }
 
-/// One component of a bundle line on the receipt, with its own modifiers.
-#[frb(mirror(ReceiptComponentView))]
-pub struct _ReceiptComponentView {
-    pub name: String,
-    pub size_label: Option<String>,
-    pub addons: Vec<ReceiptModifierView>,
-    pub optionals: Vec<ReceiptModifierView>,
-}
-
 /// One line on the receipt the host shows after placing an order.
 #[frb(mirror(ReceiptLineView))]
 pub struct _ReceiptLineView {
@@ -116,8 +107,6 @@ pub struct _ReceiptLineView {
     /// Size variant ("(Large)"), printed inline after the name when present.
     pub size_label: Option<String>,
     pub line_total_minor: i64,
-    /// A bundle/combo line — its breakdown is in `components`, not `addons`.
-    pub is_bundle: bool,
     pub reward_label: Option<String>,
     /// "Staff drink" when the pool comped this line: it shows at its NORMAL
     /// price, then this label as a line discount of `staff_comp_minor`.
@@ -125,7 +114,6 @@ pub struct _ReceiptLineView {
     pub staff_comp_minor: i64,
     pub addons: Vec<ReceiptModifierView>,
     pub optionals: Vec<ReceiptModifierView>,
-    pub components: Vec<ReceiptComponentView>,
 }
 
 /// The order confirmation / receipt summary.

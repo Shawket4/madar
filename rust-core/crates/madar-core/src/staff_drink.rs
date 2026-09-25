@@ -442,9 +442,9 @@ impl MadarCore {
     }
 
     /// Re-decide every mark of a cart: recompute each comp from the catalogue
-    /// as it stands now, and DROP a mark whose line stopped being eligible (a
-    /// bundle, an item a settings sync took off the list, a pool switched off,
-    /// a cart that belongs to a table). Dropped marks are remembered for
+    /// as it stands now, and DROP a mark whose line stopped being eligible (an
+    /// item a settings sync took off the list, a pool switched off, a cart
+    /// that belongs to a table). Dropped marks are remembered for
     /// [`Self::take_staff_drink_notices`]. Cheap when nothing is marked.
     pub(crate) fn refresh_staff_marks(&self, ctx: crate::cart::Ctx<'_>) -> Vec<String> {
         use crate::cart::StaffMarkDrop;
@@ -563,12 +563,6 @@ impl MadarCore {
             field: "line".into(),
             detail: "that line is no longer in the cart".into(),
         })?;
-        if line.bundle_id.is_some() {
-            return Err(CoreError::Validation {
-                field: "item".into(),
-                detail: crate::i18n::tr(&locale, staff_pool::StaffDrinkRefusal::ItemNotEligible.key()),
-            });
-        }
         let branch = self.session_branch_id()?;
         let settings = self.staff_pool_settings()?;
         let date = self.staff_pool_date();

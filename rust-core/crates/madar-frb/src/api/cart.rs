@@ -1,4 +1,4 @@
-//! Cart domain: lines, configured/bundle adds, addon lookup, recipe preview,
+//! Cart domain: lines, configured adds, addon lookup, recipe preview,
 //! drafts (held orders), discounts, and totals. Binding code only — every
 //! method is a one-line delegation through `MadarBridge.inner`.
 use flutter_rust_bridge::frb;
@@ -7,8 +7,7 @@ use crate::api::bridge::MadarBridge;
 use crate::api::error::MadarError;
 
 pub use madar_core::cart::{
-    AddonSelection, BundleComponentSelection, CartAddonView, CartBundleComponentView, CartLineView,
-    CartOptionalView, CartStaffDrinkView, CartStaffSummary, CartTotals, CartMeta, DraftSwitchView, DraftView, GroupViolationView, HeldParkInput,
+    AddonSelection, CartAddonView, CartLineView, CartOptionalView, CartStaffDrinkView, CartStaffSummary, CartTotals, CartMeta, DraftSwitchView, DraftView, GroupViolationView, HeldParkInput,
     ItemAddonView, LinePreviewView, ModifierGroupKind, ModifierGroupView, ModifierOptionView,
 };
 pub use madar_core::recipe::ComputedRecipeLineView;
@@ -89,21 +88,7 @@ pub struct _CartOptionalView {
     pub price_minor: i64,
 }
 
-/// A configured component of a bundle cart line, for the bundle row breakdown.
-#[frb(mirror(CartBundleComponentView))]
-pub struct _CartBundleComponentView {
-    pub item_id: String,
-    pub name: String,
-    pub qty: i64,
-    pub size_label: Option<String>,
-    pub addons: Vec<CartAddonView>,
-    pub optionals: Vec<CartOptionalView>,
-}
-
-/// A cart line as the host renders it (with the derived line total). When
-/// `bundle_id` is set the line is a bundle: `name` is the bundle name,
-/// `unit_price_minor` the fixed bundle price, and `bundle_components` the
-/// configured items (the row renders their breakdown).
+/// A cart line as the host renders it (with the derived line total).
 #[frb(mirror(CartLineView))]
 pub struct _CartLineView {
     /// Stable line key (the selection signature) — use for set_qty/remove/edit.
@@ -117,8 +102,6 @@ pub struct _CartLineView {
     pub unit_price_minor: i64,
     pub qty: i64,
     pub line_total_minor: i64,
-    pub bundle_id: Option<String>,
-    pub bundle_components: Vec<CartBundleComponentView>,
     /// A KITCHEN-ONLY note for this line — never on the checkout payload,
     /// never on the customer receipt. Cleared once this line's chit prints.
     pub kitchen_note: Option<String>,
@@ -154,17 +137,6 @@ pub struct _CartTotals {
     pub tax_minor: i64,
     pub service_charge_minor: i64,
     pub total_minor: i64,
-}
-
-/// A host-supplied configured component of a bundle (which item, its size, and
-/// the chosen addons/optionals). The CORE resolves the charged extra prices.
-#[frb(mirror(BundleComponentSelection))]
-pub struct _BundleComponentSelection {
-    pub item_id: String,
-    pub size_label: Option<String>,
-    pub qty: i64,
-    pub addons: Vec<AddonSelection>,
-    pub optional_field_ids: Vec<String>,
 }
 
 /// A parked cart, summarized for the drafts list. Now server-backed: shared
@@ -327,20 +299,6 @@ impl MadarBridge {
     pub fn cart_bill_so_far_minor(&self, table_id: Option<String>, ticket_subtotal_minor: i64) -> Result<i64, MadarError> {
         self.inner
             .cart_bill_so_far_minor(table_id, ticket_subtotal_minor)
-            .map_err(MadarError::from)
-    }
-
-    /// Add a configured BUNDLE line: the fixed bundle price + each component's
-    /// chosen item/size/addons/optionals, up-charges resolved from the catalog.
-    pub fn cart_add_bundle(
-        &self,
-        table_id: Option<String>,
-        bundle_id: String,
-        components: Vec<BundleComponentSelection>,
-        qty: i64,
-    ) -> Result<Vec<CartLineView>, MadarError> {
-        self.inner
-            .cart_add_bundle(table_id, bundle_id, components, qty)
             .map_err(MadarError::from)
     }
 
