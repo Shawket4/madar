@@ -90,6 +90,7 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.err_punch_too_old" => "That punch is more than {max_days} days old. Ask your manager to add it.",
         "staff.say_why_you_decline" => "Say why you're declining it.",
         "staff.why_decline" => "Why are you declining it?",
+        "staff.decline_reason" => "Reason: {note}",
         "staff.holidays_owner_decides" => "The owner decides public holidays. You'll see it here once it's set.",
         "staff.try_again" => "Try again",
         "staff.privacy_open_failed" => "Dawam couldn't open just now. Check your connection and try again.",
@@ -2392,6 +2393,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.err_punch_too_old" => "التسجيل ده عدّى عليه أكتر من {max_days} أيام. اطلب من مديرك يضيفه.",
         "staff.say_why_you_decline" => "قول ليه بترفضه.",
         "staff.why_decline" => "بترفضه ليه؟",
+        "staff.decline_reason" => "السبب: {note}",
         "staff.holidays_owner_decides" => "المالك هو اللي بيقرّر الإجازات الرسمية. هتظهر هنا أول ما تتحدد.",
         "staff.try_again" => "جرّب تاني",
         "staff.privacy_open_failed" => "دوام مقدرش يفتح دلوقتي. اتأكد من النت وجرّب تاني.",
@@ -4815,6 +4817,14 @@ mod tests {
         assert!(wrong.is_empty(), "{wrong:#?}");
         assert_eq!(tr("ar", "staff.day_off"), "يوم راحة");
         assert_eq!(tr("ar", "staff.holiday"), "عطلة رسمية");
+    }
+
+    /// D8: a declined request's row says why, in both languages (the
+    /// server's decision note fills `{note}`).
+    #[test]
+    fn a_declined_request_says_why_in_both_languages() {
+        assert_eq!(tr("en", "staff.decline_reason"), "Reason: {note}");
+        assert_eq!(tr("ar", "staff.decline_reason"), "السبب: {note}");
     }
 
     #[test]

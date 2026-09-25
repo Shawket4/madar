@@ -115,7 +115,20 @@ String? cancelledWords(Req r, String? me, String? Function(String id) nameOf) {
 /// who and why before my own note, so the line's cut never hides it.
 String reqMeta(Req r, String? me, String? Function(String id) nameOf) {
   final cancelled = cancelledWords(r, me, nameOf);
-  return [reqWhen(r), ?cancelled, if (r.note.isNotEmpty) r.note].join(' · ');
+  return [
+    reqWhen(r),
+    ?cancelled,
+    ?declineReason(r),
+    if (r.note.isNotEmpty) r.note,
+  ].join(' · ');
+}
+
+/// Why a request of mine was declined (decision #8: a decline needs a
+/// reason, and the person who asked sees it): the server's decision note.
+String? declineReason(Req r) {
+  final note = r.decisionNote?.trim() ?? '';
+  if (r.status != ReqStatus.rejected || note.isEmpty) return null;
+  return tr('staff.decline_reason', {'note': note});
 }
 
 /// " · half day", with its half when the server says which (RQ-8).
