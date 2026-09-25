@@ -114,6 +114,63 @@ void main() {
       await finish(t);
     });
 
+    // E2E roster m1: the board said "Omar Khaled said they can't work Fris."
+    // (the short day name with an "s" stuck on).
+    testWidgets('a day someone can\'t work is named in full · $lang', (
+      t,
+    ) async {
+      final c = await pumpApp(
+        t,
+        lang: lang,
+        who: 'e2',
+        manage: true,
+        tab: 2,
+        size: tablet,
+        core: (core) => core.edit = (v) {
+          for (final p in v['people'] as List<dynamic>) {
+            final m = p as Map<String, dynamic>;
+            if (m['id'] == 'e1' || m['id'] == 'e4') {
+              m['cant_work'] = [1, 2, 3, 4, 5, 6, 7];
+            }
+          }
+        },
+      );
+      await frames(t);
+      final store = c.read(dawamProvider);
+      final day = plus(store.today, 3);
+      final evening = store
+          .shiftsOn('e1', day)
+          .firstWhere((s) => s.tpl == 'zE');
+      final w = day.weekday - 1;
+      final days = lang == 'en'
+          ? const [
+              'Mondays',
+              'Tuesdays',
+              'Wednesdays',
+              'Thursdays',
+              'Fridays',
+              'Saturdays',
+              'Sundays',
+            ][w]
+          : const [
+              'الإثنين',
+              'الثلاثاء',
+              'الأربعاء',
+              'الخميس',
+              'الجمعة',
+              'السبت',
+              'الأحد',
+            ][w];
+      String said(String who) => lang == 'en'
+          ? "$who said they can't work on $days."
+          : '$who قال مش هيقدر يشتغل أيام $days.';
+      await openCard(t, evening);
+      expect(find.text(said(name(store.emp('e1')))), findsOneWidget);
+      // The colleague she could give it to says so too.
+      expect(find.text(said(firstName(store.emp('e4')))), findsOneWidget);
+      await finish(t);
+    });
+
     testWidgets('a night past midnight reads "ends next day" · $lang', (
       t,
     ) async {

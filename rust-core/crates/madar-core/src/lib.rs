@@ -13107,6 +13107,10 @@ impl MadarCore {
             token: Some(token.to_string()),
             authz: None,
         });
+        // The server just answered: online, with a clean count of failed
+        // calls. The last session's lone blip must not make this one's first
+        // blip read as offline (E2E roster m3).
+        self.set_online(true);
         // The host gets the session, never its secrets: the staff token and
         // the device token stay in the core (06 bug 14).
         let mut out = v;

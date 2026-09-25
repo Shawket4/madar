@@ -832,6 +832,24 @@ pub(crate) const ROSTER_CODES: &[&str] = &[
     "SUGGESTION_STALE",
 ];
 
+/// A shift given to someone already on that block: the refusal names them
+/// for the manager who gave it (E2E roster m2). The server's wording, "You're
+/// already on that shift", is the claimer's own.
+fn already_on_it(e: CoreError, snap: &Snapshot, to: &str, locale: &str) -> CoreError {
+    match e {
+        CoreError::Server { status, code, detail } if code == "ALREADY_ROSTERED" => {
+            match snap.people.iter().find(|p| p.id == to).map(|p| p.name.as_str()).filter(|n| !n.is_empty()) {
+                Some(name) => {
+                    let args = BTreeMap::from([("name".to_string(), name.to_string())]);
+                    CoreError::Server { status, code, detail: fill(&i18n::tr(locale, "staff.err_already_rostered_other"), &args) }
+                }
+                None => CoreError::Server { status, code, detail },
+            }
+        }
+        e => e,
+    }
+}
+
 /// The server's plain refusals carry its error kind in front ("Conflict:
 /// Someone already claimed that shift."): the person reads the sentence only
 /// (E2E roster: the toast said "Conflict: …").
@@ -1543,10 +1561,13 @@ impl MadarCore {
             return self.dawam_snapshot(false).await;
         }
         if matches!(act, Act::AcceptPrivacy) {
-            if !online {
+            if !self.dawam_reachable(online).await {
                 return Err(needs_connection(&self.current_locale()));
             }
-            self.dawam_srv("POST", "/staff/me/privacy", Some(json!({}))).await?;
+            self.dawam_srv("POST", "/staff/me/privacy", Some(json!({}))).await.map_err(|e| match e {
+                CoreError::Offline { .. } => needs_connection(&self.current_locale()),
+                e => e,
+            })?;
             // Anything that waited for the notice goes now.
             let _ = self.store.clear_network_backoff();
             let _ = self.drain_outbox().await;
@@ -1570,7 +1591,7 @@ impl MadarCore {
             }
             return self.dawam_snapshot(online).await;
         }
-        if !online {
+        if !self.dawam_reachable(online).await {
             return Err(needs_connection(&self.current_locale()));
         }
         let filed = self.dawam_online(act).await?;
@@ -1586,6 +1607,17 @@ impl MadarCore {
             }
             None => snap,
         })
+    }
+
+    /// May an online-only action go? The `online` flag is only the last word
+    /// from the network: a blip leaves it false until some later call
+    /// succeeds, and the refusal it causes sends nothing, so it would never
+    /// clear itself (E2E roster m3: "I agree" and every "Try again" said
+    /// "This needs a connection" with the server up). When the flag says
+    /// offline, the server is asked once (`/health`) before anyone is told
+    /// to find a connection.
+    async fn dawam_reachable(&self, online: bool) -> bool {
+        online || self.probe_connectivity().await
     }
 
     /// The last queued Dawam op the server refused in the pass just run, which
@@ -1974,7 +2006,7 @@ impl MadarCore {
                 let (emp, d, tpl) = parts(&shift);
                 self.dawam_srv("POST", "/staff/schedules/days/move", Some(json!({
                     "employee_id": emp, "to_employee_id": to, "on_date": d, "work_shift_id": tpl,
-                }))).await?;
+                }))).await.map_err(|e| already_on_it(e, &snap, &to, &locale))?;
             }
             Act::CancelOpen { shift } => {
                 self.dawam_srv("POST", &format!("/staff/open-shifts/{}/cancel", tail(&shift)), Some(json!({}))).await?;
@@ -2015,7 +2047,7 @@ impl MadarCore {
                     Some(e) => {
                         self.dawam_srv("POST", "/staff/schedules/days/move", Some(json!({
                             "employee_id": owner, "to_employee_id": e, "on_date": d, "work_shift_id": tpl,
-                        }))).await?;
+                        }))).await.map_err(|err| already_on_it(err, &snap, &e, &locale))?;
                     }
                     None => {
                         let rest: Vec<BlockA> = day_set(&snap, owner, d).into_iter().filter(|b| b.tpl != tpl).collect();
@@ -4235,6 +4267,66 @@ mod tests {
         assert_eq!(stub.requests("/staff/me/check-in").len(), 2, "refused once, then taken");
     }
 
+    /// E2E roster m3: "I agree" right after the code step said "This needs a
+    /// connection" with the server up, and nothing reached the server. The
+    /// first picture after the code met a blip, which left the core's
+    /// `online` flag false; the notice was then refused on that flag alone,
+    /// and so was every "Try again", until some other call happened to
+    /// succeed. A flag that says offline is now checked with the server
+    /// before anyone is told to find a connection.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn i_agree_right_after_the_code_reaches_the_server_after_a_blip() {
+        use crate::staff::session_tests::signed_in;
+        use crate::testkit::StubResponse;
+        use std::sync::atomic::Ordering;
+        let k = knobs();
+        k.accepted.store(false, Ordering::SeqCst);
+        let stub = staff_stub(k.clone(), || StubResponse::json(503, json!({}))).await;
+        let core = signed_in(&stub).await;
+        let online = || core.current_session().map(|s| s.online);
+        assert_eq!(online(), Some(true), "the server just took the code");
+
+        // The link drops while the first picture loads (twice: the core now
+        // believes it is offline), then comes back before "I agree".
+        k.up.store(false, Ordering::SeqCst);
+        let _ = core.dawam_snapshot(true).await;
+        let _ = core.dawam_snapshot(true).await;
+        assert_eq!(online(), Some(false));
+        // Really offline, it still says so in the person's words.
+        let err = core.dawam_do(json!({ "action": "accept_privacy" }).to_string()).await.unwrap_err();
+        assert!(matches!(&err, CoreError::Offline { detail } if *detail == i18n::tr("en", "staff.needs_connection")), "{err:?}");
+        k.up.store(true, Ordering::SeqCst);
+
+        let v: Value = serde_json::from_str(&core.dawam_do(json!({ "action": "accept_privacy" }).to_string()).await.expect("I agree reaches the server")).unwrap();
+        assert_eq!(stub.requests("/staff/me/privacy").len(), 1, "sent once, the first time the server was there");
+        assert_eq!(v["privacy_accepted"], true);
+        assert_eq!(online(), Some(true));
+    }
+
+    /// E2E roster m3: a new sign-in starts its own count of failed calls. The
+    /// last person's single blip used to carry over, so one blip in the new
+    /// session (two in a row are needed) already read as offline.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_new_sign_in_does_not_inherit_the_last_sessions_failed_call() {
+        use crate::staff::session_tests::signed_in;
+        use crate::testkit::StubResponse;
+        use std::sync::atomic::Ordering;
+        let k = knobs();
+        let stub = staff_stub(k.clone(), || StubResponse::json(503, json!({}))).await;
+        let core = signed_in(&stub).await;
+        let online = || core.current_session().map(|s| s.online);
+        k.up.store(false, Ordering::SeqCst);
+        let _ = core.dawam_snapshot(true).await;
+        assert_eq!(online(), Some(true), "one blip is not proof of offline");
+        core.logout(false).unwrap();
+
+        k.up.store(true, Ordering::SeqCst);
+        core.staff_otp_verify("+201001234567".into(), "123456".into(), None, None, None).await.unwrap();
+        k.up.store(false, Ordering::SeqCst);
+        let _ = core.dawam_snapshot(true).await;
+        assert_eq!(online(), Some(true), "the new session's first blip is its first");
+    }
+
     /// AT-1 / audit 03 bug 12: "today" is my branch's day, not the first
     /// branch the mirror lists (a manager sees every branch).
     #[tokio::test(flavor = "multi_thread")]
@@ -4397,6 +4489,11 @@ mod tests {
                 ("POST", "/staff/open-shifts/taken/claim") => StubResponse::json(409, json!({ "error": "Conflict: Someone already claimed that shift." })),
                 ("POST", "/staff/open-shifts/coded/claim") => StubResponse::json(409, json!({
                     "error": "Someone already claimed that shift.", "code": "ALREADY_CLAIMED" })),
+                ("POST", "/staff/schedules/days/move") if r.json()["to_employee_id"] == TELLER => StubResponse::json(409, json!({
+                    "error": "Tasbeeh is already on Morning that day.", "code": "ALREADY_ROSTERED",
+                    "vars": { "name": "Tasbeeh", "shift": "Morning", "date": "2026-10-01" } })),
+                ("POST", "/staff/open-shifts/mine/claim") => StubResponse::json(409, json!({
+                    "error": "You're already on that shift.", "code": "ALREADY_ROSTERED" })),
                 ("POST", "/staff/me/swaps") if r.json()["peer_id"] == "Q" => StubResponse::json(409, json!({
                     "error": "You've already asked for this swap — it's waiting.", "code": "SWAP_EXISTS" })),
                 ("GET", p) if p.ends_with("estimate") || p.ends_with("coverage") => StubResponse::json(200, json!({})),
@@ -4675,6 +4772,39 @@ mod tests {
                 }
                 e => panic!("{e:?}"),
             }
+        }
+    }
+
+    /// E2E roster m2: giving a shift to someone already on it told the
+    /// MANAGER "You're already on that shift." The refusal names the person
+    /// the shift was given to; a claim of my own still says "You're".
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_shift_given_to_someone_already_on_it_names_them() {
+        use crate::testkit::TELLER;
+        let day = the_day();
+        let stub = roster_stub(day.clone()).await;
+        let core = crate::testkit::online_core(&stub.base, "").await;
+        core.set_online(true);
+        core.dawam_snapshot(true).await.unwrap();
+        let refusal = |err: CoreError| match err {
+            CoreError::Server { code, detail, .. } => (code, detail),
+            e => panic!("{e:?}"),
+        };
+        for (locale, given, mine) in [
+            ("en", "Tasbeeh is already on that shift.", "You're already on that shift."),
+            ("ar", "Tasbeeh أصلاً على الوردية دي.", "إنت أصلاً على الوردية دي."),
+        ] {
+            core.set_locale(locale.into());
+            for act in [
+                json!({ "action": "give_shift", "shift": format!("P|{day}|w1"), "to": TELLER }),
+                json!({ "action": "assign", "shift": format!("P|{day}|w1"), "emp": TELLER }),
+            ] {
+                let (code, detail) = refusal(core.dawam_do(act.to_string()).await.unwrap_err());
+                assert_eq!(code, "ALREADY_ROSTERED");
+                assert_eq!(detail, given, "{locale} {act}");
+            }
+            let (_, detail) = refusal(core.dawam_do(json!({ "action": "claim", "shift": "open|mine" }).to_string()).await.unwrap_err());
+            assert_eq!(detail, mine, "{locale}: my own claim");
         }
     }
 

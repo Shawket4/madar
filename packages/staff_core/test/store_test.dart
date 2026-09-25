@@ -60,7 +60,11 @@ class _Backend implements DawamBackend {
     String phone,
     String code, {
     String? orgId,
-  }) async => {};
+  }) async {
+    log.add('verify');
+    return {'employee_id': 'e2'};
+  }
+
   @override
   Future<DawamFix?> locate() async => null;
   @override
@@ -72,8 +76,17 @@ class _Backend implements DawamBackend {
   Future<void> tracking({required bool on}) async => trackingCalls.add(on);
   @override
   String? restoredUser() => 'e1';
+
+  /// Holds a sign-out open (Firebase forgetting the token can take 5 s).
+  Completer<void>? signOutGate;
+  final log = <String>[];
   @override
-  Future<void> signOut() async => signOuts++;
+  Future<void> signOut() async {
+    signOuts++;
+    log.add('signOut:start');
+    await signOutGate?.future;
+    log.add('signOut:done');
+  }
 }
 
 final _refused = DawamError(
@@ -388,6 +401,25 @@ void main() {
       expect(store.shifts, isEmpty, reason: "no fallback to e1's shifts");
     },
   );
+
+  // E2E roster m3: signing out finishes in the background (the server,
+  // then Firebase, then the core). A code typed before it finished was
+  // verified first, and the old sign-out then wiped the new session: the
+  // notice's "I agree" had nobody to send for.
+  test('a new sign-in waits for the last sign-out to finish', () async {
+    final (store, backend) = await _store();
+    await Future<void>.delayed(Duration.zero); // restore's refresh lands
+    final gate = Completer<void>();
+    backend.signOutGate = gate;
+    store.signOut();
+    final verified = store.verifyCode('01000001003', '123456');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(backend.log, ['signOut:start'], reason: 'the code waits');
+    gate.complete();
+    expect(await verified, isNull);
+    expect(backend.log, ['signOut:start', 'signOut:done', 'verify']);
+    expect(store.pendingUser, 'e2');
+  });
 
   test('a snapshot with no clock does not crash', () async {
     final (store, backend) = await _store();

@@ -546,7 +546,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
             NoticeBanner(
               text: tr('staff.said_they_can_t_work_s', {
                 'name': name(e),
-                'day': weekday(s.date.weekday),
+                'day': weekdays(s.date.weekday),
               }),
             ),
           for (final (key, args) in warnings) NoticeBanner(text: tr(key, args)),
@@ -650,7 +650,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                     meta: p.cantWork.contains(s.date.weekday)
                         ? tr('staff.said_they_can_t_work_s', {
                             'name': firstName(p),
-                            'day': weekday(s.date.weekday),
+                            'day': weekdays(s.date.weekday),
                           })
                         : null,
                     onTap: () {
@@ -746,7 +746,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                     meta: p.cantWork.contains(d.weekday)
                         ? tr('staff.said_they_can_t_work_s', {
                             'name': firstName(p),
-                            'day': weekday(d.weekday),
+                            'day': weekdays(d.weekday),
                           })
                         : null,
                     selected: who == p.id,
