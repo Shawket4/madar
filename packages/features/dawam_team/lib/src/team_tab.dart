@@ -202,7 +202,21 @@ class _TeamTabState extends ConsumerState<TeamTab> {
           ref,
           () => store.resolve(f, how, deduct: deduct, reason: reason),
         );
-        if (ok && ctx.mounted) Navigator.of(ctx).maybePop();
+        if (!ok) return;
+        // Over my deduction limit the line waits for the owner and counts
+        // nothing yet (minor #33), as the bonus/deduction sheet says.
+        final limit = store.managerDeductLimit;
+        if (flagDeductionWaits(store.lastFiled)) {
+          ref
+              .read(toastProvider.notifier)
+              .show(
+                tr('staff.over_waits_for_the_owner_before', {
+                  'amount': egp(limit),
+                }),
+                tone: ChipTone.warning,
+              );
+        }
+        if (ctx.mounted) Navigator.of(ctx).maybePop();
       }
 
       final explain = switch (f.kind) {
@@ -509,3 +523,10 @@ class _DeductFormState extends ConsumerState<_DeductForm> {
     ],
   );
 }
+
+/// The core's answer to a flag's deduction: over my limit it waits for the
+/// owner (minor #33).
+bool flagDeductionWaits(Filed? filed) =>
+    filed != null &&
+    filed.id.startsWith('f|') &&
+    filed.status == ReqStatus.pending;

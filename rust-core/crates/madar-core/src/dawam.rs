@@ -1844,6 +1844,12 @@ impl MadarCore {
                 if deduct > 0 { body["amount_piastres"] = json!(deduct); }
                 if let Some(r) = reason.filter(|r| !r.trim().is_empty()) { body["reason"] = json!(r.trim()); }
                 self.dawam_srv("PATCH", &format!("/staff/flags/{flag}"), Some(body)).await?;
+                // Over my deduction limit the line waits for the owner (AD-5,
+                // minor #33): the server's limit, "above it, it waits".
+                let charges = matches!(how.as_str(), "deduct" | "excuse_unpaid");
+                if charges && snap.settings.deduction_limit.is_some_and(|limit| deduct > limit) {
+                    filed = Some(json!({ "id": format!("f|{flag}"), "status": "pending", "to_owner": true }));
+                }
             }
             Act::AddAdjustment { emp, bonus, amount, reason, pct, recurring } => {
                 let mut body = json!({ "employee_id": emp, "kind": if bonus { "bonus" } else { "deduction" }, "reason": reason, "recurring": recurring });
@@ -5205,6 +5211,40 @@ mod tests {
         ]));
         let snap: Value = serde_json::from_str(&core.dawam_do(json!({ "action": "decide", "req": "o|o2", "approve": true }).to_string()).await.unwrap()).unwrap();
         assert_eq!(snap.get("filed"), None, "an older server's 204 says nothing");
+    }
+
+    /// Minor #33: a deduction from a flag over the manager's deduction limit
+    /// waits for the owner, and the manager is told so, as the bonus and
+    /// deduction sheet does (the limit is the server's, "above it, the
+    /// deduction waits").
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_flag_deduction_over_my_limit_waits_for_the_owner() {
+        use crate::testkit::{StubResponse, BRANCH, TELLER};
+        let (_stub, core) = cafe(&["hr.attendance.read", "hr.deductions.create"], |m, p, _| match (m, p) {
+            ("GET", "/staff/me/context") => Some(StubResponse::json(200, json!({
+                "role": "manager", "org_name": "Nile Café", "caps": ["hr.attendance.read", "hr.deductions.create"],
+                "deduction_limit_piastres": 100_000,
+                "branches": [{ "id": BRANCH, "name": "Zamalek", "timezone": "Africa/Cairo" }],
+                "work_shifts": [], "settings": { "period_start_day": 26 },
+                "people": [
+                    { "employee_id": TELLER, "name": "Sara", "role": "manager", "branch_ids": [BRANCH] },
+                    { "employee_id": "e4", "name": "Youssef", "role": "employee", "branch_ids": [BRANCH] },
+                ],
+            }))),
+            ("PATCH", p) if p.starts_with("/staff/flags/") => Some(StubResponse::json(200, json!({ "id": "f1" }))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        let over = json!({ "action": "resolve", "flag": "f1", "how": "deduct", "deduct": 150_000, "reason": "Left for 3 h" });
+        let snap: Value = serde_json::from_str(&core.dawam_do(over.to_string()).await.unwrap()).unwrap();
+        assert_eq!(snap["filed"]["status"], "pending", "over the limit: waits for the owner");
+        let within = json!({ "action": "resolve", "flag": "f1", "how": "deduct", "deduct": 100_000, "reason": "Left" });
+        let snap: Value = serde_json::from_str(&core.dawam_do(within.to_string()).await.unwrap()).unwrap();
+        assert_eq!(snap.get("filed"), None, "at the limit: done");
+        let ignore = json!({ "action": "resolve", "flag": "f1", "how": "ignore" });
+        let snap: Value = serde_json::from_str(&core.dawam_do(ignore.to_string()).await.unwrap()).unwrap();
+        assert_eq!(snap.get("filed"), None, "no money: nothing waits");
     }
 
     /// Owner decision #8 (D8): declining a pay line or an advance says why.
