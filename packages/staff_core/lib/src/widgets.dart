@@ -271,6 +271,7 @@ MadarStatus statusOf(ReqStatus s) => switch (s) {
     tone: MadarTone.danger,
   ),
   ReqStatus.cancelled => MadarStatus(tr('staff.cancelled')),
+  ReqStatus.withdrawn => MadarStatus(tr('staff.withdrawn')),
 };
 
 String methodLabel(Method m) => switch (m) {

@@ -40,7 +40,16 @@ enum ReqKind {
   overtime,
 }
 
-enum ReqStatus { awaitingPeer, pending, approved, rejected, cancelled }
+/// [withdrawn]: a claim on an open shift its claimer took back while it
+/// waited (B-H1-5); the server keeps it apart from a cancel.
+enum ReqStatus {
+  awaitingPeer,
+  pending,
+  approved,
+  rejected,
+  cancelled,
+  withdrawn,
+}
 
 enum PeriodStatus { open, approved, paid }
 
