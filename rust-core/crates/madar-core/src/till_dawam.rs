@@ -11,6 +11,8 @@ use crate::{CoreError, MadarCore, store, till};
 const K_BRANCH_PEOPLE: &str = "till_dawam.branch_people";
 /// What the till still has to tell the teller about queued pay-outs.
 const K_PAY_OUT_NOTICES: &str = "till_dawam.pay_out_notices";
+/// The org's switched-on modules as the server last said (minor #40).
+const K_ORG_MODULES: &str = "till_dawam.org_modules";
 
 /// Someone at this branch, for the pay-out's "who took it" picker.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -149,6 +151,33 @@ impl MadarCore {
         self.push_diag("warn", format!("pay-out kept without its expense-advance tag: {reason}"));
         self.store.emit_changes(crate::changes::tables_for_op("cash_movement"));
         Some(store::OutboxItem { payload: text, ..item.clone() })
+    }
+
+    /// Reads the org's switched-on modules and keeps them (sign-in's call;
+    /// best-effort: a failed read keeps the last answer).
+    pub(crate) async fn remember_org_modules(&self, org_id: &str) {
+        let Ok(text) = self.api.send_json(reqwest::Method::GET, &format!("/orgs/{org_id}/modules"), None).await else {
+            return;
+        };
+        let modules: Option<Vec<String>> = serde_json::from_str::<Value>(&text).ok().and_then(|v| {
+            v["modules"].as_array().map(|m| m.iter().filter_map(Value::as_str).map(str::to_string).collect())
+        });
+        if let Some(m) = modules {
+            let _ = self.store.kv_put(K_ORG_MODULES, &json!(m).to_string());
+        }
+    }
+
+    /// Dawam is on for this org, so the till offers "Clock in/out" and the
+    /// pay-out's "Expense advance to" (minor #40). True until the server has
+    /// said otherwise: the server still refuses either when it is off. Local;
+    /// no network.
+    pub fn till_dawam_on(&self) -> bool {
+        self.store
+            .kv_get(K_ORG_MODULES)
+            .ok()
+            .flatten()
+            .and_then(|j| serde_json::from_str::<Vec<String>>(&j).ok())
+            .is_none_or(|m| m.iter().any(|x| x == "dawam"))
     }
 
     /// This branch's staff; the last list when offline.
@@ -485,5 +514,32 @@ mod tests {
             }
         }
         assert_ne!(reasons(&core)[0], reasons(&core)[3], "English, then Arabic");
+    }
+
+    /// Minor #40: with Dawam switched off the till still offered "Clock
+    /// in/out" and "Expense advance to", and the server refused both. The
+    /// org's modules are read at sign-in and kept; the till asks locally.
+    #[tokio::test]
+    async fn the_till_knows_when_dawam_is_off() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+        let n = Arc::new(AtomicUsize::new(0));
+        let m = n.clone();
+        let stub = Stub::start(move |r| {
+            (r.path == "/orgs/o1/modules").then(|| match m.fetch_add(1, Ordering::SeqCst) {
+                0 => StubResponse::json(200, json!({ "org_id": "o1", "modules": ["pos"] })),
+                1 => StubResponse::json(500, json!({ "error": "boom" })),
+                _ => StubResponse::json(200, json!({ "org_id": "o1", "modules": ["pos", "dawam"] })),
+            })
+        })
+        .await;
+        let core = testkit::online_core(&stub.base, "").await;
+        assert!(core.till_dawam_on(), "nothing known yet: offered, the server decides");
+        core.remember_org_modules("o1").await;
+        assert!(!core.till_dawam_on(), "Dawam off: no punch, no advance tag");
+        core.remember_org_modules("o1").await;
+        assert!(!core.till_dawam_on(), "a failed read keeps the last answer");
+        core.remember_org_modules("o1").await;
+        assert!(core.till_dawam_on());
     }
 }

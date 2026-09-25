@@ -47,6 +47,8 @@ const ALLOWED: &[&str] = &[
     "POST /auth/refresh",
     "GET /auth/permissions",
     "GET /orgs/:id/offline-auth-bundle",
+    // Sign-in: which modules the org has on (the till hides Dawam when off).
+    "GET /orgs/:id/modules",
 ];
 
 fn allowed(route: &str) -> bool {

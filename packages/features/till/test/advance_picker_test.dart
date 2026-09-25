@@ -11,6 +11,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 class _Bridge implements MadarBridge {
+  _Bridge({this.dawamOn = true});
+
+  /// The org has Dawam switched on (minor #40).
+  final bool dawamOn;
+
   @override
   dynamic noSuchMethod(Invocation invocation) {
     final name = invocation.memberName;
@@ -20,6 +25,7 @@ class _Bridge implements MadarBridge {
       return Future<List<CashMovementView>>.value(const []);
     }
     if (name == #tillFiguresVisible) return true;
+    if (name == #tillDawamOn) return dawamOn;
     if (name == #formatMoney) return '${args[#minor]}';
     if (name == #branchPeople) {
       return Future<List<BranchPersonView>>.value([
@@ -71,5 +77,26 @@ void main() {
       findsOneWidget,
       reason: 'picked: shown as the value',
     );
+  });
+
+  // Minor #40: with Dawam off a pay-out still offered "Expense advance to",
+  // and the server refused the tag. Off, the picker is gone.
+  testWidgets('with Dawam off a pay-out has no Expense advance to', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [bridgeProvider.overrideWithValue(_Bridge(dawamOn: false))],
+        child: MaterialApp(
+          theme: MadarTheme.light(),
+          home: const Scaffold(
+            body: SingleChildScrollView(child: CashInOutPanel()),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('cash.pay_out'), findsWidgets, reason: 'the form is up');
+    expect(find.text('cash.expense_advance'), findsNothing);
   });
 }

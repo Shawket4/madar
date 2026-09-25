@@ -1471,6 +1471,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The drawer arithmetic's cash-sales line, closed on the report's figure.
   PlatformInt64 tillCashSalesMinor({required TillReportView report});
 
+  /// Dawam is on for this org: the till offers "Clock in/out" and the
+  /// pay-out's "Expense advance to" (minor #40). True until the server said
+  /// otherwise at sign-in. Local; no network.
+  bool tillDawamOn();
+
   /// The signed-in person may see the open till's figures.
   bool tillFiguresVisible();
 

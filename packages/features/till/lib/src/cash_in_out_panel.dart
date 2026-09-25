@@ -140,7 +140,7 @@ class _CashInOutPanelState extends ConsumerState<CashInOutPanel> {
                 style: MadarType.labelSm.copyWith(color: colors.textMuted),
               ),
             ),
-            if (!isIn) const _AdvanceToPicker(),
+            if (!isIn && tillDawamOn(ref.bridge)) const _AdvanceToPicker(),
             if (error != null)
               NoticeBanner(
                 text: error.of(bridge),

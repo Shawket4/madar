@@ -6178,6 +6178,11 @@ impl MadarCore {
                 session::cache_bundle(&self.store, &bundle, &snapshot);
             }
         }
+        // Which modules the org has on: the till hides Dawam's punch and
+        // expense-advance tag when it is off (minor #40). Best-effort.
+        if let Some(org_id) = snapshot.org_id.as_deref() {
+            self.remember_org_modules(org_id).await;
+        }
 
         // Effective capabilities at this branch (an older backend answers 404 and
         // the legacy grid stands in).

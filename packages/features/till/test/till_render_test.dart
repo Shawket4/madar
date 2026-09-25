@@ -319,7 +319,11 @@ class _FakeBridge implements MadarBridge {
     this.methods = _methods,
     this.preflight,
     this.figuresVisible = true,
+    this.dawamOn = true,
   });
+
+  /// The org has Dawam switched on (minor #40).
+  final bool dawamOn;
 
   /// The person holds `till.cash_spot_check` — "may see this till's money
   /// figures" (owner, 2026-09-19).
@@ -365,6 +369,7 @@ class _FakeBridge implements MadarBridge {
   @override
   dynamic noSuchMethod(Invocation invocation) {
     if (invocation.memberName == #tillFiguresVisible) return figuresVisible;
+    if (invocation.memberName == #tillDawamOn) return dawamOn;
     final can = fakeCanInvocation(invocation, () => currentSession()?.role);
     if (can != null) return can;
     final name = invocation.memberName;
@@ -774,6 +779,26 @@ void main() {
     expect(find.byType(CashLedger), findsOneWidget);
     // Cash spot replaces the X preview (owner design 2026-09-16 item 5).
     expect(find.text('Preview X report'), findsNothing);
+  });
+
+  // Minor #40: with Dawam off the Till still offered "Clock in/out", and the
+  // server refused it. Off, the row is gone; on, it is there.
+  testWidgets('with Dawam off the Till has no Clock in/out', (tester) async {
+    for (final on in [true, false]) {
+      await _shoot(
+        tester,
+        screen: TillScreen(onOpenOrders: () {}),
+        bridge: _FakeBridge(dawamOn: on),
+        size: _ipad,
+        theme: MadarTheme.light(),
+        name: 'dawam-$on',
+      );
+      expect(
+        find.text('Clock in/out'),
+        on ? findsOneWidget : findsNothing,
+        reason: 'Dawam on: $on',
+      );
+    }
   });
 
   testWidgets('without till.cash_spot_check the Till shows ONE hidden panel', (

@@ -444,6 +444,18 @@ class TillNotifier extends Notifier<TillState> {
 }
 
 /// Till tab state (auto-disposed with the tab so a re-entry reloads).
+/// Dawam is on for this org (minor #40): the till offers "Clock in/out"
+/// and the pay-out's "Expense advance to" only then. A local read (the core
+/// refreshes the org's modules at every sign-in); a bridge that cannot say
+/// keeps both offered, and the server still decides.
+bool tillDawamOn(MadarBridge bridge) {
+  try {
+    return bridge.tillDawamOn();
+  } on Object {
+    return true;
+  }
+}
+
 final NotifierProvider<TillNotifier, TillState> tillProvider =
     NotifierProvider.autoDispose<TillNotifier, TillState>(TillNotifier.new);
 
