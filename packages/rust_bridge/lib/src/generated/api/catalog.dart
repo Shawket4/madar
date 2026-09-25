@@ -214,6 +214,10 @@ class ComboChoiceDetail {
   /// The item has add-ons or options: offer "Customise".
   final bool customisable;
 
+  /// A required choice with no default (a sandwich's bread): picking the
+  /// item opens "Customise" at once; the combo waits for the choice.
+  final bool mustCustomise;
+
   const ComboChoiceDetail({
     required this.itemId,
     required this.name,
@@ -224,6 +228,7 @@ class ComboChoiceDetail {
     required this.sizes,
     required this.isDefault,
     required this.customisable,
+    required this.mustCustomise,
   });
 
   @override
@@ -236,7 +241,8 @@ class ComboChoiceDetail {
       surchargeMinor.hashCode ^
       sizes.hashCode ^
       isDefault.hashCode ^
-      customisable.hashCode;
+      customisable.hashCode ^
+      mustCustomise.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -251,7 +257,8 @@ class ComboChoiceDetail {
           surchargeMinor == other.surchargeMinor &&
           sizes == other.sizes &&
           isDefault == other.isDefault &&
-          customisable == other.customisable;
+          customisable == other.customisable &&
+          mustCustomise == other.mustCustomise;
 }
 
 /// The combo sheet, priced.
@@ -398,6 +405,39 @@ class ComboPickInput {
           notes == other.notes;
 }
 
+/// A combo pick still wanting a required choice with no default.
+class ComboPickNeed {
+  final String slotId;
+  final String itemId;
+
+  /// The choice's name ("Bread"), in the teller's language.
+  final String groupName;
+
+  /// What the slot shows: "Choose Bread".
+  final String text;
+
+  const ComboPickNeed({
+    required this.slotId,
+    required this.itemId,
+    required this.groupName,
+    required this.text,
+  });
+
+  @override
+  int get hashCode =>
+      slotId.hashCode ^ itemId.hashCode ^ groupName.hashCode ^ text.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ComboPickNeed &&
+          runtimeType == other.runtimeType &&
+          slotId == other.slotId &&
+          itemId == other.itemId &&
+          groupName == other.groupName &&
+          text == other.text;
+}
+
 /// The combo sheet's live figures.
 class ComboQuoteView {
   final PlatformInt64 priceMinor;
@@ -417,6 +457,9 @@ class ComboQuoteView {
   /// The same, in the teller's language.
   final String? refusalText;
 
+  /// Each pick still wanting a required choice (its slot shows why).
+  final List<ComboPickNeed> pickNeeds;
+
   const ComboQuoteView({
     required this.priceMinor,
     required this.unitTotalMinor,
@@ -428,6 +471,7 @@ class ComboQuoteView {
     required this.complete,
     this.refusal,
     this.refusalText,
+    required this.pickNeeds,
   });
 
   @override
@@ -441,7 +485,8 @@ class ComboQuoteView {
       savingMinor.hashCode ^
       complete.hashCode ^
       refusal.hashCode ^
-      refusalText.hashCode;
+      refusalText.hashCode ^
+      pickNeeds.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -457,7 +502,8 @@ class ComboQuoteView {
           savingMinor == other.savingMinor &&
           complete == other.complete &&
           refusal == other.refusal &&
-          refusalText == other.refusalText;
+          refusalText == other.refusalText &&
+          pickNeeds == other.pickNeeds;
 }
 
 class ComboSizeOption {

@@ -15225,8 +15225,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   ComboChoiceDetail dco_decode_combo_choice_detail(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
     return ComboChoiceDetail(
       itemId: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
@@ -15237,6 +15237,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       sizes: dco_decode_list_combo_size_option(arr[6]),
       isDefault: dco_decode_bool(arr[7]),
       customisable: dco_decode_bool(arr[8]),
+      mustCustomise: dco_decode_bool(arr[9]),
     );
   }
 
@@ -15292,11 +15293,25 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  ComboPickNeed dco_decode_combo_pick_need(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return ComboPickNeed(
+      slotId: dco_decode_String(arr[0]),
+      itemId: dco_decode_String(arr[1]),
+      groupName: dco_decode_String(arr[2]),
+      text: dco_decode_String(arr[3]),
+    );
+  }
+
+  @protected
   ComboQuoteView dco_decode_combo_quote_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 10)
-      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    if (arr.length != 11)
+      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
     return ComboQuoteView(
       priceMinor: dco_decode_i_64(arr[0]),
       unitTotalMinor: dco_decode_i_64(arr[1]),
@@ -15308,6 +15323,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       complete: dco_decode_bool(arr[7]),
       refusal: dco_decode_opt_String(arr[8]),
       refusalText: dco_decode_opt_String(arr[9]),
+      pickNeeds: dco_decode_list_combo_pick_need(arr[10]),
     );
   }
 
@@ -16065,6 +16081,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   List<ComboPickInput> dco_decode_list_combo_pick_input(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_combo_pick_input).toList();
+  }
+
+  @protected
+  List<ComboPickNeed> dco_decode_list_combo_pick_need(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_combo_pick_need).toList();
   }
 
   @protected
@@ -19563,6 +19585,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_sizes = sse_decode_list_combo_size_option(deserializer);
     var var_isDefault = sse_decode_bool(deserializer);
     var var_customisable = sse_decode_bool(deserializer);
+    var var_mustCustomise = sse_decode_bool(deserializer);
     return ComboChoiceDetail(
       itemId: var_itemId,
       name: var_name,
@@ -19573,6 +19596,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       sizes: var_sizes,
       isDefault: var_isDefault,
       customisable: var_customisable,
+      mustCustomise: var_mustCustomise,
     );
   }
 
@@ -19640,6 +19664,21 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  ComboPickNeed sse_decode_combo_pick_need(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_slotId = sse_decode_String(deserializer);
+    var var_itemId = sse_decode_String(deserializer);
+    var var_groupName = sse_decode_String(deserializer);
+    var var_text = sse_decode_String(deserializer);
+    return ComboPickNeed(
+      slotId: var_slotId,
+      itemId: var_itemId,
+      groupName: var_groupName,
+      text: var_text,
+    );
+  }
+
+  @protected
   ComboQuoteView sse_decode_combo_quote_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_priceMinor = sse_decode_i_64(deserializer);
@@ -19652,6 +19691,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_complete = sse_decode_bool(deserializer);
     var var_refusal = sse_decode_opt_String(deserializer);
     var var_refusalText = sse_decode_opt_String(deserializer);
+    var var_pickNeeds = sse_decode_list_combo_pick_need(deserializer);
     return ComboQuoteView(
       priceMinor: var_priceMinor,
       unitTotalMinor: var_unitTotalMinor,
@@ -19663,6 +19703,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       complete: var_complete,
       refusal: var_refusal,
       refusalText: var_refusalText,
+      pickNeeds: var_pickNeeds,
     );
   }
 
@@ -20727,6 +20768,20 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var ans_ = <ComboPickInput>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_combo_pick_input(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<ComboPickNeed> sse_decode_list_combo_pick_need(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ComboPickNeed>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_combo_pick_need(deserializer));
     }
     return ans_;
   }
@@ -25163,6 +25218,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_list_combo_size_option(self.sizes, serializer);
     sse_encode_bool(self.isDefault, serializer);
     sse_encode_bool(self.customisable, serializer);
+    sse_encode_bool(self.mustCustomise, serializer);
   }
 
   @protected
@@ -25205,6 +25261,18 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_combo_pick_need(
+    ComboPickNeed self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.slotId, serializer);
+    sse_encode_String(self.itemId, serializer);
+    sse_encode_String(self.groupName, serializer);
+    sse_encode_String(self.text, serializer);
+  }
+
+  @protected
   void sse_encode_combo_quote_view(
     ComboQuoteView self,
     SseSerializer serializer,
@@ -25220,6 +25288,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_bool(self.complete, serializer);
     sse_encode_opt_String(self.refusal, serializer);
     sse_encode_opt_String(self.refusalText, serializer);
+    sse_encode_list_combo_pick_need(self.pickNeeds, serializer);
   }
 
   @protected
@@ -25998,6 +26067,18 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_combo_pick_input(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_combo_pick_need(
+    List<ComboPickNeed> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_combo_pick_need(item, serializer);
     }
   }
 

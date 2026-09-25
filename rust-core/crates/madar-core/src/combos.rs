@@ -97,6 +97,10 @@ pub struct ComboChoiceDetail {
     pub is_default: bool,
     /// The item has add-ons or optional fields: the sheet offers "Customise".
     pub customisable: bool,
+    /// The item has a required choice with no default (a sandwich's bread):
+    /// picking it opens "Customise" at once, and the combo can't be added
+    /// until the choice is made ([`COMBO_PICK_CHOICE_REQUIRED`]).
+    pub must_customise: bool,
 }
 
 /// A size of a choice.
@@ -135,6 +139,25 @@ pub struct ComboQuoteView {
     pub refusal: Option<String>,
     /// The same, in the teller's language.
     pub refusal_text: Option<String>,
+    /// Each pick still wanting a required choice (its slot shows why).
+    pub pick_needs: Vec<ComboPickNeed>,
+}
+
+/// The coded refusal of a pick whose item has a required choice with no
+/// default that the pick leaves unmade (a sandwich's bread). The till's own:
+/// the server fills an unpicked choice with a default, and this one has none.
+pub const COMBO_PICK_CHOICE_REQUIRED: &str = "COMBO_PICK_CHOICE_REQUIRED";
+
+/// A pick still wanting a required choice.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ComboPickNeed {
+    pub slot_id: String,
+    pub item_id: String,
+    /// The choice's name ("Bread"), in the teller's language.
+    pub group_name: String,
+    /// What the slot shows: "Choose Bread".
+    pub text: String,
 }
 
 /// A combo ready to edit on the sheet: a combo line in the cart, or "make it
@@ -328,7 +351,8 @@ pub(crate) fn refusal_text(
 }
 
 /// The detail the combo sheet draws. `customisable` says whether an item has
-/// anything to pick (the item sheet's own modifier groups).
+/// anything to pick (the item sheet's own modifier groups), `must_customise`
+/// whether one of those picks is required and has no default.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn detail(
     def: &ComboDef,
@@ -339,6 +363,7 @@ pub(crate) fn detail(
     at: &At,
     locale: &str,
     customisable: impl Fn(&MenuItemView) -> bool,
+    must_customise: impl Fn(&MenuItemView) -> bool,
 ) -> ComboDetail {
     let view = catalog_pricing::combo_view_for(def, combo_item, pricing);
     let avail = availability(&view, items, at);
@@ -408,6 +433,7 @@ pub(crate) fn detail(
                         sizes,
                         is_default: slot.default_item_id.as_deref() == Some(item.id.as_str()),
                         customisable: customisable(item),
+                        must_customise: must_customise(item),
                     });
                 }
             }
@@ -461,6 +487,7 @@ pub(crate) fn quote_view(
         complete: true,
         refusal: None,
         refusal_text: None,
+        pick_needs: Vec::new(),
     };
     let refused = |r: &ComboRefusal, mut v: ComboQuoteView| {
         v.complete = false;
@@ -662,6 +689,54 @@ pub(crate) fn pick_of(
     }
 }
 
+/// The first required choice among an item's `groups` that a selection
+/// leaves unmade and that has no default to stand in for it, named in the
+/// teller's words. A default is the item as it is made (the recipe's milk):
+/// the rule applies it to a pick nobody customised, so it never counts as
+/// missing. A sandwich's bread has none: nobody can guess it.
+pub(crate) fn unmade_choice(
+    groups: &[cart::ModifierGroupView],
+    addons: &[AddonSelection],
+    optional_ids: &[String],
+    locale: &str,
+) -> Option<String> {
+    cart::validate_group_selections(groups, addons, optional_ids)
+        .into_iter()
+        .filter(|v| v.selected < i64::from(v.min_required))
+        .find_map(|v| {
+            let g = groups.iter().find(|g| g.group_id == v.group_id)?;
+            let stands_in = g.default_option_id.is_some() && v.selected == 0 && v.min_required <= 1;
+            (!stands_in).then(|| group_word(g, locale))
+        })
+}
+
+/// A group's name as the item sheet shows it: an authored name as it is, a
+/// bare addon type in the till's words.
+fn group_word(g: &cart::ModifierGroupView, locale: &str) -> String {
+    match g.addon_type.as_deref() {
+        Some(ty) if g.name == ty => {
+            let key = format!("order.addon_{ty}");
+            match i18n::tr(locale, &key) {
+                word if word != key => word,
+                _ => i18n::tr(locale, "order.addon_other"),
+            }
+        }
+        _ => g.name.clone(),
+    }
+}
+
+/// The refusal of a pick still wanting a choice, in the teller's words.
+fn need_text(need: &ComboPickNeed, items: &[MenuItemView], locale: &str) -> String {
+    let item = items
+        .iter()
+        .find(|i| i.id == need.item_id)
+        .map(|i| i.name.as_str())
+        .unwrap_or_default();
+    i18n::tr(locale, "combo.pick_choice_required")
+        .replace("{group}", &need.group_name)
+        .replace("{item}", item)
+}
+
 // ── the core's surface (FRB: `api/catalog.rs`, `api/cart.rs`) ────────────────
 
 impl crate::MadarCore {
@@ -718,6 +793,35 @@ impl crate::MadarCore {
         }
     }
 
+    /// Whether an item has a required choice with no default: picking it
+    /// opens its sheet at once.
+    fn must_customise(catalog: &crate::CatalogSnapshot, item: &MenuItemView) -> bool {
+        let groups = Self::modifier_groups_in(catalog, item);
+        unmade_choice(&groups, &[], &[], &catalog.locale).is_some()
+    }
+
+    /// Each pick whose item still wants a required choice with no default.
+    fn pick_needs(catalog: &crate::CatalogSnapshot, picks: &[ComboPickInput]) -> Vec<ComboPickNeed> {
+        picks
+            .iter()
+            .filter_map(|p| {
+                let item = catalog
+                    .items
+                    .iter()
+                    .find(|i| i.id == p.item_id && i.kind != menu::KIND_COMBO)?;
+                let groups = Self::modifier_groups_in(catalog, item);
+                let group_name =
+                    unmade_choice(&groups, &p.addons, &p.optional_field_ids, &catalog.locale)?;
+                Some(ComboPickNeed {
+                    slot_id: p.slot_id.clone(),
+                    item_id: p.item_id.clone(),
+                    text: i18n::tr(&catalog.locale, "combo.pick_choose").replace("{group}", &group_name),
+                    group_name,
+                })
+            })
+            .collect()
+    }
+
     /// The combo sheet for `item_id`, or `None` when it is not a combo here.
     pub fn combo_detail(&self, item_id: String) -> Option<ComboDetail> {
         let catalog = self.catalog().ok()?;
@@ -732,6 +836,7 @@ impl crate::MadarCore {
             &at,
             &catalog.locale,
             |i| self.customisable(&catalog, i),
+            |i| Self::must_customise(&catalog, i),
         ))
     }
 
@@ -769,7 +874,7 @@ impl crate::MadarCore {
     ) -> Result<ComboQuoteView, crate::error::CoreError> {
         let catalog = self.catalog()?;
         let (def, item) = Self::combo_of(&catalog, &combo_id)?;
-        Ok(quote_view(
+        let mut q = quote_view(
             def,
             item,
             &catalog.items,
@@ -778,7 +883,15 @@ impl crate::MadarCore {
             &picks,
             qty,
             &catalog.locale,
-        ))
+        );
+        // The slots first; then a pick still wanting its bread.
+        q.pick_needs = Self::pick_needs(&catalog, &picks);
+        if let (true, Some(need)) = (q.complete, q.pick_needs.first()) {
+            q.complete = false;
+            q.refusal = Some(COMBO_PICK_CHOICE_REQUIRED.to_string());
+            q.refusal_text = Some(need_text(need, &catalog.items, &catalog.locale));
+        }
+        Ok(q)
     }
 
     /// The combo line for `picks`, priced, or the refusal in the teller's
@@ -800,7 +913,7 @@ impl crate::MadarCore {
                 detail: why_text(&why, &catalog.locale),
             });
         }
-        cart::resolve_combo_line(
+        let line = cart::resolve_combo_line(
             def,
             item,
             &catalog.items,
@@ -813,7 +926,17 @@ impl crate::MadarCore {
         .map_err(|r| crate::error::CoreError::Validation {
             field: String::new(),
             detail: refusal_text(&r, def, &catalog.items, &catalog.locale),
-        })
+        })?;
+        // A pick still wanting a required choice with no default (a
+        // sandwich's bread) never reaches the cart, whichever path asks
+        // (COMBO_PICK_CHOICE_REQUIRED).
+        if let Some(need) = Self::pick_needs(&catalog, picks).first() {
+            return Err(crate::error::CoreError::Validation {
+                field: String::new(),
+                detail: need_text(need, &catalog.items, &catalog.locale),
+            });
+        }
+        Ok(line)
     }
 
     /// Add a combo line (identical combos merge their quantity).

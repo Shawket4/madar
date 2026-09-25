@@ -51,7 +51,7 @@ void main() {
   });
 
   test('ffi surface version matches the wrapper contract', () {
-    expect(ffiSurfaceVersion(), 5);
+    expect(ffiSurfaceVersion(), 6);
     expect(coreVersion(), isNotEmpty);
     expect(greet(name: 'test'), contains('test'));
   });
