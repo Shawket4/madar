@@ -1,6 +1,8 @@
 import CoreLocation
 import Flutter
 import UIKit
+import flutter_secure_storage_darwin
+import shared_preferences_foundation
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -16,13 +18,18 @@ import UIKit
     // before iOS hands the event to the tracker, which keeps the reading
     // until the app's Dart side asks for it.
     tracker.resumeIfOn()
+    // Launched for that event with no screen: the app's engine may never
+    // run, so the tracker's headless one boots while iOS gets the reading.
+    if launchOptions?[.location] != nil { tracker.wokenForLocation() }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "DawamTracking") {
-      tracker.attach(messenger: registrar.messenger())
+      // The engine keeps its registrar: when the engine goes (its scene
+      // disconnected), so does the registrar, and readings go headless.
+      tracker.attach(messenger: registrar.messenger(), owner: registrar)
     }
   }
 }
@@ -158,6 +165,75 @@ struct DawamCadence {
   }
 }
 
+/// Which Dart side a reading goes to (CL-4). One reading is in flight to one
+/// engine at a time, and leaves the queue on that engine's answer, so two
+/// isolates never ping the same fix.
+enum DawamRoute: Equatable {
+  /// The app's engine: its Dart side listens (it asked for the flush), or
+  /// it is up and is tried ("not implemented" keeps the reading).
+  case app
+  /// The headless engine running `dawamTrackingMain`, ready.
+  case headless
+  /// No app engine and no screen: start the headless engine; the reading
+  /// goes when it says ready.
+  case startHeadless
+  /// An engine is coming: the headless one is booting, or a screen is
+  /// connected and its engine is on its way.
+  case wait
+
+  static func route(
+    appListening: Bool, appAttached: Bool, headless: DawamHeadlessState, sceneless: Bool
+  ) -> DawamRoute {
+    if appListening { return .app }
+    switch headless {
+    case .ready: return .headless
+    case .starting: return .wait
+    case .none: break
+    }
+    if appAttached { return .app }
+    return sceneless ? .startHeadless : .wait
+  }
+}
+
+enum DawamHeadlessState: Equatable { case none, starting, ready }
+
+/// A Dart side with no UI (a seam for RunnerTests).
+protocol DawamHeadlessEngine: AnyObject {
+  var messenger: FlutterBinaryMessenger { get }
+  func destroy()
+}
+
+/// `dawamTrackingMain` (lib/background.dart) in a headless FlutterEngine, as
+/// Android's DawamTrackingService runs it: the same core, through the same
+/// store, pings and says whether the shift is still on.
+final class DawamHeadlessFlutter: DawamHeadlessEngine {
+  static let entrypoint = "dawamTrackingMain"
+  static let library = "package:madar_staff/background.dart"
+
+  private let engine: FlutterEngine
+  var messenger: FlutterBinaryMessenger { engine.binaryMessenger }
+
+  init?() {
+    engine = FlutterEngine(name: "dawam.tracking", project: nil, allowHeadlessExecution: true)
+    guard engine.run(withEntrypoint: Self.entrypoint, libraryURI: Self.library) else { return nil }
+    // Only the plugins the entry point uses: its prefs and the device token
+    // in the Keychain (path_provider and the core are FFI). Never the whole
+    // GeneratedPluginRegistrant: firebase_messaging keeps ONE shared
+    // instance, and registering it here would move its channel off the
+    // app's engine, so pushes and taps went nowhere once this one is gone.
+    if let r = engine.registrar(forPlugin: "SharedPreferencesPlugin") {
+      SharedPreferencesPlugin.register(with: r)
+    }
+    if let r = engine.registrar(forPlugin: "FlutterSecureStorageDarwinPlugin") {
+      FlutterSecureStorageDarwinPlugin.register(with: r)
+    }
+  }
+
+  func destroy() {
+    engine.destroyContext()
+  }
+}
+
 /// Background time for a reading and its ping (a seam for RunnerTests).
 protocol DawamBackgroundTime {
   func begin(expired: @escaping () -> Void) -> UIBackgroundTaskIdentifier
@@ -187,14 +263,20 @@ struct AppBackgroundTime: DawamBackgroundTime {
 ///   branch takes one reading at once; a significant move is its own
 ///   reading. The relaunch starts the updates again.
 ///
-/// Every reading waits in [queue] until the app's Dart side answers that the
-/// core has it (the ping), so one taken while the app boots is not lost, and
-/// the app is held awake for the ping.
+/// Every reading waits in [queue] until a Dart side answers that the core
+/// has it (the ping), so one taken while the app boots is not lost, and the
+/// app is held awake for the ping. That Dart side is the app's engine when
+/// it listens; with no screen (iOS woke the closed app for a location event,
+/// or it runs in the background with no scene), a headless engine runs
+/// `dawamTrackingMain` as Android's service does, and is torn down once its
+/// pings are answered. See [DawamRoute].
 final class DawamTracker: NSObject, CLLocationManagerDelegate {
   static let onKey = "dawam.tracking.on"
   static let fenceKey = "dawam.tracking.fence"
   static let regionId = "dawam.branch"
   static let channelName = "com.madar.dawam/tracking"
+  /// The headless engine's channel (lib/background.dart, as on Android).
+  static let headlessChannelName = "com.madar.dawam/tracking.background"
   /// How long a reading and its ping may hold the app awake (iOS gives ~30 s).
   static let awakeFor: TimeInterval = 25
 
@@ -207,12 +289,25 @@ final class DawamTracker: NSObject, CLLocationManagerDelegate {
   /// One reading on demand: after a fence crossing, or when 14 minutes are up.
   let oneShot: CLLocationManager
   private let backgroundTime: DawamBackgroundTime
+  private let makeHeadless: () -> DawamHeadlessEngine?
+  private let sceneless: () -> Bool
+  private let battery: () -> Int?
 
   private(set) var cadence = DawamCadence()
   /// Why the one reading asked for is wanted.
   private(set) var pendingWake: String?
-  private var channel: FlutterMethodChannel?
-  private var inFlight: String?
+  /// The app's engine: its channel, the object whose life is the engine's,
+  /// and whether its Dart side listens.
+  private var appChannel: FlutterMethodChannel?
+  private weak var appOwner: AnyObject?
+  private var appOwned = false
+  private var appListening = false
+  private(set) var headless: DawamHeadlessEngine?
+  private var headlessChannel: FlutterMethodChannel?
+  private var headlessReady = false
+  /// Launched for a location event whose reading has not come yet.
+  private var expectingWake = false
+  private var inFlight: (id: String, route: DawamRoute)?
   private var generation = 0
   private var intervalTimer: Timer?
   private var awake: UIBackgroundTaskIdentifier = .invalid
@@ -223,7 +318,10 @@ final class DawamTracker: NSObject, CLLocationManagerDelegate {
     watch: CLLocationManager = CLLocationManager(),
     live: CLLocationManager = CLLocationManager(),
     oneShot: CLLocationManager = CLLocationManager(),
-    backgroundTime: DawamBackgroundTime = AppBackgroundTime()
+    backgroundTime: DawamBackgroundTime = AppBackgroundTime(),
+    makeHeadless: @escaping () -> DawamHeadlessEngine? = { DawamHeadlessFlutter() },
+    sceneless: @escaping () -> Bool = { UIApplication.shared.connectedScenes.isEmpty },
+    battery: @escaping () -> Int? = DawamTracker.deviceBattery
   ) {
     self.defaults = defaults
     self.queue = DawamFixQueue(defaults: defaults)
@@ -231,6 +329,9 @@ final class DawamTracker: NSObject, CLLocationManagerDelegate {
     self.live = live
     self.oneShot = oneShot
     self.backgroundTime = backgroundTime
+    self.makeHeadless = makeHeadless
+    self.sceneless = sceneless
+    self.battery = battery
     super.init()
     for m in [watch, live, oneShot] { m.delegate = self }
   }
@@ -239,7 +340,24 @@ final class DawamTracker: NSObject, CLLocationManagerDelegate {
   var fence: DawamFence? { DawamFence(defaults.dictionary(forKey: Self.fenceKey)) }
   var isHoldingAwake: Bool { awake != .invalid }
 
-  func attach(messenger: FlutterBinaryMessenger) {
+  var headlessState: DawamHeadlessState {
+    headless == nil ? .none : headlessReady ? .ready : .starting
+  }
+
+  /// The app's engine is still there (its owner, weakly held, is alive).
+  private var appAlive: Bool {
+    appChannel != nil && (!appOwned || appOwner != nil)
+  }
+
+  /// The phone's battery for a headless ping (the app's Dart side reads its own).
+  static func deviceBattery() -> Int? {
+    UIDevice.current.isBatteryMonitoringEnabled = true
+    let level = UIDevice.current.batteryLevel
+    return level < 0 ? nil : Int((level * 100).rounded())
+  }
+
+  /// [owner]: an object that lives exactly as long as the app's engine.
+  func attach(messenger: FlutterBinaryMessenger, owner: AnyObject? = nil) {
     let c = FlutterMethodChannel(name: Self.channelName, binaryMessenger: messenger)
     c.setMethodCallHandler { [weak self] call, result in
       guard let self else { return result(nil) }
@@ -253,18 +371,44 @@ final class DawamTracker: NSObject, CLLocationManagerDelegate {
       case "requestAlways":
         self.requestAlways(result)
       case "flush":
-        // The Dart side listens now: whatever was in flight before it did
-        // is sent again (it knows a repeat by its id).
         result(nil)
-        self.flush(restart: true)
+        self.appListens()
       default:
         result(FlutterMethodNotImplemented)
       }
     }
-    channel = c
+    appChannel = c
+    appOwner = owner
+    appOwned = owner != nil
+    appListening = false
     // A relaunch's reading may be waiting already. A Dart side not listening
     // yet answers "not implemented" and the reading stays for its flush.
     flush()
+  }
+
+  /// The app's Dart side listens (it asked for the flush): readings go to it
+  /// from now on. One sent to it before it listened is sent again (it knows
+  /// a repeat by its id); one in flight to the headless engine finishes
+  /// there, never sent to both. The headless engine then goes.
+  func appListens() {
+    appListening = true
+    if inFlight?.route == .app {
+      generation += 1
+      inFlight = nil
+    }
+    flush()
+    retireHeadlessIfIdle()
+  }
+
+  /// iOS launched the app for a location event (a fence crossing or a
+  /// significant move while it was closed). With no screen, the app's
+  /// engine may never run: the headless one boots now, while iOS gets the
+  /// reading, and the app stays awake for it.
+  func wokenForLocation() {
+    guard isOn else { return }
+    expectingWake = true
+    holdAwake()
+    if !appAlive { startHeadless() }
   }
 
   /// Clock-in, and whenever the fence moves: everything on.
@@ -289,6 +433,7 @@ final class DawamTracker: NSObject, CLLocationManagerDelegate {
     intervalTimer?.invalidate()
     intervalTimer = nil
     pendingWake = nil
+    expectingWake = false
     cadence = DawamCadence()
     releaseIfIdle()
   }
@@ -382,6 +527,7 @@ final class DawamTracker: NSObject, CLLocationManagerDelegate {
   /// A reading: kept for the app when it is due (a fence crossing always,
   /// anything else once per 14 minutes), and handed over.
   func take(_ l: CLLocation, wake: String, now: Date = Date()) {
+    expectingWake = false
     guard isOn, cadence.due(wake, at: now) else { return }
     cadence.took(at: now)
     queue.push(l, wake: wake)
@@ -418,35 +564,111 @@ final class DawamTracker: NSObject, CLLocationManagerDelegate {
 
   // MARK: handing over
 
-  /// Hands the kept readings to the Dart side, oldest first, one at a time;
-  /// each leaves the queue only when Dart answers that the core has it. A
-  /// Dart side not listening yet (a relaunch still booting) answers "not
-  /// implemented": the reading stays for the flush it asks for once it
-  /// listens. [restart]: Dart asked, and anything in flight is sent again.
-  func flush(restart: Bool = false, now: Date = Date()) {
-    if restart {
-      generation += 1
-      inFlight = nil
+  /// Hands the kept readings to a Dart side, oldest first, one at a time;
+  /// each leaves the queue only when that side answers that the core has it
+  /// ([DawamRoute] picks the side). The app's Dart side not listening yet (a
+  /// relaunch still booting) answers "not implemented": the reading stays
+  /// for the flush it asks for once it listens.
+  func flush(now: Date = Date()) {
+    if appListening, !appAlive {
+      // The app's engine is gone (its scene disconnected): headless now.
+      appListening = false
+      appChannel = nil
+      if inFlight?.route == .app {
+        generation += 1
+        inFlight = nil
+      }
     }
-    guard let channel, inFlight == nil else { return }
+    guard inFlight == nil else { return }
     guard let next = queue.items.first, let id = next["id"] as? String else {
+      retireHeadlessIfIdle()
       releaseIfIdle()
       return
     }
-    holdAwake()
-    inFlight = id
-    let sent = generation
-    channel.invokeMethod("fix", arguments: DawamFixQueue.message(next, now: now)) {
-      [weak self] reply in
-      guard let self, self.generation == sent, self.inFlight == id else { return }
-      self.inFlight = nil
-      if Self.handled(reply) {
-        self.queue.remove(id: id)
-        self.flush()
+    let route = DawamRoute.route(
+      appListening: appListening, appAttached: appAlive, headless: headlessState,
+      sceneless: sceneless())
+    switch route {
+    case .wait:
+      holdAwake()
+    case .startHeadless:
+      holdAwake()
+      startHeadless()
+    case .app:
+      if let channel = appChannel {
+        retireHeadlessIfIdle()
+        send(next, id: id, over: channel, route: .app, now: now)
       }
-      // Not listening yet: kept, and the app stays awake until the deadline
-      // so the Dart side can boot and ask for it.
+    case .headless:
+      if let channel = headlessChannel {
+        send(next, id: id, over: channel, route: .headless, now: now)
+      }
     }
+  }
+
+  private func send(
+    _ fix: [String: Any], id: String, over channel: FlutterMethodChannel, route: DawamRoute,
+    now: Date
+  ) {
+    holdAwake()
+    inFlight = (id, route)
+    let sent = generation
+    var message = DawamFixQueue.message(fix, now: now)
+    if route == .headless, let b = battery() { message["battery"] = b }
+    channel.invokeMethod("fix", arguments: message) { [weak self] reply in
+      guard let self, self.generation == sent, self.inFlight?.id == id else { return }
+      self.inFlight = nil
+      // Not taken: the app's Dart side not listening yet (kept for its
+      // flush, the app awake until the deadline so it can boot), or the
+      // headless one failed (kept for the next reading).
+      guard Self.handled(reply) else { return }
+      self.queue.remove(id: id)
+      // The headless engine's core says the shift is over, or nobody is
+      // signed in: tracking stops, as Android's service does (CL-17).
+      if route == .headless, (reply as? Bool) == false { self.stop() }
+      self.flush()
+    }
+  }
+
+  // MARK: the headless engine
+
+  private func startHeadless() {
+    guard headless == nil, let engine = makeHeadless() else { return }
+    headless = engine
+    headlessReady = false
+    let c = FlutterMethodChannel(
+      name: Self.headlessChannelName, binaryMessenger: engine.messenger)
+    c.setMethodCallHandler { [weak self, weak engine] call, result in
+      guard let self, let engine, self.headless === engine else { return result(nil) }
+      guard call.method == "ready" else { return result(FlutterMethodNotImplemented) }
+      self.headlessReady = true
+      result(nil)
+      self.flush()
+    }
+    headlessChannel = c
+  }
+
+  /// The headless engine goes once nothing is left for it: the app's Dart
+  /// side listens, or its pings are answered and no reading is on its way.
+  private func retireHeadlessIfIdle() {
+    guard headless != nil, inFlight?.route != .headless else { return }
+    if appListening || (queue.items.isEmpty && pendingWake == nil && !expectingWake) {
+      retireHeadless()
+    }
+  }
+
+  private func retireHeadless() {
+    guard let engine = headless else { return }
+    headlessChannel?.setMethodCallHandler(nil)
+    headlessChannel = nil
+    headless = nil
+    headlessReady = false
+    if inFlight?.route == .headless {
+      // Cut short (the background time is up): kept, sent again later.
+      generation += 1
+      inFlight = nil
+    }
+    engine.destroy()
   }
 
   /// Whether the Dart side took a reading (no handler yet: not implemented).
@@ -469,14 +691,18 @@ final class DawamTracker: NSObject, CLLocationManagerDelegate {
     DispatchQueue.main.asyncAfter(deadline: .now() + Self.awakeFor, execute: deadline)
   }
 
-  /// Nothing kept, nothing in flight, no reading asked for: the app may sleep.
+  /// Nothing kept, nothing in flight, no reading asked for or on its way:
+  /// the app may sleep.
   private func releaseIfIdle() {
-    if queue.items.isEmpty, inFlight == nil, pendingWake == nil { letSleep() }
+    if queue.items.isEmpty, inFlight == nil, pendingWake == nil, !expectingWake { letSleep() }
   }
 
+  /// Idle, or the background time is up: the headless engine goes too.
   private func letSleep() {
     awakeDeadline?.cancel()
     awakeDeadline = nil
+    expectingWake = false
+    retireHeadless()
     guard awake != .invalid else { return }
     backgroundTime.end(awake)
     awake = .invalid

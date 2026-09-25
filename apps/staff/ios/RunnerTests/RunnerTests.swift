@@ -60,6 +60,9 @@ final class FakeDart: NSObject, FlutterBinaryMessenger {
   var listening = true
   /// Readings the host sent, in order.
   private(set) var fixes: [[String: Any]] = []
+  /// What the Dart side answers a reading with (the headless one: whether
+  /// the shift is still on).
+  var answer: Any = true
   /// Replies held back, to answer later (a ping still going).
   var holdReplies = false
   private var held: [FlutterBinaryReply] = []
@@ -76,14 +79,14 @@ final class FakeDart: NSObject, FlutterBinaryMessenger {
     if holdReplies {
       held.append(callback)
     } else {
-      callback(listening ? codec.encodeSuccessEnvelope(true) : nil)
+      callback(listening ? codec.encodeSuccessEnvelope(answer) : nil)
     }
   }
 
   func answerHeld() {
     let replies = held
     held = []
-    for r in replies { r(codec.encodeSuccessEnvelope(true)) }
+    for r in replies { r(codec.encodeSuccessEnvelope(answer)) }
   }
 
   func setMessageHandlerOnChannel(
@@ -95,10 +98,18 @@ final class FakeDart: NSObject, FlutterBinaryMessenger {
 
   func cleanUpConnection(_ connection: FlutterBinaryMessengerConnection) {}
 
-  /// The app calls the host ("start", "stop", "flush").
+  /// The Dart side calls the host ("start", "stop", "flush"; "ready").
   func call(_ method: String, _ arguments: Any? = nil) {
     handler?(codec.encode(FlutterMethodCall(methodName: method, arguments: arguments))) { _ in }
   }
+}
+
+/// `dawamTrackingMain` in a headless engine: its Dart side, recorded.
+final class FakeHeadless: DawamHeadlessEngine {
+  let dart = FakeDart()
+  private(set) var destroyed = false
+  var messenger: FlutterBinaryMessenger { dart }
+  func destroy() { destroyed = true }
 }
 
 final class DawamTrackerTests: XCTestCase {
@@ -108,6 +119,10 @@ final class DawamTrackerTests: XCTestCase {
   private var live: FakeLocationManager!
   private var oneShot: FakeLocationManager!
   private var time: FakeBackgroundTime!
+  /// Headless engines the tracker started, in order.
+  private var engines: [FakeHeadless] = []
+  /// No screen connected (iOS woke the closed app). Default: a screen.
+  private var sceneless = false
 
   override func setUp() {
     super.setUp()
@@ -128,7 +143,14 @@ final class DawamTrackerTests: XCTestCase {
     oneShot = FakeLocationManager()
     time = FakeBackgroundTime()
     return DawamTracker(
-      defaults: defaults, watch: watch, live: live, oneShot: oneShot, backgroundTime: time)
+      defaults: defaults, watch: watch, live: live, oneShot: oneShot, backgroundTime: time,
+      makeHeadless: { [unowned self] in
+        let e = FakeHeadless()
+        self.engines.append(e)
+        return e
+      },
+      sceneless: { [unowned self] in self.sceneless },
+      battery: { 55 })
   }
 
   private let zamalek = DawamFence(latitude: 30.0609, longitude: 31.2197, radius: 200)
@@ -353,6 +375,173 @@ final class DawamTrackerTests: XCTestCase {
     dart.call("stop")
     XCTAssertFalse(tracker.isOn)
     XCTAssertTrue(watch.regions.isEmpty)
+  }
+
+  // MARK: which engine delivers
+
+  func testTheRoute() {
+    typealias R = DawamRoute
+    // The app's Dart side listens: it takes every reading.
+    for h in [DawamHeadlessState.none, .starting, .ready] {
+      XCTAssertEqual(R.route(appListening: true, appAttached: true, headless: h, sceneless: true), .app)
+    }
+    // A headless engine that is up keeps going until the app listens.
+    XCTAssertEqual(R.route(appListening: false, appAttached: true, headless: .ready, sceneless: false), .headless)
+    XCTAssertEqual(R.route(appListening: false, appAttached: false, headless: .starting, sceneless: true), .wait)
+    // The app's engine is up but not listening yet: tried, kept until its flush.
+    XCTAssertEqual(R.route(appListening: false, appAttached: true, headless: .none, sceneless: false), .app)
+    // No app engine: with no screen, headless; a screen means one is coming.
+    XCTAssertEqual(R.route(appListening: false, appAttached: false, headless: .none, sceneless: true), .startHeadless)
+    XCTAssertEqual(R.route(appListening: false, appAttached: false, headless: .none, sceneless: false), .wait)
+  }
+
+  func testWokenWithNoScreenTheHeadlessEnginePingsThenGoes() {
+    sceneless = true
+    launch().start(fence: zamalek)
+    let tracker = launch()  // iOS relaunched the closed app for the fence
+    tracker.resumeIfOn()
+    tracker.wokenForLocation()
+    XCTAssertEqual(engines.count, 1, "booting while iOS gets the reading")
+    XCTAssertEqual(tracker.headlessState, .starting)
+    XCTAssertTrue(tracker.isHoldingAwake)
+    tracker.locationManager(watch, didExitRegion: watch.regions.first ?? zamalek.region(maximum: 1000))
+    tracker.locationManager(oneShot, didUpdateLocations: [at(30.07)])
+    XCTAssertTrue(engines[0].dart.fixes.isEmpty, "not before it says ready")
+
+    engines[0].dart.call("ready")
+    XCTAssertEqual(engines[0].dart.fixes.count, 1)
+    let fix = engines[0].dart.fixes.first ?? [:]
+    XCTAssertEqual(fix["wake"] as? String, "region_exit")
+    XCTAssertEqual(fix["battery"] as? Int, 55)
+    XCTAssertNil(fix["time"], "never the phone clock as GPS time")
+    XCTAssertTrue(tracker.queue.items.isEmpty, "answered: gone")
+    XCTAssertTrue(engines[0].destroyed, "its pings answered: torn down")
+    XCTAssertEqual(tracker.headlessState, .none)
+    XCTAssertFalse(tracker.isHoldingAwake)
+  }
+
+  func testTheIntervalReadingWithNoScreenStartsTheHeadlessEngine() {
+    sceneless = true
+    let tracker = launch()
+    tracker.start(fence: zamalek)
+    tracker.take(at(30.0609), wake: "interval")
+    XCTAssertEqual(engines.count, 1)
+    engines[0].dart.call("ready")
+    XCTAssertEqual(engines[0].dart.fixes.count, 1)
+    XCTAssertTrue(engines[0].destroyed)
+    // The next one, 14 minutes on, boots a fresh engine.
+    tracker.take(at(30.0609), wake: "interval", now: Date().addingTimeInterval(14 * 60))
+    XCTAssertEqual(engines.count, 2)
+  }
+
+  func testWithAScreenNoHeadlessEngineStarts() {
+    let tracker = launch()  // a screen is connected: the app's engine is coming
+    tracker.start(fence: zamalek)
+    tracker.take(at(30.07), wake: "region_exit")
+    XCTAssertTrue(engines.isEmpty)
+    XCTAssertEqual(tracker.queue.items.count, 1, "kept for the app's engine")
+    let dart = FakeDart()
+    tracker.attach(messenger: dart)
+    dart.call("flush")
+    XCTAssertEqual(dart.fixes.count, 1)
+    XCTAssertTrue(engines.isEmpty)
+  }
+
+  func testTheAppsEngineTakesOverWithoutSendingAReadingTwice() {
+    sceneless = true
+    let tracker = launch()
+    tracker.start(fence: zamalek)
+    tracker.take(at(30.07), wake: "region_exit")
+    let headless = engines[0]
+    headless.dart.holdReplies = true  // its ping is still going
+    headless.dart.call("ready")
+    XCTAssertEqual(headless.dart.fixes.count, 1)
+
+    // A screen connects: the app's engine attaches and listens.
+    sceneless = false
+    let app = FakeDart()
+    tracker.attach(messenger: app)
+    app.call("flush")
+    XCTAssertTrue(app.fixes.isEmpty, "in flight on the headless engine: never sent to both")
+    XCTAssertFalse(headless.destroyed, "left to finish")
+
+    headless.dart.answerHeld()
+    XCTAssertTrue(tracker.queue.items.isEmpty)
+    XCTAssertTrue(headless.destroyed, "handed over")
+    // What comes next goes to the app.
+    tracker.take(at(30.0609), wake: "region_entry")
+    XCTAssertEqual(app.fixes.count, 1)
+    XCTAssertEqual(headless.dart.fixes.count, 1)
+    XCTAssertEqual(engines.count, 1)
+  }
+
+  func testTheAppListeningFirstRetiresAnIdleHeadlessEngine() {
+    sceneless = true
+    let tracker = launch()
+    tracker.start(fence: zamalek)
+    tracker.wokenForLocation()
+    XCTAssertEqual(tracker.headlessState, .starting)
+    let app = FakeDart()
+    tracker.attach(messenger: app)
+    app.call("flush")
+    XCTAssertTrue(engines[0].destroyed)
+    tracker.take(at(30.07), wake: "region_exit")
+    XCTAssertEqual(app.fixes.count, 1)
+    XCTAssertTrue(engines[0].dart.fixes.isEmpty)
+  }
+
+  func testWhenTheAppsEngineGoesReadingsGoHeadless() {
+    sceneless = true
+    let tracker = launch()
+    tracker.start(fence: zamalek)
+    let app = FakeDart()
+    var owner: NSObject? = NSObject()
+    tracker.attach(messenger: app, owner: owner)
+    app.call("flush")
+    tracker.take(at(30.07), wake: "region_exit")
+    XCTAssertEqual(app.fixes.count, 1)
+    owner = nil  // the scene disconnected and its engine went
+    tracker.take(at(30.0609), wake: "region_entry")
+    XCTAssertEqual(app.fixes.count, 1)
+    XCTAssertEqual(engines.count, 1)
+    engines.first?.dart.call("ready")
+    XCTAssertEqual(engines.first?.dart.fixes.count, 1)
+  }
+
+  func testTheHeadlessCoreSayingTheShiftIsOverStopsTracking() {
+    sceneless = true
+    let tracker = launch()
+    tracker.start(fence: zamalek)
+    tracker.take(at(30.07), wake: "region_exit")
+    engines[0].dart.answer = false
+    engines[0].dart.call("ready")
+    XCTAssertFalse(tracker.isOn)
+    XCTAssertTrue(watch.regions.isEmpty)
+    XCTAssertEqual(live.calls.last, "updates.stop")
+    XCTAssertTrue(engines[0].destroyed)
+  }
+
+  func testWokenOffShiftStartsNothing() {
+    sceneless = true
+    let tracker = launch()
+    tracker.wokenForLocation()
+    XCTAssertTrue(engines.isEmpty)
+    XCTAssertFalse(tracker.isHoldingAwake)
+  }
+
+  func testAHeadlessEngineThatNeverAnswersIsNotSentToTwice() {
+    sceneless = true
+    let tracker = launch()
+    tracker.start(fence: zamalek)
+    tracker.take(at(30.07), wake: "region_exit")
+    engines[0].dart.holdReplies = true
+    engines[0].dart.call("ready")
+    // Another reading while the first is in flight waits its turn.
+    tracker.take(at(30.08), wake: "region_entry")
+    XCTAssertEqual(engines[0].dart.fixes.count, 1)
+    XCTAssertEqual(tracker.queue.items.count, 2)
+    engines[0].dart.answerHeld()
+    XCTAssertEqual(engines[0].dart.fixes.count, 2, "then the next, once")
   }
 
   func testTheDartAnswerIsReadRight() {
