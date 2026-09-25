@@ -958,6 +958,17 @@ fn already_on_it(e: CoreError, snap: &Snapshot, to: &str, locale: &str) -> CoreE
     }
 }
 
+/// A request's note as the lists show it: a mission's title first (minor
+/// #43; the dashboard files one with a title and no note), then its note
+/// when that says more. Other kinds carry no title.
+fn mission_note(title: &str, reason: &str) -> String {
+    match (title.trim(), reason.trim()) {
+        ("", r) => r.to_string(),
+        (t, r) if r.is_empty() || r == t => t.to_string(),
+        (t, r) => format!("{t} · {r}"),
+    }
+}
+
 /// The server's plain refusals carry its error kind in front ("Conflict:
 /// Someone already claimed that shift."): the person reads the sentence only
 /// (E2E roster: the toast said "Conflict: …").
@@ -2923,7 +2934,7 @@ impl MadarCore {
                 // arrival, which the server keeps in `to_time`.
                 time: if kind == "lateArrival" { so(q, "to_time") } else { so(q, "from_time") }.and_then(|x| minute_of(&x)),
                 time2: if kind == "lateArrival" { None } else { so(q, "to_time") }.and_then(|x| minute_of(&x)),
-                note: s(q, "reason"),
+                note: mission_note(&s(q, "title"), &s(q, "reason")),
                 paid: q.get("is_paid").and_then(Value::as_bool),
                 shift: rec.and_then(|rid| record_of.get(&rid).cloned()),
                 to_owner: b(q, "to_owner"),
@@ -6369,6 +6380,31 @@ mod tests {
         let q = |id: &str| snap["requests"].as_array().unwrap().iter().find(|q| q["id"] == id).unwrap().clone();
         assert_eq!(q("q|m")["worked"], json!([day]));
         assert_eq!(q("q|l")["worked"], json!([]), "no worked_dates: nothing worked");
+    }
+
+    /// Minor #43: a mission filed with a title (the dashboard's form) and no
+    /// note showed nothing of where the person would be. Its title leads.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_missions_title_is_shown_with_its_note() {
+        use crate::testkit::{StubResponse, TELLER};
+        let d = today_cairo().to_string();
+        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("GET", "/staff/me/requests") => Some(StubResponse::json(200, json!([
+                { "id": "t", "kind": "mission", "employee_id": TELLER, "status": "approved", "on_date": d, "end_date": d,
+                  "title": "Supplier visit", "created_at": "2026-09-22T08:00:00Z" },
+                { "id": "b", "kind": "mission", "employee_id": TELLER, "status": "pending", "on_date": d, "end_date": d,
+                  "title": "Bank", "reason": "Deposit the week's cash", "created_at": "2026-09-22T08:00:00Z" },
+                { "id": "s", "kind": "mission", "employee_id": TELLER, "status": "pending", "on_date": d, "end_date": d,
+                  "title": "At the Maadi branch", "reason": "At the Maadi branch", "created_at": "2026-09-22T08:00:00Z" }
+            ]))),
+            _ => None,
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let note = |id: &str| snap["requests"].as_array().unwrap().iter().find(|q| q["id"] == id).unwrap()["note"].clone();
+        assert_eq!(note("q|t"), "Supplier visit");
+        assert_eq!(note("q|b"), "Bank · Deposit the week's cash");
+        assert_eq!(note("q|s"), "At the Maadi branch", "the app's note is its title too: said once");
     }
 
     /// RQ-4 / B13: a day can change while no approved or paid period holds
