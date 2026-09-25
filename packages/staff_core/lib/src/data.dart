@@ -81,6 +81,19 @@ DateTime? branchWall(String v) {
 }
 
 List<J> _list(Object? v) => (v as List<dynamic>? ?? const []).cast<J>();
+
+/// The core's labour warnings (RU-13): `[key, {args}]` pairs, a `date`
+/// argument read as a date.
+List<(String, Map<String, Object>)> _warningList(Object? list) => [
+  for (final w in (list as List<dynamic>?) ?? const [])
+    (
+      (w as List<dynamic>)[0] as String,
+      {
+        for (final e in (w[1] as J).entries)
+          e.key: e.key == 'date' ? _date(e.value) : e.value as Object,
+      },
+    ),
+];
 int _int(Object? v) => (v as num?)?.round() ?? 0;
 T _enum<T extends Enum>(List<T> values, Object? name, T fallback) =>
     values.where((e) => e.name == name).firstOrNull ?? fallback;
@@ -728,6 +741,10 @@ class DawamStore extends ChangeNotifier {
 
   /// The server's answer to the last filing, from the picture it came with.
   Filed? lastFiled;
+
+  /// The labour limits the last approved claim's day breaks (RU-13, minor
+  /// #26): a warning for the approver, never a block.
+  List<(String, Map<String, Object>)> lastWarnings = const [];
   List<String> _adjInbox = const [];
   List<String> _openFlags = const [];
 
@@ -1021,6 +1038,7 @@ class DawamStore extends ChangeNotifier {
     }
     _inbox = (v['inbox'] as List<dynamic>).cast<String>();
     final filed = v['filed'];
+    lastWarnings = filed is J ? _warningList(filed['warnings']) : const [];
     lastFiled = filed is J
         ? (
             id: filed['id'] as String,
@@ -1176,18 +1194,9 @@ class DawamStore extends ChangeNotifier {
       );
     }
     _warnings.clear();
-    (v['warnings'] as J).forEach((k, list) {
-      _warnings[k] = [
-        for (final w in list as List<dynamic>)
-          (
-            (w as List<dynamic>)[0] as String,
-            {
-              for (final e in (w[1] as J).entries)
-                e.key: e.key == 'date' ? _date(e.value) : e.value as Object,
-            },
-          ),
-      ];
-    });
+    (v['warnings'] as J).forEach(
+      (k, list) => _warnings[k] = _warningList(list),
+    );
     final st = v['settings'] as J;
     holidayMult = (st['holiday_mult'] as num).toDouble();
     advanceCapPct = (st['advance_cap_pct'] as num).toDouble();

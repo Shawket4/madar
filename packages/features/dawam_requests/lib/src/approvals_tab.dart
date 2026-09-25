@@ -152,6 +152,7 @@ class _Decide extends ConsumerWidget {
     required this.no,
     this.yesLabel,
     this.askWhy = false,
+    this.warnAfterYes = false,
   });
 
   final Future<void> Function() yes;
@@ -163,6 +164,10 @@ class _Decide extends ConsumerWidget {
   /// Declining asks why first (a pay line or an advance, decision #8): the
   /// server refuses a rejection without a reason.
   final bool askWhy;
+
+  /// An approval can come back with labour limits it breaks (an open-shift
+  /// claim, minor #26): said as a warning, never a block.
+  final bool warnAfterYes;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -189,7 +194,20 @@ class _Decide extends ConsumerWidget {
             glyph: MadarGlyph.check,
             enabled: !offline,
             tooltip: tr('staff.needs_a_connection'),
-            onTap: () => attempt(ref, yes, ok: tr('staff.approved')),
+            onTap: () async {
+              if (!warnAfterYes) {
+                await attempt(ref, yes, ok: tr('staff.approved'));
+                return;
+              }
+              if (!await attempt(ref, yes)) return;
+              final broken = ref.read(dawamProvider).lastWarnings;
+              ref
+                  .read(toastProvider.notifier)
+                  .show(
+                    approvedWithWarnings(broken),
+                    tone: broken.isEmpty ? ChipTone.success : ChipTone.warning,
+                  );
+            },
           ),
         ),
       ],
@@ -381,6 +399,7 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
           ),
           no: (why) => store.decide(r, approve: false, note: why),
           askWhy: r.kind == ReqKind.salaryAdvance,
+          warnAfterYes: r.kind == ReqKind.openShift,
           yesLabel: r.kind == ReqKind.cover ? tr('staff.confirm_cover') : null,
         ),
         if (r.kind == ReqKind.cover)
@@ -392,3 +411,14 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
     );
   }
 }
+
+/// "Approved", or "Approved. Mind: …" with the labour limits the approved
+/// day breaks (RU-13, minor #26).
+String approvedWithWarnings(List<(String, Map<String, Object>)> broken) =>
+    broken.isEmpty
+    ? tr('staff.approved')
+    : tr('staff.approved_mind', {
+        'warnings': [
+          for (final (key, args) in broken) tr(key, args),
+        ].join(isAr ? '، ' : '; '),
+      });

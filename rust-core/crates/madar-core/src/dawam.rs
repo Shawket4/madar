@@ -1811,7 +1811,13 @@ impl MadarCore {
                     "t" => (format!("/staff/attendance/{id}/overtime"), json!({ "approve": approve })),
                     other => return Err(CoreError::Validation { field: "req".into(), detail: other.into() }),
                 };
-                self.dawam_srv("PATCH", &path, Some(body)).await?;
+                let answer = self.dawam_srv("PATCH", &path, Some(body)).await?;
+                // An approved claim's day against the labour limits (RU-13,
+                // minor #26): a warning for the approver, never a block.
+                let broken: Vec<(String, Value)> = labour_warnings(arr(&answer, "warnings")).into_values().flatten().collect();
+                if req.starts_with("o|") && !broken.is_empty() {
+                    filed = Some(json!({ "id": req, "status": "approved", "to_owner": false, "warnings": broken }));
+                }
             }
             Act::Resolve { flag, how, deduct, reason } => {
                 let mut body = json!({ "action": how });
@@ -5073,6 +5079,35 @@ mod tests {
         for k in ["staff.payroll_salary_missing", "staff.salary_not_set", "staff.approve_blocked_salary_missing"] {
             assert_ne!(i18n::tr("ar", k), i18n::tr("en", k), "{k}");
         }
+    }
+
+    /// Minor #26 (RU-13): approving an open-shift claim that makes a long
+    /// day warns, never blocks. The server answers the decision with the
+    /// labour limits the day now breaks; the core hands them back with the
+    /// picture, as the board's warnings are (key + figures).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn approving_a_claim_returns_the_limits_it_breaks() {
+        use crate::testkit::StubResponse;
+        let day = (today_cairo() + Duration::days(2)).to_string();
+        let d = day.clone();
+        let (_stub, core) = cafe(&["hr.attendance.read", "hr.schedule.edit"], move |m, p, _| match (m, p) {
+            ("PATCH", "/staff/open-shifts/o1/decision") => Some(StubResponse::json(200, json!({ "status": "approved", "warnings": [
+                { "employee_id": "e4", "date": d, "kind": "day_hours", "minutes": 660, "limit_minutes": 480 },
+                { "employee_id": "e4", "date": d, "kind": "presence", "minutes": 780, "limit_minutes": 600 },
+            ] }))),
+            ("PATCH", "/staff/open-shifts/o2/decision") => Some(StubResponse::text(204, "")),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        let snap: Value = serde_json::from_str(&core.dawam_do(json!({ "action": "decide", "req": "o|o1", "approve": true }).to_string()).await.unwrap()).unwrap();
+        assert_eq!(snap["filed"]["id"], "o|o1");
+        assert_eq!(snap["filed"]["warnings"], json!([
+            ["staff.warn_day_hours", { "date": day, "hours": "8", "worked": "11" }],
+            ["staff.warn_presence", { "date": day, "hours": "10", "worked": "13" }],
+        ]));
+        let snap: Value = serde_json::from_str(&core.dawam_do(json!({ "action": "decide", "req": "o|o2", "approve": true }).to_string()).await.unwrap()).unwrap();
+        assert_eq!(snap.get("filed"), None, "an older server's 204 says nothing");
     }
 
     /// Owner decision #8 (D8): declining a pay line or an advance says why.

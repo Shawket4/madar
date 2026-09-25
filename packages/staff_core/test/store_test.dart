@@ -71,6 +71,7 @@ class _Backend implements DawamBackend {
     alwaysAsks++;
     return true;
   }
+
   final trackingCalls = <bool>[];
   @override
   Future<void> tracking({required bool on}) async => trackingCalls.add(on);
@@ -253,6 +254,40 @@ void main() {
     expect(backend.acts.single['action'], 'accept_privacy');
     expect(backend.alwaysAsks, 1, reason: 'asked with the notice');
     expect(store.alwaysLocation, isTrue);
+  });
+
+  // Minor #26: an approved claim that makes a long day comes back with the
+  // limits it breaks; the approver is warned, never blocked.
+  test('an approved claim carries the limits it breaks', () async {
+    final (store, backend) = await _store();
+    backend.answer = () async {
+      final v = jsonDecode(_fixture()) as Map<String, dynamic>;
+      v['filed'] = {
+        'id': 'o|o1',
+        'status': 'approved',
+        'to_owner': false,
+        'warnings': [
+          [
+            'staff.warn_day_hours',
+            {'date': '2026-09-27', 'hours': '8', 'worked': '11'},
+          ],
+        ],
+      };
+      return jsonEncode(v);
+    };
+    await store.decide(
+      Req('o|o1', ReqKind.openShift, 'e4', DateTime(2026, 9, 25)),
+      approve: true,
+    );
+    expect(store.lastWarnings, hasLength(1));
+    expect(store.lastWarnings.single.$1, 'staff.warn_day_hours');
+    expect(store.lastWarnings.single.$2['date'], DateTime(2026, 9, 27));
+    backend.answer = () async => _fixture();
+    await store.decide(
+      Req('o|o2', ReqKind.openShift, 'e4', DateTime(2026, 9, 25)),
+      approve: true,
+    );
+    expect(store.lastWarnings, isEmpty);
   });
 
   group('attempt waits for the server (06 B1)', () {
