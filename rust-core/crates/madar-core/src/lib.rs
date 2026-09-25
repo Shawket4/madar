@@ -13057,7 +13057,9 @@ impl MadarCore {
                 "/auth/staff/otp/request",
                 Some(&serde_json::json!({ "phone": phone })),
             )
-            .await?;
+            .await
+            // A suspended person or business is told why (minor #13).
+            .map_err(|e| self.staff_error(e))?;
         let v: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
         Ok(v["dev_code"].as_str().map(str::to_string))
     }
@@ -13085,7 +13087,8 @@ impl MadarCore {
                     "platform": platform, "model": model,
                 })),
             )
-            .await?;
+            .await
+            .map_err(|e| self.staff_error(e))?;
         let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| CoreError::Internal {
             detail: format!("decode: {e}"),
         })?;
@@ -13253,6 +13256,7 @@ impl MadarCore {
             "REQUEST_ALREADY_DECIDED" => Some("staff.err_request_already_decided"),
             "OVERLAPPING_REQUEST" => Some("staff.err_overlapping_request"),
             "OWNER_ONLY" => Some("staff.err_owner_only"),
+            "ORG_SUSPENDED" => Some("staff.err_org_suspended"),
             "REASON_REQUIRED" => Some("staff.err_reason_required"),
             _ => None,
         };

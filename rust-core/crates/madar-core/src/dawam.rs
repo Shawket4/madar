@@ -4716,6 +4716,45 @@ mod tests {
         assert_eq!((absent(&snap, &before), absent(&snap, &after)), (json!(true), json!(true)), "an older server: the plain rule");
     }
 
+    /// Minor #13: signing in while one's account or the whole business is
+    /// suspended says why, in the phone's language: "Your account isn't
+    /// active. Ask your manager." or "This business is paused."
+    #[tokio::test]
+    async fn a_suspended_sign_in_says_why() {
+        let core = crate::testkit::offline_core("http://127.0.0.1:1", "").await;
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            for (body, key) in [
+                (r#"{"error":"This organisation is suspended","code":"ORG_SUSPENDED"}"#, "staff.err_org_suspended"),
+                (r#"{"error":"Employee inactive","code":"EMPLOYEE_INACTIVE"}"#, "staff.err_employee_inactive"),
+            ] {
+                match core.staff_error(crate::net::status_to_error(403, body)) {
+                    CoreError::Forbidden { action, .. } => assert_eq!(action, i18n::tr(lang, key), "{lang}"),
+                    e => panic!("{e:?}"),
+                }
+            }
+        }
+        assert_ne!(i18n::tr("en", "staff.err_org_suspended"), i18n::tr("ar", "staff.err_org_suspended"));
+
+        // Asked at the code request (the server refuses there, so no WhatsApp
+        // is sent), and at the code check.
+        let stub = crate::testkit::Stub::start(|r| {
+            r.path.starts_with("/auth/staff/otp/").then(|| {
+                crate::testkit::StubResponse::json(403, json!({ "error": "This organisation is suspended", "code": "ORG_SUSPENDED" }))
+            })
+        })
+        .await;
+        let core = crate::testkit::offline_core(&stub.base, "").await;
+        core.set_locale("ar".into());
+        let said = |e: CoreError| match e {
+            CoreError::Forbidden { action, .. } => action,
+            e => panic!("{e:?}"),
+        };
+        assert_eq!(said(core.staff_otp_request("01001234567".into()).await.unwrap_err()), i18n::tr("ar", "staff.err_org_suspended"));
+        let verify = core.staff_otp_verify("01001234567".into(), "123456".into(), None, None, None).await.unwrap_err();
+        assert_eq!(said(verify), i18n::tr("ar", "staff.err_org_suspended"));
+    }
+
     /// Owner decision #3 (D3): public holidays are the owner's, like the
     /// rules. The actions show only for someone holding `hr.rules.edit` at
     /// every branch (the server's `caps_everywhere`); a server that doesn't

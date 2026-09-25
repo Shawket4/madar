@@ -777,6 +777,8 @@ pub(crate) const STAFF_CODES: &[&str] = &[
     "NO_TILL_SESSION",
     // Only the owner decides it (public holidays, decision #3).
     "OWNER_ONLY",
+    // The whole business is paused (minor #13): said at sign-in.
+    "ORG_SUSPENDED",
 ];
 
 /// Dawam refusals the app words for the person (`MadarCore::staff_error`).
