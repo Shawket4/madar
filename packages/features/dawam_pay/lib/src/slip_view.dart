@@ -71,7 +71,14 @@ class SlipLines extends ConsumerWidget {
         confirmLabel: tr('staff.delete'),
         cancelLabel: tr('staff.keep'),
       );
-      if (ok) await store.deleteAdj(l.manual!);
+      // Waited for (H2-11): the server's words, or what happened.
+      if (ok) {
+        await attempt(
+          ref,
+          () => store.deleteAdj(l.manual!),
+          ok: tr('staff.line_deleted'),
+        );
+      }
       return;
     }
     if (!context.mounted) return;

@@ -2282,15 +2282,15 @@ impl MadarCore {
                 let (_, kind, id) = parts(&adj);
                 self.dawam_srv("POST", &format!("/staff/adjustments/{kind}/{id}/stop"), Some(json!({ "reason": reason }))).await?;
             }
+            // Only a rule's deduction is waived (H2-12: anything else did
+            // nothing and answered Ok).
             Act::Waive { key, reason } => {
-                if let Some(id) = key.strip_prefix("d|") {
-                    self.dawam_srv("PATCH", &format!("/staff/payroll/deductions/{id}/waive"), Some(json!({ "reason": reason }))).await?;
-                }
+                let id = key.strip_prefix("d|").ok_or_else(|| invalid("staff.only_rule_lines_waive"))?;
+                self.dawam_srv("PATCH", &format!("/staff/payroll/deductions/{id}/waive"), Some(json!({ "reason": reason }))).await?;
             }
             Act::Unwaive { key, reason } => {
-                if let Some(id) = key.strip_prefix("d|") {
-                    self.dawam_srv("PATCH", &format!("/staff/payroll/deductions/{id}/unwaive"), Some(json!({ "reason": reason }))).await?;
-                }
+                let id = key.strip_prefix("d|").ok_or_else(|| invalid("staff.only_rule_lines_waive"))?;
+                self.dawam_srv("PATCH", &format!("/staff/payroll/deductions/{id}/unwaive"), Some(json!({ "reason": reason }))).await?;
             }
             Act::RecordAdvance { emp, amount, installments } => {
                 // One atomic call (AV-2): recorded and approved, or nothing.
@@ -7008,6 +7008,30 @@ mod tests {
         assert_ne!(i18n::tr("en", "staff.err_employee_not_at_branch"), i18n::tr("ar", "staff.err_employee_not_at_branch"));
     }
 
+    /// H2-12: waiving a line that is not a rule's deduction did nothing and
+    /// answered Ok, so the screen said "Waived". It is refused in words and
+    /// nothing is sent.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn waiving_what_is_not_a_rule_deduction_is_refused_not_a_silent_done() {
+        let (stub, core) = cafe(&["hr.payroll.run"], |_, _, _| None).await;
+        core.dawam_snapshot(true).await.unwrap();
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            for act in [
+                json!({ "action": "waive", "key": "b|x", "reason": "kind" }),
+                json!({ "action": "unwaive", "key": "salary", "reason": "oops" }),
+            ] {
+                match core.dawam_do(act.to_string()).await {
+                    Err(CoreError::Validation { detail, .. }) => assert_eq!(detail, i18n::tr(lang, "staff.only_rule_lines_waive")),
+                    other => panic!("{act}: expected the refusal, got {other:?}"),
+                }
+            }
+        }
+        let writes: Vec<_> = stub.seen.lock().unwrap().iter().filter(|r| r.method != "GET" && r.path.starts_with("/staff/")).map(|r| r.path.clone()).collect();
+        assert!(writes.is_empty(), "{writes:?}");
+        assert_ne!(i18n::tr("en", "staff.only_rule_lines_waive"), i18n::tr("ar", "staff.only_rule_lines_waive"));
+    }
+
     /// H2-B4: an advance request tells its deciders as `staff.n_request`
     /// with kind `salary_advance`, worded in both languages.
     #[test]
@@ -7022,7 +7046,7 @@ mod tests {
     fn the_window_words_are_in_both_languages() {
         for k in [
             "staff.week_not_loaded", "staff.open_shift_cant_move", "staff.open_shift_gone", "staff.week_loading",
-            "staff.week_needs_connection", "staff.open_shift_posted", "staff.given_to", "staff.week_couldnt_load", "staff.coverage_saved", "staff.reject_cover",
+            "staff.week_needs_connection", "staff.open_shift_posted", "staff.given_to", "staff.week_couldnt_load", "staff.coverage_saved", "staff.reject_cover", "staff.line_deleted",
         ] {
             let (en, ar) = (i18n::tr("en", k), i18n::tr("ar", k));
             assert_ne!(en, k, "{k} has no English");
