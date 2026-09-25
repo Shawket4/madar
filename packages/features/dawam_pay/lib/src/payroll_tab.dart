@@ -211,14 +211,7 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
           for (final a in list)
             MadarListRow.bill(
               title: '${name(store.emp(a.emp))} · ${a.reason}',
-              meta: [
-                if (a.recurring)
-                  tr('staff.every_month')
-                else
-                  tr('staff.one_off'),
-                tr('staff.by_name', {'name': name(store.emp(a.by))}),
-                dayMonth(a.at),
-              ].join(' · '),
+              meta: adjustmentMeta(a, name(store.emp(a.by))),
               minor: a.bonus
                   ? a.value(store.emp(a.emp))
                   : -a.value(store.emp(a.emp)),
@@ -562,3 +555,16 @@ class _PayrollTabState extends ConsumerState<PayrollTab> {
     },
   );
 }
+
+/// A pay line's second line: a rule-made one says so ("Rule · absence",
+/// minor #30), never "One-off · by —"; one someone added says how often and
+/// who.
+String adjustmentMeta(Adj a, String by) => [
+  if (a.rule case final rule?)
+    rule
+  else ...[
+    if (a.recurring) tr('staff.every_month') else tr('staff.one_off'),
+    tr('staff.by_name', {'name': by}),
+  ],
+  dayMonth(a.at),
+].join(' · ');

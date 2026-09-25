@@ -352,6 +352,7 @@ class Adj {
     this.status = 'active',
     this.waived = false,
     this.endsOn,
+    this.rule,
   });
   final String id;
   final String emp;
@@ -363,6 +364,10 @@ class Adj {
   /// A stopped every-month line's last day: it counts until then, the end
   /// of the month that was open when it was stopped (decision #6).
   final DateTime? endsOn;
+
+  /// A rule-made line, the core's words ("Rule · absence"); null for a line
+  /// someone added (minor #30).
+  final String? rule;
 
   /// A waived rule deduction: struck through, charged nothing (AD-6, AD-8).
   final bool waived;
@@ -1070,6 +1075,7 @@ class DawamStore extends ChangeNotifier {
             final String d => DateTime.tryParse(d),
             _ => null,
           },
+          rule: a['rule'] as String?,
         ),
       );
     }

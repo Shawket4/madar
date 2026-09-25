@@ -522,6 +522,10 @@ pub struct AdjV {
     /// A stopped every-month line's last day (`YYYY-MM-DD`): the end of the
     /// month that was open when it was stopped (decision #6).
     pub ends_on: Option<String>,
+    /// A rule-made line (lateness, absence…): "Rule · absence" in the
+    /// phone's language, never "One-off · by —" (minor #30). None for a
+    /// line someone added.
+    pub rule: Option<String>,
 }
 
 #[derive(Serialize, Debug)]
@@ -2685,6 +2689,7 @@ impl MadarCore {
                 recurring: b(a, "recurring"),
                 status: status.into(),
                 ends_on: ends_on.map(|d| d.to_string()),
+                rule: rule_label(a, &locale),
             });
         }
         if out.role == "owner" {
@@ -3120,6 +3125,20 @@ fn slip_of(s_: &Value, p: &PeriodV, base: i64, frozen: bool) -> SlipV {
         frozen,
         salary_missing: b(s_, "salary_missing"),
     }
+}
+
+/// What made a rule line (minor #30): "Rule · late", "Rule · absence"…; None
+/// for a line someone added by hand.
+fn rule_label(a: &Value, locale: &str) -> Option<String> {
+    let key = match s(a, "source").as_str() {
+        "" | "manual" => return None,
+        "late_penalty" => "staff.rule_late",
+        "absence" => "staff.rule_absence",
+        "excused_unpaid" => "staff.rule_excuse",
+        "flag" => "staff.rule_flag",
+        _ => "staff.rule",
+    };
+    Some(i18n::tr(locale, key))
 }
 
 /// A deduction's words in [lang]: a rule-made line by the server's
@@ -5623,6 +5642,16 @@ mod tests {
             };
             assert_eq!(reason("d1"), json!(i18n::tr(lang, "staff.pay_reason_absent_no_punch")), "{lang}");
             assert_eq!(reason("d2"), json!("Broken glass"), "a typed reason stays as typed");
+            // Minor #30: a rule-made line says so ("Rule · absence"), not
+            // "One-off · by —".
+            let rule = |id: &str| {
+                snap["adjustments"].as_array().unwrap().iter().find(|a| a["id"] == json!(format!("a|deduction|{id}"))).unwrap()["rule"].clone()
+            };
+            assert_eq!(rule("d1"), json!(i18n::tr(lang, "staff.rule_absence")), "{lang}");
+            assert_eq!(rule("d2"), Value::Null, "a line added by hand");
+        }
+        for k in ["staff.rule_absence", "staff.rule_late", "staff.rule_excuse", "staff.rule_flag", "staff.rule"] {
+            assert_ne!(i18n::tr("ar", k), i18n::tr("en", k), "{k}");
         }
         assert_ne!(i18n::tr("ar", "staff.pay_reason_absent_no_punch"), "Absent — no check-in recorded");
     }
