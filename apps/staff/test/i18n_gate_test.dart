@@ -125,8 +125,12 @@ void main() {
     for (final k in en.keys.where((k) => k.startsWith('staff.'))) {
       final a = ar[k];
       if (a == null) continue;
-      final e1 = ph.allMatches(en[k]!).map((m) => m.group(1)).toSet();
-      final a1 = ph.allMatches(a).map((m) => m.group(1)).toSet();
+      // A name the server sends in both languages is each language's own
+      // (`{name_en}` / `{name_ar}`, staff.n_holiday_undecided).
+      String? own(Match m) =>
+          m.group(1)!.replaceFirst(RegExp(r'_(en|ar)$'), '_lang');
+      final e1 = ph.allMatches(en[k]!).map(own).toSet();
+      final a1 = ph.allMatches(a).map(own).toSet();
       if (e1.length != a1.length || !e1.containsAll(a1)) bad.add(k);
     }
     expect(bad, isEmpty);
