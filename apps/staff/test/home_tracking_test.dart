@@ -38,9 +38,17 @@ void main() {
       await frames(t, 5);
       expect(line, findsOneWidget);
       final p = t.renderObject<RenderParagraph>(line);
-      expect(p.didExceedMaxLines, isFalse, reason: 'cut off: ${p.text.toPlainText()}');
+      expect(
+        p.didExceedMaxLines,
+        isFalse,
+        reason: 'cut off: ${p.text.toPlainText()}',
+      );
       expect(find.text(tr('staff.tracking_on')), findsOneWidget);
-      expect(find.textContaining('%'), findsWidgets, reason: 'the battery stays');
+      expect(
+        find.textContaining('%'),
+        findsWidgets,
+        reason: 'the battery stays',
+      );
       await finish(t);
     });
   }
