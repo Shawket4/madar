@@ -2080,6 +2080,15 @@ impl MadarCore {
                         }))).await?;
                     }
                     None => {
+                        // A started shift can't become an open one (the server's
+                        // SHIFT_STARTED, B-H1-2): refused before its day is
+                        // touched, or the day would lose it with no open shift
+                        // in its place.
+                        let now = Utc.timestamp_millis_opt(self.corrected_now_ms()).single().unwrap_or_else(Utc::now);
+                        let tz = self.dawam_tz();
+                        if snap.shifts.iter().find(|x| x.id == shift).and_then(|x| shift_start(x, &tz)).is_some_and(|s| s <= now) {
+                            return Err(invalid("staff.err_shift_started"));
+                        }
                         let snap = self.dawam_day_known(snap, d).await?;
                         let rest: Vec<BlockA> = day_set(&snap, owner, d).into_iter().filter(|b| b.tpl != tpl).collect();
                         self.dawam_put_day(owner, d, &rest).await?;
@@ -5752,6 +5761,36 @@ mod tests {
             assert_ne!(en, k, "{k} has no English");
             assert_ne!(ar, en, "{k} has no Arabic");
         }
+    }
+
+    /// Turning a shift into an open one took it off its person's day first,
+    /// then posted the open shift. Once the server refuses a started shift
+    /// (SHIFT_STARTED), that left the day without the shift and no open shift
+    /// either. A started shift is refused before anything changes.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_started_shift_is_not_turned_into_an_open_one() {
+        use crate::testkit::StubResponse;
+        let yesterday = today_cairo() - Duration::days(1);
+        let (stub, core) = cafe(MGR, move |m, p, _| match (m, p) {
+            ("GET", "/staff/roster") => Some(StubResponse::json(200, json!({
+                "published_weeks": [week_start(yesterday).to_string()], "date_sets": [], "open_shifts": [],
+                "shifts": [{ "employee_id": "e4", "date": yesterday, "work_shift_id": "w1", "start_time": "08:00:00", "end_time": "12:00:00",
+                             "start_at": format!("{yesterday}T05:00:00Z"), "end_at": format!("{yesterday}T09:00:00Z") }],
+            }))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            let act = json!({ "action": "assign", "shift": format!("e4|{yesterday}|w1"), "emp": null });
+            match core.dawam_do(act.to_string()).await {
+                Err(CoreError::Validation { detail, .. }) => assert_eq!(detail, i18n::tr(lang, "staff.err_shift_started")),
+                other => panic!("expected the refusal, got {other:?}"),
+            }
+        }
+        let writes: Vec<_> = stub.seen.lock().unwrap().iter().filter(|r| r.method != "GET" && r.path.starts_with("/staff/")).map(|r| r.path.clone()).collect();
+        assert!(writes.is_empty(), "nothing is written: {writes:?}");
     }
 
     /// The manager hears a claim was taken back (the server's
