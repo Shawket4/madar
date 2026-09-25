@@ -74,7 +74,7 @@ pub struct PutEmployeeRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub employment_status: Option<Option<String>>,
-    /// `m` · `f`; omitted keeps what is there.
+    /// `m` · `f`; `null` or empty = not set; omitted keeps what is there.
     #[serde(
         rename = "gender",
         default,
@@ -125,6 +125,7 @@ pub struct PutEmployeeRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub on_payroll: Option<Option<bool>>,
+    /// The IBAN or wallet number; `null` or empty clears it; omitted keeps it. Always cleared when the method is (or stays) `cash`.
     #[serde(
         rename = "pay_account",
         default,
@@ -132,7 +133,7 @@ pub struct PutEmployeeRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub pay_account: Option<Option<String>>,
-    /// `cash` · `bank` · `wallet`; omitted keeps what is there.
+    /// `cash` · `bank` · `wallet`; omitted keeps what is there. Cash clears the account.
     #[serde(
         rename = "pay_method",
         default,

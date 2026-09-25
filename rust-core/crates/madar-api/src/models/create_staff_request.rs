@@ -51,7 +51,7 @@ pub struct CreateStaffRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub is_half_day: Option<Option<bool>>,
-    /// Only when the request is approved as it is filed (the filer holds `hr.requests.self_approve`): leave paid or unpaid, an excuse's pay. Omitted: leave is paid, an excuse follows the rule.
+    /// Only when the request is approved as it is filed (the filer holds `hr.requests.self_approve`): leave paid or unpaid — REQUIRED for such a leave (400 `LEAVE_PAY_REQUIRED`, RQ-2) — and an excuse's pay (omitted: the rule decides).
     #[serde(
         rename = "is_paid",
         default,

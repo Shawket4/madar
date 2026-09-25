@@ -8,6 +8,7 @@ Name | Type | Description | Notes
 **error** | **String** | Human-readable error message. | 
 **retry_after_seconds** | Option<**i64**> | How long to wait before trying again, in seconds. Present on a `PIN_THROTTLED` refusal, absent everywhere else, so the PIN pad can run a countdown rather than inventing one. | [optional]
 **till** | Option<**serde_json::Value**> | The till a `TILL_OPEN_AT_OTHER_BRANCH` / `TILL_OPEN_ELSEWHERE` refusal is about (`TillBrief`). Omitted everywhere else. | [optional]
+**vars** | Option<**serde_json::Value**> | The figures of a coded refusal (`CodedVars`), for the client's own wording. Omitted everywhere else. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

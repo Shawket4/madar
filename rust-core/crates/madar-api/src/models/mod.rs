@@ -406,6 +406,8 @@ pub mod decision_out;
 pub use self::decision_out::DecisionOut;
 pub mod deduction_log_row;
 pub use self::deduction_log_row::DeductionLogRow;
+pub mod deduction_override_event;
+pub use self::deduction_override_event::DeductionOverrideEvent;
 pub mod delivery_addon_option;
 pub use self::delivery_addon_option::DeliveryAddonOption;
 pub mod delivery_channel_sales;

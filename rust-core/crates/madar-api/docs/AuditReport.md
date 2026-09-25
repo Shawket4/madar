@@ -9,6 +9,7 @@ Name | Type | Description | Notes
 **by_reason** | [**Vec<models::AuditBreakdownEntry>**](AuditBreakdownEntry.md) |  | 
 **entries** | Option<[**Vec<models::DiscountAuditEntry>**](DiscountAuditEntry.md)> | Discounts audit only: the most recent discounted sales, newest first (at most 200). Additive. | [optional]
 **from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
+**history** | Option<[**Vec<models::DeductionOverrideEvent>**](DeductionOverrideEvent.md)> | Deduction overrides audit only: every waive, unwaive and override event with who, when and why, newest first (at most 500) — the history, so a waiver later undone still shows (owner decision D8, AT-10). Additive. | [optional]
 **to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **total_amount_minor** | **i64** |  | 
 **total_count** | **i64** |  | 

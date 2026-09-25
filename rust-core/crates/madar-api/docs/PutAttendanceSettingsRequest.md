@@ -8,6 +8,7 @@ Name | Type | Description | Notes
 **advance_cap_percent** | Option<**f64**> |  | [optional]
 **auto_checkout_buffer_minutes** | Option<**i32**> |  | [optional]
 **branch_id** | Option<**uuid::Uuid**> | `None` = the org-wide default row. | [optional]
+**cover_pay_mode** | Option<**String**> | `minute_rate` · `full_block` (D5). On a branch: its own override; `inherit: [\"cover_pay_mode\"]` goes back to the business's. | [optional]
 **default_overtime_multiplier** | Option<**f64**> |  | [optional]
 **excused_time_paid_default** | Option<**bool**> |  | [optional]
 **gender_mode** | Option<**String**> | `off` · `soft` · `hard`; owner only (`hr.roster.settings`). | [optional]

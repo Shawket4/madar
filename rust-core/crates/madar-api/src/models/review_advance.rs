@@ -30,6 +30,7 @@ pub struct ReviewAdvance {
         skip_serializing_if = "Option::is_none"
     )]
     pub installments: Option<Option<i32>>,
+    /// Why (kept as the decision note). Required to reject: `note` or `reason`, `reason` wins (400 `REASON_REQUIRED`, D8).
     #[serde(
         rename = "note",
         default,
@@ -37,6 +38,13 @@ pub struct ReviewAdvance {
         skip_serializing_if = "Option::is_none"
     )]
     pub note: Option<Option<String>>,
+    #[serde(
+        rename = "reason",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reason: Option<Option<String>>,
 }
 
 impl ReviewAdvance {
@@ -46,6 +54,7 @@ impl ReviewAdvance {
             approve,
             installments: None,
             note: None,
+            reason: None,
         }
     }
 }

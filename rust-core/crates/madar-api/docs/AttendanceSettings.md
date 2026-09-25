@@ -8,6 +8,7 @@ Name | Type | Description | Notes
 **advance_cap_percent** | **f64** | Salary advances owed may reach this share of monthly salary (AV-5). | 
 **auto_checkout_buffer_minutes** | **i32** |  | 
 **branch_id** | Option<**uuid::Uuid**> |  | [optional]
+**cover_pay_mode** | **String** | How a confirmed cover is paid (owner decision D5): `minute_rate` (the coverer's day rate ÷ 8 h × the minutes covered, CV-4; the default) or `full_block` (the covered block as a full day). A branch may override it (listed in `overridden`). | 
 **created_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **default_overtime_multiplier** | **f64** |  | 
 **excused_time_paid_default** | **bool** | Whether an approved mid-shift permission or early departure is PAID by default. The approver may override it on any individual request. | 

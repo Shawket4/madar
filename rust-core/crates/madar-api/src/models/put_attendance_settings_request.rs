@@ -42,6 +42,14 @@ pub struct PutAttendanceSettingsRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub branch_id: Option<Option<uuid::Uuid>>,
+    /// `minute_rate` · `full_block` (D5). On a branch: its own override; `inherit: [\"cover_pay_mode\"]` goes back to the business's.
+    #[serde(
+        rename = "cover_pay_mode",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cover_pay_mode: Option<Option<String>>,
     #[serde(
         rename = "default_overtime_multiplier",
         default,
@@ -202,6 +210,7 @@ impl PutAttendanceSettingsRequest {
             advance_cap_percent: None,
             auto_checkout_buffer_minutes: None,
             branch_id: None,
+            cover_pay_mode: None,
             default_overtime_multiplier: None,
             excused_time_paid_default: None,
             gender_mode: None,

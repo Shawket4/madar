@@ -575,7 +575,7 @@ Class | Method | HTTP request | Description
 *StaffApi* | [**set_period_status**](docs/StaffApi.md#set_period_status) | **PATCH** /staff/payroll/periods/{id}/status | Reopen an approved month (before anyone is paid) or close a paid one.
 *StaffApi* | [**set_staff_push_token**](docs/StaffApi.md#set_staff_push_token) | **PUT** /staff/me/push-token | `PUT /staff/me/push-token` — the staff app registers its phone for the employee through the same `push_devices` table as `PUT /push/token` (app = `\"dawam\"`).
 *StaffApi* | [**staff_sign_out**](docs/StaffApi.md#staff_sign_out) | **POST** /staff/me/sign-out | `POST /staff/me/sign-out` — the staff app signs out (APP-6, 06 B3): this phone's device is revoked, so its token can't be refreshed again, and the employee's Dawam pushes stop at once — a signed-out phone never shows the next person's names or amounts. Idempotent.
-*StaffApi* | [**stop_adjustment**](docs/StaffApi.md#stop_adjustment) | **POST** /staff/adjustments/{kind}/{id}/stop | Stop a monthly line from the next period on; past payslips keep it (AD-3).
+*StaffApi* | [**stop_adjustment**](docs/StaffApi.md#stop_adjustment) | **POST** /staff/adjustments/{kind}/{id}/stop | Stop a monthly line from the next period on: the open month and past payslips keep it (AD-3, owner decision D6).
 *StaffApi* | [**suggestions**](docs/StaffApi.md#suggestions) | **GET** /staff/roster/suggestions | 
 *StaffApi* | [**team_presence**](docs/StaffApi.md#team_presence) | **GET** /staff/team/presence | Who is in, late, absent or on leave right now.
 *StaffApi* | [**till_punch**](docs/StaffApi.md#till_punch) | **POST** /staff/attendance/till-punch | A dead or forgotten phone in a Madar org: the person clocks in or out on the branch till with their till PIN (CL-13). Marked `till` (CL-16). The till is at the branch, so there is no geofence to check — which is why it is accepted ONLY from a real till (audit 03 P0): a POS session (never the Dawam app's) on the branch's registered POS device, proven by its credential when it has one, with a till session open on that device at that branch. Online only: a PIN is never queued. Wrong PINs slow down like the till's own sign-in, and the branch's managers are told.
@@ -841,6 +841,7 @@ Class | Method | HTTP request | Description
  - [DecideSuggestion](docs/DecideSuggestion.md)
  - [DecisionOut](docs/DecisionOut.md)
  - [DeductionLogRow](docs/DeductionLogRow.md)
+ - [DeductionOverrideEvent](docs/DeductionOverrideEvent.md)
  - [DeliveryAddonOption](docs/DeliveryAddonOption.md)
  - [DeliveryChannelSales](docs/DeliveryChannelSales.md)
  - [DeliveryMenu](docs/DeliveryMenu.md)

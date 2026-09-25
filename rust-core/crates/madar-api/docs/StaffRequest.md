@@ -6,9 +6,14 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **attendance_record_id** | Option<**uuid::Uuid**> | The record a `correction` proposes to fix. `None` for every other kind. | [optional]
 **can_decide** | Option<**bool**> | The caller may approve or reject it now: it is pending, not their own, at one of their branches, and — a manager's request — they outrank the requester (RQ-5). The same checks the decision makes. | [optional]
+**cancel_note** | Option<**String**> |  | [optional]
+**cancelled_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
+**cancelled_by** | Option<**uuid::Uuid**> | Who cancelled it (the person themselves or a manager), when and why. | [optional]
+**cancelled_by_name** | Option<**String**> | Who cancelled it, by name, the same way. | [optional]
 **created_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **decided_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
-**decided_by** | Option<**uuid::Uuid**> |  | [optional]
+**decided_by** | Option<**uuid::Uuid**> | Who approved or rejected it, when and why. A later cancellation keeps these (the approval stays on record) and fills `cancelled_*`. | [optional]
+**decided_by_name** | Option<**String**> | Who decided it, by name — their employee's name when linked, else their account's — so a phone that can't look up the owner's account still names them (RQ-F6). | [optional]
 **decision_note** | Option<**String**> |  | [optional]
 **employee_id** | **uuid::Uuid** |  | 
 **employee_name** | Option<**String**> |  | [optional]
@@ -23,6 +28,7 @@ Name | Type | Description | Notes
 **leave_type_id** | Option<**uuid::Uuid**> | Deprecated (RQ-2): older rows only; never set on new requests. | [optional]
 **leave_type_name** | Option<**String**> |  | [optional]
 **location** | Option<**String**> |  | [optional]
+**month_closed** | Option<**bool**> | A day of it is in an approved or paid month: approving or cancelling approved time is refused (PERIOD_CLOSED); rejecting still works. | [optional]
 **on_date** | **chrono::NaiveDate** |  | 
 **org_id** | **uuid::Uuid** |  | 
 **paid_default** | Option<**bool**> | For a pending excuse or early departure: the business's (or branch's) rule, which the approve dialog starts from (RQ-7). | [optional]

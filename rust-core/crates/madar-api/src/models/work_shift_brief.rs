@@ -20,6 +20,9 @@ pub struct WorkShiftBrief {
         skip_serializing_if = "Option::is_none"
     )]
     pub branch_id: Option<Option<uuid::Uuid>>,
+    /// How long before its start a check-in opens — the window the server enforces (CL-3), so the app says \"opens at\" the same time.
+    #[serde(rename = "checkin_window_minutes")]
+    pub checkin_window_minutes: i32,
     #[serde(rename = "crosses_midnight")]
     pub crosses_midnight: bool,
     /// Its own times on some weekdays; show that day's times.
@@ -42,6 +45,7 @@ pub struct WorkShiftBrief {
 
 impl WorkShiftBrief {
     pub fn new(
+        checkin_window_minutes: i32,
         crosses_midnight: bool,
         day_times: Vec<models::DayTime>,
         end_time: String,
@@ -53,6 +57,7 @@ impl WorkShiftBrief {
     ) -> WorkShiftBrief {
         WorkShiftBrief {
             branch_id: None,
+            checkin_window_minutes,
             crosses_midnight,
             day_times,
             end_time,

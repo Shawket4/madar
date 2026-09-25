@@ -13,6 +13,21 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HolidayView {
+    #[serde(
+        rename = "decided_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub decided_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// Who decided it and when (AT-10); null while undecided.
+    #[serde(
+        rename = "decided_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub decided_by: Option<Option<uuid::Uuid>>,
     /// null = not decided yet: a normal day unless set up (RU-10).
     #[serde(
         rename = "decision",
@@ -32,6 +47,8 @@ pub struct HolidayView {
 impl HolidayView {
     pub fn new(name_ar: String, name_en: String, on_date: chrono::NaiveDate) -> HolidayView {
         HolidayView {
+            decided_at: None,
+            decided_by: None,
             decision: None,
             name_ar,
             name_en,

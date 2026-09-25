@@ -49,6 +49,9 @@ pub struct ComputedPayslip {
     pub overtime_minutes: i64,
     #[serde(rename = "overtime_piastres")]
     pub overtime_piastres: i64,
+    /// On payroll with no salary set (owner decision D9): everything prices at 0, and approval is refused (409 SALARY_MISSING) until the owner sets it or marks them not on payroll.
+    #[serde(rename = "salary_missing", skip_serializing_if = "Option::is_none")]
+    pub salary_missing: Option<bool>,
     #[serde(rename = "worked_days")]
     pub worked_days: f64,
 }
@@ -89,6 +92,7 @@ impl ComputedPayslip {
             net_piastres,
             overtime_minutes,
             overtime_piastres,
+            salary_missing: None,
             worked_days,
         }
     }

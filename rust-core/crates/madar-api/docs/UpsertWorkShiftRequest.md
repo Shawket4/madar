@@ -4,7 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**branch_id** | Option<**uuid::Uuid**> |  | [optional]
+**branch_id** | Option<**uuid::Uuid**> | The block's branch; null = the whole business. On an update, omitted keeps the block's branch (E2E B-ROTA-8); on a create, omitted = the whole business. | [optional]
 **break_minutes** | Option<**i32**> |  | [optional]
 **checkin_window_minutes** | Option<**i32**> |  | [optional]
 **day_times** | Option<[**Vec<models::DayTime>**](DayTime.md)> | Its own times on some weekdays (each must be a valid day). Omit to keep them; an empty list clears them. | [optional]
