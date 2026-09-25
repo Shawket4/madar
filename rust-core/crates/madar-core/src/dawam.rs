@@ -863,6 +863,23 @@ pub(crate) const ROSTER_CODES: &[&str] = &[
     "SUGGESTION_STALE",
 ];
 
+/// Giving a shift to someone already on it names them (E2E roster m2): the
+/// manager is not the one "already on that shift".
+fn already_rostered_names(e: CoreError, snap: &Snapshot, to: &str, locale: &str) -> CoreError {
+    match e {
+        CoreError::Server { status, code, .. } if code == "ALREADY_ROSTERED" => {
+            let name = snap.people.iter().find(|p| p.id == to).map_or_else(String::new, |p| p.name.clone());
+            let detail = if name.is_empty() {
+                i18n::tr(locale, "staff.err_already_rostered")
+            } else {
+                i18n::tr(locale, "staff.err_already_rostered_name").replace("{name}", &name)
+            };
+            CoreError::Server { status, code, detail }
+        }
+        e => e,
+    }
+}
+
 /// The server's plain refusals carry its error kind in front ("Conflict:
 /// Someone already claimed that shift."): the person reads the sentence only
 /// (E2E roster: the toast said "Conflict: …").
@@ -1908,7 +1925,9 @@ impl MadarCore {
                 let (emp, d, tpl) = parts(&shift);
                 self.dawam_srv("POST", "/staff/schedules/days/move", Some(json!({
                     "employee_id": emp, "to_employee_id": to, "on_date": d, "work_shift_id": tpl,
-                }))).await?;
+                })))
+                .await
+                .map_err(|e| already_rostered_names(e, &snap, &to, &locale))?;
             }
             Act::CancelOpen { shift } => {
                 self.dawam_srv("POST", &format!("/staff/open-shifts/{}/cancel", tail(&shift)), Some(json!({}))).await?;
@@ -1949,7 +1968,9 @@ impl MadarCore {
                     Some(e) => {
                         self.dawam_srv("POST", "/staff/schedules/days/move", Some(json!({
                             "employee_id": owner, "to_employee_id": e, "on_date": d, "work_shift_id": tpl,
-                        }))).await?;
+                        })))
+                        .await
+                        .map_err(|err| already_rostered_names(err, &snap, &e, &locale))?;
                     }
                     None => {
                         let rest: Vec<BlockA> = day_set(&snap, owner, d).into_iter().filter(|b| b.tpl != tpl).collect();
@@ -4230,6 +4251,8 @@ mod tests {
                 ("POST", "/staff/open-shifts/taken/claim") => StubResponse::json(409, json!({ "error": "Conflict: Someone already claimed that shift." })),
                 ("POST", "/staff/open-shifts/coded/claim") => StubResponse::json(409, json!({
                     "error": "Someone already claimed that shift.", "code": "ALREADY_CLAIMED" })),
+                ("POST", "/staff/schedules/days/move") if r.json()["to_employee_id"] == "Q" => StubResponse::json(409, json!({
+                    "error": "Already rostered.", "code": "ALREADY_ROSTERED" })),
                 ("POST", "/staff/me/swaps") if r.json()["peer_id"] == "Q" => StubResponse::json(409, json!({
                     "error": "You've already asked for this swap — it's waiting.", "code": "SWAP_EXISTS" })),
                 ("GET", p) if p.ends_with("estimate") || p.ends_with("coverage") => StubResponse::json(200, json!({})),
@@ -4530,6 +4553,31 @@ mod tests {
                 CoreError::Server { code, detail, .. } => {
                     assert_eq!(code, "ALREADY_CLAIMED");
                     assert_eq!(detail, i18n::tr(locale, "staff.err_already_claimed"));
+                }
+                e => panic!("{e:?}"),
+            }
+        }
+    }
+
+    /// E2E roster m2: giving a shift to someone already on it told the
+    /// manager "You're already on that shift." It names the person.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn giving_a_shift_to_someone_on_it_names_them() {
+        let day = the_day();
+        let stub = roster_stub(day.clone()).await;
+        let core = crate::testkit::online_core(&stub.base, "").await;
+        core.set_online(true);
+        core.dawam_snapshot(true).await.unwrap();
+        for locale in ["en", "ar"] {
+            core.set_locale(locale.into());
+            let err = core
+                .dawam_do(json!({ "action": "give_shift", "shift": format!("P|{day}|w1"), "to": "Q" }).to_string())
+                .await
+                .unwrap_err();
+            match err {
+                CoreError::Server { code, detail, .. } => {
+                    assert_eq!(code, "ALREADY_ROSTERED");
+                    assert_eq!(detail, i18n::tr(locale, "staff.err_already_rostered_name").replace("{name}", "Ziad"));
                 }
                 e => panic!("{e:?}"),
             }

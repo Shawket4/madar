@@ -545,12 +545,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
             ],
           ),
           if (e != null && e.cantWork.contains(s.date.weekday))
-            NoticeBanner(
-              text: tr('staff.said_they_can_t_work_s', {
-                'name': name(e),
-                'day': weekday(s.date.weekday),
-              }),
-            ),
+            NoticeBanner(text: cantWorkWords(name(e), s.date.weekday)),
           for (final (key, args) in warnings) NoticeBanner(text: tr(key, args)),
           Text(
             tr('staff.changes_this_date_only_the_standing'),
@@ -650,10 +645,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                   MadarListRow.nav(
                     title: name(p),
                     meta: p.cantWork.contains(s.date.weekday)
-                        ? tr('staff.said_they_can_t_work_s', {
-                            'name': firstName(p),
-                            'day': weekday(s.date.weekday),
-                          })
+                        ? cantWorkWords(firstName(p), s.date.weekday)
                         : null,
                     onTap: () {
                       unawaited(store.giveShift(s, p.id));
@@ -746,10 +738,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                   MadarListRow.pick(
                     title: name(p),
                     meta: p.cantWork.contains(d.weekday)
-                        ? tr('staff.said_they_can_t_work_s', {
-                            'name': firstName(p),
-                            'day': weekday(d.weekday),
-                          })
+                        ? cantWorkWords(firstName(p), d.weekday)
                         : null,
                     selected: who == p.id,
                     onTap: () => setS(() => who = p.id),
