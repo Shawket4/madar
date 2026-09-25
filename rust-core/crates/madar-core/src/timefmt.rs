@@ -181,6 +181,16 @@ where
     dt.format(&pat).to_string()
 }
 
+/// A branch-local instant as the sale-window rule reads it: `YYYY-MM-DD` and
+/// `HH:MM:SS` on the branch's wall clock (madar-catalog `LocalNow`).
+pub(crate) fn wall_clock_in(now: chrono::DateTime<chrono::Utc>, tz: chrono_tz::Tz) -> (String, String) {
+    let local = now.with_timezone(&tz);
+    (
+        local.format("%Y-%m-%d").to_string(),
+        local.format("%H:%M:%S").to_string(),
+    )
+}
+
 
 // ── The date-range picker's chrome ───────────────────────────────────────────
 

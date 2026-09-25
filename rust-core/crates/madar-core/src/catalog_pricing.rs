@@ -475,7 +475,6 @@ mod tests {
                         case.name
                     );
                 }
-                other => panic!("{}: {other:?}", case.name),
             }
         }
         assert!(checked >= 45, "only {checked} cases priced end to end");

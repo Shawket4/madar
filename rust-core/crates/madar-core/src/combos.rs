@@ -668,13 +668,11 @@ impl crate::MadarCore {
     /// The branch's wall clock now (the till's corrected clock in the branch
     /// zone): what a window is judged against.
     pub(crate) fn branch_local_now(&self) -> LocalNow {
-        let now = self
-            .corrected_now()
-            .with_timezone(&crate::timefmt::branch_tz(&self.store));
-        LocalNow::new(
-            now.format("%Y-%m-%d").to_string(),
-            now.format("%H:%M:%S").to_string(),
-        )
+        let (date, time) = crate::timefmt::wall_clock_in(
+            self.corrected_now(),
+            crate::timefmt::branch_tz(&self.store),
+        );
+        LocalNow::new(date, time)
     }
 
     pub(crate) fn combo_at(&self, catalog: &crate::CatalogSnapshot) -> At {
