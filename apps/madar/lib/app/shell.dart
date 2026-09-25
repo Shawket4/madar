@@ -47,10 +47,22 @@ class MadarShell extends ConsumerWidget {
       // phone pads have no return key, so a field taking one of them has no
       // way to put the keyboard away on its own. It draws nothing at all
       // unless such a field holds focus (`MadarKeyboardDone`).
+      //
+      // The app's ONE toast sits above the navigator too, inside the
+      // direction scope: whatever is in front — a tab, a pushed page, a
+      // sheet, the sign-in screen, the kitchen board — the message shows
+      // over it, in the language on screen (`AppToastLayer`).
       builder: (context, child) => MadarKeyboardDoneBar(
         child: Directionality(
           textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
-          child: motionScope(context, motion, orientationProbe(context, child)),
+          child: motionScope(
+            context,
+            motion,
+            orientationProbe(
+              context,
+              AppToastLayer(child: child ?? const SizedBox.shrink()),
+            ),
+          ),
         ),
       ),
       home: const _RouteHost(),

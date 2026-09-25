@@ -27,27 +27,23 @@ const Duration _pillBeat = Duration(seconds: 10);
 /// receipts start carrying times nobody recognises.
 const int _clockSkewBannerMinutes = 5;
 
-// ── Chrome state: the toast, and which realtime activity has been seen ─────
+// ── Chrome state: which realtime activity has been seen ────────────────────
 
-/// Chrome-owned rendered state: the transient toast and the tick values
-/// already acknowledged by the teller (the sticky new-order toast clears
-/// when the Queue is looked at, not on a timer).
+/// Chrome-owned rendered state: the tick values already acknowledged by the
+/// teller (the sticky new-order toast clears when the Queue is looked at,
+/// not on a timer).
+///
+/// The toast itself is not kept here any more: it is the app's ONE toast
+/// (`appToastProvider`), drawn above the navigator, so the chrome's words and
+/// every screen's words show in the same place, over whatever is in front.
 class ChromeState {
-  const ChromeState({this.toast, this.seenDelivery = 0, this.seenTicket = 0});
+  const ChromeState({this.seenDelivery = 0, this.seenTicket = 0});
 
-  final ToastData? toast;
   final int seenDelivery;
   final int seenTicket;
 
-  static const Object _keep = Object();
-
-  ChromeState copyWith({
-    Object? toast = _keep,
-    int? seenDelivery,
-    int? seenTicket,
-  }) {
+  ChromeState copyWith({int? seenDelivery, int? seenTicket}) {
     return ChromeState(
-      toast: identical(toast, _keep) ? this.toast : toast as ToastData?,
       seenDelivery: seenDelivery ?? this.seenDelivery,
       seenTicket: seenTicket ?? this.seenTicket,
     );
@@ -55,41 +51,37 @@ class ChromeState {
 }
 
 class ChromeNotifier extends Notifier<ChromeState> {
-  Timer? _toastTimer;
+  /// The sticky new-order alert on screen, if any — so looking at the Queue
+  /// takes down THAT toast and never a message a screen raised since.
+  int? _alertId;
 
   @override
-  ChromeState build() {
-    ref.onDispose(() => _toastTimer?.cancel());
-    return const ChromeState();
-  }
+  ChromeState build() => const ChromeState();
 
-  /// Show a transient toast — auto-dismisses after 2.6s (the natives'
-  /// toast lifetime).
+  AppToastNotifier get _toast => ref.read(appToastProvider.notifier);
+
+  /// Say [text] through the app's toast (the natives' 2.6s lifetime).
   void showToast(
     String text, {
     ChipTone tone = ChipTone.accent,
     String icon = 'bell',
-    String? actionLabel,
-    bool sticky = false,
-  }) {
-    state = state.copyWith(
-      toast: ToastData(
-        id: DateTime.now().millisecondsSinceEpoch,
-        text: text,
-        tone: tone,
-        icon: icon,
-        actionLabel: actionLabel,
-        sticky: sticky,
-      ),
-    );
-    _toastTimer?.cancel();
-    if (sticky) return;
-    _toastTimer = Timer(const Duration(milliseconds: 2600), dismissToast);
-  }
+  }) => _toast.show(text, tone: tone, icon: icon);
 
-  void dismissToast() {
-    _toastTimer?.cancel();
-    if (state.toast != null) state = state.copyWith(toast: null);
+  /// The new-order alert: sticky until the Queue is looked at, with its
+  /// View going there.
+  void showAlert(
+    String text, {
+    required String actionLabel,
+    required VoidCallback onView,
+  }) {
+    _alertId = _toast.show(
+      text,
+      tone: ChipTone.accent,
+      icon: 'bell',
+      actionLabel: actionLabel,
+      action: onView,
+      sticky: true,
+    );
   }
 
   /// Stamp the current tick values as seen — the Queue was looked at.
@@ -98,7 +90,8 @@ class ChromeNotifier extends Notifier<ChromeState> {
       seenDelivery: ref.read(deliveryTickProvider),
       seenTicket: ref.read(ticketTickProvider),
     );
-    dismissToast();
+    if (_alertId case final id?) _toast.dismiss(id);
+    _alertId = null;
   }
 }
 
@@ -608,10 +601,10 @@ class _RoleShellState extends ConsumerState<RoleShell> {
         // looks — it clears on markIncomingSeen, not on a timer.
         ref
             .read(chromeProvider.notifier)
-            .showToast(
+            .showAlert(
               body.isEmpty ? title : '$title — $body',
               actionLabel: _t('chrome.view'),
-              sticky: true,
+              onView: _viewIncoming,
             );
         _chime();
         MadarHaptics.impact();
@@ -794,7 +787,6 @@ class _RoleShellState extends ConsumerState<RoleShell> {
     final queueBadge = ref.watch(incomingProvider.select((s) => s.queueBadge));
     final outbox = ref.watch(outboxProvider);
     final deviceCode = ref.watch(deviceCodeProvider);
-    final toast = ref.watch(chromeProvider.select((s) => s.toast));
     final colors = context.madarColors;
     final layout = context.madarLayout;
 
@@ -880,56 +872,41 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       },
       child: Material(
         color: colors.chrome,
-        child: Stack(
-          children: [
-            MadarShellScaffold(
-              tabs: [
-                for (final tab in tabs)
-                  MadarTab(
-                    key: tab.name,
-                    label: bridge.tr(key: tab.labelKey),
-                    glyph: tab.glyph,
-                    badge: switch (tab) {
-                      _Tab.bills => billsReady,
-                      _Tab.queue => queueBadge,
-                      _ => 0,
-                    },
-                    // Only the tab you are NOT on: ringing the screen already
-                    // in front of the teller is noise.
-                    ring: tab == _ringTab && tab != current ? _ring : 0,
-                  ),
-              ],
-              selectedIndex: tabs.indexOf(current),
-              onSelect: (i) => _select(tabs[i]),
-              person: person,
-              onPersonTap: () => unawaited(_openPerson()),
-              // The kit's own board, for whoever is building on it. Debug
-              // builds only; it is not a row anybody sells from.
-              onMarkTap: kDebugMode ? () => _push(GalleryScreen.new) : null,
-              topBar: MadarTopBar(
-                title: _branchName(bridge, session),
-                subtitle: deviceCode,
-                pill: MadarOutboxPill(
-                  state: outbox.state,
-                  label: pillWord,
-                  count: outbox.count,
-                  onTap: () => _openOwned(_OwnedPage.sync),
-                ),
-              ),
-              body: body,
-            ),
-            if (toast != null)
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: ToastHost(
-                  toast,
-                  onDismiss: (_) =>
-                      ref.read(chromeProvider.notifier).dismissToast(),
-                  // Only the sticky new-order alert carries an action.
-                  onAction: _viewIncoming,
-                ),
+        child: MadarShellScaffold(
+          tabs: [
+            for (final tab in tabs)
+              MadarTab(
+                key: tab.name,
+                label: bridge.tr(key: tab.labelKey),
+                glyph: tab.glyph,
+                badge: switch (tab) {
+                  _Tab.bills => billsReady,
+                  _Tab.queue => queueBadge,
+                  _ => 0,
+                },
+                // Only the tab you are NOT on: ringing the screen already
+                // in front of the teller is noise.
+                ring: tab == _ringTab && tab != current ? _ring : 0,
               ),
           ],
+          selectedIndex: tabs.indexOf(current),
+          onSelect: (i) => _select(tabs[i]),
+          person: person,
+          onPersonTap: () => unawaited(_openPerson()),
+          // The kit's own board, for whoever is building on it. Debug
+          // builds only; it is not a row anybody sells from.
+          onMarkTap: kDebugMode ? () => _push(GalleryScreen.new) : null,
+          topBar: MadarTopBar(
+            title: _branchName(bridge, session),
+            subtitle: deviceCode,
+            pill: MadarOutboxPill(
+              state: outbox.state,
+              label: pillWord,
+              count: outbox.count,
+              onTap: () => _openOwned(_OwnedPage.sync),
+            ),
+          ),
+          body: body,
         ),
       ),
     );
