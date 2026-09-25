@@ -651,7 +651,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byType(ComboSheet), findsOneWidget);
         expect(
-          c.read(orderProvider).toast?.text,
+          c.read(appToastProvider)?.text,
           coreWord('combo.picks_required', arabic: arabic),
         );
         expect(tester.takeException(), isNull);
@@ -893,7 +893,7 @@ void main() {
     await c.read(cartProvider(null).notifier).load();
     await tester.pump();
     expect(
-      c.read(orderProvider).toast?.text,
+      c.read(appToastProvider)?.text,
       'Two bites no longer applies to the cart, so it came off.',
     );
   });
