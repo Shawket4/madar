@@ -25,10 +25,18 @@
 //! (3–10) and `<key>_many` (11–99): 100, 101, 102… read the key itself.
 //! English has no two / few / many, so those Arabic keys have no English
 //! twin (`ar_has_no_orphan_keys_absent_from_en` allows exactly those). The
-//! staff app picks the form by the count (staff_core `trCount`), as
-//! `reconfigure.rs` picks `.one` / `.many` and `loyalty.rs` `_one` / `_many`.
-//! A counted phrase with `_one` must have every Arabic form
-//! (`a_counted_phrase_has_every_arabic_form`).
+//! staff app picks the form by the count (staff_core `trCount`); the core,
+//! for the phrases it fills itself (an inbox notice, a refusal, a payslip
+//! line), picks it with [`tr_count`] / [`tr_counted`], the count being the
+//! argument [`COUNTED`] names. Both follow [`plural_of`], as `reconfigure.rs`
+//! picks `.one` / `.many` and `loyalty.rs` `_one` / `_many`. A counted phrase
+//! with `_one` must have every Arabic form
+//! (`a_counted_phrase_has_every_arabic_form`). A push key (`staff.n_*`)
+//! carries every form in BOTH languages: the backend copies push words key by
+//! key (MadarRust `scripts/sync_push_words.py` refuses a key in one language
+//! only); English's two / few / many read as its other form. The backend's
+//! push shows a push key's own words for every count (it picks no form), so
+//! that key keeps the count's commonest form (Arabic 3–10), not "other".
 
 /// Localized string for `key` in `locale`, falling back en → key.
 pub fn tr(locale: &str, key: &str) -> String {
@@ -38,6 +46,68 @@ pub fn tr(locale: &str, key: &str) -> String {
         _ => None,
     };
     resolved.or_else(|| en(key)).unwrap_or(key).to_string()
+}
+
+/// The CLDR plural category of a count `n` in `locale` (PLURAL FORMS):
+/// English `one` / `other`; Arabic `zero`, `one`, `two`, `few` (3–10),
+/// `many` (11–99) and `other` (100, 101, 102, …), counted on the last two
+/// digits as Arabic counts (103 is few, 111 many). The staff app's
+/// `pluralOf` is the same rule.
+pub fn plural_of(locale: &str, n: i64) -> &'static str {
+    let c = n.unsigned_abs();
+    if lang_of(locale) != "ar" {
+        return if c == 1 { "one" } else { "other" };
+    }
+    match (c, c % 100) {
+        (0, _) => "zero",
+        (1, _) => "one",
+        (2, _) => "two",
+        (_, 3..=10) => "few",
+        (_, 11..=99) => "many",
+        _ => "other",
+    }
+}
+
+/// [`tr`] for a phrase with a count `n`: its `<key>_<category>` form when the
+/// language's own table has one, else the key itself (the "other" form).
+/// Another language's form never stands in for a missing one.
+pub fn tr_count(locale: &str, key: &str, n: i64) -> String {
+    let form = format!("{key}_{}", plural_of(locale, n));
+    let own = match lang_of(locale) {
+        "ar" => ar(&form),
+        _ => en(&form),
+    };
+    own.map_or_else(|| tr(locale, key), str::to_string)
+}
+
+/// The phrases the core fills itself with a count, and the argument that
+/// counts: they read in that count's form (PLURAL FORMS). A phrase whose
+/// count can't change its words (a fixed 7 days, a gap over 20 points) is
+/// not listed.
+pub const COUNTED: &[(&str, &str)] = &[
+    ("staff.n_open_shifts_week", "count"),
+    ("staff.wrong_code_tries_left", "attempts"),
+    ("staff.pay_reason_late", "minutes"),
+    ("staff.err_checkin_too_early", "minutes"),
+];
+
+/// The words for `key` before `args` fill them: in the form its count takes
+/// when [`COUNTED`] names one and `args` carries it as a whole number, else
+/// as [`tr`] gives them.
+pub fn tr_counted(
+    locale: &str,
+    key: &str,
+    args: &std::collections::BTreeMap<String, String>,
+) -> String {
+    let n = COUNTED
+        .iter()
+        .find(|(k, _)| *k == key)
+        .and_then(|(_, arg)| args.get(*arg))
+        .and_then(|v| v.trim().parse::<i64>().ok());
+    match n {
+        Some(n) => tr_count(locale, key, n),
+        None => tr(locale, key),
+    }
 }
 
 /// The locale is Arabic (any region) — for formatting that has Arabic words.
@@ -149,6 +219,10 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.n_advance_requested" => "{name} asked for a salary advance of {amount}",
         "staff.n_holiday_undecided" => "Public holiday {name_en} on {date} isn't decided yet",
         "staff.n_open_shifts_week" => "{count} open shifts in the week of {week_start} — claim one in Shifts",
+        "staff.n_open_shifts_week_one" => "1 open shift in the week of {week_start} — claim it in Shifts",
+        "staff.n_open_shifts_week_two" => "2 open shifts in the week of {week_start} — claim one in Shifts",
+        "staff.n_open_shifts_week_few" => "{count} open shifts in the week of {week_start} — claim one in Shifts",
+        "staff.n_open_shifts_week_many" => "{count} open shifts in the week of {week_start} — claim one in Shifts",
         "staff.n_week_published" => "The roster for the week of {date} is published",
         "staff.n_open_shift" => "An open shift on {date} was posted — claim it in Shifts",
         "staff.n_claim" => "{name} claimed the open shift on {date} — approve it",
@@ -176,6 +250,7 @@ fn en(key: &str) -> Option<&'static str> {
         // The server's refusals of a punch (clock in / out / cover), by code.
         "staff.err_outside_fence" => "You're {distance_m} m from the branch. Clock in within {radius_m} m.",
         "staff.err_checkin_too_early" => "Too early: check-in for {shift} opens at {opens_at}, {minutes} min before it starts.",
+        "staff.err_checkin_too_early_one" => "Too early: check-in for {shift} opens at {opens_at}, 1 min before it starts.",
         "staff.err_shift_ended" => "{shift} has already ended.",
         "staff.err_location_required" => "Your location is needed to clock in. Turn location on and try again.",
         "staff.err_outside_fence_out" => "You're {distance_m} m from the branch. Clock out within {radius_m} m.",
@@ -519,6 +594,7 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.left_mid_shift" => "Left mid-shift",
         // A rule-made pay line, by the server's reason code (payslip + PDF).
         "staff.pay_reason_late" => "Late by {minutes} minutes",
+        "staff.pay_reason_late_one" => "Late by 1 minute",
         "staff.pay_reason_absent_no_punch" => "Absent — no punch",
         "staff.pay_reason_unpaid_leave" => "Unpaid leave",
         "staff.pay_reason_absent_half_unpaid_leave" => "Half-day unpaid leave",
@@ -932,6 +1008,7 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.the_code_expired_send_a_new" => "The code expired. Send a new one.",
         "staff.too_many_tries_send_a_new" => "Too many tries. Send a new code.",
         "staff.wrong_code_tries_left" => "Wrong code · {attempts} tries left",
+        "staff.wrong_code_tries_left_one" => "Wrong code · 1 try left",
         "staff.by_madar" => "by Madar",
         "staff.sign_in_with_your_whatsapp_number" => "Sign in with your WhatsApp number",
         "staff.the_number_your_manager_registered_we" => "The number your manager registered. We'll send a 6-digit code on WhatsApp.",
@@ -2462,7 +2539,13 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.n_shift_changed_days" => "ورديّاتك أيام {dates} اتغيرت",
         "staff.n_advance_requested" => "{name} طلب سلفة {amount}",
         "staff.n_holiday_undecided" => "العطلة الرسمية {name_ar} يوم {date} لسه ما اتقررتش",
+        // A push key: the backend's push reads this key for every count (it
+        // picks no form), so it keeps the commonest form, 3–10 (PLURAL FORMS).
         "staff.n_open_shifts_week" => "{count} ورديات متاحة في أسبوع {week_start} — احجز واحدة من الورديات",
+        "staff.n_open_shifts_week_one" => "وردية متاحة واحدة في أسبوع {week_start} — احجزها من الورديات",
+        "staff.n_open_shifts_week_two" => "ورديتين متاحتين في أسبوع {week_start} — احجز واحدة من الورديات",
+        "staff.n_open_shifts_week_few" => "{count} ورديات متاحة في أسبوع {week_start} — احجز واحدة من الورديات",
+        "staff.n_open_shifts_week_many" => "{count} وردية متاحة في أسبوع {week_start} — احجز واحدة من الورديات",
         "staff.n_week_published" => "جدول أسبوع {date} اتنشر",
         "staff.n_open_shift" => "في وردية متاحة يوم {date} — احجزها من الورديات",
         "staff.n_claim" => "{name} حجز الوردية المتاحة يوم {date} — وافق عليها",
@@ -2489,6 +2572,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.err_shifts_overlap" => "الورديات دي متداخلة للشخص ده.",
         "staff.err_outside_fence" => "إنت على بُعد {distance_m} م من الفرع. لازم تكون في حدود {radius_m} م عشان تسجّل حضور.",
         "staff.err_checkin_too_early" => "لسه بدري: الحضور لوردية {shift} بيفتح {opens_at}، قبلها بـ{minutes} دقيقة.",
+        "staff.err_checkin_too_early_one" => "لسه بدري: الحضور لوردية {shift} بيفتح {opens_at}، قبلها بدقيقة.",
+        "staff.err_checkin_too_early_two" => "لسه بدري: الحضور لوردية {shift} بيفتح {opens_at}، قبلها بدقيقتين.",
+        "staff.err_checkin_too_early_few" => "لسه بدري: الحضور لوردية {shift} بيفتح {opens_at}، قبلها بـ{minutes} دقايق.",
+        "staff.err_checkin_too_early_many" => "لسه بدري: الحضور لوردية {shift} بيفتح {opens_at}، قبلها بـ{minutes} دقيقة.",
         "staff.err_shift_ended" => "وردية {shift} خلصت خلاص.",
         "staff.err_location_required" => "لازم موقعك عشان تسجّل حضور. شغّل الموقع وجرّب تاني.",
         "staff.err_outside_fence_out" => "إنت على بُعد {distance_m} م من الفرع. لازم تكون في حدود {radius_m} م عشان تسجّل انصراف.",
@@ -2839,6 +2926,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.cover_tag" => "تغطية",
         "staff.left_mid_shift" => "خرج أثناء الوردية",
         "staff.pay_reason_late" => "تأخير {minutes} دقيقة",
+        "staff.pay_reason_late_one" => "تأخير دقيقة واحدة",
+        "staff.pay_reason_late_two" => "تأخير دقيقتين",
+        "staff.pay_reason_late_few" => "تأخير {minutes} دقايق",
+        "staff.pay_reason_late_many" => "تأخير {minutes} دقيقة",
         "staff.pay_reason_absent_no_punch" => "غياب — من غير تسجيل حضور",
         "staff.pay_reason_unpaid_leave" => "إجازة بدون مرتب",
         "staff.pay_reason_absent_half_unpaid_leave" => "نص يوم إجازة بدون مرتب",
@@ -3257,7 +3348,11 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.this_number_isn_t_registered_with" => "الرقم ده مش متسجل عند أي نشاط. اطلب من مديرك يضيفك.",
         "staff.the_code_expired_send_a_new" => "الكود انتهى. ابعت واحد جديد.",
         "staff.too_many_tries_send_a_new" => "محاولات كتير. ابعت كود جديد.",
-        "staff.wrong_code_tries_left" => "كود غلط · فاضل {attempts} محاولات",
+        "staff.wrong_code_tries_left" => "كود غلط · فاضل {attempts} محاولة",
+        "staff.wrong_code_tries_left_one" => "كود غلط · فاضل محاولة واحدة",
+        "staff.wrong_code_tries_left_two" => "كود غلط · فاضل محاولتين",
+        "staff.wrong_code_tries_left_few" => "كود غلط · فاضل {attempts} محاولات",
+        "staff.wrong_code_tries_left_many" => "كود غلط · فاضل {attempts} محاولة",
         "staff.by_madar" => "بواسطة مدار",
         "staff.sign_in_with_your_whatsapp_number" => "ادخل برقم الواتساب بتاعك",
         "staff.the_number_your_manager_registered_we" => "الرقم اللي مديرك سجّله. هنبعتلك كود من 6 أرقام على واتساب.",
@@ -4993,6 +5088,87 @@ mod tests {
                 !tr("en", base).contains("(s)"),
                 "{base}: pick the form, don't hedge it"
             );
+        }
+    }
+
+    /// PLURAL FORMS: a count's category in each language, and the form
+    /// `tr_count` / `tr_counted` take: the language's own, else the key.
+    #[test]
+    fn tr_count_takes_the_counts_own_form() {
+        let cats = |l: &str, ns: &[i64]| ns.iter().map(|n| plural_of(l, *n)).collect::<Vec<_>>();
+        assert_eq!(
+            cats("en", &[0, 1, 2, 5, 11]),
+            ["other", "one", "other", "other", "other"]
+        );
+        assert_eq!(
+            cats(
+                "ar-EG",
+                &[0, 1, 2, 3, 10, 11, 99, 100, 101, 102, 103, 111, 200]
+            ),
+            [
+                "zero", "one", "two", "few", "few", "many", "many", "other", "other", "other",
+                "few", "many", "other"
+            ]
+        );
+        let k = "staff.payroll_salary_missing";
+        assert_eq!(
+            tr_count("en", k, 1),
+            "1 person has no salary: approval is blocked."
+        );
+        assert_eq!(tr_count("en", k, 2), tr("en", k));
+        assert_eq!(
+            tr_count("fr", k, 1),
+            tr("en", "staff.payroll_salary_missing_one")
+        );
+        assert_eq!(
+            tr_count("ar", k, 2),
+            tr("ar", "staff.payroll_salary_missing_two")
+        );
+        assert_eq!(tr_count("ar", k, 0), tr("ar", k), "no zero form: the key");
+        assert_eq!(tr_count("ar", k, 100), tr("ar", k));
+        assert_eq!(
+            tr_count("en", "staff.people", 1),
+            tr("en", "staff.people"),
+            "no forms: as tr"
+        );
+        let args =
+            |a: &str, v: &str| std::collections::BTreeMap::from([(a.to_string(), v.to_string())]);
+        assert_eq!(
+            tr_counted("en", "staff.wrong_code_tries_left", &args("attempts", "1")),
+            "Wrong code · 1 try left"
+        );
+        assert_eq!(
+            tr_counted("en", "staff.wrong_code_tries_left", &args("other", "1")),
+            tr("en", "staff.wrong_code_tries_left")
+        );
+        assert_eq!(
+            tr_counted("ar", "staff.wrong_code_tries_left", &args("attempts", "x")),
+            tr("ar", "staff.wrong_code_tries_left")
+        );
+    }
+
+    /// Every phrase the core counts names an argument its words carry, and
+    /// has its forms; a push key has every form in both languages (the
+    /// backend's sync copies them key by key).
+    #[test]
+    fn every_counted_core_phrase_has_its_forms() {
+        for (key, arg) in COUNTED {
+            assert!(
+                tr("en", key).contains(&format!("{{{arg}}}")),
+                "{key}: no {{{arg}}}"
+            );
+            for form in ["_one", "_two", "_few", "_many"] {
+                assert!(ar(&format!("{key}{form}")).is_some(), "{key}{form} (ar)");
+            }
+            assert!(en(&format!("{key}_one")).is_some(), "{key}_one (en)");
+            if key.starts_with("staff.n_") {
+                for form in ["_two", "_few", "_many"] {
+                    assert!(
+                        en(&format!("{key}{form}")).is_some(),
+                        "{key}{form} (en): a push key"
+                    );
+                }
+            }
         }
     }
 
