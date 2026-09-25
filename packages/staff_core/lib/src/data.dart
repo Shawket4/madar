@@ -639,6 +639,11 @@ typedef DawamFix = ({
   int? battery,
 });
 
+/// The branch's fence the host watches on shift (CL-4): the core's
+/// `tracking_fence`, the active shift's branch. iOS monitors it as a region,
+/// so leaving the branch wakes the app even after it was closed.
+typedef DawamFence = ({double lat, double lng, int radius});
+
 /// The host's side: the core through the staff bridge, and the phone's GPS.
 /// Every method that returns a snapshot returns the core's JSON.
 abstract interface class DawamBackend {
@@ -668,9 +673,10 @@ abstract interface class DawamBackend {
 
   /// On shift or not (CL-4, CL-17): the host keeps the background pings
   /// going when [on] — on Android a native location service that survives
-  /// the app being closed and the phone restarting, on iOS significant-change
-  /// monitoring that relaunches the app — and stops them when not.
-  Future<void> tracking({required bool on});
+  /// the app being closed and the phone restarting; on iOS location updates
+  /// while the app runs, and the branch's [fence] plus significant-change
+  /// monitoring, which relaunch it once closed — and stops them when not.
+  Future<void> tracking({required bool on, DawamFence? fence});
 
   /// The signed-in user from the core's saved session, if any.
   String? restoredUser();
@@ -855,6 +861,12 @@ class DawamStore extends ChangeNotifier {
   DateTime? _lastPing;
   String? _lastGood;
   bool? _trackingOn;
+  DawamFence? _trackedFence;
+
+  /// The fence the host watches while on shift, as the core names it
+  /// (`tracking_fence`: the active shift's branch). Null off shift, or when
+  /// the branch has no coordinates.
+  DawamFence? trackingFence;
 
   Emp get user => emp(me ?? '');
   // Requests, flags and shifts can name someone the snapshot doesn't carry — a
@@ -931,6 +943,15 @@ class DawamStore extends ChangeNotifier {
         ),
       );
     });
+    trackingFence = switch (v['tracking_fence']) {
+      {
+        'latitude': final num lat,
+        'longitude': final num lng,
+        'radius': final num radius,
+      } =>
+        (lat: lat.toDouble(), lng: lng.toDouble(), radius: radius.round()),
+      _ => null,
+    };
     chargePhone = v['charge_phone'] == true;
     linesLand = switch (v['lines_land']) {
       {'later': true, 'start': final String a, 'end': final String z} => (
@@ -1544,6 +1565,7 @@ class DawamStore extends ChangeNotifier {
   void signOut() {
     stop();
     _trackingOn = false;
+    _trackedFence = null;
     unawaited(backend.tracking(on: false));
     // Never fall back to the last person's picture.
     _lastGood = null;
@@ -1637,11 +1659,14 @@ class DawamStore extends ChangeNotifier {
   /// while the app runs, its position stream. Stops at clock-out (CL-17).
   void _schedulePings() {
     final on = activeShift != null;
+    final fence = on ? trackingFence : null;
     // The host's background tracking follows the shift, told once per change
-    // (and once at start, so a service left running off shift is stopped).
-    if (_trackingOn != on) {
+    // (and once at start, so a service left running off shift is stopped),
+    // and again when the fence it watches moves.
+    if (_trackingOn != on || _trackedFence != fence) {
       _trackingOn = on;
-      unawaited(backend.tracking(on: on));
+      _trackedFence = fence;
+      unawaited(backend.tracking(on: on, fence: fence));
     }
     if (!on) {
       unawaited(_track?.cancel());
@@ -1649,6 +1674,35 @@ class DawamStore extends ChangeNotifier {
       return;
     }
     _track ??= backend.track().listen(_onFix, onError: (Object _) {});
+  }
+
+  /// How old a reading the host kept may be and still be sent (the core's
+  /// own "fresh reading", `FIX_FRESH_MS`).
+  static const wakeFresh = Duration(minutes: 10);
+
+  /// A reading the host's own tracking took (CL-4) — on iOS a crossing of
+  /// the branch's fence, a significant move, or the 15-minute reading while
+  /// the app runs in the background — and why it was taken ([wake]). The
+  /// host keeps the 15-minute spacing itself, and a fence crossing is news,
+  /// so each one is pinged; the future ends when the core has it, and the
+  /// host holds the app awake until then. A reading kept longer than
+  /// [wakeFresh] (no app was running to take it) is not where the person is
+  /// now: it is not sent. The server's ping has no field for [wake]: it is
+  /// only logged.
+  Future<void> wakeFix(
+    DawamFix fix, {
+    required String wake,
+    Duration age = Duration.zero,
+  }) async {
+    if (me == null) return;
+    if (age > wakeFresh) {
+      debugPrint('dawam: a $wake reading ${age.inMinutes} min old is not sent');
+      return;
+    }
+    if (fix.battery != null) battery = fix.battery!;
+    _lastPing = DateTime.now();
+    debugPrint('dawam: ping ($wake)');
+    await _run(() => backend.ping(fix));
   }
 
   void _onFix(DawamFix fix) {

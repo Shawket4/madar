@@ -33,6 +33,31 @@ void main() {
     expect(ar, 'دوام بواسطة مدار');
   });
 
+  // CL-4, AT-5: the notice a new phone accepts says what tracking does —
+  // about every 15 minutes on shift and when they leave the branch, never
+  // after clock-out — as the iOS prompts do.
+  test('the in-app location notice says when the location is checked', () {
+    for (final (arabic, every, leave, never) in [
+      (
+        false,
+        'about every 15 minutes',
+        'leave your branch',
+        'never after you clock out',
+      ),
+      (
+        true,
+        'كل 15 دقيقة تقريباً',
+        'تخرج من فرعك',
+        'عمره ما بيتشاف بعد ما تسجل انصراف',
+      ),
+    ]) {
+      final line = coreWord('staff.privacy_pings', arabic: arabic);
+      expect(line, contains(every), reason: line);
+      expect(line, contains(leave), reason: line);
+      expect(line.toLowerCase(), contains(never), reason: line);
+    }
+  });
+
   group('Android', () {
     const res = 'android/app/src/main/res';
 
@@ -106,6 +131,104 @@ void main() {
         _plist(plist, 'NSLocationWhenInUseUsageDescription'),
         isNot(contains('Madar uses')),
       );
+    });
+
+    // CL-4: the prompts say what the phone does — checks where they are
+    // regularly on shift and when they leave the branch (even closed), never
+    // after clock-out — and the background modes that do it stay declared.
+    test('the location prompts say what tracking does, in both languages', () {
+      for (final (lang, regularly, leave, never) in [
+        (
+          'en',
+          'regularly',
+          'leave your branch',
+          'never checks after you clock out',
+        ),
+        ('ar', 'كل شوية', 'تخرج من فرعك', 'عمره ما بيشوفه بعد ما تسجّل انصراف'),
+      ]) {
+        final s = _strings('ios/Runner/$lang.lproj/InfoPlist.strings');
+        final always = s['NSLocationAlwaysAndWhenInUseUsageDescription']!;
+        final using = s['NSLocationWhenInUseUsageDescription']!;
+        for (final t in [always, using]) {
+          expect(t.toLowerCase(), contains(regularly), reason: '$lang: $t');
+          expect(t.toLowerCase(), contains(never), reason: '$lang: $t');
+        }
+        expect(always, contains(leave), reason: '$lang: $always');
+        expect(using, isNot(contains('only')), reason: 'not only at punches');
+      }
+      expect(
+        _plist(plist, 'NSLocationAlwaysAndWhenInUseUsageDescription'),
+        _strings(
+          'ios/Runner/en.lproj/InfoPlist.strings',
+        )['NSLocationAlwaysAndWhenInUseUsageDescription'],
+        reason: 'the base string is the English one',
+      );
+      final modes = RegExp(
+        r'<key>UIBackgroundModes</key>\s*<array>([\s\S]*?)</array>',
+      ).firstMatch(plist)!.group(1)!;
+      expect(modes, contains('<string>location</string>'));
+      expect(modes, contains('<string>remote-notification</string>'));
+    });
+
+    // TestFlight holds every build on "Missing Compliance" without it; the
+    // app uses only standard HTTPS/TLS (rustls, the platform), which is exempt.
+    test('export compliance is declared', () {
+      expect(
+        plist,
+        matches(RegExp(r'<key>ITSAppUsesNonExemptEncryption</key>\s*<false/>')),
+      );
+    });
+
+    // App Store: the privacy manifest. No tracking; the required-reason
+    // APIs the app's own code and the Rust core call (plugins ship their
+    // own); the data the app collects, each linked to the person, never for
+    // tracking, only to make the app work.
+    test('the privacy manifest is declared and bundled', () {
+      final m = _read('ios/Runner/PrivacyInfo.xcprivacy');
+      expect(m, matches(RegExp(r'<key>NSPrivacyTracking</key>\s*<false/>')));
+      expect(
+        m,
+        matches(RegExp(r'<key>NSPrivacyTrackingDomains</key>\s*<array/>')),
+      );
+      for (final (api, reason) in [
+        ('UserDefaults', 'CA92.1'),
+        ('FileTimestamp', 'C617.1'),
+        ('SystemBootTime', '35F9.1'),
+        ('DiskSpace', 'E174.1'),
+      ]) {
+        expect(
+          m,
+          matches(
+            RegExp(
+              '<string>NSPrivacyAccessedAPICategory$api</string>\\s*'
+              '<key>NSPrivacyAccessedAPITypeReasons</key>\\s*<array>\\s*'
+              '<string>${RegExp.escape(reason)}</string>',
+            ),
+          ),
+          reason: api,
+        );
+      }
+      final collected = RegExp(
+        r'<string>NSPrivacyCollectedDataType(\w+)</string>\s*'
+        r'<key>NSPrivacyCollectedDataTypeLinked</key>\s*<true/>\s*'
+        r'<key>NSPrivacyCollectedDataTypeTracking</key>\s*<false/>\s*'
+        r'<key>NSPrivacyCollectedDataTypePurposes</key>\s*<array>\s*'
+        r'<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>\s*'
+        r'</array>',
+      ).allMatches(m).map((x) => x.group(1)).toSet();
+      // OtherUserContent: the notes typed into leave, excuse, swap and
+      // advance requests (Magd's App Store answers list it too).
+      expect(collected, {
+        'PreciseLocation',
+        'PhoneNumber',
+        'Name',
+        'DeviceID',
+        'OtherUserContent',
+      });
+
+      final pbx = _read('ios/Runner.xcodeproj/project.pbxproj');
+      expect(pbx, contains('PrivacyInfo.xcprivacy in Resources */,'));
+      expect(pbx, contains('path = PrivacyInfo.xcprivacy;'));
     });
 
     test('the localised strings are bundled (project file)', () {

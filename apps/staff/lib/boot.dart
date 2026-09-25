@@ -6,7 +6,6 @@ import 'package:design_system/design_system.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -17,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:staff_core/staff_core.dart';
 
 import 'always_location.dart';
+import 'tracking.dart';
 
 /// Backend base URL. Override with
 /// `--dart-define=MADAR_API=http://192.168.1.10:8082`.
@@ -40,6 +40,10 @@ Future<List<Override>> boot() async {
   final backend = _BridgeBackend(core.bridge, prefs);
   final store = DawamStore(backend);
   await store.restore();
+  // iOS: the host's tracker keeps the readings it took while nobody
+  // listened — the fence exit or the move that relaunched a closed app —
+  // so the app listens as soon as it knows who is signed in, and asks.
+  if (Platform.isIOS) unawaited(backend.host.listen(store.wakeFix));
   // An older build kept the device token in the core's store: it moves to
   // the vault now (the core deletes its copy once taken).
   await DeviceVault.keep(core.bridge);
@@ -257,11 +261,11 @@ class _BridgeBackend implements DawamBackend {
   Future<void> Function()? beforeSignOut;
 
   /// The host side of background tracking (CL-4): Android's native location
-  /// service (`DawamTrackingService`), iOS's significant-change monitoring
-  /// (`AppDelegate`). The native side sends iOS relaunch fixes back here.
-  static const _tracking = MethodChannel('com.madar.dawam/tracking');
+  /// service (`DawamTrackingService`), iOS's `DawamTracker` (AppDelegate),
+  /// which hands its own readings back here (`tracking.dart`).
+  final host = TrackingChannel(battery: _battery);
   bool _trackingOn = false;
-  StreamController<DawamFix>? _nativeFixes;
+  DawamFence? _fence;
 
   Future<T> _wrap<T>(Future<T> Function() op) async {
     try {
@@ -376,9 +380,10 @@ class _BridgeBackend implements DawamBackend {
         return await AlwaysLocation(
           check: Geolocator.checkPermission,
           request: Geolocator.requestPermission,
-          askAlways: () => _tracking
-              .invokeMethod<bool>('requestAlways')
-              .timeout(const Duration(seconds: 30), onTimeout: () => null),
+          askAlways: () => host.requestAlways().timeout(
+            const Duration(seconds: 30),
+            onTimeout: () => null,
+          ),
           asked: () => prefs.getBool(_askedAlways) ?? false,
           markAsked: () => prefs.setBool(_askedAlways, true),
         )();
@@ -394,76 +399,41 @@ class _BridgeBackend implements DawamBackend {
     }
   }
 
-  /// On shift, while the app runs (CL-4). On Android the native location
-  /// service pings on its own — through the same core, in its own engine —
-  /// and keeps doing so after the app is closed or the phone restarts, so
-  /// this stream is empty there. On iOS: the position stream with the blue
-  /// indicator, plus the significant-change fixes that relaunched the app.
-  /// The store throttles to one ping per 15 minutes.
+  /// On shift, while the app runs (CL-4). The phone's own tracking takes
+  /// the readings on both phones, and keeps doing so after the app is
+  /// closed: on Android the native location service pings through the same
+  /// core in its own engine; on iOS `DawamTracker` runs location updates
+  /// while the app is in the background, watches the branch's fence and
+  /// significant changes (which relaunch a closed app), and hands each
+  /// reading to [DawamStore.wakeFix] through [host]. So this stream is empty
+  /// there. Elsewhere (a desktop run): the position stream, and the store
+  /// throttles to one ping per 15 minutes.
   @override
   Stream<DawamFix> track() {
-    if (Platform.isAndroid) return const Stream.empty();
-    final LocationSettings settings = Platform.isIOS
-        ? AppleSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 0,
-            pauseLocationUpdatesAutomatically: false,
-            allowBackgroundLocationUpdates: true,
-            showBackgroundLocationIndicator: true,
-          )
-        : const LocationSettings(accuracy: LocationAccuracy.high);
-    final out = StreamController<DawamFix>();
-    final subs = <StreamSubscription<DawamFix>>[
-      Geolocator.getPositionStream(locationSettings: settings)
-          .asyncMap((pos) async => _fix(pos, await _battery()))
-          .listen(out.add, onError: out.addError),
-      _native().stream.listen(out.add),
-      // While iOS lets the app run but the stream is quiet (standing still):
-      // a reading every 15 minutes all the same.
-      Stream<void>.periodic(const Duration(minutes: 15))
-          .asyncMap((_) => locate())
-          .where((f) => f != null)
-          .cast<DawamFix>()
-          .listen(out.add),
-    ];
-    out.onCancel = () async {
-      for (final s in subs) {
-        await s.cancel();
-      }
-    };
-    return out.stream;
+    if (Platform.isAndroid || Platform.isIOS) return const Stream.empty();
+    return Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+    ).asyncMap((pos) async => _fix(pos, await _battery()));
   }
 
-  /// Fixes the native side hands over (iOS significant-change events).
-  StreamController<DawamFix> _native() {
-    final c = _nativeFixes ??= StreamController<DawamFix>.broadcast();
-    _tracking.setMethodCallHandler((call) async {
-      if (call.method != 'fix') return null;
-      final a = (call.arguments as Map).cast<String, Object?>();
-      c.add((
-        lat: (a['latitude']! as num).toDouble(),
-        lng: (a['longitude']! as num).toDouble(),
-        accuracy: (a['accuracy'] as num?)?.toDouble(),
-        mock: a['mock'] == true,
-        gpsTime: null, // iOS: the phone's clock, never sent as GPS time
-        battery: await _battery(),
-      ));
-      return null;
-    });
-    return c;
-  }
-
-  /// Start or stop the background tracking (CL-4, CL-17). The on-shift
-  /// notification is in the app's language (APP-4).
+  /// Start or stop the background tracking (CL-4, CL-17), with the branch's
+  /// [fence] for iOS to watch. The on-shift notification is in the app's
+  /// language (APP-4).
   @override
-  Future<void> tracking({required bool on}) async {
+  Future<void> tracking({required bool on, DawamFence? fence}) async {
     _trackingOn = on;
+    _fence = fence;
     if (!Platform.isAndroid && !Platform.isIOS) return;
     try {
-      await _tracking.invokeMethod<void>(on ? 'start' : 'stop', {
-        'title': tr('staff.dawam'),
-        'text': tr('staff.tracking_notice'),
-      });
+      if (on) {
+        await host.start(
+          title: tr('staff.dawam'),
+          text: tr('staff.tracking_notice'),
+          fence: fence,
+        );
+      } else {
+        await host.stop();
+      }
     } on Object {
       // an older native side: the in-app stream still pings while open
     }
@@ -471,7 +441,7 @@ class _BridgeBackend implements DawamBackend {
 
   /// The language changed: say the on-shift notification in it.
   void relabel() {
-    if (_trackingOn) unawaited(tracking(on: true));
+    if (_trackingOn) unawaited(tracking(on: true, fence: _fence));
   }
 
   @override

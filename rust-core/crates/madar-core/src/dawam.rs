@@ -284,6 +284,11 @@ pub struct Snapshot {
     /// The same reading against every branch I may clock in at, by branch id
     /// (a shift card shows its own branch's line).
     pub fences: BTreeMap<String, FenceV>,
+    /// The fence the phone watches while on shift (CL-4): the active shift's
+    /// branch, its centre and its radius by the server's rule. iOS monitors
+    /// it as a region, so leaving the branch wakes the app even when it was
+    /// closed. `None` off shift, or when the branch has no coordinates.
+    pub tracking_fence: Option<TrackingFenceV>,
     /// This phone accepted the location notice, as the server recorded it
     /// (AT-5). Until then the app shows the notice, never the tabs.
     pub privacy_accepted: bool,
@@ -295,6 +300,15 @@ pub struct Snapshot {
     /// `branch|week_start` of every week the server says is published, a
     /// week with no shift in it too (H2-03).
     pub published_weeks: Vec<String>,
+}
+
+/// A branch's fence as the phone's location service watches it.
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct TrackingFenceV {
+    pub latitude: f64,
+    pub longitude: f64,
+    /// Metres, by the server's rule (`effective_radius`).
+    pub radius: i64,
 }
 
 /// Where I am against one branch's fence, from a fresh reading.
@@ -3665,6 +3679,13 @@ impl MadarCore {
             };
             out.fences.insert(s(br, "id"), fence);
         }
+        // The fence to watch on shift (CL-4): the active shift's branch.
+        let active_branch = out.active_shift.as_ref().and_then(|sid| shifts.iter().find(|x| &x.id == sid)).and_then(|x| tpl(&x.tpl)).map(|t| t.branch.clone());
+        let tracking_fence = active_branch.and_then(|b| rows("dawam_branches").iter().find(|br| s(br, "id") == b)).and_then(|br| {
+            let (lat, lng) = br.get("latitude").and_then(Value::as_f64).zip(br.get("longitude").and_then(Value::as_f64))?;
+            Some(TrackingFenceV { latitude: lat, longitude: lng, radius: effective_radius(br) })
+        });
+        out.tracking_fence = tracking_fence;
         let here_branch = out.my_now.first().and_then(|sid| shifts.iter().find(|x| &x.id == sid)).and_then(|x| tpl(&x.tpl)).map(|t| t.branch.clone());
         if let Some(f) = here_branch.and_then(|b| out.fences.get(&b)).filter(|f| f.state != "unknown") {
             out.distance_m = f.distance_m.map(|d| d as f64);
@@ -4410,6 +4431,63 @@ mod tests {
         assert_eq!(body["offline"]["rebooted"], false);
         assert!(body["offline"]["server_time"].is_string() && body["offline"]["elapsed_ms"].as_i64().unwrap() >= 0);
         assert!(seen[1].json()["offline"].is_object());
+    }
+
+    /// CL-4 (iOS region monitoring): on shift, the snapshot names the fence
+    /// the phone watches (the active shift's branch: its centre and its
+    /// radius by the server's rule), so the host can wake the app when the
+    /// person leaves it. Off shift there is none.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn on_shift_the_snapshot_names_the_branch_fence_to_watch() {
+        use crate::testkit::{online_core, Stub, StubResponse, BRANCH, TELLER};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let up = Arc::new(AtomicBool::new(true));
+        let flag = up.clone();
+        let cairo = Utc::now().with_timezone(&chrono_tz::Africa::Cairo);
+        let today = cairo.date_naive().to_string();
+        let hms = |t: NaiveTime| format!("{}:00", hhmm((t.hour() * 60 + t.minute()) as i64));
+        let (start, end) = (hms(cairo.time() - Duration::hours(1)), hms(cairo.time() + Duration::hours(3)));
+        let stub = Stub::start(move |r| {
+            if !flag.load(Ordering::SeqCst) {
+                return Some(StubResponse::hangup());
+            }
+            let path = r.path.split('?').next().unwrap_or_default();
+            Some(match path {
+                "/staff/me/context" => StubResponse::json(200, json!({
+                    "role": "employee", "org_name": "Nile Café", "caps": [],
+                    "branches": [{ "id": BRANCH, "name": "Zamalek", "geo_radius_meters": 350,
+                                   "latitude": 30.0609, "longitude": 31.2197, "timezone": "Africa/Cairo" }],
+                    "work_shifts": [{ "id": "w1", "name": "Morning", "branch_id": BRANCH,
+                                      "start_time": start, "end_time": end, "grace_minutes": 10 }],
+                    "people": [{ "employee_id": TELLER, "name": "Sara", "role": "employee", "branch_ids": [BRANCH] }],
+                    "settings": { "period_start_day": 26 },
+                })),
+                "/staff/me/roster" => StubResponse::json(200, json!({
+                    "shifts": [{ "employee_id": TELLER, "date": today, "work_shift_id": "w1" }],
+                    "team": [], "open_shifts": [], "swaps": [], "unpublished_weeks": [],
+                })),
+                "/health" => StubResponse::text(200, "ok"),
+                p if p.ends_with("estimate") || p.ends_with("context") => StubResponse::json(200, json!({})),
+                _ => StubResponse::json(200, json!([])),
+            })
+        })
+        .await;
+        let core = online_core(&stub.base, "").await;
+        core.set_online(true);
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let shift = snap["my_now"][0].as_str().expect("today's shift is mine").to_string();
+        assert!(snap["active_shift"].is_null());
+        assert!(snap["tracking_fence"].is_null(), "off shift nothing is watched: {}", snap["tracking_fence"]);
+
+        // Clocked in (queued offline, so it shows at once): the branch's fence.
+        up.store(false, Ordering::SeqCst);
+        let fix = DawamFix { latitude: 30.0609, longitude: 31.2197, accuracy: Some(8.0), ..Default::default() };
+        let act = json!({ "action": "clock_in", "shift": shift, "fix": fix }).to_string();
+        let snap: Value = serde_json::from_str(&core.dawam_do(act).await.unwrap()).unwrap();
+        assert_eq!(snap["active_shift"], json!(shift));
+        assert_eq!(snap["tracking_fence"], json!({ "latitude": 30.0609, "longitude": 31.2197, "radius": 350 }));
     }
 
     /// E2E (clocking C2): the server refuses a punch with 409 for real
