@@ -47,6 +47,8 @@ class CartState {
     this.firedSeq = 0,
     this.isBusy = false,
     this.loaded = false,
+    this.dealSuggestions = const [],
+    this.appliedDeals = const [],
   });
 
   /// The context: null = takeaway, else the floor table this cart is for.
@@ -71,6 +73,13 @@ class CartState {
 
   /// The first read from the core has landed.
   final bool loaded;
+
+  /// The deals this cart qualifies for now, best first — the core's
+  /// suggestions, never applied until the teller taps one (C8).
+  final List<DealSuggestion> dealSuggestions;
+
+  /// The deals the teller applied on this cart.
+  final List<AppliedDealView> appliedDeals;
 
   bool get isTakeaway => tableId == null;
 
@@ -98,6 +107,8 @@ class CartState {
     int? firedSeq,
     bool? isBusy,
     bool? loaded,
+    List<DealSuggestion>? dealSuggestions,
+    List<AppliedDealView>? appliedDeals,
   }) => CartState(
     tableId: tableId,
     lines: lines ?? this.lines,
@@ -109,6 +120,8 @@ class CartState {
     firedSeq: firedSeq ?? this.firedSeq,
     isBusy: isBusy ?? this.isBusy,
     loaded: loaded ?? this.loaded,
+    dealSuggestions: dealSuggestions ?? this.dealSuggestions,
+    appliedDeals: appliedDeals ?? this.appliedDeals,
   );
 }
 
@@ -195,12 +208,45 @@ class CartNotifier extends Notifier<CartState> {
     final meta = await order._quiet(() => bridge.cartMeta(tableId: arg));
     if (!ref.mounted) return;
     if (seen != _writes) return;
+    final deals = _readDeals(bridge);
     state = state.copyWith(
       lines: lines ?? state.lines,
       totals: totals ?? state.totals,
       meta: meta ?? state.meta,
       loaded: true,
+      dealSuggestions: deals?.$1,
+      appliedDeals: deals?.$2,
     );
+    await _sayDealDrops(order, bridge);
+  }
+
+  /// The core's deal suggestions and applied deals for this cart — local and
+  /// synchronous; null when the core could not say (the cart keeps what it
+  /// showed).
+  (List<DealSuggestion>, List<AppliedDealView>)? _readDeals(
+    MadarBridge bridge,
+  ) {
+    try {
+      return (
+        bridge.cartDealSuggestions(tableId: arg),
+        bridge.cartAppliedDeals(tableId: arg),
+      );
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Toast why applied deals came off the cart (an edit broke them), in the
+  /// core's words. Never a reason to fail a cart read.
+  Future<void> _sayDealDrops(OrderNotifier order, MadarBridge bridge) async {
+    try {
+      final said = await bridge.takeDealNotices(tableId: arg);
+      for (final why in said) {
+        order.showToast(why, tone: ChipTone.warning, seconds: 4);
+      }
+    } on Object {
+      return;
+    }
   }
 
   /// Toast why staff-drink marks left their lines, in the core's words. Local
@@ -257,7 +303,15 @@ class CartNotifier extends Notifier<CartState> {
           _emptyTotals;
       if (!ref.mounted) return;
       final meta = state.meta;
-      state = state.copyWith(lines: lines, totals: totals);
+      final deals = _readDeals(_bridge);
+      state = state.copyWith(
+        lines: lines,
+        totals: totals,
+        dealSuggestions: deals?.$1,
+        appliedDeals: deals?.$2,
+      );
+      await _sayDealDrops(_order, _bridge);
+      if (!ref.mounted) return;
       if (lines.isEmpty &&
           (meta.name.isNotEmpty ||
               meta.draftId != null ||
@@ -340,6 +394,68 @@ class CartNotifier extends Notifier<CartState> {
 
   Future<void> setQty(String lineKey, int qty) =>
       _apply(() => _bridge.cartSetQty(tableId: arg, itemId: lineKey, qty: qty));
+
+  /// Add a combo (or, when [replaceLineKey] names a cart line, replace that line with
+  /// it — an edited combo, or "make it a meal"). One core call, so a refused
+  /// save keeps the cart as it was; the refusal is the core's sentence, on
+  /// the toast. Returns whether the cart took it.
+  Future<bool> saveCombo({
+    required String comboId,
+    required List<ComboPickInput> picks,
+    required int qty,
+    String? notes,
+    String? replaceLineKey,
+  }) async {
+    var ok = true;
+    await _apply(() async {
+      try {
+        if (replaceLineKey != null) {
+          return await _bridge.cartReplaceCombo(
+            tableId: arg,
+            lineKey: replaceLineKey,
+            comboId: comboId,
+            picks: picks,
+            qty: qty,
+            notes: notes,
+          );
+        }
+        return await _bridge.cartAddCombo(
+          tableId: arg,
+          comboId: comboId,
+          picks: picks,
+          qty: qty,
+          notes: notes,
+        );
+      } on MadarError catch (e) {
+        ok = false;
+        _refused(e);
+        return await _bridge.cartLines(tableId: arg);
+      }
+    });
+    return ok;
+  }
+
+  /// Apply a suggested deal — the teller's tap (C8). A refusal (no
+  /// permission, or the cart moved on) is the core's sentence on the toast.
+  Future<void> applyDeal(String dealId) => _apply(() async {
+    try {
+      return await _bridge.cartApplyDeal(tableId: arg, dealId: dealId);
+    } on MadarError catch (e) {
+      _refused(e);
+      return await _bridge.cartLines(tableId: arg);
+    }
+  });
+
+  /// Take an applied deal off the cart.
+  Future<void> removeDeal(String applicationId) => _apply(
+    () => _bridge.cartRemoveDeal(tableId: arg, applicationId: applicationId),
+  );
+
+  void _refused(MadarError e) => _order.showToast(
+    _bridge.humanMessage(e),
+    tone: ChipTone.danger,
+    icon: 'xmark.circle',
+  );
 
   /// Swipe-to-delete: the row leaves the state SYNCHRONOUSLY (a rebuild in
   /// the await window with the dismissed Dismissible still in the tree

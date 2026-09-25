@@ -305,6 +305,30 @@ class SellCart extends ConsumerWidget {
                             ),
                           ),
                       ],
+                      // The deals this cart qualifies for (the teller applies
+                      // one with a tap, C8), and the ones already applied.
+                      for (final d in cart.appliedDeals)
+                        _AppliedDealRow(
+                          key: ValueKey('deal-applied-${d.id}'),
+                          deal: d,
+                          currency: state.currency,
+                          onRemove: () => unawaited(
+                            ref
+                                .read(cartProvider(tableId).notifier)
+                                .removeDeal(d.id),
+                          ),
+                        ),
+                      for (final d in cart.dealSuggestions)
+                        DealSuggestionBanner(
+                          key: ValueKey('deal-suggest-${d.dealId}'),
+                          suggestion: d,
+                          currency: state.currency,
+                          onApply: () => unawaited(
+                            ref
+                                .read(cartProvider(tableId).notifier)
+                                .applyDeal(d.dealId),
+                          ),
+                        ),
                       for (final line in lines)
                         _RoundLine(
                           tableId: tableId,
@@ -587,13 +611,15 @@ class _RoundLine extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final notifier = ref.read(cartProvider(tableId).notifier);
+    final isCombo = line.kind == 'combo';
     final mods = <String>[
-      if (line.sizeLabel case final s? when s.isNotEmpty) s,
+      if (line.sizeLabel case final s? when s.isNotEmpty && !isCombo) s,
       for (final a in line.addons)
         if (a.qty > 1) '${a.name} ×${a.qty}' else a.name,
       for (final o in line.optionals) o.name,
     ];
     final notes = line.notes?.trim();
+    final bridge = ref.read(bridgeProvider);
 
     final info = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -612,6 +638,15 @@ class _RoundLine extends ConsumerWidget {
             padding: const EdgeInsetsDirectional.only(top: Space.xs),
             child: StaffDrinkBadge(line: line, tableId: tableId),
           ),
+        if (isCombo)
+          MadarTag(
+            label: bridge.tr(key: 'combo.badge'),
+            tone: MadarTone.accent,
+          ),
+        // A combo's items, indented under it: each with its size, what a
+        // bigger size or the choice added, and its own add-ons (C12).
+        if (isCombo)
+          for (final p in line.parts) CartPartRow(part: p, currency: currency),
         if (mods.isNotEmpty)
           Text(
             mods.join(' · '),
@@ -662,6 +697,17 @@ class _RoundLine extends ConsumerWidget {
                   color: colors.textPrimary,
                 ),
         ),
+        // In an applied deal: the line keeps its normal price above, and
+        // what the deal takes off it reads under it.
+        if (line.dealCutMinor > 0)
+          Text(
+            '−${Money.format(line.dealCutMinor, currency: currency, locale: MadarFormat.localeOf(context))}'
+            '${line.dealName == null ? '' : ' · ${line.dealName}'}',
+            key: ValueKey('deal-cut-${line.key}'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: MadarType.bodySm.copyWith(color: colors.success),
+          ),
       ],
     );
     final controls = <Widget>[
@@ -1783,3 +1829,194 @@ final FutureProviderFamily<String?, (String?, int)> _cartDiscountLabelProvider =
       final all = await bridge.listDiscounts();
       return cartDiscountLabel(bridge, v, all, discountLabel);
     });
+
+/// One item of a combo line, indented under it: `2× Latte · Large +10.00`,
+/// then its add-ons.
+class CartPartRow extends StatelessWidget {
+  const CartPartRow({required this.part, required this.currency, super.key});
+
+  final CartPartView part;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    String money(int minor) => Money.format(
+      minor,
+      currency: currency,
+      locale: MadarFormat.localeOf(context),
+    );
+    final head = [
+      if (part.qty > 1) '${part.qty}× ${part.itemName}' else part.itemName,
+      if (part.sizeLabel case final s? when s.isNotEmpty) s,
+    ].join(' · ');
+    final extras = [
+      for (final a in part.addons)
+        if (a.qty > 1) '${a.name} ×${a.qty}' else a.name,
+      for (final o in part.optionals) o.name,
+    ];
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: Space.md, top: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            part.surchargeMinor > 0
+                ? '$head  +${money(part.surchargeMinor)}'
+                : head,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+          ),
+          if (extras.isNotEmpty)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(start: Space.md),
+              child: Text(
+                extras.map((e) => '+ $e').join('  '),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: MadarType.bodySm.copyWith(color: colors.textMuted),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "This order qualifies for 2 bites for 90 · Save 20.00 “Apply”" — a deal
+/// the core found for this cart. Never applied until the teller taps (C8).
+class DealSuggestionBanner extends ConsumerWidget {
+  const DealSuggestionBanner({
+    required this.suggestion,
+    required this.currency,
+    required this.onApply,
+    super.key,
+  });
+
+  final DealSuggestion suggestion;
+  final String currency;
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.bridge;
+    final save = bridge
+        .tr(key: 'deal.save')
+        .replaceAll(
+          '{amount}',
+          Money.format(
+            suggestion.savingMinor,
+            currency: currency,
+            locale: MadarFormat.localeOf(context),
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
+      child: Container(
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Space.md,
+          vertical: Space.sm,
+        ),
+        decoration: BoxDecoration(
+          color: colors.successBg,
+          borderRadius: BorderRadius.circular(Radii.control),
+          border: Border.all(color: colors.success),
+        ),
+        child: Row(
+          spacing: Space.md,
+          children: [
+            MadarGlyphIcon(
+              MadarGlyph.check,
+              size: IconSize.sm,
+              color: colors.success,
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    bridge
+                        .tr(key: 'deal.qualifies')
+                        .replaceAll('{deal}', suggestion.name),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: MadarType.title.copyWith(color: colors.textPrimary),
+                  ),
+                  Text(
+                    suggestion.times > 1
+                        ? '$save · ${suggestion.timesLabel}'
+                        : save,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MadarType.bodySm.copyWith(color: colors.success),
+                  ),
+                ],
+              ),
+            ),
+            MadarButton(
+              key: ValueKey('deal-apply-${suggestion.dealId}'),
+              label: bridge.tr(key: 'deal.apply'),
+              size: MadarButtonSize.compact,
+              onTap: onApply,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// An applied deal: its name, what it takes off, and the way to take it off.
+class _AppliedDealRow extends ConsumerWidget {
+  const _AppliedDealRow({
+    required this.deal,
+    required this.currency,
+    required this.onRemove,
+    super.key,
+  });
+
+  final AppliedDealView deal;
+  final String currency;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.bridge;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
+      child: Row(
+        spacing: Space.sm,
+        children: [
+          MadarTag(
+            label: bridge.tr(key: 'deal.badge'),
+            tone: MadarTone.success,
+          ),
+          Expanded(
+            child: Text(
+              bridge.tr(key: 'deal.applied').replaceAll('{deal}', deal.name),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: MadarType.bodySm.copyWith(color: colors.textPrimary),
+            ),
+          ),
+          MoneyText(
+            -deal.discountMinor,
+            currency: currency,
+            color: colors.success,
+          ),
+          MadarGlyphTile(
+            key: ValueKey('deal-remove-${deal.id}'),
+            glyph: MadarGlyph.close,
+            semanticLabel: bridge.tr(key: 'deal.remove'),
+            onTap: onRemove,
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -1393,10 +1393,12 @@ class OrderNotifier extends Notifier<OrderState> {
     final tx = ref.read(printerServiceProvider).activeTransport();
     if (tx == null) return;
     for (final line in lines) {
-      final bytes = await _chitBytes(line, tableLabel, ticketRef);
-      if (bytes == null) return;
+      final chits = await _chitBytes(line, tableLabel, ticketRef);
+      if (chits == null) return;
       try {
-        await tx.send(bytes);
+        for (final bytes in chits) {
+          await tx.send(bytes);
+        }
       } on Exception {
         showToast(
           _tr('printing.failed'),
@@ -1450,39 +1452,30 @@ class OrderNotifier extends Notifier<OrderState> {
     showToast(toast.text, tone: toast.tone, icon: toast.icon);
   }
 
-  /// One dish rendered for the kitchen. `null` when the core could not lay it
-  /// out — the caller decides how loudly to say so.
-  Future<Uint8List?> _chitBytes(
+  /// One cart line rendered for the kitchen: one chit per dish — a combo's
+  /// items each on their own, tagged with the combo (C12). The core builds
+  /// the chits; `null` when it could not lay them out — the caller decides
+  /// how loudly to say so.
+  Future<List<Uint8List>?> _chitBytes(
     CartLineView line,
     String? tableLabel,
     String? ticketRef,
   ) async {
     try {
-      // Everything changed about it, flattened: a cook does not care which of
-      // our three lists a modification came from.
-      final mods = <String>[
-        for (final a in line.addons)
-          if (a.qty > 1) '${a.name} x${a.qty}' else a.name,
-        for (final o in line.optionals) o.name,
-      ];
-      return await _bridge.renderKitchenChit(
-        chit: KitchenChit(
-          item: line.name,
-          qty: line.qty,
-          sizeLabel: line.sizeLabel,
-          modifiers: mods,
-          note: line.notes,
-          tableLabel: tableLabel,
-          ticketRef: ticketRef,
-          // Formatted here: the renderer never guesses a timezone.
-          at: _bridge.formatTime(
-            rfc3339: DateTime.now().toUtc().toIso8601String(),
-            style: TimeStyle.time,
-          ),
-        ),
-        width: kReceiptChars,
-        brand: printerBrandOf(_bridge.deviceConfig().printerBrand),
+      final chits = _bridge.kitchenChitsForLine(
+        line: line,
+        tableLabel: tableLabel,
+        ticketRef: ticketRef,
       );
+      final brand = printerBrandOf(_bridge.deviceConfig().printerBrand);
+      return [
+        for (final chit in chits)
+          await _bridge.renderKitchenChit(
+            chit: chit,
+            width: kReceiptChars,
+            brand: brand,
+          ),
+      ];
     } on Exception {
       return null;
     }

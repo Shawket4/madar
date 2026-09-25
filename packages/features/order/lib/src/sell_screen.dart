@@ -16,6 +16,7 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_order/src/cart_anchor.dart';
+import 'package:feature_order/src/combo_sheet.dart';
 import 'package:feature_order/src/floor_list.dart' show groupBillByRound;
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/order_providers.dart';
@@ -212,6 +213,11 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   }
 
   Future<void> _onTileTap(MenuItemView item, Offset origin) => _once(() async {
+    // A combo always opens its sheet: its slots are the choice to make.
+    if (item.kind == 'combo') {
+      await _openComboSheet(item.id);
+      return;
+    }
     final needs = await _itemNeedsSheet(item);
     if (needs == null || !mounted) return;
     if (needs) {
@@ -248,10 +254,16 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   }
 
   Future<void> _openItemSheet(MenuItemView item, {CartLineView? edit}) async {
+    if (item.kind == 'combo') {
+      await _openComboSheet(item.id);
+      return;
+    }
     final addons = await _notifier.loadItemAddons(item.id);
     final groups = await _notifier.loadItemModifierGroups(item.id);
     if (!mounted) return;
-    await showMadarSheet<void>(
+    // The sheet closes with a combo draft when the teller chose "Make it a
+    // meal": the combo sheet takes over from there, on that draft.
+    final result = await showMadarSheet<Object?>(
       context,
       size: SheetSize.hug,
       builder: (_) => CartAnchorScope(
@@ -265,9 +277,37 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         ),
       ),
     );
+    if (result is ComboDraft && mounted) {
+      await _openComboSheet(result.comboId, draft: result);
+    }
   }
 
+  /// The combo sheet: a fresh combo, or [draft] (a combo line to edit, or a
+  /// meal made from an item).
+  Future<void> _openComboSheet(String comboId, {ComboDraft? draft}) =>
+      showComboSheet(
+        context,
+        ref,
+        comboId: comboId,
+        tableId: _tableId,
+        draft: draft,
+        anchors: _anchors,
+      );
+
   Future<void> _editLine(CartLineView line) => _once(() async {
+    if (line.kind == 'combo') {
+      final ComboDraft draft;
+      try {
+        draft = await ref
+            .read(bridgeProvider)
+            .cartComboDraft(tableId: _tableId, lineKey: line.key);
+      } on MadarError {
+        return;
+      }
+      if (!mounted) return;
+      await _openComboSheet(line.itemId, draft: draft);
+      return;
+    }
     final item = ref.read(orderProvider).menuItemById(line.itemId);
     if (item == null) return;
     await _openItemSheet(item, edit: line);
@@ -720,6 +760,7 @@ class _Catalog extends ConsumerWidget {
                   .categoryStyle(cat.isEmpty ? item.name : cat, dark: dark)
                   .accent,
             ),
+            badge: item.kind == 'combo' ? bridge.tr(key: 'combo.badge') : null,
             onTap: (origin) => onItemTap(item, origin),
             onLongPress: () => onItemLongPress(item),
           );
@@ -745,6 +786,7 @@ class SellTile extends StatelessWidget {
     required this.accent,
     required this.onTap,
     required this.onLongPress,
+    this.badge,
     super.key,
   });
 
@@ -752,6 +794,9 @@ class SellTile extends StatelessWidget {
   final String currency;
   final int inCart;
   final Color accent;
+
+  /// A word on the photo — "Combo" on a combo — already localized.
+  final String? badge;
 
   /// Called with the tile's on-screen center, for the add-to-cart flight.
   final void Function(Offset origin) onTap;
@@ -764,8 +809,11 @@ class SellTile extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      label:
-          '${item.name}, ${Money.format(item.basePriceMinor, currency: currency)}',
+      label: [
+        item.name,
+        ?badge,
+        Money.format(item.basePriceMinor, currency: currency),
+      ].join(', '),
       child: GestureDetector(
         onLongPress: () {
           MadarHaptics.impact();
@@ -808,6 +856,16 @@ class SellTile extends StatelessWidget {
                     fit: StackFit.expand,
                     children: [
                       _TileThumb(item: item, accent: accent),
+                      if (badge case final b?)
+                        PositionedDirectional(
+                          top: Space.sm,
+                          start: Space.sm,
+                          end: selected ? Space.xxl : Space.sm,
+                          child: Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: MadarTag(label: b, tone: MadarTone.accent),
+                          ),
+                        ),
                       if (selected)
                         PositionedDirectional(
                           top: Space.sm,

@@ -91,7 +91,12 @@ class ItemSheetArgs {
     this.groups = const [],
     this.editLine,
     this.tableId,
+    this.pick,
   });
+
+  /// Pick mode: customising one item of a combo on the combo sheet. The
+  /// sheet then hands the selection back instead of touching the cart.
+  final ComboPickInput? pick;
 
   /// The cart a commit lands in (null = takeaway).
   final String? tableId;
@@ -359,6 +364,22 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
     var size = item.sizes.firstOrNull?.label;
     var qty = 1;
     final editLine = args.editLine;
+    final pick = args.pick;
+    if (pick != null && pick.addons.isNotEmpty) {
+      // A combo pick already customised: reopen on what it holds.
+      size = pick.sizeLabel ?? size;
+      for (final a in pick.addons) {
+        _placeAddon(args, single, multi, a.addonItemId, a.qty);
+      }
+      return ItemConfigState(
+        size: size,
+        single: single,
+        multi: multi,
+        optionals: pick.optionalFieldIds.toSet(),
+        qty: 1,
+      );
+    }
+    if (pick != null) size = pick.sizeLabel ?? size;
     if (editLine == null) {
       _seedSwapDefaults(args, single);
     }
@@ -377,7 +398,7 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
       size: size,
       single: single,
       multi: multi,
-      optionals: optionals,
+      optionals: pick?.optionalFieldIds.toSet() ?? optionals,
       qty: qty,
     );
   }
@@ -588,11 +609,17 @@ class ItemDetailSheet extends ConsumerStatefulWidget {
     this.groups = const [],
     this.editLine,
     this.tableId,
+    this.pick,
     super.key,
   });
 
   /// The cart the sheet adds to (null = takeaway, else that table's).
   final String? tableId;
+
+  /// Pick mode (the combo sheet's "Customise"): the item's add-ons and
+  /// options at their normal prices (C10), handed back as the pick — no
+  /// size row (the combo sheet prices the size), no quantity, no cart.
+  final ComboPickInput? pick;
 
   final MenuItemView item;
 
@@ -631,10 +658,11 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     groups: widget.groups,
     editLine: widget.editLine,
     tableId: widget.tableId,
+    pick: widget.pick,
   );
 
   late final TextEditingController _notes = TextEditingController(
-    text: widget.editLine?.notes ?? '',
+    text: widget.pick?.notes ?? widget.editLine?.notes ?? '',
   );
 
   /// Anchors the footer CTA — the add-to-cart flight launches from here.
@@ -816,6 +844,22 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     if (!await _selectionValid(config)) return;
     if (!mounted) return;
     final notes = _notes.text.trim();
+    final pick = widget.pick;
+    if (pick != null) {
+      // Pick mode: the selection goes back to the combo sheet as the pick.
+      await Navigator.of(context).maybePop(
+        ComboPickInput(
+          slotId: pick.slotId,
+          itemId: pick.itemId,
+          sizeLabel: pick.sizeLabel,
+          qty: pick.qty,
+          addons: config.selectedAddons,
+          optionalFieldIds: config.optionals.toList(growable: false),
+          notes: notes.isEmpty ? null : notes,
+        ),
+      );
+      return;
+    }
     final committed = await ref
         .read(itemConfigProvider(_args).notifier)
         .commit(notes: notes.isEmpty ? null : notes);
@@ -825,6 +869,43 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
       await Navigator.of(context).maybePop();
       if (fly != null) unawaited(fly());
     }
+  }
+
+  /// "Make it a meal": the core builds the combo draft with this item in its
+  /// slot (from the line in the cart when editing one, else from the sheet's
+  /// selection) and the sheet closes with it; the screen opens the combo
+  /// sheet on it.
+  Future<void> _makeItAMeal(ItemConfigState config) async {
+    final bridge = ref.read(bridgeProvider);
+    final edit = widget.editLine;
+    final notes = _notes.text.trim();
+    final ComboDraft draft;
+    try {
+      draft = edit != null
+          ? await bridge.cartMakeItAMeal(
+              tableId: widget.tableId,
+              lineKey: edit.key,
+            )
+          : await bridge.itemMealDraft(
+              itemId: _item.id,
+              sizeLabel: config.size,
+              addons: config.selectedAddons,
+              optionalFieldIds: config.optionals.toList(growable: false),
+              qty: config.qty,
+              notes: notes.isEmpty ? null : notes,
+            );
+    } on MadarError catch (e) {
+      ref
+          .read(orderProvider.notifier)
+          .showToast(
+            bridge.humanMessage(e),
+            tone: ChipTone.danger,
+            icon: 'xmark.circle',
+          );
+      return;
+    }
+    if (!mounted) return;
+    await Navigator.of(context).maybePop(draft);
   }
 
   /// The add-to-cart flight from the footer CTA, captured while the sheet
@@ -889,13 +970,24 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
         ? bridge.tr(key: 'order.add_to_cart')
         : bridge.tr(key: 'order.update_item');
     final footerPrice = price?.lineTotalMinor ?? headerTotal;
+    final picking = widget.pick != null;
+    // "Make it a meal +X": the core says whether this item has a meal on
+    // sale now and what it adds; never in pick mode (already in a combo).
+    MealOffer? meal;
+    if (!picking) {
+      try {
+        meal = bridge.mealOffer(itemId: _item.id);
+      } on Object {
+        meal = null;
+      }
+    }
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _SheetHeader(
           item: _item,
-          headerTotalMinor: headerTotal,
+          headerTotalMinor: picking ? null : headerTotal,
           currency: currency,
           showRecipe: config.showRecipe,
           onToggleRecipe: notifier.toggleRecipe,
@@ -942,7 +1034,26 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                   ),
                   // A single `one_size` is a placeholder the dashboard needs so
                   // a recipe has a column to hang on — never a choice to make.
-                  if (_hasSizeChoice(_item.sizes)) ...[
+                  if (meal != null) ...[
+                    MadarButton(
+                      key: const ValueKey('make-it-a-meal'),
+                      label: bridge
+                          .tr(key: 'meal.make_it_plus')
+                          .replaceAll(
+                            '{amount}',
+                            Money.format(
+                              meal.deltaMinor,
+                              currency: currency,
+                              locale: MadarFormat.localeOf(context),
+                            ),
+                          ),
+                      glyph: MadarGlyph.plus,
+                      variant: MadarButtonVariant.outline,
+                      onTap: () => unawaited(_makeItAMeal(config)),
+                    ),
+                    const SizedBox(height: Space.md),
+                  ],
+                  if (!picking && _hasSizeChoice(_item.sizes)) ...[
                     MadarSectionHeader(text: bridge.tr(key: 'order.size')),
                     const SizedBox(height: Space.sm),
                     SingleChildScrollView(
@@ -1029,8 +1140,12 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
           key: _footerKey,
           child: _SheetFooter(
             currency: currency,
-            totalMinor: footerPrice,
-            label: footerLabel,
+            totalMinor: picking ? (price?.extrasMinor ?? 0) : footerPrice,
+            totalLabel: picking ? bridge.tr(key: 'combo.extras') : null,
+            showQty: !picking,
+            label: picking && canAdd
+                ? bridge.tr(key: 'combo.done')
+                : footerLabel,
             canAdd: canAdd,
             loading: config.committing,
             qty: config.qty,
@@ -1147,7 +1262,9 @@ class _SheetHeader extends StatelessWidget {
   });
 
   final MenuItemView item;
-  final int headerTotalMinor;
+
+  /// Null hides the price badge (pick mode: the combo prices the item).
+  final int? headerTotalMinor;
   final String currency;
   final bool showRecipe;
   final VoidCallback onToggleRecipe;
@@ -1198,22 +1315,23 @@ class _SheetHeader extends StatelessWidget {
                 ),
                 const SizedBox(width: Space.md),
                 // Price badge · recipe chip · close, on a common baseline.
-                Container(
-                  height: Metrics.closeButton,
-                  padding: const EdgeInsetsDirectional.symmetric(
-                    horizontal: 10,
+                if (headerTotalMinor case final total?)
+                  Container(
+                    height: Metrics.closeButton,
+                    padding: const EdgeInsetsDirectional.symmetric(
+                      horizontal: 10,
+                    ),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: colors.navyBg,
+                      borderRadius: BorderRadius.circular(Radii.sm),
+                    ),
+                    child: MoneyText(
+                      total,
+                      currency: currency,
+                      color: colors.navy,
+                    ),
                   ),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: colors.navyBg,
-                    borderRadius: BorderRadius.circular(Radii.sm),
-                  ),
-                  child: MoneyText(
-                    headerTotalMinor,
-                    currency: currency,
-                    color: colors.navy,
-                  ),
-                ),
                 if (item.recipes.isNotEmpty) ...[
                   const SizedBox(width: Space.sm),
                   TactileScale(
@@ -1278,10 +1396,19 @@ class _SheetFooter extends ConsumerWidget {
     required this.onDec,
     required this.onInc,
     required this.onCommit,
+    this.totalLabel,
+    this.showQty = true,
   });
 
   final String currency;
   final int totalMinor;
+
+  /// The figure's label; null = "Total".
+  final String? totalLabel;
+
+  /// The quantity stepper (hidden in pick mode: a pick's count is the
+  /// combo's).
+  final bool showQty;
   final String label;
   final bool canAdd;
 
@@ -1308,30 +1435,32 @@ class _SheetFooter extends ConsumerWidget {
             Container(height: 1, color: colors.border),
             const SizedBox(height: Space.md),
             GrandTotalBlock(
-              label: bridge.tr(key: 'order.total'),
+              label: totalLabel ?? bridge.tr(key: 'order.total'),
               totalMinor: totalMinor,
               currency: currency,
             ),
             const SizedBox(height: Space.md),
             Row(
               children: [
-                StepButton(glyph: 'minus', onTap: onDec),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    minWidth: 24 + Space.sm * 2,
-                  ),
-                  child: Text(
-                    '$qty',
-                    textAlign: TextAlign.center,
-                    style: MadarType.h3.copyWith(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: colors.textPrimary,
+                if (showQty) ...[
+                  StepButton(glyph: 'minus', onTap: onDec),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: 24 + Space.sm * 2,
+                    ),
+                    child: Text(
+                      '$qty',
+                      textAlign: TextAlign.center,
+                      style: MadarType.h3.copyWith(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textPrimary,
+                      ),
                     ),
                   ),
-                ),
-                StepButton(glyph: 'plus', onTap: onInc),
-                const SizedBox(width: Space.md),
+                  StepButton(glyph: 'plus', onTap: onInc),
+                  const SizedBox(width: Space.md),
+                ],
                 Expanded(
                   child: MadarButton(
                     label: label,
@@ -2285,15 +2414,20 @@ class GrandTotalBlock extends StatelessWidget {
         borderRadius: BorderRadius.circular(Radii.md),
       ),
       child: Row(
+        spacing: Space.sm,
         children: [
-          Text(
-            label,
-            style: MadarType.body.copyWith(
-              fontWeight: FontWeight.w700,
-              color: colors.accent,
+          // A long label (an Arabic one, a combo's) gives way to the figure.
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: MadarType.body.copyWith(
+                fontWeight: FontWeight.w700,
+                color: colors.accent,
+              ),
             ),
           ),
-          const Spacer(),
           AnimatedSwitcher(
             duration: MotionSpec.standardDuration,
             switchInCurve: MotionSpec.standardCurve,

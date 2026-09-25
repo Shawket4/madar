@@ -86,8 +86,62 @@ List<ReceiptLineView> _staffLines({required bool arabic}) => [
   ),
 ];
 
+/// A combo (C12) and a line in a deal: `1× Lunch deal … 150.00` with its
+/// items indented (the Large latte's +10.00, its oat milk under it), and the
+/// deal under the subtotal, which reads the lines at their normal prices.
+const _comboLines = [
+  ReceiptLineView(
+    kind: 'combo',
+    name: 'Lunch deal',
+    qty: 1,
+    unitPriceMinor: 15000,
+    lineTotalMinor: 17500,
+    staffCompMinor: 0,
+    dealMinor: 0,
+    addons: [],
+    optionals: [],
+    parts: [
+      ReceiptPartView(
+        name: 'Burger',
+        qty: 1,
+        surchargeMinor: 0,
+        addons: [],
+        optionals: [],
+      ),
+      ReceiptPartView(
+        name: 'Fries',
+        qty: 1,
+        surchargeMinor: 0,
+        addons: [],
+        optionals: [],
+      ),
+      ReceiptPartView(
+        name: 'Latte',
+        qty: 1,
+        sizeLabel: 'Large',
+        surchargeMinor: 1000,
+        addons: [ReceiptModifierView(name: 'Oat milk', priceMinor: 1500)],
+        optionals: [],
+      ),
+    ],
+  ),
+  ReceiptLineView(
+    kind: 'item',
+    name: 'Croissant',
+    qty: 2,
+    unitPriceMinor: 5500,
+    lineTotalMinor: 11000,
+    staffCompMinor: 0,
+    dealMinor: 2000,
+    addons: [],
+    optionals: [],
+    parts: [],
+  ),
+];
+
 ReceiptView _r({
   List<ReceiptLineView>? lines,
+  List<ReceiptDealView> deals = const [],
   List<ReceiptPaymentView> payments = const [],
   String label = 'Cash',
   bool cash = true,
@@ -106,7 +160,7 @@ ReceiptView _r({
   String? waivedBy,
   double rate = 0.14,
 }) => ReceiptView(
-  deals: const [],
+  deals: deals,
   payments: payments,
   localOrderId: '8f2a4c1e-x',
   orderNumber: 1042,
@@ -174,6 +228,14 @@ final _cases = <String, ReceiptView>{
   'device': _r(display: '36B-12~AB12'),
   // A staff drink: see [_staffLines]. (Rebuilt per language in the loop.)
   'staff': _r(subtotal: 4500, total: 4500, tendered: 5000, change: 500),
+  'combo': _r(
+    lines: _comboLines,
+    deals: const [ReceiptDealView(name: 'Two bites', discountMinor: 2000)],
+    subtotal: 26500,
+    total: 26500,
+    tendered: 30000,
+    change: 3500,
+  ),
 };
 
 Future<void> _fonts() async {
@@ -273,6 +335,20 @@ void main() {
               expect(find.text(w('order.service_charge')), findsNothing);
             case 'void':
               expect(find.textContaining(w('receipt.voided')), findsOneWidget);
+            case 'combo':
+              // The combo at n×P, its items indented, the extra and the
+              // add-on each on their own row.
+              expect(find.text('1× Lunch deal'), findsOneWidget);
+              expect(find.text('EGP 150.00'), findsOneWidget);
+              expect(find.text('  1× Burger'), findsOneWidget);
+              expect(find.text('  1× Latte (Large)'), findsOneWidget);
+              expect(find.text('+EGP 10.00'), findsOneWidget);
+              expect(find.text('    + Oat milk'), findsOneWidget);
+              expect(find.text('+EGP 15.00'), findsOneWidget);
+              // The subtotal at normal prices, then the deal off it.
+              expect(find.text('EGP 285.00'), findsOneWidget);
+              expect(find.text('Two bites'), findsOneWidget);
+              expect(find.text('−EGP 20.00'), findsOneWidget);
             case 'staff':
               // The line at its NORMAL price, then the comp as a line
               // discount under it — one row, the core's word and figure.

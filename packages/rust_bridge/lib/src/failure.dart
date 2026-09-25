@@ -24,6 +24,11 @@ extension MadarErrorMessage on MadarBridge {
       ).replaceAll('{seconds}', detail),
       MadarError_Server(:final detail) => _or(detail),
       MadarError_Transient() => tr(key: 'err.network'),
+      // A deal the person may not apply: the core already worded why
+      // ("Applying a deal needs permission. Ask a manager.").
+      MadarError_Forbidden(resource: 'deal', :final action)
+          when action.trim().isNotEmpty =>
+        action,
       MadarError_Forbidden() => tr(key: 'err.not_allowed'),
       MadarError_Internal(:final detail) => _or(detail),
     };
