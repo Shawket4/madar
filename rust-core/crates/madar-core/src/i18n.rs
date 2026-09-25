@@ -508,6 +508,7 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.waiting_for_colleague" => "Waiting for colleague",
         "staff.declined" => "Declined",
         "staff.withdrawn" => "Withdrawn",
+        "staff.claim_withdrawn" => "Claim withdrawn",
         "staff.app" => "App",
         "staff.app_offline" => "App · offline",
         "staff.by_manager" => "By manager",
@@ -2828,6 +2829,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.waiting_for_colleague" => "مستني زميلك",
         "staff.declined" => "اترفض",
         "staff.withdrawn" => "اتسحب",
+        "staff.claim_withdrawn" => "الحجز اتسحب",
         "staff.app" => "التطبيق",
         "staff.app_offline" => "التطبيق · أوفلاين",
         "staff.by_manager" => "من المدير",
@@ -4992,6 +4994,14 @@ mod tests {
                 "{base}: pick the form, don't hedge it"
             );
         }
+    }
+
+    /// FINAL device check (B, C2): withdrawing an open-shift claim toasts the
+    /// row's own word, not "Cancelled".
+    #[test]
+    fn a_withdrawn_claim_says_withdrawn() {
+        assert_eq!(tr("en", "staff.claim_withdrawn"), "Claim withdrawn");
+        assert!(tr("ar", "staff.claim_withdrawn").contains(&tr("ar", "staff.withdrawn")));
     }
 
     #[test]

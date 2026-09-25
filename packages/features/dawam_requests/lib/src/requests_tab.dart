@@ -135,6 +135,13 @@ String? declineReason(Req r) {
   return tr('staff.decline_reason', {'note': note});
 }
 
+/// What taking back a request of mine says: a claim on an open shift is
+/// withdrawn, as its row then reads (B-H1-5: the server keeps a withdrawn
+/// claim apart from a cancel), anything else cancelled.
+String takenBackWords(Req r) => r.kind == ReqKind.openShift
+    ? tr('staff.claim_withdrawn')
+    : tr('staff.cancelled');
+
 /// " · half day", with its half when the server says which (RQ-8).
 String halfSuffix(String? half) => switch (half) {
   'first' => tr('staff.half_day_first_suffix'),
@@ -215,7 +222,7 @@ class _ReqRow extends ConsumerWidget {
                 await attempt(
                   ref,
                   () => store.cancel(r),
-                  ok: tr('staff.cancelled'),
+                  ok: takenBackWords(r),
                 );
               }
             },
