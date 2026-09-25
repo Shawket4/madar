@@ -425,11 +425,14 @@ pub(crate) fn adjustment_view(
 ) -> AdjustmentView {
     // A row is either a flat amount or a percentage of base. Resolving it HERE
     // rather than in the UI keeps one implementation of that rule, and it is the
-    // same one payroll uses.
+    // same one payroll uses: the server's (DW3, madar-shared's
+    // `madar_dawam::pay::percent_of_salary`, decimal, half away from zero).
+    // The percentage is read as it prints (33.3, not 33.29999…).
     let amount = a.amount_piastres.flatten().unwrap_or_else(|| {
         a.percent_of_base
             .flatten()
-            .map(|pct| ((base_salary_minor as f64) * pct / 100.0).round() as i64)
+            .and_then(|pct| pct.to_string().parse::<rust_decimal::Decimal>().ok())
+            .map(|pct| madar_dawam::pay::percent_of_salary(base_salary_minor, pct))
             .unwrap_or(0)
     });
     AdjustmentView {
@@ -562,6 +565,32 @@ mod tests {
         // 1/3 of a day must not silently become 33 twice and lose a hundredth.
         assert_eq!(centidays(0.335), 34);
         assert_eq!(centidays(0.334), 33);
+    }
+
+    /// A percent-of-base line is priced by the server's rule (DW3,
+    /// madar-shared's `madar_dawam::pay::percent_of_salary`): 33.3 % of 1500
+    /// is 500, where f64 said 499; a negative percentage is 0.
+    #[test]
+    fn a_percent_line_is_priced_by_the_servers_rule() {
+        let at = chrono::DateTime::parse_from_rfc3339("2026-09-01T00:00:00Z").unwrap();
+        let day = chrono::NaiveDate::from_ymd_opt(2026, 9, 1).unwrap();
+        let row = |pct: f64| models::PayrollAdjustment {
+            percent_of_base: Some(Some(pct)),
+            ..models::PayrollAdjustment::new(
+                at,
+                day,
+                uuid::Uuid::nil(),
+                uuid::Uuid::nil(),
+                uuid::Uuid::nil(),
+                String::new(),
+                "manual".into(),
+                "approved".into(),
+                at,
+            )
+        };
+        assert_eq!(adjustment_view(row(33.3), 1500).amount_minor, 500);
+        assert_eq!(adjustment_view(row(10.0), 150_000).amount_minor, 15_000);
+        assert_eq!(adjustment_view(row(-5.0), 150_000).amount_minor, 0);
     }
 
     #[test]
