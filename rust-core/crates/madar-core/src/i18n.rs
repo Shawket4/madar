@@ -126,6 +126,10 @@ fn en(key: &str) -> Option<&'static str> {
         "staff.n_bonus_added" => "A bonus was added: {reason} ({amount})",
         "staff.n_punched_for_you" => "{name} punched for you: {reason}",
         "staff.n_shift_changed" => "Your shift on {date} changed",
+        "staff.n_shift_changed_days" => "Your shifts on {dates} changed",
+        "staff.n_advance_requested" => "{name} asked for a salary advance of {amount}",
+        "staff.n_holiday_undecided" => "Public holiday {name_en} on {date} isn't decided yet",
+        "staff.n_open_shifts_week" => "{count} open shifts in the week of {week_start} — claim one in Shifts",
         "staff.n_week_published" => "The roster for the week of {date} is published",
         "staff.n_open_shift" => "An open shift on {date} was posted — claim it in Shifts",
         "staff.n_claim" => "{name} claimed the open shift on {date} — approve it",
@@ -2418,6 +2422,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.n_bonus_added" => "اتضافت مكافأة: {reason} ({amount})",
         "staff.n_punched_for_you" => "{name} سجّل ليك: {reason}",
         "staff.n_shift_changed" => "ورديتك يوم {date} اتغيرت",
+        "staff.n_shift_changed_days" => "ورديّاتك أيام {dates} اتغيرت",
+        "staff.n_advance_requested" => "{name} طلب سلفة {amount}",
+        "staff.n_holiday_undecided" => "العطلة الرسمية {name_ar} يوم {date} لسه ما اتقررتش",
+        "staff.n_open_shifts_week" => "{count} ورديات متاحة في أسبوع {week_start} — احجز واحدة من الورديات",
         "staff.n_week_published" => "جدول أسبوع {date} اتنشر",
         "staff.n_open_shift" => "في وردية متاحة يوم {date} — احجزها من الورديات",
         "staff.n_claim" => "{name} حجز الوردية المتاحة يوم {date} — وافق عليها",
@@ -4907,6 +4915,11 @@ mod tests {
             "staff.n_week_published",
             // The owner is told when someone is added with no salary (decision #9).
             "staff.n_salary_missing",
+            // Phase D: an advance asked for (M37), a holiday still undecided
+            // (M24), one notice for a week's open shifts (M21).
+            "staff.n_advance_requested",
+            "staff.n_holiday_undecided",
+            "staff.n_open_shifts_week",
         ];
         let missing: Vec<&str> = SENT
             .iter()

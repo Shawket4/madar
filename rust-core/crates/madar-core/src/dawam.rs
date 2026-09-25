@@ -3835,10 +3835,21 @@ fn manages(ctx: &Value) -> bool {
 
 fn notice_text(locale: &str, key: &str, args: &Value) -> String {
     let ar = i18n::is_arabic(locale);
+    let day = |x: &str| {
+        NaiveDate::parse_from_str(&x[..x.len().min(10)], "%Y-%m-%d")
+            .map(|d| format!("{} {}", d.day(), i18n::tr(locale, &format!("staff.month_{}", d.month()))))
+            .unwrap_or_else(|_| x.to_string())
+    };
+    // One "shift changed" for several days (M22): it names them all.
+    let days: Vec<String> = args.get("dates").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(day).collect();
+    let key = if key == "staff.n_shift_changed" && days.len() > 1 { "staff.n_shift_changed_days" } else { key };
     let mut filled = BTreeMap::new();
+    filled.insert("dates".to_string(), days.join(if ar { "، " } else { ", " }));
     for (k, v) in args.as_object().into_iter().flatten() {
         let text = match (k.as_str(), v) {
+            ("dates", _) => continue,
             (k, Value::Number(n)) if k.contains("amount") => egp(n.as_i64().unwrap_or(0), ar),
+            ("week_start", Value::String(x)) => day(x),
             ("kind", Value::String(x)) => {
                 let w = i18n::tr(locale, &format!("staff.kind_{x}"));
                 if w.starts_with("staff.") { x.clone() } else { w }
@@ -7721,6 +7732,28 @@ mod tests {
 
     /// H2-B4: an advance request tells its deciders as `staff.n_request`
     /// with kind `salary_advance`, worded in both languages.
+    /// Phase D notices the server sends (M37, M24, M21, M22): worded with
+    /// their args in both languages; a change to several days names them.
+    #[test]
+    fn the_phase_d_notices_are_worded() {
+        let n = |lang: &str, k: &str, a: Value| notice_text(lang, k, &a);
+        let adv = json!({ "name": "Omar", "amount": 150000, "advance_id": "v1" });
+        assert_eq!(n("en", "staff.n_advance_requested", adv.clone()), "Omar asked for a salary advance of EGP 1,500.00");
+        assert!(n("ar", "staff.n_advance_requested", adv).contains("1,500.00 ج.م"));
+        let hol = json!({ "date": "2026-10-06", "name_en": "Armed Forces Day", "name_ar": "عيد القوات المسلحة" });
+        assert_eq!(n("en", "staff.n_holiday_undecided", hol.clone()), "Public holiday Armed Forces Day on 6 Oct isn't decided yet");
+        let ar = n("ar", "staff.n_holiday_undecided", hol);
+        assert!(ar.contains("عيد القوات المسلحة") && !ar.contains("Armed") && !ar.contains('{'), "{ar}");
+        let wk = json!({ "week_start": "2026-10-03", "count": 3, "dates": ["2026-10-03", "2026-10-05"], "branch_id": "b1" });
+        assert_eq!(n("en", "staff.n_open_shifts_week", wk.clone()), "3 open shifts in the week of 3 Oct — claim one in Shifts");
+        assert!(!n("ar", "staff.n_open_shifts_week", wk).contains('{'));
+        let one = json!({ "date": "2026-10-03", "dates": ["2026-10-03"] });
+        assert_eq!(n("en", "staff.n_shift_changed", one), "Your shift on 3 Oct changed");
+        let many = json!({ "date": "2026-10-03", "dates": ["2026-10-03", "2026-10-05"] });
+        assert_eq!(n("en", "staff.n_shift_changed", many.clone()), "Your shifts on 3 Oct, 5 Oct changed");
+        assert!(n("ar", "staff.n_shift_changed", many).contains("3 أكتوبر، 5 أكتوبر"));
+    }
+
     #[test]
     fn an_advance_request_notice_is_worded() {
         let args = json!({ "name": "Omar", "kind": "salary_advance", "date": "2026-09-25" });

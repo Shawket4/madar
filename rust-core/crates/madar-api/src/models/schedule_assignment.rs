@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ScheduleAssignment {
+    /// Where a business-wide block is worked (hunt H2-B8b); null = the block's own branch, else the person's first.
+    #[serde(
+        rename = "branch_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub branch_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
     /// Postgres `EXTRACT(DOW)` convention: 0 = Sunday … 6 = Saturday. `None` = every day of the week.
@@ -59,6 +67,7 @@ impl ScheduleAssignment {
         work_shift_id: uuid::Uuid,
     ) -> ScheduleAssignment {
         ScheduleAssignment {
+            branch_id: None,
             created_at,
             day_of_week: None,
             effective_from,

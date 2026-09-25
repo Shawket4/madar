@@ -128,6 +128,7 @@ docs/ChatFrameOneOf4.md
 docs/ChatFrameOneOf5.md
 docs/CheckInRequest.md
 docs/CheckOutRequest.md
+docs/ClaimDecision.md
 docs/ClearTableRequest.md
 docs/ClientSeen.md
 docs/CloseShiftResponse.md
@@ -362,6 +363,7 @@ docs/MoveTicketTableRequest.md
 docs/MoveView.md
 docs/MyAttendanceToday.md
 docs/MyAuthz.md
+docs/MyClaim.md
 docs/MyRosterView.md
 docs/NewAdjustment.md
 docs/NewExpenseAdvance.md
@@ -542,6 +544,7 @@ docs/QuoteResponse.md
 docs/ReadNotifications.md
 docs/ReadyGroupRef.md
 docs/RealtimeApi.md
+docs/ReassignExpenseAdvance.md
 docs/ReceiveLineInput.md
 docs/ReceivePurchaseOrderRequest.md
 docs/RecipeBaseLineInput.md
@@ -716,6 +719,7 @@ docs/TransfersSyncResponse.md
 docs/Transform.md
 docs/TypeChecksum.md
 docs/UnregisterPushDevice.md
+docs/UnsettledPeriod.md
 docs/UpdateAddonItemRequest.md
 docs/UpdateAddonSlotRequest.md
 docs/UpdateBookingRequest.md
@@ -953,6 +957,7 @@ src/models/chat_frame_one_of_4.rs
 src/models/chat_frame_one_of_5.rs
 src/models/check_in_request.rs
 src/models/check_out_request.rs
+src/models/claim_decision.rs
 src/models/clear_table_request.rs
 src/models/client_seen.rs
 src/models/close_shift_response.rs
@@ -1172,6 +1177,7 @@ src/models/move_ticket_table_request.rs
 src/models/move_view.rs
 src/models/my_attendance_today.rs
 src/models/my_authz.rs
+src/models/my_claim.rs
 src/models/my_roster_view.rs
 src/models/new_adjustment.rs
 src/models/new_expense_advance.rs
@@ -1342,6 +1348,7 @@ src/models/query_spec.rs
 src/models/quote_response.rs
 src/models/read_notifications.rs
 src/models/ready_group_ref.rs
+src/models/reassign_expense_advance.rs
 src/models/receive_line_input.rs
 src/models/receive_purchase_order_request.rs
 src/models/recipe_base_line_input.rs
@@ -1505,6 +1512,7 @@ src/models/transfers_sync_response.rs
 src/models/transform.rs
 src/models/type_checksum.rs
 src/models/unregister_push_device.rs
+src/models/unsettled_period.rs
 src/models/update_addon_item_request.rs
 src/models/update_addon_slot_request.rs
 src/models/update_booking_request.rs

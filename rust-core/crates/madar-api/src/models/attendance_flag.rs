@@ -27,6 +27,21 @@ pub struct AttendanceFlag {
         skip_serializing_if = "Option::is_none"
     )]
     pub branch_id: Option<Option<uuid::Uuid>>,
+    /// The deduction the flag was handled with (a deduct or an unpaid excuse), and its status: `approved`, or `pending` = over the manager's limit, it waits for the owner (minor default M33).
+    #[serde(
+        rename = "deduction_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub deduction_id: Option<Option<uuid::Uuid>>,
+    #[serde(
+        rename = "deduction_status",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub deduction_status: Option<Option<String>>,
     #[serde(rename = "detected_at")]
     pub detected_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "employee_id")]
@@ -72,6 +87,8 @@ impl AttendanceFlag {
         AttendanceFlag {
             attendance_record_id: None,
             branch_id: None,
+            deduction_id: None,
+            deduction_status: None,
             detected_at,
             employee_id,
             employee_name,

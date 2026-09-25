@@ -5,6 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **branch_id** | **uuid::Uuid** |  | 
+**claimed_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> | When the live claim was made; null while open. | [optional]
 **claimed_by** | Option<**uuid::Uuid**> | The employee who claimed it. | [optional]
 **claimed_by_name** | Option<**String**> |  | [optional]
 **end_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]

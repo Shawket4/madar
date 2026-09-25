@@ -41,6 +41,7 @@ Name | Type | Description | Notes
 **to_time** | Option<**String**> | End of the excused window. `None` = open to the shift's end. For a `correction`: the proposed check-out, branch-local (earlier on the clock than the check-in = the next morning, a night shift). | [optional]
 **updated_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **work_shift_id** | Option<**uuid::Uuid**> | The shift a late arrival, early departure or excuse is for (split days). | [optional]
+**worked_dates** | Option<**Vec<chrono::NaiveDate>**> | For a leave or mission: the days it covers that the person already clocked in on. Approving turns those worked days into leave (the punches are kept), so the approver is warned first (minor default M16). Empty for every other kind. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

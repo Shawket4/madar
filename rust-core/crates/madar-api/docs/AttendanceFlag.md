@@ -6,6 +6,8 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **attendance_record_id** | Option<**uuid::Uuid**> |  | [optional]
 **branch_id** | Option<**uuid::Uuid**> |  | [optional]
+**deduction_id** | Option<**uuid::Uuid**> | The deduction the flag was handled with (a deduct or an unpaid excuse), and its status: `approved`, or `pending` = over the manager's limit, it waits for the owner (minor default M33). | [optional]
+**deduction_status** | Option<**String**> |  | [optional]
 **detected_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **employee_id** | **uuid::Uuid** |  | 
 **employee_name** | **String** |  | 

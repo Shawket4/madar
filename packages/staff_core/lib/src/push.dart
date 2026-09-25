@@ -24,6 +24,7 @@ PushTarget pushTarget(String? key) {
     // My roster.
     'week_published' ||
     'shift_changed' ||
+    'shift_changed_days' ||
     'open_shift' ||
     'swap_asked' ||
     'swap_agreed' ||
@@ -66,6 +67,12 @@ PushTarget pushTarget(String? key) {
     // Someone was added with no salary (decision #9): the owner's Team,
     // where that person is.
     'salary_missing' => (manage: true, tab: 'team'),
+    // Phase D: an advance asked for waits in Approvals (M37); a public
+    // holiday still undecided is the owner's Schedule (M24); a week's open
+    // shifts are there to claim (M21).
+    'advance_requested' => (manage: true, tab: 'approvals'),
+    'holiday_undecided' => (manage: true, tab: 'schedule'),
+    'open_shifts_week' => (manage: false, tab: 'shifts'),
     _ => _inbox,
   };
 }

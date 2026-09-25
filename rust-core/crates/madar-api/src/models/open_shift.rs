@@ -15,6 +15,14 @@ use serde::{Deserialize, Serialize};
 pub struct OpenShift {
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
+    /// When the live claim was made; null while open.
+    #[serde(
+        rename = "claimed_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub claimed_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     /// The employee who claimed it.
     #[serde(
         rename = "claimed_by",
@@ -68,6 +76,7 @@ impl OpenShift {
     ) -> OpenShift {
         OpenShift {
             branch_id,
+            claimed_at: None,
             claimed_by: None,
             claimed_by_name: None,
             end_at: None,

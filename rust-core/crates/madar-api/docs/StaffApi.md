@@ -15,6 +15,7 @@ Method | HTTP request | Description
 [**check_in**](StaffApi.md#check_in) | **POST** /staff/me/check-in | 
 [**check_out**](StaffApi.md#check_out) | **POST** /staff/me/check-out | 
 [**claim_open_shift**](StaffApi.md#claim_open_shift) | **POST** /staff/open-shifts/{id}/claim | Claim an open shift; the manager approves the claim (SC-9). Only a published week's, and only one that fits beside the person's own shifts.
+[**clear_expense_advance**](StaffApi.md#clear_expense_advance) | **DELETE** /staff/expense-advances/{id} | Clear an expense advance (a till pay-out's \"expense advance to\" tag, or a logged one) with a reason: the record goes, a till's cash movement stays exactly as it is (AV-10, minor default M39). Owner only.
 [**correct_record**](StaffApi.md#correct_record) | **PATCH** /staff/attendance/{id} | 
 [**create_adjustment**](StaffApi.md#create_adjustment) | **POST** /staff/adjustments | Add a bonus or deduction. Over the caller's limit it is created pending and waits for the owner (AD-5). Bonuses and deductions have separate limits.
 [**create_advance_admin**](StaffApi.md#create_advance_admin) | **POST** /staff/payroll/advances | Record an ask on someone's behalf: it still waits for a decision (`PATCH /staff/advances/{id}/review`). To hand one over at once, use `POST /staff/advances/record`.
@@ -113,6 +114,7 @@ Method | HTTP request | Description
 [**put_preferences**](StaffApi.md#put_preferences) | **PUT** /staff/me/preferences | Preferred times and days I can't work; managers see them (SC-12). Logged.
 [**put_times**](StaffApi.md#put_times) | **PUT** /staff/schedules/days/times | One assignment's own from/to (one person, one date, one block), without changing the block. Both null = back to the block's times.
 [**read_notifications**](StaffApi.md#read_notifications) | **POST** /staff/me/notifications/read | 
+[**reassign_expense_advance**](StaffApi.md#reassign_expense_advance) | **PATCH** /staff/expense-advances/{id} | Give an expense advance to the person who really received the cash, with a reason; a till's cash movement stays as it is (minor default M39). Owner only.
 [**record_advance**](StaffApi.md#record_advance) | **POST** /staff/advances/record | A manager hands an advance over directly (AV-2): recorded and approved in ONE call under the same cap and limit as a review, so a refusal never leaves a stray pending advance behind (audit B10).
 [**reset_day**](StaffApi.md#reset_day) | **DELETE** /staff/schedules/days | Put a date back on the standing pattern.
 [**resolve_flag**](StaffApi.md#resolve_flag) | **PATCH** /staff/flags/{id} | Handle a flag. Nothing is ever charged automatically (CL-6).
@@ -130,6 +132,7 @@ Method | HTTP request | Description
 [**update_department**](StaffApi.md#update_department) | **PATCH** /staff/departments/{id} | 
 [**update_work_shift**](StaffApi.md#update_work_shift) | **PATCH** /staff/work-shifts/{id} | 
 [**waive_deduction**](StaffApi.md#waive_deduction) | **PATCH** /staff/payroll/deductions/{id}/waive | 
+[**withdraw_claim**](StaffApi.md#withdraw_claim) | **POST** /staff/open-shifts/{id}/withdraw | Take back my claim while it waits (SC-9, S-162), as the one who asked can cancel any pending request: the shift is open again, the claim stays in my Requests as `withdrawn`, and the managers told of it hear. 409 `NO_PENDING_CLAIM` when I have no claim waiting on it, 409 `CLAIM_ALREADY_DECIDED` once it was approved or declined.
 
 
 
@@ -432,6 +435,35 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::OpenShift**](OpenShift.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## clear_expense_advance
+
+> clear_expense_advance(id, reason)
+Clear an expense advance (a till pay-out's \"expense advance to\" tag, or a logged one) with a reason: the record goes, a till's cash movement stays exactly as it is (AV-10, minor default M39). Owner only.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** |  | [required] |
+**reason** | Option<**String**> |  |  |
+
+### Return type
+
+ (empty response body)
 
 ### Authorization
 
@@ -868,7 +900,7 @@ Name | Type | Description  | Required | Notes
 
 ## decide_claim
 
-> decide_claim(id, decide_roster)
+> models::ClaimDecision decide_claim(id, decide_roster)
 Approve a claim: the shift becomes theirs for that date, beside the rest of their day. Rejecting reopens it. One decision only.
 
 ### Parameters
@@ -881,7 +913,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
- (empty response body)
+[**models::ClaimDecision**](ClaimDecision.md)
 
 ### Authorization
 
@@ -1420,7 +1452,7 @@ Deliberately serves the PAYSLIPS, not a fresh computation: the file handed to a 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **id** | **uuid::Uuid** | Period ID | [required] |
-**method** | Option<**String**> | `bank` (a transfer file: name, account, amount) · `wallet` (numbers and amounts) · `cash`; omitted = everyone, every figure (PAY-8). |  |
+**method** | Option<**String**> | `bank` (a transfer file: name, account, amount) · `wallet` (numbers and amounts) · `cash` (the envelope list: name and amount, nobody with 0 to pay); omitted = everyone, every figure (PAY-8). |  |
 
 ### Return type
 
@@ -1778,7 +1810,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_attendance
 
-> Vec<models::AttendanceRecord> list_attendance(from, to, branch_id, employee_id, status)
+> Vec<models::AttendanceRecord> list_attendance(from, to, branch_id, employee_id, status, cover_status, overtime_status)
 
 
 ### Parameters
@@ -1786,11 +1818,13 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**from** | **chrono::NaiveDate** |  | [required] |
-**to** | **chrono::NaiveDate** |  | [required] |
+**from** | Option<**chrono::NaiveDate**> | Required unless `cover_status` or `overtime_status` is `pending`. |  |
+**to** | Option<**chrono::NaiveDate**> | Required unless `cover_status` or `overtime_status` is `pending`. |  |
 **branch_id** | Option<**uuid::Uuid**> |  |  |
 **employee_id** | Option<**uuid::Uuid**> |  |  |
 **status** | Option<**String**> |  |  |
+**cover_status** | Option<**String**> | `pending` · `confirmed` · `rejected`: covers in that state. |  |
+**overtime_status** | Option<**String**> | `pending` · `approved` · `rejected`: overtime in that state. |  |
 
 ### Return type
 
@@ -3195,6 +3229,35 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## reassign_expense_advance
+
+> models::ExpenseAdvance reassign_expense_advance(id, reassign_expense_advance)
+Give an expense advance to the person who really received the cash, with a reason; a till's cash movement stays as it is (minor default M39). Owner only.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** |  | [required] |
+**reassign_expense_advance** | [**ReassignExpenseAdvance**](ReassignExpenseAdvance.md) |  | [required] |
+
+### Return type
+
+[**models::ExpenseAdvance**](ExpenseAdvance.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## record_advance
 
 > models::SalaryAdvance record_advance(record_advance)
@@ -3682,6 +3745,34 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## withdraw_claim
+
+> models::OpenShift withdraw_claim(id)
+Take back my claim while it waits (SC-9, S-162), as the one who asked can cancel any pending request: the shift is open again, the claim stays in my Requests as `withdrawn`, and the managers told of it hear. 409 `NO_PENDING_CLAIM` when I have no claim waiting on it, 409 `CLAIM_ALREADY_DECIDED` once it was approved or declined.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** |  | [required] |
+
+### Return type
+
+[**models::OpenShift**](OpenShift.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

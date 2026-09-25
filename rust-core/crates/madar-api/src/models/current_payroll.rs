@@ -33,6 +33,9 @@ pub struct CurrentPayroll {
     /// The run added up by the server (AT-3).
     #[serde(rename = "totals")]
     pub totals: Box<models::PayrollTotals>,
+    /// Older months that aren't fully paid, oldest first (hunt H2-P1): a month that rolled over while still a draft, or approved with someone unpaid. Each is settled by its id (approve, mark paid, reopen, export); a paid or closed month isn't listed.
+    #[serde(rename = "unsettled")]
+    pub unsettled: Vec<models::UnsettledPeriod>,
 }
 
 impl CurrentPayroll {
@@ -44,6 +47,7 @@ impl CurrentPayroll {
         period: models::PayrollPeriod,
         preview: Vec<models::ComputedPayslip>,
         totals: models::PayrollTotals,
+        unsettled: Vec<models::UnsettledPeriod>,
     ) -> CurrentPayroll {
         CurrentPayroll {
             history,
@@ -53,6 +57,7 @@ impl CurrentPayroll {
             period: Box::new(period),
             preview,
             totals: Box::new(totals),
+            unsettled,
         }
     }
 }
