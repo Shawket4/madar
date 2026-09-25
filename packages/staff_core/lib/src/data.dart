@@ -1740,26 +1740,46 @@ class DawamStore extends ChangeNotifier {
         'purpose': purpose,
         'via': via,
       });
+  // Every day write names the board's [branch]: a business-wide block set
+  // there is worked there (H2-B8).
   Future<void> setDay(String emp, DateTime d, String? tpl, String branch) =>
-      _act({'action': 'set_day', 'emp': emp, 'date': _d(d), 'tpl': tpl});
+      _act({
+        'action': 'set_day',
+        'emp': emp,
+        'date': _d(d),
+        'tpl': tpl,
+        'branch': branch,
+      });
 
   /// Every block [emp] works on [d] (a split day); empty = a day off.
-  Future<void> setShifts(String emp, DateTime d, List<String> tpls) => _act({
+  Future<void> setShifts(
+    String emp,
+    DateTime d,
+    List<String> tpls, {
+    String? branch,
+  }) => _act({
     'action': 'set_shifts',
     'emp': emp,
     'date': _d(d),
     'blocks': [
       for (final t in tpls) {'tpl': t},
     ],
+    'branch': ?branch,
   });
 
   /// One more block on the date; the rest of the day stays.
-  Future<void> addBlock(String emp, DateTime d, String tpl) =>
-      _act({'action': 'add_block', 'emp': emp, 'date': _d(d), 'tpl': tpl});
+  Future<void> addBlock(String emp, DateTime d, String tpl, {String? branch}) =>
+      _act({
+        'action': 'add_block',
+        'emp': emp,
+        'date': _d(d),
+        'tpl': tpl,
+        'branch': ?branch,
+      });
 
   /// Take this shift off its date; the rest of the day stays.
-  Future<void> removeBlock(Shift s) =>
-      _act({'action': 'remove_block', 'shift': s.id});
+  Future<void> removeBlock(Shift s, {String? branch}) =>
+      _act({'action': 'remove_block', 'shift': s.id, 'branch': ?branch});
 
   /// Back to the usual pattern for that date.
   Future<void> resetDay(String emp, DateTime d) =>
@@ -1785,10 +1805,16 @@ class DawamStore extends ChangeNotifier {
   /// Ask a colleague to swap: [mine] is MY shift, [theirs] the colleague's.
   Future<void> askSwap(Shift mine, Shift theirs) =>
       _act({'action': 'ask_swap', 'mine': mine.id, 'theirs': theirs.id});
-  Future<void> moveShift(Shift s, DateTime day, String tpl) =>
-      _act({'action': 'move_shift', 'shift': s.id, 'day': _d(day), 'tpl': tpl});
-  Future<void> assign(Shift s, String? emp) =>
-      _act({'action': 'assign', 'shift': s.id, 'emp': emp});
+  Future<void> moveShift(Shift s, DateTime day, String tpl, {String? branch}) =>
+      _act({
+        'action': 'move_shift',
+        'shift': s.id,
+        'day': _d(day),
+        'tpl': tpl,
+        'branch': ?branch,
+      });
+  Future<void> assign(Shift s, String? emp, {String? branch}) =>
+      _act({'action': 'assign', 'shift': s.id, 'emp': emp, 'branch': ?branch});
   Future<void> postOpen(String branch, DateTime d, String tpl) => _act({
     'action': 'post_open',
     'branch': branch,

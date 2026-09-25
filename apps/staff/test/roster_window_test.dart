@@ -96,7 +96,11 @@ void main() {
       testCore.refuse = refusal;
       await openCard(t, evening);
       await tapText(t, tr('staff.remove_this_shift'));
-      expect(lastAct(), {'action': 'remove_block', 'shift': evening.id});
+      expect(lastAct(), {
+        'action': 'remove_block',
+        'shift': evening.id,
+        'branch': 'b1',
+      });
       expect(find.text(loc(refusal)), findsOneWidget);
       expect(
         find.text(tr('staff.remove_this_shift')),
@@ -116,7 +120,12 @@ void main() {
         evening.date,
       );
       await frames(t);
-      expect(lastAct(), {'action': 'assign', 'shift': evening.id, 'emp': null});
+      expect(lastAct(), {
+        'action': 'assign',
+        'shift': evening.id,
+        'emp': null,
+        'branch': 'b1',
+      });
       expect(find.text(tr('staff.open_shift_posted')), findsOneWidget);
       await finish(t);
     });

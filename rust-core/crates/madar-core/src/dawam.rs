@@ -668,13 +668,15 @@ pub enum Act {
     RecordAdvance { emp: String, amount: i64, installments: i64 },
     LogExpense { emp: String, amount: i64, purpose: String, via: String },
     /// The whole date is exactly this block, or a day off (`tpl` None).
-    SetDay { emp: String, date: String, tpl: Option<String> },
+    /// `branch` on every day write: the board's branch, where a business-wide
+    /// block set there is worked (H2-B8); none = where the date had it.
+    SetDay { emp: String, date: String, tpl: Option<String>, #[serde(default)] branch: Option<String> },
     /// Every block a person works on a date (a split day); empty = a day off.
-    SetShifts { emp: String, date: String, blocks: Vec<BlockA> },
+    SetShifts { emp: String, date: String, blocks: Vec<BlockA>, #[serde(default)] branch: Option<String> },
     /// One more block on the date; the rest of the day stays.
-    AddBlock { emp: String, date: String, tpl: String },
+    AddBlock { emp: String, date: String, tpl: String, #[serde(default)] branch: Option<String> },
     /// Take this one shift off its date; the rest of the day stays.
-    RemoveBlock { shift: String },
+    RemoveBlock { shift: String, #[serde(default)] branch: Option<String> },
     /// Back to the standing pattern.
     ResetDay { emp: String, date: String },
     /// The dates a screen shows (the board's week, the calendar's page).
@@ -690,8 +692,8 @@ pub enum Act {
     CancelOpen { shift: String },
     /// Ask a colleague to swap: `mine` is MY shift, `theirs` the colleague's (06 B2).
     AskSwap { mine: String, theirs: String },
-    MoveShift { shift: String, day: String, tpl: String },
-    Assign { shift: String, emp: Option<String> },
+    MoveShift { shift: String, day: String, tpl: String, #[serde(default)] branch: Option<String> },
+    Assign { shift: String, emp: Option<String>, #[serde(default)] branch: Option<String> },
     PostOpen { branch: String, date: String, tpl: String },
     Claim { shift: String },
     Publish { branch: String, week: String },
@@ -826,6 +828,8 @@ pub(crate) const ROSTER_CODES: &[&str] = &[
     "ALREADY_CLAIMED",
     "SWAP_EXISTS",
     "SUGGESTION_STALE",
+    // A board's branch the person doesn't work at (H2-B8).
+    "EMPLOYEE_NOT_AT_BRANCH",
 ];
 
 /// Refusals that mean the picture is stale (someone else decided, claimed or
@@ -1987,24 +1991,24 @@ impl MadarCore {
             Act::LogExpense { emp, amount, purpose, via } => {
                 self.dawam_srv("POST", "/staff/expense-advances", Some(json!({ "employee_id": emp, "amount_piastres": amount, "purpose": purpose, "via": via }))).await?;
             }
-            Act::SetDay { emp, date: d, tpl } => {
+            Act::SetDay { emp, date: d, tpl, branch } => {
                 let blocks: Vec<BlockA> = tpl.into_iter().map(|tpl| BlockA { tpl, start: None, end: None }).collect();
-                self.dawam_put_day(&emp, &d, &blocks).await?;
+                self.dawam_put_day(&emp, &d, &blocks, branch.as_deref()).await?;
             }
-            Act::SetShifts { emp, date: d, blocks } => self.dawam_put_day(&emp, &d, &blocks).await?,
-            Act::AddBlock { emp, date: d, tpl } => {
+            Act::SetShifts { emp, date: d, blocks, branch } => self.dawam_put_day(&emp, &d, &blocks, branch.as_deref()).await?,
+            Act::AddBlock { emp, date: d, tpl, branch } => {
                 let snap = self.dawam_day_known(snap, &d).await?;
                 let mut blocks = day_set(&snap, &emp, &d);
                 if !blocks.iter().any(|b| b.tpl == tpl) {
                     blocks.push(BlockA { tpl, start: None, end: None });
                 }
-                self.dawam_put_day(&emp, &d, &blocks).await?;
+                self.dawam_put_day(&emp, &d, &blocks, branch.as_deref()).await?;
             }
-            Act::RemoveBlock { shift } => {
+            Act::RemoveBlock { shift, branch } => {
                 let (emp, d, tpl) = parts(&shift);
                 let snap = self.dawam_day_known(snap, d).await?;
                 let blocks: Vec<BlockA> = day_set(&snap, emp, d).into_iter().filter(|b| b.tpl != tpl).collect();
-                self.dawam_put_day(emp, d, &blocks).await?;
+                self.dawam_put_day(emp, d, &blocks, branch.as_deref()).await?;
             }
             Act::ResetDay { emp, date: d } => {
                 self.dawam_srv("DELETE", &format!("/staff/schedules/days?employee_id={emp}&on_date={d}"), None).await?;
@@ -2031,7 +2035,7 @@ impl MadarCore {
             Act::AskSwap { mine, theirs } => self.dawam_ask_swap(&snap, &mine, &theirs).await?,
             // Dragged to another day or block: only that block moves; the rest
             // of both days stays (SC-11).
-            Act::MoveShift { shift, day: to_day, tpl } => {
+            Act::MoveShift { shift, day: to_day, tpl, branch } => {
                 let (emp, from_day, from_tpl) = parts(&shift);
                 // An open shift has no day set to move within (H2-05: the drag
                 // did nothing and the board said "Moved").
@@ -2047,12 +2051,12 @@ impl MadarCore {
                 // The day it goes to first (E2E roster): a refusal there — a
                 // block not worked that weekday, an overlap — must leave both
                 // days as they were, not take the shift off its own day.
-                self.dawam_put_day(emp, &to_day, &to).await?;
+                self.dawam_put_day(emp, &to_day, &to, branch.as_deref()).await?;
                 if to_day != from_day {
-                    self.dawam_put_day(emp, from_day, &from).await?;
+                    self.dawam_put_day(emp, from_day, &from, branch.as_deref()).await?;
                 }
             }
-            Act::Assign { shift, emp } => {
+            Act::Assign { shift, emp, branch } => {
                 if let Some(open) = shift.strip_prefix("open|") {
                     // An open shift given to someone: theirs, and no longer open.
                     // Left open: already so.
@@ -2065,12 +2069,17 @@ impl MadarCore {
                     let snap = self.dawam_day_known(snap, &d).await?;
                     let mut blocks = day_set(&snap, &e, &d);
                     blocks.push(BlockA { tpl, start: None, end: None });
-                    self.dawam_put_day(&e, &d, &blocks).await?;
+                    self.dawam_put_day(&e, &d, &blocks, branch.as_deref()).await?;
                     self.dawam_srv("POST", &format!("/staff/open-shifts/{open}/cancel"), Some(json!({}))).await?;
                     return Ok(None);
                 }
                 let (owner, d, tpl) = parts(&shift);
-                let branch = snap.templates.iter().find(|t| t.id == tpl).map(|t| t.branch.clone()).unwrap_or_default();
+                // Opened at the board's branch (H2-B8): a business-wide block's
+                // template names no branch, and the first one listed was used.
+                let open_at = branch
+                    .clone()
+                    .filter(|b| !b.is_empty())
+                    .unwrap_or_else(|| snap.templates.iter().find(|t| t.id == tpl).map(|t| t.branch.clone()).unwrap_or_default());
                 match emp {
                     Some(e) => {
                         self.dawam_srv("POST", "/staff/schedules/days/move", Some(json!({
@@ -2080,8 +2089,8 @@ impl MadarCore {
                     None => {
                         let snap = self.dawam_day_known(snap, d).await?;
                         let rest: Vec<BlockA> = day_set(&snap, owner, d).into_iter().filter(|b| b.tpl != tpl).collect();
-                        self.dawam_put_day(owner, d, &rest).await?;
-                        self.dawam_srv("POST", "/staff/open-shifts", Some(json!({ "branch_id": branch, "work_shift_id": tpl, "on_date": d }))).await?;
+                        self.dawam_put_day(owner, d, &rest, branch.as_deref()).await?;
+                        self.dawam_srv("POST", "/staff/open-shifts", Some(json!({ "branch_id": open_at, "work_shift_id": tpl, "on_date": d }))).await?;
                     }
                 }
             }
@@ -2140,10 +2149,13 @@ impl MadarCore {
     }
 
     /// PUT the date's whole set (a split day, or a day off when empty).
-    async fn dawam_put_day(&self, emp: &str, d: &str, blocks: &[BlockA]) -> Result<(), CoreError> {
-        self.dawam_srv("PUT", "/staff/schedules/days", Some(json!({ "employee_id": emp, "on_date": d, "shifts": blocks_json(blocks) })))
-            .await
-            .map(|_| ())
+    async fn dawam_put_day(&self, emp: &str, d: &str, blocks: &[BlockA], branch: Option<&str>) -> Result<(), CoreError> {
+        let mut body = json!({ "employee_id": emp, "on_date": d, "shifts": blocks_json(blocks) });
+        // The board's branch (H2-B8): a business-wide block set there is worked there.
+        if let Some(b) = branch.filter(|b| !b.is_empty()) {
+            body["branch_id"] = json!(b);
+        }
+        self.dawam_srv("PUT", "/staff/schedules/days", Some(body)).await.map(|_| ())
     }
 
     /// Ask for a swap: `mine` must be my own shift (06 B2: the app once sent
@@ -5601,6 +5613,59 @@ mod tests {
             assert_ne!(i18n::tr("en", k), k, "{k} has no English");
             assert_ne!(i18n::tr("ar", k), i18n::tr("en", k), "{k} has no Arabic");
         }
+    }
+
+    /// H2-B8: every day the board writes names the board's branch, so a
+    /// business-wide block set from branch B is worked at B (the server used
+    /// the person's first branch); a person not at that branch is refused in
+    /// the phone's language.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_board_edit_names_the_boards_branch() {
+        use crate::testkit::{StubResponse, BRANCH};
+        let day = today_cairo() + Duration::days(2);
+        let (stub, core) = cafe(MGR, move |m, p, r| match (m, p) {
+            ("GET", "/staff/roster") => Some(StubResponse::json(200, json!({
+                "published_weeks": [], "date_sets": [],
+                "shifts": [{ "employee_id": "e4", "date": day, "work_shift_id": "w1", "start_time": "08:00:00", "end_time": "12:00:00" }],
+                "open_shifts": [{ "id": "o1", "branch_id": BRANCH, "work_shift_id": "w2", "on_date": day, "status": "open" }],
+            }))),
+            ("PUT", "/staff/schedules/days") if r.json()["employee_id"] == "m2" => Some(StubResponse::json(400, json!({
+                "error": "Bad request: Omar doesn't work at that branch.", "code": "EMPLOYEE_NOT_AT_BRANCH" }))),
+            ("PUT", "/staff/schedules/days") => Some(StubResponse::json(200, json!({}))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        let sid = format!("e4|{day}|w1");
+        for act in [
+            json!({ "action": "add_block", "emp": "e4", "date": day, "tpl": "w2", "branch": BRANCH }),
+            json!({ "action": "remove_block", "shift": sid, "branch": BRANCH }),
+            json!({ "action": "set_day", "emp": "e4", "date": day, "tpl": "w1", "branch": BRANCH }),
+            json!({ "action": "set_shifts", "emp": "e4", "date": day, "blocks": [{ "tpl": "w1" }], "branch": BRANCH }),
+            json!({ "action": "move_shift", "shift": sid, "day": day, "tpl": "w2", "branch": BRANCH }),
+            json!({ "action": "assign", "shift": "open|o1", "emp": "e4", "branch": BRANCH }),
+        ] {
+            core.dawam_do(act.to_string()).await.unwrap_or_else(|e| panic!("{act}: {e:?}"));
+            assert_eq!(posted(&stub, "/staff/schedules/days")["branch_id"], BRANCH, "{act}");
+        }
+        // Opened from the board: posted at the board's branch.
+        core.dawam_do(json!({ "action": "assign", "shift": sid, "emp": null, "branch": "b2" }).to_string()).await.unwrap();
+        assert_eq!(posted(&stub, "/staff/open-shifts")["branch_id"], "b2");
+        // A caller that names no branch sends none: the server keeps each
+        // block where the date had it.
+        core.dawam_do(json!({ "action": "add_block", "emp": "e4", "date": day, "tpl": "w2" }).to_string()).await.unwrap();
+        assert!(posted(&stub, "/staff/schedules/days").get("branch_id").is_none());
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            match core.dawam_do(json!({ "action": "add_block", "emp": "m2", "date": day, "tpl": "w2", "branch": BRANCH }).to_string()).await {
+                Err(CoreError::Server { code, detail, .. }) => {
+                    assert_eq!(code, "EMPLOYEE_NOT_AT_BRANCH");
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_employee_not_at_branch"));
+                }
+                other => panic!("expected the refusal, got {other:?}"),
+            }
+        }
+        assert_ne!(i18n::tr("en", "staff.err_employee_not_at_branch"), i18n::tr("ar", "staff.err_employee_not_at_branch"));
     }
 
     /// H2-B4: an advance request tells its deciders as `staff.n_request`

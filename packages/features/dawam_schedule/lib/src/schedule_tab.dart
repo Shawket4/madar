@@ -516,7 +516,12 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
       unawaited(
         attempt(
           ref,
-          () => _store.moveShift(s, dateOnly(day), s.tpl),
+          () => _store.moveShift(
+            s,
+            dateOnly(day),
+            s.tpl,
+            branch: _branch(_store),
+          ),
           ok: tr('staff.moved_to', {'date': dayLabel(day)}),
         ),
       );
@@ -524,7 +529,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
       final to = emp == null ? null : _store.emps[emp];
       unawaited(
         _save(
-          () => _store.assign(s, emp),
+          () => _store.assign(s, emp, branch: _branch(_store)),
           ok: to == null
               ? tr('staff.open_shift_posted')
               : tr('staff.given_to', {'name': name(to)}),
@@ -608,7 +613,12 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                     onTap: () => t.id == s.tpl
                         ? close()
                         : _save(
-                            () => store.moveShift(s, dateOnly(s.date), t.id),
+                            () => store.moveShift(
+                              s,
+                              dateOnly(s.date),
+                              t.id,
+                              branch: branch,
+                            ),
                             ok: tr('staff.day_saved'),
                             done: close,
                           ),
@@ -643,7 +653,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                   glyph: MadarGlyph.minus,
                   title: tr('staff.remove_this_shift'),
                   onTap: () => _save(
-                    () => store.removeBlock(s),
+                    () => store.removeBlock(s, branch: branch),
                     ok: tr('staff.day_saved'),
                     done: close,
                   ),
@@ -695,7 +705,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                   glyph: MadarGlyph.plus,
                   title: tr('staff.open_shift_anyone_claims'),
                   onTap: () => _save(
-                    () => store.assign(s, null),
+                    () => store.assign(s, null, branch: branch),
                     ok: tr('staff.open_shift_posted'),
                     done: close,
                   ),
@@ -809,7 +819,7 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
                     () => id == null
                         ? store.postOpen(branch, d, tpl)
                         // Beside whatever else they work that day (a split day).
-                        : store.addBlock(id, d, tpl),
+                        : store.addBlock(id, d, tpl, branch: branch),
                     ok: id == null
                         ? tr('staff.open_shift_posted')
                         : tr('staff.added'),

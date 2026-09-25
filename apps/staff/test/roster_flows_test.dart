@@ -94,7 +94,11 @@ void main() {
       await openCard(t, evening);
       expect(word(tr('staff.edited')), findsWidgets);
       await tapText(t, tr('staff.remove_this_shift'));
-      expect(lastAct(), {'action': 'remove_block', 'shift': evening.id});
+      expect(lastAct(), {
+        'action': 'remove_block',
+        'shift': evening.id,
+        'branch': 'b1',
+      });
 
       await openCard(t, evening);
       await tapText(t, tr('staff.block_times'));
@@ -252,6 +256,7 @@ void main() {
         'emp': 'e2',
         'date': ymd(friday),
         'tpl': 'zB',
+        'branch': 'b1',
       });
       await finish(t);
     });
