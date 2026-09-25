@@ -110,6 +110,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   AppRoute dco_decode_app_route(dynamic raw);
 
   @protected
+  AppliedDealView dco_decode_applied_deal_view(dynamic raw);
+
+  @protected
   ApprovalView dco_decode_approval_view(dynamic raw);
 
   @protected
@@ -134,6 +137,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   bool dco_decode_box_autoadd_bool(dynamic raw);
 
   @protected
+  CartLineView dco_decode_box_autoadd_cart_line_view(dynamic raw);
+
+  @protected
   CartMeta dco_decode_box_autoadd_cart_meta(dynamic raw);
 
   @protected
@@ -149,6 +155,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CheckoutSplit dco_decode_box_autoadd_checkout_split(dynamic raw);
 
   @protected
+  ComboDetail dco_decode_box_autoadd_combo_detail(dynamic raw);
+
+  @protected
+  ComboDraft dco_decode_box_autoadd_combo_draft(dynamic raw);
+
+  @protected
   CustomerView dco_decode_box_autoadd_customer_view(dynamic raw);
 
   @protected
@@ -162,6 +174,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  KdsComboTag dco_decode_box_autoadd_kds_combo_tag(dynamic raw);
 
   @protected
   KitchenChit dco_decode_box_autoadd_kitchen_chit(dynamic raw);
@@ -185,6 +200,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   MadarConfig dco_decode_box_autoadd_madar_config(dynamic raw);
+
+  @protected
+  MealOffer dco_decode_box_autoadd_meal_offer(dynamic raw);
 
   @protected
   OpenBillsNoticeView dco_decode_box_autoadd_open_bills_notice_view(
@@ -258,6 +276,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CartOptionalView dco_decode_cart_optional_view(dynamic raw);
 
   @protected
+  CartPartView dco_decode_cart_part_view(dynamic raw);
+
+  @protected
   CartStaffDrinkView dco_decode_cart_staff_drink_view(dynamic raw);
 
   @protected
@@ -312,6 +333,27 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CloseTillPreviewView dco_decode_close_till_preview_view(dynamic raw);
 
   @protected
+  ComboChoiceDetail dco_decode_combo_choice_detail(dynamic raw);
+
+  @protected
+  ComboDetail dco_decode_combo_detail(dynamic raw);
+
+  @protected
+  ComboDraft dco_decode_combo_draft(dynamic raw);
+
+  @protected
+  ComboPickInput dco_decode_combo_pick_input(dynamic raw);
+
+  @protected
+  ComboQuoteView dco_decode_combo_quote_view(dynamic raw);
+
+  @protected
+  ComboSizeOption dco_decode_combo_size_option(dynamic raw);
+
+  @protected
+  ComboSlotDetail dco_decode_combo_slot_detail(dynamic raw);
+
+  @protected
   ComputedRecipeLineView dco_decode_computed_recipe_line_view(dynamic raw);
 
   @protected
@@ -322,6 +364,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   DatePickerChromeView dco_decode_date_picker_chrome_view(dynamic raw);
+
+  @protected
+  DealSuggestion dco_decode_deal_suggestion(dynamic raw);
 
   @protected
   DeliveryFinalizeView dco_decode_delivery_finalize_view(dynamic raw);
@@ -384,6 +429,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   ItemSizeView dco_decode_item_size_view(dynamic raw);
 
   @protected
+  KdsComboTag dco_decode_kds_combo_tag(dynamic raw);
+
+  @protected
   KdsLineView dco_decode_kds_line_view(dynamic raw);
 
   @protected
@@ -429,6 +477,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<AddonSlotView> dco_decode_list_addon_slot_view(dynamic raw);
 
   @protected
+  List<AppliedDealView> dco_decode_list_applied_deal_view(dynamic raw);
+
+  @protected
   List<BookingView> dco_decode_list_booking_view(dynamic raw);
 
   @protected
@@ -448,6 +499,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<CartOptionalView> dco_decode_list_cart_optional_view(dynamic raw);
+
+  @protected
+  List<CartPartView> dco_decode_list_cart_part_view(dynamic raw);
 
   @protected
   List<CashMovementView> dco_decode_list_cash_movement_view(dynamic raw);
@@ -471,6 +525,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<CloseTillMethodView> dco_decode_list_close_till_method_view(dynamic raw);
 
   @protected
+  List<ComboChoiceDetail> dco_decode_list_combo_choice_detail(dynamic raw);
+
+  @protected
+  List<ComboPickInput> dco_decode_list_combo_pick_input(dynamic raw);
+
+  @protected
+  List<ComboSizeOption> dco_decode_list_combo_size_option(dynamic raw);
+
+  @protected
+  List<ComboSlotDetail> dco_decode_list_combo_slot_detail(dynamic raw);
+
+  @protected
   List<ComputedRecipeLineView> dco_decode_list_computed_recipe_line_view(
     dynamic raw,
   );
@@ -480,6 +546,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<CustomerView> dco_decode_list_customer_view(dynamic raw);
+
+  @protected
+  List<DealSuggestion> dco_decode_list_deal_suggestion(dynamic raw);
 
   @protected
   List<DeliveryOrderView> dco_decode_list_delivery_order_view(dynamic raw);
@@ -519,6 +588,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<KdsTicketView> dco_decode_list_kds_ticket_view(dynamic raw);
+
+  @protected
+  List<KitchenChit> dco_decode_list_kitchen_chit(dynamic raw);
 
   @protected
   List<KitchenSlipItem> dco_decode_list_kitchen_slip_item(dynamic raw);
@@ -578,10 +650,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<ReceiptDealView> dco_decode_list_receipt_deal_view(dynamic raw);
+
+  @protected
   List<ReceiptLineView> dco_decode_list_receipt_line_view(dynamic raw);
 
   @protected
   List<ReceiptModifierView> dco_decode_list_receipt_modifier_view(dynamic raw);
+
+  @protected
+  List<ReceiptPartView> dco_decode_list_receipt_part_view(dynamic raw);
 
   @protected
   List<ReceiptPaymentView> dco_decode_list_receipt_payment_view(dynamic raw);
@@ -707,6 +785,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   ManagerActionsView dco_decode_manager_actions_view(dynamic raw);
 
   @protected
+  MealOffer dco_decode_meal_offer(dynamic raw);
+
+  @protected
   MenuItemView dco_decode_menu_item_view(dynamic raw);
 
   @protected
@@ -757,6 +838,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CheckoutSplit? dco_decode_opt_box_autoadd_checkout_split(dynamic raw);
 
   @protected
+  ComboDetail? dco_decode_opt_box_autoadd_combo_detail(dynamic raw);
+
+  @protected
+  ComboDraft? dco_decode_opt_box_autoadd_combo_draft(dynamic raw);
+
+  @protected
   CustomerView? dco_decode_opt_box_autoadd_customer_view(dynamic raw);
 
   @protected
@@ -772,6 +859,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
 
   @protected
+  KdsComboTag? dco_decode_opt_box_autoadd_kds_combo_tag(dynamic raw);
+
+  @protected
   LanAdvertView? dco_decode_opt_box_autoadd_lan_advert_view(dynamic raw);
 
   @protected
@@ -783,6 +873,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   LoyaltyMemberView? dco_decode_opt_box_autoadd_loyalty_member_view(
     dynamic raw,
   );
+
+  @protected
+  MealOffer? dco_decode_opt_box_autoadd_meal_offer(dynamic raw);
 
   @protected
   OpenBillsNoticeView? dco_decode_opt_box_autoadd_open_bills_notice_view(
@@ -854,10 +947,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   RealtimeMessage dco_decode_realtime_message(dynamic raw);
 
   @protected
+  ReceiptDealView dco_decode_receipt_deal_view(dynamic raw);
+
+  @protected
   ReceiptLineView dco_decode_receipt_line_view(dynamic raw);
 
   @protected
   ReceiptModifierView dco_decode_receipt_modifier_view(dynamic raw);
+
+  @protected
+  ReceiptPartView dco_decode_receipt_part_view(dynamic raw);
 
   @protected
   ReceiptPaymentView dco_decode_receipt_payment_view(dynamic raw);
@@ -1123,6 +1222,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   AppRoute sse_decode_app_route(SseDeserializer deserializer);
 
   @protected
+  AppliedDealView sse_decode_applied_deal_view(SseDeserializer deserializer);
+
+  @protected
   ApprovalView sse_decode_approval_view(SseDeserializer deserializer);
 
   @protected
@@ -1151,6 +1253,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
+  CartLineView sse_decode_box_autoadd_cart_line_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CartMeta sse_decode_box_autoadd_cart_meta(SseDeserializer deserializer);
 
   @protected
@@ -1174,6 +1281,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  ComboDetail sse_decode_box_autoadd_combo_detail(SseDeserializer deserializer);
+
+  @protected
+  ComboDraft sse_decode_box_autoadd_combo_draft(SseDeserializer deserializer);
+
+  @protected
   CustomerView sse_decode_box_autoadd_customer_view(
     SseDeserializer deserializer,
   );
@@ -1191,6 +1304,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  KdsComboTag sse_decode_box_autoadd_kds_combo_tag(
+    SseDeserializer deserializer,
+  );
 
   @protected
   KitchenChit sse_decode_box_autoadd_kitchen_chit(SseDeserializer deserializer);
@@ -1222,6 +1340,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   MadarConfig sse_decode_box_autoadd_madar_config(SseDeserializer deserializer);
+
+  @protected
+  MealOffer sse_decode_box_autoadd_meal_offer(SseDeserializer deserializer);
 
   @protected
   OpenBillsNoticeView sse_decode_box_autoadd_open_bills_notice_view(
@@ -1309,6 +1430,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CartOptionalView sse_decode_cart_optional_view(SseDeserializer deserializer);
 
   @protected
+  CartPartView sse_decode_cart_part_view(SseDeserializer deserializer);
+
+  @protected
   CartStaffDrinkView sse_decode_cart_staff_drink_view(
     SseDeserializer deserializer,
   );
@@ -1379,6 +1503,29 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  ComboChoiceDetail sse_decode_combo_choice_detail(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ComboDetail sse_decode_combo_detail(SseDeserializer deserializer);
+
+  @protected
+  ComboDraft sse_decode_combo_draft(SseDeserializer deserializer);
+
+  @protected
+  ComboPickInput sse_decode_combo_pick_input(SseDeserializer deserializer);
+
+  @protected
+  ComboQuoteView sse_decode_combo_quote_view(SseDeserializer deserializer);
+
+  @protected
+  ComboSizeOption sse_decode_combo_size_option(SseDeserializer deserializer);
+
+  @protected
+  ComboSlotDetail sse_decode_combo_slot_detail(SseDeserializer deserializer);
+
+  @protected
   ComputedRecipeLineView sse_decode_computed_recipe_line_view(
     SseDeserializer deserializer,
   );
@@ -1395,6 +1542,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   DatePickerChromeView sse_decode_date_picker_chrome_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  DealSuggestion sse_decode_deal_suggestion(SseDeserializer deserializer);
 
   @protected
   DeliveryFinalizeView sse_decode_delivery_finalize_view(
@@ -1467,6 +1617,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   ItemSizeView sse_decode_item_size_view(SseDeserializer deserializer);
 
   @protected
+  KdsComboTag sse_decode_kds_combo_tag(SseDeserializer deserializer);
+
+  @protected
   KdsLineView sse_decode_kds_line_view(SseDeserializer deserializer);
 
   @protected
@@ -1522,6 +1675,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<AppliedDealView> sse_decode_list_applied_deal_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<BookingView> sse_decode_list_booking_view(SseDeserializer deserializer);
 
   @protected
@@ -1549,6 +1707,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<CartOptionalView> sse_decode_list_cart_optional_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<CartPartView> sse_decode_list_cart_part_view(
     SseDeserializer deserializer,
   );
 
@@ -1588,6 +1751,26 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<ComboChoiceDetail> sse_decode_list_combo_choice_detail(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ComboPickInput> sse_decode_list_combo_pick_input(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ComboSizeOption> sse_decode_list_combo_size_option(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ComboSlotDetail> sse_decode_list_combo_slot_detail(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<ComputedRecipeLineView> sse_decode_list_computed_recipe_line_view(
     SseDeserializer deserializer,
   );
@@ -1599,6 +1782,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<CustomerView> sse_decode_list_customer_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<DealSuggestion> sse_decode_list_deal_suggestion(
     SseDeserializer deserializer,
   );
 
@@ -1660,6 +1848,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<KdsTicketView> sse_decode_list_kds_ticket_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<KitchenChit> sse_decode_list_kitchen_chit(SseDeserializer deserializer);
 
   @protected
   List<KitchenSlipItem> sse_decode_list_kitchen_slip_item(
@@ -1753,12 +1944,22 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<ReceiptDealView> sse_decode_list_receipt_deal_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<ReceiptLineView> sse_decode_list_receipt_line_view(
     SseDeserializer deserializer,
   );
 
   @protected
   List<ReceiptModifierView> sse_decode_list_receipt_modifier_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ReceiptPartView> sse_decode_list_receipt_part_view(
     SseDeserializer deserializer,
   );
 
@@ -1940,6 +2141,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  MealOffer sse_decode_meal_offer(SseDeserializer deserializer);
+
+  @protected
   MenuItemView sse_decode_menu_item_view(SseDeserializer deserializer);
 
   @protected
@@ -2008,6 +2212,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  ComboDetail? sse_decode_opt_box_autoadd_combo_detail(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ComboDraft? sse_decode_opt_box_autoadd_combo_draft(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CustomerView? sse_decode_opt_box_autoadd_customer_view(
     SseDeserializer deserializer,
   );
@@ -2027,6 +2241,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
+  KdsComboTag? sse_decode_opt_box_autoadd_kds_combo_tag(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LanAdvertView? sse_decode_opt_box_autoadd_lan_advert_view(
     SseDeserializer deserializer,
   );
@@ -2038,6 +2257,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   LoyaltyMemberView? sse_decode_opt_box_autoadd_loyalty_member_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MealOffer? sse_decode_opt_box_autoadd_meal_offer(
     SseDeserializer deserializer,
   );
 
@@ -2123,12 +2347,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   RealtimeMessage sse_decode_realtime_message(SseDeserializer deserializer);
 
   @protected
+  ReceiptDealView sse_decode_receipt_deal_view(SseDeserializer deserializer);
+
+  @protected
   ReceiptLineView sse_decode_receipt_line_view(SseDeserializer deserializer);
 
   @protected
   ReceiptModifierView sse_decode_receipt_modifier_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  ReceiptPartView sse_decode_receipt_part_view(SseDeserializer deserializer);
 
   @protected
   ReceiptPaymentView sse_decode_receipt_payment_view(
@@ -2448,6 +2678,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_app_route(AppRoute self, SseSerializer serializer);
 
   @protected
+  void sse_encode_applied_deal_view(
+    AppliedDealView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_approval_view(ApprovalView self, SseSerializer serializer);
 
   @protected
@@ -2481,6 +2717,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_cart_line_view(
+    CartLineView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_cart_meta(
     CartMeta self,
     SseSerializer serializer,
@@ -2511,6 +2753,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_combo_detail(
+    ComboDetail self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_combo_draft(
+    ComboDraft self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_customer_view(
     CustomerView self,
     SseSerializer serializer,
@@ -2531,6 +2785,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_box_autoadd_i_64(
     PlatformInt64 self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_kds_combo_tag(
+    KdsComboTag self,
     SseSerializer serializer,
   );
 
@@ -2573,6 +2833,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_box_autoadd_madar_config(
     MadarConfig self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_meal_offer(
+    MealOffer self,
     SseSerializer serializer,
   );
 
@@ -2691,6 +2957,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_cart_part_view(CartPartView self, SseSerializer serializer);
+
+  @protected
   void sse_encode_cart_staff_drink_view(
     CartStaffDrinkView self,
     SseSerializer serializer,
@@ -2778,6 +3047,42 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_combo_choice_detail(
+    ComboChoiceDetail self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_combo_detail(ComboDetail self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_combo_draft(ComboDraft self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_combo_pick_input(
+    ComboPickInput self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_combo_quote_view(
+    ComboQuoteView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_combo_size_option(
+    ComboSizeOption self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_combo_slot_detail(
+    ComboSlotDetail self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_computed_recipe_line_view(
     ComputedRecipeLineView self,
     SseSerializer serializer,
@@ -2795,6 +3100,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_date_picker_chrome_view(
     DatePickerChromeView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_deal_suggestion(
+    DealSuggestion self,
     SseSerializer serializer,
   );
 
@@ -2889,6 +3200,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_item_size_view(ItemSizeView self, SseSerializer serializer);
 
   @protected
+  void sse_encode_kds_combo_tag(KdsComboTag self, SseSerializer serializer);
+
+  @protected
   void sse_encode_kds_line_view(KdsLineView self, SseSerializer serializer);
 
   @protected
@@ -2958,6 +3272,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_applied_deal_view(
+    List<AppliedDealView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_booking_view(
     List<BookingView> self,
     SseSerializer serializer,
@@ -2996,6 +3316,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_cart_optional_view(
     List<CartOptionalView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_cart_part_view(
+    List<CartPartView> self,
     SseSerializer serializer,
   );
 
@@ -3042,6 +3368,30 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_combo_choice_detail(
+    List<ComboChoiceDetail> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_combo_pick_input(
+    List<ComboPickInput> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_combo_size_option(
+    List<ComboSizeOption> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_combo_slot_detail(
+    List<ComboSlotDetail> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_computed_recipe_line_view(
     List<ComputedRecipeLineView> self,
     SseSerializer serializer,
@@ -3056,6 +3406,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_customer_view(
     List<CustomerView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_deal_suggestion(
+    List<DealSuggestion> self,
     SseSerializer serializer,
   );
 
@@ -3134,6 +3490,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_kds_ticket_view(
     List<KdsTicketView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_kitchen_chit(
+    List<KitchenChit> self,
     SseSerializer serializer,
   );
 
@@ -3249,6 +3611,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_receipt_deal_view(
+    List<ReceiptDealView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_receipt_line_view(
     List<ReceiptLineView> self,
     SseSerializer serializer,
@@ -3257,6 +3625,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_receipt_modifier_view(
     List<ReceiptModifierView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_receipt_part_view(
+    List<ReceiptPartView> self,
     SseSerializer serializer,
   );
 
@@ -3483,6 +3857,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_meal_offer(MealOffer self, SseSerializer serializer);
+
+  @protected
   void sse_encode_menu_item_view(MenuItemView self, SseSerializer serializer);
 
   @protected
@@ -3570,6 +3947,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_combo_detail(
+    ComboDetail? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_combo_draft(
+    ComboDraft? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_customer_view(
     CustomerView? self,
     SseSerializer serializer,
@@ -3594,6 +3983,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_kds_combo_tag(
+    KdsComboTag? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_lan_advert_view(
     LanAdvertView? self,
     SseSerializer serializer,
@@ -3608,6 +4003,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_opt_box_autoadd_loyalty_member_view(
     LoyaltyMemberView? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_meal_offer(
+    MealOffer? self,
     SseSerializer serializer,
   );
 
@@ -3726,6 +4127,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_receipt_deal_view(
+    ReceiptDealView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_receipt_line_view(
     ReceiptLineView self,
     SseSerializer serializer,
@@ -3734,6 +4141,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_receipt_modifier_view(
     ReceiptModifierView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_receipt_part_view(
+    ReceiptPartView self,
     SseSerializer serializer,
   );
 

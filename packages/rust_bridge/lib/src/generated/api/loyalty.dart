@@ -409,6 +409,12 @@ class RewardLineInput {
   final PlatformInt64 lineTotalMinor;
   final bool isStaffDrink;
 
+  /// A combo line: its items earn stamps, but no reward inside it (C7).
+  final bool inCombo;
+
+  /// A line in an applied deal: never a reward too.
+  final bool inDeal;
+
   const RewardLineInput({
     required this.name,
     this.cartIndex,
@@ -417,6 +423,8 @@ class RewardLineInput {
     required this.qty,
     required this.lineTotalMinor,
     required this.isStaffDrink,
+    required this.inCombo,
+    required this.inDeal,
   });
 
   @override
@@ -427,7 +435,9 @@ class RewardLineInput {
       menuItemId.hashCode ^
       qty.hashCode ^
       lineTotalMinor.hashCode ^
-      isStaffDrink.hashCode;
+      isStaffDrink.hashCode ^
+      inCombo.hashCode ^
+      inDeal.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -440,7 +450,9 @@ class RewardLineInput {
           menuItemId == other.menuItemId &&
           qty == other.qty &&
           lineTotalMinor == other.lineTotalMinor &&
-          isStaffDrink == other.isStaffDrink;
+          isStaffDrink == other.isStaffDrink &&
+          inCombo == other.inCombo &&
+          inDeal == other.inDeal;
 }
 
 class RewardLineState {

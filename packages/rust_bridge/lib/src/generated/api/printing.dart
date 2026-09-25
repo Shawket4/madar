@@ -150,6 +150,9 @@ class KitchenChit {
   final String at;
   final String? teller;
 
+  /// The combo this dish belongs to, already worded ("In Lunch deal").
+  final String? combo;
+
   const KitchenChit({
     required this.item,
     required this.qty,
@@ -160,6 +163,7 @@ class KitchenChit {
     this.ticketRef,
     required this.at,
     this.teller,
+    this.combo,
   });
 
   @override
@@ -172,7 +176,8 @@ class KitchenChit {
       tableLabel.hashCode ^
       ticketRef.hashCode ^
       at.hashCode ^
-      teller.hashCode;
+      teller.hashCode ^
+      combo.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -187,7 +192,8 @@ class KitchenChit {
           tableLabel == other.tableLabel &&
           ticketRef == other.ticketRef &&
           at == other.at &&
-          teller == other.teller;
+          teller == other.teller &&
+          combo == other.combo;
 }
 
 /// Mirrors `madar_core::receipt::KitchenSlip` — a kitchen slip: one header,
@@ -241,12 +247,16 @@ class KitchenSlipItem {
   final List<String> modifiers;
   final String? note;
 
+  /// The combo this dish belongs to, already worded ("In Lunch deal").
+  final String? combo;
+
   const KitchenSlipItem({
     required this.item,
     required this.qty,
     this.sizeLabel,
     required this.modifiers,
     this.note,
+    this.combo,
   });
 
   @override
@@ -255,7 +265,8 @@ class KitchenSlipItem {
       qty.hashCode ^
       sizeLabel.hashCode ^
       modifiers.hashCode ^
-      note.hashCode;
+      note.hashCode ^
+      combo.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -266,7 +277,8 @@ class KitchenSlipItem {
           qty == other.qty &&
           sizeLabel == other.sizeLabel &&
           modifiers == other.modifiers &&
-          note == other.note;
+          note == other.note &&
+          combo == other.combo;
 }
 
 /// Which thermal-printer command dialect to emit. Epson (ESC/POS) and Star

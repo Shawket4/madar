@@ -175,6 +175,9 @@ class OrderDetailLineView {
   /// Optional-field labels.
   final List<String> optionals;
 
+  /// `"item"`, `"combo"` (its parts follow) or `"combo_part"` (indented).
+  final String kind;
+
   const OrderDetailLineView({
     required this.name,
     required this.qty,
@@ -182,6 +185,7 @@ class OrderDetailLineView {
     required this.lineTotalMinor,
     required this.addons,
     required this.optionals,
+    required this.kind,
   });
 
   @override
@@ -191,7 +195,8 @@ class OrderDetailLineView {
       sizeLabel.hashCode ^
       lineTotalMinor.hashCode ^
       addons.hashCode ^
-      optionals.hashCode;
+      optionals.hashCode ^
+      kind.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -203,7 +208,8 @@ class OrderDetailLineView {
           sizeLabel == other.sizeLabel &&
           lineTotalMinor == other.lineTotalMinor &&
           addons == other.addons &&
-          optionals == other.optionals;
+          optionals == other.optionals &&
+          kind == other.kind;
 }
 
 /// A fetched order with its lines — drives the history detail + reprint.
@@ -443,6 +449,25 @@ class OrderSummaryView {
           displayNumber == other.displayNumber;
 }
 
+/// A deal row, printed under the subtotal.
+class ReceiptDealView {
+  final String name;
+  final PlatformInt64 discountMinor;
+
+  const ReceiptDealView({required this.name, required this.discountMinor});
+
+  @override
+  int get hashCode => name.hashCode ^ discountMinor.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReceiptDealView &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          discountMinor == other.discountMinor;
+}
+
 /// One line on the receipt the host shows after placing an order.
 class ReceiptLineView {
   final String name;
@@ -460,6 +485,17 @@ class ReceiptLineView {
   final List<ReceiptModifierView> addons;
   final List<ReceiptModifierView> optionals;
 
+  /// `"item"` or `"combo"`: a combo prints `n × <name> …… n×P`, then its
+  /// items indented.
+  final String kind;
+
+  /// One unit before its extras (a combo's P).
+  final PlatformInt64 unitPriceMinor;
+  final List<ReceiptPartView> parts;
+
+  /// What a deal took off this line; the line prints at its normal price.
+  final PlatformInt64 dealMinor;
+
   const ReceiptLineView({
     required this.name,
     required this.qty,
@@ -470,6 +506,10 @@ class ReceiptLineView {
     required this.staffCompMinor,
     required this.addons,
     required this.optionals,
+    required this.kind,
+    required this.unitPriceMinor,
+    required this.parts,
+    required this.dealMinor,
   });
 
   @override
@@ -482,7 +522,11 @@ class ReceiptLineView {
       staffLabel.hashCode ^
       staffCompMinor.hashCode ^
       addons.hashCode ^
-      optionals.hashCode;
+      optionals.hashCode ^
+      kind.hashCode ^
+      unitPriceMinor.hashCode ^
+      parts.hashCode ^
+      dealMinor.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -497,7 +541,11 @@ class ReceiptLineView {
           staffLabel == other.staffLabel &&
           staffCompMinor == other.staffCompMinor &&
           addons == other.addons &&
-          optionals == other.optionals;
+          optionals == other.optionals &&
+          kind == other.kind &&
+          unitPriceMinor == other.unitPriceMinor &&
+          parts == other.parts &&
+          dealMinor == other.dealMinor;
 }
 
 /// A priced modifier on a receipt line (an addon or a chosen optional).
@@ -517,6 +565,50 @@ class ReceiptModifierView {
           runtimeType == other.runtimeType &&
           name == other.name &&
           priceMinor == other.priceMinor;
+}
+
+/// One item of a combo on the receipt (whole-line figures).
+class ReceiptPartView {
+  final String name;
+  final PlatformInt64 qty;
+  final String? sizeLabel;
+  final String? slotName;
+  final PlatformInt64 surchargeMinor;
+  final List<ReceiptModifierView> addons;
+  final List<ReceiptModifierView> optionals;
+
+  const ReceiptPartView({
+    required this.name,
+    required this.qty,
+    this.sizeLabel,
+    this.slotName,
+    required this.surchargeMinor,
+    required this.addons,
+    required this.optionals,
+  });
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      qty.hashCode ^
+      sizeLabel.hashCode ^
+      slotName.hashCode ^
+      surchargeMinor.hashCode ^
+      addons.hashCode ^
+      optionals.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReceiptPartView &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          qty == other.qty &&
+          sizeLabel == other.sizeLabel &&
+          slotName == other.slotName &&
+          surchargeMinor == other.surchargeMinor &&
+          addons == other.addons &&
+          optionals == other.optionals;
 }
 
 /// One tender on a split receipt.
@@ -616,6 +708,9 @@ class ReceiptView {
   /// does not support free staff drinks yet. For the done card; never printed.
   final String? staffNotice;
 
+  /// The deals on the order; `subtotal_minor` is net of them.
+  final List<ReceiptDealView> deals;
+
   const ReceiptView({
     required this.localOrderId,
     this.orderNumber,
@@ -653,6 +748,7 @@ class ReceiptView {
     required this.payments,
     this.loyaltyNotice,
     this.staffNotice,
+    required this.deals,
   });
 
   @override
@@ -692,7 +788,8 @@ class ReceiptView {
       createdAt.hashCode ^
       payments.hashCode ^
       loyaltyNotice.hashCode ^
-      staffNotice.hashCode;
+      staffNotice.hashCode ^
+      deals.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -734,7 +831,8 @@ class ReceiptView {
           createdAt == other.createdAt &&
           payments == other.payments &&
           loyaltyNotice == other.loyaltyNotice &&
-          staffNotice == other.staffNotice;
+          staffNotice == other.staffNotice &&
+          deals == other.deals;
 }
 
 /// A line picked on the refund sheet.

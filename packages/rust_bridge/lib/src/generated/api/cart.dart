@@ -25,6 +25,47 @@ class AddonSelection {
           qty == other.qty;
 }
 
+/// A deal applied on the cart.
+class AppliedDealView {
+  /// Pass to `cart_remove_deal`.
+  final String id;
+  final String dealId;
+  final String name;
+  final PlatformInt64 times;
+  final PlatformInt64 discountMinor;
+  final List<String> lineKeys;
+
+  const AppliedDealView({
+    required this.id,
+    required this.dealId,
+    required this.name,
+    required this.times,
+    required this.discountMinor,
+    required this.lineKeys,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      dealId.hashCode ^
+      name.hashCode ^
+      times.hashCode ^
+      discountMinor.hashCode ^
+      lineKeys.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppliedDealView &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          dealId == other.dealId &&
+          name == other.name &&
+          times == other.times &&
+          discountMinor == other.discountMinor &&
+          lineKeys == other.lineKeys;
+}
+
 class CartAddonView {
   final String addonItemId;
   final String name;
@@ -78,6 +119,16 @@ class CartLineView {
   /// price; this carries the comp and what is still charged.
   final CartStaffDrinkView? staffDrink;
 
+  /// `"item"` or `"combo"`. A combo's `unit_price_minor` is its price P,
+  /// `line_total_minor` the whole line, and its items are `parts`.
+  final String kind;
+  final List<CartPartView> parts;
+
+  /// What an applied deal takes off this line (0 = none);
+  /// `line_total_minor` stays the normal price.
+  final PlatformInt64 dealCutMinor;
+  final String? dealName;
+
   const CartLineView({
     required this.key,
     required this.itemId,
@@ -91,6 +142,10 @@ class CartLineView {
     required this.lineTotalMinor,
     this.kitchenNote,
     this.staffDrink,
+    required this.kind,
+    required this.parts,
+    required this.dealCutMinor,
+    this.dealName,
   });
 
   @override
@@ -106,7 +161,11 @@ class CartLineView {
       qty.hashCode ^
       lineTotalMinor.hashCode ^
       kitchenNote.hashCode ^
-      staffDrink.hashCode;
+      staffDrink.hashCode ^
+      kind.hashCode ^
+      parts.hashCode ^
+      dealCutMinor.hashCode ^
+      dealName.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -124,7 +183,11 @@ class CartLineView {
           qty == other.qty &&
           lineTotalMinor == other.lineTotalMinor &&
           kitchenNote == other.kitchenNote &&
-          staffDrink == other.staffDrink;
+          staffDrink == other.staffDrink &&
+          kind == other.kind &&
+          parts == other.parts &&
+          dealCutMinor == other.dealCutMinor &&
+          dealName == other.dealName;
 }
 
 /// What `switch_to_draft` left in hand.
@@ -198,6 +261,80 @@ class CartOptionalView {
           optionalFieldId == other.optionalFieldId &&
           name == other.name &&
           priceMinor == other.priceMinor;
+}
+
+/// One item of a combo line, drawn indented under the combo.
+class CartPartView {
+  final String slotId;
+  final String slotName;
+  final String itemId;
+  final String itemName;
+
+  /// `None` for an item with no real size.
+  final String? sizeLabel;
+
+  /// Units per combo.
+  final PlatformInt64 qty;
+
+  /// The item's normal price at its size.
+  final PlatformInt64 unitPriceMinor;
+
+  /// Its share of ONE combo price.
+  final PlatformInt64 shareMinor;
+
+  /// Per unit: what the choice and a bigger size add (0 = included).
+  final PlatformInt64 surchargeMinor;
+  final List<CartAddonView> addons;
+  final List<CartOptionalView> optionals;
+  final String? notes;
+
+  const CartPartView({
+    required this.slotId,
+    required this.slotName,
+    required this.itemId,
+    required this.itemName,
+    this.sizeLabel,
+    required this.qty,
+    required this.unitPriceMinor,
+    required this.shareMinor,
+    required this.surchargeMinor,
+    required this.addons,
+    required this.optionals,
+    this.notes,
+  });
+
+  @override
+  int get hashCode =>
+      slotId.hashCode ^
+      slotName.hashCode ^
+      itemId.hashCode ^
+      itemName.hashCode ^
+      sizeLabel.hashCode ^
+      qty.hashCode ^
+      unitPriceMinor.hashCode ^
+      shareMinor.hashCode ^
+      surchargeMinor.hashCode ^
+      addons.hashCode ^
+      optionals.hashCode ^
+      notes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CartPartView &&
+          runtimeType == other.runtimeType &&
+          slotId == other.slotId &&
+          slotName == other.slotName &&
+          itemId == other.itemId &&
+          itemName == other.itemName &&
+          sizeLabel == other.sizeLabel &&
+          qty == other.qty &&
+          unitPriceMinor == other.unitPriceMinor &&
+          shareMinor == other.shareMinor &&
+          surchargeMinor == other.surchargeMinor &&
+          addons == other.addons &&
+          optionals == other.optionals &&
+          notes == other.notes;
 }
 
 /// A cart line's staff-drink mark.
@@ -335,6 +472,48 @@ class ComputedRecipeLineView {
           quantity == other.quantity &&
           sourceLabel == other.sourceLabel &&
           isBase == other.isBase;
+}
+
+/// A deal the cart qualifies for — the teller taps it to apply (C8).
+class DealSuggestion {
+  final String dealId;
+  final String name;
+  final PlatformInt64 times;
+
+  /// "Applies twice", localized.
+  final String timesLabel;
+  final PlatformInt64 savingMinor;
+  final List<String> lineKeys;
+
+  const DealSuggestion({
+    required this.dealId,
+    required this.name,
+    required this.times,
+    required this.timesLabel,
+    required this.savingMinor,
+    required this.lineKeys,
+  });
+
+  @override
+  int get hashCode =>
+      dealId.hashCode ^
+      name.hashCode ^
+      times.hashCode ^
+      timesLabel.hashCode ^
+      savingMinor.hashCode ^
+      lineKeys.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DealSuggestion &&
+          runtimeType == other.runtimeType &&
+          dealId == other.dealId &&
+          name == other.name &&
+          times == other.times &&
+          timesLabel == other.timesLabel &&
+          savingMinor == other.savingMinor &&
+          lineKeys == other.lineKeys;
 }
 
 class DraftSwitchView {

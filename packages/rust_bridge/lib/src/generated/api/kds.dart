@@ -6,6 +6,25 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+/// A kitchen line's combo: every item of one combo shares `line_id`.
+class KdsComboTag {
+  final String lineId;
+  final String name;
+
+  const KdsComboTag({required this.lineId, required this.name});
+
+  @override
+  int get hashCode => lineId.hashCode ^ name.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is KdsComboTag &&
+          runtimeType == other.runtimeType &&
+          lineId == other.lineId &&
+          name == other.name;
+}
+
 /// One kitchen line (NO prices — the kitchen copy is slim by design).
 class KdsLineView {
   final String id;
@@ -18,6 +37,9 @@ class KdsLineView {
   final String? stationName;
   final bool bumped;
 
+  /// The combo this line is one item of (C12).
+  final KdsComboTag? combo;
+
   const KdsLineView({
     required this.id,
     required this.name,
@@ -28,6 +50,7 @@ class KdsLineView {
     this.stationId,
     this.stationName,
     required this.bumped,
+    this.combo,
   });
 
   @override
@@ -40,7 +63,8 @@ class KdsLineView {
       notes.hashCode ^
       stationId.hashCode ^
       stationName.hashCode ^
-      bumped.hashCode;
+      bumped.hashCode ^
+      combo.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -55,7 +79,8 @@ class KdsLineView {
           notes == other.notes &&
           stationId == other.stationId &&
           stationName == other.stationName &&
-          bumped == other.bumped;
+          bumped == other.bumped &&
+          combo == other.combo;
 }
 
 /// A kitchen station (Grill, Bar…) for the KDS station picker + chit printing.

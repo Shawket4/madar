@@ -4,6 +4,7 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'cart.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 /// One ingredient embedded in an addon item (`/addon-items` wire). Drives the
@@ -196,6 +197,351 @@ class CategoryView {
           displayOrder == other.displayOrder;
 }
 
+class ComboChoiceDetail {
+  final String itemId;
+  final String name;
+  final String? localImagePath;
+
+  /// The item's normal price at the size the combo includes.
+  final PlatformInt64 basePriceMinor;
+  final String? includedSizeLabel;
+
+  /// What choosing this item adds (0 = included).
+  final PlatformInt64 surchargeMinor;
+  final List<ComboSizeOption> sizes;
+  final bool isDefault;
+
+  /// The item has add-ons or options: offer "Customise".
+  final bool customisable;
+
+  const ComboChoiceDetail({
+    required this.itemId,
+    required this.name,
+    this.localImagePath,
+    required this.basePriceMinor,
+    this.includedSizeLabel,
+    required this.surchargeMinor,
+    required this.sizes,
+    required this.isDefault,
+    required this.customisable,
+  });
+
+  @override
+  int get hashCode =>
+      itemId.hashCode ^
+      name.hashCode ^
+      localImagePath.hashCode ^
+      basePriceMinor.hashCode ^
+      includedSizeLabel.hashCode ^
+      surchargeMinor.hashCode ^
+      sizes.hashCode ^
+      isDefault.hashCode ^
+      customisable.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ComboChoiceDetail &&
+          runtimeType == other.runtimeType &&
+          itemId == other.itemId &&
+          name == other.name &&
+          localImagePath == other.localImagePath &&
+          basePriceMinor == other.basePriceMinor &&
+          includedSizeLabel == other.includedSizeLabel &&
+          surchargeMinor == other.surchargeMinor &&
+          sizes == other.sizes &&
+          isDefault == other.isDefault &&
+          customisable == other.customisable;
+}
+
+/// The combo sheet, priced.
+class ComboDetail {
+  final String id;
+  final String name;
+  final String? description;
+  final String? localImagePath;
+
+  /// P: the combo's price before any surcharge or add-on.
+  final PlatformInt64 priceMinor;
+
+  /// One item per slot, nothing to choose.
+  final bool isFixed;
+  final bool availableNow;
+
+  /// Why not, in the teller's language.
+  final String? whyUnavailable;
+  final List<ComboSlotDetail> slots;
+
+  const ComboDetail({
+    required this.id,
+    required this.name,
+    this.description,
+    this.localImagePath,
+    required this.priceMinor,
+    required this.isFixed,
+    required this.availableNow,
+    this.whyUnavailable,
+    required this.slots,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      description.hashCode ^
+      localImagePath.hashCode ^
+      priceMinor.hashCode ^
+      isFixed.hashCode ^
+      availableNow.hashCode ^
+      whyUnavailable.hashCode ^
+      slots.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ComboDetail &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          description == other.description &&
+          localImagePath == other.localImagePath &&
+          priceMinor == other.priceMinor &&
+          isFixed == other.isFixed &&
+          availableNow == other.availableNow &&
+          whyUnavailable == other.whyUnavailable &&
+          slots == other.slots;
+}
+
+/// A combo to edit on the sheet (a cart line, or "make it a meal").
+class ComboDraft {
+  final String comboId;
+
+  /// The cart line saving replaces (`cart_replace_combo`); `None` = add.
+  final String? lineKey;
+  final PlatformInt64 qty;
+  final String? notes;
+  final List<ComboPickInput> picks;
+
+  const ComboDraft({
+    required this.comboId,
+    this.lineKey,
+    required this.qty,
+    this.notes,
+    required this.picks,
+  });
+
+  @override
+  int get hashCode =>
+      comboId.hashCode ^
+      lineKey.hashCode ^
+      qty.hashCode ^
+      notes.hashCode ^
+      picks.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ComboDraft &&
+          runtimeType == other.runtimeType &&
+          comboId == other.comboId &&
+          lineKey == other.lineKey &&
+          qty == other.qty &&
+          notes == other.notes &&
+          picks == other.picks;
+}
+
+/// One pick of a combo: the slot, the item, its size and its add-ons.
+class ComboPickInput {
+  final String slotId;
+  final String itemId;
+
+  /// `None` = the size the combo includes.
+  final String? sizeLabel;
+
+  /// Units per combo (usually 1).
+  final PlatformInt64 qty;
+  final List<AddonSelection> addons;
+  final List<String> optionalFieldIds;
+  final String? notes;
+
+  const ComboPickInput({
+    required this.slotId,
+    required this.itemId,
+    this.sizeLabel,
+    required this.qty,
+    required this.addons,
+    required this.optionalFieldIds,
+    this.notes,
+  });
+
+  @override
+  int get hashCode =>
+      slotId.hashCode ^
+      itemId.hashCode ^
+      sizeLabel.hashCode ^
+      qty.hashCode ^
+      addons.hashCode ^
+      optionalFieldIds.hashCode ^
+      notes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ComboPickInput &&
+          runtimeType == other.runtimeType &&
+          slotId == other.slotId &&
+          itemId == other.itemId &&
+          sizeLabel == other.sizeLabel &&
+          qty == other.qty &&
+          addons == other.addons &&
+          optionalFieldIds == other.optionalFieldIds &&
+          notes == other.notes;
+}
+
+/// The combo sheet's live figures.
+class ComboQuoteView {
+  final PlatformInt64 priceMinor;
+  final PlatformInt64 unitTotalMinor;
+  final PlatformInt64 lineTotalMinor;
+  final PlatformInt64 surchargeMinor;
+  final PlatformInt64 extrasMinor;
+  final PlatformInt64 listMinor;
+  final PlatformInt64 savingMinor;
+
+  /// Every slot is satisfied: the combo can be added.
+  final bool complete;
+
+  /// The coded refusal (`COMBO_SLOT_TOO_FEW`, …) when not complete.
+  final String? refusal;
+
+  /// The same, in the teller's language.
+  final String? refusalText;
+
+  const ComboQuoteView({
+    required this.priceMinor,
+    required this.unitTotalMinor,
+    required this.lineTotalMinor,
+    required this.surchargeMinor,
+    required this.extrasMinor,
+    required this.listMinor,
+    required this.savingMinor,
+    required this.complete,
+    this.refusal,
+    this.refusalText,
+  });
+
+  @override
+  int get hashCode =>
+      priceMinor.hashCode ^
+      unitTotalMinor.hashCode ^
+      lineTotalMinor.hashCode ^
+      surchargeMinor.hashCode ^
+      extrasMinor.hashCode ^
+      listMinor.hashCode ^
+      savingMinor.hashCode ^
+      complete.hashCode ^
+      refusal.hashCode ^
+      refusalText.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ComboQuoteView &&
+          runtimeType == other.runtimeType &&
+          priceMinor == other.priceMinor &&
+          unitTotalMinor == other.unitTotalMinor &&
+          lineTotalMinor == other.lineTotalMinor &&
+          surchargeMinor == other.surchargeMinor &&
+          extrasMinor == other.extrasMinor &&
+          listMinor == other.listMinor &&
+          savingMinor == other.savingMinor &&
+          complete == other.complete &&
+          refusal == other.refusal &&
+          refusalText == other.refusalText;
+}
+
+class ComboSizeOption {
+  final String label;
+  final PlatformInt64 priceMinor;
+
+  /// What this size adds inside the combo (0 = included).
+  final PlatformInt64 extraMinor;
+  final bool isIncluded;
+
+  const ComboSizeOption({
+    required this.label,
+    required this.priceMinor,
+    required this.extraMinor,
+    required this.isIncluded,
+  });
+
+  @override
+  int get hashCode =>
+      label.hashCode ^
+      priceMinor.hashCode ^
+      extraMinor.hashCode ^
+      isIncluded.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ComboSizeOption &&
+          runtimeType == other.runtimeType &&
+          label == other.label &&
+          priceMinor == other.priceMinor &&
+          extraMinor == other.extraMinor &&
+          isIncluded == other.isIncluded;
+}
+
+class ComboSlotDetail {
+  final String id;
+  final String name;
+  final PlatformInt64 min;
+  final PlatformInt64 max;
+
+  /// "Choose 1 item", "Optional · Choose up to 2 items", … (localized).
+  final String ruleLabel;
+  final String? defaultItemId;
+  final String? defaultSizeLabel;
+  final List<ComboChoiceDetail> choices;
+
+  const ComboSlotDetail({
+    required this.id,
+    required this.name,
+    required this.min,
+    required this.max,
+    required this.ruleLabel,
+    this.defaultItemId,
+    this.defaultSizeLabel,
+    required this.choices,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      min.hashCode ^
+      max.hashCode ^
+      ruleLabel.hashCode ^
+      defaultItemId.hashCode ^
+      defaultSizeLabel.hashCode ^
+      choices.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ComboSlotDetail &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          min == other.min &&
+          max == other.max &&
+          ruleLabel == other.ruleLabel &&
+          defaultItemId == other.defaultItemId &&
+          defaultSizeLabel == other.defaultSizeLabel &&
+          choices == other.choices;
+}
+
 class DiscountView {
   final String id;
   final String name;
@@ -265,6 +611,35 @@ class ItemSizeView {
           isActive == other.isActive;
 }
 
+/// "Make it a meal +X" on an item.
+class MealOffer {
+  final String comboId;
+  final String slotId;
+  final String name;
+  final PlatformInt64 deltaMinor;
+
+  const MealOffer({
+    required this.comboId,
+    required this.slotId,
+    required this.name,
+    required this.deltaMinor,
+  });
+
+  @override
+  int get hashCode =>
+      comboId.hashCode ^ slotId.hashCode ^ name.hashCode ^ deltaMinor.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MealOffer &&
+          runtimeType == other.runtimeType &&
+          comboId == other.comboId &&
+          slotId == other.slotId &&
+          name == other.name &&
+          deltaMinor == other.deltaMinor;
+}
+
 class MenuItemView {
   final String id;
   final String name;
@@ -295,6 +670,10 @@ class MenuItemView {
   /// How the item is made, in order — shown under the recipe.
   final List<RecipeStepView> recipeSteps;
 
+  /// `"item"` or `"combo"`: a combo opens the combo sheet and wears a
+  /// "Combo" badge.
+  final String kind;
+
   const MenuItemView({
     required this.id,
     required this.name,
@@ -311,6 +690,7 @@ class MenuItemView {
     required this.optionalFields,
     required this.recipes,
     required this.recipeSteps,
+    required this.kind,
   });
 
   @override
@@ -329,7 +709,8 @@ class MenuItemView {
       addonSlots.hashCode ^
       optionalFields.hashCode ^
       recipes.hashCode ^
-      recipeSteps.hashCode;
+      recipeSteps.hashCode ^
+      kind.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -350,7 +731,8 @@ class MenuItemView {
           addonSlots == other.addonSlots &&
           optionalFields == other.optionalFields &&
           recipes == other.recipes &&
-          recipeSteps == other.recipeSteps;
+          recipeSteps == other.recipeSteps &&
+          kind == other.kind;
 }
 
 class OptionalFieldView {
