@@ -87,17 +87,27 @@ async fn seed(fx: &Fixture) -> Seed {
         .await
         .unwrap();
     if found.is_none() {
-        let cat = one(
-            fx,
-            "INSERT INTO categories (org_id, name, display_order) VALUES ($1, 'CB Combos', 99) RETURNING id",
-            &[&org],
-        )
-        .await;
+        let cat = match fx
+            .db
+            .query_opt("SELECT id FROM categories WHERE org_id = $1 AND name = 'CB Combos'", &[&org])
+            .await
+            .unwrap()
+        {
+            Some(r) => r.get::<_, Uuid>(0),
+            None => {
+                one(
+                    fx,
+                    "INSERT INTO categories (org_id, name, display_order) VALUES ($1, 'CB Combos', 99) RETURNING id",
+                    &[&org],
+                )
+                .await
+            }
+        };
         let item = |name: &'static str| {
             let db = &fx.db;
             async move {
                 db.query_one(
-                    "INSERT INTO menu_items (org_id, category_id, name) VALUES ($1, $2, $3) RETURNING id",
+                    "INSERT INTO menu_items (org_id, category_id, name, base_price) VALUES ($1, $2, $3, 0) RETURNING id",
                     &[&org, &cat, &name],
                 )
                 .await
@@ -110,20 +120,28 @@ async fn seed(fx: &Fixture) -> Seed {
             item("CB Fries").await,
             item("CB Latte").await,
         );
-        for (id, label, price, sort) in [
-            (burger, "one_size", BURGER, 0),
-            (fries, "one_size", FRIES, 0),
-            (latte, "Regular", LATTE_R, 0),
-            (latte, "Large", LATTE_L, 1),
+        // Every new item gets its `one_size` row from a trigger: price it (and
+        // make the latte's its Regular, beside a Large).
+        for (id, label, price) in [
+            (burger, "one_size", BURGER),
+            (fries, "one_size", FRIES),
+            (latte, "Regular", LATTE_R),
         ] {
             fx.db
                 .execute(
-                    "INSERT INTO menu_item_sizes (menu_item_id, label, price, sort) VALUES ($1, $2, $3, $4)",
-                    &[&id, &label, &price, &sort],
+                    "UPDATE menu_item_sizes SET label = $2, price = $3 WHERE menu_item_id = $1 AND label = 'one_size'",
+                    &[&id, &label, &price],
                 )
                 .await
                 .expect("size");
         }
+        fx.db
+            .execute(
+                "INSERT INTO menu_item_sizes (menu_item_id, label, price, sort) VALUES ($1, 'Large', $2, 1)",
+                &[&latte, &LATTE_L],
+            )
+            .await
+            .expect("large");
         // Oat milk: an optional, priced pick on the latte.
         let group = one(
             fx,
@@ -157,7 +175,7 @@ async fn seed(fx: &Fixture) -> Seed {
         .await;
         fx.db
             .execute(
-                "INSERT INTO menu_item_sizes (menu_item_id, label, price, sort) VALUES ($1, 'one_size', $2, 0)",
+                "UPDATE menu_item_sizes SET price = $2 WHERE menu_item_id = $1 AND label = 'one_size'",
                 &[&combo, &P],
             )
             .await
