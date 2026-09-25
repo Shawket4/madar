@@ -65,6 +65,11 @@ pub struct CartLine {
     /// does, so the discount, service charge and tax see the CHARGED part only.
     /// Clamped to what the line rings at. Never set beside a reward.
     pub staff_comp_minor: MoneyMinor,
+    /// What an applied DEAL takes off this whole line (COMBOS_CONTRACT §5):
+    /// the line enters the bill at `line_total − deal_minor`, so the order's
+    /// subtotal is net of it, exactly as the server stores `line_total`.
+    /// Clamped to what the line rings at. Never beside a reward or a comp.
+    pub deal_minor: MoneyMinor,
     pub addons: Vec<AddonSel>,
     pub optionals: Vec<OptionalSel>,
 }
@@ -173,7 +178,8 @@ pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
         .lines
         .iter()
         .map(|l| {
-            let charged = line_total(l);
+            let gross = line_total(l);
+            let charged = gross - l.deal_minor.clamp(0, gross.max(0));
             madar_money::bill::BillLine {
                 charged,
                 per_unit: if l.quantity > 0 {
@@ -316,6 +322,7 @@ mod tests {
             unit_price: 1000,
             reward_units: 0,
             staff_comp_minor: 0,
+            deal_minor: 0,
             addons: vec![AddonSel { price_modifier: 250, quantity: 2 }],
             optionals: vec![],
         };
@@ -357,6 +364,7 @@ mod tests {
             unit_price: unit,
             reward_units: 0,
             staff_comp_minor: 0,
+            deal_minor: 0,
             addons: vec![],
             optionals: vec![],
         }
@@ -413,6 +421,7 @@ mod tests {
             unit_price: 5000,
             reward_units: 0,
             staff_comp_minor: 0,
+            deal_minor: 0,
             addons: vec![
                 AddonSel {
                     price_modifier: 1000,
@@ -430,6 +439,7 @@ mod tests {
             unit_price: 5000,
             reward_units: 0,
             staff_comp_minor: 0,
+            deal_minor: 0,
             addons: vec![
                 AddonSel {
                     price_modifier: 500,
@@ -465,6 +475,7 @@ mod tests {
             unit_price: 1500,
             reward_units: 0,
             staff_comp_minor: 0,
+            deal_minor: 0,
             addons: vec![
                 AddonSel {
                     price_modifier: 500,
@@ -782,6 +793,7 @@ mod tests {
             unit_price: 1000,
             reward_units: 0,
             staff_comp_minor: 0,
+            deal_minor: 0,
             addons: vec![AddonSel {
                 price_modifier: 300,
                 quantity: 3,
@@ -814,6 +826,7 @@ mod tests {
             unit_price: 0,
             reward_units: 0,
             staff_comp_minor: 0,
+            deal_minor: 0,
             addons: vec![],
             optionals: vec![OptionalSel { price: 300 }],
         };
@@ -870,6 +883,7 @@ mod proptests {
                 unit_price,
                 reward_units: 0,
                 staff_comp_minor: 0,
+                deal_minor: 0,
                 addons,
                 optionals,
             })
@@ -1045,6 +1059,7 @@ mod proptests {
                         unit_price: l.per_unit,
                         reward_units: l.reward_units,
                         staff_comp_minor: 0,
+                        deal_minor: 0,
                         addons: vec![],
                         optionals: vec![],
                     })

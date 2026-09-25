@@ -166,6 +166,9 @@ const KNOWN_FAMILIES: &[&str] = &[
     "me",
     "tender",
     "shifts",
+    "combo",
+    "meal",
+    "deal",
 ];
 
 #[test]

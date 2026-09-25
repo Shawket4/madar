@@ -32,6 +32,10 @@ pub mod tax;
 pub mod bookings;
 pub mod cart;
 pub(crate) mod catalog_pricing;
+/// Combos on the till: the combo sheet, its live figures, "make it a meal".
+pub mod combos;
+/// Deals on the till: suggested, the teller applies (C8).
+pub mod deals;
 /// Category styling (icon + gradient palette) — port of Flutter's `CatStyle`.
 pub mod catstyle;
 /// Checkout — assemble an order from the cart + place it via the outbox.
@@ -232,6 +236,12 @@ struct CatalogSnapshot {
     unified: Option<menu::UnifiedDoc>,
     /// The menu rows' and add-on rows' `pricing` (madar-catalog's view).
     pricing: catalog_pricing::PricingMirror,
+    /// The combos' own halves (slots, windows), localized.
+    combos: Vec<menu::ComboDef>,
+    /// "Make it a meal" pointers, by plain item id.
+    meals: std::collections::HashMap<String, menu::MealRef>,
+    /// The branch's deal rules, localized.
+    deals: Vec<madar_catalog::deal::DealView>,
 }
 
 /// kv key persisting the dashboard's active org/branch scope override.
@@ -2492,6 +2502,7 @@ pub(crate) fn queued_ticket_view(
                 voided: false,
                 round_number: 1,
                 round_fired_at: event_at.to_string(),
+                is_combo: false,
             }
         })
         .collect();
@@ -4228,6 +4239,9 @@ impl MadarCore {
             addons: menu::addons(&self.store, &locale)?,
             unified: menu::unified_doc(&self.store),
             pricing: catalog_pricing::PricingMirror::load(&self.store),
+            combos: menu::combos(&self.store, &locale)?,
+            meals: menu::meals(&self.store)?,
+            deals: deals::rules(&self.store, &locale),
             locale,
             items,
         });
@@ -4269,7 +4283,18 @@ impl MadarCore {
     }
 
     pub fn list_menu_items(&self) -> Result<Vec<menu::MenuItemView>, CoreError> {
-        Ok(self.catalog()?.items.clone())
+        let catalog = self.catalog()?;
+        // A combo is on the grid only while the till can sell it: the POS
+        // switch on at this branch (§11), inside a window, every required
+        // slot with something to pick. Judged at each read, on the branch's
+        // clock; the sheet judges again when it opens.
+        let at = self.combo_at(&catalog);
+        Ok(catalog
+            .items
+            .iter()
+            .filter(|i| i.kind != menu::KIND_COMBO || self.combo_on_sale(&catalog, &i.id, &at))
+            .cloned()
+            .collect())
     }
     pub fn list_categories(&self) -> Result<Vec<menu::CategoryView>, CoreError> {
         Ok(self.catalog()?.categories.clone())
@@ -4326,16 +4351,17 @@ impl MadarCore {
                 None,
             ))
         });
-        match resolved {
-            Some(line) => cart::add_resolved(&self.store, table_id.as_deref(), line),
+        let lines = match resolved {
+            Some(line) => cart::add_resolved(&self.store, table_id.as_deref(), line)?,
             None => cart::add(
                 &self.store,
                 table_id.as_deref(),
                 &item_id,
                 &name,
                 unit_price_minor,
-            ),
-        }
+            )?,
+        };
+        self.lines_with_deals_settled(table_id.as_deref(), lines)
     }
     /// The lines after a change, with every staff-drink mark re-decided first:
     /// a new size, add-on or quantity recomputes the comp, and a line that
@@ -4346,6 +4372,9 @@ impl MadarCore {
         table_id: Option<&str>,
         lines: Vec<cart::CartLineView>,
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
+        // The deals first: a line that left a deal may be marked again, and
+        // a deal never sits beside a staff drink (contract §1.2).
+        let lines = self.lines_with_deals_settled(table_id, lines)?;
         if lines.iter().all(|l| l.staff_drink.is_none()) {
             return Ok(lines);
         }
@@ -4386,7 +4415,8 @@ impl MadarCore {
             qty,
             notes,
         );
-        cart::add_resolved(&self.store, table_id.as_deref(), line)
+        let lines = cart::add_resolved(&self.store, table_id.as_deref(), line)?;
+        self.lines_with_deals_settled(table_id.as_deref(), lines)
     }
     /// EDIT a configured line: resolve the new configuration, then swap it in
     /// for `line_key` in one write. Anything that fails — an item no longer on
@@ -4589,7 +4619,8 @@ impl MadarCore {
         table_id: Option<String>,
         item_id: String,
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
-        cart::remove(&self.store, table_id.as_deref(), &item_id)
+        let lines = cart::remove(&self.store, table_id.as_deref(), &item_id)?;
+        self.lines_with_deals_settled(table_id.as_deref(), lines)
     }
     /// Undo the last `cart_remove` — re-inserts the swiped-away line. No-op if
     /// nothing was removed (or it was already restored / the cart was cleared).
@@ -10599,6 +10630,8 @@ mod lifecycle_tests {
             qty: 1,
             line_total_minor: 1000,
             is_staff_drink: false,
+            in_combo: false,
+            in_deal: false,
         }];
         let asked = vec![checkout::CheckoutRedemption {
             item_index: 0,

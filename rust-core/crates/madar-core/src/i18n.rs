@@ -37,6 +37,9 @@
 //! only); English's two / few / many read as its other form. The backend's
 //! push shows a push key's own words for every count (it picks no form), so
 //! that key keeps the count's commonest form (Arabic 3–10), not "other".
+//! The till's combo and deal phrases (`combo.pick_n`, `combo.pick_up_to`,
+//! `deal.applies_times`) follow the same forms; the core fills them in the
+//! combo detail and the deal suggestions, so the host never picks a form.
 
 /// Localized string for `key` in `locale`, falling back en → key.
 pub fn tr(locale: &str, key: &str) -> String {
@@ -89,6 +92,10 @@ pub const COUNTED: &[(&str, &str)] = &[
     ("staff.wrong_code_tries_left", "attempts"),
     ("staff.pay_reason_late", "minutes"),
     ("staff.err_checkin_too_early", "minutes"),
+    // The till's combo slot rule and a deal's times (COMBOS_CONTRACT §6).
+    ("combo.pick_n", "count"),
+    ("combo.pick_up_to", "count"),
+    ("deal.applies_times", "count"),
 ];
 
 /// The words for `key` before `args` fill them: in the form its count takes
@@ -2435,6 +2442,66 @@ fn en(key: &str) -> Option<&'static str> {
         "cash.empty_message" => "Pay-ins and pay-outs you record appear here.",
         "settings.this_device" => "This device",
         "me.no_bills_message" => "Bills you open on the floor appear here.",
+        // ── combos, meals and deals (COMBOS_CONTRACT §2.7, §6) ──
+        // The words on the till: the combo sheet, "make it a meal", the
+        // deal suggestions in the cart. Counted phrases follow PLURAL FORMS.
+        "combo.badge" => "Combo",
+        "combo.pick_n" => "Choose {count} items",
+        "combo.pick_n_one" => "Choose {count} item",
+        "combo.pick_up_to" => "Choose up to {count} items",
+        "combo.pick_up_to_one" => "Choose up to {count} item",
+        "combo.pick_range" => "Choose {min} to {max}",
+        "combo.pick_optional" => "Optional",
+        "combo.included_size" => "{size} included",
+        "combo.customise" => "Customise",
+        "combo.total" => "Combo total",
+        "combo.you_save" => "You save {amount}",
+        "combo.add" => "Add to order",
+        "combo.update" => "Update combo",
+        "combo.edit" => "Edit combo",
+        "combo.default_pick" => "Default",
+        "combo.not_now" => "Not available right now",
+        "combo.nothing_to_choose" => "Nothing here can be chosen right now.",
+        "combo.channel_off" => "Combos are switched off on the till at this branch.",
+        "combo.in_combo" => "In {combo}",
+        // The coded refusals, one per server code (§2.7).
+        "combo.unavailable" => "This combo isn't available right now.",
+        "combo.picks_required" => "Choose the items for this combo.",
+        "combo.slot_too_few" => "Choose at least {min} for {slot}.",
+        "combo.slot_too_many" => "Choose at most {max} for {slot}.",
+        "combo.choice_not_allowed" => "That item can't be chosen here.",
+        "combo.item_unavailable" => "{item} isn't available right now.",
+        "combo.whole_only" => "A combo is refunded or voided as a whole.",
+        "combo.staff_drink" => "A staff drink can't be part of a combo.",
+        "combo.reward" => "Rewards can't be used inside a combo.",
+        "combo.nested" => "A combo can't contain another combo.",
+        "combo.slot_invalid" => "Check the slot \"{slot}\".",
+        "combo.slots_required" => "Add at least one slot.",
+        "combo.no_recipe" => "A combo has no recipe of its own; each item uses its own.",
+        "combo.kind_locked" => "This item has sales; its type can't change.",
+        "combo.warn_margin_below_min" => "Margin {margin} is below your minimum {min}.",
+        "combo.warn_no_saving" => "Customers save nothing versus ordering separately.",
+        "combo.warn_cost_unknown" => "The cost of an item in this combo isn't known yet.",
+        "combo.warn_slot_empty_now" => "A slot has nothing that can be chosen right now.",
+        "combo.warn_choice_inactive" => "An item in this combo is switched off.",
+        "meal.make_it" => "Make it a meal",
+        "meal.make_it_plus" => "Make it a meal +{amount}",
+        "meal.target_invalid" => "That combo has no slot for this item.",
+        "deal.badge" => "Deal",
+        "deal.qualifies" => "This order qualifies for {deal}",
+        "deal.apply" => "Apply",
+        "deal.applied" => "{deal} applied",
+        "deal.remove" => "Remove deal",
+        "deal.save" => "Save {amount}",
+        "deal.applies_times" => "Applies {count} times",
+        "deal.applies_times_one" => "Applies once",
+        "deal.dropped" => "{deal} no longer applies to the cart, so it came off.",
+        "deal.not_allowed" => "Applying a deal needs permission. Ask a manager.",
+        "deal.not_eligible" => "This deal no longer applies to the cart.",
+        "deal.invalid" => "Check the deal's \"{field}\".",
+        "deal.units_overlap" => "An item can only count toward one deal.",
+        "deal.staff_drink" => "This item is in a deal. Remove the deal before making it a staff drink.",
+        "deal.reward" => "This item is in a deal, so it can't also be a reward.",
         _ => return None,
     })
 }
@@ -4720,6 +4787,72 @@ fn ar(key: &str) -> Option<&'static str> {
         "cash.empty_message" => "تظهر هنا المبالغ التي تُدخلها إلى الخزنة أو تُخرجها منه.",
         "settings.this_device" => "هذا الجهاز",
         "me.no_bills_message" => "تظهر هنا الفواتير التي تفتحها في الصالة.",
+        // ── combos, meals and deals (COMBOS_CONTRACT §2.7, §6) ──
+        "combo.badge" => "كومبو",
+        "combo.pick_n" => "اختر {count} صنف",
+        "combo.pick_n_one" => "اختر صنفًا واحدًا",
+        "combo.pick_n_two" => "اختر صنفين",
+        "combo.pick_n_few" => "اختر {count} أصناف",
+        "combo.pick_n_many" => "اختر {count} صنفًا",
+        "combo.pick_up_to" => "اختر حتى {count} صنف",
+        "combo.pick_up_to_one" => "اختر حتى صنف واحد",
+        "combo.pick_up_to_two" => "اختر حتى صنفين",
+        "combo.pick_up_to_few" => "اختر حتى {count} أصناف",
+        "combo.pick_up_to_many" => "اختر حتى {count} صنفًا",
+        "combo.pick_range" => "اختر من {min} إلى {max}",
+        "combo.pick_optional" => "اختياري",
+        "combo.included_size" => "{size} مشمول",
+        "combo.customise" => "تخصيص",
+        "combo.total" => "إجمالي الكومبو",
+        "combo.you_save" => "توفّر {amount}",
+        "combo.add" => "أضف إلى الطلب",
+        "combo.update" => "تحديث الكومبو",
+        "combo.edit" => "تعديل الكومبو",
+        "combo.default_pick" => "الافتراضي",
+        "combo.not_now" => "غير متاح الآن",
+        "combo.nothing_to_choose" => "لا يوجد ما يمكن اختياره هنا الآن.",
+        "combo.channel_off" => "الكومبو موقوف على الكاشير في هذا الفرع.",
+        "combo.in_combo" => "ضمن {combo}",
+        "combo.unavailable" => "هذا الكومبو غير متاح الآن.",
+        "combo.picks_required" => "اختر أصناف الكومبو.",
+        "combo.slot_too_few" => "اختر {min} على الأقل من {slot}.",
+        "combo.slot_too_many" => "اختر {max} كحد أقصى من {slot}.",
+        "combo.choice_not_allowed" => "لا يمكن اختيار هذا الصنف هنا.",
+        "combo.item_unavailable" => "{item} غير متاح الآن.",
+        "combo.whole_only" => "يُسترد الكومبو أو يُلغى بالكامل فقط.",
+        "combo.staff_drink" => "لا يمكن أن يكون مشروب الموظف ضمن كومبو.",
+        "combo.reward" => "لا يمكن استخدام المكافآت داخل الكومبو.",
+        "combo.nested" => "لا يمكن أن يحتوي الكومبو على كومبو آخر.",
+        "combo.slot_invalid" => "راجع الخانة «{slot}».",
+        "combo.slots_required" => "أضف خانة واحدة على الأقل.",
+        "combo.no_recipe" => "ليس للكومبو وصفة خاصة؛ كل صنف يستخدم وصفته.",
+        "combo.kind_locked" => "لهذا الصنف مبيعات؛ لا يمكن تغيير نوعه.",
+        "combo.warn_margin_below_min" => "الهامش {margin} أقل من الحد الأدنى {min}.",
+        "combo.warn_no_saving" => "لا يوفر العميل شيئًا مقارنة بالطلب المنفصل.",
+        "combo.warn_cost_unknown" => "تكلفة أحد أصناف هذا الكومبو غير معروفة بعد.",
+        "combo.warn_slot_empty_now" => "إحدى الخانات لا يوجد فيها ما يمكن اختياره الآن.",
+        "combo.warn_choice_inactive" => "أحد أصناف هذا الكومبو موقوف.",
+        "meal.make_it" => "اجعلها وجبة",
+        "meal.make_it_plus" => "اجعلها وجبة +{amount}",
+        "meal.target_invalid" => "لا توجد خانة لهذا الصنف في الكومبو.",
+        "deal.badge" => "عرض",
+        "deal.qualifies" => "هذا الطلب يستحق عرض {deal}",
+        "deal.apply" => "تطبيق",
+        "deal.applied" => "تم تطبيق {deal}",
+        "deal.remove" => "إزالة العرض",
+        "deal.save" => "وفّر {amount}",
+        "deal.applies_times" => "يُطبَّق {count} مرة",
+        "deal.applies_times_one" => "يُطبَّق مرة واحدة",
+        "deal.applies_times_two" => "يُطبَّق مرتين",
+        "deal.applies_times_few" => "يُطبَّق {count} مرات",
+        "deal.applies_times_many" => "يُطبَّق {count} مرة",
+        "deal.dropped" => "لم يعد {deal} ينطبق على السلة، فأُزيل.",
+        "deal.not_allowed" => "تطبيق العرض يحتاج إلى صلاحية. اطلب من المدير.",
+        "deal.not_eligible" => "هذا العرض لم يعد ينطبق على السلة.",
+        "deal.invalid" => "راجع «{field}» في العرض.",
+        "deal.units_overlap" => "يُحتسب الصنف في عرض واحد فقط.",
+        "deal.staff_drink" => "هذا الصنف ضمن عرض. أزل العرض قبل جعله مشروب موظف.",
+        "deal.reward" => "هذا الصنف ضمن عرض، فلا يمكن أن يكون مكافأة أيضًا.",
         _ => return None,
     })
 }
@@ -5038,7 +5171,7 @@ mod tests {
         let ar_keys = keys_in_fn(src, "fn ar(key: &str) -> Option<&'static str> {");
         let counted: Vec<&str> = en_keys
             .iter()
-            .filter(|k| k.starts_with("staff."))
+            .filter(|k| ["staff.", "combo.", "deal."].iter().any(|p| k.starts_with(p)))
             .filter_map(|k| k.strip_suffix("_one"))
             .filter(|base| en_keys.contains(base))
             .collect();

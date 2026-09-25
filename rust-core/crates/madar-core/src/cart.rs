@@ -46,7 +46,7 @@ pub(crate) const K_KITCHEN_NOTES: &str = "cart:kitchen_notes";
 /// kitchen-chit only, cleared when the whole-cart chit prints.
 pub(crate) const K_KITCHEN_NOTE: &str = "cart:kitchen_note";
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 struct StoredAddon {
     addon_item_id: String,
     name: String,
@@ -55,7 +55,7 @@ struct StoredAddon {
     qty: i64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 struct StoredOptional {
     optional_field_id: String,
     name: String,
@@ -83,6 +83,94 @@ pub(crate) struct StoredLine {
     /// line, so it survives a restart with the cart.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     staff_drink: Option<StoredStaffMark>,
+    /// A COMBO line (COMBOS_CONTRACT §6): `item_id`/`name` are the combo's,
+    /// `unit_price_minor` is its price P, `qty` the combo units, and the picks
+    /// carry the money as charged (the shares of P, the surcharges, the
+    /// add-ons at their normal prices). A combo line has no add-ons of its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    combo: Option<StoredCombo>,
+    /// What applied deals take off this WHOLE line (`deals.rs`); 0 = none.
+    /// Kept beside the line so the view and the bill stay pure functions of
+    /// the stored lines; `deals::settle` rewrites it whenever the cart moves.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    deal_cut: i64,
+    /// The name of the deal that took `deal_cut` (the last applied).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    deal_name: Option<String>,
+}
+
+fn is_zero(v: &i64) -> bool {
+    *v == 0
+}
+
+/// A combo line's picks, in the order the combo prices them (slot order).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub(crate) struct StoredCombo {
+    pub picks: Vec<StoredPick>,
+}
+
+/// One pick of a combo line: a part line on the order (`combo_part`).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub(crate) struct StoredPick {
+    pub slot_id: String,
+    #[serde(default)]
+    pub slot_name: String,
+    pub item_id: String,
+    pub name: String,
+    /// The size as charged (the pick's, else the size the combo includes).
+    #[serde(default)]
+    pub size_label: Option<String>,
+    /// Units per combo unit.
+    pub qty: i64,
+    /// The item's NORMAL price at that size (`unit_price` on the part line).
+    pub unit_price_minor: i64,
+    /// This part's share of ONE combo price.
+    pub share_minor: i64,
+    /// Per pick unit: the choice's surcharge plus a bigger size's.
+    pub surcharge_minor: i64,
+    #[serde(default)]
+    addons: Vec<StoredAddon>,
+    #[serde(default)]
+    optionals: Vec<StoredOptional>,
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+impl StoredPick {
+    /// Per pick unit: its add-ons and optional fields.
+    fn extras(&self) -> i64 {
+        addon_optional_extras(&self.addons, &self.optionals)
+    }
+
+    /// The part's own money for `n` combo units: its share, its surcharges
+    /// and its add-ons.
+    fn total(&self, n: i64) -> i64 {
+        n * (self.share_minor + self.qty * (self.surcharge_minor + self.extras()))
+    }
+
+    /// The pick as the host re-submits it (an edit, a make-it-a-meal draft).
+    pub(crate) fn input(&self) -> crate::combos::ComboPickInput {
+        crate::combos::ComboPickInput {
+            slot_id: self.slot_id.clone(),
+            item_id: self.item_id.clone(),
+            size_label: self.size_label.clone(),
+            qty: self.qty,
+            addons: self
+                .addons
+                .iter()
+                .map(|a| AddonSelection {
+                    addon_item_id: a.addon_item_id.clone(),
+                    qty: a.qty,
+                })
+                .collect(),
+            optional_field_ids: self
+                .optionals
+                .iter()
+                .map(|o| o.optional_field_id.clone())
+                .collect(),
+            notes: self.notes.clone(),
+        }
+    }
 }
 
 /// A cart line put on the branch's staff pool: the mark the teller saved on the
@@ -106,7 +194,7 @@ pub(crate) struct StoredStaffMark {
 
 /// A host-supplied addon choice (id + how many). The CORE resolves its price.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AddonSelection {
     pub addon_item_id: String,
     pub qty: i64,
@@ -141,6 +229,30 @@ pub struct CartOptionalView {
     pub price_minor: i64,
 }
 
+/// One part of a combo line, as the host renders it indented under the
+/// combo's name (and re-submits it when the combo is edited).
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct CartPartView {
+    pub slot_id: String,
+    pub slot_name: String,
+    pub item_id: String,
+    pub item_name: String,
+    /// `None` for an item with no real size (`one_size`).
+    pub size_label: Option<String>,
+    /// Units per combo unit.
+    pub qty: i64,
+    /// The item's normal price at its size.
+    pub unit_price_minor: i64,
+    /// Its share of ONE combo price.
+    pub share_minor: i64,
+    /// Per pick unit: what the choice and a bigger size add (0 = included).
+    pub surcharge_minor: i64,
+    pub addons: Vec<CartAddonView>,
+    pub optionals: Vec<CartOptionalView>,
+    pub notes: Option<String>,
+}
+
 /// A cart line as the host renders it (with the derived line total).
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -165,6 +277,16 @@ pub struct CartLineView {
     /// leaves to pay. `line_total_minor` stays the NORMAL price — the host
     /// strikes it through and shows `charged_minor` beside it.
     pub staff_drink: Option<CartStaffDrinkView>,
+    /// `"item"` or `"combo"`. A combo's `unit_price_minor` is its price P,
+    /// `line_total_minor` the whole line with every surcharge and add-on,
+    /// and its picks are `parts` (its own `addons`/`optionals` stay empty).
+    pub kind: String,
+    pub parts: Vec<CartPartView>,
+    /// What an applied deal takes off this line (0 = none). Like a staff
+    /// drink, `line_total_minor` stays the NORMAL price; the host shows the
+    /// cut under it and the totals are already net of it.
+    pub deal_cut_minor: i64,
+    pub deal_name: Option<String>,
 }
 
 /// A cart line's staff-drink mark, as the host renders it.
@@ -290,7 +412,7 @@ fn norm(ctx: Ctx<'_>) -> Ctx<'_> {
     ctx.filter(|s| !s.is_empty())
 }
 
-fn key_for(table: Ctx<'_>, base: &str) -> String {
+pub(crate) fn key_for(table: Ctx<'_>, base: &str) -> String {
     match norm(table) {
         None => base.to_string(),
         Some(id) => format!("{base}@table:{id}"),
@@ -359,6 +481,7 @@ pub(crate) fn clear_all(store: &Store) -> CoreResult<()> {
         store.kv_put(&key_for(t, K_KITCHEN_NOTES), "{}")?;
         store.kv_put(&key_for(t, K_KITCHEN_NOTE), "")?;
         store.kv_put(&key_for(t, K_OWNER), "")?;
+        store.kv_put(&key_for(t, crate::deals::K_APPS), "[]")?;
     }
     store.kv_put(K_CONTEXT_TABLES, "[]")?;
     forget_legacy_context(store)
@@ -418,7 +541,10 @@ fn line_extras(l: &StoredLine) -> i64 {
 }
 
 fn line_total(l: &StoredLine) -> i64 {
-    // madar-shared v0.4.0's shape still has combo fields; they stay default.
+    // A combo: its parts' money (C6/C10), n × (P + surcharges + add-ons).
+    if let Some(c) = &l.combo {
+        return c.picks.iter().map(|p| p.total(l.qty)).sum();
+    }
     madar_money::line::line_total(&madar_money::line::LineShape {
         quantity: l.qty,
         unit_price: l.unit_price_minor,
@@ -451,6 +577,41 @@ fn signature(l: &StoredLine) -> String {
 }
 
 fn base_signature(l: &StoredLine) -> String {
+    // A combo keys by its picks (`combo:<id>|<picks>`), so two identical
+    // combos merge their quantity and two different ones never do.
+    if let Some(c) = &l.combo {
+        let picks: Vec<String> = c
+            .picks
+            .iter()
+            .map(|p| {
+                let mut addons: Vec<String> = p
+                    .addons
+                    .iter()
+                    .map(|a| format!("{}:{}", a.addon_item_id, a.qty))
+                    .collect();
+                addons.sort();
+                let mut opts: Vec<String> =
+                    p.optionals.iter().map(|o| o.optional_field_id.clone()).collect();
+                opts.sort();
+                format!(
+                    "{}:{}:{}:{}:{}:{}:{}",
+                    p.slot_id,
+                    p.item_id,
+                    p.size_label.as_deref().unwrap_or(""),
+                    p.qty,
+                    addons.join(","),
+                    opts.join(","),
+                    p.notes.as_deref().unwrap_or(""),
+                )
+            })
+            .collect();
+        return format!(
+            "combo:{}|{}|{}",
+            l.item_id,
+            picks.join(";"),
+            l.notes.as_deref().unwrap_or("")
+        );
+    }
     if l.size_label.is_none() && l.addons.is_empty() && l.optionals.is_empty() && l.notes.is_none()
     {
         return l.item_id.clone();
@@ -515,8 +676,119 @@ fn view(lines: &[StoredLine]) -> Vec<CartLineView> {
                 comp_minor: staff_comp(l),
                 charged_minor: line_total(l) - staff_comp(l),
             }),
+            kind: if l.combo.is_some() {
+                menu::KIND_COMBO.to_string()
+            } else {
+                menu::KIND_ITEM.to_string()
+            },
+            parts: l.combo.as_ref().map(parts_view).unwrap_or_default(),
+            deal_cut_minor: deal_cut(l),
+            deal_name: l.deal_name.clone().filter(|_| deal_cut(l) > 0),
         })
         .collect()
+}
+
+/// A line's deal cut, never more than the line rings at.
+fn deal_cut(l: &StoredLine) -> i64 {
+    if l.combo.is_some() || l.staff_drink.is_some() {
+        return 0;
+    }
+    l.deal_cut.clamp(0, line_total(l).max(0))
+}
+
+fn addon_views(addons: &[StoredAddon]) -> Vec<CartAddonView> {
+    addons
+        .iter()
+        .map(|a| CartAddonView {
+            addon_item_id: a.addon_item_id.clone(),
+            name: a.name.clone(),
+            qty: a.qty,
+            price_modifier_minor: a.price_modifier_minor,
+        })
+        .collect()
+}
+
+fn optional_views(optionals: &[StoredOptional]) -> Vec<CartOptionalView> {
+    optionals
+        .iter()
+        .map(|o| CartOptionalView {
+            optional_field_id: o.optional_field_id.clone(),
+            name: o.name.clone(),
+            price_minor: o.price_minor,
+        })
+        .collect()
+}
+
+fn parts_view(c: &StoredCombo) -> Vec<CartPartView> {
+    c.picks
+        .iter()
+        .map(|p| CartPartView {
+            slot_id: p.slot_id.clone(),
+            slot_name: p.slot_name.clone(),
+            item_id: p.item_id.clone(),
+            item_name: p.name.clone(),
+            size_label: p.size_label.clone().filter(|s| !is_one_size(s)),
+            qty: p.qty,
+            unit_price_minor: p.unit_price_minor,
+            share_minor: p.share_minor,
+            surcharge_minor: p.surcharge_minor,
+            addons: addon_views(&p.addons),
+            optionals: optional_views(&p.optionals),
+            notes: p.notes.clone(),
+        })
+        .collect()
+}
+
+/// The catalogue's sentinel for an item with no real size.
+pub(crate) fn is_one_size(label: &str) -> bool {
+    label.trim().eq_ignore_ascii_case("one_size")
+}
+
+/// The bill lines a cart line enters the pricing engine as: a plain line is
+/// one; a combo is one per part (contract §4: "the parts enter the bill as
+/// ordinary `BillLine`s"), each at its share plus its surcharges for one
+/// combo unit, with its add-ons per pick unit — so Σ the parts is the combo
+/// line to the piastre. Rewards and staff comps are the caller's to set;
+/// neither ever lands on a combo.
+pub(crate) fn bill_lines_of_view(l: &CartLineView) -> Vec<pricing::CartLine> {
+    let addons_of = |addons: &[CartAddonView], times: i64| -> Vec<pricing::AddonSel> {
+        addons
+            .iter()
+            .map(|a| pricing::AddonSel {
+                price_modifier: a.price_modifier_minor,
+                quantity: a.qty * times,
+            })
+            .collect()
+    };
+    let optionals_of = |optionals: &[CartOptionalView], times: i64| -> Vec<pricing::OptionalSel> {
+        (0..times.max(0))
+            .flat_map(|_| optionals.iter().map(|o| pricing::OptionalSel { price: o.price_minor }))
+            .collect()
+    };
+    if l.kind == menu::KIND_COMBO {
+        return l
+            .parts
+            .iter()
+            .map(|p| pricing::CartLine {
+                quantity: l.qty,
+                unit_price: p.share_minor + p.qty * p.surcharge_minor,
+                reward_units: 0,
+                staff_comp_minor: 0,
+                deal_minor: 0,
+                addons: addons_of(&p.addons, p.qty),
+                optionals: optionals_of(&p.optionals, p.qty),
+            })
+            .collect();
+    }
+    vec![pricing::CartLine {
+        quantity: l.qty,
+        unit_price: l.unit_price_minor,
+        reward_units: 0,
+        staff_comp_minor: 0,
+        deal_minor: l.deal_cut_minor,
+        addons: addons_of(&l.addons, 1),
+        optionals: optionals_of(&l.optionals, 1),
+    }]
 }
 
 /// Resolve a configured line's charged prices from the cached catalog: the
@@ -560,7 +832,91 @@ pub(crate) fn resolve_line(
         optionals: priced.1,
         notes,
         staff_drink: None,
+        combo: None,
+        deal_cut: 0,
+        deal_name: None,
     }
+}
+
+/// Resolve a COMBO line from the cached catalogue (COMBOS_CONTRACT §4, §6):
+/// the picks against the combo's slots, then madar-shared's
+/// `madar_catalog::combo::quote` — the server's rule — splits P over the
+/// parts by their menu prices and prices each pick's size surcharge and
+/// add-ons. The figures are recorded VERBATIM on the line (the offline
+/// receipt equals the server's record; replay sends them as charged).
+///
+/// A pick naming an item this till does not have is refused as not allowed
+/// in its slot (the host only offers what the slot admits).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn resolve_combo_line(
+    def: &menu::ComboDef,
+    combo_item: &menu::MenuItemView,
+    items: &[menu::MenuItemView],
+    addon_catalog: &[menu::AddonItemView],
+    pricing: &PricingMirror,
+    picks: &[crate::combos::ComboPickInput],
+    qty: i64,
+    notes: Option<String>,
+) -> Result<StoredLine, madar_catalog::combo::ComboRefusal> {
+    let (view, ins) =
+        crate::combos::rule_inputs(def, combo_item, items, addon_catalog, pricing, picks)?;
+    let quote = madar_catalog::combo::quote(&view, &ins, qty.max(1))?;
+    let stored = quote
+        .parts
+        .iter()
+        .map(|part| {
+            let input = &picks[part.pick_index];
+            let item = items
+                .iter()
+                .find(|i| i.id == part.menu_item_id)
+                .expect("rule_inputs found every pick's item");
+            let (addons, optionals) = stored_options(item, addon_catalog, &part.options);
+            StoredPick {
+                slot_id: part.slot_id.clone(),
+                slot_name: def
+                    .slots
+                    .iter()
+                    .find(|s| s.id == part.slot_id)
+                    .map(|s| s.name.clone())
+                    .unwrap_or_default(),
+                item_id: item.id.clone(),
+                name: item.name.clone(),
+                size_label: Some(part.size_label.clone()),
+                qty: part.pick_quantity,
+                unit_price_minor: part.unit_price,
+                share_minor: part.share_unit,
+                surcharge_minor: part.surcharge_unit,
+                addons,
+                optionals,
+                notes: input.notes.clone().filter(|n| !n.trim().is_empty()),
+            }
+        })
+        .collect();
+    Ok(StoredLine {
+        item_id: combo_item.id.clone(),
+        name: combo_item.name.clone(),
+        unit_price_minor: quote.price,
+        qty: quote.quantity,
+        size_label: None,
+        addons: vec![],
+        optionals: vec![],
+        notes: notes.filter(|n| !n.trim().is_empty()),
+        staff_drink: None,
+        combo: Some(StoredCombo { picks: stored }),
+        deal_cut: 0,
+        deal_name: None,
+    })
+}
+
+/// The combo line a stored line holds, as the host re-submits it.
+pub(crate) fn combo_picks(store: &Store, ctx: Ctx<'_>, line_key: &str) -> CoreResult<Option<(String, Vec<crate::combos::ComboPickInput>, i64, Option<String>)>> {
+    Ok(load(store, ctx)?
+        .into_iter()
+        .find(|l| signature(l) == line_key)
+        .and_then(|l| {
+            let c = l.combo.as_ref()?;
+            Some((l.item_id.clone(), c.picks.iter().map(StoredPick::input).collect(), l.qty, l.notes.clone()))
+        }))
 }
 
 /// The options and optional fields of a selection, priced by the shared rule
@@ -575,7 +931,26 @@ fn price_selection(
     addon_sels: &[AddonSelection],
     optional_ids: &[String],
 ) -> (Vec<StoredAddon>, Vec<StoredOptional>) {
-    let selection = madar_catalog::Selection {
+    let selection =
+        selection_for(item, addon_catalog, view, size_label, addon_sels, optional_ids);
+    // Every picked option is in the view, so the rule cannot refuse.
+    let priced = madar_catalog::price_options(view, &selection).unwrap_or_default();
+    stored_options(item, addon_catalog, &priced)
+}
+
+/// A selection in the rule's vocabulary, after the till's own normalisation:
+/// an option the catalogue does not know is dropped, and an item-private
+/// option picked through the addon sheet is an optional field (F17). Shared
+/// by a plain line and a combo's pick.
+pub(crate) fn selection_for(
+    item: &menu::MenuItemView,
+    addon_catalog: &[menu::AddonItemView],
+    view: &madar_catalog::CatalogView,
+    size_label: Option<&str>,
+    addon_sels: &[AddonSelection],
+    optional_ids: &[String],
+) -> madar_catalog::Selection {
+    madar_catalog::Selection {
         size_label: size_label.map(str::to_string),
         options: addon_sels
             .iter()
@@ -586,9 +961,15 @@ fn price_selection(
             })
             .collect(),
         optionals: optional_selection(item, addon_catalog, addon_sels, optional_ids),
-    };
-    // Every picked option is in the view, so the rule cannot refuse.
-    let priced = madar_catalog::price_options(view, &selection).unwrap_or_default();
+    }
+}
+
+/// The rule's priced options as the cart stores them (with their names).
+fn stored_options(
+    item: &menu::MenuItemView,
+    addon_catalog: &[menu::AddonItemView],
+    priced: &madar_catalog::PricedOptions,
+) -> (Vec<StoredAddon>, Vec<StoredOptional>) {
     let addons = priced
         .options
         .iter()
@@ -1241,6 +1622,15 @@ pub struct LinePreviewView {
 }
 
 pub(crate) fn preview_line(line: &StoredLine) -> LinePreviewView {
+    if line.combo.is_some() {
+        let total = line_total(line);
+        let unit = total / line.qty.max(1);
+        return LinePreviewView {
+            unit_total_minor: unit,
+            extras_minor: unit - line.unit_price_minor,
+            line_total_minor: total,
+        };
+    }
     let extras = line_extras(line);
     LinePreviewView {
         unit_total_minor: line.unit_price_minor + extras,
@@ -1270,6 +1660,9 @@ pub(crate) fn add(
             optionals: vec![],
             notes: None,
             staff_drink: None,
+            combo: None,
+            deal_cut: 0,
+            deal_name: None,
         },
     )
 }
@@ -1337,6 +1730,7 @@ pub(crate) fn restore_last_removed(store: &Store, ctx: Ctx<'_>) -> CoreResult<Ve
 /// Empty the cart + its discount (e.g. after checkout or on sign-out).
 pub(crate) fn clear(store: &Store, ctx: Ctx<'_>) -> CoreResult<()> {
     clear_discount(store, ctx)?;
+    crate::deals::clear(store, ctx)?;
     set_note(store, ctx, None)?;
     store.kv_put(&ctx_key(ctx, K_LAST_REMOVED)?, "[]")?; // a stale undo must not resurrect a sold line
     store.kv_put(&key_for(ctx, K_META), "{}")?; // the spent cart forgets its name/draft/booking
@@ -1370,6 +1764,12 @@ impl StaffMarkDrop {
         }
     }
 }
+
+/// The core's refusal of a staff drink on a combo line (`combo.staff_drink`).
+pub const STAFF_DRINK_IN_COMBO: &str = "A staff drink can't be part of a combo.";
+/// The core's refusal of a staff drink on a line in a deal (`deal.staff_drink`).
+pub const STAFF_DRINK_IN_DEAL: &str =
+    "This item is in a deal. Remove the deal before making it a staff drink.";
 
 /// A marked line as the pool and the comp rule need to see it.
 #[derive(Clone, Debug)]
@@ -1443,6 +1843,20 @@ pub(crate) fn mark_staff(
             detail: "that line is no longer in the cart".into(),
         });
     };
+    // C15: never inside a combo; and a line never carries both a deal and a
+    // staff comp (contract §1.2).
+    if l.combo.is_some() {
+        return Err(CoreError::Validation {
+            field: "line".into(),
+            detail: STAFF_DRINK_IN_COMBO.into(),
+        });
+    }
+    if l.deal_cut > 0 {
+        return Err(CoreError::Validation {
+            field: "line".into(),
+            detail: STAFF_DRINK_IN_DEAL.into(),
+        });
+    }
     l.staff_drink = Some(mark);
     let new_key = signature(l);
     save(store, ctx, &lines)?;
@@ -1673,6 +2087,65 @@ fn legacy_comp_groups(
     }
 }
 
+// ── deals (a line's cut; `deals.rs` decides it) ──────────────────────────────
+
+/// One cart line as a deal reads it (COMBOS_CONTRACT §5): only a plain line
+/// takes part — never a combo, never a staff drink.
+#[derive(Clone, Debug)]
+pub(crate) struct DealCandidate {
+    pub key: String,
+    /// Its position in the cart (= its index in the order's `items[]`).
+    pub index: usize,
+    pub item_id: String,
+    pub size_label: Option<String>,
+    /// One unit at its size, no add-ons (a deal covers the item price only).
+    pub unit_price_minor: i64,
+    pub qty: i64,
+    pub eligible: bool,
+}
+
+pub(crate) fn deal_candidates(store: &Store, ctx: Ctx<'_>) -> CoreResult<Vec<DealCandidate>> {
+    Ok(load(store, ctx)?
+        .iter()
+        .enumerate()
+        .map(|(index, l)| DealCandidate {
+            key: signature(l),
+            index,
+            item_id: l.item_id.clone(),
+            size_label: l.size_label.clone(),
+            unit_price_minor: l.unit_price_minor,
+            qty: l.qty,
+            eligible: l.combo.is_none() && l.staff_drink.is_none(),
+        })
+        .collect())
+}
+
+/// Rewrite every line's deal cut: `cuts` maps a line key to (cut, deal name);
+/// a line not named carries none. Nothing is written when nothing changed.
+pub(crate) fn set_deal_cuts(
+    store: &Store,
+    ctx: Ctx<'_>,
+    cuts: &HashMap<String, (i64, String)>,
+) -> CoreResult<()> {
+    let mut lines = load(store, ctx)?;
+    let mut changed = false;
+    for l in lines.iter_mut() {
+        let (cut, name) = match cuts.get(&signature(l)) {
+            Some((c, n)) => (*c, Some(n.clone())),
+            None => (0, None),
+        };
+        if l.deal_cut != cut || l.deal_name != name {
+            l.deal_cut = cut;
+            l.deal_name = name;
+            changed = true;
+        }
+    }
+    if changed {
+        save(store, ctx, &lines)?;
+    }
+    Ok(())
+}
+
 // ── cart payload (the wire shape a held order carries) ───────────────────────
 //
 // A server-backed held order stores the WHOLE working cart as one opaque JSON
@@ -1690,6 +2163,8 @@ pub(crate) fn cart_payload(store: &Store, ctx: Ctx<'_>) -> CoreResult<serde_json
         "discount_manual": manual_discount(store, ctx)?,
         "discount_approval": discount_approval(store, ctx)?,
         "note": note(store, ctx)?,
+        // Additive: the deals applied on it park with it (`deals.rs`).
+        "deals": crate::deals::apps_json(store, ctx),
     }))
 }
 
@@ -1723,6 +2198,7 @@ pub(crate) fn set_cart_payload(
         set_discount_approval(store, ctx, Some(&a))?;
     }
     set_note(store, ctx, payload.get("note").and_then(|v| v.as_str()))?;
+    crate::deals::restore_apps(store, ctx, payload.get("deals"))?;
     store.kv_put(&ctx_key(ctx, K_LAST_REMOVED)?, "[]")?; // a stale undo must not leak across orders
     save(store, ctx, &lines)?;
     Ok(view(&lines))
@@ -2078,29 +2554,17 @@ fn kind_from_dtype(dtype: &str) -> DiscountKind {
     }
 }
 
-/// Map a stored line to the pricing engine's `CartLine` (the money input).
-fn priced(l: &StoredLine) -> pricing::CartLine {
-    pricing::CartLine {
-        quantity: l.qty,
-        unit_price: l.unit_price_minor,
-        reward_units: 0,
-        staff_comp_minor: staff_comp(l),
-        addons: l
-            .addons
-            .iter()
-            .map(|a| pricing::AddonSel {
-                price_modifier: a.price_modifier_minor,
-                quantity: a.qty,
-            })
-            .collect(),
-        optionals: l
-            .optionals
-            .iter()
-            .map(|o| pricing::OptionalSel {
-                price: o.price_minor,
-            })
-            .collect(),
+/// Map a stored line to the pricing engine's `CartLine`s (the money input):
+/// one for a plain line, one per part for a combo ([`bill_lines_of_view`]).
+fn priced(l: &StoredLine) -> Vec<pricing::CartLine> {
+    let v = view(std::slice::from_ref(l)).remove(0);
+    let mut out = bill_lines_of_view(&v);
+    if l.combo.is_none() {
+        if let Some(first) = out.first_mut() {
+            first.staff_comp_minor = staff_comp(l);
+        }
     }
+    out
 }
 
 /// Price the cart under `policy` via the pricing engine, applying the selected
@@ -2130,12 +2594,18 @@ pub(crate) fn totals_with_rewards(
         lines: lines
             .iter()
             .enumerate()
-            .map(|(i, l)| {
-                let mut line = priced(l);
-                if line.staff_comp_minor == 0 && l.staff_drink.is_none() {
-                    line.reward_units = reward_units.get(&i).copied().unwrap_or(0);
+            .flat_map(|(i, l)| {
+                let mut out = priced(l);
+                // A reward covers units of a plain line only: never a staff
+                // drink, a combo (C7) or a line in a deal.
+                let rewardable =
+                    l.staff_drink.is_none() && l.combo.is_none() && deal_cut(l) == 0;
+                if let (true, Some(line)) = (rewardable, out.first_mut()) {
+                    if line.staff_comp_minor == 0 {
+                        line.reward_units = reward_units.get(&i).copied().unwrap_or(0);
+                    }
                 }
-                line
+                out
             })
             .collect(),
         discount_kind,
@@ -2197,6 +2667,9 @@ mod tests {
             }],
             notes: None,
             staff_drink: None,
+            combo: None,
+            deal_cut: 0,
+            deal_name: None,
         }
     }
 
@@ -2303,6 +2776,7 @@ mod tests {
                 org_ingredient_id: Some("ing-oat".into()),
             }],
             recipe_steps: vec![],
+            kind: "item".into(),
         }
     }
 

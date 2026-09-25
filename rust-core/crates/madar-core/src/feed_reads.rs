@@ -193,6 +193,7 @@ impl MadarCore {
                     voided: false,
                     round_number,
                     round_fired_at: at.clone(),
+                    is_combo: false,
                 });
             }
             bill.subtotal_minor += added;

@@ -27,6 +27,14 @@ pub(crate) const K_ADDONS: &str = "catalog:addons"; // Vec<AddonItem>
 pub(crate) const K_RETIRED_BUNDLES: &str = "catalog:bundles";
 pub(crate) const K_PAYMENT_METHODS: &str = "catalog:payment_methods"; // Vec<OrgPaymentMethod>
 pub(crate) const K_DISCOUNTS: &str = "catalog:discounts"; // Vec<Discount>
+/// The branch's deal rules (COMBOS_CONTRACT §5), rebuilt from the `deal_rule`
+/// feed rows by `project_pull_mirrors`: the §2.3 `DealRule` shape.
+pub(crate) const K_DEALS: &str = "catalog:deals";
+
+/// [`MenuItemView::kind`] of a plain item.
+pub const KIND_ITEM: &str = "item";
+/// [`MenuItemView::kind`] of a combo.
+pub const KIND_COMBO: &str = "combo";
 
 // ── view DTOs (host-facing) ─────────────────────────────────────────────────
 
@@ -57,6 +65,10 @@ pub struct MenuItemView {
     pub recipes: Vec<RecipeLineView>,
     /// How the item is made, in order — shown under the recipe.
     pub recipe_steps: Vec<RecipeStepView>,
+    /// `"item"` or `"combo"` (COMBOS_CONTRACT §0): a combo opens the combo
+    /// sheet ([`crate::combos`]) instead of the item sheet, and wears a
+    /// "Combo" badge on the grid. A row from an older server is an item.
+    pub kind: String,
 }
 
 /// One preparation step, ready to draw: already localized, and pointing at the
@@ -238,6 +250,9 @@ struct FullItem {
     recipes: Vec<FullRecipe>,
     #[serde(default)]
     recipe_steps: Vec<FullStep>,
+    /// `item` | `combo`; absent from a server older than the combos module.
+    #[serde(default)]
+    kind: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -390,6 +405,10 @@ pub(crate) fn menu_items(store: &Store, locale: &str) -> CoreResult<Vec<MenuItem
                     org_ingredient_id: r.org_ingredient_id.clone().filter(|s| !s.is_empty()),
                 })
                 .collect(),
+            kind: match i.kind.as_deref() {
+                Some(KIND_COMBO) => KIND_COMBO.to_string(),
+                _ => KIND_ITEM.to_string(),
+            },
             recipe_steps: i
                 .recipe_steps
                 .iter()
@@ -448,6 +467,160 @@ pub(crate) fn menu_items(store: &Store, locale: &str) -> CoreResult<Vec<MenuItem
                     org_ingredient_id: o.org_ingredient_id.clone().filter(|s| !s.is_empty()),
                 })
                 .collect(),
+        })
+        .collect())
+}
+
+// ── combos and "make it a meal" (COMBOS_CONTRACT §2.4) ──────────────────────
+//
+// A combo is a menu row of `kind = 'combo'`: its price is the row's usual
+// price, its own half (`combo`) the slots, choices and windows. A plain row
+// may carry `meal`: the combo it upgrades to and the slot it fills (C14).
+// Parsed leniently on their own, so a malformed `combo` never blanks the menu:
+// the row stays on the grid and simply cannot be sold as a combo.
+
+/// A combo's own half, localized, as the till sells it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct ComboDef {
+    pub id: String,
+    pub name: String,
+    pub is_active: bool,
+    pub category_id: Option<String>,
+    /// The channel switches the row carries resolved for this branch (§2.4);
+    /// `None` from a server that sends them elsewhere (branch settings).
+    pub sell: Option<madar_catalog::combo::Sell>,
+    pub windows: Vec<madar_catalog::sale_window::Window>,
+    pub slots: Vec<ComboSlotDef>,
+}
+
+/// One slot of a combo, localized.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct ComboSlotDef {
+    pub id: String,
+    pub name: String,
+    pub sort: i64,
+    pub min: i64,
+    pub max: i64,
+    pub default_item_id: Option<String>,
+    pub default_size_label: Option<String>,
+    pub choices: Vec<madar_catalog::combo::ChoiceView>,
+}
+
+/// "Make it a meal": the combo a plain item upgrades to and the slot it fills.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
+pub(crate) struct MealRef {
+    pub combo_id: String,
+    pub slot_id: String,
+}
+
+#[derive(Deserialize)]
+struct WireComboRow {
+    id: String,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    name_translations: Value,
+    #[serde(default)]
+    category_id: Option<String>,
+    #[serde(default = "yes")]
+    is_active: bool,
+    #[serde(default)]
+    deleted_at: Option<Value>,
+    #[serde(default)]
+    kind: Option<String>,
+    #[serde(default)]
+    combo: Option<Value>,
+    #[serde(default)]
+    meal: Option<Value>,
+}
+
+#[derive(Deserialize)]
+struct WireCombo {
+    #[serde(default)]
+    sell: Option<madar_catalog::combo::Sell>,
+    #[serde(default)]
+    windows: Vec<madar_catalog::sale_window::Window>,
+    #[serde(default)]
+    slots: Vec<WireSlot>,
+}
+
+#[derive(Deserialize)]
+struct WireSlot {
+    id: String,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    name_translations: Value,
+    #[serde(default)]
+    sort: i64,
+    #[serde(default = "one", alias = "min_picks")]
+    min: i64,
+    #[serde(default = "one", alias = "max_picks")]
+    max: i64,
+    #[serde(default)]
+    default_item_id: Option<String>,
+    #[serde(default)]
+    default_size_label: Option<String>,
+    #[serde(default)]
+    choices: Vec<madar_catalog::combo::ChoiceView>,
+}
+
+fn yes() -> bool {
+    true
+}
+
+fn one() -> i64 {
+    1
+}
+
+/// Every combo on the mirrored menu (soft-deleted rows dropped), localized,
+/// with its slots in their sort order.
+pub(crate) fn combos(store: &Store, locale: &str) -> CoreResult<Vec<ComboDef>> {
+    let rows: Vec<WireComboRow> = parse_kv_lenient(store, K_MENU_ITEMS)?;
+    Ok(rows
+        .into_iter()
+        .filter(|r| r.deleted_at.as_ref().is_none_or(Value::is_null))
+        .filter(|r| r.kind.as_deref() == Some(KIND_COMBO))
+        .filter_map(|r| {
+            let wire: WireCombo = serde_json::from_value(r.combo?).ok()?;
+            let mut slots: Vec<ComboSlotDef> = wire
+                .slots
+                .into_iter()
+                .map(|sl| ComboSlotDef {
+                    name: resolve(&sl.name_translations, &sl.name, locale),
+                    id: sl.id,
+                    sort: sl.sort,
+                    min: sl.min.max(0),
+                    max: sl.max.max(1),
+                    default_item_id: sl.default_item_id.filter(|s| !s.is_empty()),
+                    default_size_label: sl.default_size_label.filter(|s| !s.is_empty()),
+                    choices: sl.choices,
+                })
+                .collect();
+            slots.sort_by_key(|s| s.sort);
+            Some(ComboDef {
+                name: resolve(&r.name_translations, &r.name, locale),
+                id: r.id,
+                is_active: r.is_active,
+                category_id: r.category_id,
+                sell: wire.sell,
+                windows: wire.windows,
+                slots,
+            })
+        })
+        .collect())
+}
+
+/// Every plain item's "make it a meal" pointer, by item id.
+pub(crate) fn meals(store: &Store) -> CoreResult<std::collections::HashMap<String, MealRef>> {
+    let rows: Vec<WireComboRow> = parse_kv_lenient(store, K_MENU_ITEMS)?;
+    Ok(rows
+        .into_iter()
+        .filter(|r| r.deleted_at.as_ref().is_none_or(Value::is_null))
+        .filter(|r| r.kind.as_deref() != Some(KIND_COMBO))
+        .filter_map(|r| {
+            let m: MealRef = serde_json::from_value(r.meal?).ok()?;
+            (!m.combo_id.is_empty() && !m.slot_id.is_empty()).then(|| (r.id, m))
         })
         .collect())
 }

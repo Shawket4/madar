@@ -591,29 +591,21 @@ pub(crate) fn prepare(
         None
     };
     let priced = pricing::price_cart(PriceCartInput {
+        // A combo enters the bill as its parts (contract §4), a line in a
+        // deal net of its cut; a reward or a staff comp only ever lands on a
+        // plain line (the refusals above and in the cart see to it).
         lines: lines
             .iter()
             .enumerate()
-            .map(|(i, l)| pricing::CartLine {
-                quantity: l.qty,
-                unit_price: l.unit_price_minor,
-                reward_units: reward_units.get(&i).copied().unwrap_or(0),
-                staff_comp_minor: staff_at(i).map_or(0, |s| s.comp_minor),
-                addons: l
-                    .addons
-                    .iter()
-                    .map(|a| pricing::AddonSel {
-                        price_modifier: a.price_modifier_minor,
-                        quantity: a.qty,
-                    })
-                    .collect(),
-                optionals: l
-                    .optionals
-                    .iter()
-                    .map(|o| pricing::OptionalSel {
-                        price: o.price_minor,
-                    })
-                    .collect(),
+            .flat_map(|(i, l)| {
+                let mut out = cart::bill_lines_of_view(l);
+                if l.kind != crate::menu::KIND_COMBO {
+                    if let Some(first) = out.first_mut() {
+                        first.reward_units = reward_units.get(&i).copied().unwrap_or(0);
+                        first.staff_comp_minor = staff_at(i).map_or(0, |s| s.comp_minor);
+                    }
+                }
+                out
             })
             .collect(),
         discount_kind,
@@ -909,6 +901,10 @@ pub(crate) fn prepare(
 /// The detail a sale refused for naming one line as both carries; the host
 /// maps it to `staff_pool.not_a_reward`.
 pub const STAFF_DRINK_NOT_A_REWARD: &str = "a staff drink cannot also be taken as a reward";
+/// A reward named on a combo line (`combo.reward`, the server's `REWARD_IN_COMBO`).
+pub const REWARD_IN_COMBO: &str = "Rewards can't be used inside a combo.";
+/// A reward named on a line in a deal (`deal.reward`).
+pub const REWARD_IN_DEAL: &str = "This item is in a deal, so it can't also be a reward.";
 
 pub(crate) fn reward_units_by_line(
     lines: &[cart::CartLineView],
@@ -926,6 +922,14 @@ pub(crate) fn reward_units_by_line(
             .ok_or_else(|| bad("a reward names a line that is not in the cart"))?;
         if line.staff_drink.is_some() {
             return Err(bad(STAFF_DRINK_NOT_A_REWARD));
+        }
+        // C7: stamps per item, but no reward inside a combo; and a line in
+        // a deal is already discounted.
+        if line.kind == crate::menu::KIND_COMBO {
+            return Err(bad(REWARD_IN_COMBO));
+        }
+        if line.deal_cut_minor > 0 {
+            return Err(bad(REWARD_IN_DEAL));
         }
         if r.units < 1 || r.units as i64 > line.qty {
             return Err(bad("a reward covers more units than the line holds"));
@@ -2493,6 +2497,7 @@ mod tests {
                 org_ingredient_id: Some("ing-oat".into()),
             }],
             recipe_steps: vec![],
+            kind: "item".into(),
         }
     }
 
@@ -2676,6 +2681,10 @@ mod tests {
             line_total_minor: 5000,
             kitchen_note: Some("no salt — allergy".into()),
             staff_drink: None,
+            kind: "item".into(),
+            parts: vec![],
+            deal_cut_minor: 0,
+            deal_name: None,
         };
         let receipt_line = receipt_line_from_cart(&line);
         assert!(

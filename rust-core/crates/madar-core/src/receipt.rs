@@ -2745,6 +2745,10 @@ mod kitchen_chit_tests {
             line_total_minor: 36_000,
             kitchen_note: None,
             staff_drink: None,
+            kind: "item".into(),
+            parts: vec![],
+            deal_cut_minor: 0,
+            deal_name: None,
         }
     }
 

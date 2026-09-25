@@ -1365,6 +1365,24 @@ impl MadarCore {
                 self.invalidate_catalog_cache();
             }
         }
+        // The branch's deal rules (COMBOS_CONTRACT §5), in the `DealRule`
+        // shape the rows already carry (branch-resolved `is_active`, the
+        // channel switches in `sell`), once the server sends the type.
+        if feed_has_type(store, branch, "deal_rule") {
+            let deals: Vec<serde_json::Value> = rows_of_type(store, branch, "deal_rule")
+                .into_iter()
+                .map(|mut d| {
+                    if let Some(m) = d.as_object_mut() {
+                        m.remove("seq");
+                    }
+                    d
+                })
+                .collect();
+            if let Ok(raw) = serde_json::to_string(&deals) {
+                let _ = store.kv_put(crate::menu::K_DEALS, &raw);
+                self.invalidate_catalog_cache();
+            }
+        }
         // The branch's delivery prep minutes.
         if let Some(prep) = rows_of_type(store, branch, "branch_settings")
             .into_iter()

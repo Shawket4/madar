@@ -77,6 +77,39 @@ impl PricingMirror {
     }
 }
 
+/// The rule's view of a combo at this branch (COMBOS_CONTRACT §6): its price
+/// P is the combo row's own price as a sizeless line costs it (the branch's
+/// price, else its `one_size`), and its slots and windows are the row's.
+pub(crate) fn combo_view_for(
+    def: &menu::ComboDef,
+    combo_item: &MenuItemView,
+    pricing: &PricingMirror,
+) -> madar_catalog::combo::ComboView {
+    let view = pricing.view_for(combo_item, &[]);
+    let price =
+        madar_catalog::unit_price(&view.item, None).unwrap_or(combo_item.base_price_minor);
+    madar_catalog::combo::ComboView {
+        id: def.id.clone(),
+        price,
+        is_active: def.is_active && combo_item.is_active,
+        slots: def
+            .slots
+            .iter()
+            .map(|s| madar_catalog::combo::SlotView {
+                id: s.id.clone(),
+                name: s.name.clone(),
+                sort: s.sort,
+                min: s.min,
+                max: s.max,
+                default_item_id: s.default_item_id.clone(),
+                default_size_label: s.default_size_label.clone(),
+                choices: s.choices.clone(),
+            })
+            .collect(),
+        windows: def.windows.clone(),
+    }
+}
+
 /// An option from the legacy `/addon-items` fields: its type, price and
 /// ingredient lines (no group: the swap family is the type's).
 pub(crate) fn legacy_option(a: &AddonItemView) -> OptionView {

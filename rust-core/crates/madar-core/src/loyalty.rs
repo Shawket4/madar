@@ -491,6 +491,11 @@ pub struct RewardLineInput {
     /// The line is a STAFF DRINK: the pool already gives it away, so it can
     /// never be taken as a reward too (the server refuses the pair with a 400).
     pub is_staff_drink: bool,
+    /// The line is a COMBO (C7: its items earn stamps, but no reward is
+    /// taken inside a combo — the server refuses `REWARD_IN_COMBO`).
+    pub in_combo: bool,
+    /// The line is in an applied DEAL: already discounted, never a reward too.
+    pub in_deal: bool,
 }
 
 /// A reward applied to one line: which line (its position in the list the
@@ -556,6 +561,8 @@ pub fn reward_lines_from_cart(lines: &[crate::cart::CartLineView]) -> Vec<Reward
             qty: l.qty as i32,
             line_total_minor: l.line_total_minor,
             is_staff_drink: l.staff_drink.is_some(),
+            in_combo: l.kind == crate::menu::KIND_COMBO,
+            in_deal: l.deal_cut_minor > 0,
         })
         .collect()
 }
@@ -572,6 +579,8 @@ pub fn reward_lines_from_ticket(lines: &[crate::tickets::TicketLineView]) -> Vec
             cart_index: None,
             ticket_line_id: Some(l.id.clone()),
             is_staff_drink: false,
+            in_combo: l.is_combo,
+            in_deal: false,
             menu_item_id: l.menu_item_id.clone(),
             qty: l.qty,
             line_total_minor: l.line_total_minor,
@@ -629,6 +638,8 @@ fn plan_line(line: &RewardLineInput) -> madar_loyalty::Line {
         menu_item_id: line.menu_item_id.clone(),
         quantity: i64::from(line.qty),
         is_staff_drink: line.is_staff_drink,
+        // A line in a deal is as closed to a reward as a combo is.
+        in_combo: line.in_combo || line.in_deal,
     }
 }
 
@@ -720,6 +731,7 @@ pub fn reward_board(
         madar_loyalty::Trim::LineShrank => tr("loyalty.reward_line_shrank"),
         madar_loyalty::Trim::OverCap => cap_reason(cap.unwrap_or(0), locale),
         madar_loyalty::Trim::BalanceShort => tr("loyalty.reward_balance_short"),
+        madar_loyalty::Trim::InCombo => tr("combo.reward"),
     });
 
     let states = lines
@@ -734,6 +746,8 @@ pub fn reward_board(
                 .unwrap_or(0);
             let blocked_reason = match unit {
                 None if line.is_staff_drink => Some(tr("loyalty.reward_no_staff_drink")),
+                None if line.in_combo => Some(tr("combo.reward")),
+                None if line.in_deal => Some(tr("deal.reward")),
                 None => None,
                 Some(_) if units >= line.qty => None,
                 Some(_) if cap.is_some_and(|c| claimed >= c) => {
@@ -1056,6 +1070,8 @@ mod tests {
             qty,
             line_total_minor: total,
             is_staff_drink: false,
+            in_combo: false,
+            in_deal: false,
         }
     }
 
@@ -1187,6 +1203,8 @@ mod tests {
                     qty: l.quantity as i32,
                     line_total_minor: 1_000 * l.quantity,
                     is_staff_drink: l.is_staff_drink,
+                    in_combo: l.in_combo,
+                    in_deal: false,
                 })
                 .collect();
             let mut sc = scan(0, v.programme.max_per_order, v.programme.any_item);

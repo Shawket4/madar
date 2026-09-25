@@ -420,7 +420,7 @@ async fn tax_and_the_order_discount_see_the_charged_part_only() {
     // The same figures through the engine directly: a wholly free line.
     let b = crate::pricing::price_cart(crate::pricing::PriceCartInput {
         lines: vec![crate::pricing::CartLine {
-            quantity: 2, unit_price: 3000, reward_units: 0, staff_comp_minor: 99_999,
+            quantity: 2, unit_price: 3000, reward_units: 0, staff_comp_minor: 99_999, deal_minor: 0,
             addons: vec![], optionals: vec![],
         }],
         discount_kind: crate::pricing::DiscountKind::None, discount_value: 0.0, tax_rate: 0.14, tax_inclusive: false,
