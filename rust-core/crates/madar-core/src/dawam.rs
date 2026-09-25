@@ -56,6 +56,10 @@ pub(crate) const OP_PREFIX: &str = "dawam_";
 /// The last (server time, time since boot, wall time) the phone saw.
 const K_ANCHOR: &str = "dawam:anchor";
 const K_FIX: &str = "dawam:fix";
+/// The dates a screen shows past the usual window (H2-01): `{from, to}`.
+const K_VIEW: &str = "dawam:view";
+/// The most days one roster read may span (the server's `MAX_DAYS`).
+const RANGE_MAX_DAYS: i64 = 62;
 /// A reading older than this says nothing about where the person is now: the
 /// fence line reads "unknown", never "inside" (06 B4).
 const FIX_FRESH_MS: i64 = 10 * 60_000;
@@ -262,6 +266,14 @@ pub struct Snapshot {
     /// This phone accepted the location notice, as the server recorded it
     /// (AT-5). Until then the app shows the notice, never the tabs.
     pub privacy_accepted: bool,
+    /// The dates this picture holds in full, `[from, to]` each (H2-01): the
+    /// usual window (this week, four back, three ahead) and the dates a
+    /// screen asked for. A screen showing other dates asks (`view_range`)
+    /// and waits; a board edit on them fetches them first.
+    pub loaded: Vec<[String; 2]>,
+    /// `branch|week_start` of every week the server says is published, a
+    /// week with no shift in it too (H2-03).
+    pub published_weeks: Vec<String>,
 }
 
 /// Where I am against one branch's fence, from a fresh reading.
@@ -664,15 +676,21 @@ pub enum Act {
     RecordAdvance { emp: String, amount: i64, installments: i64 },
     LogExpense { emp: String, amount: i64, purpose: String, via: String },
     /// The whole date is exactly this block, or a day off (`tpl` None).
-    SetDay { emp: String, date: String, tpl: Option<String> },
+    /// `branch` on every day write: the board's branch, where a business-wide
+    /// block set there is worked (H2-B8); none = where the date had it.
+    SetDay { emp: String, date: String, tpl: Option<String>, #[serde(default)] branch: Option<String> },
     /// Every block a person works on a date (a split day); empty = a day off.
-    SetShifts { emp: String, date: String, blocks: Vec<BlockA> },
+    SetShifts { emp: String, date: String, blocks: Vec<BlockA>, #[serde(default)] branch: Option<String> },
     /// One more block on the date; the rest of the day stays.
-    AddBlock { emp: String, date: String, tpl: String },
+    AddBlock { emp: String, date: String, tpl: String, #[serde(default)] branch: Option<String> },
     /// Take this one shift off its date; the rest of the day stays.
-    RemoveBlock { shift: String },
+    RemoveBlock { shift: String, #[serde(default)] branch: Option<String> },
     /// Back to the standing pattern.
     ResetDay { emp: String, date: String },
+    /// The dates a screen shows (the board's week, the calendar's page).
+    /// Past the usual window they are fetched too, and kept while nothing
+    /// else is shown (H2-01).
+    ViewRange { from: String, to: String },
     /// This one assignment's own from/to (minutes of the day; both None =
     /// back to the block's). An end at or before the start is the next day.
     SetTimes { shift: String, #[serde(default)] start: Option<i64>, #[serde(default)] end: Option<i64> },
@@ -682,8 +700,8 @@ pub enum Act {
     CancelOpen { shift: String },
     /// Ask a colleague to swap: `mine` is MY shift, `theirs` the colleague's (06 B2).
     AskSwap { mine: String, theirs: String },
-    MoveShift { shift: String, day: String, tpl: String },
-    Assign { shift: String, emp: Option<String> },
+    MoveShift { shift: String, day: String, tpl: String, #[serde(default)] branch: Option<String> },
+    Assign { shift: String, emp: Option<String>, #[serde(default)] branch: Option<String> },
     PostOpen { branch: String, date: String, tpl: String },
     Claim { shift: String },
     Publish { branch: String, week: String },
@@ -830,6 +848,19 @@ pub(crate) const ROSTER_CODES: &[&str] = &[
     "ALREADY_CLAIMED",
     "SWAP_EXISTS",
     "SUGGESTION_STALE",
+    // A board's branch the person doesn't work at (H2-B8).
+    "EMPLOYEE_NOT_AT_BRANCH",
+];
+
+/// Refusals that mean the picture is stale (someone else decided, claimed or
+/// handled it first): the core fetches again before saying so.
+const STALE_CODES: &[&str] = &[
+    "REQUEST_ALREADY_DECIDED",
+    "ALREADY_DECIDED",
+    "FLAG_HANDLED",
+    "ALREADY_CLAIMED",
+    "SWAP_STALE",
+    "SUGGESTION_STALE",
 ];
 
 /// A shift given to someone already on that block: the refusal names them
@@ -954,6 +985,38 @@ fn hhmm(m: i64) -> String {
     format!("{:02}:{:02}", m / 60, m % 60)
 }
 /// The Saturday a date's week starts on (the roster's week).
+/// The part of `[a, z]` outside the usual window `[from, to]`, if any: a
+/// span reaching into the window keeps only its dates past it, so nothing is
+/// read (or warned about) twice.
+fn beyond(a: NaiveDate, z: NaiveDate, from: NaiveDate, to: NaiveDate) -> Option<(NaiveDate, NaiveDate)> {
+    if z < a || (a >= from && z <= to) {
+        return None;
+    }
+    if a > to || z < from {
+        return Some((a, z));
+    }
+    if z > to {
+        Some((to + Duration::days(1), z))
+    } else {
+        Some((a, from - Duration::days(1)))
+    }
+}
+
+/// What the core fetches by itself: four weeks back and this week plus three
+/// ahead, reaching back to the start of the pay period the Timesheet lists
+/// (H2-10: on a Saturday late in a 31-day period it began before that).
+fn fetch_window(today: NaiveDate, period_start_day: i64) -> (NaiveDate, NaiveDate) {
+    let ws = week_start(today);
+    let from = (ws - Duration::days(28)).min(period_around(today, period_start_day).0);
+    (from, ws + Duration::days(27))
+}
+
+/// [d] lies in one of the spans the picture holds in full (H2-01).
+fn holds_day(loaded: &[[String; 2]], d: NaiveDate) -> bool {
+    let d = d.to_string();
+    loaded.iter().any(|[a, z]| *a <= d && d <= *z)
+}
+
 pub(crate) fn week_start(d: NaiveDate) -> NaiveDate {
     d - Duration::days((d.weekday().num_days_from_monday() as i64 + 2) % 7)
 }
@@ -1178,6 +1241,45 @@ impl MadarCore {
         }
     }
 
+    /// The dates a screen shows past the usual window (H2-01), if any.
+    fn dawam_view(&self) -> Option<(NaiveDate, NaiveDate)> {
+        let v: Value = self.store.kv_get(K_VIEW).ok().flatten().and_then(|j| serde_json::from_str(&j).ok())?;
+        Some((date(&v, "from")?, date(&v, "to")?))
+    }
+
+    /// Show `[a, z]`: whole weeks, at most what one roster read may span.
+    fn dawam_set_view(&self, a: NaiveDate, z: NaiveDate) -> Result<(), CoreError> {
+        let a = week_start(a);
+        let z = (week_start(z.max(a)) + Duration::days(6)).min(a + Duration::days(RANGE_MAX_DAYS));
+        self.store.kv_put(K_VIEW, &json!({ "from": a, "to": z }).to_string())
+    }
+
+    /// The picture, holding all of [d]'s day (H2-01). A board edit builds the
+    /// day's new set from it, and the server replaces the day with that set:
+    /// built from a date never fetched, it wiped what the day held. Such a
+    /// date is fetched first; one that still can't be read is refused in
+    /// words and nothing is written.
+    async fn dawam_day_known(&self, snap: Snapshot, d: &str) -> Result<Snapshot, CoreError> {
+        let locale = self.current_locale();
+        let not_loaded = || CoreError::Validation { field: String::new(), detail: i18n::tr(&locale, "staff.week_not_loaded") };
+        let Ok(day) = NaiveDate::parse_from_str(d, "%Y-%m-%d") else { return Err(not_loaded()) };
+        if holds_day(&snap.loaded, day) {
+            return Ok(snap);
+        }
+        self.dawam_set_view(day, day)?;
+        match self.dawam_fetch().await {
+            Ok(()) | Err(CoreError::Transient { .. }) => {}
+            Err(CoreError::Offline { .. }) => return Err(needs_connection(&locale)),
+            Err(e) => return Err(e),
+        }
+        let snap = self.dawam_build()?;
+        if holds_day(&snap.loaded, day) {
+            Ok(snap)
+        } else {
+            Err(not_loaded())
+        }
+    }
+
     fn dawam_me(&self) -> Result<String, CoreError> {
         self.current_session()
             .map(|s| s.user_id)
@@ -1203,20 +1305,41 @@ impl MadarCore {
                 .unwrap_or_default()
         };
         let today = self.dawam_today();
-        let from = week_start(today) - Duration::days(28);
-        let to = from + Duration::days(55);
+        let (from, to) = fetch_window(today, i(&ctx["settings"], "period_start_day").clamp(1, 28));
         let range = format!("from={from}&to={to}");
         let weeks = [week_start(today), week_start(today) + Duration::days(7)];
+        // The dates a screen shows past that window (H2-01: the board paged to
+        // a week never fetched, empty and "Draft"), read like the window.
+        // Further out (H2-02): staff read their own roster 62 more days as a
+        // whole — their shifts, open shifts to claim, their claims — so the
+        // Shifts list reaches three months ahead; a manager reads only their
+        // own claims there, and the claims waiting on them.
+        let ahead_span = (to + Duration::days(1), to + Duration::days(RANGE_MAX_DAYS));
+        let ahead = format!("from={}&to={}", ahead_span.0, ahead_span.1);
+        let reach = if manager { to } else { ahead_span.1 };
+        let view = self.dawam_view().and_then(|(a, z)| beyond(a, z, from, reach));
+        let spans: Vec<(NaiveDate, NaiveDate, String)> = std::iter::once((from, to))
+            .chain(view)
+            .map(|(a, z)| (a, z, format!("from={a}&to={z}")))
+            .collect();
+        let my_spans: Vec<(NaiveDate, NaiveDate, String)> =
+            spans.iter().cloned().chain((!manager).then(|| (ahead_span.0, ahead_span.1, ahead.clone()))).collect();
+        let claims_ahead = format!("/staff/open-shifts?from={}&to={}", to + Duration::days(1), today + Duration::days(366));
 
         let mut paths: Vec<String> = vec![
-            format!("/staff/me/roster?{range}"),
             "/staff/me/notifications".into(),
             "/staff/me/pay/estimate".into(),
             "/staff/me/payslips".into(),
             "/staff/me/coverable".into(),
+            format!("/staff/me/roster?{ahead}"),
         ];
+        paths.extend(spans.iter().map(|(.., q)| format!("/staff/me/roster?{q}")));
         if manager {
-            paths.extend(mine.iter().map(|b| format!("/staff/roster?branch_id={b}&{range}")));
+            for (.., q) in &spans {
+                paths.extend(mine.iter().map(|b| format!("/staff/roster?branch_id={b}&{q}")));
+            }
+            paths.extend(spans.iter().skip(1).map(|(.., q)| format!("/staff/attendance?{q}")));
+            paths.push(claims_ahead.clone());
             paths.extend(mine.iter().map(|b| format!("/staff/roster/coverage?branch_id={b}")));
             paths.extend([
                 format!("/staff/attendance?{range}"),
@@ -1241,7 +1364,10 @@ impl MadarCore {
                 "/staff/me/adjustments".into(),
                 "/staff/me/expense-advances".into(),
             ]);
+            paths.extend(spans.iter().skip(1).map(|(.., q)| format!("/staff/me/attendance?{q}")));
         }
+        let mut asked = HashSet::new();
+        paths.retain(|p| asked.insert(p.clone()));
         let got: HashMap<String, Value> = futures_util::future::join_all(paths.iter().map(|p| async move {
             (p.clone(), self.dawam_srv("GET", p, None).await)
         }))
@@ -1286,30 +1412,49 @@ impl MadarCore {
         };
         if manager {
             for b in &mine {
-                let v = g(&format!("/staff/roster?branch_id={b}&{range}"));
-                for w in arr(&v, "published_weeks").iter().filter_map(Value::as_str) {
-                    published.push(format!("{b}|{w}"));
+                for (.., q) in &spans {
+                    let v = g(&format!("/staff/roster?branch_id={b}&{q}"));
+                    for w in arr(&v, "published_weeks").iter().filter_map(Value::as_str) {
+                        published.push(format!("{b}|{w}"));
+                    }
+                    roster(&mut m, arr(&v, "shifts"));
+                    date_sets.extend(arr(&v, "date_sets").iter().cloned());
+                    for o in arr(&v, "open_shifts") {
+                        m.put("dawam_open_shifts", Row::new(s(o, "id"), o).date(so(o, "on_date")));
+                    }
+                    for h in arr(&v, "holidays") {
+                        m.put("dawam_holidays", Row::new(s(h, "on_date"), h).date(so(h, "on_date")));
+                    }
+                    warnings.extend(arr(&v, "warnings").iter().cloned());
                 }
-                roster(&mut m, arr(&v, "shifts"));
-                date_sets.extend(arr(&v, "date_sets").iter().cloned());
-                for o in arr(&v, "open_shifts") {
+                coverage.insert(b.clone(), g(&format!("/staff/roster/coverage?branch_id={b}")));
+            }
+            // Claims further out wait on the manager all the same (H2-02).
+            for o in g(&claims_ahead).as_array().into_iter().flatten() {
+                if s(o, "status") == "claimed" {
                     m.put("dawam_open_shifts", Row::new(s(o, "id"), o).date(so(o, "on_date")));
                 }
-                for h in arr(&v, "holidays") {
-                    m.put("dawam_holidays", Row::new(s(h, "on_date"), h).date(so(h, "on_date")));
-                }
-                warnings.extend(arr(&v, "warnings").iter().cloned());
-                coverage.insert(b.clone(), g(&format!("/staff/roster/coverage?branch_id={b}")));
             }
         }
         let mine_roster = g(&format!("/staff/me/roster?{range}"));
-        roster(&mut m, arr(&mine_roster, "shifts"));
-        roster(&mut m, arr(&mine_roster, "team"));
-        for o in arr(&mine_roster, "open_shifts") {
-            m.put("dawam_open_shifts", Row::new(s(o, "id"), o).date(so(o, "on_date")));
+        for (.., q) in &my_spans {
+            let v = g(&format!("/staff/me/roster?{q}"));
+            roster(&mut m, arr(&v, "shifts"));
+            roster(&mut m, arr(&v, "team"));
+            for o in arr(&v, "open_shifts") {
+                m.put("dawam_open_shifts", Row::new(s(o, "id"), o).date(so(o, "on_date")));
+            }
+            for w in arr(&v, "swaps") {
+                m.put("dawam_swaps", Row::new(s(w, "id"), w));
+            }
         }
-        for w in arr(&mine_roster, "swaps") {
-            m.put("dawam_swaps", Row::new(s(w, "id"), w));
+        // A manager's own claims further out stay in their Requests (H2-02).
+        if manager {
+            for o in arr(&g(&format!("/staff/me/roster?{ahead}")), "open_shifts") {
+                if s(o, "status") == "claimed" && s(o, "claimed_by") == me {
+                    m.put("dawam_open_shifts", Row::new(s(o, "id"), o).date(so(o, "on_date")));
+                }
+            }
         }
         if let Some(list) = g("/staff/swaps").as_array() {
             for w in list {
@@ -1317,24 +1462,46 @@ impl MadarCore {
             }
         }
         if !manager {
-            let unpublished: HashSet<String> =
-                arr(&mine_roster, "unpublished_weeks").iter().filter_map(Value::as_str).map(str::to_string).collect();
-            let mut w = week_start(from);
-            while w <= to {
-                if !unpublished.contains(&w.to_string()) {
-                    published.extend(mine.iter().map(|b| format!("{b}|{w}")));
+            for (a, z, q) in &my_spans {
+                let v = g(&format!("/staff/me/roster?{q}"));
+                let unpublished: HashSet<String> =
+                    arr(&v, "unpublished_weeks").iter().filter_map(Value::as_str).map(str::to_string).collect();
+                let mut w = week_start(*a);
+                while w <= *z {
+                    if !unpublished.contains(&w.to_string()) {
+                        published.extend(mine.iter().map(|b| format!("{b}|{w}")));
+                    }
+                    w += Duration::days(7);
                 }
-                w += Duration::days(7);
             }
         }
+        // The dates held in full: a span whose rosters all answered — the
+        // branches' for a manager (an owner may have no roster of their
+        // own), my own for everyone else.
+        let loaded: Vec<[String; 2]> = if manager { &spans } else { &my_spans }
+            .iter()
+            .filter(|(.., q)| {
+                if manager {
+                    mine.iter().all(|b| got.contains_key(&format!("/staff/roster?branch_id={b}&{q}")))
+                } else {
+                    got.contains_key(&format!("/staff/me/roster?{q}"))
+                }
+            })
+            .map(|(a, z, _)| [a.to_string(), z.to_string()])
+            .collect();
         let list = |p: &str| g(p).as_array().cloned().unwrap_or_default();
         let (att, reqs, adv, adj, exp) = if manager {
             (format!("/staff/attendance?{range}"), "/staff/requests", "/staff/payroll/advances", "/staff/adjustments", "/staff/expense-advances")
         } else {
             (format!("/staff/me/attendance?{range}"), "/staff/me/requests", "/staff/me/advances", "/staff/me/adjustments", "/staff/me/expense-advances")
         };
-        for r in list(&att) {
-            m.put("dawam_attendance", Row::new(s(&r, "id"), &r).date(so(&r, "business_date")));
+        let att_paths = std::iter::once(att.clone()).chain(spans.iter().skip(1).map(|(.., q)| {
+            if manager { format!("/staff/attendance?{q}") } else { format!("/staff/me/attendance?{q}") }
+        }));
+        for p in att_paths {
+            for r in list(&p) {
+                m.put("dawam_attendance", Row::new(s(&r, "id"), &r).date(so(&r, "business_date")));
+            }
         }
         for q in list(reqs) {
             m.put("dawam_requests", Row::new(s(&q, "id"), &q).date(so(&q, "on_date")));
@@ -1407,6 +1574,7 @@ impl MadarCore {
             ("coverage", json!(coverage)),
             ("date_sets", json!(date_sets)),
             ("presence", g("/staff/team/presence")),
+            ("loaded", json!(loaded)),
         ];
         self.store.with_tx(|tx| write_mirror(tx, &m))?;
         Ok(())
@@ -1573,6 +1741,24 @@ impl MadarCore {
             let _ = self.drain_outbox().await;
             return self.dawam_snapshot(true).await;
         }
+        // A screen showing dates the picture doesn't hold: fetch them (online),
+        // and keep them for the refreshes after. Held already: nothing to do.
+        if let Act::ViewRange { from, to } = &act {
+            let day = |x: &str| {
+                NaiveDate::parse_from_str(x, "%Y-%m-%d").map_err(|e| CoreError::Validation { field: "from".into(), detail: e.to_string() })
+            };
+            let (a, z) = (day(from)?, day(to)?);
+            let held = self.dawam_build()?.loaded;
+            let mut d = a;
+            while d <= z && holds_day(&held, d) {
+                d += Duration::days(1);
+            }
+            if d > z {
+                return self.dawam_snapshot(false).await;
+            }
+            self.dawam_set_view(a, z)?;
+            return self.dawam_snapshot(online).await;
+        }
         if act.queueable() {
             let made = self.dawam_queue(act)?;
             // The punch just made is the one the person waits on (`LIVE_OP`).
@@ -1594,7 +1780,16 @@ impl MadarCore {
         if !self.dawam_reachable(online).await {
             return Err(needs_connection(&self.current_locale()));
         }
-        let filed = self.dawam_online(act).await?;
+        let filed = match self.dawam_online(act).await {
+            Ok(f) => f,
+            // Someone else got there first: fetch again, so the list the
+            // refusal says is up to date is (H2-B2/B3).
+            Err(e @ CoreError::Server { .. }) if matches!(&e, CoreError::Server { code, .. } if STALE_CODES.contains(&code.as_str())) => {
+                let _ = self.dawam_fetch().await;
+                return Err(e);
+            }
+            Err(e) => return Err(e),
+        };
         let snap = self.dawam_snapshot(true).await?;
         // What the server made of a request just filed (RQ-5): approved at
         // once for a filer who approves their own, else waiting — the screen
@@ -1972,22 +2167,24 @@ impl MadarCore {
             Act::LogExpense { emp, amount, purpose, via } => {
                 self.dawam_srv("POST", "/staff/expense-advances", Some(json!({ "employee_id": emp, "amount_piastres": amount, "purpose": purpose, "via": via }))).await?;
             }
-            Act::SetDay { emp, date: d, tpl } => {
+            Act::SetDay { emp, date: d, tpl, branch } => {
                 let blocks: Vec<BlockA> = tpl.into_iter().map(|tpl| BlockA { tpl, start: None, end: None }).collect();
-                self.dawam_put_day(&emp, &d, &blocks).await?;
+                self.dawam_put_day(&emp, &d, &blocks, branch.as_deref()).await?;
             }
-            Act::SetShifts { emp, date: d, blocks } => self.dawam_put_day(&emp, &d, &blocks).await?,
-            Act::AddBlock { emp, date: d, tpl } => {
+            Act::SetShifts { emp, date: d, blocks, branch } => self.dawam_put_day(&emp, &d, &blocks, branch.as_deref()).await?,
+            Act::AddBlock { emp, date: d, tpl, branch } => {
+                let snap = self.dawam_day_known(snap, &d).await?;
                 let mut blocks = day_set(&snap, &emp, &d);
                 if !blocks.iter().any(|b| b.tpl == tpl) {
                     blocks.push(BlockA { tpl, start: None, end: None });
                 }
-                self.dawam_put_day(&emp, &d, &blocks).await?;
+                self.dawam_put_day(&emp, &d, &blocks, branch.as_deref()).await?;
             }
-            Act::RemoveBlock { shift } => {
+            Act::RemoveBlock { shift, branch } => {
                 let (emp, d, tpl) = parts(&shift);
+                let snap = self.dawam_day_known(snap, d).await?;
                 let blocks: Vec<BlockA> = day_set(&snap, emp, d).into_iter().filter(|b| b.tpl != tpl).collect();
-                self.dawam_put_day(emp, d, &blocks).await?;
+                self.dawam_put_day(emp, d, &blocks, branch.as_deref()).await?;
             }
             Act::ResetDay { emp, date: d } => {
                 self.dawam_srv("DELETE", &format!("/staff/schedules/days?employee_id={emp}&on_date={d}"), None).await?;
@@ -2014,35 +2211,51 @@ impl MadarCore {
             Act::AskSwap { mine, theirs } => self.dawam_ask_swap(&snap, &mine, &theirs).await?,
             // Dragged to another day or block: only that block moves; the rest
             // of both days stays (SC-11).
-            Act::MoveShift { shift, day: to_day, tpl } => {
+            Act::MoveShift { shift, day: to_day, tpl, branch } => {
                 let (emp, from_day, from_tpl) = parts(&shift);
-                if emp != "open" {
-                    let from: Vec<BlockA> = day_set(&snap, emp, from_day).into_iter().filter(|b| b.tpl != from_tpl).collect();
-                    let mut to = if to_day == from_day { from.clone() } else { day_set(&snap, emp, &to_day) };
-                    to.retain(|b| b.tpl != tpl);
-                    to.push(BlockA { tpl, start: None, end: None });
-                    // The day it goes to first (E2E roster): a refusal there — a
-                    // block not worked that weekday, an overlap — must leave both
-                    // days as they were, not take the shift off its own day.
-                    self.dawam_put_day(emp, &to_day, &to).await?;
-                    if to_day != from_day {
-                        self.dawam_put_day(emp, from_day, &from).await?;
-                    }
+                // An open shift has no day set to move within (H2-05: the drag
+                // did nothing and the board said "Moved").
+                if emp == "open" {
+                    return Err(invalid("staff.open_shift_cant_move"));
+                }
+                let snap = self.dawam_day_known(snap, from_day).await?;
+                let snap = self.dawam_day_known(snap, &to_day).await?;
+                let from: Vec<BlockA> = day_set(&snap, emp, from_day).into_iter().filter(|b| b.tpl != from_tpl).collect();
+                let mut to = if to_day == from_day { from.clone() } else { day_set(&snap, emp, &to_day) };
+                to.retain(|b| b.tpl != tpl);
+                to.push(BlockA { tpl, start: None, end: None });
+                // The day it goes to first (E2E roster): a refusal there — a
+                // block not worked that weekday, an overlap — must leave both
+                // days as they were, not take the shift off its own day.
+                self.dawam_put_day(emp, &to_day, &to, branch.as_deref()).await?;
+                if to_day != from_day {
+                    self.dawam_put_day(emp, from_day, &from, branch.as_deref()).await?;
                 }
             }
-            Act::Assign { shift, emp } => {
+            Act::Assign { shift, emp, branch } => {
                 if let Some(open) = shift.strip_prefix("open|") {
                     // An open shift given to someone: theirs, and no longer open.
+                    // Left open: already so.
                     let Some(e) = emp else { return Ok(None) };
-                    let Some(sh) = snap.shifts.iter().find(|x| x.id == shift) else { return Ok(None) };
-                    let mut blocks = day_set(&snap, &e, &sh.date);
-                    blocks.push(BlockA { tpl: sh.tpl.clone(), start: None, end: None });
-                    self.dawam_put_day(&e, &sh.date, &blocks).await?;
+                    // Taken back or claimed since this phone last looked (H2-06:
+                    // it was a silent "done").
+                    let Some((d, tpl)) = snap.shifts.iter().find(|x| x.id == shift).map(|x| (x.date.clone(), x.tpl.clone())) else {
+                        return Err(invalid("staff.open_shift_gone"));
+                    };
+                    let snap = self.dawam_day_known(snap, &d).await?;
+                    let mut blocks = day_set(&snap, &e, &d);
+                    blocks.push(BlockA { tpl, start: None, end: None });
+                    self.dawam_put_day(&e, &d, &blocks, branch.as_deref()).await?;
                     self.dawam_srv("POST", &format!("/staff/open-shifts/{open}/cancel"), Some(json!({}))).await?;
                     return Ok(None);
                 }
                 let (owner, d, tpl) = parts(&shift);
-                let branch = snap.templates.iter().find(|t| t.id == tpl).map(|t| t.branch.clone()).unwrap_or_default();
+                // Opened at the board's branch (H2-B8): a business-wide block's
+                // template names no branch, and the first one listed was used.
+                let open_at = branch
+                    .clone()
+                    .filter(|b| !b.is_empty())
+                    .unwrap_or_else(|| snap.templates.iter().find(|t| t.id == tpl).map(|t| t.branch.clone()).unwrap_or_default());
                 match emp {
                     Some(e) => {
                         self.dawam_srv("POST", "/staff/schedules/days/move", Some(json!({
@@ -2050,9 +2263,10 @@ impl MadarCore {
                         }))).await.map_err(|err| already_on_it(err, &snap, &e, &locale))?;
                     }
                     None => {
+                        let snap = self.dawam_day_known(snap, d).await?;
                         let rest: Vec<BlockA> = day_set(&snap, owner, d).into_iter().filter(|b| b.tpl != tpl).collect();
-                        self.dawam_put_day(owner, d, &rest).await?;
-                        self.dawam_srv("POST", "/staff/open-shifts", Some(json!({ "branch_id": branch, "work_shift_id": tpl, "on_date": d }))).await?;
+                        self.dawam_put_day(owner, d, &rest, branch.as_deref()).await?;
+                        self.dawam_srv("POST", "/staff/open-shifts", Some(json!({ "branch_id": open_at, "work_shift_id": tpl, "on_date": d }))).await?;
                     }
                 }
             }
@@ -2104,16 +2318,20 @@ impl MadarCore {
             | Act::PunchFor { .. }
             | Act::SignOut
             | Act::AcceptPrivacy
+            | Act::ViewRange { .. }
             | Act::NoteFix { .. } => {}
         }
         Ok(filed)
     }
 
     /// PUT the date's whole set (a split day, or a day off when empty).
-    async fn dawam_put_day(&self, emp: &str, d: &str, blocks: &[BlockA]) -> Result<(), CoreError> {
-        self.dawam_srv("PUT", "/staff/schedules/days", Some(json!({ "employee_id": emp, "on_date": d, "shifts": blocks_json(blocks) })))
-            .await
-            .map(|_| ())
+    async fn dawam_put_day(&self, emp: &str, d: &str, blocks: &[BlockA], branch: Option<&str>) -> Result<(), CoreError> {
+        let mut body = json!({ "employee_id": emp, "on_date": d, "shifts": blocks_json(blocks) });
+        // The board's branch (H2-B8): a business-wide block set there is worked there.
+        if let Some(b) = branch.filter(|b| !b.is_empty()) {
+            body["branch_id"] = json!(b);
+        }
+        self.dawam_srv("PUT", "/staff/schedules/days", Some(body)).await.map(|_| ())
     }
 
     /// Ask for a swap: `mine` must be my own shift (06 B2: the app once sent
@@ -2163,8 +2381,8 @@ impl MadarCore {
         let tz = self.dawam_tz();
         let today = now.with_timezone(&tz).date_naive();
         let queued = self.dawam_queued()?;
-        let (warn_rows, coverage, date_sets, board) = self.store.with_conn(|c| {
-            Ok((read_meta(c, "warnings"), read_meta(c, "coverage"), read_meta(c, "date_sets"), read_meta(c, "presence")))
+        let (warn_rows, coverage, date_sets, board, loaded) = self.store.with_conn(|c| {
+            Ok((read_meta(c, "warnings"), read_meta(c, "coverage"), read_meta(c, "date_sets"), read_meta(c, "presence"), read_meta(c, "loaded")))
         })?;
         let (t, ctx, published, estimate, current, me_roster, fetched_at) = self.store.with_conn(|c| {
             let mut t = HashMap::new();
@@ -2297,6 +2515,14 @@ impl MadarCore {
         };
         let tpl = |id: &str| out.templates.iter().find(|x| x.id == id);
         let published: HashSet<String> = published.as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_string).collect();
+        out.published_weeks = published.iter().cloned().collect();
+        out.published_weeks.sort();
+        out.loaded = loaded
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|r| Some([r.get(0)?.as_str()?.to_string(), r.get(1)?.as_str()?.to_string()]))
+            .collect();
 
         // Shifts: the roster, open shifts, then what happened on them.
         let mut shifts: Vec<ShiftV> = Vec::new();
@@ -3178,6 +3404,32 @@ mod tests {
         assert_eq!(p["e1"], PresenceV { state: "late".into(), since: Some("2026-09-23T06:12:00Z".into()), late_minutes: 12 });
         assert_eq!(p["e4"].state, "absent");
         assert!(presence_of(&Value::Null).is_empty(), "no board (employee, offline first run): nothing");
+    }
+
+    /// H2-10: the window the core fetches holds the whole pay period the
+    /// Timesheet lists, whatever the weekday: on Saturday 31 Oct a 1–31 Oct
+    /// period began before "four weeks back" (3 Oct), and its first two
+    /// days' shifts and absences were never on the phone.
+    #[test]
+    fn the_fetch_window_holds_this_pay_period_and_three_weeks_ahead() {
+        let day = |s: &str| NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap();
+        let (from, to) = fetch_window(day("2026-10-31"), 1);
+        assert!(from <= day("2026-10-01"), "the period's first day: {from}");
+        assert_eq!(to, day("2026-11-27"), "this week and three ahead");
+        assert!((to - from).num_days() <= RANGE_MAX_DAYS, "one roster read: {from}..{to}");
+        // A mid-week day keeps four weeks back and three ahead.
+        let (from, to) = fetch_window(day("2026-09-22"), 26);
+        assert_eq!((from, to), (day("2026-08-22"), day("2026-10-16")));
+        // Any day of the year, any start day: the period is held, the read fits.
+        let mut d = day("2026-01-01");
+        while d < day("2027-01-01") {
+            for start in [1, 15, 26, 28] {
+                let (from, to) = fetch_window(d, start);
+                assert!(from <= period_around(d, start).0 && to >= week_start(d) + Duration::days(27), "{d} {start}");
+                assert!((to - from).num_days() <= RANGE_MAX_DAYS, "{d} {start}: {from}..{to}");
+            }
+            d += Duration::days(1);
+        }
     }
 
     #[test]
@@ -5321,7 +5573,10 @@ mod tests {
         let d = today_cairo().to_string();
         let calls = std::sync::Arc::new(AtomicUsize::new(0));
         let seen = calls.clone();
-        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+        let today = today_cairo();
+        let (_stub, core) = cafe(&[], move |m, p, r| match (m, p) {
+            // The read of my claims further out (H2-02) is not the one throttled.
+            ("GET", "/staff/me/roster") if asked(r).is_some_and(|(a, _)| a > today) => Some(StubResponse::json(200, json!({}))),
             ("GET", "/staff/me/roster") => {
                 // The first read answers; every later one is throttled.
                 if seen.fetch_add(1, Ordering::SeqCst) == 0 {
@@ -5561,6 +5816,362 @@ mod tests {
                 }
                 other => panic!("expected the refusal, got {other:?}"),
             }
+        }
+    }
+
+    // ── the window (H2-01): what the core fetches by itself is the current
+    // week and three ahead; a screen showing any other dates asks for them,
+    // and a board edit never builds a day from dates it never fetched ──
+
+    const MGR: &[&str] = &["hr.schedule.read", "hr.schedule.edit"];
+
+    /// The dates a read asks for (`from`/`to`).
+    fn asked(r: &crate::testkit::SeenRequest) -> Option<(NaiveDate, NaiveDate)> {
+        let q = r.path.split_once('?')?.1;
+        let get = |k: &str| {
+            q.split('&').find_map(|kv| kv.strip_prefix(k)).and_then(|v| NaiveDate::parse_from_str(v, "%Y-%m-%d").ok())
+        };
+        Some((get("from=")?, get("to=")?))
+    }
+
+    /// A Saturday five weeks out: past what the core fetches by itself.
+    fn far_week() -> NaiveDate {
+        week_start(today_cairo()) + Duration::days(35)
+    }
+
+    /// The branch roster as the server answers the dates asked: Youssef
+    /// (`e4`) works the morning on [far], a week published with that shift.
+    fn far_roster(r: &crate::testkit::SeenRequest, far: NaiveDate) -> Value {
+        let inside = asked(r).is_some_and(|(a, z)| a <= far && far <= z);
+        json!({
+            "published_weeks": if inside { vec![far.to_string()] } else { vec![] },
+            "shifts": if inside {
+                vec![json!({ "employee_id": "e4", "date": far, "work_shift_id": "w1", "start_time": "08:00:00", "end_time": "12:00:00" })]
+            } else { vec![] },
+            "open_shifts": [], "date_sets": [],
+        })
+    }
+
+    /// The picture holds every date of [d]'s day: `loaded` covers it.
+    fn loaded_on(snap: &Value, d: NaiveDate) -> bool {
+        let d = d.to_string();
+        snap["loaded"].as_array().into_iter().flatten().any(|r| r[0].as_str() <= Some(d.as_str()) && Some(d.as_str()) <= r[1].as_str())
+    }
+
+    fn snap_of(s: &str) -> Value {
+        serde_json::from_str(s).unwrap()
+    }
+
+    /// Owner bug 1 (H2-01): the board let the manager page to a week the core
+    /// never fetched; it was empty and read Draft. The week a screen shows is
+    /// fetched too, and the picture says which dates it holds.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_week_past_the_window_is_fetched_when_a_screen_shows_it() {
+        use crate::testkit::{StubResponse, BRANCH};
+        let far = far_week();
+        let (_stub, core) = cafe(MGR, move |m, p, r| match (m, p) {
+            ("GET", "/staff/roster") => Some(StubResponse::json(200, far_roster(r, far))),
+            _ => None,
+        })
+        .await;
+        let id = format!("e4|{far}|w1");
+        let has = |s: &Value| s["shifts"].as_array().unwrap().iter().any(|x| x["id"] == id.as_str());
+        let snap = snap_of(&core.dawam_snapshot(true).await.unwrap());
+        assert!(!has(&snap), "five weeks out is past the usual window");
+        assert!(loaded_on(&snap, today_cairo()) && !loaded_on(&snap, far), "the picture says what it holds: {}", snap["loaded"]);
+
+        let seen = core.dawam_do(json!({ "action": "view_range", "from": far, "to": far + Duration::days(6) }).to_string()).await.unwrap();
+        let snap = snap_of(&seen);
+        assert!(has(&snap), "the week on show is fetched");
+        assert!(loaded_on(&snap, far) && loaded_on(&snap, today_cairo()), "and the usual window stays: {}", snap["loaded"]);
+        let published = snap["published_weeks"].as_array().unwrap();
+        assert!(published.contains(&json!(format!("{BRANCH}|{far}"))), "the server's published weeks: {published:?}");
+        // Every later refresh keeps the week on show.
+        let snap = snap_of(&core.dawam_snapshot(true).await.unwrap());
+        assert!(has(&snap) && loaded_on(&snap, far));
+    }
+
+    /// Owner bug 1's data loss (H2-01): adding a block on a date the core
+    /// never fetched PUT that block alone and wiped the rest of the day.
+    /// The core fetches the day's week first.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn adding_to_a_day_past_the_window_keeps_what_that_day_holds() {
+        use crate::testkit::StubResponse;
+        let far = far_week();
+        let (stub, core) = cafe(MGR, move |m, p, r| match (m, p) {
+            ("GET", "/staff/roster") => Some(StubResponse::json(200, far_roster(r, far))),
+            ("PUT", "/staff/schedules/days") => Some(StubResponse::json(200, json!({}))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        core.dawam_do(json!({ "action": "add_block", "emp": "e4", "date": far, "tpl": "w2" }).to_string()).await.unwrap();
+        let body = posted(&stub, "/staff/schedules/days");
+        let ids: Vec<&str> = body["shifts"].as_array().unwrap().iter().filter_map(|b| b["work_shift_id"].as_str()).collect();
+        assert_eq!(ids, ["w1", "w2"], "the morning already on that day stays");
+    }
+
+    /// When the day's week can't be read, the edit is refused in words and
+    /// nothing is written: never a day built from nothing.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_board_edit_on_a_week_that_cannot_be_read_is_refused_in_words() {
+        use crate::testkit::StubResponse;
+        let far = far_week();
+        let (stub, core) = cafe(MGR, move |m, p, r| match (m, p) {
+            ("GET", "/staff/roster") if asked(r).is_some_and(|(a, z)| a <= far && far <= z) => {
+                Some(StubResponse::json(403, json!({ "error": "Forbidden" })))
+            }
+            ("GET", "/staff/roster") => Some(StubResponse::json(200, far_roster(r, far))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            for act in [
+                json!({ "action": "add_block", "emp": "e4", "date": far, "tpl": "w2" }),
+                json!({ "action": "remove_block", "shift": format!("e4|{far}|w1") }),
+                json!({ "action": "move_shift", "shift": format!("e4|{far}|w1"), "day": far + Duration::days(1), "tpl": "w1" }),
+                json!({ "action": "assign", "shift": format!("e4|{far}|w1"), "emp": null }),
+            ] {
+                match core.dawam_do(act.to_string()).await {
+                    Err(CoreError::Validation { detail, .. }) => assert_eq!(detail, i18n::tr(lang, "staff.week_not_loaded"), "{act}"),
+                    other => panic!("{act}: expected the refusal, got {other:?}"),
+                }
+            }
+        }
+        let writes: Vec<_> = stub.seen.lock().unwrap().iter().filter(|r| r.method != "GET" && r.path.starts_with("/staff/")).map(|r| r.path.clone()).collect();
+        assert!(writes.is_empty(), "nothing is written: {writes:?}");
+    }
+
+    /// H2-02: an open shift I claimed further out than the window is still
+    /// mine to see in Requests.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn my_claim_further_out_than_the_window_stays_in_my_requests() {
+        use crate::testkit::{StubResponse, BRANCH, TELLER};
+        let far = far_week() + Duration::days(21);
+        let (_stub, core) = cafe(&[], move |m, p, r| match (m, p) {
+            ("GET", "/staff/me/roster") => {
+                let inside = asked(r).is_some_and(|(a, z)| a <= far && far <= z);
+                Some(StubResponse::json(200, json!({
+                    "shifts": [], "team": [], "swaps": [], "unpublished_weeks": [],
+                    "open_shifts": if inside {
+                        vec![
+                            json!({ "id": "o8", "branch_id": BRANCH, "work_shift_id": "w1", "on_date": far, "status": "claimed", "claimed_by": TELLER }),
+                            json!({ "id": "o7", "branch_id": BRANCH, "work_shift_id": "w2", "on_date": far, "status": "open" }),
+                        ]
+                    } else { vec![] },
+                })))
+            }
+            _ => None,
+        })
+        .await;
+        let snap = snap_of(&core.dawam_snapshot(true).await.unwrap());
+        let claim = snap["requests"].as_array().unwrap().iter().find(|q| q["id"] == "o|o8").cloned();
+        let claim = claim.unwrap_or_else(|| panic!("my claim eight weeks out: {}", snap["requests"]));
+        assert_eq!((claim["emp"].as_str(), claim["status"].as_str()), (Some(TELLER), Some("pending")));
+        // The Shifts list reaches that far too: an open shift to claim, in a
+        // published week, on dates the picture holds.
+        let open = snap["shifts"].as_array().unwrap().iter().find(|x| x["id"] == "open|o7").cloned();
+        assert_eq!(open.map(|o| o["published"].clone()), Some(json!(true)), "{}", snap["shifts"]);
+        assert!(loaded_on(&snap, far), "{}", snap["loaded"]);
+    }
+
+    /// H2-02, the manager's side: a claim further out than the window waits
+    /// in the inbox like any other.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_claim_further_out_than_the_window_waits_in_the_managers_inbox() {
+        use crate::testkit::{StubResponse, BRANCH};
+        let far = far_week() + Duration::days(21);
+        let (_stub, core) = cafe(MGR, move |m, p, r| match (m, p) {
+            ("GET", "/staff/open-shifts") if asked(r).is_some_and(|(a, z)| a <= far && far <= z) => Some(StubResponse::json(200, json!([
+                { "id": "o9", "branch_id": BRANCH, "work_shift_id": "w1", "on_date": far, "status": "claimed", "claimed_by": "e4" }
+            ]))),
+            _ => None,
+        })
+        .await;
+        let snap = snap_of(&core.dawam_snapshot(true).await.unwrap());
+        assert!(snap["inbox"].as_array().unwrap().contains(&json!("o|o9")), "{}", snap["inbox"]);
+    }
+
+    /// H2-05: dragging an open shift along the open row did nothing, and the
+    /// board said "Moved". It is refused in words, with nothing sent.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_open_shift_dragged_to_another_day_is_refused_not_a_silent_done() {
+        use crate::testkit::{StubResponse, BRANCH};
+        let day = today_cairo() + Duration::days(2);
+        let (stub, core) = cafe(MGR, move |m, p, _| match (m, p) {
+            ("GET", "/staff/roster") => Some(StubResponse::json(200, json!({
+                "published_weeks": [], "shifts": [], "date_sets": [],
+                "open_shifts": [{ "id": "o1", "branch_id": BRANCH, "work_shift_id": "w1", "on_date": day, "status": "open" }],
+            }))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            let act = json!({ "action": "move_shift", "shift": "open|o1", "day": day + Duration::days(1), "tpl": "w1" });
+            match core.dawam_do(act.to_string()).await {
+                Err(CoreError::Validation { detail, .. }) => assert_eq!(detail, i18n::tr(lang, "staff.open_shift_cant_move")),
+                other => panic!("expected the refusal, got {other:?}"),
+            }
+            // Giving away an open shift the phone no longer holds is refused too.
+            match core.dawam_do(json!({ "action": "assign", "shift": "open|gone", "emp": "e4" }).to_string()).await {
+                Err(CoreError::Validation { detail, .. }) => assert_eq!(detail, i18n::tr(lang, "staff.open_shift_gone")),
+                other => panic!("expected the refusal, got {other:?}"),
+            }
+        }
+        let writes: Vec<_> = stub.seen.lock().unwrap().iter().filter(|r| r.method != "GET" && r.path.starts_with("/staff/")).map(|r| r.path.clone()).collect();
+        assert!(writes.is_empty(), "nothing is sent: {writes:?}");
+    }
+
+    /// H2-B2/B3: a decision someone else already made (a pay line, an
+    /// advance, overtime), a flag someone else already handled, and a cover
+    /// flag asked for anything but confirm or reject are refused in the
+    /// phone's language; and after a refusal of the first two the picture is
+    /// fetched again, so the stale item leaves the inbox ("the list is up to
+    /// date now" is true).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_decision_made_elsewhere_is_worded_and_the_inbox_catches_up() {
+        use crate::testkit::StubResponse;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let d = today_cairo().to_string();
+        let gone = std::sync::Arc::new(AtomicBool::new(false));
+        let decided = gone.clone();
+        let (_stub, core) = cafe(&["hr.payroll.run", "hr.advances.decide", "hr.overtime.approve", "hr.attendance.read"], move |m, p, _| {
+            let later = decided.load(Ordering::SeqCst);
+            match (m, p) {
+                ("GET", "/staff/payroll/advances") => Some(StubResponse::json(200, json!([
+                    { "id": "v9", "employee_id": "e4", "amount_piastres": 50000, "installments": 1,
+                      "status": if later { "approved" } else { "pending" }, "created_at": "2026-09-22T08:00:00Z" }
+                ]))),
+                ("GET", "/staff/flags") => Some(StubResponse::json(200, json!([
+                    { "id": "f1", "employee_id": "e4", "kind": "left_mid_shift", "detected_at": "2026-09-22T08:00:00Z", "resolution": null },
+                    { "id": "f2", "employee_id": "e4", "kind": "cover", "detected_at": "2026-09-22T08:00:00Z", "resolution": null }
+                ]))),
+                ("PATCH", "/staff/advances/v9/review") => {
+                    decided.store(true, Ordering::SeqCst);
+                    Some(StubResponse::json(409, json!({ "error": "Conflict: Already decided", "code": "ALREADY_DECIDED", "vars": { "status": "approved" } })))
+                }
+                ("PATCH", "/staff/adjustments/deduction/a1/decision") | ("PATCH", "/staff/attendance/r1/overtime") => Some(StubResponse::json(409, json!({
+                    "error": "Conflict: Already decided", "code": "ALREADY_DECIDED", "vars": { "status": "rejected" } }))),
+                ("PATCH", "/staff/flags/f1") => Some(StubResponse::json(404, json!({ "error": "Not found: This flag was already handled", "code": "FLAG_HANDLED" }))),
+                ("PATCH", "/staff/flags/f2") => Some(StubResponse::json(400, json!({
+                    "error": "Bad request: A cover flag is confirmed or rejected", "code": "FLAG_COVER_CONFIRM_OR_REJECT" }))),
+                _ => { let _ = &d; None }
+            }
+        })
+        .await;
+        let snap = snap_of(&core.dawam_snapshot(true).await.unwrap());
+        assert!(snap["inbox"].as_array().unwrap().contains(&json!("v|v9")), "{}", snap["inbox"]);
+        let refused = |r: Result<String, CoreError>, code: &str, key: &str, lang: &str| match r {
+            Err(CoreError::Server { code: c, detail, .. }) => {
+                assert_eq!(c, code);
+                assert_eq!(detail, i18n::tr(lang, key), "{code} in {lang}");
+            }
+            other => panic!("{code}: expected the refusal, got {other:?}"),
+        };
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            for act in [
+                json!({ "action": "decide", "req": "v|v9", "approve": true, "amount": 50000, "installments": 1 }),
+                json!({ "action": "decide_adj", "adj": "a|deduction|a1", "yes": true }),
+                json!({ "action": "decide", "req": "t|r1", "approve": true }),
+            ] {
+                refused(core.dawam_do(act.to_string()).await, "ALREADY_DECIDED", "staff.err_already_decided", lang);
+            }
+            refused(
+                core.dawam_do(json!({ "action": "resolve", "flag": "f1", "how": "ignore" }).to_string()).await,
+                "FLAG_HANDLED", "staff.err_flag_handled", lang,
+            );
+            refused(
+                core.dawam_do(json!({ "action": "resolve", "flag": "f2", "how": "ignore" }).to_string()).await,
+                "FLAG_COVER_CONFIRM_OR_REJECT", "staff.err_flag_cover_confirm_or_reject", lang,
+            );
+        }
+        // The refusal fetched the picture again: the advance someone else
+        // decided is no longer waiting on me.
+        let snap = snap_of(&core.dawam_snapshot(false).await.unwrap());
+        assert!(!snap["inbox"].as_array().unwrap().contains(&json!("v|v9")), "{}", snap["inbox"]);
+        for k in ["staff.err_already_decided", "staff.err_flag_handled", "staff.err_flag_cover_confirm_or_reject"] {
+            assert_ne!(i18n::tr("en", k), k, "{k} has no English");
+            assert_ne!(i18n::tr("ar", k), i18n::tr("en", k), "{k} has no Arabic");
+        }
+    }
+
+    /// H2-B8: every day the board writes names the board's branch, so a
+    /// business-wide block set from branch B is worked at B (the server used
+    /// the person's first branch); a person not at that branch is refused in
+    /// the phone's language.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_board_edit_names_the_boards_branch() {
+        use crate::testkit::{StubResponse, BRANCH};
+        let day = today_cairo() + Duration::days(2);
+        let (stub, core) = cafe(MGR, move |m, p, r| match (m, p) {
+            ("GET", "/staff/roster") => Some(StubResponse::json(200, json!({
+                "published_weeks": [], "date_sets": [],
+                "shifts": [{ "employee_id": "e4", "date": day, "work_shift_id": "w1", "start_time": "08:00:00", "end_time": "12:00:00" }],
+                "open_shifts": [{ "id": "o1", "branch_id": BRANCH, "work_shift_id": "w2", "on_date": day, "status": "open" }],
+            }))),
+            ("PUT", "/staff/schedules/days") if r.json()["employee_id"] == "m2" => Some(StubResponse::json(400, json!({
+                "error": "Bad request: Omar doesn't work at that branch.", "code": "EMPLOYEE_NOT_AT_BRANCH" }))),
+            ("PUT", "/staff/schedules/days") => Some(StubResponse::json(200, json!({}))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        let sid = format!("e4|{day}|w1");
+        for act in [
+            json!({ "action": "add_block", "emp": "e4", "date": day, "tpl": "w2", "branch": BRANCH }),
+            json!({ "action": "remove_block", "shift": sid, "branch": BRANCH }),
+            json!({ "action": "set_day", "emp": "e4", "date": day, "tpl": "w1", "branch": BRANCH }),
+            json!({ "action": "set_shifts", "emp": "e4", "date": day, "blocks": [{ "tpl": "w1" }], "branch": BRANCH }),
+            json!({ "action": "move_shift", "shift": sid, "day": day, "tpl": "w2", "branch": BRANCH }),
+            json!({ "action": "assign", "shift": "open|o1", "emp": "e4", "branch": BRANCH }),
+        ] {
+            core.dawam_do(act.to_string()).await.unwrap_or_else(|e| panic!("{act}: {e:?}"));
+            assert_eq!(posted(&stub, "/staff/schedules/days")["branch_id"], BRANCH, "{act}");
+        }
+        // Opened from the board: posted at the board's branch.
+        core.dawam_do(json!({ "action": "assign", "shift": sid, "emp": null, "branch": "b2" }).to_string()).await.unwrap();
+        assert_eq!(posted(&stub, "/staff/open-shifts")["branch_id"], "b2");
+        // A caller that names no branch sends none: the server keeps each
+        // block where the date had it.
+        core.dawam_do(json!({ "action": "add_block", "emp": "e4", "date": day, "tpl": "w2" }).to_string()).await.unwrap();
+        assert!(posted(&stub, "/staff/schedules/days").get("branch_id").is_none());
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            match core.dawam_do(json!({ "action": "add_block", "emp": "m2", "date": day, "tpl": "w2", "branch": BRANCH }).to_string()).await {
+                Err(CoreError::Server { code, detail, .. }) => {
+                    assert_eq!(code, "EMPLOYEE_NOT_AT_BRANCH");
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_employee_not_at_branch"));
+                }
+                other => panic!("expected the refusal, got {other:?}"),
+            }
+        }
+        assert_ne!(i18n::tr("en", "staff.err_employee_not_at_branch"), i18n::tr("ar", "staff.err_employee_not_at_branch"));
+    }
+
+    /// H2-B4: an advance request tells its deciders as `staff.n_request`
+    /// with kind `salary_advance`, worded in both languages.
+    #[test]
+    fn an_advance_request_notice_is_worded() {
+        let args = json!({ "name": "Omar", "kind": "salary_advance", "date": "2026-09-25" });
+        assert_eq!(notice_text("en", "staff.n_request", &args), "Omar: new Salary advance request for 25 Sep");
+        let ar = notice_text("ar", "staff.n_request", &args);
+        assert!(ar.contains(&i18n::tr("ar", "staff.kind_salary_advance")) && !ar.contains("salary_advance"), "{ar}");
+    }
+
+    #[test]
+    fn the_window_words_are_in_both_languages() {
+        for k in [
+            "staff.week_not_loaded", "staff.open_shift_cant_move", "staff.open_shift_gone", "staff.week_loading",
+            "staff.week_needs_connection", "staff.open_shift_posted", "staff.given_to", "staff.week_couldnt_load", "staff.coverage_saved", "staff.reject_cover",
+        ] {
+            let (en, ar) = (i18n::tr("en", k), i18n::tr("ar", k));
+            assert_ne!(en, k, "{k} has no English");
+            assert_ne!(ar, en, "{k} has no Arabic");
         }
     }
 

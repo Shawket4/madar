@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:design_system/design_system.dart';
 import 'package:feature_dawam_schedule/src/shift_calendar.dart';
 import 'package:flutter/material.dart';
@@ -7,11 +9,25 @@ import 'package:staff_core/staff_core.dart';
 /// My shifts on a calendar: published weeks only (SC-3), changes marked
 /// (SC-4), open shifts to claim (SC-9), swaps (SC-8), and my preferences
 /// (SC-12).
-class ShiftsTab extends ConsumerWidget {
+class ShiftsTab extends ConsumerStatefulWidget {
   const ShiftsTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ShiftsTab> createState() => _ShiftsTabState();
+}
+
+class _ShiftsTabState extends ConsumerState<ShiftsTab> {
+  /// The calendar page on show, once it has turned: past what the phone
+  /// holds, its dates are fetched (H2-01).
+  (DateTime, DateTime)? _page;
+
+  void _turned(DateTime from, DateTime to) {
+    setState(() => _page = (from, to));
+    unawaited(ref.read(dawamProvider).viewRange(from, to));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final store = ref.watch(dawamProvider);
     final c = context.madarColors;
     final me = store.me!;
@@ -41,7 +57,10 @@ class ShiftsTab extends ConsumerWidget {
                       store.user.branches.contains(s.template.branch))),
         )
         .toList();
+    final page = _page;
+    final away = page == null ? null : store.notHeld(page.$1, page.$2);
     final top = <Widget>[
+      if (away != null) NoticeBanner(text: away, tone: ChipTone.info),
       for (final r in asks) _SwapAsk(r),
       for (final r in mine) _MySwap(r),
       if (!nextPublished)
@@ -64,6 +83,7 @@ class ShiftsTab extends ConsumerWidget {
           : '${tplName(s.template)} · '
                 '${branchName(store, s.template.branch)}',
       onTapShift: (s) => _tap(context, ref, s),
+      onRangeChanged: _turned,
       trailing: MadarChip(
         label: tr('staff.my_preferences'),
         glyph: MadarGlyph.star,

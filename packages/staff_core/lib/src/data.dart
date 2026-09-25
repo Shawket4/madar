@@ -688,6 +688,15 @@ class DawamStore extends ChangeNotifier {
   final suggestions = <Suggestion>[];
   final holidays = <Holiday>[];
   final published = <String>{};
+
+  /// The dates the picture holds in full, from–to (H2-01): this week, four
+  /// back and three ahead, and what a screen asked for. Null from a core
+  /// that doesn't say: it holds whatever it shows.
+  List<(DateTime, DateTime)>? loaded;
+
+  /// A screen is fetching the dates it shows ([viewRange]).
+  bool viewing = false;
+  String? _viewingKey;
   final history = <Period>[];
   Period period = Period(DateTime(2000), DateTime(2000));
   final _slips = <String, Slip>{};
@@ -936,6 +945,22 @@ class DawamStore extends ChangeNotifier {
         published.add('${sh.template.branch}|${weekStart(sh.date)}');
       }
     }
+    // The weeks the server published, shifts in them or not (H2-03).
+    for (final w in (v['published_weeks'] as List<dynamic>?) ?? const []) {
+      final s = w as String;
+      final i = s.lastIndexOf('|');
+      if (i > 0) {
+        published.add('${s.substring(0, i)}|${_date(s.substring(i + 1))}');
+      }
+    }
+    final held = v['loaded'];
+    loaded = held is List<dynamic>
+        ? [
+            for (final r in held)
+              if (r is List<dynamic> && r.length == 2)
+                (_date(r[0]), _date(r[1])),
+          ]
+        : null;
     _myNow = (v['my_now'] as List<dynamic>).cast<String>();
     _active = v['active_shift'] as String?;
     _coverable = (v['coverable'] as List<dynamic>).cast<String>();
@@ -1165,6 +1190,32 @@ class DawamStore extends ChangeNotifier {
   };
 
   // ── what the screens read ──
+  /// The picture holds every date from [from] to [to] (H2-01). A screen
+  /// showing other dates asks for them ([viewRange]) and edits nothing there.
+  bool holds(DateTime from, DateTime to) {
+    final held = loaded;
+    if (held == null) return true;
+    for (
+      var d = dateOnly(from);
+      !d.isAfter(to);
+      d = DateTime(d.year, d.month, d.day + 1)
+    ) {
+      if (!held.any((r) => !d.isBefore(r.$1) && !d.isAfter(r.$2))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Why [from]–[to] can't be shown or edited, in words: the phone doesn't
+  /// hold it yet (H2-01). Null when it does.
+  String? notHeld(DateTime from, DateTime to) {
+    if (holds(from, to)) return null;
+    if (viewing) return tr('staff.week_loading');
+    if (offline) return tr('staff.week_needs_connection');
+    return tr('staff.week_couldnt_load');
+  }
+
   Iterable<Emp> get visibleEmps => emps.values; // the server scoped them (RO-6)
   bool isPublished(Shift s) => s.published;
   List<Shift> shiftsOn(String emp, DateTime d) =>
@@ -1529,6 +1580,34 @@ class DawamStore extends ChangeNotifier {
     );
   }
 
+  /// A screen shows [from]–[to] (the board's week, a calendar page): dates
+  /// the picture doesn't hold are fetched and kept for later refreshes
+  /// (H2-01). [viewing] while they come; a refusal arrives on [failures].
+  Future<void> viewRange(DateTime from, DateTime to) async {
+    final a = dateOnly(from);
+    var z = dateOnly(to);
+    // One read spans at most 62 days (the server's limit).
+    final most = DateTime(a.year, a.month, a.day + 62);
+    if (z.isAfter(most)) z = most;
+    if (me == null || holds(a, z)) return;
+    final key = '${_d(a)}|${_d(z)}';
+    if (_viewingKey == key) return;
+    _viewingKey = key;
+    viewing = true;
+    notifyListeners();
+    try {
+      await _run(
+        () => backend.act({'action': 'view_range', 'from': _d(a), 'to': _d(z)}),
+      );
+    } finally {
+      if (_viewingKey == key) {
+        _viewingKey = null;
+        viewing = false;
+      }
+      notifyListeners();
+    }
+  }
+
   // ── what the screens do: each is one core action ──
   Future<void> clockIn(Shift s) async {
     alwaysLocation = await backend.alwaysLocation();
@@ -1677,26 +1756,46 @@ class DawamStore extends ChangeNotifier {
         'purpose': purpose,
         'via': via,
       });
+  // Every day write names the board's [branch]: a business-wide block set
+  // there is worked there (H2-B8).
   Future<void> setDay(String emp, DateTime d, String? tpl, String branch) =>
-      _act({'action': 'set_day', 'emp': emp, 'date': _d(d), 'tpl': tpl});
+      _act({
+        'action': 'set_day',
+        'emp': emp,
+        'date': _d(d),
+        'tpl': tpl,
+        'branch': branch,
+      });
 
   /// Every block [emp] works on [d] (a split day); empty = a day off.
-  Future<void> setShifts(String emp, DateTime d, List<String> tpls) => _act({
+  Future<void> setShifts(
+    String emp,
+    DateTime d,
+    List<String> tpls, {
+    String? branch,
+  }) => _act({
     'action': 'set_shifts',
     'emp': emp,
     'date': _d(d),
     'blocks': [
       for (final t in tpls) {'tpl': t},
     ],
+    'branch': ?branch,
   });
 
   /// One more block on the date; the rest of the day stays.
-  Future<void> addBlock(String emp, DateTime d, String tpl) =>
-      _act({'action': 'add_block', 'emp': emp, 'date': _d(d), 'tpl': tpl});
+  Future<void> addBlock(String emp, DateTime d, String tpl, {String? branch}) =>
+      _act({
+        'action': 'add_block',
+        'emp': emp,
+        'date': _d(d),
+        'tpl': tpl,
+        'branch': ?branch,
+      });
 
   /// Take this shift off its date; the rest of the day stays.
-  Future<void> removeBlock(Shift s) =>
-      _act({'action': 'remove_block', 'shift': s.id});
+  Future<void> removeBlock(Shift s, {String? branch}) =>
+      _act({'action': 'remove_block', 'shift': s.id, 'branch': ?branch});
 
   /// Back to the usual pattern for that date.
   Future<void> resetDay(String emp, DateTime d) =>
@@ -1722,10 +1821,16 @@ class DawamStore extends ChangeNotifier {
   /// Ask a colleague to swap: [mine] is MY shift, [theirs] the colleague's.
   Future<void> askSwap(Shift mine, Shift theirs) =>
       _act({'action': 'ask_swap', 'mine': mine.id, 'theirs': theirs.id});
-  Future<void> moveShift(Shift s, DateTime day, String tpl) =>
-      _act({'action': 'move_shift', 'shift': s.id, 'day': _d(day), 'tpl': tpl});
-  Future<void> assign(Shift s, String? emp) =>
-      _act({'action': 'assign', 'shift': s.id, 'emp': emp});
+  Future<void> moveShift(Shift s, DateTime day, String tpl, {String? branch}) =>
+      _act({
+        'action': 'move_shift',
+        'shift': s.id,
+        'day': _d(day),
+        'tpl': tpl,
+        'branch': ?branch,
+      });
+  Future<void> assign(Shift s, String? emp, {String? branch}) =>
+      _act({'action': 'assign', 'shift': s.id, 'emp': emp, 'branch': ?branch});
   Future<void> postOpen(String branch, DateTime d, String tpl) => _act({
     'action': 'post_open',
     'branch': branch,

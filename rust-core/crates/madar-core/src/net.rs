@@ -803,6 +803,12 @@ pub(crate) const DAWAM_CODES: &[&str] = &[
     "OVERLAPPING_REQUEST",
     // Nobody decides their own flag (E2E B-TEAM-1).
     "OWN_DECISION",
+    // A pay line, advance, overtime or cover someone else decided first, a
+    // flag someone else handled first, and a cover flag asked for anything
+    // but confirm or reject (H2-B2, H2-B3).
+    "ALREADY_DECIDED",
+    "FLAG_HANDLED",
+    "FLAG_COVER_CONFIRM_OR_REJECT",
 ];
 
 /// Map an HTTP status + raw body to a `CoreError` variant.
