@@ -174,12 +174,19 @@ class SalePanel extends ConsumerWidget {
                     children: [
                       const MadarHairline.row(),
                       for (final line in detail.lines) ...[
-                        MadarListRow.bill(
-                          title: '${ltrIsland('${line.qty}×')} ${line.name}',
-                          meta: _mods(line),
-                          minor: line.lineTotalMinor,
-                          currency: currency,
-                          chevron: false,
+                        // A combo's items sit indented under it (C12); the
+                        // combo's own row carries their total.
+                        Padding(
+                          padding: EdgeInsetsDirectional.only(
+                            start: line.kind == 'combo_part' ? Space.xl : 0,
+                          ),
+                          child: MadarListRow.bill(
+                            title: '${ltrIsland('${line.qty}×')} ${line.name}',
+                            meta: _mods(line),
+                            minor: line.lineTotalMinor,
+                            currency: currency,
+                            chevron: false,
+                          ),
                         ),
                         const MadarHairline.row(),
                       ],
