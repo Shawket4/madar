@@ -274,17 +274,31 @@ impl ApiClient {
         path: &str,
         body: Option<&serde_json::Value>,
     ) -> CoreResult<String> {
+        self.send_json_raw(method, path, body).await.map_err(|(e, _)| e)
+    }
+
+    /// [`Self::send_json`], keeping a refusal as the server sent it (status
+    /// and body) beside its `CoreError`: a staff refusal is worded from its
+    /// code and vars (`dawam::refusal_words`), which the `CoreError` mapping
+    /// keeps only for a few families of codes. `None` when the server was
+    /// never reached.
+    pub(crate) async fn send_json_raw(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<&serde_json::Value>,
+    ) -> Result<String, (CoreError, Option<(u16, String)>)> {
         if self.staff_token_due() {
             match self.refresh_staff(self.bearer().as_deref()).await {
-                Err(e @ CoreError::Unauthenticated { .. }) => return Err(e),
+                Err(e @ CoreError::Unauthenticated { .. }) => return Err((e, None)),
                 // Anything else: the call itself says what is wrong.
                 _ => {}
             }
         }
         let sent = self.bearer();
         match self.send_json_once(method.clone(), path, body).await {
-            Err(CoreError::Unauthenticated { detail }) if self.is_staff() && detail == TOKEN_EXPIRED => {
-                self.refresh_staff(sent.as_deref()).await?;
+            Err((CoreError::Unauthenticated { detail }, _)) if self.is_staff() && detail == TOKEN_EXPIRED => {
+                self.refresh_staff(sent.as_deref()).await.map_err(|e| (e, None))?;
                 self.send_json_once(method, path, body).await
             }
             r => r,
@@ -296,7 +310,7 @@ impl ApiClient {
         method: reqwest::Method,
         path: &str,
         body: Option<&serde_json::Value>,
-    ) -> CoreResult<String> {
+    ) -> Result<String, (CoreError, Option<(u16, String)>)> {
         let url = format!("{}{}", self.base_url, path);
         let mut rb = self.http().request(method, &url);
         if let Some(b) = body {
@@ -305,14 +319,14 @@ impl ApiClient {
         if let Some(token) = self.bearer.read().unwrap_or_else(|e| e.into_inner()).clone() {
             rb = rb.bearer_auth(token);
         }
-        let resp = rb.send().await.map_err(|e| classify_reqwest(&e))?;
+        let resp = rb.send().await.map_err(|e| (classify_reqwest(&e), None))?;
         self.observe_clock(&resp);
         let status = resp.status();
-        let text = resp.text().await.map_err(|e| classify_reqwest(&e))?;
+        let text = resp.text().await.map_err(|e| (classify_reqwest(&e), None))?;
         if status.is_success() {
             Ok(text)
         } else {
-            Err(status_to_error(status.as_u16(), &text))
+            Err((status_to_error(status.as_u16(), &text), Some((status.as_u16(), text))))
         }
     }
 

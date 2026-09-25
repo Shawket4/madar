@@ -13078,14 +13078,15 @@ impl MadarCore {
     pub async fn staff_otp_request(&self, phone: String) -> Result<Option<String>, CoreError> {
         let body = self
             .api
-            .send_json(
+            .send_json_raw(
                 reqwest::Method::POST,
                 "/auth/staff/otp/request",
                 Some(&serde_json::json!({ "phone": phone })),
             )
             .await
-            // A suspended person or business is told why (minor #13).
-            .map_err(|e| self.staff_error(e))?;
+            // A suspended person or business is told why (minor #13), a
+            // number nobody added or a code asked again too soon (CODES).
+            .map_err(|(e, raw)| self.staff_refusal(e, raw))?;
         let v: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
         Ok(v["dev_code"].as_str().map(str::to_string))
     }
@@ -13105,7 +13106,7 @@ impl MadarCore {
         use std::sync::atomic::Ordering::Relaxed;
         let body = self
             .api
-            .send_json(
+            .send_json_raw(
                 reqwest::Method::POST,
                 "/auth/staff/otp/verify",
                 Some(&serde_json::json!({
@@ -13114,7 +13115,7 @@ impl MadarCore {
                 })),
             )
             .await
-            .map_err(|e| self.staff_error(e))?;
+            .map_err(|(e, raw)| self.staff_refusal(e, raw))?;
         let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| CoreError::Internal {
             detail: format!("decode: {e}"),
         })?;
@@ -13241,9 +13242,22 @@ impl MadarCore {
         path: &str,
         body: Option<&serde_json::Value>,
     ) -> Result<String, CoreError> {
-        let r = self.api.send_json(method, path, body).await;
+        let r = self.api.send_json_raw(method, path, body).await;
         self.keep_staff_token();
-        r.map_err(|e| self.staff_error(e))
+        r.map_err(|(e, raw)| self.staff_refusal(e, raw))
+    }
+
+    /// A staff refusal in the person's language: a coded one from the
+    /// server's own body with its vars (`dawam::refusal_words`), the rest as
+    /// [`Self::staff_error`] words them.
+    pub(crate) fn staff_refusal(&self, e: CoreError, raw: Option<(u16, String)>) -> CoreError {
+        if let Some((status, body)) = raw {
+            if let Some(code) = net::extract_error_code(&body).filter(|c| dawam::REFUSAL_CODES.contains(&c.as_str())) {
+                let detail = dawam::refusal_words(&self.current_locale(), &code, &body);
+                return CoreError::Server { status, code, detail };
+            }
+        }
+        self.staff_error(e)
     }
 
     /// Store the bearer a refresh put in place, so a cold start resumes with it.
@@ -13285,7 +13299,6 @@ impl MadarCore {
             "LEAVE_PAY_REQUIRED" => Some("staff.err_leave_pay_required"),
             "REQUEST_ALREADY_DECIDED" => Some("staff.err_request_already_decided"),
             "OVERLAPPING_REQUEST" => Some("staff.err_overlapping_request"),
-            "ALREADY_DECIDED" => Some("staff.err_already_decided"),
             "FLAG_HANDLED" => Some("staff.err_flag_handled"),
             "FLAG_COVER_CONFIRM_OR_REJECT" => Some("staff.err_flag_cover_confirm_or_reject"),
             "OWNER_ONLY" => Some("staff.err_owner_only"),

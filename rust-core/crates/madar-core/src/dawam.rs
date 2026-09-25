@@ -932,8 +932,214 @@ pub(crate) const ROSTER_CODES: &[&str] = &[
     "CLAIM_ALREADY_DECIDED",
 ];
 
+/// Every other coded refusal a staff call can meet (CODES: hunt H2-B9, M43,
+/// FOLLOWUPS): the staff path keeps the server's body and words it with its
+/// vars in the phone's language ([`refusal_words`]), for `staff_call`,
+/// `dawam_srv` and the outbox alike.
+pub(crate) const REFUSAL_CODES: &[&str] = &[
+    "ABOVE_LIMIT",
+    "ACCOUNT_NOT_ACTIVE",
+    "ADJUSTMENT_KIND_INVALID",
+    "ADJUSTMENT_NOT_FOUND",
+    "ADVANCE_NOT_FOUND",
+    "ALREADY_DECIDED",
+    "ALREADY_EMPLOYEE",
+    "AMOUNT_NOT_POSITIVE",
+    "AMOUNT_OR_PERCENT_REQUIRED",
+    "AMOUNT_REQUIRED",
+    "APPROVE_WITH_GENERATE",
+    "ASSIGNMENT_NOT_FOUND",
+    "BRANCH_NOT_FOUND",
+    "CANCEL_REASON_REQUIRED",
+    "CHECK_OUT_BEFORE_CHECK_IN",
+    "CLOCK_OUT_FIRST",
+    "COORDINATES_OUT_OF_RANGE",
+    "CORRECTION_APPLIED",
+    "CORRECTION_TARGET_REQUIRED",
+    "CORRECTION_TIME_REQUIRED",
+    "CORRECTION_WAITING",
+    "DATE_IN_FUTURE",
+    "DAY_OFF_NO_TIMES",
+    "DAY_OF_WEEK_INVALID",
+    "DEDUCTION_IS_AN_AMOUNT",
+    "EARLY_DEPARTURE_TIME_REQUIRED",
+    "EMPLOYEE_NOT_FOUND",
+    "EMPLOYEE_NO_BRANCH",
+    "EMPLOYEE_REQUIRED",
+    "END_BEFORE_START",
+    "EXCUSE_TIMES_REQUIRED",
+    "EXPENSE_VIA_INVALID",
+    "FLAG_ACTION_UNKNOWN",
+    "HALF_DAY_ONE_DATE",
+    "HALF_DAY_WHICH_HALF",
+    "HALF_ONLY_FOR_HALF_DAY",
+    "LATE_ARRIVAL_TIME_REQUIRED",
+    "LEAVE_PAY_REQUIRED",
+    "MANAGER_REQUEST_ABOVE",
+    "MISSION_TITLE_REQUIRED",
+    "NOT_A_RUNNING_LINE",
+    "NOT_WAIVED",
+    "NO_BRANCH_YET",
+    "NO_CLAIM_WAITING",
+    "NO_COVER_WAITING",
+    "NO_OVERTIME_WAITING",
+    "NO_SWAP_TO_CANCEL",
+    "NO_SWAP_WAITING",
+    "OPEN_SHIFT_CLOSED",
+    "OPEN_SHIFT_NOT_FOUND",
+    "OTP_NONE_ACTIVE",
+    "OTP_RECENTLY_SENT",
+    "OTP_TOO_MANY_TRIES",
+    "OTP_WRONG",
+    "OVERRIDE_NOT_FOUND",
+    "OWN_ADVANCE",
+    "OWN_CLAIM",
+    "OWN_COVER",
+    "OWN_OVERTIME",
+    "OWN_PAY_LINE",
+    "OWN_PUNCH",
+    "OWN_REQUEST",
+    "OWN_SWAP",
+    "PAID_BY_PAYSLIPS",
+    "PAYROLL_PAID_NO_REOPEN",
+    "PAYSLIP_ALREADY_PAID",
+    "PAY_METHOD_INVALID",
+    "PERIOD_FROZEN",
+    "PERIOD_NOT_DRAFT_DELETE",
+    "PERIOD_NOT_FOUND",
+    "PERIOD_NOT_GENERATED",
+    "PERIOD_NOT_OPENED",
+    "PERIOD_OVERLAPS",
+    "PERIOD_STATUS_MOVE",
+    "PHONE_NOT_REGISTERED",
+    "PHONE_TAKEN",
+    "PICK_A_COLLEAGUE",
+    "PICK_SOMEONE_ELSE",
+    "PREFERENCES_INVALID",
+    "PURPOSE_REQUIRED",
+    "RANGE_BACKWARDS",
+    "RANGE_REQUIRED",
+    "RANGE_TOO_WIDE",
+    "RECORD_EXISTS",
+    "RECORD_NOT_FOUND",
+    "RECORD_OTHER_DATE",
+    "REQUEST_KIND_UNKNOWN",
+    "REQUEST_NOT_FOUND",
+    "RULES_NOT_SET",
+    "RULE_LINE_NOT_DELETED",
+    "SETTING_OUT_OF_RANGE",
+    "SHIFT_ALREADY_WORKED",
+    "SHIFT_DAYS_REQUIRED",
+    "SHIFT_DAY_TIMES_INVALID",
+    "SHIFT_DAY_TIMES_OFF_DAY",
+    "SHIFT_IN_USE",
+    "SHIFT_NAME_REQUIRED",
+    "SHIFT_NOT_COVERABLE",
+    "SHIFT_NOT_FOR_KIND",
+    "SHIFT_NOT_FOUND",
+    "SHIFT_NOT_STARTED",
+    "SHIFT_SETTING_INVALID",
+    "STATUS_UNKNOWN",
+    "TIMES_BOTH_OR_NEITHER",
+    "WAIVER_FINAL",
+    "WINDOW_EMPTY",
+];
+
+/// A coded refusal in `locale` from the server's body (`{error, code,
+/// vars}`): `staff.err_<code>` with its vars, a var that names a value (a
+/// status, a setting, a weekday) in the phone's words. The server's own
+/// sentence when the core has no words or a figure is missing.
+pub(crate) fn refusal_words(locale: &str, code: &str, body: &str) -> String {
+    let ar = i18n::is_arabic(locale);
+    let v: Value = serde_json::from_str(body).unwrap_or(Value::Null);
+    let mut args: BTreeMap<String, String> = v
+        .get("vars")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flatten()
+        .map(|(k, x)| {
+            let text = match x {
+                Value::Number(n) => n.as_i64().map_or_else(|| n.to_string(), |i| i.to_string()),
+                Value::String(t) => t.clone(),
+                Value::Array(a) => a
+                    .iter()
+                    .map(|x| x.as_str().map_or_else(|| x.to_string(), str::to_string))
+                    .collect::<Vec<_>>()
+                    .join(if ar { "، " } else { ", " }),
+                other => other.to_string(),
+            };
+            (k.clone(), text)
+        })
+        .collect();
+    // A value the server names, in the phone's words (the raw value when
+    // the core has none).
+    let word = |prefix: &str, raw: &str| {
+        let key = format!("{prefix}{raw}");
+        let w = i18n::tr(locale, &key);
+        if w == key { raw.to_string() } else { w }
+    };
+    let base = format!("staff.err_{}", code.to_lowercase());
+    let status = args.get("status").cloned();
+    let key = match code {
+        "ALREADY_DECIDED" => match status {
+            Some(st) => {
+                args.insert("status".into(), word("staff.decided_", &st));
+                "staff.err_already_decided_status".to_string()
+            }
+            None => base,
+        },
+        "OPEN_SHIFT_CLOSED" => match status.as_deref() {
+            Some(st @ ("filled" | "cancelled")) => format!("{base}_{st}"),
+            _ => base,
+        },
+        "CANCEL_REASON_REQUIRED" if status.as_deref() == Some("approved") => format!("{base}_approved"),
+        "SHIFT_SETTING_INVALID" | "SETTING_OUT_OF_RANGE" => {
+            if let Some(f) = args.get("field").cloned() {
+                args.insert("field".into(), word("staff.setting_", &f));
+            }
+            if code == "SETTING_OUT_OF_RANGE" && args.contains_key("allowed") { format!("{base}_allowed") } else { base }
+        }
+        // 0 = Sunday … 6 = Saturday; the phone's days run Monday 1 … Sunday 7.
+        "SHIFT_DAY_TIMES_OFF_DAY" => {
+            if let Some(n) = args.get("day_of_week").and_then(|d| d.parse::<u8>().ok()).filter(|n| *n <= 6) {
+                args.insert("day".into(), i18n::tr(locale, &format!("staff.day_{}", if n == 0 { 7 } else { n })));
+            }
+            base
+        }
+        "PERIOD_STATUS_MOVE" | "PERIOD_FROZEN" | "PERIOD_NOT_DRAFT_DELETE" => {
+            for k in ["from", "to", "status"] {
+                if let Some(x) = args.get(k).cloned() {
+                    args.insert(k.into(), word("staff.period_", &x));
+                }
+            }
+            base
+        }
+        "OTP_WRONG" => {
+            if let Some(n) = args.get("attempts_left").cloned() {
+                args.insert("attempts".into(), n);
+            }
+            "staff.wrong_code_tries_left".to_string()
+        }
+        "PHONE_NOT_REGISTERED" => "staff.this_number_isn_t_registered_with".to_string(),
+        "OTP_TOO_MANY_TRIES" => "staff.too_many_tries_send_a_new".to_string(),
+        _ => base,
+    };
+    let words = i18n::tr(locale, &key);
+    let out = fill(&words, &args);
+    if words != key && !out.contains('{') {
+        return out;
+    }
+    plain_sentence(v.get("error").and_then(Value::as_str).unwrap_or(body))
+}
+
+/// A server code (`SHIFT_COVERED`), not an HTTP reason phrase ("Not Found")
+/// standing in for a missing one.
+fn is_code(code: &str) -> bool {
+    !code.is_empty() && code.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+}
+
 /// Refusals that mean the picture is stale (someone else decided, claimed or
-/// handled it first): the core fetches again before saying so.
+/// handled it first, or it is gone): the core fetches again before saying so.
 const STALE_CODES: &[&str] = &[
     "REQUEST_ALREADY_DECIDED",
     "ALREADY_DECIDED",
@@ -941,6 +1147,26 @@ const STALE_CODES: &[&str] = &[
     "ALREADY_CLAIMED",
     "SWAP_STALE",
     "SUGGESTION_STALE",
+    // CODES: a claim, swap, cover or overtime no longer waiting, an open
+    // shift filled or cancelled, a thing that is gone.
+    "NO_CLAIM_WAITING",
+    "NO_SWAP_WAITING",
+    "OPEN_SHIFT_CLOSED",
+    "NO_COVER_WAITING",
+    "NO_OVERTIME_WAITING",
+    "NO_SWAP_TO_CANCEL",
+    "NO_PENDING_CLAIM",
+    "CLAIM_ALREADY_DECIDED",
+    "OPEN_SHIFT_NOT_FOUND",
+    "REQUEST_NOT_FOUND",
+    "ADJUSTMENT_NOT_FOUND",
+    "ADVANCE_NOT_FOUND",
+    "ASSIGNMENT_NOT_FOUND",
+    "OVERRIDE_NOT_FOUND",
+    "RECORD_NOT_FOUND",
+    "PAYSLIP_ALREADY_PAID",
+    "PERIOD_NOT_FOUND",
+    "SHIFT_NOT_FOUND",
 ];
 
 /// A shift given to someone already on that block: the refusal names them
@@ -1134,6 +1360,7 @@ pub(crate) fn conflict_means_held(item: &store::OutboxItem, code: &str) -> bool 
         return true;
     }
     let refused = crate::net::DAWAM_CODES.contains(&code)
+        || REFUSAL_CODES.contains(&code)
         || ROSTER_CODES.contains(&code)
         || (PUNCH_CODES.contains(&code) && code != "ALREADY_CHECKED_IN");
     if refused {
@@ -2020,12 +2247,32 @@ impl MadarCore {
             }
             // A month already approved or paid takes no punch (BC-3).
             CoreError::Server { .. } if code == "PERIOD_CLOSED" => {
-                SendOutcome::Dead(i18n::tr(&loc, if live { "staff.err_period_closed" } else { "staff.err_queued_period_closed" }))
+                SendOutcome::Dead(i18n::tr(&loc, if live { "staff.err_period_closed_punch" } else { "staff.err_queued_period_closed" }))
             }
             // Nothing open to close: a manager or the till closed it meanwhile.
             CoreError::Server { .. } if code == "NOT_CLOCKED_IN" => SendOutcome::Dead(i18n::tr(&loc, "staff.err_already_clocked_out")),
             // Worded already (the fence, the window, location, already in…).
             CoreError::Server { detail, .. } if PUNCH_CODES.contains(&code.as_str()) => SendOutcome::Dead(detail),
+            // A refusal the server sent without a code (FOLLOWUPS: a branch
+            // gone): an English phone reads the server's sentence, an Arabic
+            // one the punch's own words, never English.
+            CoreError::Server { .. } | CoreError::Validation { .. } | CoreError::Forbidden { .. }
+                if live && !is_code(&code) && !matches!(&e, CoreError::Forbidden { resource, .. } if resource != "api") =>
+            {
+                let english = said
+                    .as_ref()
+                    .map(|(_, text)| plain_sentence(text.trim()))
+                    .filter(|t| !i18n::is_arabic(&loc) && !t.is_empty() && !crate::net::is_reason_phrase(t));
+                match english {
+                    Some(words) => SendOutcome::Dead(words),
+                    None => SendOutcome::Dead(i18n::tr(&loc, match item.op_type.as_str() {
+                        "dawam_check_in" => "staff.err_refused_in",
+                        "dawam_check_out" => "staff.err_refused_out",
+                        "dawam_cover" => "staff.err_refused_cover",
+                        _ => "staff.err_refused_punch",
+                    })),
+                }
+            }
             // Any other 409 is a refusal (rules not saved, a shift that can't
             // be covered): the person waiting reads the server's words.
             e @ CoreError::Server { status: 409, .. } if live => match self.staff_error(e) {
@@ -4143,9 +4390,9 @@ mod tests {
         let fix = DawamFix { latitude: 30.0609, longitude: 31.2197, accuracy: Some(8.0), ..Default::default() };
         let clock_in = json!({ "action": "clock_in", "shift": shift, "fix": fix }).to_string();
 
-        // Rules not saved: refused in the server's words, nothing shown as in.
+        // Rules not saved: refused in the phone's words (CODES), nothing shown as in.
         let err = core.dawam_do(clock_in.clone()).await.expect_err("a refused clock-in is not a success");
-        assert!(format!("{err:?}").contains("hasn't set its attendance rules"), "{err:?}");
+        assert!(matches!(&err, CoreError::Server { detail, .. } if *detail == i18n::tr("en", "staff.err_rules_not_set")), "{err:?}");
         let snap: Value = serde_json::from_str(&core.dawam_snapshot(false).await.unwrap()).unwrap();
         assert_eq!(snap["active_shift"], Value::Null, "nothing is clocked in");
         assert_eq!(snap["queued"], 0, "the refused punch left the queue");
@@ -4250,7 +4497,8 @@ mod tests {
             core.set_locale(lang.into());
             match core.dawam_do(clock_out.clone()).await {
                 Err(CoreError::Server { status: 409, detail, .. }) => {
-                    assert_eq!(detail, i18n::tr(lang, "staff.err_period_closed"), "{lang}: in the person's words");
+                    // FOLLOWUPS: a punch's own words, never "add it to the next month".
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_period_closed_punch"), "{lang}: in the person's words");
                 }
                 other => panic!("{lang}: a closed month refuses the check-out, got {other:?}"),
             }
@@ -4343,6 +4591,54 @@ mod tests {
         let snap: Value = serde_json::from_str(&core.dawam_sync().await.unwrap()).unwrap();
         assert_eq!(snap["refused"], json!([]));
         assert_eq!(stub.requests("/staff/me/check-in").len(), 1, "never resent");
+    }
+
+    /// FOLLOWUPS (last line): a live punch the server refuses WITHOUT a code
+    /// (a branch gone: 404 "Branch not found") showed its English on an
+    /// Arabic phone. The Arabic phone reads the punch's own words; an English
+    /// one the server's sentence.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_uncoded_live_punch_refusal_reads_in_arabic_too() {
+        use crate::testkit::{online_core, Stub, StubResponse, BRANCH, TELLER};
+        let cairo = Utc::now().with_timezone(&chrono_tz::Africa::Cairo);
+        let today = cairo.date_naive().to_string();
+        let hms = |t: NaiveTime| format!("{}:00", hhmm((t.hour() * 60 + t.minute()) as i64));
+        let (start, end) = (hms(cairo.time() - Duration::hours(1)), hms(cairo.time() + Duration::hours(3)));
+        let stub = Stub::start(move |r| {
+            let path = r.path.split('?').next().unwrap_or_default();
+            Some(match path {
+                "/staff/me/context" => StubResponse::json(200, json!({
+                    "role": "employee", "org_name": "Nile Café", "caps": [],
+                    "branches": [{ "id": BRANCH, "name": "Zamalek", "geo_radius_meters": 200,
+                                   "latitude": 30.0609, "longitude": 31.2197, "timezone": "Africa/Cairo" }],
+                    "work_shifts": [{ "id": "w1", "name": "Morning", "branch_id": BRANCH,
+                                      "start_time": start, "end_time": end, "grace_minutes": 10 }],
+                    "people": [{ "employee_id": TELLER, "name": "Sara", "role": "employee", "branch_ids": [BRANCH] }],
+                    "settings": { "period_start_day": 26 },
+                })),
+                "/staff/me/roster" => StubResponse::json(200, json!({
+                    "shifts": [{ "employee_id": TELLER, "date": today, "work_shift_id": "w1" }],
+                    "team": [], "open_shifts": [], "swaps": [], "unpublished_weeks": [],
+                })),
+                "/staff/me/check-in" => StubResponse::json(404, json!({ "error": "Not found: Branch not found" })),
+                "/health" => StubResponse::text(200, "ok"),
+                p if p.ends_with("estimate") => StubResponse::json(200, json!({})),
+                _ => StubResponse::json(200, json!([])),
+            })
+        })
+        .await;
+        let core = online_core(&stub.base, "").await;
+        core.set_online(true);
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let shift = snap["my_now"][0].as_str().expect("today's shift is mine").to_string();
+        let fix = DawamFix { latitude: 30.0609, longitude: 31.2197, accuracy: Some(8.0), ..Default::default() };
+        for (lang, want) in [("ar", i18n::tr("ar", "staff.err_refused_in")), ("en", "Branch not found".to_string())] {
+            core.set_locale(lang.into());
+            match core.dawam_do(json!({ "action": "clock_in", "shift": shift, "fix": fix }).to_string()).await {
+                Err(CoreError::Server { detail, .. }) => assert_eq!(detail, want, "{lang}"),
+                other => panic!("{lang}: {other:?}"),
+            }
+        }
     }
 
     /// E2E posnotif (queue wording, with S-035/S-036): every way the server
@@ -6402,6 +6698,101 @@ mod tests {
         assert_eq!(q("q|l")["worked"], json!([]), "no worked_dates: nothing worked");
     }
 
+    /// CODES (hunt H2-B9, M43, FOLLOWUPS): every coded refusal the server
+    /// sends a staff call is worded in the phone's language with its vars,
+    /// never the server's English. Table-driven over the whole list.
+    #[test]
+    fn every_refusal_code_is_worded_with_its_vars() {
+        let vars = json!({
+            "status": "approved", "kind": "shift_swap", "max_days": 62, "wait_seconds": 42, "attempts_left": 2,
+            "phone": "+201001234567", "from": "generated", "to": "draft", "field": "grace_minutes", "min": 0,
+            "max": 120, "day_of_week": 5, "n": 3, "name": "Morning",
+        });
+        let body = |code: &str, vars: &Value| json!({ "error": "SERVER ENGLISH", "code": code, "vars": vars }).to_string();
+        for code in REFUSAL_CODES {
+            let (en, ar) = (refusal_words("en", code, &body(code, &vars)), refusal_words("ar", code, &body(code, &vars)));
+            for (lang, w) in [("en", &en), ("ar", &ar)] {
+                assert!(!w.contains("SERVER ENGLISH") && !w.is_empty(), "{code} {lang}: no words: {w}");
+                assert!(!w.contains('{'), "{code} {lang}: a var left unfilled: {w}");
+            }
+            assert_ne!(en, ar, "{code}: the Arabic is its own");
+        }
+        let say = |lang: &str, code: &str, vars: Value| refusal_words(lang, code, &body(code, &vars));
+        let tr = i18n::tr;
+        // What it was decided as, in the phone's words; none said: the plain one.
+        assert!(say("en", "ALREADY_DECIDED", json!({ "status": "approved" })).contains("approved"));
+        assert!(say("ar", "ALREADY_DECIDED", json!({ "status": "declined" })).contains(&tr("ar", "staff.decided_declined")));
+        assert_eq!(say("en", "ALREADY_DECIDED", json!({})), tr("en", "staff.err_already_decided"));
+        assert_eq!(say("en", "OPEN_SHIFT_CLOSED", json!({ "status": "filled" })), tr("en", "staff.err_open_shift_closed_filled"));
+        assert_eq!(say("ar", "OPEN_SHIFT_CLOSED", json!({ "status": "cancelled" })), tr("ar", "staff.err_open_shift_closed_cancelled"));
+        assert_eq!(say("en", "CANCEL_REASON_REQUIRED", json!({ "status": "approved" })), tr("en", "staff.err_cancel_reason_required_approved"));
+        assert_eq!(say("en", "CANCEL_REASON_REQUIRED", json!({ "status": "pending" })), tr("en", "staff.err_cancel_reason_required"));
+        assert!(say("en", "SHIFT_SETTING_INVALID", json!({ "field": "ot_night_multiplier" })).starts_with("The night overtime rate"));
+        assert!(say("en", "SHIFT_SETTING_INVALID", json!({ "field": "new_thing" })).starts_with("new_thing"), "an unknown field as sent");
+        assert!(say("en", "SHIFT_DAY_TIMES_OFF_DAY", json!({ "day_of_week": 5 })).starts_with("Fri"));
+        assert!(say("ar", "SHIFT_DAY_TIMES_OFF_DAY", json!({ "day_of_week": 0 })).starts_with("الأحد"), "0 is Sunday");
+        assert_eq!(say("en", "OTP_WRONG", json!({ "attempts_left": 2 })), tr("en", "staff.wrong_code_tries_left").replace("{attempts}", "2"));
+        assert_eq!(say("ar", "PHONE_NOT_REGISTERED", json!({})), tr("ar", "staff.this_number_isn_t_registered_with"));
+        assert_eq!(say("en", "OTP_TOO_MANY_TRIES", json!({})), tr("en", "staff.too_many_tries_send_a_new"));
+        assert!(say("en", "OTP_RECENTLY_SENT", json!({ "wait_seconds": 42 })).contains("42"));
+        assert_eq!(say("en", "PERIOD_STATUS_MOVE", json!({ "from": "generated", "to": "draft" })), "A month that's approved can't become draft.");
+        assert!(say("en", "SETTING_OUT_OF_RANGE", json!({ "field": "grace_minutes", "allowed": ["a", "b"] })).contains("a, b"));
+        assert!(say("en", "SETTING_OUT_OF_RANGE", json!({ "field": "grace_minutes", "min": 0, "max": 60 })).contains("between 0 and 60"));
+        assert!(say("en", "RANGE_TOO_WIDE", json!({ "max_days": 62 })).contains("62"));
+        assert_eq!(say("en", "LEAVE_PAY_REQUIRED", json!({})), tr("en", "staff.err_leave_pay_required"));
+        // A figure the server didn't send: its own sentence, never a "{…}".
+        assert_eq!(say("en", "RANGE_TOO_WIDE", json!({})), "SERVER ENGLISH");
+    }
+
+    /// The same words reach the person through a staff call (LEAVE_PAY_REQUIRED
+    /// was lost as a plain 400), the sign-in (OTP), and a refusal meaning the
+    /// list is out of date fetches it again.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn refusals_reach_the_person_worded_and_stale_ones_refetch() {
+        use crate::testkit::StubResponse;
+        let d = today_cairo().to_string();
+        let (stub, core) = cafe(&["hr.leave.edit", "hr.attendance.read"], move |m, p, _| match (m, p) {
+            ("GET", "/staff/requests") => Some(StubResponse::json(200, json!([
+                { "id": "l1", "kind": "leave", "employee_id": "e4", "status": "pending", "on_date": d, "created_at": "2026-09-22T08:00:00Z" }
+            ]))),
+            ("PATCH", "/staff/requests/l1/decision") => Some(StubResponse::json(400, json!({
+                "error": "Bad request: Say whether this leave is paid or unpaid", "code": "LEAVE_PAY_REQUIRED" }))),
+            ("POST", "/staff/open-shifts/o9/cancel") => Some(StubResponse::json(409, json!({
+                "error": "That shift was already filled or cancelled.", "code": "OPEN_SHIFT_CLOSED", "vars": { "status": "filled" } }))),
+            ("POST", "/auth/staff/otp/request") => Some(StubResponse::json(409, json!({
+                "error": "A code was just sent. Please wait a minute.", "code": "OTP_RECENTLY_SENT", "vars": { "wait_seconds": 42 } }))),
+            _ => None,
+        })
+        .await;
+        core.dawam_snapshot(true).await.unwrap();
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            match core.dawam_do(json!({ "action": "decide", "req": "q|l1", "approve": true, "paid": true }).to_string()).await {
+                Err(CoreError::Server { code, detail, .. }) => {
+                    assert_eq!(code, "LEAVE_PAY_REQUIRED");
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_leave_pay_required"));
+                }
+                other => panic!("{lang}: {other:?}"),
+            }
+            let before = stub.requests("/staff/me/context").len();
+            match core.staff_call("POST".into(), "/staff/open-shifts/o9/cancel".into(), None).await {
+                Err(CoreError::Server { detail, .. }) => assert_eq!(detail, i18n::tr(lang, "staff.err_open_shift_closed_filled")),
+                other => panic!("{lang}: {other:?}"),
+            }
+            let _ = before;
+            match core.staff_otp_request("+201001234567".into()).await {
+                Err(CoreError::Server { detail, .. }) => {
+                    assert_eq!(detail, i18n::tr(lang, "staff.err_otp_recently_sent").replace("{wait_seconds}", "42"));
+                }
+                other => panic!("{lang}: {other:?}"),
+            }
+        }
+        for code in ["NO_CLAIM_WAITING", "NO_SWAP_WAITING", "OPEN_SHIFT_CLOSED", "NO_COVER_WAITING", "NO_OVERTIME_WAITING",
+                     "NO_SWAP_TO_CANCEL", "NO_PENDING_CLAIM", "CLAIM_ALREADY_DECIDED"] {
+            assert!(STALE_CODES.contains(&code), "{code} means the list is out of date");
+        }
+    }
+
     /// Addendum 2 (owner's Android test): a manager's own claim read
     /// "waiting for the manager", though it goes to the owner (RQ-5). A
     /// manager's own pending request or claim waits for the owner, and his
@@ -7068,12 +7459,22 @@ mod tests {
         };
         for lang in ["en", "ar"] {
             core.set_locale(lang.into());
-            for act in [
-                json!({ "action": "decide", "req": "v|v9", "approve": true, "amount": 50000, "installments": 1 }),
-                json!({ "action": "decide_adj", "adj": "a|deduction|a1", "yes": true }),
-                json!({ "action": "decide", "req": "t|r1", "approve": true }),
+            // Worded with what it was decided as (CODES: the status was lost).
+            let decided = |status: &str| {
+                i18n::tr(lang, "staff.err_already_decided_status").replace("{status}", &i18n::tr(lang, &format!("staff.decided_{status}")))
+            };
+            for (act, status) in [
+                (json!({ "action": "decide", "req": "v|v9", "approve": true, "amount": 50000, "installments": 1 }), "approved"),
+                (json!({ "action": "decide_adj", "adj": "a|deduction|a1", "yes": true }), "rejected"),
+                (json!({ "action": "decide", "req": "t|r1", "approve": true }), "rejected"),
             ] {
-                refused(core.dawam_do(act.to_string()).await, "ALREADY_DECIDED", "staff.err_already_decided", lang);
+                match core.dawam_do(act.to_string()).await {
+                    Err(CoreError::Server { code, detail, .. }) => {
+                        assert_eq!(code, "ALREADY_DECIDED");
+                        assert_eq!(detail, decided(status), "{lang} {act}");
+                    }
+                    other => panic!("expected the refusal, got {other:?}"),
+                }
             }
             refused(
                 core.dawam_do(json!({ "action": "resolve", "flag": "f1", "how": "ignore" }).to_string()).await,
