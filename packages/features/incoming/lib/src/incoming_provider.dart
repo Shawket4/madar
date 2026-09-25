@@ -34,8 +34,8 @@ const List<int> kPrepOffsets = [0, 10, 25, 40];
 /// behind it, so the segment is not offered at all.
 enum QueueSegment { bills, online, kitchen }
 
-/// copyWith sentinel — lets callers CLEAR the nullable fields (`error`,
-/// `toast`) by passing an explicit `null`.
+/// copyWith sentinel — lets callers CLEAR the nullable `error` by passing an
+/// explicit `null`.
 const Object _unset = Object();
 
 /// Immutable Queue state: both feeds plus everything the segments render.
@@ -54,7 +54,6 @@ class IncomingState {
     this.ticketsLoaded = false,
     this.tableLabels = const {},
     this.hasFloor = false,
-    this.toast,
   });
 
   /// Selected segment. Null until the screen's first [IncomingNotifier.enter]
@@ -105,8 +104,9 @@ class IncomingState {
   // Whether a till is open (Charge needs one) is the shell's —
   // `shellProvider.tillOpen`, the one owner — never loaded here.
 
-  /// The screen's floating toast, sequence-keyed.
-  final ToastData? toast;
+  // What the Queue has to say (accepted, declined, a refusal) is the app's
+  // one toast (`appToastProvider`), drawn over the Bill and sheets the Queue
+  // pushes as well as the Queue itself.
 
   /// Bills a teller can charge: open/ready, kitchen-ready first, then the
   /// oldest first (the ones a party has waited longest on).
@@ -150,7 +150,7 @@ class IncomingState {
       (deliverySettings?.outsideEnabled ?? false);
 
   /// Copy with the given fields replaced. `null` keeps the current value,
-  /// except [error] and [toast] which clear on an explicit `null`.
+  /// except [error] which clears on an explicit `null`.
   IncomingState copyWith({
     QueueSegment? segment,
     bool? isBusy,
@@ -165,7 +165,6 @@ class IncomingState {
     bool? ticketsLoaded,
     Map<String, String>? tableLabels,
     bool? hasFloor,
-    Object? toast = _unset,
   }) {
     return IncomingState(
       segment: segment ?? this.segment,
@@ -181,7 +180,6 @@ class IncomingState {
       ticketsLoaded: ticketsLoaded ?? this.ticketsLoaded,
       tableLabels: tableLabels ?? this.tableLabels,
       hasFloor: hasFloor ?? this.hasFloor,
-      toast: identical(toast, _unset) ? this.toast : toast as ToastData?,
     );
   }
 }
@@ -190,8 +188,6 @@ class IncomingState {
 /// only render [IncomingState] and forward taps.
 class IncomingNotifier extends Notifier<IncomingState> {
   MadarBridge get _bridge => ref.read(bridgeProvider);
-
-  int _toastSeq = 0;
 
   @override
   IncomingState build() {
@@ -513,23 +509,14 @@ class IncomingNotifier extends Notifier<IncomingState> {
     );
   }
 
-  // ── toast ──────────────────────────────────────────────────────────────────
+  // ── messages ───────────────────────────────────────────────────────────────
 
+  /// Say [text] through the app's one toast, over whatever is in front.
   void showToast(
     String text, {
     ChipTone tone = ChipTone.neutral,
     String? icon,
-  }) {
-    _toastSeq += 1;
-    state = state.copyWith(
-      toast: ToastData(id: _toastSeq, text: text, tone: tone, icon: icon),
-    );
-  }
-
-  void dismissToast(int id) {
-    if (state.toast?.id != id) return;
-    state = state.copyWith(toast: null);
-  }
+  }) => ref.read(appToastProvider.notifier).show(text, tone: tone, icon: icon);
 
   /// Human message for a failed bridge call; an expired/missing bearer with
   /// a live session additionally raises the app-wide re-auth request.

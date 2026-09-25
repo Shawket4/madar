@@ -289,7 +289,7 @@ void main() {
     final s = container.read(historyProvider);
     expect(container.read(shellProvider).tillOpen, isFalse);
     expect(s.loading, isFalse);
-    expect(s.toast, isNull);
+    expect(container.read(appToastProvider), isNull);
     expect(s.error, isNull);
     expect(bridge.listCalls, 0);
   });
@@ -300,7 +300,7 @@ void main() {
     await _settle();
     final s = container.read(historyProvider);
     expect(s.error, isNotNull);
-    expect(s.toast, isNull);
+    expect(container.read(appToastProvider), isNull);
     expect(container.read(shellProvider).tillOpen, isTrue);
   });
 

@@ -172,4 +172,26 @@ void orderMessagesMain() {
     expect(find.text('A sheet in front'), findsOneWidget);
     await _toastTimesOut(tester);
   });
+
+  testWidgets('a Till notice raised while Sell is in front is shown on Sell', (
+    tester,
+  ) async {
+    final bridge = _FakeBridge();
+    final container = await _mount(tester, bridge: bridge, size: _ipad);
+    await _tab(tester, 'till');
+    await _tab(tester, 'sell');
+    // The core keeps the sentence once; the Till drains it on its next read,
+    // which a drawer move triggers whichever tab is in front.
+    const said = 'Pay-out recorded without its advance tag';
+    bridge.payOutNotices = [said];
+    container.read(drawerTickProvider.notifier).bump();
+    await _settle(tester);
+    expect(find.byType(TakeawaySellScreen), findsOneWidget);
+    expect(
+      _toastSaying(said),
+      findsOneWidget,
+      reason: 'drained once: a toast drawn on the hidden Till tab is lost',
+    );
+    await _toastTimesOut(tester);
+  });
 }

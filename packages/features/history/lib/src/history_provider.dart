@@ -25,8 +25,7 @@ library;
 import 'dart:async';
 
 import 'package:app_core/app_core.dart';
-import 'package:design_system/design_system.dart'
-    show ChipTone, Money, ToastData;
+import 'package:design_system/design_system.dart' show ChipTone, Money;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
@@ -106,7 +105,6 @@ class HistoryState {
     this.receipt,
     this.refunds,
     this.detailLoading = false,
-    this.toast,
     this.filtered = const [],
     this.loyaltyOffered = false,
   });
@@ -176,8 +174,8 @@ class HistoryState {
   /// The detail fetch for [selectedId] is in flight.
   final bool detailLoading;
 
-  /// The screen's transient toast, if any.
-  final ToastData? toast;
+  // What this screen has to say is the app's one toast (`appToastProvider`),
+  // drawn over the sale sheets and dialogs it raises as well as the list.
 
   // ── Memoized derived state (computed by the notifier, never set raw) ──
 
@@ -215,7 +213,6 @@ class HistoryState {
     Object? receipt = _unset,
     Object? refunds = _unset,
     bool? detailLoading,
-    Object? toast = _unset,
     List<OrderSummaryView>? filtered,
     bool? loyaltyOffered,
   }) {
@@ -240,7 +237,6 @@ class HistoryState {
       refunds: refunds == _unset ? this.refunds : refunds as OrderRefundsView?,
       receipt: receipt == _unset ? this.receipt : receipt as ReceiptView?,
       detailLoading: detailLoading ?? this.detailLoading,
-      toast: toast == _unset ? this.toast : toast as ToastData?,
       filtered: filtered ?? this.filtered,
     );
   }
@@ -249,7 +245,7 @@ class HistoryState {
 /// Owns [HistoryState]; loads the till on first watch.
 class HistoryNotifier extends Notifier<HistoryState> {
   bool _alive = true;
-  int _toastSeq = 0;
+  late AppToastNotifier _toasts;
 
   /// Request-sequence guard for the All scope: bumped per query, so a slow
   /// page cannot land over a newer query or double-advance [_page].
@@ -279,6 +275,9 @@ class HistoryNotifier extends Notifier<HistoryState> {
       });
     _alive = true;
     ref.onDispose(() => _alive = false);
+    // Held, not re-read: a void or refund answered after this auto-disposed
+    // screen closed is still said.
+    _toasts = ref.read(appToastProvider.notifier);
     unawaited(Future.microtask(load));
     unawaited(Future.microtask(_loadProgramme));
     // Loading from the first frame: "No till open" must not flash before
@@ -630,18 +629,9 @@ class HistoryNotifier extends Notifier<HistoryState> {
     if (state.selectedId != null && state.selected == null) clearSelection();
   }
 
-  /// Raise the screen toast (sequence-paired so repeats still notify).
-  void showToast(String text, {required ChipTone tone, String? icon}) {
-    _toastSeq += 1;
-    state = state.copyWith(
-      toast: ToastData(id: _toastSeq, text: text, tone: tone, icon: icon),
-    );
-  }
-
-  /// Clear the toast if [id] is still the one showing.
-  void dismissToast(int id) {
-    if (state.toast?.id == id) state = state.copyWith(toast: null);
-  }
+  /// Say [text] through the app's one toast, over whatever is in front.
+  void showToast(String text, {required ChipTone tone, String? icon}) =>
+      _toasts.show(text, tone: tone, icon: icon);
 
   /// Surface a bridge failure: human-message danger toast, plus a reauth
   /// request when it's a 401 with a live session (the shared contract).

@@ -132,7 +132,6 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
               ],
             )
           : Column(spacing: Space.md, children: [search, segments]),
-      overlay: const _HistoryToastHost(),
       // Pulled: the manual sync, then the scope re-read (This till from the
       // local rows; All searches the server again, as a person asked).
       body: MadarRefresh(
@@ -213,20 +212,6 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
         }
         return parts.join(' · ');
     }
-  }
-}
-
-/// The screen toast, driven by [HistoryState.toast].
-class _HistoryToastHost extends ConsumerWidget {
-  const _HistoryToastHost();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final toast = ref.watch(historyProvider.select((s) => s.toast));
-    return ToastHost(
-      toast,
-      onDismiss: (id) => ref.read(historyProvider.notifier).dismissToast(id),
-    );
   }
 }
 

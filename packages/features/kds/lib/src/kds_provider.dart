@@ -34,10 +34,6 @@ const Set<String> kKitchenOpTypes = {'bump_kitchen', 'unbump_kitchen'};
 final NotifierProvider<TickNotifier, int> kdsRevisionProvider =
     NotifierProvider<TickNotifier, int>(TickNotifier.new);
 
-/// copyWith sentinel — lets callers CLEAR the nullable `toast` by passing an
-/// explicit `null`.
-const Object _unset = Object();
-
 /// Immutable board state: outstanding tickets, the station directory, what
 /// is in flight, and the honest picture of the kitchen's outbox.
 class KdsState {
@@ -52,7 +48,6 @@ class KdsState {
     this.deadBumps = const [],
     this.online = true,
     this.clockSkewMinutes = 0,
-    this.toast,
   });
 
   /// Outstanding tickets for the bound station (or every station), in the
@@ -89,8 +84,9 @@ class KdsState {
   /// Server-minus-device clock skew, so a ticket's age is the SERVER's age.
   final int clockSkewMinutes;
 
-  /// The board's floating toast, sequence-keyed.
-  final ToastData? toast;
+  // What the board has to say (a refused bump) is the app's one toast
+  // (`appToastProvider`), drawn over the board and the Queue's Kitchen
+  // segment alike.
 
   /// The bound station's display name, or null when unknown (the header
   /// falls back to the localized board title).
@@ -128,8 +124,7 @@ class KdsState {
     return minutes < 0 ? 0 : minutes;
   }
 
-  /// Copy with the given fields replaced; `toast` clears on an explicit
-  /// `null`.
+  /// Copy with the given fields replaced.
   KdsState copyWith({
     List<KdsTicketView>? tickets,
     List<KdsStationView>? stations,
@@ -141,7 +136,6 @@ class KdsState {
     List<OutboxItemView>? deadBumps,
     bool? online,
     int? clockSkewMinutes,
-    Object? toast = _unset,
   }) {
     return KdsState(
       tickets: tickets ?? this.tickets,
@@ -154,7 +148,6 @@ class KdsState {
       deadBumps: deadBumps ?? this.deadBumps,
       online: online ?? this.online,
       clockSkewMinutes: clockSkewMinutes ?? this.clockSkewMinutes,
-      toast: identical(toast, _unset) ? this.toast : toast as ToastData?,
     );
   }
 }
@@ -166,8 +159,6 @@ class KdsNotifier extends Notifier<KdsState> {
 
   /// The bound station id (null = every station).
   final String? arg;
-
-  int _toastSeq = 0;
 
   MadarBridge get _bridge => ref.read(bridgeProvider);
 
@@ -308,21 +299,12 @@ class KdsNotifier extends Notifier<KdsState> {
     }
   }
 
-  /// Show a floating toast. A new id restarts the auto-dismiss timer.
+  /// Say [text] through the app's one toast, over whatever is in front.
   void showToast(
     String text, {
     ChipTone tone = ChipTone.neutral,
     String? icon,
-  }) {
-    state = state.copyWith(
-      toast: ToastData(id: ++_toastSeq, text: text, tone: tone, icon: icon),
-    );
-  }
-
-  /// Clear the toast once its timer elapses (ignores a stale id).
-  void dismissToast(int id) {
-    if (state.toast?.id == id) state = state.copyWith(toast: null);
-  }
+  }) => ref.read(appToastProvider.notifier).show(text, tone: tone, icon: icon);
 
   void _setBusy(String lineId, {required bool busy}) {
     final next = {...state.busyLineIds};
