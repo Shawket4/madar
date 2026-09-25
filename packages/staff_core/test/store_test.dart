@@ -671,10 +671,7 @@ void main() {
       ));
       expect(pushTarget('staff.n_request'), (manage: true, tab: 'approvals'));
       // Decision #9: someone added with no salary opens the owner's Team.
-      expect(pushTarget('staff.n_salary_missing'), (
-        manage: true,
-        tab: 'team',
-      ));
+      expect(pushTarget('staff.n_salary_missing'), (manage: true, tab: 'team'));
       expect(pushTarget('staff.n_week_published'), (
         manage: false,
         tab: 'shifts',
@@ -844,5 +841,33 @@ void main() {
     expect(readNumber(''), isNull);
     expect(readMoney(TextEditingController(text: '٤٠')), 4000);
     expect(readMoney(TextEditingController(text: '٠')), isNull);
+  });
+
+  // Minor #27: with this month's payroll approved, a new pay line lands in
+  // the first open month; the core says which, the sheet says so.
+  test('a new pay line says the month it lands in (M27)', () async {
+    final (store, backend) = await _store();
+    backend.edit = (v) => v['lines_land'] = {
+      'date': '2026-10-26',
+      'start': '2026-10-26',
+      'end': '2026-11-25',
+      'later': true,
+    };
+    await store.refresh();
+    expect(store.linesLand, (
+      from: DateTime(2026, 10, 26),
+      to: DateTime(2026, 11, 25),
+    ));
+    backend.edit = (v) => v['lines_land'] = {
+      'date': '2026-09-25',
+      'start': '2026-09-26',
+      'end': '2026-10-25',
+      'later': false,
+    };
+    await store.refresh();
+    expect(store.linesLand, isNull, reason: 'this month is open');
+    backend.edit = (v) => v.remove('lines_land');
+    await store.refresh();
+    expect(store.linesLand, isNull, reason: 'an older core says nothing');
   });
 }

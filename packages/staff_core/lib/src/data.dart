@@ -678,6 +678,10 @@ class DawamStore extends ChangeNotifier {
   /// The owner saved the rules; until then nobody clocks in (RU-1).
   bool rulesSaved = true;
 
+  /// The pay month a new pay line lands in when this month's payroll is
+  /// already approved or paid (minor #27); null while this month is open.
+  ({DateTime from, DateTime to})? linesLand;
+
   /// The org's modules (`pos`, `dawam`).
   List<String> modules = const ['pos', 'dawam'];
 
@@ -888,6 +892,13 @@ class DawamStore extends ChangeNotifier {
       );
     });
     chargePhone = v['charge_phone'] == true;
+    linesLand = switch (v['lines_land']) {
+      {'later': true, 'start': final String a, 'end': final String z} => (
+        from: DateTime.parse(a),
+        to: DateTime.parse(z),
+      ),
+      _ => null,
+    };
     modules = ((v['modules'] as List<dynamic>?) ?? const ['pos', 'dawam'])
         .cast<String>();
     coverage = ((v['coverage'] as J?) ?? const {}).map(
