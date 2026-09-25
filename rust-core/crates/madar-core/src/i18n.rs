@@ -2222,7 +2222,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.err_leave_pay_required" => "قول الإجازة دي مدفوعة ولا لأ: هتتعتمد وانت بتقدّمها.",
         "staff.err_request_already_decided" => "حد تاني قرر في الطلب ده خلاص. القايمة اتحدّثت.",
         "staff.err_already_decided" => "حد تاني قرر في ده خلاص. القايمة اتحدّثت.",
-        "staff.err_employee_not_at_branch" => "الشخص ده مش بيشتغل في الفرع ده، فمينفعش نحطله شيفت هنا.",
+        "staff.err_employee_not_at_branch" => "الشخص ده مش بيشتغل في الفرع ده، فمينفعش نحطله وردية هنا.",
         "staff.err_flag_handled" => "حد تاني اتعامل مع التنبيه ده خلاص. القايمة اتحدّثت.",
         "staff.err_flag_cover_confirm_or_reject" => "التغطية يا تتأكد يا تترفض بس.",
         "staff.err_overlapping_request" => "عندك طلب زي ده في نفس الوقت خلاص.",
@@ -2357,9 +2357,9 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.week_loading" => "بنحمّل الأسبوع ده…",
         "staff.week_couldnt_load" => "ماقدرناش نحمّل الأسبوع ده. اسحب لتحت وجرّب تاني.",
         "staff.week_needs_connection" => "الأسبوع ده لسه مش على موبايلك. اتصل بالإنترنت عشان تشوفه.",
-        "staff.open_shift_cant_move" => "الشيفت المفتوح مايتنقلش ليوم تاني. الغيه وانشر واحد جديد في اليوم ده.",
-        "staff.open_shift_gone" => "الشيفت المفتوح ده اتلغى أو حد حجزه. اسحب لتحت عشان تحدّث.",
-        "staff.open_shift_posted" => "الشيفت المفتوح اتنشر",
+        "staff.open_shift_cant_move" => "الوردية المفتوحة ماتتنقلش ليوم تاني. الغيها وانشر واحدة جديدة في اليوم ده.",
+        "staff.open_shift_gone" => "الوردية المفتوحة دي اتلغت أو حد حجزها. اسحب لتحت عشان تحدّث.",
+        "staff.open_shift_posted" => "الوردية المفتوحة اتنشرت",
         "staff.given_to" => "اتدّى لـ{name}",
         "staff.n_request" => "{name}: طلب {kind} جديد ليوم {date}",
         "staff.n_request_approved" => "طلب {kind} بتاعك ليوم {date} اتوافق عليه",
@@ -2377,7 +2377,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.sg_cant_work" => "{name} قال إنه مش هيقدر يشتغل اليوم ده",
         "staff.sg_coverage" => "{shift} بتغطي الساعة {hour} اللي ناقصها {short}",
         "staff.sg_pattern" => "{name} اشتغل {shift} في اليوم ده {weeks} أسابيع. نخليها الجدول الثابت؟",
-        "staff.sg_pattern_off" => "{name} أخد اليوم ده إجازة {weeks} أسابيع. نخليها الجدول الثابت؟",
+        "staff.sg_pattern_off" => "{name} أخد اليوم ده يوم راحة {weeks} أسابيع. نخليها الجدول الثابت؟",
         "staff.to_review" => "محتاج قرار",
         "staff.view_day" => "يوم",
         "staff.view_three_days" => "3 أيام",
@@ -2387,7 +2387,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.hours_short" => "{h} س",
         "staff.off" => "راحة",
         "staff.swap_pending" => "تبديل مستني",
-        "staff.holiday" => "إجازة رسمية",
+        "staff.holiday" => "عطلة رسمية",
         "staff.staffed_of_needed" => "{n} من {need} موجودين",
         "staff.add_shift" => "ضيف وردية",
         "staff.roster_drag_hint" => "دوس مطوّل على الوردية عشان تنقلها ليوم تاني أو لشخص تاني.",
@@ -2406,7 +2406,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.warn_rest" => "راحة أقل من {hours} ساعة قبل {date}",
         "staff.warn_day_hours" => "أكتر من {hours} ساعة يوم {date} ({worked} ساعة)",
         "staff.warn_presence" => "في الشغل أكتر من {hours} ساعة يوم {date} ({worked} ساعة)",
-        "staff.warn_weekly_rest" => "مفيش يوم إجازة الأسبوع ده",
+        "staff.warn_weekly_rest" => "مفيش يوم راحة الأسبوع ده",
         "staff.warn_overtime_day" => "وقت إضافي أكتر من {hours} ساعة يوم {date}",
         "staff.charge_your_phone" => "البطارية واطية. اشحن موبايلك عشان ورديتك تفضل متسجلة.",
         "staff.rules_not_saved" => "المالك لسه ما حفظش القواعد. محدش يقدر يسجل حضور لحد ما يحفظها.",
@@ -2566,7 +2566,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.claim" => "احجز",
         "staff.claimed_waiting_for_the_manager" => "اتحجزت — مستنية المدير",
         "staff.their_your" => "{date} {shift} بتاعه ⇄ {date2} {shift2} بتاعتك",
-        "staff.day_off" => "إجازة",
+        "staff.day_off" => "يوم راحة",
         "staff.swap_this_shift" => "بدّل الوردية دي",
         "staff.yours" => "بتاعتك: {date} · {shift} · {hours}",
         "staff.swap_with" => "بدّل مع",
@@ -2654,7 +2654,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.all_branches" => "كل الفروع",
         "staff.in_since_m_late" => "حاضر من {time} · متأخر {l} د",
         "staff.in_since" => "حاضر من {time}",
-        "staff.off_today" => "إجازة النهارده",
+        "staff.off_today" => "راحة النهارده",
         "staff.on_leave_now" => "في إجازة",
         "staff.absent_now" => "غايب",
         "staff.not_in_shift" => "ما حضرش · {shift} {time}",
@@ -2729,8 +2729,8 @@ fn ar(key: &str) -> Option<&'static str> {
         "staff.confirm_cover" => "أكّد التغطية",
         "staff.reject_cover" => "ارفض التغطية",
         "staff.declining_pays_nothing_the_absent_owner" => "الرفض مش بيدفع حاجة. صاحب الوردية بيتحسب غياب في الحالتين — تقدر تلغيه من المرتبات.",
-        "staff.make_it_a_holiday_nobody_is" => "تخليه إجازة رسمية؟ محدش هيتحسب غايب، واللي يشتغل ياخد {holiday_mult}×. لو اتجاهل هيفضل يوم عادي.",
-        "staff.set_as_holiday" => "اعمله إجازة",
+        "staff.make_it_a_holiday_nobody_is" => "تخليه عطلة رسمية؟ محدش هيتحسب غايب، واللي يشتغل ياخد {holiday_mult}×. لو اتجاهل هيفضل يوم عادي.",
+        "staff.set_as_holiday" => "اعمله عطلة رسمية",
         "staff.published" => "منشور",
         "staff.draft" => "مسودة",
         "staff.publish_week" => "انشر الأسبوع",
@@ -4492,6 +4492,30 @@ mod tests {
                 .collect();
             assert!(dups.is_empty(), "keys defined twice in {sig}: {dups:?}");
         }
+    }
+
+    /// Minor #42: the staff app's Arabic says وردية for a shift, يوم راحة for
+    /// a day off, عطلة رسمية for a public holiday, and keeps إجازة for leave
+    /// alone (a day off read as leave). Egyptian colloquial throughout.
+    #[test]
+    fn staff_arabic_keeps_leave_for_leave_and_shift_for_shift() {
+        let src = include_str!("i18n.rs");
+        let keys = keys_in_fn(src, "fn en(key: &str) -> Option<&'static str> {");
+        let mut wrong = Vec::new();
+        for k in keys.into_iter().filter(|k| k.starts_with("staff.")) {
+            let (en, ar) = (tr("en", k).to_lowercase(), tr("ar", k));
+            if ar.contains("إجازة") && !en.contains("leave") {
+                wrong.push(format!("{k}: إجازة for \"{en}\""));
+            }
+            for old in ["شيفت", "جدول عمل", "جدول العمل", "فترة العمل"] {
+                if ar.contains(old) {
+                    wrong.push(format!("{k}: {old} for a shift"));
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+        assert_eq!(tr("ar", "staff.day_off"), "يوم راحة");
+        assert_eq!(tr("ar", "staff.holiday"), "عطلة رسمية");
     }
 
     #[test]
