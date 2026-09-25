@@ -16,6 +16,14 @@ use serde::{Deserialize, Serialize};
 pub struct CartLineInput {
     #[serde(rename = "addons", skip_serializing_if = "Option::is_none")]
     pub addons: Option<Vec<models::AddonInput>>,
+    /// A combo line's picks (§3.1); the server prices every part. Additive.
+    #[serde(
+        rename = "combo",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub combo: Option<Option<Box<models::ComboInput>>>,
     #[serde(rename = "menu_item_id")]
     pub menu_item_id: uuid::Uuid,
     #[serde(
@@ -43,6 +51,7 @@ impl CartLineInput {
     pub fn new(menu_item_id: uuid::Uuid, quantity: i32) -> CartLineInput {
         CartLineInput {
             addons: None,
+            combo: None,
             menu_item_id,
             notes: None,
             optional_field_ids: None,

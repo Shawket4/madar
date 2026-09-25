@@ -5,6 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **addons** | Option<[**Vec<models::AddonInput>**](AddonInput.md)> |  | [optional]
+**combo** | Option<[**models::ComboInput**](ComboInput.md)> | A line naming a combo item (`kind=combo`) carries its picks here; see COMBOS_CONTRACT.md §3.1. On replay `unit_price` is P as the till charged it and each pick's `share`/`surcharge` are per combo unit. Additive. | [optional]
 **menu_item_id** | Option<**uuid::Uuid**> |  | [optional]
 **notes** | Option<**String**> |  | [optional]
 **optional_field_ids** | Option<**Vec<uuid::Uuid>**> |  | [optional]

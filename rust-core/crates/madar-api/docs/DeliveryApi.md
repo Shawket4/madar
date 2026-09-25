@@ -16,6 +16,7 @@ Method | HTTP request | Description
 [**list_channel_overrides**](DeliveryApi.md#list_channel_overrides) | **GET** /delivery/channel-overrides | 
 [**list_delivery_orders**](DeliveryApi.md#list_delivery_orders) | **GET** /delivery-orders | 
 [**list_zones**](DeliveryApi.md#list_zones) | **GET** /delivery/zones | 
+[**public_branch_cart_quote**](DeliveryApi.md#public_branch_cart_quote) | **POST** /public/branches/{id}/cart-quote | Price an online (storefront) cart at a branch, deals applied.
 [**put_branch_settings**](DeliveryApi.md#put_branch_settings) | **PUT** /delivery/settings | 
 [**set_accepting**](DeliveryApi.md#set_accepting) | **POST** /delivery/accepting | 
 [**set_prep_time**](DeliveryApi.md#set_prep_time) | **POST** /delivery-orders/{id}/prep-time | 
@@ -368,6 +369,35 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## public_branch_cart_quote
+
+> models::CartQuote public_branch_cart_quote(id, public_cart_quote_request)
+Price an online (storefront) cart at a branch, deals applied.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Branch ID | [required] |
+**public_cart_quote_request** | [**PublicCartQuoteRequest**](PublicCartQuoteRequest.md) |  | [required] |
+
+### Return type
+
+[**models::CartQuote**](CartQuote.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

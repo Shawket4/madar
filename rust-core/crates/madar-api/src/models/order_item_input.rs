@@ -15,6 +15,14 @@ use serde::{Deserialize, Serialize};
 pub struct OrderItemInput {
     #[serde(rename = "addons", skip_serializing_if = "Option::is_none")]
     pub addons: Option<Vec<models::AddonInput>>,
+    /// A line naming a combo item (`kind=combo`) carries its picks here; see COMBOS_CONTRACT.md §3.1. On replay `unit_price` is P as the till charged it and each pick's `share`/`surcharge` are per combo unit. Additive.
+    #[serde(
+        rename = "combo",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub combo: Option<Option<Box<models::ComboInput>>>,
     #[serde(
         rename = "menu_item_id",
         default,
@@ -62,6 +70,7 @@ impl OrderItemInput {
     pub fn new(quantity: i32) -> OrderItemInput {
         OrderItemInput {
             addons: None,
+            combo: None,
             menu_item_id: None,
             notes: None,
             optional_field_ids: None,

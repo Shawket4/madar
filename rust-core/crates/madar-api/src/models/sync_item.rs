@@ -21,8 +21,27 @@ pub struct SyncItem {
         skip_serializing_if = "Option::is_none"
     )]
     pub category_id: Option<Option<uuid::Uuid>>,
+    /// A kind=combo row: its slots, windows and resolved channel toggles.
+    #[serde(
+        rename = "combo",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub combo: Option<Option<Box<models::ComboFeed>>>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// `item` | `combo` (combos module). Additive.
+    #[serde(rename = "kind", skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    /// A kind=item row: its \"make it a meal\" upsell (C14).
+    #[serde(
+        rename = "meal",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub meal: Option<Option<Box<models::MealLink>>>,
     #[serde(rename = "modifier_groups")]
     pub modifier_groups: Vec<models::SyncModifierGroup>,
     #[serde(rename = "name")]
@@ -44,7 +63,10 @@ impl SyncItem {
     ) -> SyncItem {
         SyncItem {
             category_id: None,
+            combo: None,
             id,
+            kind: None,
+            meal: None,
             modifier_groups,
             name,
             name_translations,

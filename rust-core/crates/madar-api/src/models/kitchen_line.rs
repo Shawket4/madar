@@ -14,6 +14,14 @@ use serde::{Deserialize, Serialize};
 /// KitchenLine : A slim kitchen display line (NO prices) — what the cook reads. Built from an order item or a ticket round line by the caller.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct KitchenLine {
+    /// The combo this line is a part of (C12): each part routes to its own station, tagged with the combo's name. `null` for a plain line; old KDS builds ignore it.
+    #[serde(
+        rename = "combo",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub combo: Option<Option<Box<models::KitchenComboTag>>>,
     #[serde(
         rename = "menu_item_id",
         default,
@@ -47,6 +55,7 @@ impl KitchenLine {
     /// A slim kitchen display line (NO prices) — what the cook reads. Built from an order item or a ticket round line by the caller.
     pub fn new(name: String, qty: i32) -> KitchenLine {
         KitchenLine {
+            combo: None,
             menu_item_id: None,
             modifiers: None,
             name,

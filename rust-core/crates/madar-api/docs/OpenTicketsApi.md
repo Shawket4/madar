@@ -10,6 +10,7 @@ Method | HTTP request | Description
 [**list_open_tickets**](OpenTicketsApi.md#list_open_tickets) | **GET** /open-tickets | 
 [**move_ticket_table**](OpenTicketsApi.md#move_ticket_table) | **PATCH** /open-tickets/{id}/table | Switch an open ticket to a different table (the \"move table\" button). Works for any live ticket — walk-in dine-in or one auto-opened from a booking. The old table is flagged `dirty` (bus it), the new one `seated`; if the ticket came from a booking, the booking's assignment is kept in sync.
 [**public_table**](OpenTicketsApi.md#public_table) | **GET** /public/tables/{id} | 
+[**public_table_cart_quote**](OpenTicketsApi.md#public_table_cart_quote) | **POST** /public/tables/{id}/cart-quote | Price a QR table cart, deals applied.
 [**public_table_menu**](OpenTicketsApi.md#public_table_menu) | **GET** /public/tables/{id}/menu | The menu at this table.
 [**public_table_order**](OpenTicketsApi.md#public_table_order) | **POST** /public/table-orders | Send this table's order to the kitchen.
 [**set_ticket_customer**](OpenTicketsApi.md#set_ticket_customer) | **PUT** /open-tickets/{id}/customer | Set or clear the customer on an open bill (the dashboard / online path; a till queues `set_ticket_customer` through `/sync/replay` instead).
@@ -185,6 +186,35 @@ No authorization required
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## public_table_cart_quote
+
+> models::CartQuote public_table_cart_quote(id, public_cart_quote_request)
+Price a QR table cart, deals applied.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Table ID, from the QR | [required] |
+**public_cart_quote_request** | [**PublicCartQuoteRequest**](PublicCartQuoteRequest.md) |  | [required] |
+
+### Return type
+
+[**models::CartQuote**](CartQuote.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

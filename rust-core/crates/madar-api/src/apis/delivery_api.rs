@@ -97,6 +97,14 @@ pub struct ListZonesParams {
     pub branch_id: String,
 }
 
+/// struct for passing parameters to the method [`public_branch_cart_quote`]
+#[derive(Clone, Debug)]
+pub struct PublicBranchCartQuoteParams {
+    /// Branch ID
+    pub id: String,
+    pub public_cart_quote_request: models::PublicCartQuoteRequest,
+}
+
 /// struct for passing parameters to the method [`put_branch_settings`]
 #[derive(Clone, Debug)]
 pub struct PutBranchSettingsParams {
@@ -289,6 +297,19 @@ pub enum ListDeliveryOrdersError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListZonesError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`public_branch_cart_quote`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PublicBranchCartQuoteError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -921,6 +942,53 @@ pub async fn list_zones(
     } else {
         let content = resp.text().await?;
         let entity: Option<ListZonesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn public_branch_cart_quote(
+    configuration: &configuration::Configuration,
+    params: PublicBranchCartQuoteParams,
+) -> Result<models::CartQuote, Error<PublicBranchCartQuoteError>> {
+    let uri_str = format!(
+        "{}/public/branches/{id}/cart-quote",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    req_builder = req_builder.json(&params.public_cart_quote_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::CartQuote`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::CartQuote`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PublicBranchCartQuoteError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

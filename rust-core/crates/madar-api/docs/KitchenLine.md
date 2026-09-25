@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**combo** | Option<[**models::KitchenComboTag**](KitchenComboTag.md)> | The combo this line is a part of (C12): each part routes to its own station, tagged with the combo's name. `null` for a plain line; old KDS builds ignore it. | [optional]
 **menu_item_id** | Option<**uuid::Uuid**> |  | [optional]
 **modifiers** | Option<**Vec<String>**> |  | [optional]
 **name** | **String** |  | 

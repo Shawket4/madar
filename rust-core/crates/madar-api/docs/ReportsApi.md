@@ -26,6 +26,8 @@ Method | HTTP request | Description
 [**branch_till_sessions**](ReportsApi.md#branch_till_sessions) | **GET** /reports/branches/{branch_id}/tills | 
 [**branch_waiter_stats**](ReportsApi.md#branch_waiter_stats) | **GET** /reports/branches/{branch_id}/waiters | 
 [**branch_waste_report**](ReportsApi.md#branch_waste_report) | **GET** /reports/branches/{branch_id}/waste-report | 
+[**bundles_report**](ReportsApi.md#bundles_report) | **GET** /reports/bundles | 
+[**combo_mix**](ReportsApi.md#combo_mix) | **GET** /reports/bundles/combos/{id}/mix | 
 [**deduction_overrides_audit**](ReportsApi.md#deduction_overrides_audit) | **GET** /reports/orgs/{org_id}/deduction-overrides-audit | 
 [**discounts_audit**](ReportsApi.md#discounts_audit) | **GET** /reports/orgs/{org_id}/discounts-audit | 
 [**loyalty_adjustments_audit**](ReportsApi.md#loyalty_adjustments_audit) | **GET** /reports/orgs/{org_id}/loyalty-adjustments-audit | 
@@ -710,6 +712,68 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::WasteReportRow>**](WasteReportRow.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## bundles_report
+
+> models::BundlesReport bundles_report(from, to, branch_id, kind)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**from** | **chrono::NaiveDate** | Business date, inclusive. | [required] |
+**to** | **chrono::NaiveDate** | Business date, inclusive. | [required] |
+**branch_id** | Option<**uuid::Uuid**> |  |  |
+**kind** | Option<**String**> | `combo` | `deal`; omitted = both. |  |
+
+### Return type
+
+[**models::BundlesReport**](BundlesReport.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## combo_mix
+
+> models::ComboMix combo_mix(id, from, to, branch_id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | The combo's menu item id | [required] |
+**from** | **chrono::NaiveDate** |  | [required] |
+**to** | **chrono::NaiveDate** |  | [required] |
+**branch_id** | Option<**uuid::Uuid**> |  |  |
+
+### Return type
+
+[**models::ComboMix**](ComboMix.md)
 
 ### Authorization
 

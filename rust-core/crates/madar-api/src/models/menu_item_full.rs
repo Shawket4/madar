@@ -39,6 +39,9 @@ pub struct MenuItemFull {
     pub image_url: Option<String>,
     #[serde(rename = "is_active")]
     pub is_active: bool,
+    /// `item` | `combo` (combos module). A combo's price is its `one_size` row like any item; its slots are on `GET /combos/{id}`. Additive.
+    #[serde(rename = "kind", skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
     #[serde(rename = "name")]
     pub name: String,
     #[serde(rename = "name_translations")]
@@ -55,6 +58,22 @@ pub struct MenuItemFull {
     /// Explicit per-item addon allowlist. Empty = no restriction (use org catalog).
     #[serde(rename = "allowed_addon_ids")]
     pub allowed_addon_ids: Vec<uuid::Uuid>,
+    /// A kind=combo row: its slots, windows and channel toggles for the requested branch; `null` for an item. Combo rows are served only to a client that can sell them (a browser, POS ≥ 0.9.0, the KDS).
+    #[serde(
+        rename = "combo",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub combo: Option<Option<Box<models::ComboFeed>>>,
+    /// A kind=item row: its \"make it a meal\" upsell (C14), or `null`.
+    #[serde(
+        rename = "meal",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub meal: Option<Option<Box<models::MealLink>>>,
     #[serde(rename = "optional_fields")]
     pub optional_fields: Vec<models::OptionalField>,
     /// How a sale line of this item is priced at the requested branch: madar-catalog's `ItemView` (sizes with their branch prices, the branch's item price, the recipe's swap bases and their candidates, the optional fields). The till prices with it exactly as the order path does. Present on `?full=true` lists; additive, older tills ignore it.
@@ -104,6 +123,7 @@ impl MenuItemFull {
             image: None,
             image_url: None,
             is_active,
+            kind: None,
             name,
             name_translations,
             org_id,
@@ -111,6 +131,8 @@ impl MenuItemFull {
             addon_slots,
             all_sizes: None,
             allowed_addon_ids,
+            combo: None,
+            meal: None,
             optional_fields,
             pricing: None,
             recipe_steps: None,

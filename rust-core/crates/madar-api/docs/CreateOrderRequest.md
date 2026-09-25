@@ -10,6 +10,7 @@ Name | Type | Description | Notes
 **created_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **customer_id** | Option<**uuid::Uuid**> | A manual customer (phase 6), attached when the actor holds `customers.attach`. A merged id resolves; an unknown one is ignored — a sale is never refused over its customer. | [optional]
 **customer_name** | Option<**String**> |  | [optional]
+**deals** | Option<[**Vec<models::DealApplicationInput>**](DealApplicationInput.md)> | Deals the teller applied (combos module, C8). Each names order lines by index and the units it takes. Needs `orders.deals.apply`. Additive. | [optional]
 **device_code** | Option<**String**> | The device's code; with `device_id` + `order_number` the number is stored verbatim. | [optional]
 **device_id** | Option<**uuid::Uuid**> | The device ringing the order (else `X-Madar-Device`). | [optional]
 **discount_amount** | Option<**i32**> |  | [optional]
