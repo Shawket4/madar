@@ -89,6 +89,8 @@ class _Fake implements MadarBridge {
         permissionsLoaded: true,
       );
     }
+    // The one owner's sync read: this person's OWN open till, or none.
+    if (n == #ownOpenTill) return null;
     if (n == #currentTill || n == #refreshTill) {
       return Future<TillView?>.value();
     }

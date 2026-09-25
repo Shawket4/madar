@@ -30,6 +30,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:madar/app/shell.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
+part 'shell_till_state.dart';
+
 const _render = bool.fromEnvironment('MADAR_RENDER');
 
 /// The iPad, landscape — the primary target.
@@ -344,6 +346,22 @@ const _till = TillView(
   openedWhileAnotherOpen: false,
 );
 
+/// The [n]th till opened on the fake device — `sh-1` is [_till].
+TillView _tillNo(int n) => n == 1
+    ? _till
+    : TillView(
+        id: 'sh-$n',
+        branchId: _till.branchId,
+        tellerId: _till.tellerId,
+        tellerName: _till.tellerName,
+        openingCashMinor: _till.openingCashMinor,
+        openedAt: _till.openedAt,
+        status: 'open',
+        isOpen: true,
+        verification: 'server',
+        openedWhileAnotherOpen: false,
+      );
+
 TillReportView _report({required bool fromServer}) => TillReportView(
   tellerName: 'Sara',
   openedAt: _openedAt,
@@ -561,7 +579,21 @@ class _FakeBridge implements MadarBridge {
 
   final String role;
   final bool rtl;
-  final bool tillOpen;
+
+  /// The core's till, in miniature: open or not, and which one. Mutable so a
+  /// test can walk the owner's steps (open, close, open again) through the
+  /// real screens; `openTill` flips it the way the core does.
+  bool tillOpen;
+
+  /// Bumped on every open, so a second till is a DIFFERENT till (`sh-2`).
+  int tillSeq = 1;
+
+  /// How many times the open-till action reached the core.
+  int opens = 0;
+
+  /// False: the core cannot answer the lock (a bridge hiccup). The shell then
+  /// fails OPEN, which is the one way a teller sees Sell with no till.
+  bool lockAnswers = true;
   final bool hasFloor;
   final bool requireTable;
   final bool online;
@@ -577,7 +609,7 @@ class _FakeBridge implements MadarBridge {
 
   bool get _waiter => role == 'waiter';
   // A waiter's device has no drawer; the till is the till's, not theirs.
-  TillView? get _openTill => tillOpen && !_waiter ? _till : null;
+  TillView? get _openTill => tillOpen && !_waiter ? _tillNo(tillSeq) : null;
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -714,6 +746,7 @@ class _FakeBridge implements MadarBridge {
     // open drawer is locked; waiters and the kitchen hold no drawer and are
     // never locked (`till_lock()` in till_ops.rs).
     if (name == #tillLock) {
+      if (!lockAnswers) throw const MadarError.internal(detail: 'lock');
       final holdsDrawer = !_waiter && role != 'kitchen';
       final locked = holdsDrawer && !tillOpen && route == null;
       String word(String key) => (rtl ? _ar[key] : null) ?? _en[key] ?? key;
@@ -906,8 +939,27 @@ class _FakeBridge implements MadarBridge {
       return Future<DeliverySettingsView>.value(_deliverySettings);
     }
     // ── the drawer ─────────────────────────────────────────────────────────
+    // The one owner's sync read: this person's OWN open till, or none.
+    if (name == #ownOpenTill) {
+      final t = _openTill;
+      return (t?.isOpen ?? false) ? t : null;
+    }
     if (name == #currentTill || name == #refreshTill) {
       return Future<TillView?>.value(_openTill);
+    }
+    // The core's open: this person's till on this device already open is
+    // answered with that till (never a second one); otherwise a new till.
+    if (name == #openTill) {
+      opens += 1;
+      final already = tillOpen;
+      tillOpen = true;
+      return Future<OpenTillOutcome>.value(
+        OpenTillOutcome(
+          till: _openTill,
+          verification: 'server',
+          alreadyOpen: already,
+        ),
+      );
     }
     if (name == #tillReport || name == #tillReportFor) {
       return Future<TillReportView>.value(_report(fromServer: online));
@@ -1207,6 +1259,7 @@ void main() {
 
   group('one page shell', pageShellMain);
   group('spec board', specBoardMain);
+  group('one till owner', tillStateMain);
 
   testWidgets('the teller shell on an iPad: Sell, Floor, Queue, Till', (
     tester,

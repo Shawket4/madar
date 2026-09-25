@@ -48,7 +48,6 @@ class SettingsState {
   const SettingsState({
     required this.config,
     required this.brand,
-    this.till,
     this.stations = const [],
     this.diagnostics = const [],
     this.pending = 0,
@@ -66,8 +65,8 @@ class SettingsState {
   /// The selected printer brand chip.
   final PrinterBrand brand;
 
-  /// Current till — the sign-out/reconfigure guard + the account card.
-  final TillView? till;
+  // Whether a till is open (the sign-out guard, the account card) is the
+  // shell's — `shellProvider.till`, the one owner — never loaded here.
 
   /// Bindable kitchen stations (KDS devices).
   final List<KdsStationView> stations;
@@ -101,16 +100,12 @@ class SettingsState {
   /// printer or a drawer it was not.
   final UiText? writeError;
 
-  /// Whether the drawer is open (blocks sign-out and reconfigure).
-  bool get hasOpenTill => till?.isOpen ?? false;
-
   /// Copy with the given fields replaced. `null` keeps the current value
-  /// ([error] and [till] are never cleared through here — a fresh
+  /// ([error] is never cleared through here — a fresh
   /// [SettingsNotifier.load] rebuilds the state whole).
   SettingsState copyWith({
     DeviceConfigView? config,
     PrinterBrand? brand,
-    TillView? till,
     List<KdsStationView>? stations,
     List<DiagLogView>? diagnostics,
     int? pending,
@@ -124,7 +119,6 @@ class SettingsState {
     return SettingsState(
       config: config ?? this.config,
       brand: brand ?? this.brand,
-      till: till ?? this.till,
       stations: stations ?? this.stations,
       diagnostics: diagnostics ?? this.diagnostics,
       pending: pending ?? this.pending,
@@ -166,13 +160,12 @@ class SettingsNotifier extends Notifier<SettingsState> {
     }
   }
 
-  /// Prime the screen: till (sign-out/reconfigure guards + account card),
-  /// the till or station list, pending count, and the diagnostics feed.
+  /// Prime the screen: the station list, pending count, and the diagnostics
+  /// feed. (The till is the shell's.)
   /// Rebuilds the state whole, so a fresh mount starts clean (no stale
   /// error banner or print status).
   Future<void> load() async {
     final config = _bridge.deviceConfig();
-    final till = await _quiet(_bridge.currentTill);
     final stations = _isKitchenDevice
         ? await _quiet(_bridge.kdsListStations) ?? const <KdsStationView>[]
         : const <KdsStationView>[];
@@ -185,7 +178,6 @@ class SettingsNotifier extends Notifier<SettingsState> {
     state = SettingsState(
       config: config,
       brand: _brandOf(config.printerBrand),
-      till: till,
       stations: stations,
       diagnostics: diagnostics,
       pending: pending,
@@ -375,7 +367,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
   /// realtime subscription + LAN relay, then the session (outbox kept).
   /// Returns true when the screen should pop and refresh the shell.
   Future<bool> signOut() async {
-    if (state.hasOpenTill) {
+    if (ref.read(shellProvider).tillOpen) {
       state = state.copyWith(
         error: const UiText.key('settings.sign_out_shift_open'),
       );

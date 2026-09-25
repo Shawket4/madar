@@ -367,15 +367,23 @@ class OpenTillOutcome {
   final String verification;
   final TillElsewhereView? openElsewhere;
 
+  /// Nothing new was opened: this person's till here was already open, and
+  /// `till` is that till. The app words it; it is never a second till.
+  final bool alreadyOpen;
+
   const OpenTillOutcome({
     this.till,
     required this.verification,
     this.openElsewhere,
+    required this.alreadyOpen,
   });
 
   @override
   int get hashCode =>
-      till.hashCode ^ verification.hashCode ^ openElsewhere.hashCode;
+      till.hashCode ^
+      verification.hashCode ^
+      openElsewhere.hashCode ^
+      alreadyOpen.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -384,7 +392,8 @@ class OpenTillOutcome {
           runtimeType == other.runtimeType &&
           till == other.till &&
           verification == other.verification &&
-          openElsewhere == other.openElsewhere;
+          openElsewhere == other.openElsewhere &&
+          alreadyOpen == other.alreadyOpen;
 }
 
 class ReconciliationInput {

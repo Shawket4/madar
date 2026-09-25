@@ -175,7 +175,7 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
     String t(String key) => historyTr(bridge, key);
     switch (scope) {
       case OrdersScope.thisTill:
-        final hasTill = ref.watch(historyProvider.select((s) => s.hasTill));
+        final hasTill = ref.watch(shellProvider.select((s) => s.tillOpen));
         final stats = ref.watch(historyProvider.select((s) => s.stats));
         final loading = ref.watch(historyProvider.select((s) => s.loading));
         if (!hasTill && !loading) return t('history.no_shift');
@@ -289,7 +289,7 @@ class _Master extends ConsumerWidget {
       historyProvider.select((s) => s.visibleLimit),
     );
     final hasMore = ref.watch(historyProvider.select((s) => s.hasMore));
-    final hasTill = ref.watch(historyProvider.select((s) => s.hasTill));
+    final hasTill = ref.watch(shellProvider.select((s) => s.tillOpen));
     final selectedId = ref.watch(historyProvider.select((s) => s.selectedId));
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),

@@ -54,7 +54,6 @@ class IncomingState {
     this.ticketsLoaded = false,
     this.tableLabels = const {},
     this.hasFloor = false,
-    this.tillOpen,
     this.toast,
   });
 
@@ -103,8 +102,8 @@ class IncomingState {
   /// The branch has an authored floor (tables mirrored).
   final bool hasFloor;
 
-  /// Whether this till has an open till; null until read. Charge needs one.
-  final bool? tillOpen;
+  // Whether a till is open (Charge needs one) is the shell's —
+  // `shellProvider.tillOpen`, the one owner — never loaded here.
 
   /// The screen's floating toast, sequence-keyed.
   final ToastData? toast;
@@ -166,7 +165,6 @@ class IncomingState {
     bool? ticketsLoaded,
     Map<String, String>? tableLabels,
     bool? hasFloor,
-    bool? tillOpen,
     Object? toast = _unset,
   }) {
     return IncomingState(
@@ -183,7 +181,6 @@ class IncomingState {
       ticketsLoaded: ticketsLoaded ?? this.ticketsLoaded,
       tableLabels: tableLabels ?? this.tableLabels,
       hasFloor: hasFloor ?? this.hasFloor,
-      tillOpen: tillOpen ?? this.tillOpen,
       toast: identical(toast, _unset) ? this.toast : toast as ToastData?,
     );
   }
@@ -215,7 +212,6 @@ class IncomingNotifier extends Notifier<IncomingState> {
     state = state.copyWith(segment: segment, error: null);
     unawaited(loadDeliveryOrders());
     unawaited(loadOpenTickets());
-    unawaited(loadTill());
     unawaited(loadFloorLabels());
   }
 
@@ -225,7 +221,6 @@ class IncomingNotifier extends Notifier<IncomingState> {
     await Future.wait([
       loadDeliveryOrders(),
       loadOpenTickets(),
-      loadTill(),
       loadFloorLabels(),
     ]);
   }
@@ -505,12 +500,6 @@ class IncomingNotifier extends Notifier<IncomingState> {
       }
       state = state.copyWith(error: _fail(e), ticketsLoaded: true);
     }
-  }
-
-  /// Whether Charge can work at all: settle books onto THIS till's till.
-  Future<void> loadTill() async {
-    final till = await _quiet(_bridge.currentTill);
-    state = state.copyWith(tillOpen: till?.isOpen ?? false);
   }
 
   /// Table id → label from the floor mirror, so a bill row reads "T3" and a

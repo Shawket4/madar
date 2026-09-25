@@ -49,18 +49,20 @@ class TillScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final loading = ref.watch(tillProvider.select((s) => s.loading));
-    final hasTill = ref.watch(tillProvider.select((s) => s.hasOpenTill));
     final isManager = ref.watch(tillProvider.select((s) => s.isManager));
     final toast = ref.watch(tillProvider.select((s) => s.toast));
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final layout = context.madarLayout;
-    final till = ref.watch(tillProvider.select((s) => s.till));
+    // THE till — the shell's, the one owner, read in the same pass as the
+    // route and the lock. The form and the drawer home can never both claim
+    // the tab, and the form never shows over an open till.
+    final till = ref.watch(shellProvider.select((s) => s.till));
+    final hasTill = till != null;
 
     String? subtitle;
     var actions = const <Widget>[];
-    if (hasTill && till != null) {
+    if (till != null) {
       final since = bridge.formatStamp(rfc3339: till.openedAt);
       subtitle =
           '${till.tellerName} · ${t('till.open_since')} ${MadarFormat.isolate(since)}';
@@ -93,13 +95,7 @@ class TillScreen extends ConsumerWidget {
 
     final Widget body;
     final MadarContentWidth width;
-    if (loading && !hasTill) {
-      width = MadarContentWidth.full;
-      body = const Align(
-        alignment: AlignmentDirectional.topStart,
-        child: SkeletonList(),
-      );
-    } else if (!hasTill) {
+    if (!hasTill) {
       // No drawer: the tab IS the open-till form. A manager still sees the
       // branch's drawers underneath — the morning check needs no float.
       width = MadarContentWidth.form;

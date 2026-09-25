@@ -177,6 +177,8 @@ class _Fake implements MadarBridge {
     }
     if (n == #listItemAddons) return Future.value(_addons);
     if (n == #listItemModifierGroups) return Future.value(_groups);
+    // The one owner's sync read: this person's OWN open till, or none.
+    if (n == #ownOpenTill) return null;
     if (n == #currentTill || n == #refreshTill) {
       return Future<TillView?>.value();
     }

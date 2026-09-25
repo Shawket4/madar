@@ -16,7 +16,6 @@ class SyncState {
   const SyncState({
     this.outbox = const [],
     this.status,
-    this.hasOpenTill = false,
     this.pushing = false,
     this.recovering = false,
     this.recovered,
@@ -29,10 +28,9 @@ class SyncState {
   /// Null until the first load.
   final SyncStatusView? status;
 
-  /// A drawer is open on this till. `recoverOrphanedOrders` re-points
-  /// stranded sales onto the CURRENT till, so without one it has nowhere to
-  /// put them.
-  final bool hasOpenTill;
+  // Whether a drawer is open (recovery re-points stranded sales onto the
+  // CURRENT till, so without one it has nowhere to put them) is the
+  // shell's — `shellProvider.till`, the one owner — never loaded here.
 
   /// A manual force-push is in flight (spins + disables Sync now).
   final bool pushing;
@@ -81,7 +79,6 @@ class SyncState {
   SyncState copyWith({
     List<OutboxItemView>? outbox,
     SyncStatusView? status,
-    bool? hasOpenTill,
     bool? pushing,
     bool? recovering,
     int? recovered,
@@ -90,7 +87,6 @@ class SyncState {
     return SyncState(
       outbox: outbox ?? this.outbox,
       status: status ?? this.status,
-      hasOpenTill: hasOpenTill ?? this.hasOpenTill,
       pushing: pushing ?? this.pushing,
       recovering: recovering ?? this.recovering,
       recovered: clearRecovered ? null : (recovered ?? this.recovered),
@@ -117,16 +113,11 @@ class SyncNotifier extends Notifier<SyncState> {
     }
   }
 
-  /// Re-read the outbox rows, the health snapshot and the till.
+  /// Re-read the outbox rows and the health snapshot.
   Future<void> load() async {
     final outbox = await _quiet(_bridge.listOutbox) ?? const <OutboxItemView>[];
     final status = await _quiet(() async => _bridge.syncStatus());
-    final till = await _quiet(_bridge.currentTill);
-    state = state.copyWith(
-      outbox: outbox,
-      status: status,
-      hasOpenTill: till?.isOpen ?? false,
-    );
+    state = state.copyWith(outbox: outbox, status: status);
   }
 
   /// Requeue every FAILED (dead) command and try to send now. The core's
@@ -192,7 +183,8 @@ class SyncNotifier extends Notifier<SyncState> {
     state = state.copyWith(recovering: true, clearRecovered: true);
     int? count;
     try {
-      final till = await _quiet(_bridge.currentTill);
+      // THE till, from its one owner.
+      final till = ref.read(shellProvider).till;
       if (till != null) {
         count = await _quiet(() => _bridge.retryTillOutbox(tillId: till.id));
       }

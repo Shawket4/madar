@@ -69,14 +69,15 @@ class LocaleGeneration extends Notifier<int> {
 }
 
 /// The shell truth: the core-derived route + the session snapshot + whether
-/// this device is walled to the open-till screen.
+/// this device is walled to the open-till screen + THE till.
 /// [ShellNotifier.refresh] is the old `onStateChanged` — call it after any
-/// bridge call that can move `app_route()` or the session.
+/// bridge call that can move `app_route()`, the session or the till.
 class ShellState {
   const ShellState({
     required this.route,
     required this.session,
     required this.lock,
+    this.till,
   });
 
   final AppRoute route;
@@ -87,6 +88,25 @@ class ShellState {
   /// screen, Settings, sync, sign out and the manager-actions list. Waiters
   /// and kitchen devices hold no drawer and are never locked.
   final TillLockView lock;
+
+  /// THE till — the signed-in person's own open till on this device, from
+  /// the core's `own_open_till()`, or null when none is open here (always
+  /// null for a waiter or a kitchen device).
+  ///
+  /// The ONE place the app keeps it. It is read in the same pass as [route]
+  /// and [lock], which the core decides from the same answer, so the three
+  /// can never disagree. Every screen that asks "is a till open?" or "which
+  /// till?" — the cart, the Till tab, Charge, the open-till form, the Queue,
+  /// Orders, sign-out — reads it from here and keeps no copy of its own.
+  ///
+  /// Screens used to load their own `currentTill()` at their own moment. The
+  /// Sell screen's was loaded once per person, while the device was still
+  /// locked; after a (re)configure → open till the cart kept saying "No till
+  /// is open" over an open till (owner report 2026-09-25).
+  final TillView? till;
+
+  /// A till is open on this device for the signed-in person.
+  bool get tillOpen => till != null;
 
   /// Shorthand — the shell reads this, never a role or a route, to decide
   /// which destinations exist.
@@ -110,32 +130,75 @@ class ShellNotifier extends Notifier<ShellState> {
     holdsDrawer: false,
   );
 
-  ShellState _read(MadarBridge bridge) {
+  /// One pass over the core: the route, the session, the lock and the till,
+  /// all local and synchronous. A till the core could not report keeps the
+  /// last honest reading ([previous]) rather than guessing "none".
+  ShellState _read(MadarBridge bridge, {ShellState? previous}) {
     TillLockView lock;
     try {
       lock = bridge.tillLock();
     } on Object catch (_) {
       lock = _unlocked;
     }
+    TillView? till;
+    try {
+      till = bridge.ownOpenTill();
+    } on Object catch (_) {
+      till = previous?.till;
+    }
     return ShellState(
       route: bridge.appRoute(),
       session: bridge.currentSession(),
       lock: lock,
+      till: till,
     );
   }
 
   @override
-  ShellState build() => _read(ref.watch(bridgeProvider));
+  ShellState build() {
+    // The drawer moves without any screen calling the shell too: a pull lands
+    // a close made on the dashboard or another device, a queued open or close
+    // is acknowledged, the reconcile adopts a till the server holds. Each of
+    // those changes the core's `tills` table, which bumps [drawerTickProvider]
+    // — so the one answer follows the core, not the next screen change.
+    ref.listen(drawerTickProvider, (_, _) => _reread());
+    return _read(ref.watch(bridgeProvider));
+  }
 
-  /// Re-read route + session + lock from the core; notifies only on change.
+  /// Re-read route + session + lock + till from the core; notifies only on
+  /// change.
   void refresh() {
-    final next = _read(ref.read(bridgeProvider));
+    _reread();
+    ref.read(realtimeArmerProvider)();
+  }
+
+  void _reread() {
+    final next = _read(ref.read(bridgeProvider), previous: state);
     if (next.route != state.route ||
         next.session != state.session ||
-        next.lock != state.lock) {
+        next.lock != state.lock ||
+        next.till != state.till) {
       state = next;
     }
-    ref.read(realtimeArmerProvider)();
+  }
+
+  /// Reconcile this person's till with the synced till rows — the core may
+  /// adopt the till the server holds for this device, or drop one closed
+  /// elsewhere — then re-read. Local (no network); a failure leaves the
+  /// device's own answer standing.
+  ///
+  /// The ONE way the app asks for it: screens call this, never
+  /// `refreshTill()` themselves, so whatever the reconcile decides reaches
+  /// every reader at once. A re-read, not a re-arm: the Till tab reconciles
+  /// on every drawer tick, and arming realtime is a sign-in's business.
+  Future<void> reconcileTill() async {
+    try {
+      await ref.read(bridgeProvider).refreshTill();
+    } on Object catch (_) {
+      // The local answer stands; the next reconcile tries again.
+    }
+    if (!ref.mounted) return;
+    _reread();
   }
 }
 
@@ -331,6 +394,15 @@ final drawerTickProvider = NotifierProvider<TickNotifier, int>(
 /// the sync-on-open strip and the Sync section re-read the core's status on
 /// it instead of polling.
 final syncTickProvider = NotifierProvider<TickNotifier, int>(TickNotifier.new);
+
+/// Bumped when an attempt to open a till found one ALREADY open for this
+/// person here — the way in refused over an open till, or the core answered
+/// `already_open` (a stale form, a race, the server's till resumed). Nothing
+/// new was opened; the shell's chrome says so (`till.already_open`) over
+/// whichever tab the teller lands on.
+final tillAlreadyOpenProvider = NotifierProvider<TickNotifier, int>(
+  TickNotifier.new,
+);
 
 /// Bumped when the core emptied every cart outside a sign-in (closing a
 /// till). Each open cart re-reads its context on it.

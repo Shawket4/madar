@@ -29,30 +29,12 @@ const Object _unset = Object();
 UiText _failure(Object e) =>
     e is MadarError ? UiText.error(e) : const UiText.key('err.generic');
 
-/// The person's till on this device, from the core's cache. Tolerates the
-/// bridge answering synchronously or not.
-Future<TillView?> _cachedTill(MadarBridge bridge) =>
-    Future<TillView?>.sync(() => bridge.currentTill());
-
-/// The device's till: server-fresh when online, the local cache otherwise —
-/// and never let a transient refresh error nuke a good local till.
-Future<TillView?> _deviceTill(MadarBridge bridge) async {
-  if (bridge.currentSession()?.online ?? false) {
-    try {
-      // Belt and braces: a null here means "no drawer" only if the core holds
-      // none either. Taking a bare null as the truth is what turned one
-      // role-gated `Ok(None)` in the core into a Till tab that could never
-      // leave the open-till form, so fall through to the cache instead.
-      final fresh = await bridge.refreshTill();
-      if (fresh != null) return fresh;
-    } on Exception catch (_) {}
-  }
-  try {
-    return await _cachedTill(bridge);
-  } on Exception catch (_) {
-    return null;
-  }
-}
+// Which till is open is never loaded here: it is the shell's
+// (`shellProvider.till`, fed by the core's `own_open_till()`), the one owner
+// every surface reads. Each notifier below used to load its own copy with
+// `currentTill()` / `refreshTill()` at its own moment, and the copies drifted
+// from the route and from each other (owner report 2026-09-25). A reconcile
+// goes through `ShellNotifier.reconcileTill`, which re-reads the owner.
 
 // ─── Till home ───────────────────────────────────────────────────────────────
 
@@ -65,7 +47,6 @@ class TillState {
   /// Creates the Till state.
   const TillState({
     this.loading = true,
-    this.till,
     this.branchTills = const [],
     this.notice,
     this.forceClosingId,
@@ -87,9 +68,6 @@ class TillState {
 
   /// The first load has not resolved the till yet.
   final bool loading;
-
-  /// The device's till — null when no till is open on this till.
-  final TillView? till;
 
   /// Every open till at the branch (server list merged with LAN adverts by
   /// the core), this device's first.
@@ -135,13 +113,9 @@ class TillState {
   /// The latest failure toast, or null.
   final ToastData? toast;
 
-  /// A till is open on this till.
-  bool get hasOpenTill => till?.isOpen ?? false;
-
   /// Copies with the given overrides (nullables clear through the sentinel).
   TillState copyWith({
     bool? loading,
-    Object? till = _unset,
     List<BranchOpenTillView>? branchTills,
     Object? notice = _unset,
     Object? forceClosingId = _unset,
@@ -160,7 +134,6 @@ class TillState {
     return TillState(
       printingX: printingX ?? this.printingX,
       loading: loading ?? this.loading,
-      till: till == _unset ? this.till : till as TillView?,
       branchTills: branchTills ?? this.branchTills,
       notice: notice == _unset ? this.notice : notice as OpenBillsNoticeView?,
       forceClosingId: forceClosingId == _unset
@@ -216,9 +189,11 @@ class TillNotifier extends Notifier<TillState> {
   /// degrades on its own so one failing call cannot blank the tab.
   Future<void> refresh() async {
     final isManager = _bridge.can(cap: Cap.tillReadBranch);
-    final till = await _deviceTill(_bridge);
+    // Reconcile through the ONE owner, then read it: whatever the core
+    // decides about the till reaches every screen at once, not this tab only.
+    await ref.read(shellProvider.notifier).reconcileTill();
     if (_disposed) return;
-    final open = till?.isOpen ?? false;
+    final open = ref.read(shellProvider).tillOpen;
     final (
       branchTills,
       report,
@@ -255,7 +230,6 @@ class TillNotifier extends Notifier<TillState> {
     final branchDrawers = drawers ?? const <TillSummaryView>[];
     state = state.copyWith(
       loading: false,
-      till: till,
       branchTills: branchTills ?? const [],
       notice: notice,
       report: report,
@@ -662,33 +636,12 @@ class OpenTillNotifier extends Notifier<OpenTillState> {
     }
   }
 
-  /// Reconcile the device's till with the server when online (existing till
-  /// on login, dashboard force-close); use the local cache offline. Never let
-  /// a transient refresh error nuke a good local till — fall back to the
-  /// cache. Adopting an open till moves `app_route()` → hand off to the
-  /// shell.
-  Future<void> _reconcileTill() async {
-    final shell = ref.read(shellProvider.notifier);
-    TillView? till;
-    if (_bridge.currentSession()?.online ?? false) {
-      try {
-        till = await _bridge.refreshTill();
-      } on Exception catch (_) {
-        till = await _currentTillOrNull();
-      }
-    } else {
-      till = await _currentTillOrNull();
-    }
-    if (till?.isOpen ?? false) shell.refresh();
-  }
-
-  Future<TillView?> _currentTillOrNull() async {
-    try {
-      return await _cachedTill(_bridge);
-    } on Exception catch (_) {
-      return null;
-    }
-  }
+  /// Reconcile the device's till (an already-open one is adopted — the
+  /// server's till for this device, a dashboard force-close dropped) through
+  /// the ONE owner, which re-reads the shell: a till that turns out to be
+  /// open takes this form off screen everywhere at once.
+  Future<void> _reconcileTill() =>
+      ref.read(shellProvider.notifier).reconcileTill();
 
   /// Prime the open-till form: show the locally-cached carried-over
   /// suggestion instantly, then refresh it from the server (last synced
@@ -699,9 +652,9 @@ class OpenTillNotifier extends Notifier<OpenTillState> {
     if (_disposed) return;
     _applySuggested(suggested);
     if (_bridge.currentSession()?.online ?? false) {
-      try {
-        await _bridge.refreshTill();
-      } on Exception catch (_) {}
+      // The reconcile also refreshes the carried-over figure in the core.
+      await _reconcileTill();
+      if (_disposed) return;
       suggested = await _readSuggested();
       if (_disposed) return;
       _applySuggested(suggested);
@@ -759,7 +712,18 @@ class OpenTillNotifier extends Notifier<OpenTillState> {
       );
       return;
     }
+    // Captured up front: a successful open takes this form (and its ref)
+    // away while the call is still answering.
     final shell = ref.read(shellProvider.notifier);
+    final alreadyOpen = ref.read(tillAlreadyOpenProvider.notifier);
+    // A till is already open here (the one owner says so): there is nothing
+    // to open. Never ask the core for a second till; say so, and let the
+    // shell take this form away.
+    if (ref.read(shellProvider).tillOpen) {
+      alreadyOpen.bump();
+      shell.refresh();
+      return;
+    }
     state = state.copyWith(busy: true, error: null);
     try {
       final outcome = await _bridge.openTill(
@@ -775,6 +739,9 @@ class OpenTillNotifier extends Notifier<OpenTillState> {
         return;
       }
       if (!_disposed) state = state.copyWith(busy: false, elsewhere: null);
+      // The core minted nothing: this person's till here was already open.
+      // Say so over wherever the teller lands.
+      if (outcome.alreadyOpen) alreadyOpen.bump();
       shell.refresh();
     } on MadarError catch (e) {
       if (_disposed) return;
@@ -869,7 +836,6 @@ class CloseTillState {
     this.countedMinor,
     this.busy = false,
     this.error,
-    this.till,
     this.report,
     this.preview,
     this.checks = const {},
@@ -880,6 +846,9 @@ class CloseTillState {
     this.blind = false,
     this.figures,
   });
+
+  // The till being closed is the shell's (`shellProvider.till`), read where
+  // it is needed — the header, the id the close captures — never a copy.
 
   /// The person counts blind (no `till.cash_spot_check`): no expected
   /// figures before the close; the report comes after it.
@@ -906,9 +875,6 @@ class CloseTillState {
 
   /// The last close error (human message), or null.
   final UiText? error;
-
-  /// The open till for the header (null while loading).
-  final TillView? till;
 
   /// The report carrying the expected drawer (null while loading).
   final TillReportView? report;
@@ -952,7 +918,6 @@ class CloseTillState {
     Object? countedMinor = _unset,
     bool? busy,
     Object? error = _unset,
-    Object? till = _unset,
     Object? report = _unset,
     Object? preview = _unset,
     Map<String, MethodCheck>? checks,
@@ -977,7 +942,6 @@ class CloseTillState {
           : closedTillId as String?,
       busy: busy ?? this.busy,
       error: error == _unset ? this.error : error as UiText?,
-      till: till == _unset ? this.till : till as TillView?,
       report: report == _unset ? this.report : report as TillReportView?,
       preview: preview == _unset
           ? this.preview
@@ -1047,14 +1011,12 @@ class CloseTillNotifier extends Notifier<CloseTillState> {
   /// Load the report again after a failure.
   Future<void> retry() => _load();
 
-  /// Prime the screen: the open till for the header (server-fresh when
-  /// online, cache otherwise), the report for the expected drawer figures,
-  /// the close preview for the methods to check, and the sales count.
+  /// Prime the screen: the report for the expected drawer figures, the
+  /// close preview for the methods to check, and the sales count. The till
+  /// itself is the shell's.
   Future<void> _load() async {
-    final till = await _deviceTill(_bridge);
-    if (_disposed) return;
     final blind = !_bridge.tillFiguresVisible();
-    state = state.copyWith(till: till, blind: blind);
+    state = state.copyWith(blind: blind);
     if (!blind) {
       try {
         final report = await _bridge.tillReport();
@@ -1114,7 +1076,9 @@ class CloseTillNotifier extends Notifier<CloseTillState> {
       return false;
     }
     final counted = state.countedMinor!;
-    final tillId = state.till?.id;
+    // THE till being closed, from its one owner, captured before the close
+    // clears it — the Z report after the close is this till's.
+    final tillId = ref.read(shellProvider).till?.id;
     state = state.copyWith(busy: true, error: null, attempted: true);
     try {
       final trimmed = note.trim();
@@ -1407,7 +1371,6 @@ class TillHistoryState {
   /// Creates the till-history state.
   const TillHistoryState({
     this.tills = const [],
-    this.live,
     this.loading = false,
     this.reportLoadingId,
     this.expanded = const {},
@@ -1427,8 +1390,7 @@ class TillHistoryState {
   /// Past tills, newest first.
   final List<TillSummaryView> tills;
 
-  /// The live till (for pinning on top), or null.
-  final TillView? live;
+  // The live till pinned on top is the shell's (`shellProvider.till`).
 
   /// The list is loading.
   final bool loading;
@@ -1452,7 +1414,6 @@ class TillHistoryState {
   /// Copies with the given overrides (nullables clear through the sentinel).
   TillHistoryState copyWith({
     List<TillSummaryView>? tills,
-    Object? live = _unset,
     bool? loading,
     Object? reportLoadingId = _unset,
     Set<String>? expanded,
@@ -1466,7 +1427,6 @@ class TillHistoryState {
       loadError: loadError == _unset ? this.loadError : loadError as UiText?,
       ordersErrors: ordersErrors ?? this.ordersErrors,
       tills: tills ?? this.tills,
-      live: live == _unset ? this.live : live as TillView?,
       loading: loading ?? this.loading,
       reportLoadingId: reportLoadingId == _unset
           ? this.reportLoadingId
@@ -1496,8 +1456,8 @@ class TillHistoryNotifier extends Notifier<TillHistoryState> {
     return const TillHistoryState();
   }
 
-  /// Past tills (newest first) + the live till for pinning. A failed list
-  /// is an error with a retry, not "No tills yet".
+  /// Past tills (newest first). A failed list is an error with a retry, not
+  /// "No tills yet". The live till pinned on top is the shell's.
   Future<void> load() async {
     state = state.copyWith(loading: true, loadError: null);
     List<TillSummaryView>? tills;
@@ -1507,16 +1467,9 @@ class TillHistoryNotifier extends Notifier<TillHistoryState> {
     } on Exception catch (e) {
       failure = _failure(e);
     }
-    TillView? live;
-    try {
-      live = await _cachedTill(_bridge);
-    } on Exception catch (_) {
-      live = null;
-    }
     if (_disposed) return;
     state = state.copyWith(
       tills: tills ?? state.tills,
-      live: live,
       loading: false,
       loadError: failure,
     );

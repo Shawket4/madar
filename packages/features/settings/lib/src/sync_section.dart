@@ -557,7 +557,7 @@ class _BlockedCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final bridge = ref.bridge;
-    final hasTill = ref.watch(syncProvider.select((s) => s.hasOpenTill));
+    final hasTill = ref.watch(shellProvider.select((s) => s.tillOpen));
     final recovering = ref.watch(syncProvider.select((s) => s.recovering));
     final recovered = ref.watch(syncProvider.select((s) => s.recovered));
     final blocksClose = ref.watch(

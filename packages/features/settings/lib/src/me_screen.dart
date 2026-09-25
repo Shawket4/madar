@@ -284,9 +284,8 @@ class _Preferences extends ConsumerWidget {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final error = ref.watch(settingsProvider.select((s) => s.error));
-    final hasOpenTill = ref.watch(
-      settingsProvider.select((s) => s.hasOpenTill),
-    );
+    // The till is the shell's — the one owner — not a copy loaded here.
+    final hasOpenTill = ref.watch(shellProvider.select((s) => s.tillOpen));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.xl,

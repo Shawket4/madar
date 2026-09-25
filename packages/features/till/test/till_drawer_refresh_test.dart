@@ -155,6 +155,8 @@ class _CoreBridge implements MadarBridge {
     if (name == #deviceConfig) {
       return const DeviceConfigView(reconfiguring: false, configured: true);
     }
+    // The one owner's sync read: this person's OWN open till, or none.
+    if (name == #ownOpenTill) return _till;
     if (name == #currentTill || name == #refreshTill) {
       return Future<TillView?>.value(_till);
     }

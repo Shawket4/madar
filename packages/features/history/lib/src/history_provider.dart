@@ -95,7 +95,6 @@ class HistoryState {
     this.loadingMore = false,
     this.error,
     this.online = true,
-    this.hasTill = false,
     this.stats,
     this.serverTotal = 0,
     this.hasMore = false,
@@ -132,8 +131,8 @@ class HistoryState {
   /// the honest notice under All.
   final bool online;
 
-  /// A till is open — the header names it, or says there is none.
-  final bool hasTill;
+  // Whether a till is open (the header names it, or says there is none) is
+  // the shell's — `shellProvider.tillOpen`, the one owner — never kept here.
 
   /// The branch runs a loyalty programme. False keeps *Add points* off a
   /// sale: in a shop with no programme the sheet has no card to scan, and
@@ -205,7 +204,6 @@ class HistoryState {
     bool? loadingMore,
     Object? error = _unset,
     bool? online,
-    bool? hasTill,
     Object? stats = _unset,
     int? serverTotal,
     bool? hasMore,
@@ -228,7 +226,6 @@ class HistoryState {
       loadingMore: loadingMore ?? this.loadingMore,
       error: error == _unset ? this.error : error as UiText?,
       online: online ?? this.online,
-      hasTill: hasTill ?? this.hasTill,
       loyaltyOffered: loyaltyOffered ?? this.loyaltyOffered,
       stats: stats == _unset ? this.stats : stats as TillStatsView?,
       serverTotal: serverTotal ?? this.serverTotal,
@@ -272,7 +269,14 @@ class HistoryNotifier extends Notifier<HistoryState> {
       // Listen to the SIGNAL, not only to the pulse that makes it re-read:
       // both providers hang off the same pulse, so watching the pulse alone
       // could read the connectivity state one bump behind.
-      ..listen(connectivityProvider, (_, _) => _refreshQuietly());
+      ..listen(connectivityProvider, (_, _) => _refreshQuietly())
+      // A till opened or closed (here, on the Till tab, or by a pull) changes
+      // what "this till" lists: re-read it from the one owner.
+      ..listen(shellProvider.select((s) => s.till?.id), (_, _) {
+        if (_alive && state.scope == OrdersScope.thisTill) {
+          unawaited(_loadTill());
+        }
+      });
     _alive = true;
     ref.onDispose(() => _alive = false);
     unawaited(Future.microtask(load));
@@ -340,19 +344,12 @@ class HistoryNotifier extends Notifier<HistoryState> {
   Future<void> _loadTill() async {
     if (!_alive) return;
     state = state.copyWith(loading: true, error: null);
-    var hasTill = false;
-    try {
-      hasTill = (await _bridge.currentTill())?.isOpen ?? false;
-    } on MadarError {
-      hasTill = false;
-    }
-    if (!_alive || state.scope != OrdersScope.thisTill) return;
-    if (!hasTill) {
+    // THE till — the shell's, the one owner.
+    if (!ref.read(shellProvider).tillOpen) {
       state = _derive(
         state.copyWith(
           rows: const <OrderSummaryView>[],
           stats: null,
-          hasTill: false,
           loading: false,
         ),
       );
@@ -368,11 +365,7 @@ class HistoryNotifier extends Notifier<HistoryState> {
           ref.read(shellProvider).session != null) {
         ref.read(reauthRequestProvider.notifier).request();
       }
-      state = state.copyWith(
-        loading: false,
-        hasTill: true,
-        error: UiText.error(e),
-      );
+      state = state.copyWith(loading: false, error: UiText.error(e));
       return;
     }
     // The header's shift aggregate is a till money figure: it goes through
@@ -387,9 +380,7 @@ class HistoryNotifier extends Notifier<HistoryState> {
       stats = null;
     }
     if (!_alive || state.scope != OrdersScope.thisTill) return;
-    state = _derive(
-      state.copyWith(rows: rows, stats: stats, hasTill: true, loading: false),
-    );
+    state = _derive(state.copyWith(rows: rows, stats: stats, loading: false));
     _keepSelectionHonest();
   }
 

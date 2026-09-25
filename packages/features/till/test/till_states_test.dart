@@ -65,6 +65,9 @@ class _Bridge implements MadarBridge {
   bool failOrders = false;
   bool failMovements = false;
   final List<int> closes = [];
+
+  /// How many times the open-till action reached the core.
+  int opens = 0;
   final List<String> reportsFor = [];
   final List<Symbol> statsReads = [];
 
@@ -135,6 +138,8 @@ class _Bridge implements MadarBridge {
     if (name == #deviceConfig) {
       return const DeviceConfigView(reconfiguring: false, configured: true);
     }
+    // The one owner's sync read: this person's OWN open till, or none.
+    if (name == #ownOpenTill) return _till;
     if (name == #currentTill || name == #refreshTill) {
       return Future<TillView?>.value(_till);
     }
@@ -179,6 +184,25 @@ class _Bridge implements MadarBridge {
           ? Future<List<CashMovementView>>.error(_offline)
           : Future<List<CashMovementView>>.value(const []);
     }
+    // What the open-till form reads while it primes.
+    if (name == #suggestedOpeningCashMinor) return Future<int>.value(0);
+    if (name == #checkTillElsewhere) {
+      return Future<TillElsewhereView?>.value();
+    }
+    if (name == #openBillsNotice) {
+      return Future<OpenBillsNoticeView?>.value();
+    }
+    if (name == #refreshConnectivity) return Future<bool>.value(true);
+    if (name == #openTill) {
+      opens += 1;
+      return Future<OpenTillOutcome>.value(
+        const OpenTillOutcome(
+          till: _till,
+          verification: 'server',
+          alreadyOpen: true,
+        ),
+      );
+    }
     if (name == #closeTill) {
       closes.add(args[#closingCashMinor] as int);
       return Future<CloseTillOutcomeView>.value(
@@ -207,6 +231,22 @@ void main() {
     );
   });
   tearDown(() => container.dispose());
+
+  // Owner report 2026-09-25: the form must never mint a second till. The
+  // till here is open (the one owner, the shell, says so).
+  group('the open-till form over an open till', () {
+    test('submit never asks the core for a second till, and says so', () async {
+      var said = 0;
+      container
+        ..listen(tillAlreadyOpenProvider, (_, _) => said += 1)
+        ..listen(openTillProvider, (_, _) {});
+      await _settle();
+      expect(container.read(shellProvider).tillOpen, isTrue);
+      await container.read(openTillProvider.notifier).submit(reason: '');
+      expect(bridge.opens, 0, reason: 'nothing to open over an open till');
+      expect(said, 1, reason: 'the chrome words "already open"');
+    });
+  });
 
   group('close shift', () {
     test(
@@ -293,7 +333,11 @@ void main() {
         isEmpty,
         reason: 'the tab does not even call the checked totals',
       );
-      expect(s.till, isNotNull, reason: 'the drawer itself still shows');
+      expect(
+        container.read(shellProvider).till,
+        isNotNull,
+        reason: 'the drawer itself still shows',
+      );
     });
 
     test('with the grant the totals are there as before', () async {

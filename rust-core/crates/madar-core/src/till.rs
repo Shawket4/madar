@@ -748,6 +748,10 @@ pub struct OpenTillOutcome {
     /// `server` | `lan` | `unverified` (empty when blocked).
     pub verification: String,
     pub open_elsewhere: Option<TillElsewhereView>,
+    /// Nothing new was opened: this person's till on this device was ALREADY
+    /// open (held here, or the server's resumed one), and [`Self::till`] is
+    /// that till. Never a second till — the app words it instead.
+    pub already_open: bool,
 }
 
 /// A LAN peer's advert of an open till (`lan::BeaconTill` + its device).

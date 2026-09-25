@@ -87,7 +87,6 @@ class CheckoutState {
     this.serviceChargeRate = 0,
     this.taxRate = 0,
     this.tillId,
-    this.tillKnown = false,
     this.loaded = false,
     this.tender = const TenderSummaryView(
       chargeTotalMinor: 0,
@@ -180,11 +179,12 @@ class CheckoutState {
   final double serviceChargeRate;
   final double taxRate;
 
-  /// The open till's id, or null when there is none. [tillKnown] flips
-  /// once the lookup has answered, so the bar does not flash "no till"
-  /// during the first frame.
+  /// The till this sale books onto, or null when none is open. It is the
+  /// shell's (`shellProvider.till`, the one owner), seeded when the session
+  /// starts and kept in step by [CheckoutNotifier]'s subscription — never a
+  /// lookup of this sheet's own, so it is known from the first frame and
+  /// cannot lag a till opened or closed while the drawer is up.
   final String? tillId;
-  final bool tillKnown;
 
   /// The session's reads have answered (methods, discounts, programme).
   final bool loaded;
@@ -387,7 +387,7 @@ class CheckoutState {
   /// its legs to reach the due.
   ChargeBlock get block {
     if (isPlacingOrder || outcome != null) return ChargeBlock.charging;
-    if (!loaded || !tillKnown) return ChargeBlock.loading;
+    if (!loaded) return ChargeBlock.loading;
     if (!tillOpen) return ChargeBlock.noTill;
     if (paymentMethods.isEmpty) return ChargeBlock.noMethods;
     if (splitMode) {
@@ -417,7 +417,6 @@ class CheckoutState {
       !isPlacingOrder &&
       outcome == null &&
       loaded &&
-      tillKnown &&
       tillOpen &&
       !splitMode &&
       takesTender &&
@@ -442,7 +441,6 @@ class CheckoutState {
     double? serviceChargeRate,
     double? taxRate,
     Object? tillId = _unset,
-    bool? tillKnown,
     bool? loaded,
     TenderSummaryView? tender,
     Object? receipt = _unset,
@@ -499,7 +497,6 @@ class CheckoutState {
       serviceChargeRate: serviceChargeRate ?? this.serviceChargeRate,
       taxRate: taxRate ?? this.taxRate,
       tillId: tillId == _unset ? this.tillId : tillId as String?,
-      tillKnown: tillKnown ?? this.tillKnown,
       loaded: loaded ?? this.loaded,
       tender: tender ?? this.tender,
       receipt: receipt == _unset ? this.receipt : receipt as ReceiptView?,
@@ -566,7 +563,14 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   @override
   CheckoutState build() {
     _live = true;
-    ref.onDispose(() => _live = false);
+    ref
+      ..onDispose(() => _live = false)
+      // The till is the shell's: a till opened or closed while the drawer is
+      // up reaches the bar at once (the lock behind Charge follows it).
+      ..listen(
+        shellProvider.select((s) => s.till?.id),
+        (_, id) => _update((s) => s.copyWith(tillId: id)),
+      );
     return const CheckoutState();
   }
 
@@ -705,20 +709,6 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     );
   }
 
-  /// The one honest gate on Charge: is there an open till on this till.
-  /// Until it answers the bar is dimmed as loading — never lit, and never a
-  /// flash of "no till".
-  Future<void> _loadTill(int session) async {
-    final till = await _quiet(_bridge.currentTill);
-    _updateFor(
-      session,
-      (s) => s.copyWith(
-        tillId: (till?.isOpen ?? false) ? till!.id : null,
-        tillKnown: true,
-      ),
-    );
-  }
-
   /// The methods this sale may take: the branch's, narrowed to what this
   /// teller and this device are allowed (the core intersects them). A
   /// failure is SAID — a dimmed bar with no reason reads as a broken till.
@@ -747,7 +737,11 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     _inFlight = null;
     _typedLegs.clear();
     _customerTouched = false;
-    if (_live) state = _priced(CheckoutState(target: target));
+    if (_live) {
+      state = _priced(
+        CheckoutState(target: target, tillId: ref.read(shellProvider).till?.id),
+      );
+    }
     return switch (target) {
       CartChargeTarget(:final tableId, :final customerId) => _startCart(
         _session,
@@ -769,7 +763,6 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     String? pickedId,
   ) async {
     final bridge = _bridge;
-    final till = _loadTill(session);
     final methods = await _loadMethods(session);
     final discounts =
         await _quiet(bridge.listDiscounts) ?? const <DiscountView>[];
@@ -806,7 +799,6 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         loaded: true,
       ),
     );
-    await till;
   }
 
   /// A bill, priced by the SERVER.
@@ -872,7 +864,6 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     final linked = customerId == null
         ? null
         : _tryCore(() => bridge.customerById(id: customerId));
-    final till = _loadTill(session);
     final methods = await _loadMethods(session);
     final discounts = loadDiscounts
         ? await _quiet(bridge.listDiscounts) ?? const <DiscountView>[]
@@ -904,7 +895,6 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         loaded: true,
       ),
     );
-    await till;
   }
 
   // ── Loyalty ───────────────────────────────────────────────────────────────
@@ -1337,8 +1327,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     final method = s.splitMode ? s.splitPrimary : s.effectiveMethodId;
     if (method == null) return;
     final bridge = _bridge;
-    // A bill books onto THIS till's till. `block` keeps the bar dimmed until
-    // the lookup answered; this is the lock behind it for any other caller.
+    // A bill books onto THIS device's till. `block` keeps the bar dimmed
+    // without one; this is the lock behind it for any other caller.
     if (s.isBill && s.tillId == null) {
       _update(
         (st) => st.copyWith(error: const UiText.key('waiter.need_shift')),

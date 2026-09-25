@@ -119,6 +119,11 @@ class _Bridge implements MadarBridge {
         const MadarError.offline(detail: 'x'),
       );
     }
+    // The one owner's sync read: this person's OWN open till, or none.
+    if (name == #ownOpenTill) {
+      final t = till;
+      return (t?.isOpen ?? false) ? t : null;
+    }
     if (name == #currentTill) return Future<TillView?>.value(till);
     if (name == #listTillOrders) {
       listCalls++;
@@ -282,7 +287,7 @@ void main() {
     container.listen(historyProvider, (_, _) {});
     await _settle();
     final s = container.read(historyProvider);
-    expect(s.hasTill, isFalse);
+    expect(container.read(shellProvider).tillOpen, isFalse);
     expect(s.loading, isFalse);
     expect(s.toast, isNull);
     expect(s.error, isNull);
@@ -296,7 +301,7 @@ void main() {
     final s = container.read(historyProvider);
     expect(s.error, isNotNull);
     expect(s.toast, isNull);
-    expect(s.hasTill, isTrue);
+    expect(container.read(shellProvider).tillOpen, isTrue);
   });
 
   test('rows sort by the instant, not the text, and ties keep order', () async {

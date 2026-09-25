@@ -521,6 +521,11 @@ class _FakeBridge implements MadarBridge {
         permissionsLoaded: true,
       );
     }
+    // The one owner's sync read: this person's OWN open till, or none.
+    if (name == #ownOpenTill) {
+      final t = _till;
+      return (t?.isOpen ?? false) ? t : null;
+    }
     if (name == #currentTill || name == #refreshTill) {
       return Future<TillView?>.value(_till);
     }
@@ -1307,7 +1312,7 @@ void _cartContextTests() {
       expect(find.byType(SellNoTillNotice), findsOneWidget);
       await c.read(cartProvider('t2').notifier).load();
       bridge.tillOpen = true;
-      await c.read(orderProvider.notifier).reconcileTill();
+      await c.read(shellProvider.notifier).reconcileTill();
       await settle(tester);
       expect(find.byType(SellNoTillNotice), findsNothing);
       expect(titleOf(tester, find.byType(OrderScreen)), 'Pickup');

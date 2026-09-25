@@ -298,7 +298,12 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   Future<void> _terminalOnce() async {
     final state = ref.read(orderProvider);
     final cart = ref.read(cartProvider(_tableId));
-    final cta = sellCtaFor(state, cart, ref.read(bridgeProvider));
+    final cta = sellCtaFor(
+      state,
+      cart,
+      ref.read(bridgeProvider),
+      tillOpen: ref.read(shellProvider).tillOpen,
+    );
     if (!cta.enabled) return;
     if (cta.sendsToKitchen) {
       // A round on this cart's bill, or its first round. The covers picked

@@ -80,7 +80,9 @@ class _BillScreenState extends ConsumerState<BillScreen> {
           if (!mounted || !widget.chargeOnOpen) return;
           final s = ref.read(orderProvider);
           final t = _ticketOf(s);
-          if (t != null && (widget.canCharge ?? !s.isWaiter) && s.tillOpen) {
+          if (t != null &&
+              (widget.canCharge ?? !s.isWaiter) &&
+              ref.read(shellProvider).tillOpen) {
             unawaited(_charge(t, _tableLabel(s, t) ?? t.ticketRef ?? ''));
           }
         }),
@@ -285,6 +287,8 @@ class _BillScreenState extends ConsumerState<BillScreen> {
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     final bridge = ref.bridge;
+    // Settle books onto THE till — the shell's, the one owner.
+    final tillOpen = ref.watch(shellProvider.select((s) => s.tillOpen));
     ref
       ..listen(ticketTickProvider, (_, _) {
         unawaited(_notifier.loadOpenTickets());
@@ -477,8 +481,8 @@ class _BillScreenState extends ConsumerState<BillScreen> {
             // What the drawer will actually take — the total, not the lines.
             amountMinor: ticket.bill?.totalMinor ?? ticket.subtotalMinor,
             currency: currency,
-            enabled: state.tillOpen && !state.isBusy,
-            reason: state.tillOpen ? null : bridge.tr(key: 'waiter.need_shift'),
+            enabled: tillOpen && !state.isBusy,
+            reason: tillOpen ? null : bridge.tr(key: 'waiter.need_shift'),
             loading: state.isBusy,
             onTap: () => unawaited(_charge(ticket, title)),
           )

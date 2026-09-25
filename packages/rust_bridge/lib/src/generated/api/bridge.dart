@@ -970,6 +970,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// refreshes on a manual data sync.
   Future<String?> orgLogoUrl();
 
+  /// The signed-in person's OWN open till on THIS device, or `None` — the
+  /// one answer to "is a till open here?" that `app_route` and `till_lock`
+  /// decide from. Sync + local, so the shell reads it in the same pass as
+  /// those two and every screen reads the shell, never its own copy.
+  TillView? ownOpenTill();
+
   /// A payment method code in the till's language — never a raw code.
   String paymentMethodLabel({required String code});
 

@@ -243,6 +243,8 @@ class _Fake implements MadarBridge {
       );
     }
     if (name == #cartLines) return Future<List<CartLineView>>.value(const []);
+    // The one owner's sync read: this person's OWN open till, or none.
+    if (name == #ownOpenTill) return _openTill;
     if (name == #currentTill) return Future<TillView?>.value(_openTill);
     if (name == #checkout) {
       checkedOut = a[#input] as CheckoutInput;
