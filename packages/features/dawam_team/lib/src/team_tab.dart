@@ -275,12 +275,19 @@ class _TeamTabState extends ConsumerState<TeamTab> {
             ),
           // A cover flag's one act confirms the cover, which pays it (CV-5):
           // the button says so (E2E clocking S-208: it read "Ignore").
-          if (f.kind == FlagKind.cover)
+          if (f.kind == FlagKind.cover) ...[
             MadarButton(
               label: tr('staff.confirm_cover'),
               onTap: () => done('confirm'),
-            )
-          else
+            ),
+            // Confirmed or rejected, nothing else (H2-B3): rejected pays
+            // nothing and tells the coverer.
+            MadarButton(
+              label: tr('staff.reject_cover'),
+              variant: MadarButtonVariant.secondary,
+              onTap: () => done('reject'),
+            ),
+          ] else
             MadarButton(
               label: tr('staff.ignore'),
               variant: MadarButtonVariant.ghost,

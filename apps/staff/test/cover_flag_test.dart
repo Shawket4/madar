@@ -55,5 +55,42 @@ void main() {
       });
       await finish(t);
     });
+
+    // H2-B3: a cover flag is confirmed OR rejected (the server refuses
+    // anything else); rejecting was only possible from Approvals.
+    testWidgets('a cover flag can be rejected there too · $lang', (t) async {
+      await pumpApp(
+        t,
+        lang: lang,
+        who: 'e2',
+        manage: true,
+        core: (f) => f.edit = (v) {
+          (v['flags'] as List<dynamic>).add({
+            'at': '2026-09-23T17:30:00+03:00',
+            'emp': 'e4',
+            'id': 'fc',
+            'kind': 'cover',
+            'minutes_away': 0,
+            'resolution': null,
+            'shift': 'e4|2026-09-23|zE',
+            'suggested': 0,
+          });
+          v['open_flags'] = ['fc'];
+        },
+      );
+      await frames(t);
+      await t.tap(find.textContaining(' · ${flagInfo(FlagKind.cover).label}'));
+      await frames(t);
+      expect(find.text(tr('staff.excuse_paid')), findsNothing);
+      await t.tap(find.text(tr('staff.reject_cover')));
+      await frames(t);
+      expect(testCore.acts.last, {
+        'action': 'resolve',
+        'flag': 'fc',
+        'how': 'reject',
+        'deduct': 0,
+      });
+      await finish(t);
+    });
   }
 }

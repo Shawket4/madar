@@ -828,6 +828,17 @@ pub(crate) const ROSTER_CODES: &[&str] = &[
     "SUGGESTION_STALE",
 ];
 
+/// Refusals that mean the picture is stale (someone else decided, claimed or
+/// handled it first): the core fetches again before saying so.
+const STALE_CODES: &[&str] = &[
+    "REQUEST_ALREADY_DECIDED",
+    "ALREADY_DECIDED",
+    "FLAG_HANDLED",
+    "ALREADY_CLAIMED",
+    "SWAP_STALE",
+    "SUGGESTION_STALE",
+];
+
 /// The server's plain refusals carry its error kind in front ("Conflict:
 /// Someone already claimed that shift."): the person reads the sentence only
 /// (E2E roster: the toast said "Conflict: …").
@@ -1703,7 +1714,16 @@ impl MadarCore {
         if !online {
             return Err(needs_connection(&self.current_locale()));
         }
-        let filed = self.dawam_online(act).await?;
+        let filed = match self.dawam_online(act).await {
+            Ok(f) => f,
+            // Someone else got there first: fetch again, so the list the
+            // refusal says is up to date is (H2-B2/B3).
+            Err(e @ CoreError::Server { .. }) if matches!(&e, CoreError::Server { code, .. } if STALE_CODES.contains(&code.as_str())) => {
+                let _ = self.dawam_fetch().await;
+                return Err(e);
+            }
+            Err(e) => return Err(e),
+        };
         let snap = self.dawam_snapshot(true).await?;
         // What the server made of a request just filed (RQ-5): approved at
         // once for a filer who approves their own, else waiting — the screen
@@ -5509,11 +5529,95 @@ mod tests {
         assert!(writes.is_empty(), "nothing is sent: {writes:?}");
     }
 
+    /// H2-B2/B3: a decision someone else already made (a pay line, an
+    /// advance, overtime), a flag someone else already handled, and a cover
+    /// flag asked for anything but confirm or reject are refused in the
+    /// phone's language; and after a refusal of the first two the picture is
+    /// fetched again, so the stale item leaves the inbox ("the list is up to
+    /// date now" is true).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_decision_made_elsewhere_is_worded_and_the_inbox_catches_up() {
+        use crate::testkit::StubResponse;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let d = today_cairo().to_string();
+        let gone = std::sync::Arc::new(AtomicBool::new(false));
+        let decided = gone.clone();
+        let (_stub, core) = cafe(&["hr.payroll.run", "hr.advances.decide", "hr.overtime.approve", "hr.attendance.read"], move |m, p, _| {
+            let later = decided.load(Ordering::SeqCst);
+            match (m, p) {
+                ("GET", "/staff/payroll/advances") => Some(StubResponse::json(200, json!([
+                    { "id": "v9", "employee_id": "e4", "amount_piastres": 50000, "installments": 1,
+                      "status": if later { "approved" } else { "pending" }, "created_at": "2026-09-22T08:00:00Z" }
+                ]))),
+                ("GET", "/staff/flags") => Some(StubResponse::json(200, json!([
+                    { "id": "f1", "employee_id": "e4", "kind": "left_mid_shift", "detected_at": "2026-09-22T08:00:00Z", "resolution": null },
+                    { "id": "f2", "employee_id": "e4", "kind": "cover", "detected_at": "2026-09-22T08:00:00Z", "resolution": null }
+                ]))),
+                ("PATCH", "/staff/advances/v9/review") => {
+                    decided.store(true, Ordering::SeqCst);
+                    Some(StubResponse::json(409, json!({ "error": "Conflict: Already decided", "code": "ALREADY_DECIDED", "vars": { "status": "approved" } })))
+                }
+                ("PATCH", "/staff/adjustments/deduction/a1/decision") | ("PATCH", "/staff/attendance/r1/overtime") => Some(StubResponse::json(409, json!({
+                    "error": "Conflict: Already decided", "code": "ALREADY_DECIDED", "vars": { "status": "rejected" } }))),
+                ("PATCH", "/staff/flags/f1") => Some(StubResponse::json(404, json!({ "error": "Not found: This flag was already handled", "code": "FLAG_HANDLED" }))),
+                ("PATCH", "/staff/flags/f2") => Some(StubResponse::json(400, json!({
+                    "error": "Bad request: A cover flag is confirmed or rejected", "code": "FLAG_COVER_CONFIRM_OR_REJECT" }))),
+                _ => { let _ = &d; None }
+            }
+        })
+        .await;
+        let snap = snap_of(&core.dawam_snapshot(true).await.unwrap());
+        assert!(snap["inbox"].as_array().unwrap().contains(&json!("v|v9")), "{}", snap["inbox"]);
+        let refused = |r: Result<String, CoreError>, code: &str, key: &str, lang: &str| match r {
+            Err(CoreError::Server { code: c, detail, .. }) => {
+                assert_eq!(c, code);
+                assert_eq!(detail, i18n::tr(lang, key), "{code} in {lang}");
+            }
+            other => panic!("{code}: expected the refusal, got {other:?}"),
+        };
+        for lang in ["en", "ar"] {
+            core.set_locale(lang.into());
+            for act in [
+                json!({ "action": "decide", "req": "v|v9", "approve": true, "amount": 50000, "installments": 1 }),
+                json!({ "action": "decide_adj", "adj": "a|deduction|a1", "yes": true }),
+                json!({ "action": "decide", "req": "t|r1", "approve": true }),
+            ] {
+                refused(core.dawam_do(act.to_string()).await, "ALREADY_DECIDED", "staff.err_already_decided", lang);
+            }
+            refused(
+                core.dawam_do(json!({ "action": "resolve", "flag": "f1", "how": "ignore" }).to_string()).await,
+                "FLAG_HANDLED", "staff.err_flag_handled", lang,
+            );
+            refused(
+                core.dawam_do(json!({ "action": "resolve", "flag": "f2", "how": "ignore" }).to_string()).await,
+                "FLAG_COVER_CONFIRM_OR_REJECT", "staff.err_flag_cover_confirm_or_reject", lang,
+            );
+        }
+        // The refusal fetched the picture again: the advance someone else
+        // decided is no longer waiting on me.
+        let snap = snap_of(&core.dawam_snapshot(false).await.unwrap());
+        assert!(!snap["inbox"].as_array().unwrap().contains(&json!("v|v9")), "{}", snap["inbox"]);
+        for k in ["staff.err_already_decided", "staff.err_flag_handled", "staff.err_flag_cover_confirm_or_reject"] {
+            assert_ne!(i18n::tr("en", k), k, "{k} has no English");
+            assert_ne!(i18n::tr("ar", k), i18n::tr("en", k), "{k} has no Arabic");
+        }
+    }
+
+    /// H2-B4: an advance request tells its deciders as `staff.n_request`
+    /// with kind `salary_advance`, worded in both languages.
+    #[test]
+    fn an_advance_request_notice_is_worded() {
+        let args = json!({ "name": "Omar", "kind": "salary_advance", "date": "2026-09-25" });
+        assert_eq!(notice_text("en", "staff.n_request", &args), "Omar: new Salary advance request for 25 Sep");
+        let ar = notice_text("ar", "staff.n_request", &args);
+        assert!(ar.contains(&i18n::tr("ar", "staff.kind_salary_advance")) && !ar.contains("salary_advance"), "{ar}");
+    }
+
     #[test]
     fn the_window_words_are_in_both_languages() {
         for k in [
             "staff.week_not_loaded", "staff.open_shift_cant_move", "staff.open_shift_gone", "staff.week_loading",
-            "staff.week_needs_connection", "staff.open_shift_posted", "staff.given_to", "staff.week_couldnt_load", "staff.coverage_saved",
+            "staff.week_needs_connection", "staff.open_shift_posted", "staff.given_to", "staff.week_couldnt_load", "staff.coverage_saved", "staff.reject_cover",
         ] {
             let (en, ar) = (i18n::tr("en", k), i18n::tr("ar", k));
             assert_ne!(en, k, "{k} has no English");
