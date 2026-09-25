@@ -12,7 +12,7 @@ library;
 import 'dart:async';
 
 import 'package:app_core/app_core.dart';
-import 'package:design_system/design_system.dart' show ChipTone, ToastData;
+import 'package:design_system/design_system.dart' show ChipTone;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Family TYPE annotations moved to the misc library in Riverpod 3.
@@ -59,7 +59,6 @@ class TillState {
     this.canForceClose = false,
     this.drawers = const [],
     this.drawerReportLoadingId,
-    this.toast,
     this.printingX = false,
   });
 
@@ -110,8 +109,9 @@ class TillState {
   /// The drawer whose report is being fetched (row spinner), or null.
   final String? drawerReportLoadingId;
 
-  /// The latest failure toast, or null.
-  final ToastData? toast;
+  // What this tab has to say (a refused report, a print, a pay-out notice)
+  // is the app's one toast (`appToastProvider`), not kept here: a toast drawn
+  // on this tab was lost whenever another tab was in front.
 
   /// Copies with the given overrides (nullables clear through the sentinel).
   TillState copyWith({
@@ -128,7 +128,6 @@ class TillState {
     bool? canForceClose,
     List<TillSummaryView>? drawers,
     Object? drawerReportLoadingId = _unset,
-    Object? toast = _unset,
     bool? printingX,
   }) {
     return TillState(
@@ -150,7 +149,6 @@ class TillState {
       drawerReportLoadingId: drawerReportLoadingId == _unset
           ? this.drawerReportLoadingId
           : drawerReportLoadingId as String?,
-      toast: toast == _unset ? this.toast : toast as ToastData?,
     );
   }
 }
@@ -161,12 +159,16 @@ class TillState {
 /// teller reconciles against, so they must never be a stale first read.
 class TillNotifier extends Notifier<TillState> {
   bool _disposed = false;
-  int _toastSeq = 0;
   late MadarBridge _bridge;
+
+  /// The app's one toast — held, so a print answered after this
+  /// auto-disposed tab went away is still said.
+  late AppToastNotifier _toasts;
 
   @override
   TillState build() {
     _bridge = ref.read(bridgeProvider);
+    _toasts = ref.read(appToastProvider.notifier);
     ref
       ..onDispose(() => _disposed = true)
       // The shell re-reads route + session after every state-moving bridge
@@ -260,14 +262,12 @@ class TillNotifier extends Notifier<TillState> {
       return;
     }
     if (said.isEmpty) return;
-    _toastSeq += 1;
-    state = state.copyWith(
-      toast: ToastData(
-        id: _toastSeq,
-        text: said.join('\n'),
-        tone: ChipTone.warning,
-        icon: 'exclamationmark.triangle',
-      ),
+    // Drained: the core hands each sentence over once. The app's toast shows
+    // it over whichever tab is in front — this runs on any drawer tick.
+    _toasts.show(
+      said.join('\n'),
+      tone: ChipTone.warning,
+      icon: 'exclamationmark.triangle',
     );
   }
 
@@ -284,15 +284,11 @@ class TillNotifier extends Notifier<TillState> {
     } on Exception catch (e) {
       if (_disposed) return null;
       final blind = e is MadarError_Forbidden;
-      _toastSeq += 1;
-      state = state.copyWith(
-        drawerReportLoadingId: null,
-        toast: ToastData(
-          id: _toastSeq,
-          text: _bridge.tr(key: blind ? 'spot.blind' : 'err.generic'),
-          tone: blind ? ChipTone.warning : ChipTone.danger,
-          icon: blind ? 'lock' : 'xmark.circle',
-        ),
+      state = state.copyWith(drawerReportLoadingId: null);
+      _toasts.show(
+        _bridge.tr(key: blind ? 'spot.blind' : 'err.generic'),
+        tone: blind ? ChipTone.warning : ChipTone.danger,
+        icon: blind ? 'lock' : 'xmark.circle',
       );
       return null;
     }
@@ -312,15 +308,11 @@ class TillNotifier extends Notifier<TillState> {
       return true;
     } on Exception catch (e) {
       if (_disposed) return false;
-      _toastSeq += 1;
-      state = state.copyWith(
-        forceClosingId: null,
-        toast: ToastData(
-          id: _toastSeq,
-          text: _failure(e).of(_bridge),
-          tone: ChipTone.danger,
-          icon: 'xmark.circle',
-        ),
+      state = state.copyWith(forceClosingId: null);
+      _toasts.show(
+        _failure(e).of(_bridge),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
       );
       return false;
     }
@@ -389,22 +381,12 @@ class TillNotifier extends Notifier<TillState> {
     }
   }
 
-  void _tillToast(String key, {required ChipTone tone, required String icon}) {
-    _toastSeq += 1;
-    state = state.copyWith(
-      toast: ToastData(
-        id: _toastSeq,
-        text: _bridge.tr(key: key),
+  void _tillToast(String key, {required ChipTone tone, required String icon}) =>
+      _toasts.show(
+        _bridge.tr(key: key),
         tone: tone,
         icon: icon,
-      ),
-    );
-  }
-
-  /// Dismiss the toast if it is still the presented one.
-  void dismissToast(int id) {
-    if (state.toast?.id == id) state = state.copyWith(toast: null);
-  }
+      );
 
   /// Run a bridge read, degrading a failure to null (the natives'
   /// `getOrNull`) — the tab shows a dash, not an error, for one figure.
@@ -1376,7 +1358,6 @@ class TillHistoryState {
     this.expanded = const {},
     this.ordersByTill = const {},
     this.ordersLoadingId,
-    this.toast,
     this.loadError,
     this.ordersErrors = const {},
   });
@@ -1408,8 +1389,7 @@ class TillHistoryState {
   /// The till id whose orders are being fetched (panel spinner), or null.
   final String? ordersLoadingId;
 
-  /// The latest failure toast, or null.
-  final ToastData? toast;
+  // Print and report feedback is the app's one toast (`appToastProvider`).
 
   /// Copies with the given overrides (nullables clear through the sentinel).
   TillHistoryState copyWith({
@@ -1419,7 +1399,6 @@ class TillHistoryState {
     Set<String>? expanded,
     Map<String, List<OrderSummaryView>>? ordersByTill,
     Object? ordersLoadingId = _unset,
-    Object? toast = _unset,
     Object? loadError = _unset,
     Map<String, UiText>? ordersErrors,
   }) {
@@ -1436,7 +1415,6 @@ class TillHistoryState {
       ordersLoadingId: ordersLoadingId == _unset
           ? this.ordersLoadingId
           : ordersLoadingId as String?,
-      toast: toast == _unset ? this.toast : toast as ToastData?,
     );
   }
 }
@@ -1445,12 +1423,15 @@ class TillHistoryState {
 /// prefetches a tapped row's Z-report for the shared preview sheet.
 class TillHistoryNotifier extends Notifier<TillHistoryState> {
   bool _disposed = false;
-  int _toastSeq = 0;
   late MadarBridge _bridge;
+  late AppToastNotifier _toasts;
 
   @override
   TillHistoryState build() {
     _bridge = ref.read(bridgeProvider);
+    // Held, not re-read: a print answered after the screen closed is still
+    // said (the app's toast outlives this auto-disposed screen).
+    _toasts = ref.read(appToastProvider.notifier);
     ref.onDispose(() => _disposed = true);
     unawaited(Future<void>.microtask(load));
     return const TillHistoryState();
@@ -1491,33 +1472,22 @@ class TillHistoryNotifier extends Notifier<TillHistoryState> {
       // A still-OPEN till's figures without `till.cash_spot_check` are not a
       // failure: say they are hidden, in the core's words.
       final blind = e is MadarError_Forbidden;
-      _toastSeq += 1;
-      state = state.copyWith(
-        reportLoadingId: null,
-        toast: ToastData(
-          id: _toastSeq,
-          text: _bridge.tr(
-            key: blind ? 'spot.blind' : 'till.report_load_failed',
-          ),
-          tone: blind ? ChipTone.warning : ChipTone.danger,
-          icon: blind ? 'lock' : 'xmark.circle',
-        ),
+      state = state.copyWith(reportLoadingId: null);
+      _toasts.show(
+        _bridge.tr(key: blind ? 'spot.blind' : 'till.report_load_failed'),
+        tone: blind ? ChipTone.warning : ChipTone.danger,
+        icon: blind ? 'lock' : 'xmark.circle',
       );
       return null;
     }
   }
 
-  void _showToast(String key, {required ChipTone tone, required String icon}) {
-    _toastSeq += 1;
-    state = state.copyWith(
-      toast: ToastData(
-        id: _toastSeq,
-        text: _bridge.tr(key: key),
+  void _showToast(String key, {required ChipTone tone, required String icon}) =>
+      _toasts.show(
+        _bridge.tr(key: key),
         tone: tone,
         icon: icon,
-      ),
-    );
-  }
+      );
 
   /// Expand/collapse a past till's inline orders panel; the first expand
   /// lazy-loads that till's orders (row by row, printable).
@@ -1575,27 +1545,18 @@ class TillHistoryNotifier extends Notifier<TillHistoryState> {
             : PrinterBrand.epson,
       );
       await tx.send(bytes);
-      if (!_disposed) {
-        _showToast(
-          'receipt.printed',
-          tone: ChipTone.success,
-          icon: 'checkmark.circle',
-        );
-      }
+      _showToast(
+        'receipt.printed',
+        tone: ChipTone.success,
+        icon: 'checkmark.circle',
+      );
     } on Exception catch (_) {
-      if (!_disposed) {
-        _showToast(
-          'receipt.print_failed',
-          tone: ChipTone.danger,
-          icon: 'xmark.circle',
-        );
-      }
+      _showToast(
+        'receipt.print_failed',
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
     }
-  }
-
-  /// Dismiss the toast if it is still the presented one.
-  void dismissToast(int id) {
-    if (state.toast?.id == id) state = state.copyWith(toast: null);
   }
 }
 

@@ -345,18 +345,18 @@ void main() {
   test('a refused advance tag is told once on the Till (D10)', () async {
     container.listen(tillProvider, (_, _) {});
     await _settle();
-    expect(container.read(tillProvider).toast, isNull);
+    expect(container.read(appToastProvider), isNull);
     const said =
         "Pay-out recorded; the advance tag was refused (Amal isn't an active "
         'employee). Log the advance from the dashboard.';
     bridge.payOutNotices.add(said);
     container.read(drawerTickProvider.notifier).bump();
     await _settle();
-    final toast = container.read(tillProvider).toast;
+    final toast = container.read(appToastProvider);
     expect(toast?.text, said);
     expect(toast?.tone, ChipTone.warning);
     container.read(drawerTickProvider.notifier).bump();
     await _settle();
-    expect(container.read(tillProvider).toast?.id, toast?.id, reason: 'once');
+    expect(container.read(appToastProvider)?.id, toast?.id, reason: 'once');
   });
 }

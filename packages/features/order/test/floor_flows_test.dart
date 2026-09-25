@@ -216,7 +216,8 @@ Future<void> _settle(WidgetTester tester) async {
   }
 }
 
-String? _toast(ProviderContainer c) => c.read(orderProvider).toast?.text;
+/// What the app's one toast says — every order message goes there.
+String? _toast(ProviderContainer c) => c.read(appToastProvider)?.text;
 
 void main() {
   testWidgets('the bill carries history, move, unseat and table actions', (
@@ -251,7 +252,7 @@ void main() {
     await tester.tap(find.text(coreWord('tables.swap')).last);
     await _settle(tester);
     expect(fake.swaps, [('t2', 't5')]);
-    expect(c.read(orderProvider).toast?.actionLabel, coreWord('order.undo'));
+    expect(c.read(appToastProvider)?.actionLabel, coreWord('order.undo'));
   });
 
   testWidgets('Seat & take order seats and opens the table order', (
@@ -293,7 +294,7 @@ void main() {
     await tester.tap(find.text('T6'));
     await _settle(tester);
     expect(fake.swaps, [('t2', 't6')]);
-    expect(c.read(orderProvider).toast?.actionLabel, coreWord('order.undo'));
+    expect(c.read(appToastProvider)?.actionLabel, coreWord('order.undo'));
     expect(find.textContaining(coreWord('tables.swap_pick')), findsNothing);
   });
 }

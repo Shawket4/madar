@@ -412,6 +412,8 @@ Future<ProviderContainer> _mount(
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: dark ? MadarTheme.dark() : MadarTheme.light(),
+          // The app's one toast, above the navigator, as the app mounts it.
+          builder: (context, child) => AppToastLayer(child: child!),
           home: Directionality(
             textDirection: fake.rtl ? TextDirection.rtl : TextDirection.ltr,
             // The app's locale, without pulling in the Material delegates.

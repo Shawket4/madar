@@ -1,7 +1,8 @@
-/// The board proper — banners, the ticket grid, the toast — without a
-/// header, so it mounts under the kitchen device's top bar AND inside
-/// Queue's Kitchen segment (routing mode `till`). One widget, one provider
-/// family: the cook and the cashier cannot disagree about a line.
+/// The board proper — banners and the ticket grid — without a header, so it
+/// mounts under the kitchen device's top bar AND inside Queue's Kitchen
+/// segment (routing mode `till`). One widget, one provider family: the cook
+/// and the cashier cannot disagree about a line. Its toasts are the app's one
+/// toast, drawn above the navigator.
 library;
 
 import 'dart:async';
@@ -98,81 +99,73 @@ class _KdsBoardBodyState extends ConsumerState<KdsBoardBody> {
     final connected = ref.watch(realtimeConnectedProvider);
     final now = DateTime.now();
     final refused = state.deadBumps.length;
-    return Stack(
+    return Column(
       children: [
-        Column(
-          children: [
-            // Offline outranks "reconnecting": the socket is down BECAUSE
-            // the network is, and saying so twice helps nobody.
-            if (!state.online)
-              _Banner(
-                child: NoticeBanner(
-                  text: bridge.trOr(KdsKeys.offlineBanner),
-                  icon: 'wifi.slash',
-                ),
-              )
-            else if (!connected)
-              _Banner(
-                child: NoticeBanner(
-                  text: bridge.tr(key: 'kds.reconnecting'),
-                  icon: 'wifi.slash',
-                ),
-              ),
-            if (refused > 0)
-              _Banner(
-                child: NoticeBanner(
-                  text: '$refused · ${bridge.trOr(KdsKeys.refused)}',
-                  tone: ChipTone.danger,
-                  icon: 'xmark.circle',
-                  onTap: () => unawaited(_board.retryRefused()),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: Space.sm,
-                    children: [
-                      BannerActionPill(label: bridge.trOr(KdsKeys.retry)),
-                      TactileScale(
-                        onTap: () => unawaited(_confirmDiscardRefused()),
-                        child: BannerActionPill(
-                          label: bridge.trOr(KdsKeys.discard),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            Expanded(
-              child: switch ((state.loaded, state.tickets.isEmpty)) {
-                // Same three states as Queue's tables: spinner, error with
-                // a retry, then the board (or its all-clear).
-                (false, _) when state.loadFailed => ErrorState(
-                  message: bridge.tr(key: 'kds.load_failed'),
-                  retryLabel: bridge.tr(key: 'history.retry'),
-                  onRetry: () => unawaited(_board.load()),
-                ),
-                (false, _) => const Center(child: MadarSpinner(size: 28)),
-                (true, true) => _AllClear(
-                  title: bridge.tr(key: 'kds.all_clear'),
-                ),
-                (true, false) => _TicketGrid(
-                  tickets: state.tickets,
-                  gutter: layout.gutter,
-                  singleColumn: layout.isPhone,
-                  cardFor: (ticket) => KdsTicketCard(
-                    key: ValueKey(ticket.id),
-                    ticket: ticket,
-                    ageMinutes: state.ageMinutes(ticket, now),
-                    busyLineIds: state.busyLineIds,
-                    bumpingAll: state.bumpingAllIds.contains(ticket.id),
-                    onToggleLine: (line) => unawaited(_board.toggleLine(line)),
-                    onBumpAll: () => unawaited(_board.bumpAll(ticket)),
-                  ),
-                ),
-              },
+        // Offline outranks "reconnecting": the socket is down BECAUSE
+        // the network is, and saying so twice helps nobody.
+        if (!state.online)
+          _Banner(
+            child: NoticeBanner(
+              text: bridge.trOr(KdsKeys.offlineBanner),
+              icon: 'wifi.slash',
             ),
-          ],
+          )
+        else if (!connected)
+          _Banner(
+            child: NoticeBanner(
+              text: bridge.tr(key: 'kds.reconnecting'),
+              icon: 'wifi.slash',
+            ),
+          ),
+        if (refused > 0)
+          _Banner(
+            child: NoticeBanner(
+              text: '$refused · ${bridge.trOr(KdsKeys.refused)}',
+              tone: ChipTone.danger,
+              icon: 'xmark.circle',
+              onTap: () => unawaited(_board.retryRefused()),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: Space.sm,
+                children: [
+                  BannerActionPill(label: bridge.trOr(KdsKeys.retry)),
+                  TactileScale(
+                    onTap: () => unawaited(_confirmDiscardRefused()),
+                    child: BannerActionPill(
+                      label: bridge.trOr(KdsKeys.discard),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        Expanded(
+          child: switch ((state.loaded, state.tickets.isEmpty)) {
+            // Same three states as Queue's tables: spinner, error with
+            // a retry, then the board (or its all-clear).
+            (false, _) when state.loadFailed => ErrorState(
+              message: bridge.tr(key: 'kds.load_failed'),
+              retryLabel: bridge.tr(key: 'history.retry'),
+              onRetry: () => unawaited(_board.load()),
+            ),
+            (false, _) => const Center(child: MadarSpinner(size: 28)),
+            (true, true) => _AllClear(title: bridge.tr(key: 'kds.all_clear')),
+            (true, false) => _TicketGrid(
+              tickets: state.tickets,
+              gutter: layout.gutter,
+              singleColumn: layout.isPhone,
+              cardFor: (ticket) => KdsTicketCard(
+                key: ValueKey(ticket.id),
+                ticket: ticket,
+                ageMinutes: state.ageMinutes(ticket, now),
+                busyLineIds: state.busyLineIds,
+                bumpingAll: state.bumpingAllIds.contains(ticket.id),
+                onToggleLine: (line) => unawaited(_board.toggleLine(line)),
+                onBumpAll: () => unawaited(_board.bumpAll(ticket)),
+              ),
+            ),
+          },
         ),
-        // Toasts float above the grid — a refused bump says so here.
-        SafeArea(child: ToastHost(state.toast, onDismiss: _board.dismissToast)),
       ],
     );
   }

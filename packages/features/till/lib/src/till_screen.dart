@@ -50,7 +50,6 @@ class TillScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isManager = ref.watch(tillProvider.select((s) => s.isManager));
-    final toast = ref.watch(tillProvider.select((s) => s.toast));
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final layout = context.madarLayout;
@@ -148,10 +147,6 @@ class TillScreen extends ConsumerWidget {
         onRefresh: () =>
             pullThenReread(ref, ref.read(tillProvider.notifier).refresh),
         child: body,
-      ),
-      overlay: ToastHost(
-        toast,
-        onDismiss: (id) => ref.read(tillProvider.notifier).dismissToast(id),
       ),
     );
   }

@@ -7,6 +7,7 @@ library;
 // The theme enum lives with the themes; re-exported so features keep one import.
 export 'package:design_system/design_system.dart' show ThemeChoice;
 
+export 'src/app_toast.dart';
 export 'src/generated/capabilities.dart';
 export 'src/orientation.dart';
 export 'src/printing/printer_service.dart';

@@ -113,7 +113,6 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
             ),
           )
         : 0;
-    final toast = ref.watch(incomingProvider.select((s) => s.toast));
     final layout = context.madarLayout;
 
     final segmented = MadarSegmented<QueueSegment>(
@@ -175,50 +174,37 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
       safeTop: false,
       title: bridge.trOr(QueueKeys.title),
       below: below,
-      body: Stack(
-        children: [
-          SafeArea(
-            bottom: false,
-            child: Column(
-              children: [
-                const SizedBox(height: Space.xs),
-                // Swapping widget types remounts the segment so its own
-                // init (refresh) runs on (re)entry. Pulled, every segment
-                // syncs and re-reads (the segments' lists sit at different
-                // depths, and a short one does not scroll: pullable).
-                Expanded(
-                  child: MadarRefresh(
-                    nested: true,
-                    onRefresh: () => _pull(kitchen: showKitchen),
-                    child: MadarPullable(
-                      child: switch (segment) {
-                        QueueSegment.bills => BillsSegment(
-                          onOpenBill: widget.onOpenBill,
-                        ),
-                        QueueSegment.online => const OnlineSegment(),
-                        // The cook's own board, minus its header — one widget
-                        // and one provider family, so the counter and the
-                        // kitchen cannot disagree about a line. Falls back to
-                        // Bills if the mode changed out from under a selected
-                        // segment.
-                        QueueSegment.kitchen => const KdsBoardBody(
-                          stationId: null,
-                        ),
-                      },
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            const SizedBox(height: Space.xs),
+            // Swapping widget types remounts the segment so its own
+            // init (refresh) runs on (re)entry. Pulled, every segment
+            // syncs and re-reads (the segments' lists sit at different
+            // depths, and a short one does not scroll: pullable).
+            Expanded(
+              child: MadarRefresh(
+                nested: true,
+                onRefresh: () => _pull(kitchen: showKitchen),
+                child: MadarPullable(
+                  child: switch (segment) {
+                    QueueSegment.bills => BillsSegment(
+                      onOpenBill: widget.onOpenBill,
                     ),
-                  ),
+                    QueueSegment.online => const OnlineSegment(),
+                    // The cook's own board, minus its header — one widget
+                    // and one provider family, so the counter and the
+                    // kitchen cannot disagree about a line. Falls back to
+                    // Bills if the mode changed out from under a selected
+                    // segment.
+                    QueueSegment.kitchen => const KdsBoardBody(stationId: null),
+                  },
                 ),
-              ],
+              ),
             ),
-          ),
-          // Toasts float above everything on this screen.
-          SafeArea(
-            child: ToastHost(
-              toast,
-              onDismiss: ref.read(incomingProvider.notifier).dismissToast,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

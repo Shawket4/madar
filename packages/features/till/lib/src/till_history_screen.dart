@@ -32,7 +32,6 @@ class TillHistoryScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
-    final toast = ref.watch(tillHistoryProvider.select((s) => s.toast));
     final branch = bridge.deviceConfig().branchName?.trim() ?? '';
     return MadarPageScaffold(
       title: t('tills.title'),
@@ -42,11 +41,6 @@ class TillHistoryScreen extends ConsumerWidget {
         padding: EdgeInsetsDirectional.only(bottom: Space.xl),
         // Loose, so the card hugs its rows instead of filling the page.
         child: Align(alignment: AlignmentDirectional.topStart, child: _Tills()),
-      ),
-      overlay: ToastHost(
-        toast,
-        onDismiss: (id) =>
-            ref.read(tillHistoryProvider.notifier).dismissToast(id),
       ),
     );
   }
