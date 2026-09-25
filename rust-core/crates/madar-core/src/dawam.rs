@@ -234,6 +234,9 @@ pub struct Snapshot {
     pub notices: Vec<NoticeV>,
     pub period: PeriodV,
     pub history: Vec<PeriodV>,
+    /// Older months not fully paid, oldest first (H2-P1): each opens with
+    /// its actions, by its id.
+    pub unsettled: Vec<UnsettledV>,
     pub slips: Vec<SlipV>,
     /// Per person: the cap on outstanding advances, and what is outstanding (AV-5).
     /// The cap only where the server shows it (the salary's visibility).
@@ -534,6 +537,20 @@ pub struct ReqV {
     pub worked: Vec<String>,
 }
 
+/// An older month still to settle (H2-P1): a draft never approved, or
+/// approved with someone unpaid.
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct UnsettledV {
+    pub id: String,
+    pub start: String,
+    pub end: String,
+    /// `open` (a draft) · `approved`
+    pub status: String,
+    pub net: i64,
+    pub paid_count: i64,
+    pub people: i64,
+}
+
 /// The pay period a new pay line lands in (minor #27).
 #[derive(Serialize, Debug, Default)]
 pub struct LandsV {
@@ -786,10 +803,12 @@ pub enum Act {
     /// A reading the host just took (Home opening, a resume): kept with its
     /// time so the fence line is real (06 B4). Local only, never sent.
     NoteFix { fix: DawamFix },
-    ApprovePayroll,
+    /// Every payroll action names its month by id; none = this month
+    /// (H2-P1: an older unsettled month is settled by its own id).
+    ApprovePayroll { #[serde(default)] period: Option<String> },
     /// Back to a live preview, with the reason the audit log keeps (AD-9).
-    ReopenPayroll { #[serde(default)] reason: String },
-    MarkPaid { emp: String, method: String },
+    ReopenPayroll { #[serde(default)] reason: String, #[serde(default)] period: Option<String> },
+    MarkPaid { emp: String, method: String, #[serde(default)] period: Option<String> },
 }
 
 impl Act {
@@ -1859,7 +1878,18 @@ impl MadarCore {
             }
         }
         // Pay: the whole business for payroll rights, else my own estimate.
-        let cur = g("/staff/payroll/current");
+        let mut cur = g("/staff/payroll/current");
+        // An older month never approved (H2-P1): its live preview, kept with
+        // it, so it opens with its figures. An approved one's payslips come
+        // with the history below.
+        if let Some(list) = cur.get_mut("unsettled").and_then(Value::as_array_mut) {
+            for u in list.iter_mut().filter(|u| s(u, "status") == "draft") {
+                let path = format!("/staff/payroll/periods/{}/preview", s(u, "period_id"));
+                if let Ok(rows) = self.dawam_srv("GET", &path, None).await {
+                    u["preview"] = rows;
+                }
+            }
+        }
         if cur.is_object() {
             let p = &cur["period"];
             m.put("dawam_periods", Row::new(s(p, "id"), p).date(so(p, "start_date")));
@@ -2715,17 +2745,20 @@ impl MadarCore {
             }
             // Without a period id there is nothing to approve or reopen: say so
             // rather than POST to `/periods//generate` (audit 06 B14).
-            Act::ApprovePayroll | Act::ReopenPayroll { .. } if period_id.is_empty() => {
+            Act::ApprovePayroll { period: None } | Act::ReopenPayroll { period: None, .. } if period_id.is_empty() => {
                 return Err(CoreError::Validation { field: String::new(), detail: i18n::tr(&self.current_locale(), "staff.no_period_yet") });
             }
-            Act::ApprovePayroll => {
-                self.dawam_srv("POST", &format!("/staff/payroll/periods/{period_id}/generate"), Some(json!({}))).await?;
+            Act::ApprovePayroll { period } => {
+                let id = period.unwrap_or(period_id);
+                self.dawam_srv("POST", &format!("/staff/payroll/periods/{id}/generate"), Some(json!({}))).await?;
             }
-            Act::ReopenPayroll { reason } => {
-                self.dawam_srv("PATCH", &format!("/staff/payroll/periods/{period_id}/status"), Some(json!({ "status": "draft", "reason": reason }))).await?;
+            Act::ReopenPayroll { reason, period } => {
+                let id = period.unwrap_or(period_id);
+                self.dawam_srv("PATCH", &format!("/staff/payroll/periods/{id}/status"), Some(json!({ "status": "draft", "reason": reason }))).await?;
             }
-            Act::MarkPaid { emp, method } => {
-                self.dawam_srv("PATCH", &format!("/staff/payroll/periods/{period_id}/payslips/{emp}/paid"), Some(json!({ "method": method }))).await?;
+            Act::MarkPaid { emp, method, period } => {
+                let id = period.unwrap_or(period_id);
+                self.dawam_srv("PATCH", &format!("/staff/payroll/periods/{id}/payslips/{emp}/paid"), Some(json!({ "method": method }))).await?;
             }
             Act::ClockIn { .. }
             | Act::ClockOut { .. }
@@ -3498,6 +3531,25 @@ impl MadarCore {
         for c in rows("dawam_preview") {
             out.slips.push(slip_of(c, &out.period, i(c, "base_piastres"), false));
         }
+        // Older months still to settle, and a draft one's live preview.
+        let mut unsettled: Vec<&Value> = arr(&current, "unsettled").iter().collect();
+        unsettled.sort_by_key(|u| s(u, "starts_on"));
+        for u in unsettled {
+            let v = UnsettledV {
+                id: s(u, "period_id"),
+                start: s(u, "starts_on"),
+                end: s(u, "ends_on"),
+                status: if s(u, "status") == "draft" { "open" } else { "approved" }.into(),
+                net: i(u, "net_total_piastres"),
+                paid_count: i(u, "paid_count"),
+                people: i(u, "people"),
+            };
+            let p = PeriodV { id: Some(v.id.clone()), start: v.start.clone(), end: v.end.clone(), status: v.status.clone(), paid_by: BTreeMap::new() };
+            for c in arr(u, "preview") {
+                out.slips.push(slip_of(c, &p, i(c, "base_piastres"), false));
+            }
+            out.unsettled.push(v);
+        }
         // The server's count; an older one sends none: the flagged rows.
         out.missing_salary_count = current
             .get("missing_salary_count")
@@ -4084,10 +4136,10 @@ mod tests {
     #[test]
     fn money_acts_carry_their_reasons() {
         let reopen: Act = serde_json::from_value(json!({ "action": "reopen_payroll", "reason": "a line was missing" })).unwrap();
-        assert!(matches!(reopen, Act::ReopenPayroll { ref reason } if reason == "a line was missing"));
+        assert!(matches!(reopen, Act::ReopenPayroll { ref reason, .. } if reason == "a line was missing"));
         // An old screen that sends none still parses (the server refuses it in words).
         let bare: Act = serde_json::from_value(json!({ "action": "reopen_payroll" })).unwrap();
-        assert!(matches!(bare, Act::ReopenPayroll { ref reason } if reason.is_empty()));
+        assert!(matches!(bare, Act::ReopenPayroll { ref reason, .. } if reason.is_empty()));
         let resolve: Act = serde_json::from_value(json!({ "action": "resolve", "flag": "f1", "how": "deduct", "deduct": 500, "reason": "left early" })).unwrap();
         assert!(matches!(resolve, Act::Resolve { ref reason, deduct: 500, .. } if reason.as_deref() == Some("left early")));
         let unwaive: Act = serde_json::from_value(json!({ "action": "unwaive", "key": "d|x", "reason": "wrong day" })).unwrap();
@@ -6252,6 +6304,83 @@ mod tests {
     /// "hidden from me" (set, no figure); the payroll preview flags who has
     /// none and how many, and approving while someone has none is refused
     /// (409 SALARY_MISSING {names}) in the owner's language, naming them.
+    /// H2-P1: after the month rolls over, an older month still a draft or
+    /// approved with someone unpaid could not be approved or paid from the
+    /// app (every action named the current period). `/staff/payroll/current`
+    /// lists them in `unsettled` (oldest first); the snapshot carries them,
+    /// a draft one with its live preview, and every payroll action takes a
+    /// period id. An older server sends no `unsettled`: nothing listed.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_older_unsettled_month_is_listed_and_settled_by_its_id() {
+        use crate::testkit::{StubResponse, BRANCH, TELLER};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        let old = Arc::new(AtomicBool::new(false));
+        let older_server = old.clone();
+        let (stub, core) = cafe(&["hr.attendance.read", "hr.payroll.run"], move |m, p, _| match (m, p) {
+            ("GET", "/staff/me/context") => Some(StubResponse::json(200, json!({
+                "role": "owner", "org_name": "Nile Café", "caps": ["hr.attendance.read", "hr.payroll.run"],
+                "branches": [{ "id": BRANCH, "name": "Zamalek", "timezone": "Africa/Cairo" }],
+                "work_shifts": [], "settings": { "period_start_day": 26 },
+                "people": [
+                    { "employee_id": TELLER, "name": "Hana", "role": "owner", "branch_ids": [BRANCH], "base_salary_piastres": 0, "salary_set": true },
+                    { "employee_id": "e4", "name": "Youssef", "role": "employee", "branch_ids": [BRANCH], "base_salary_piastres": 900000, "salary_set": true },
+                    { "employee_id": "e5", "name": "Laila", "role": "employee", "branch_ids": [BRANCH], "base_salary_piastres": 850000, "salary_set": true },
+                ],
+            }))),
+            ("GET", "/staff/payroll/current") => {
+                let mut v = json!({
+                    "period": { "id": "p2", "start_date": "2026-09-26", "end_date": "2026-10-25", "status": "draft" },
+                    "preview": [], "payslips": [],
+                    "history": [
+                        { "id": "p1", "start_date": "2026-08-26", "end_date": "2026-09-25", "status": "draft" },
+                        { "id": "p0", "start_date": "2026-07-26", "end_date": "2026-08-25", "status": "generated" }
+                    ],
+                    "unsettled": [
+                        { "period_id": "p0", "starts_on": "2026-07-26", "ends_on": "2026-08-25", "status": "generated",
+                          "net_total_piastres": 1750000, "paid_count": 1, "people": 2 },
+                        { "period_id": "p1", "starts_on": "2026-08-26", "ends_on": "2026-09-25", "status": "draft",
+                          "net_total_piastres": 900000, "paid_count": 0, "people": 1 }
+                    ],
+                });
+                if older_server.load(Ordering::SeqCst) {
+                    v.as_object_mut().unwrap().remove("unsettled");
+                }
+                Some(StubResponse::json(200, v))
+            }
+            ("GET", "/staff/payroll/periods/p1/preview") => Some(StubResponse::json(200, json!([
+                { "employee_id": "e4", "base_piastres": 900000, "net_piastres": 900000, "salary_missing": false, "breakdown": {} }
+            ]))),
+            ("GET", "/staff/payroll/periods/p0/payslips") => Some(StubResponse::json(200, json!([
+                { "employee_id": "e4", "net_piastres": 900000, "paid_method": "cash", "paid_at": "2026-08-27T10:00:00Z" },
+                { "employee_id": "e5", "net_piastres": 850000 }
+            ]))),
+            ("POST", "/staff/payroll/periods/p1/generate") | ("PATCH", "/staff/payroll/periods/p0/payslips/e5/paid") => {
+                Some(StubResponse::json(200, json!({})))
+            }
+            _ => None,
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(snap["unsettled"], json!([
+            { "id": "p0", "start": "2026-07-26", "end": "2026-08-25", "status": "approved", "net": 1750000, "paid_count": 1, "people": 2 },
+            { "id": "p1", "start": "2026-08-26", "end": "2026-09-25", "status": "open", "net": 900000, "paid_count": 0, "people": 1 }
+        ]), "oldest first, in the app's statuses");
+        // The draft month's live preview, as a slip of that month.
+        let slip = snap["slips"].as_array().unwrap().iter().find(|x| x["emp"] == "e4" && x["start"] == "2026-08-26").cloned();
+        assert!(slip.is_some_and(|x| x["frozen"] == json!(false) && x["net"] == json!(900000)), "{}", snap["slips"]);
+
+        core.dawam_do(json!({ "action": "approve_payroll", "period": "p1" }).to_string()).await.unwrap();
+        assert_eq!(stub.requests("/staff/payroll/periods/p1/generate").len(), 1, "approved by its own id");
+        assert!(stub.requests("/staff/payroll/periods/p2/generate").is_empty(), "never the current month");
+        core.dawam_do(json!({ "action": "mark_paid", "emp": "e5", "method": "cash", "period": "p0" }).to_string()).await.unwrap();
+        assert_eq!(stub.requests("/staff/payroll/periods/p0/payslips/e5/paid").len(), 1);
+
+        old.store(true, Ordering::SeqCst);
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        assert_eq!(snap["unsettled"], json!([]), "an older server: nothing listed");
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn a_salary_not_set_is_flagged_and_blocks_approval() {
         use crate::testkit::{StubResponse, BRANCH, TELLER};

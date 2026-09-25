@@ -534,6 +534,30 @@ class Period {
   /// never block a reopen (PAY-6, D16).
   final Set<String> settled = {};
   final Map<String, Slip> frozen = {};
+
+  /// An older month's live preview while it is still a draft (H2-P1).
+  final Map<String, Slip> live = {};
+}
+
+/// An older month not fully paid (H2-P1): a draft never approved, or
+/// approved with someone unpaid. It opens by its [id] with its actions.
+class Unsettled {
+  const Unsettled(
+    this.id,
+    this.start,
+    this.end,
+    this.status, {
+    required this.net,
+    required this.paidCount,
+    required this.people,
+  });
+  final String id;
+  final DateTime start;
+  final DateTime end;
+  final PeriodStatus status;
+  final int net;
+  final int paidCount;
+  final int people;
 }
 
 class Suggestion implements Bilingual {
@@ -772,6 +796,9 @@ class DawamStore extends ChangeNotifier {
   bool viewing = false;
   String? _viewingKey;
   final history = <Period>[];
+
+  /// Older months not fully paid, oldest first (H2-P1).
+  List<Unsettled> unsettled = const [];
   Period period = Period(DateTime(2000), DateTime(2000));
   final _slips = <String, Slip>{};
   final _cap = <String, int>{};
@@ -1204,6 +1231,18 @@ class DawamStore extends ChangeNotifier {
 
     period = readPeriod(v['period'] as J);
     history.addAll(_list(v['history']).map(readPeriod));
+    unsettled = [
+      for (final u in _list(v['unsettled']))
+        Unsettled(
+          u['id'] as String,
+          _date(u['start']),
+          _date(u['end']),
+          _enum(PeriodStatus.values, u['status'], PeriodStatus.open),
+          net: _int(u['net']),
+          paidCount: _int(u['paid_count']),
+          people: _int(u['people']),
+        ),
+    ];
     for (final s in _list(v['slips'])) {
       final slip = Slip(
         s['emp'] as String,
@@ -1238,6 +1277,8 @@ class DawamStore extends ChangeNotifier {
       ].where((p) => sameDay(p.start, slip.start)).firstOrNull;
       if (slip.frozen && p != null) p.frozen[slip.emp] = slip;
       if (p == period) _slips[slip.emp] = slip;
+      // An older draft month's preview (H2-P1).
+      if (!slip.frozen && p != null && p != period) p.live[slip.emp] = slip;
     }
     _cap.clear();
     (v['advance_cap'] as J).forEach((k, x) => _cap[k] = _int(x));
@@ -1370,7 +1411,7 @@ class DawamStore extends ChangeNotifier {
       _warnings['$emp|${_d(ws)}'] ?? const [];
   Slip slip(String empId, Period p) =>
       p.frozen[empId] ??
-      (identical(p, period) ? _slips[empId] : null) ??
+      (identical(p, period) ? _slips[empId] : p.live[empId]) ??
       Slip(
         empId,
         p.start,
@@ -1388,7 +1429,11 @@ class DawamStore extends ChangeNotifier {
       ? p.frozen.values.toList()
       : identical(p, period)
       ? _slips.values.where((s) => !s.frozen).toList()
-      : const [];
+      : p.live.values.toList();
+
+  /// This month or an older one, by id (H2-P1).
+  Period? periodById(String id) =>
+      [period, ...history].where((p) => p.id == id).firstOrNull;
   List<Slip> payslipsOf(String emp) => [
     ?period.frozen[emp],
     for (final h in history) ?h.frozen[emp],
@@ -2002,11 +2047,18 @@ class DawamStore extends ChangeNotifier {
     'note': ?note,
   });
   Future<void> readAll() => _act({'action': 'read_all'});
-  Future<void> approvePayroll() => _act({'action': 'approve_payroll'});
+
+  /// Every payroll action names its month; none = this month (H2-P1).
+  Future<void> approvePayroll({String? period}) =>
+      _act({'action': 'approve_payroll', 'period': ?period});
 
   /// Back to a live preview; the reason goes to the audit log (AD-9).
-  Future<void> reopenPayroll(String reason) =>
-      _act({'action': 'reopen_payroll', 'reason': reason});
-  Future<void> markPaid(String emp, PayMethod m) =>
-      _act({'action': 'mark_paid', 'emp': emp, 'method': m.name});
+  Future<void> reopenPayroll(String reason, {String? period}) =>
+      _act({'action': 'reopen_payroll', 'reason': reason, 'period': ?period});
+  Future<void> markPaid(String emp, PayMethod m, {String? period}) => _act({
+    'action': 'mark_paid',
+    'emp': emp,
+    'method': m.name,
+    'period': ?period,
+  });
 }

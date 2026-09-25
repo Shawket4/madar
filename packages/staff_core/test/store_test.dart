@@ -881,4 +881,67 @@ void main() {
     await store.refresh();
     expect(store.linesLand, isNull, reason: 'an older core says nothing');
   });
+
+  // H2-P1: an older month not fully paid comes with its figures and its
+  // live preview, and every payroll action names its month.
+  test('an older unsettled month is read and settled by its id', () async {
+    final (store, backend) = await _store();
+    backend.edit = (v) {
+      (v['history'] as List<dynamic>).add({
+        'end': '2026-07-25',
+        'id': 'p0',
+        'paid_by': <String, dynamic>{},
+        'start': '2026-06-26',
+        'status': 'open',
+      });
+      final slip = Map<String, dynamic>.of(
+        (v['slips'] as List<dynamic>).first as Map<String, dynamic>,
+      );
+      (v['slips'] as List<dynamic>).add({
+        ...slip,
+        'start': '2026-06-26',
+        'end': '2026-07-25',
+        'frozen': false,
+        'net': 777700,
+      });
+      v['unsettled'] = [
+        {
+          'id': 'p0',
+          'start': '2026-06-26',
+          'end': '2026-07-25',
+          'status': 'open',
+          'net': 777700,
+          'paid_count': 0,
+          'people': 1,
+        },
+      ];
+    };
+    await store.refresh();
+    final u = store.unsettled.single;
+    expect(
+      (u.id, u.status, u.net, u.paidCount, u.people),
+      ('p0', PeriodStatus.open, 777700, 0, 1),
+    );
+    final p = store.periodById('p0')!;
+    expect(store.runSlips(p).single.net, 777700, reason: 'its live preview');
+    expect(
+      store.runSlips(store.period).any((s) => s.net == 777700),
+      isFalse,
+      reason: 'not this month',
+    );
+    await store.approvePayroll(period: 'p0');
+    expect(backend.acts.last, {'action': 'approve_payroll', 'period': 'p0'});
+    await store.markPaid('e1', PayMethod.cash, period: 'p0');
+    expect(backend.acts.last, {
+      'action': 'mark_paid',
+      'emp': 'e1',
+      'method': 'cash',
+      'period': 'p0',
+    });
+    await store.approvePayroll();
+    expect(backend.acts.last, {'action': 'approve_payroll'});
+    backend.edit = null;
+    await store.refresh();
+    expect(store.unsettled, isEmpty, reason: 'an older core says nothing');
+  });
 }
