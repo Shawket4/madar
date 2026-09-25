@@ -324,11 +324,16 @@ class SettingsNotifier extends Notifier<SettingsState> {
   /// the till's language like every other receipt.
   ReceiptView _testReceipt(String? tellerName, String line) {
     return ReceiptView(
+      deals: const [],
       localOrderId: 'test-print',
       displayNumber: '',
       isVoided: false,
       lines: [
         ReceiptLineView(
+          dealMinor: 0,
+          kind: 'item',
+          parts: const [],
+          unitPriceMinor: 0,
           name: line,
           qty: 1,
           lineTotalMinor: 0,

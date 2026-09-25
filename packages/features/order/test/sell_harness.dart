@@ -15,6 +15,7 @@ const Size _phone = Size(390, 844);
 
 MenuItemView _item(String id, String name, int price, {String cat = 'hot'}) =>
     MenuItemView(
+      kind: 'item',
       id: id,
       name: name,
       categoryId: cat,
@@ -51,6 +52,9 @@ const _categories = <CategoryView>[
 
 CartLineView _cartLine(String id, String name, int price, int qty) =>
     CartLineView(
+      dealCutMinor: 0,
+      kind: 'item',
+      parts: const [],
       key: 'k-$id',
       itemId: id,
       name: name,
@@ -84,6 +88,7 @@ TicketLineView _line(
   bool voided = false,
   List<String> mods = const [],
 }) => TicketLineView(
+  isCombo: false,
   id: '$name-$round',
   menuItemId: name.toLowerCase(),
   name: name,
@@ -615,6 +620,9 @@ class _FakeBridge implements MadarBridge {
         final note = notes[l.key];
         if (note == null) return l;
         return CartLineView(
+          dealCutMinor: 0,
+          kind: 'item',
+          parts: const [],
           key: l.key,
           itemId: l.itemId,
           name: l.name,

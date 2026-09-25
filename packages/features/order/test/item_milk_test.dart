@@ -30,6 +30,7 @@ const _addons = [
 ];
 
 MenuItemView _latte({List<AddonSlotView> slots = const []}) => MenuItemView(
+  kind: 'item',
   id: 'latte',
   name: 'Latte',
   basePriceMinor: 4500,
@@ -79,6 +80,9 @@ AddonGroup _milkGroup(String id) => AddonGroup(
 );
 
 CartLineView _line(List<String> addonIds) => CartLineView(
+  dealCutMinor: 0,
+  kind: 'item',
+  parts: const [],
   key: 'k',
   itemId: 'latte',
   name: 'Latte',

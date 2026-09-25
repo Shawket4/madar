@@ -415,6 +415,7 @@ class OrderNotifier extends Notifier<OrderState> {
           m
         else
           MenuItemView(
+            kind: m.kind,
             id: '${m.id}-synth$i',
             name: '${m.name} $i',
             description: m.description,

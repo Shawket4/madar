@@ -135,6 +135,7 @@ TicketLineView _line(
   int minor,
   int round,
 ) => TicketLineView(
+  isCombo: false,
   id: id,
   menuItemId: item,
   name: name,
@@ -264,6 +265,7 @@ const _online = DeliveryOrderView(
 );
 
 ReceiptView _receipt({required bool queued, int? number}) => ReceiptView(
+  deals: const [],
   payments: const [],
   localOrderId: '8f2a4c1e-queued',
   orderNumber: number,
@@ -442,6 +444,8 @@ class _FakeBridge implements MadarBridge {
       return [
         for (final l in _ticket.lines)
           RewardLineInput(
+            inCombo: false,
+            inDeal: false,
             name: l.name,
             ticketLineId: l.id,
             menuItemId: l.menuItemId,

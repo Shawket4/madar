@@ -129,6 +129,7 @@ final _layout = FloorLayoutView(
 
 TicketLineView _line(String name, int qty, int minor, int round, int ago) =>
     TicketLineView(
+      isCombo: false,
       id: '$name-$round',
       menuItemId: name,
       name: name,

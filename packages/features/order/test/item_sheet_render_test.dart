@@ -93,6 +93,7 @@ final _groups = [
 ];
 
 MenuItemView _latte() => MenuItemView(
+  kind: 'item',
   id: 'latte',
   name: 'Spanish latte',
   basePriceMinor: 4500,

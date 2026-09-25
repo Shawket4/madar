@@ -41,6 +41,10 @@ class _Bridge implements MadarBridge {
 
 const _lines = [
   ReceiptLineView(
+    dealMinor: 0,
+    kind: 'item',
+    parts: [],
+    unitPriceMinor: 0,
     name: 'Latte',
     qty: 2,
     sizeLabel: 'L',
@@ -50,6 +54,10 @@ const _lines = [
     optionals: [],
   ),
   ReceiptLineView(
+    dealMinor: 0,
+    kind: 'item',
+    parts: [],
+    unitPriceMinor: 0,
     name: 'Croissant',
     qty: 1,
     lineTotalMinor: 6500,
@@ -63,6 +71,10 @@ const _lines = [
 /// 6500, the rest is charged. The label is the core's word, in the language.
 List<ReceiptLineView> _staffLines({required bool arabic}) => [
   ReceiptLineView(
+    dealMinor: 0,
+    kind: 'item',
+    parts: const [],
+    unitPriceMinor: 0,
     name: 'Latte',
     qty: 1,
     sizeLabel: 'L',
@@ -94,6 +106,7 @@ ReceiptView _r({
   String? waivedBy,
   double rate = 0.14,
 }) => ReceiptView(
+  deals: const [],
   payments: payments,
   localOrderId: '8f2a4c1e-x',
   orderNumber: 1042,
