@@ -65,8 +65,12 @@ class _Backend implements DawamBackend {
   Future<DawamFix?> locate() async => null;
   @override
   Stream<DawamFix> track() => const Stream.empty();
+  int alwaysAsks = 0;
   @override
-  Future<bool> alwaysLocation() async => true;
+  Future<bool> alwaysLocation() async {
+    alwaysAsks++;
+    return true;
+  }
   final trackingCalls = <bool>[];
   @override
   Future<void> tracking({required bool on}) async => trackingCalls.add(on);
@@ -237,6 +241,18 @@ void main() {
     });
     await t.pump(const Duration(seconds: 3));
     store.stop();
+  });
+
+  // Minor #12: "Always" location is asked right after the privacy notice,
+  // which already explains tracking, so the first clock-in doesn't wait on
+  // a permission prompt.
+  test('agreeing to the notice asks for Always location at once', () async {
+    final (store, backend) = await _store();
+    expect(backend.alwaysAsks, 0);
+    await store.acceptPrivacy();
+    expect(backend.acts.single['action'], 'accept_privacy');
+    expect(backend.alwaysAsks, 1, reason: 'asked with the notice');
+    expect(store.alwaysLocation, isTrue);
   });
 
   group('attempt waits for the server (06 B1)', () {

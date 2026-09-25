@@ -1332,6 +1332,15 @@ class DawamStore extends ChangeNotifier {
     }
     _applySafely(json);
     if (!privacyAccepted) throw failed();
+    // "Always" location is asked now, right after the notice that explains
+    // tracking (minor #12), so the first clock-in doesn't wait on a prompt.
+    // An answer never undoes the acceptance.
+    try {
+      alwaysLocation = await backend.alwaysLocation();
+    } on Object {
+      alwaysLocation = false;
+    }
+    notifyListeners();
   }
 
   /// Take a fresh reading for the fence line (Home opening, a resume). The
