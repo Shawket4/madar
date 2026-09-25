@@ -4,6 +4,7 @@
 import 'package:feature_dawam_schedule/feature_dawam_schedule.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:staff_core/staff_core.dart';
+import 'package:staff_core/testing.dart';
 
 void main() {
   setUp(() {
@@ -44,5 +45,16 @@ void main() {
       'sara',
       'omar',
     ], reason: 'in start order within the day');
+  });
+
+  // Minor #23: the swap cards sat above the full-height calendar and
+  // scrolled out of sight. They fold into one line that opens them.
+  test('waiting swaps fold into one line', () {
+    words = coreWord;
+    expect(swapsWaitingLine(asks: 0, mine: 0), isNull, reason: 'no line');
+    final (title, meta) = swapsWaitingLine(asks: 1, mine: 1)!;
+    expect(title, coreWord('staff.swaps_waiting').replaceAll('{count}', '2'));
+    expect(meta, coreWord('staff.swaps_to_answer').replaceAll('{count}', '1'));
+    expect(swapsWaitingLine(asks: 0, mine: 2)!.$2, isNull);
   });
 }

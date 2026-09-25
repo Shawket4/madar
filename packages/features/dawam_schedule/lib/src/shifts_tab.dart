@@ -41,9 +41,44 @@ class ShiftsTab extends ConsumerWidget {
                       store.user.branches.contains(s.template.branch))),
         )
         .toList();
+    // The waiting swaps fold into one line that opens them (minor #23):
+    // cards above the calendar scrolled out of sight.
+    final waiting = swapsWaitingLine(asks: asks.length, mine: mine.length);
     final top = <Widget>[
-      for (final r in asks) _SwapAsk(r),
-      for (final r in mine) _MySwap(r),
+      if (waiting case (final title, final meta))
+        MadarCard(
+          flush: true,
+          child: MadarListRow.nav(
+            glyph: MadarGlyph.move,
+            title: title,
+            meta: meta,
+            onTap: () => showDawamSheet<void>(
+              context,
+              title: tr('staff.swaps'),
+              builder: (ctx, ref, store) {
+                final me = store.me!;
+                final asks = store.reqs.where(
+                  (r) => r.peer == me && r.status == ReqStatus.awaitingPeer,
+                );
+                final mine = store.reqs.where(
+                  (r) =>
+                      r.kind == ReqKind.swap &&
+                      r.emp == me &&
+                      (r.status == ReqStatus.awaitingPeer ||
+                          r.status == ReqStatus.pending),
+                );
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: Space.md,
+                  children: [
+                    for (final r in asks) _SwapAsk(r),
+                    for (final r in mine) _MySwap(r),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
       if (!nextPublished)
         NoticeBanner(
           text: tr('staff.not_published_yet_you_ll_get'),
@@ -414,4 +449,15 @@ List<(DateTime, List<Shift>)> swapChoices(
     byDay.putIfAbsent(dateOnly(s.date), () => []).add(s);
   }
   return [for (final e in byDay.entries) (e.key, e.value)];
+}
+
+/// The one line the waiting swaps fold into (minor #23): how many, and how
+/// many wait on my answer; null when none.
+(String, String?)? swapsWaitingLine({required int asks, required int mine}) {
+  final n = asks + mine;
+  if (n == 0) return null;
+  return (
+    tr('staff.swaps_waiting', {'count': n}),
+    asks > 0 ? tr('staff.swaps_to_answer', {'count': asks}) : null,
+  );
 }
