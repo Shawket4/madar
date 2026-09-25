@@ -338,6 +338,10 @@ class Req {
 
   /// Every day it covers can still change (RQ-4, B13), from the core.
   bool monthOpen = true;
+
+  /// A leave or mission's days the person already clocked in (minor #16):
+  /// the approver is warned.
+  List<DateTime> worked = const [];
 }
 
 /// What the server made of a request just filed (RQ-5): approved at once for
@@ -1086,6 +1090,10 @@ class DawamStore extends ChangeNotifier {
           ..paidDefault = r['paid_default'] as bool?
           ..leaveHalf = r['leave_half'] as String?
           ..monthOpen = r['month_open'] != false
+          ..worked = [
+            for (final d in (r['worked'] as List<dynamic>?) ?? const [])
+              _date(d),
+          ]
           ..decidedBy = r['decided_by'] as String?
           ..decisionNote = r['decision_note'] as String?
           ..withinCap = r['within_cap'] as bool?

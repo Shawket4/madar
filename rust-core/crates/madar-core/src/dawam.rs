@@ -523,6 +523,9 @@ pub struct ReqV {
     /// Every day it covers is in no approved or paid period: it can still be
     /// cancelled or changed (RQ-4, B13).
     pub month_open: bool,
+    /// A leave or mission's days the person already clocked in (minor #16,
+    /// the server's `worked_dates`): the approver is warned.
+    pub worked: Vec<String>,
 }
 
 /// The pay period a new pay line lands in (minor #27).
@@ -2933,6 +2936,11 @@ impl MadarCore {
                 cancelled_by: actor(so(q, "cancelled_by")),
                 cancel_note: so(q, "cancel_note"),
                 cancelled_by_name: so(q, "cancelled_by_name"),
+                worked: q
+                    .get("worked_dates")
+                    .and_then(Value::as_array)
+                    .map(|d| d.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+                    .unwrap_or_default(),
                 installments: 1,
                 ..Default::default()
             };
@@ -6337,6 +6345,30 @@ mod tests {
         assert_eq!(q["leave_half"], "second");
         let q = snap["requests"].as_array().unwrap().iter().find(|q| q["id"] == "q|x").unwrap();
         assert_eq!(q["tpl"], "w2");
+    }
+
+    /// Minor #16: a mission (or leave) over days the person already clocked
+    /// in carries those days (the server's `worked_dates`), so the approver
+    /// is warned; an older server's request carries none.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_mission_over_a_worked_day_carries_the_worked_days() {
+        use crate::testkit::{StubResponse, TELLER};
+        let day = today_cairo().to_string();
+        let d = day.clone();
+        let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
+            ("GET", "/staff/me/requests") => Some(StubResponse::json(200, json!([
+                { "id": "m", "kind": "mission", "employee_id": TELLER, "status": "pending", "on_date": d, "end_date": d,
+                  "reason": "Supplier", "worked_dates": [d], "created_at": "2026-09-22T08:00:00Z" },
+                { "id": "l", "kind": "leave", "employee_id": TELLER, "status": "pending", "on_date": d, "end_date": d,
+                  "created_at": "2026-09-22T08:00:00Z" }
+            ]))),
+            _ => None,
+        })
+        .await;
+        let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
+        let q = |id: &str| snap["requests"].as_array().unwrap().iter().find(|q| q["id"] == id).unwrap().clone();
+        assert_eq!(q("q|m")["worked"], json!([day]));
+        assert_eq!(q("q|l")["worked"], json!([]), "no worked_dates: nothing worked");
     }
 
     /// RQ-4 / B13: a day can change while no approved or paid period holds

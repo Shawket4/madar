@@ -350,6 +350,8 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
             '“${r.note}”',
             style: MadarType.bodySm.copyWith(color: c.textSecondary),
           ),
+        if (workedWarning(r, name(e)) case final worked?)
+          NoticeBanner(text: worked),
         if (_asksPay)
           MadarSegmented<bool>(
             items: [
@@ -410,6 +412,19 @@ class _ReqCardState extends ConsumerState<_ReqCard> {
       ],
     );
   }
+}
+
+/// A leave or mission over days [who] already clocked in (minor #16): the
+/// punches stay; a mission's day is paid with no penalty. Null otherwise.
+String? workedWarning(Req r, String who) {
+  if (r.worked.isEmpty) return null;
+  final key = switch (r.kind) {
+    ReqKind.mission => 'staff.mission_over_worked',
+    ReqKind.leave => 'staff.leave_over_worked',
+    _ => null,
+  };
+  if (key == null) return null;
+  return tr(key, {'name': who, 'dates': r.worked.map(dayLabel).join(', ')});
 }
 
 /// "Approved", or "Approved. Mind: …" with the labour limits the approved
