@@ -400,6 +400,18 @@ class _FakeBridge implements MadarBridge {
   /// The tables parked orders were moved to.
   final List<String?> assigned = [];
 
+  /// A combo on the menu ("Lunch deal": one main, a croissant or a cake) and
+  /// a meal offer on every item — the legacy panel's combo flows.
+  bool withCombo = false;
+
+  /// The core offers the staff-drink action on every counter line.
+  bool staffOffered = false;
+
+  /// Each "Make it a meal": 'item' (from a fresh item) or 'line' (a cart line).
+  final List<String> mealDrafts = [];
+
+  int _comboSeq = 0;
+
   /// The parked orders discarded, by id.
   final List<String> discarded = [];
 
@@ -562,8 +574,98 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #listMenuItems) {
       menuReads++;
-      return Future<List<MenuItemView>>.value(_items);
+      return Future<List<MenuItemView>>.value(
+        withCombo ? [..._items, _comboItem] : _items,
+      );
     }
+    if (name == #comboDetail) return withCombo ? _comboDetail : null;
+    if (name == #comboNewDraft) {
+      return ComboDraft(comboId: 'lunch', qty: 1, picks: [_comboPick()]);
+    }
+    if (name == #cartComboDraft) {
+      return Future<ComboDraft>.value(
+        ComboDraft(
+          comboId: 'lunch',
+          lineKey: invocation.namedArguments[#lineKey] as String,
+          qty: 1,
+          picks: [_comboPick()],
+        ),
+      );
+    }
+    if (name == #comboQuote) {
+      final qty = invocation.namedArguments[#qty] as int;
+      return Future<ComboQuoteView>.value(
+        ComboQuoteView(
+          priceMinor: 8000,
+          unitTotalMinor: 8000,
+          lineTotalMinor: 8000 * qty,
+          surchargeMinor: 0,
+          extrasMinor: 0,
+          listMinor: 9000 * qty,
+          savingMinor: 1000 * qty,
+          complete: true,
+          pickNeeds: const [],
+        ),
+      );
+    }
+    if (name == #cartAddCombo || name == #cartReplaceCombo) {
+      final cart = _cartOf(invocation);
+      final replace = invocation.namedArguments[#lineKey] as String?;
+      final line = _comboCartLine(replace ?? 'combo:lunch-${_comboSeq++}');
+      final i = cart.indexWhere((l) => l.key == replace);
+      if (i < 0) {
+        cart.add(line);
+      } else {
+        cart[i] = line;
+      }
+      return Future<List<CartLineView>>.value(List.of(cart));
+    }
+    if (name == #mealOffer) {
+      return withCombo
+          ? const MealOffer(
+              comboId: 'lunch',
+              slotId: 's-main',
+              name: 'Lunch deal',
+              deltaMinor: 5000,
+            )
+          : null;
+    }
+    if (name == #itemMealDraft || name == #cartMakeItAMeal) {
+      mealDrafts.add(name == #itemMealDraft ? 'item' : 'line');
+      return Future<ComboDraft>.value(
+        ComboDraft(
+          comboId: 'lunch',
+          lineKey: name == #cartMakeItAMeal
+              ? invocation.namedArguments[#lineKey] as String
+              : null,
+          qty: 1,
+          picks: [_comboPick()],
+        ),
+      );
+    }
+    if (name == #previewStaffDrink) {
+      if (!staffOffered) return null;
+      return const StaffDrinkPreviewView(
+        offered: true,
+        access: ActDecisionView(outcome: 'allow', reason: ''),
+        decision: StaffDrinkDecision(
+          allowed: false,
+          refusal: StaffDrinkRefusal.noteRequired,
+          overspent: false,
+          pool: StaffPoolDay(
+            businessDate: '2026-09-26',
+            allowance: 5,
+            used: 0,
+            remaining: 5,
+            over: 0,
+          ),
+        ),
+        reason: '',
+        overWarning: '',
+        poolLabel: '',
+      );
+    }
+    if (name == #canRecordStaffDrink) return staffOffered;
     // Retargeting the cart parks whatever is in it first and may clear it —
     // both are bridge calls the fake has to answer or the whole flow throws.
     // Recorded, because the ORDER of them is the fix: park, clear, adopt.
@@ -940,6 +1042,98 @@ class _FakeBridge implements MadarBridge {
     return null;
   }
 }
+
+// ── a combo, for the legacy panel's combo flows ─────────────────────────────
+
+const _comboItem = MenuItemView(
+  kind: 'combo',
+  id: 'lunch',
+  name: 'Lunch deal',
+  categoryId: 'food',
+  basePriceMinor: 8000,
+  isActive: true,
+  allowedAddonIds: [],
+  sizes: [],
+  addonSlots: [],
+  optionalFields: [],
+  recipes: [],
+  recipeSteps: [],
+);
+
+ComboPickInput _comboPick() => const ComboPickInput(
+  slotId: 's-main',
+  itemId: 'croissant',
+  qty: 1,
+  addons: [],
+  optionalFieldIds: [],
+);
+
+const _comboDetail = ComboDetail(
+  id: 'lunch',
+  name: 'Lunch deal',
+  priceMinor: 8000,
+  isFixed: false,
+  availableNow: true,
+  slots: [
+    ComboSlotDetail(
+      id: 's-main',
+      name: 'Main',
+      min: 1,
+      max: 1,
+      ruleLabel: 'Choose 1',
+      defaultItemId: 'croissant',
+      choices: [
+        ComboChoiceDetail(
+          itemId: 'croissant',
+          name: 'Croissant',
+          basePriceMinor: 3000,
+          surchargeMinor: 0,
+          sizes: [],
+          isDefault: true,
+          customisable: false,
+          mustCustomise: false,
+        ),
+        ComboChoiceDetail(
+          itemId: 'cake',
+          name: 'Chocolate cake',
+          basePriceMinor: 6000,
+          surchargeMinor: 0,
+          sizes: [],
+          isDefault: false,
+          customisable: false,
+          mustCustomise: false,
+        ),
+      ],
+    ),
+  ],
+);
+
+CartLineView _comboCartLine(String key) => CartLineView(
+  key: key,
+  itemId: 'lunch',
+  name: 'Lunch deal',
+  kind: 'combo',
+  unitPriceMinor: 8000,
+  qty: 1,
+  lineTotalMinor: 8000,
+  addons: const [],
+  optionals: const [],
+  dealCutMinor: 0,
+  parts: const [
+    CartPartView(
+      slotId: 's-main',
+      slotName: 'Main',
+      itemId: 'croissant',
+      itemName: 'Croissant',
+      qty: 1,
+      unitPriceMinor: 3000,
+      shareMinor: 8000,
+      surchargeMinor: 0,
+      addons: [],
+      optionals: [],
+    ),
+  ],
+);
 
 // ── harness ────────────────────────────────────────────────────────────────
 
