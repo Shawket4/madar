@@ -1241,3 +1241,127 @@ class _MealBridge extends _FakeBridge {
     return super.noSuchMethod(invocation);
   }
 }
+
+// ── the keyboard over the Sell screen (T2 B1) ──────────────────────────────
+
+/// The cart T2 had when the keyboard came up: a combo with its parts and a
+/// plain Latte the staff pool offers — tall enough that its fixed rows alone
+/// outgrew the ~300 px an iPad in landscape keeps above the keyboard.
+class _StaffBridge extends _FakeBridge {
+  _StaffBridge({super.rtl});
+
+  static const _combo = CartLineView(
+    dealCutMinor: 0,
+    kind: 'combo',
+    key: 'combo:meal',
+    itemId: 'meal',
+    name: 'Coffee & Treat',
+    addons: [],
+    optionals: [],
+    unitPriceMinor: 25000,
+    qty: 1,
+    lineTotalMinor: 25000,
+    parts: [
+      CartPartView(
+        slotId: 's-coffee',
+        slotName: 'Coffee',
+        itemId: 'latte',
+        itemName: 'Latte',
+        qty: 1,
+        unitPriceMinor: 12500,
+        shareMinor: 7440,
+        surchargeMinor: 0,
+        addons: [
+          CartAddonView(
+            addonItemId: 'full',
+            name: 'Full fat milk',
+            qty: 1,
+            priceModifierMinor: 0,
+          ),
+        ],
+        optionals: [],
+      ),
+      CartPartView(
+        slotId: 's-dessert',
+        slotName: 'Dessert',
+        itemId: 'vanilla',
+        itemName: 'Vanilla Soft Serve',
+        sizeLabel: 'small',
+        qty: 1,
+        unitPriceMinor: 11500,
+        shareMinor: 6846,
+        surchargeMinor: 0,
+        addons: [],
+        optionals: [],
+      ),
+      CartPartView(
+        slotId: 's-bite',
+        slotName: 'Bite',
+        itemId: 'brownies',
+        itemName: 'Brownies',
+        qty: 1,
+        unitPriceMinor: 12000,
+        shareMinor: 10714,
+        surchargeMinor: 0,
+        addons: [],
+        optionals: [],
+      ),
+    ],
+  );
+
+  static const _latte = CartLineView(
+    dealCutMinor: 0,
+    kind: 'item',
+    parts: [],
+    key: 'k-latte',
+    itemId: 'latte',
+    name: 'Latte',
+    addons: [
+      CartAddonView(
+        addonItemId: 'full',
+        name: 'Full fat milk',
+        qty: 1,
+        priceModifierMinor: 0,
+      ),
+    ],
+    optionals: [],
+    unitPriceMinor: 12500,
+    qty: 1,
+    lineTotalMinor: 12500,
+  );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    final name = invocation.memberName;
+    if (name == #previewStaffDrink) {
+      final input = invocation.namedArguments[#input]! as StaffDrinkInput;
+      final hasNote = input.note.trim().isNotEmpty;
+      const pool = StaffPoolDay(
+        businessDate: '2026-09-26',
+        allowance: 10,
+        used: 0,
+        remaining: 10,
+        over: 0,
+      );
+      return StaffDrinkPreviewView(
+        // Offered on a plain line only: never inside a combo.
+        offered: input.menuItemId == 'latte',
+        access: const ActDecisionView(outcome: 'allow', reason: ''),
+        decision: StaffDrinkDecision(
+          allowed: hasNote,
+          refusal: hasNote ? null : StaffDrinkRefusal.noteRequired,
+          overspent: false,
+          pool: pool,
+        ),
+        reason: hasNote ? '' : coreWord('staff_pool.refused.note', arabic: rtl),
+        overWarning: '',
+        poolLabel: coreWord(
+          'staff_pool.left_today',
+          arabic: rtl,
+        ).replaceAll('{count}', '10'),
+      );
+    }
+    if (name == #takeStaffDrinkNotices) return <String>[];
+    return super.noSuchMethod(invocation);
+  }
+}

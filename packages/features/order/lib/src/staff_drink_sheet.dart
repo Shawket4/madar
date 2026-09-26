@@ -403,125 +403,167 @@ class _StaffDrinkSheetState extends ConsumerState<StaffDrinkSheet> {
     final v = typed ?? preview;
     final canSave = v != null && v.decision.allowed && !_busy;
 
-    return Padding(
-      padding: const EdgeInsetsDirectional.all(Space.xl),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.lg,
-        children: [
-          Text(
-            bridge.tr(
-              key: editing ? 'staff_pool.edit_title' : 'staff_pool.title',
+    // The words and the note scroll; the action is pinned under them. With the
+    // keyboard up on an iPad in landscape a sheet keeps ~350 px, and a Column
+    // that could not scroll overflowed and left "Mark as staff drink" under
+    // the keys (T2 B1).
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Flexible(
+          child: SingleChildScrollView(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Space.xl,
+              Space.xl,
+              Space.xl,
+              Space.lg,
             ),
-            style: MadarType.h2,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: Space.lg,
+              children: [
+                Text(
+                  bridge.tr(
+                    key: editing ? 'staff_pool.edit_title' : 'staff_pool.title',
+                  ),
+                  style: MadarType.h2,
+                ),
+                Text(
+                  bridge.tr(key: 'staff_pool.subtitle'),
+                  style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+                ),
+                Row(
+                  spacing: Space.sm,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        widget.line.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: MadarType.title.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    if (v != null)
+                      MadarTag(
+                        label: v.poolLabel,
+                        tone: v.decision.overspent
+                            ? MadarTone.warning
+                            : MadarTone.neutral,
+                      ),
+                  ],
+                ),
+                if (v != null && v.overWarning.isNotEmpty)
+                  MadarCard(
+                    child: Row(
+                      spacing: Space.sm,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        MadarGlyphIcon(
+                          MadarGlyph.alertTriangle,
+                          size: IconSize.sm,
+                          color: colors.warning,
+                        ),
+                        Expanded(
+                          child: Text(
+                            v.overWarning,
+                            style: MadarType.bodySm.copyWith(
+                              color: colors.warning,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                Text(
+                  bridge.tr(key: 'staff_pool.note'),
+                  style: MadarType.label.copyWith(color: colors.textSecondary),
+                ),
+                MadarField(
+                  key: const ValueKey('staff-drink-note'),
+                  controller: _note,
+                  placeholder: bridge.tr(key: 'staff_pool.note_placeholder'),
+                  kind: MadarFieldKind.note,
+                  icon: 'text.bubble',
+                  autofocus: true,
+                ),
+                Text(
+                  bridge.tr(key: 'staff_pool.note_help'),
+                  style: MadarType.bodySm.copyWith(color: colors.textMuted),
+                ),
+                if (_error case final e? when e.isNotEmpty)
+                  Text(
+                    e,
+                    style: MadarType.bodySm.copyWith(color: colors.danger),
+                  )
+                else if (v != null &&
+                    v.reason.isNotEmpty &&
+                    _note.text.isNotEmpty)
+                  Text(
+                    v.reason,
+                    style: MadarType.bodySm.copyWith(color: colors.textMuted),
+                  ),
+                Text(
+                  bridge.tr(key: 'staff_pool.in_cart_note'),
+                  textAlign: TextAlign.center,
+                  style: MadarType.bodySm.copyWith(color: colors.textMuted),
+                ),
+                if (v != null)
+                  Text(
+                    bridge.tr(key: 'staff_pool.resets'),
+                    textAlign: TextAlign.center,
+                    style: MadarType.bodySm.copyWith(color: colors.textMuted),
+                  ),
+              ],
+            ),
           ),
-          Text(
-            bridge.tr(key: 'staff_pool.subtitle'),
-            style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+        ),
+        Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            Space.xl,
+            0,
+            Space.xl,
+            Space.xl,
           ),
-          Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: Space.sm,
             children: [
-              Flexible(
-                child: Text(
-                  widget.line.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MadarType.title.copyWith(color: colors.textPrimary),
+              if (editing) ...[
+                MadarButton(
+                  key: const ValueKey('staff-drink-save-note'),
+                  label: bridge.tr(key: 'staff_pool.save_note'),
+                  loading: _busy,
+                  // The note stays required: a staff drink with no note is
+                  // not one.
+                  enabled: !_busy && _note.text.trim().isNotEmpty,
+                  onTap: () => unawaited(_saveNote()),
                 ),
-              ),
-              if (v != null)
-                MadarTag(
-                  label: v.poolLabel,
-                  tone: v.decision.overspent
-                      ? MadarTone.warning
-                      : MadarTone.neutral,
+                MadarButton(
+                  key: const ValueKey('staff-drink-remove'),
+                  label: bridge.tr(key: 'staff_pool.remove'),
+                  variant: MadarButtonVariant.danger,
+                  enabled: !_busy,
+                  onTap: () => unawaited(_remove()),
+                ),
+              ] else
+                MadarButton(
+                  key: const ValueKey('staff-drink-save'),
+                  label: bridge.tr(key: 'staff_pool.record'),
+                  loading: _busy,
+                  // Dead until there is a note. An overspend is NOT a reason to
+                  // disable it — that is the whole point of the warning above.
+                  enabled: canSave,
+                  onTap: () => v == null ? null : unawaited(_record(v)),
                 ),
             ],
           ),
-          if (v != null && v.overWarning.isNotEmpty)
-            MadarCard(
-              child: Row(
-                spacing: Space.sm,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  MadarGlyphIcon(
-                    MadarGlyph.alertTriangle,
-                    size: IconSize.sm,
-                    color: colors.warning,
-                  ),
-                  Expanded(
-                    child: Text(
-                      v.overWarning,
-                      style: MadarType.bodySm.copyWith(color: colors.warning),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          Text(
-            bridge.tr(key: 'staff_pool.note'),
-            style: MadarType.label.copyWith(color: colors.textSecondary),
-          ),
-          MadarField(
-            key: const ValueKey('staff-drink-note'),
-            controller: _note,
-            placeholder: bridge.tr(key: 'staff_pool.note_placeholder'),
-            kind: MadarFieldKind.note,
-            icon: 'text.bubble',
-            autofocus: true,
-          ),
-          Text(
-            bridge.tr(key: 'staff_pool.note_help'),
-            style: MadarType.bodySm.copyWith(color: colors.textMuted),
-          ),
-          if (_error case final e? when e.isNotEmpty)
-            Text(e, style: MadarType.bodySm.copyWith(color: colors.danger))
-          else if (v != null && v.reason.isNotEmpty && _note.text.isNotEmpty)
-            Text(
-              v.reason,
-              style: MadarType.bodySm.copyWith(color: colors.textMuted),
-            ),
-          if (editing) ...[
-            MadarButton(
-              key: const ValueKey('staff-drink-save-note'),
-              label: bridge.tr(key: 'staff_pool.save_note'),
-              loading: _busy,
-              // The note stays required: a staff drink with no note is not one.
-              enabled: !_busy && _note.text.trim().isNotEmpty,
-              onTap: () => unawaited(_saveNote()),
-            ),
-            MadarButton(
-              key: const ValueKey('staff-drink-remove'),
-              label: bridge.tr(key: 'staff_pool.remove'),
-              variant: MadarButtonVariant.danger,
-              enabled: !_busy,
-              onTap: () => unawaited(_remove()),
-            ),
-          ] else
-            MadarButton(
-              key: const ValueKey('staff-drink-save'),
-              label: bridge.tr(key: 'staff_pool.record'),
-              loading: _busy,
-              // Dead until there is a note. An overspend is NOT a reason to
-              // disable it — that is the whole point of the warning above.
-              enabled: canSave,
-              onTap: () => v == null ? null : unawaited(_record(v)),
-            ),
-          Text(
-            bridge.tr(key: 'staff_pool.in_cart_note'),
-            textAlign: TextAlign.center,
-            style: MadarType.bodySm.copyWith(color: colors.textMuted),
-          ),
-          if (v != null)
-            Text(
-              bridge.tr(key: 'staff_pool.resets'),
-              textAlign: TextAlign.center,
-              style: MadarType.bodySm.copyWith(color: colors.textMuted),
-            ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

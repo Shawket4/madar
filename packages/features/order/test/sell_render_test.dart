@@ -64,6 +64,7 @@ void main() {
   setUpAll(_loadFonts);
   group('a tap after Clear', _clearThenTapMain);
   group('a tap is never answered with nothing', _neverNothingMain);
+  group('the keyboard up on an iPad in landscape', _keyboardMain);
 
   group('assigning a held order to a table', () {
     Future<void> assignVia(WidgetTester tester, String chip) async {
@@ -921,4 +922,98 @@ void _neverNothingMain() {
     await _settle(tester);
     expect(toast(container), "This combo isn't available right now.");
   });
+}
+
+/// T2 B1: on an iPad in landscape with the on-screen keyboard up (the staff
+/// drink's note), the sheet overflowed and its "Mark as staff drink" sat under
+/// the keyboard, and the cart beside it overflowed too: ~300 px were left above
+/// the keyboard and neither could scroll.
+void _keyboardMain() {
+  /// What T2's shot measures: the iPad's keyboard with its suggestion bar.
+  const keyboard = 430.0;
+
+  for (final ar in [false, true]) {
+    final lang = ar ? 'ar' : 'en';
+    Future<_StaffBridge> mount(WidgetTester tester) async {
+      final bridge = _StaffBridge(rtl: ar);
+      bridge.carts[null] = [_StaffBridge._combo, _StaffBridge._latte];
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      return bridge;
+    }
+
+    void keyboardUp(WidgetTester tester) {
+      tester.view.viewInsets = const FakeViewPadding(bottom: keyboard);
+      addTearDown(tester.view.resetViewInsets);
+    }
+
+    testWidgets('the cart fits and scrolls above the keyboard · $lang', (
+      tester,
+    ) async {
+      await mount(tester);
+      expect(tester.takeException(), isNull, reason: 'fits with no keyboard');
+      keyboardUp(tester);
+      await _settle(tester);
+      expect(tester.takeException(), isNull, reason: 'no overflow over it');
+      // The cart's action is still there to reach: it scrolls into view.
+      final charge = find.text(coreWord('sell.charge', arabic: ar));
+      expect(charge, findsWidgets);
+      await tester.dragUntilVisible(
+        charge.first,
+        find.byType(SellCart),
+        const Offset(0, -120),
+      );
+      expect(charge.hitTestable(), findsWidgets);
+      await tester.pump(const Duration(milliseconds: 500));
+      await _capture(tester, 'sell-keyboard-cart-$lang');
+    });
+
+    testWidgets('an empty cart fits above the keyboard too · $lang', (
+      tester,
+    ) async {
+      final bridge = _StaffBridge(rtl: ar);
+      bridge.carts[null] = [];
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      // The menu's search raises the same keyboard.
+      await tester.tap(find.byType(MadarGlyphTile).first);
+      await _settle(tester);
+      keyboardUp(tester);
+      await _settle(tester);
+      expect(tester.takeException(), isNull);
+      await _capture(tester, 'sell-keyboard-empty-$lang');
+    });
+
+    testWidgets('the staff drink sheet keeps its button above the keyboard · '
+        '$lang', (tester) async {
+      await mount(tester);
+      await tester.tap(find.byKey(const ValueKey('staff-drink-k-latte')));
+      await _settle(tester);
+      keyboardUp(tester);
+      await _settle(tester);
+      expect(tester.takeException(), isNull, reason: 'the sheet fits');
+      final save = find.byKey(const ValueKey('staff-drink-save'));
+      expect(save.hitTestable(), findsOneWidget, reason: 'not under the keys');
+      expect(
+        tester.getRect(save).bottom,
+        lessThanOrEqualTo(_ipad.height - keyboard),
+        reason: 'the whole button is above the keyboard',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('staff-drink-note')),
+        'Sara, closing shift',
+      );
+      await _settle(tester);
+      expect(tester.widget<MadarButton>(save).enabled, isTrue);
+      await _capture(tester, 'sell-keyboard-staff-sheet-$lang');
+    });
+  }
 }
