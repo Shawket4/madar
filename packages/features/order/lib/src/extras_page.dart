@@ -174,7 +174,7 @@ class ExtrasStepRow extends ConsumerWidget {
                       spacing: Space.sm,
                       children: [
                         Flexible(
-                          child: Text(
+                          child: MadarClippedText(
                             group.title.toUpperCase(),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -192,7 +192,7 @@ class ExtrasStepRow extends ConsumerWidget {
                           ),
                       ],
                     ),
-                    Text(
+                    MadarClippedText(
                       _chosenSummary(bridge, group, chosen),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -344,7 +344,7 @@ class _ExtrasPageState extends ConsumerState<ExtrasPage> {
                             color: colors.textPrimary,
                           ),
                         ),
-                        Text(
+                        MadarClippedText(
                           widget.args.item.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -634,8 +634,8 @@ class _ExtraCell extends StatelessWidget {
 }
 
 /// A name in two lines at most; when it is cut short, a long press shows it
-/// whole (the owner's rule for every truncated text; the app-wide kit widget
-/// for it is on its way — this is the same behaviour until it lands).
+/// whole (the owner's rule for every truncated text: the kit's
+/// [MadarClippedText]).
 class _HoldForFullName extends StatelessWidget {
   const _HoldForFullName({required this.text, required this.style});
 
@@ -643,32 +643,12 @@ class _HoldForFullName extends StatelessWidget {
   final TextStyle style;
 
   @override
-  Widget build(BuildContext context) {
-    final label = Text(
-      text,
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      style: style,
-    );
-    return LayoutBuilder(
-      builder: (context, box) {
-        final painter = TextPainter(
-          text: TextSpan(text: text, style: style),
-          maxLines: 2,
-          textDirection: Directionality.of(context),
-          textScaler: MediaQuery.textScalerOf(context),
-        )..layout(maxWidth: box.maxWidth);
-        final cut = painter.didExceedMaxLines;
-        painter.dispose();
-        if (!cut) return label;
-        return Tooltip(
-          message: text,
-          triggerMode: TooltipTriggerMode.longPress,
-          child: label,
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => MadarClippedText(
+    text,
+    maxLines: 2,
+    overflow: TextOverflow.ellipsis,
+    style: style,
+  );
 }
 
 /// The contacts-style index: the letters present, top to bottom on the end
