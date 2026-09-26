@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/cart_anchor.dart';
+import 'package:feature_order/src/extras_page.dart';
 import 'package:feature_order/src/item_sheet_header_extras.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/widgets.dart';
@@ -1406,26 +1407,38 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                     KeyedSubtree(
                       // Where a guided sheet scrolls to.
                       key: _groupKey(g.id),
-                      child: ItemSheetGroupCard(
-                        // Stable identity: the "show all" toggle inserts /
-                        // removes groups, and each card carries its own
-                        // search-field state.
-                        key: ValueKey(g.id),
-                        group: g,
-                        currency: currency,
-                        charged: _charged,
-                        selectedSingle: config.single[g.id],
-                        selectedMulti: config.multi[g.id] ?? const {},
-                        // Flashed by Fast mode's guide, or by Enter.
-                        highlighted: _flash == g.id,
-                        onToggleSingle: (id) {
-                          notifier.toggleSingle(g, id);
-                          _answered(g);
-                        },
-                        onToggleMulti: (id) => notifier.toggleMulti(g, id),
-                        onInc: (id) => notifier.incMulti(g, id),
-                        onDec: (id) => notifier.decMulti(g, id),
-                      ),
+                      // Fast mode: the Extras group is a step, a row that
+                      // opens every extra on a page of its own (extras_page).
+                      child: _guided && opensAsExtrasPage(g)
+                          ? ExtrasStepRow(
+                              key: ValueKey(g.id),
+                              args: _args,
+                              group: g,
+                              currency: currency,
+                              charged: _charged,
+                              highlighted: _flash == g.id,
+                            )
+                          : ItemSheetGroupCard(
+                              // Stable identity: the "show all" toggle inserts /
+                              // removes groups, and each card carries its own
+                              // search-field state.
+                              key: ValueKey(g.id),
+                              group: g,
+                              currency: currency,
+                              charged: _charged,
+                              selectedSingle: config.single[g.id],
+                              selectedMulti: config.multi[g.id] ?? const {},
+                              // Flashed by Fast mode's guide, or by Enter.
+                              highlighted: _flash == g.id,
+                              onToggleSingle: (id) {
+                                notifier.toggleSingle(g, id);
+                                _answered(g);
+                              },
+                              onToggleMulti: (id) =>
+                                  notifier.toggleMulti(g, id),
+                              onInc: (id) => notifier.incMulti(g, id),
+                              onDec: (id) => notifier.decMulti(g, id),
+                            ),
                     ),
                     const SizedBox(height: Space.md),
                   ],

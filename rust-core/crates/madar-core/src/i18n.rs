@@ -1193,6 +1193,10 @@ fn en(key: &str) -> Option<&'static str> {
         "order.steps" => "How it's made",
         "order.required" => "Required",
         "order.none_chosen" => "None chosen — tap to choose",
+        // Fast mode's Extras step (extras_page.dart).
+        "order.extras_see_all" => "All {count}",
+        "order.extras_chosen" => "{count} chosen",
+        "order.extras_back" => "Back",
         "order.subtotal" => "Subtotal",
         "order.tax" => "Tax",
         "kitchen.chit_heading" => "KITCHEN",
@@ -3623,6 +3627,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "order.steps" => "طريقة التحضير",
         "order.required" => "مطلوب",
         "order.none_chosen" => "لم يتم الاختيار — اضغط للاختيار",
+        // Fast mode's Extras step (extras_page.dart).
+        "order.extras_see_all" => "الكل ({count})",
+        "order.extras_chosen" => "المختار: {count}",
+        "order.extras_back" => "رجوع",
         "order.subtotal" => "المجموع الفرعي",
         "order.tax" => "الضريبة",
         "kitchen.chit_heading" => "المطبخ",
