@@ -77,7 +77,7 @@ class FigureText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = style ?? MadarType.num;
-    return Text(
+    return MadarClippedText(
       text,
       textDirection: TextDirection.ltr,
       maxLines: maxLines,
@@ -130,7 +130,7 @@ class CardNotice extends StatelessWidget {
             color: colors.warning,
           ),
           Expanded(
-            child: Text(
+            child: MadarClippedText(
               text,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,

@@ -3,6 +3,7 @@
 /// docs/design/SPEC.md §6 (cards), §10 (pills), §11 (loading).
 library;
 
+import 'package:design_system/src/clipped_text.dart';
 import 'package:design_system/src/controls.dart';
 import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/money.dart';
@@ -91,7 +92,7 @@ class MadarStatusPill extends StatelessWidget {
           children: [
             MadarGlyphIcon(status.resolvedGlyph, size: IconSize.xs, color: fg),
             Flexible(
-              child: Text(
+              child: MadarClippedText(
                 status.label,
                 maxLines: 1,
                 softWrap: false,
@@ -212,7 +213,7 @@ class MadarStatCard extends StatelessWidget {
                 const SizedBox(width: Space.sm),
               ],
               Expanded(
-                child: Text(
+                child: MadarClippedText(
                   label.toUpperCase(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

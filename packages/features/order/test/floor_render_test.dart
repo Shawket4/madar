@@ -21,6 +21,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
+part 'floor_hold_hints.dart';
+
 const _render = bool.fromEnvironment('MADAR_RENDER');
 
 String _ago(int minutes) => DateTime.now()
@@ -370,6 +372,7 @@ Future<void> _mount(
   bool rtl = false,
   bool dark = false,
   bool empty = false,
+  _Fake? fake,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = device.size;
@@ -379,7 +382,7 @@ Future<void> _mount(
   }
   final c = ProviderContainer(
     overrides: [
-      bridgeProvider.overrideWithValue(_Fake(rtl: rtl, empty: empty)),
+      bridgeProvider.overrideWithValue(fake ?? _Fake(rtl: rtl, empty: empty)),
     ],
   );
   addTearDown(c.dispose);
@@ -431,6 +434,8 @@ Future<void> _capture(WidgetTester tester, String name) async {
 
 void main() {
   setUpAll(_loadFonts);
+
+  group('hold hints', _floorHoldHintsMain);
 
   for (final device in _Device.values) {
     for (final rtl in [false, true]) {

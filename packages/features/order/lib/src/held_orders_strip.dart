@@ -105,6 +105,11 @@ List<HeldOrderTab> _reconcile(List<String> saved, List<HeldOrderTab> tabs) {
 /// [HeldOrderTab.sortKey]; the chips are then draggable (long-press to pick
 /// up) to override that order, and the chosen order sticks (via
 /// [heldStripOrderProvider]).
+///
+/// That long press is the drag's, so a chip's cut name shows no hold hint of
+/// its own; the chip it LIFTS says it instead ([MadarRevealHints] on the drag
+/// proxy): hold a parked order and its whole name (and who started it) shows
+/// over it while the drag keeps the press.
 class HeldOrdersStrip extends ConsumerWidget {
   const HeldOrdersStrip({
     required this.tabs,
@@ -118,25 +123,28 @@ class HeldOrdersStrip extends ConsumerWidget {
   /// caller so the strip stays string-free.
   final String newLabel;
 
-  /// Lift the dragged chip: scale ~1.05 + a raised shadow above its siblings.
+  /// Lift the dragged chip: scale ~1.05 + a raised shadow above its siblings
+  /// — and say the whole of a name cut on it, over it, while it is held.
   Widget _proxyDecorator(Widget child, int index, Animation<double> animation) {
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, _) {
-        final colors = context.madarColors;
-        final dark = Theme.of(context).brightness == Brightness.dark;
-        final t = Curves.easeOut.transform(animation.value);
-        return Transform.scale(
-          scale: 1 + 0.05 * t,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(Radii.md),
-              boxShadow: MadarElevation.raised.shadows(colors, dark: dark),
+    return MadarRevealHints(
+      child: AnimatedBuilder(
+        animation: animation,
+        builder: (context, _) {
+          final colors = context.madarColors;
+          final dark = Theme.of(context).brightness == Brightness.dark;
+          final t = Curves.easeOut.transform(animation.value);
+          return Transform.scale(
+            scale: 1 + 0.05 * t,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(Radii.md),
+                boxShadow: MadarElevation.raised.shadows(colors, dark: dark),
+              ),
+              child: child,
             ),
-            child: child,
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -220,8 +228,13 @@ class _HeldOrderChip extends StatelessWidget {
   /// The order's number among the held orders, oldest first.
   final int number;
 
+  // A long press on a chip picks it up (the strip's drag): its cut name
+  // hints nothing of its own here — the lifted chip says it.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      MadarHoldHints.off(child: _chip(context));
+
+  Widget _chip(BuildContext context) {
     final colors = context.madarColors;
     final active = tab.selected;
     final badgeFg = active ? colors.textOnAccent : colors.accent;
@@ -274,7 +287,7 @@ class _HeldOrderChip extends StatelessWidget {
             // was started shows in the cart's footer.
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 140),
-              child: Text(
+              child: MadarClippedText(
                 tab.glyph != null
                     ? newLabel
                     : (tab.title?.trim().isNotEmpty ?? false)
@@ -303,8 +316,10 @@ class _HeldOrderChip extends StatelessWidget {
                     ),
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 80),
-                      child: Text(
+                      child: MadarClippedText(
                         author,
+                        // "Started by …", so the bubble says whose it is.
+                        hint: tab.authorLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: MadarType.labelSm.copyWith(

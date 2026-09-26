@@ -166,7 +166,7 @@ class TillSyncStrip extends ConsumerWidget {
                 color: tone.color(colors),
               ),
             Flexible(
-              child: Text(
+              child: MadarClippedText(
                 text,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

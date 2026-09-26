@@ -551,7 +551,7 @@ class _MethodCheckFormState extends ConsumerState<_MethodCheckForm> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      MadarClippedText(
                         m.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -559,7 +559,7 @@ class _MethodCheckFormState extends ConsumerState<_MethodCheckForm> {
                           color: colors.textPrimary,
                         ),
                       ),
-                      Text(
+                      MadarClippedText(
                         // A blind count sees no figure and no count: the core
                         // zeroes both without `till.cash_spot_check`.
                         blind

@@ -379,7 +379,7 @@ class _PrintStatus extends StatelessWidget {
       children: [
         MadarGlyphIcon(glyph, size: IconSize.md, color: tint),
         Flexible(
-          child: Text(
+          child: MadarClippedText(
             text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

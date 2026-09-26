@@ -727,12 +727,16 @@ class _ReprintButtonState extends ConsumerState<_ReprintButton> {
                 _previewReceipt(context, ref, widget.order, widget.receipt),
               );
             },
-      child: MadarButton(
-        label: t('history.reprint'),
-        variant: MadarButtonVariant.secondary,
-        glyph: MadarGlyph.printer,
-        loading: _busy,
-        onTap: () => unawaited(_printNow()),
+      // The long press previews the receipt: a cut label must not take it
+      // for a hint of its own.
+      child: MadarHoldHints.off(
+        child: MadarButton(
+          label: t('history.reprint'),
+          variant: MadarButtonVariant.secondary,
+          glyph: MadarGlyph.printer,
+          loading: _busy,
+          onTap: () => unawaited(_printNow()),
+        ),
       ),
     );
   }

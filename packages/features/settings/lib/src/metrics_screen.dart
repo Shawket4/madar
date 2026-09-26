@@ -371,7 +371,7 @@ class _ShareBar extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(
+                  child: MadarClippedText(
                     label,
                     style: MadarType.body.copyWith(color: colors.textPrimary),
                     overflow: TextOverflow.ellipsis,
@@ -461,7 +461,7 @@ class _HourBars extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: Space.xs),
-                        Text(
+                        MadarClippedText(
                           h.hour % 3 == 0 ? h.label : '',
                           style: MadarType.labelSm.copyWith(
                             color: colors.textMuted,

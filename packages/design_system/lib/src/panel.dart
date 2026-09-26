@@ -1,3 +1,4 @@
+import 'package:design_system/src/clipped_text.dart';
 import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/responsive.dart';
 import 'package:design_system/src/sheet.dart';
@@ -226,7 +227,7 @@ class _PanelPageState extends State<_PanelPage> implements DismissibleSurface {
                               color: colors.accent,
                             ),
                             Flexible(
-                              child: Text(
+                              child: MadarClippedText(
                                 label,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,

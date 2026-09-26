@@ -457,7 +457,12 @@ class _TableGlyphState extends State<TableGlyph>
           duration: MediaQuery.of(context).disableAnimations
               ? Duration.zero
               : MotionSpec.standardDuration,
-          child: glyph,
+          // A table whose long press does something keeps it: its cut label
+          // and chips show no hint of their own then (the label is also the
+          // glyph's semantics, read out whole).
+          child: w.onLongPress == null
+              ? glyph
+              : MadarHoldHints.off(child: glyph),
         ),
       ),
     );
@@ -618,7 +623,7 @@ extension on _TableGlyphState {
               child: Container(
                 constraints: BoxConstraints(maxWidth: math.max(0, safeW)),
                 alignment: Alignment.center,
-                child: Text(
+                child: MadarClippedText(
                   t.label,
                   maxLines: 1,
                   overflow: TextOverflow.clip,
@@ -792,7 +797,7 @@ class _Chip extends StatelessWidget {
         children: [
           if (glyph != null) MadarGlyphIcon(glyph!, size: size, color: ink),
           Flexible(
-            child: Text(
+            child: MadarClippedText(
               text,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

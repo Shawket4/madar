@@ -25,6 +25,7 @@
 ///   state with a retry. A table can never silently show nothing.
 library;
 
+import 'package:design_system/src/clipped_text.dart';
 import 'package:design_system/src/controls.dart';
 import 'package:design_system/src/format.dart';
 import 'package:design_system/src/glyphs.dart';
@@ -731,7 +732,7 @@ class _HeaderRow<T> extends StatelessWidget {
             child: _Grid<T>(
               table: table,
               columns: columns,
-              cell: (c) => Text(
+              cell: (c) => MadarClippedText(
                 c.label.toUpperCase(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -797,7 +798,7 @@ class _TableRow<T> extends StatelessWidget {
           : c.emphasis
           ? MadarType.title.copyWith(color: color)
           : MadarType.body.copyWith(color: color);
-      return Text(
+      return MadarClippedText(
         c.mono ? _figure(s) : s,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,

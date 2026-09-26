@@ -26,6 +26,7 @@ import 'package:feature_order/src/held_orders_strip.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/sell_cart.dart';
 import 'package:feature_order/src/sell_screen.dart';
+import 'package:flutter/gestures.dart' show kLongPressTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show FontLoader;
@@ -34,6 +35,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
+part 'hold_hint_scenes.dart';
 part 'sell_harness.dart';
 
 const Size _ipadPortrait = Size(834, 1194);
@@ -73,6 +75,7 @@ void main() {
   group('the keyboard up on an iPad in landscape', _keyboardMain);
   group('Done after Charge, and the service mode it charges', _doneMain);
   group('a selected cart line', _selectedLineMain);
+  group('hold hints', _holdHintsMain);
 
   group('assigning a held order to a table', () {
     Future<void> assignVia(WidgetTester tester, String chip) async {

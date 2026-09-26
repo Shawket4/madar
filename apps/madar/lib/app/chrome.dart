@@ -979,7 +979,7 @@ class _PersonSheet extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      MadarClippedText(
                         name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

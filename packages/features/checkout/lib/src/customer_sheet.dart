@@ -272,7 +272,7 @@ class _CustomerTile extends StatelessWidget {
               spacing: Space.sm,
               children: [
                 Flexible(
-                  child: Text(
+                  child: MadarClippedText(
                     customer.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

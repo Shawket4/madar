@@ -1,3 +1,4 @@
+import 'package:design_system/src/clipped_text.dart';
 import 'package:design_system/src/controls.dart';
 import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/tokens/colors.dart';
@@ -131,7 +132,7 @@ class MadarHeader extends StatelessWidget {
                 Expanded(
                   child: Semantics(
                     header: true,
-                    child: Text(
+                    child: MadarClippedText(
                       title,
                       key: titleKey,
                       maxLines: 1,
@@ -153,7 +154,7 @@ class MadarHeader extends StatelessWidget {
                 top: MadarHeaderMetrics.subtitleGap,
                 start: showSlot ? MadarHeaderMetrics.titleInset : 0,
               ),
-              child: Text(
+              child: MadarClippedText(
                 subtitle!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -191,19 +192,17 @@ class MadarHeaderAction extends StatelessWidget {
   final String? icon;
   final VoidCallback onTap;
   final Color? tint;
+
+  /// What the action does: read out, and shown on a long press by the tile
+  /// itself — the word the glyph has no room for.
   final String? tooltip;
 
   @override
-  Widget build(BuildContext context) {
-    final tile = MadarGlyphTile(
-      glyph: glyph,
-      icon: icon,
-      onTap: onTap,
-      tint: tint,
-      semanticLabel: tooltip,
-    );
-    final tip = tooltip;
-    if (tip == null) return tile;
-    return Tooltip(message: tip, child: tile);
-  }
+  Widget build(BuildContext context) => MadarGlyphTile(
+    glyph: glyph,
+    icon: icon,
+    onTap: onTap,
+    tint: tint,
+    semanticLabel: tooltip,
+  );
 }

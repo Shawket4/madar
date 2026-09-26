@@ -319,6 +319,17 @@ step with no cached file shows its number and name instead.
 
    `apps/staff` deliberately keeps its own flatter `StaffCard` — it is a
    separate app with its own surface. Converge it on purpose or not at all.
+
+   **Cut text is `MadarClippedText`** (`design_system/clipped_text.dart`),
+   never a bare `Text(overflow: …)`: same parameters, and when it was really
+   cut a long press shows the whole text (the owner's "hold shows a hint").
+   A glyph standing in for a word says it the same way — give a
+   `MadarGlyphTile` its `semanticLabel`, a glyph-only `MadarButton` its
+   `tooltip`. A feature that owns a long press itself (a raw
+   `GestureDetector(onLongPress:)`, a drag to reorder) wraps it in
+   `MadarHoldHints.off` and shows the full text in what that press opens (or
+   `MadarRevealHints` on what it lifts); a kit control's own `onLongPress`
+   does this by itself.
 4. **Strings go through the core's i18n** — `bridge.tr(key: '…')`, with EN **and** AR in
    `rust-core/crates/madar-core/src/i18n.rs`. Arabic is first-class.
 5. **Accessibility**: touch targets 44pt iOS / 48dp Android; wrap canvas cells in

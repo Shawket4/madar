@@ -231,7 +231,7 @@ class _ReauthHeader extends StatelessWidget {
                           color: colors.textPrimary,
                         ),
                       ),
-                      Text(
+                      MadarClippedText(
                         body,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,

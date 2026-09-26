@@ -225,7 +225,7 @@ class KitchenChitPaper extends StatelessWidget {
         spacing: Space.xs,
         children: [
           for (final l in lines)
-            Text(
+            MadarClippedText(
               l.text,
               textAlign: l.centered ? TextAlign.center : TextAlign.start,
               maxLines: 1,

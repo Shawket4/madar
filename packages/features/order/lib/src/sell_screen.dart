@@ -1130,7 +1130,7 @@ class _CategoryBox extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
+                      MadarClippedText(
                         name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -1202,7 +1202,7 @@ class _CategoryBar extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
+                MadarClippedText(
                   name ?? '',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1398,84 +1398,88 @@ class SellTile extends StatelessWidget {
           MadarHaptics.impact();
           onLongPress();
         },
-        child: TactileScale(
-          onTap: () {
-            final box = context.findRenderObject();
-            final origin = box is RenderBox && box.hasSize
-                ? box.localToGlobal(box.size.center(Offset.zero))
-                : Offset.zero;
-            onTap(origin);
-          },
-          child: AnimatedContainer(
-            duration: MotionSpec.standardDuration,
-            curve: MotionSpec.standardCurve,
-            // The card clips its photo to the rounded shape; the BORDER is a
-            // foreground painted over the whole card, photo included. As a
-            // background border it sat UNDER the edge-to-edge photo, so a
-            // selected card showed its accent only around the text strip —
-            // a thin, broken outline. No padding either way: selecting
-            // never moves the picture.
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(Radii.card),
-            ),
-            foregroundDecoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(Radii.card),
-              border: Border.all(
-                color: selected ? colors.accent : colors.borderLight,
-                width: selected ? 2 : 1,
+        // The long press OPENS the item, whose sheet is titled with its whole
+        // name: a cut name on the tile must not take the press for a hint.
+        child: MadarHoldHints.off(
+          child: TactileScale(
+            onTap: () {
+              final box = context.findRenderObject();
+              final origin = box is RenderBox && box.hasSize
+                  ? box.localToGlobal(box.size.center(Offset.zero))
+                  : Offset.zero;
+              onTap(origin);
+            },
+            child: AnimatedContainer(
+              duration: MotionSpec.standardDuration,
+              curve: MotionSpec.standardCurve,
+              // The card clips its photo to the rounded shape; the BORDER is a
+              // foreground painted over the whole card, photo included. As a
+              // background border it sat UNDER the edge-to-edge photo, so a
+              // selected card showed its accent only around the text strip —
+              // a thin, broken outline. No padding either way: selecting
+              // never moves the picture.
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(Radii.card),
               ),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _TileThumb(item: item, accent: accent),
-                      if (badge case final b?)
-                        PositionedDirectional(
-                          top: Space.sm,
-                          start: Space.sm,
-                          end: selected ? Space.xxl : Space.sm,
-                          child: Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: MadarTag(label: b, tone: MadarTone.accent),
-                          ),
-                        ),
-                      if (selected)
-                        PositionedDirectional(
-                          top: Space.sm,
-                          end: Space.sm,
-                          child: Nudge(
-                            trigger: inCart,
-                            child: _CountDisc(count: inCart),
-                          ),
-                        ),
-                    ],
-                  ),
+              foregroundDecoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(Radii.card),
+                border: Border.all(
+                  color: selected ? colors.accent : colors.borderLight,
+                  width: selected ? 2 : 1,
                 ),
-                Padding(
-                  padding: const EdgeInsetsDirectional.symmetric(
-                    horizontal: Space.md,
-                    vertical: _kTileTextPad,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _TileThumb(item: item, accent: accent),
+                        if (badge case final b?)
+                          PositionedDirectional(
+                            top: Space.sm,
+                            start: Space.sm,
+                            end: selected ? Space.xxl : Space.sm,
+                            child: Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: MadarTag(label: b, tone: MadarTone.accent),
+                            ),
+                          ),
+                        if (selected)
+                          PositionedDirectional(
+                            top: Space.sm,
+                            end: Space.sm,
+                            child: Nudge(
+                              trigger: inCart,
+                              child: _CountDisc(count: inCart),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: Space.xs,
-                    children: [
-                      SellTileName(item.name, color: colors.textPrimary),
-                      _TilePrice(
-                        minor: item.basePriceMinor,
-                        currency: currency,
-                      ),
-                    ],
+                  Padding(
+                    padding: const EdgeInsetsDirectional.symmetric(
+                      horizontal: Space.md,
+                      vertical: _kTileTextPad,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: Space.xs,
+                      children: [
+                        SellTileName(item.name, color: colors.textPrimary),
+                        _TilePrice(
+                          minor: item.basePriceMinor,
+                          currency: currency,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -1546,7 +1550,7 @@ class SellTileName extends StatelessWidget {
           height: lineBox * 2,
           child: Align(
             alignment: AlignmentDirectional.topStart,
-            child: Text(
+            child: MadarClippedText(
               name,
               // A word that still cannot fit its line stays ONE line, whole
               // letters and an ellipsis — never broken across two.
