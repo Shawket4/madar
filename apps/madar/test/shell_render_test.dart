@@ -907,6 +907,11 @@ class _FakeBridge implements MadarBridge {
           unitTotalMinor: item.basePriceMinor,
           extrasMinor: 0,
           lineTotalMinor: item.basePriceMinor * qty,
+          qty: qty,
+          baseMinor: item.basePriceMinor,
+          sizeDeltaMinor: 0,
+          paid: const [],
+          summary: const [],
         ),
       );
     }
