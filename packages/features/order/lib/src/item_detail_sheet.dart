@@ -985,16 +985,24 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _SheetHeader(
-          item: _item,
-          headerTotalMinor: picking ? null : headerTotal,
+        ItemSheetHeader(
+          title: _item.name,
+          description: _item.description,
+          totalMinor: picking ? null : headerTotal,
           currency: currency,
           showRecipe: config.showRecipe,
-          onToggleRecipe: notifier.toggleRecipe,
+          onToggleRecipe: _item.recipes.isNotEmpty
+              ? notifier.toggleRecipe
+              : null,
         ),
         // Hug content when it fits (short sheet for a sparse item); scroll
         // when the options overflow — the footer stays pinned + visible.
+        // In a panel (the legacy Sell layout) the body fills it instead, so
+        // the footer sits at the panel's foot, not under the last group.
         Flexible(
+          fit: MadarPanelHost.isPanelPage(context)
+              ? FlexFit.tight
+              : FlexFit.loose,
           child: ColoredBox(
             color: colors.surfaceAlt,
             child: SingleChildScrollView(
@@ -1061,7 +1069,7 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                       child: Row(
                         children: [
                           for (final size in _item.sizes) ...[
-                            _SelectChip(
+                            ItemSheetChip(
                               label: size.label,
                               sub: Money.format(
                                 size.priceMinor,
@@ -1079,7 +1087,7 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                     const SizedBox(height: Space.md),
                   ],
                   for (final g in groups) ...[
-                    _AddonGroupCard(
+                    ItemSheetGroupCard(
                       // Stable identity: the "show all" toggle inserts /
                       // removes groups, and each card carries its own
                       // search-field state.
@@ -1138,7 +1146,7 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
         ),
         KeyedSubtree(
           key: _footerKey,
-          child: _SheetFooter(
+          child: ItemSheetFooter(
             currency: currency,
             totalMinor: picking ? (price?.extrasMinor ?? 0) : footerPrice,
             totalLabel: picking ? bridge.tr(key: 'combo.extras') : null,
@@ -1252,27 +1260,41 @@ class _OptionalsSectionState extends ConsumerState<_OptionalsSection> {
 
 // ── Header ─────────────────────────────────────────────────────────────────────
 
-class _SheetHeader extends StatelessWidget {
-  const _SheetHeader({
-    required this.item,
-    required this.headerTotalMinor,
+/// The item sheet's header — the title, a line of description, the price
+/// badge, the recipe toggle and close. Shared by every sheet that configures
+/// something to sell (the item sheet, the combo sheet), so they read as one.
+class ItemSheetHeader extends StatelessWidget {
+  const ItemSheetHeader({
+    required this.title,
     required this.currency,
-    required this.showRecipe,
-    required this.onToggleRecipe,
+    this.description,
+    this.totalMinor,
+    this.tag,
+    this.showRecipe = false,
+    this.onToggleRecipe,
+    super.key,
   });
 
-  final MenuItemView item;
+  final String title;
+  final String? description;
 
   /// Null hides the price badge (pick mode: the combo prices the item).
-  final int? headerTotalMinor;
+  final int? totalMinor;
   final String currency;
+
+  /// A small label above the title ("Combo").
+  final String? tag;
   final bool showRecipe;
-  final VoidCallback onToggleRecipe;
+
+  /// Null hides the recipe button (nothing to show).
+  final VoidCallback? onToggleRecipe;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final description = item.description;
+    final description = this.description;
+    final tag = this.tag;
+    final onToggleRecipe = this.onToggleRecipe;
     return ColoredBox(
       color: colors.surface,
       child: Column(
@@ -1289,8 +1311,15 @@ class _SheetHeader extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (tag != null)
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(
+                            bottom: Space.xs,
+                          ),
+                          child: StatusChip(label: tag, tone: ChipTone.accent),
+                        ),
                       Text(
-                        item.name,
+                        title,
                         style: MadarType.h3.copyWith(
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
@@ -1315,7 +1344,7 @@ class _SheetHeader extends StatelessWidget {
                 ),
                 const SizedBox(width: Space.md),
                 // Price badge · recipe chip · close, on a common baseline.
-                if (headerTotalMinor case final total?)
+                if (totalMinor case final total?)
                   Container(
                     height: Metrics.closeButton,
                     padding: const EdgeInsetsDirectional.symmetric(
@@ -1332,7 +1361,7 @@ class _SheetHeader extends StatelessWidget {
                       color: colors.navy,
                     ),
                   ),
-                if (item.recipes.isNotEmpty) ...[
+                if (onToggleRecipe != null) ...[
                   const SizedBox(width: Space.sm),
                   TactileScale(
                     onTap: () {
@@ -1385,8 +1414,10 @@ class _SheetHeader extends StatelessWidget {
 
 // ── Footer ─────────────────────────────────────────────────────────────────────
 
-class _SheetFooter extends ConsumerWidget {
-  const _SheetFooter({
+/// The item sheet's footer — the total, the quantity and the commit button.
+/// Shared with the combo sheet.
+class ItemSheetFooter extends ConsumerWidget {
+  const ItemSheetFooter({
     required this.currency,
     required this.totalMinor,
     required this.label,
@@ -1398,7 +1429,16 @@ class _SheetFooter extends ConsumerWidget {
     required this.onCommit,
     this.totalLabel,
     this.showQty = true,
+    this.note,
+    this.ctaKey,
+    super.key,
   });
+
+  /// A line under the total (the combo's saving).
+  final Widget? note;
+
+  /// The commit button's key.
+  final Key? ctaKey;
 
   final String currency;
   final int totalMinor;
@@ -1439,6 +1479,10 @@ class _SheetFooter extends ConsumerWidget {
               totalMinor: totalMinor,
               currency: currency,
             ),
+            if (note case final note?) ...[
+              const SizedBox(height: Space.sm),
+              note,
+            ],
             const SizedBox(height: Space.md),
             Row(
               children: [
@@ -1463,6 +1507,7 @@ class _SheetFooter extends ConsumerWidget {
                 ],
                 Expanded(
                   child: MadarButton(
+                    key: ctaKey,
                     label: label,
                     enabled: canAdd,
                     loading: loading,
@@ -1566,8 +1611,8 @@ class _RecipeRow extends StatelessWidget {
 /// Wrap refilters through a [ValueListenableBuilder], so a keystroke never
 /// rebuilds the whole sheet (the sheet's ValueKey(g.id) keeps the state
 /// stable across "show all" toggles).
-class _AddonGroupCard extends ConsumerStatefulWidget {
-  const _AddonGroupCard({
+class ItemSheetGroupCard extends ConsumerStatefulWidget {
+  const ItemSheetGroupCard({
     required this.group,
     required this.currency,
     required this.charged,
@@ -1577,8 +1622,21 @@ class _AddonGroupCard extends ConsumerStatefulWidget {
     required this.onToggleMulti,
     required this.onInc,
     required this.onDec,
+    this.subtitle,
+    this.optionKey,
+    this.below,
     super.key,
   });
+
+  /// A line under the title (a combo slot's rule: "Choose 1 item").
+  final String? subtitle;
+
+  /// Each option chip's key, by option id.
+  final Key Function(String id)? optionKey;
+
+  /// Shown under the options, open or folded (a combo pick's size and
+  /// "Customise").
+  final Widget? below;
 
   final AddonGroup group;
   final String currency;
@@ -1591,10 +1649,10 @@ class _AddonGroupCard extends ConsumerStatefulWidget {
   final ValueChanged<String> onDec;
 
   @override
-  ConsumerState<_AddonGroupCard> createState() => _AddonGroupCardState();
+  ConsumerState<ItemSheetGroupCard> createState() => _ItemSheetGroupCardState();
 }
 
-class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
+class _ItemSheetGroupCardState extends ConsumerState<ItemSheetGroupCard> {
   final _search = TextEditingController();
 
   /// Required groups open, optional groups closed (the owner's decision).
@@ -1711,6 +1769,15 @@ class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
               ],
             ),
           ),
+          if (widget.subtitle case final subtitle?) ...[
+            const SizedBox(height: Space.xs),
+            Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: MadarType.bodySm.copyWith(color: colors.textMuted),
+            ),
+          ],
           // Folded: the selection, so nothing is hidden — only folded.
           if (!_expanded) ...[
             const SizedBox(height: Space.sm),
@@ -1751,6 +1818,11 @@ class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
                                     : widget.selectedSingle == a.addonItemId),
                           )
                           .toList(growable: false);
+                Widget keyed(String id, Widget chip) =>
+                    switch (widget.optionKey) {
+                      final key? => KeyedSubtree(key: key(id), child: chip),
+                      null => chip,
+                    };
                 return Wrap(
                   spacing: Space.sm,
                   runSpacing: Space.sm,
@@ -1758,32 +1830,39 @@ class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
                     for (final addon in shown)
                       if (g.isMulti &&
                           widget.selectedMulti.containsKey(addon.addonItemId))
-                        _AddonQtyChip(
-                          name: addon.name,
-                          priceMinor: widget.charged(addon.addonItemId),
-                          qty: widget.selectedMulti[addon.addonItemId] ?? 1,
-                          currency: widget.currency,
-                          onDec: () => widget.onDec(addon.addonItemId),
-                          onInc: () => widget.onInc(addon.addonItemId),
+                        keyed(
+                          addon.addonItemId,
+                          _AddonQtyChip(
+                            name: addon.name,
+                            priceMinor: widget.charged(addon.addonItemId),
+                            qty: widget.selectedMulti[addon.addonItemId] ?? 1,
+                            currency: widget.currency,
+                            onDec: () => widget.onDec(addon.addonItemId),
+                            onInc: () => widget.onInc(addon.addonItemId),
+                          ),
                         )
                       else
-                        _AddonOptionChip(
-                          name: addon.name,
-                          priceMinor: widget.charged(addon.addonItemId),
-                          selected:
-                              !g.isMulti &&
-                              widget.selectedSingle == addon.addonItemId,
-                          multi: g.isMulti,
-                          currency: widget.currency,
-                          onTap: () => g.isMulti
-                              ? widget.onToggleMulti(addon.addonItemId)
-                              : widget.onToggleSingle(addon.addonItemId),
+                        keyed(
+                          addon.addonItemId,
+                          _AddonOptionChip(
+                            name: addon.name,
+                            priceMinor: widget.charged(addon.addonItemId),
+                            selected:
+                                !g.isMulti &&
+                                widget.selectedSingle == addon.addonItemId,
+                            multi: g.isMulti,
+                            currency: widget.currency,
+                            onTap: () => g.isMulti
+                                ? widget.onToggleMulti(addon.addonItemId)
+                                : widget.onToggleSingle(addon.addonItemId),
+                          ),
                         ),
                   ],
                 );
               },
             ),
           ],
+          ?widget.below,
         ],
       ),
     );
@@ -2125,12 +2204,13 @@ class _ShowAllToggle extends StatelessWidget {
 }
 
 /// A size chip: label over its price, accent fill when active.
-class _SelectChip extends StatelessWidget {
-  const _SelectChip({
+class ItemSheetChip extends StatelessWidget {
+  const ItemSheetChip({
     required this.label,
     required this.active,
     required this.onTap,
     this.sub,
+    super.key,
   });
 
   final String label;

@@ -13,7 +13,7 @@ import 'package:app_core/app_core.dart';
 import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart'
-    show CartKitchenChitSheet, KitchenChitSheet;
+    show CartKitchenChitSheet, ChargeOutcome, ChargeSheet, KitchenChitSheet;
 import 'package:feature_order/feature_order.dart';
 import 'package:feature_order/src/held_orders_strip.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
@@ -442,6 +442,239 @@ void main() {
         await _capture(tester, 'sell-counter-narrow-column');
       },
     );
+  });
+
+  group('the legacy layout', () {
+    Finder inCart(Finder f) =>
+        find.descendant(of: find.byType(SellCart), matching: f);
+
+    /// The page that holds [f]: a panel page, a sheet, or the screen.
+    Route<Object?>? routeOf(WidgetTester tester, Finder f) =>
+        ModalRoute.of(tester.element(f.first));
+
+    testWidgets('the cart comes first and the menu sits at the end', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        layout: SellLayout.legacy,
+      );
+      final cart = tester.getRect(find.byType(SellCart));
+      final menu = tester.getRect(find.byType(MenuGrid));
+      expect(cart.left, lessThan(menu.left));
+      expect(cart.right, lessThanOrEqualTo(menu.left + 1));
+      await _capture(tester, 'legacy-counter-order');
+    });
+
+    testWidgets('in Arabic the cart comes first from the right', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: _FakeBridge(rtl: true),
+        layout: SellLayout.legacy,
+      );
+      final cart = tester.getRect(find.byType(SellCart));
+      final menu = tester.getRect(find.byType(MenuGrid));
+      expect(cart.left, greaterThan(menu.left));
+    });
+
+    testWidgets("an item's choices replace the menu, and close back to it", (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        layout: SellLayout.legacy,
+      );
+      final menu = tester.getRect(find.byType(MenuGrid));
+      await tester.longPress(find.byType(SellTile).at(1));
+      await _settle(tester);
+
+      final sheet = find.byType(ItemDetailSheet);
+      expect(sheet, findsOneWidget);
+      expect(routeOf(tester, sheet), isA<MadarPanelRoute<Object?>>());
+      // It fills the panel beside the cart, not a sheet over the window.
+      final rect = tester.getRect(sheet);
+      expect(rect.left, closeTo(menu.left, 1));
+      expect(rect.right, closeTo(menu.right, 1));
+      expect(find.byType(SellCart), findsOneWidget);
+      // The footer sits at the panel's foot.
+      expect(
+        tester.getRect(find.byType(ItemSheetFooter)).bottom,
+        closeTo(rect.bottom, 1),
+      );
+      await _capture(tester, 'legacy-item-open');
+
+      // Close: the menu is back.
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(ItemSheetHeader),
+              matching: find.byType(TactileScale),
+            )
+            .last,
+      );
+      await _settle(tester);
+      expect(find.byType(ItemDetailSheet), findsNothing);
+      expect(find.byType(SellTile), findsWidgets);
+      expect(tester.getRect(find.byType(MenuGrid)), menu);
+    });
+
+    testWidgets(
+      'a cart line opens in the panel, and another line replaces it',
+      (tester) async {
+        await _mount(
+          tester,
+          screen: const TakeawaySellScreen(),
+          size: _ipad,
+          layout: SellLayout.legacy,
+        );
+        await tester.tap(inCart(find.text('Espresso')).first);
+        await _settle(tester);
+        expect(find.byType(ItemDetailSheet), findsOneWidget);
+        expect(
+          tester.widget<ItemDetailSheet>(find.byType(ItemDetailSheet)).item.id,
+          'espresso',
+        );
+        expect(
+          find.text(coreWord('order.update_item')),
+          findsOneWidget,
+          reason: 'editing the line, not adding a new one',
+        );
+
+        // The cart is still in reach: the next line replaces the choices.
+        await tester.tap(inCart(find.text('Flat white')).first);
+        await _settle(tester);
+        expect(find.byType(ItemDetailSheet), findsOneWidget);
+        expect(
+          tester.widget<ItemDetailSheet>(find.byType(ItemDetailSheet)).item.id,
+          'flat',
+        );
+        await _capture(tester, 'legacy-line-edit');
+      },
+    );
+
+    testWidgets('Charge opens in the panel and locks the cart meanwhile', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        layout: SellLayout.legacy,
+      );
+      final menu = tester.getRect(find.byType(MenuGrid));
+      await tester.tap(inCart(find.text(coreWord('sell.charge'))).last);
+      await _settle(tester);
+
+      final charge = find.byType(ChargeSheet);
+      expect(charge, findsOneWidget);
+      expect(routeOf(tester, charge), isA<MadarPanelRoute<ChargeOutcome>>());
+      expect(tester.getRect(charge).left, closeTo(menu.left, 1));
+      final lock = tester.widget<AbsorbPointer>(
+        find
+            .ancestor(
+              of: find.byType(SellCart),
+              matching: find.byType(AbsorbPointer),
+            )
+            .first,
+      );
+      expect(lock.absorbing, isTrue, reason: 'no cart edits mid-charge');
+      await _capture(tester, 'legacy-charge');
+
+      // Put away without taking money: the menu and the cart are back.
+      MadarSheet.close<ChargeOutcome>(tester.element(charge));
+      await _settle(tester);
+      expect(find.byType(ChargeSheet), findsNothing);
+      expect(find.byType(SellTile), findsWidgets);
+      expect(
+        tester
+            .widget<AbsorbPointer>(
+              find
+                  .ancestor(
+                    of: find.byType(SellCart),
+                    matching: find.byType(AbsorbPointer),
+                  )
+                  .first,
+            )
+            .absorbing,
+        isFalse,
+      );
+    });
+
+    testWidgets('a phone ignores the setting: the cart is still its bar', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _phone,
+        layout: SellLayout.legacy,
+      );
+      expect(find.byType(SellBar), findsOneWidget);
+      expect(find.byType(MadarPanelHost), findsNothing);
+    });
+
+    testWidgets('the standard layout still opens the item as a sheet', (
+      tester,
+    ) async {
+      await _mount(tester, screen: const TakeawaySellScreen(), size: _ipad);
+      expect(find.byType(MadarPanelHost), findsNothing);
+      await tester.longPress(find.byType(SellTile).at(1));
+      await _settle(tester);
+      expect(
+        routeOf(tester, find.byType(ItemDetailSheet)),
+        isA<MadarSheetRoute<Object?>>(),
+      );
+    });
+
+    testWidgets('a table round sells in the legacy layout too', (tester) async {
+      final bridge = _FakeBridge();
+      bridge.carts['t2'] = List.of(_cart);
+      await _mount(
+        tester,
+        screen: const TableOrderScreen(tableId: 't2'),
+        size: _ipad,
+        bridge: bridge,
+        layout: SellLayout.legacy,
+      );
+      await _settle(tester);
+      expect(find.byType(MadarPanelHost), findsOneWidget);
+      expect(
+        tester.getRect(find.byType(SellCart)).left,
+        lessThan(tester.getRect(find.byType(MenuGrid)).left),
+      );
+    });
+
+    for (final (device, size) in _devices) {
+      if (size == _phone) continue;
+      for (final ar in [false, true]) {
+        for (final dark in [false, true]) {
+          final tag = '$device-${ar ? 'ar' : 'en'}-${dark ? 'dark' : 'light'}';
+          testWidgets('legacy counter and item $tag', (tester) async {
+            await _mount(
+              tester,
+              screen: const TakeawaySellScreen(),
+              size: size,
+              dark: dark,
+              bridge: _FakeBridge(rtl: ar),
+              layout: SellLayout.legacy,
+            );
+            await _capture(tester, 'legacy-counter-$tag');
+            await tester.longPress(find.byType(SellTile).at(1));
+            await _settle(tester);
+            expect(find.byType(ItemDetailSheet), findsOneWidget);
+            await _capture(tester, 'legacy-item-$tag');
+          });
+        }
+      }
+    }
   });
 
   for (final (device, size) in _devices) {

@@ -194,7 +194,9 @@ pub fn ffi_surface_version() -> u32 {
     //    `combo_quote`/`cart_*_combo`/`cart_make_it_a_meal`/deal suggestions;
     //    `CartLineView.kind/parts/deal_*`, `ReceiptLineView.kind/parts/…`,
     //    `KitchenChit.combo`, `KdsLineView.combo`, `MenuItemView.kind`.
-    5
+    // 6: a combo pick's required choice — `ComboChoiceDetail.must_customise`,
+    //    `ComboQuoteView.pick_needs` (`ComboPickNeed`).
+    6
 }
 
 /// Smoke-test call used to prove the binding pipeline end-to-end from each host.
@@ -4542,6 +4544,14 @@ impl MadarCore {
                 field: "item".into(),
                 detail: "unknown item".into(),
             })?;
+        Ok(Self::modifier_groups_in(&catalog, item))
+    }
+    /// An item's modifier groups over one catalog snapshot (see
+    /// [`Self::list_item_modifier_groups`]).
+    pub(crate) fn modifier_groups_in(
+        catalog: &CatalogSnapshot,
+        item: &menu::MenuItemView,
+    ) -> Vec<cart::ModifierGroupView> {
         // Prefer the UNIFIED mirror (`/catalog/sync`, the new modifier model) —
         // authoritative grouping/naming/constraints from the backend. Absent
         // (old backend / pre-backfill org / item not present) ⇒ the legacy
@@ -4549,21 +4559,17 @@ impl MadarCore {
         if let Some(unified) = catalog
             .unified
             .as_ref()
-            .and_then(|doc| doc.groups_for(&item_id))
+            .and_then(|doc| doc.groups_for(&item.id))
         {
-            return Ok(cart::item_modifier_groups_unified(
+            return cart::item_modifier_groups_unified(
                 item,
                 &catalog.addons,
                 &catalog.pricing,
                 unified,
                 &catalog.locale,
-            ));
+            );
         }
-        Ok(cart::item_modifier_groups(
-            item,
-            &catalog.addons,
-            &catalog.pricing,
-        ))
+        cart::item_modifier_groups(item, &catalog.addons, &catalog.pricing)
     }
     /// Check a selection against the item's group constraints (min/max/required).
     /// Empty result = valid; each entry is one violated group for inline display.
@@ -9464,7 +9470,7 @@ mod tests {
         // 1: realtime SSE + AppRoute payload variants. 2: core-owned device config.
         // 3: LAN offline relay surface. 4: core-driven realtime (start_realtime +
         // RealtimePlayer). Every breaking FFI change MUST bump this and this assertion.
-        assert_eq!(ffi_surface_version(), 5);
+        assert_eq!(ffi_surface_version(), 6);
     }
 
     #[test]

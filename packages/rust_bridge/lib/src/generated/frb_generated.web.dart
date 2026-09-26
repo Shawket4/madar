@@ -345,6 +345,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   ComboPickInput dco_decode_combo_pick_input(dynamic raw);
 
   @protected
+  ComboPickNeed dco_decode_combo_pick_need(dynamic raw);
+
+  @protected
   ComboQuoteView dco_decode_combo_quote_view(dynamic raw);
 
   @protected
@@ -529,6 +532,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<ComboPickInput> dco_decode_list_combo_pick_input(dynamic raw);
+
+  @protected
+  List<ComboPickNeed> dco_decode_list_combo_pick_need(dynamic raw);
 
   @protected
   List<ComboSizeOption> dco_decode_list_combo_size_option(dynamic raw);
@@ -1517,6 +1523,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   ComboPickInput sse_decode_combo_pick_input(SseDeserializer deserializer);
 
   @protected
+  ComboPickNeed sse_decode_combo_pick_need(SseDeserializer deserializer);
+
+  @protected
   ComboQuoteView sse_decode_combo_quote_view(SseDeserializer deserializer);
 
   @protected
@@ -1757,6 +1766,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<ComboPickInput> sse_decode_list_combo_pick_input(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ComboPickNeed> sse_decode_list_combo_pick_need(
     SseDeserializer deserializer,
   );
 
@@ -3065,6 +3079,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_combo_pick_need(ComboPickNeed self, SseSerializer serializer);
+
+  @protected
   void sse_encode_combo_quote_view(
     ComboQuoteView self,
     SseSerializer serializer,
@@ -3376,6 +3393,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_combo_pick_input(
     List<ComboPickInput> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_combo_pick_need(
+    List<ComboPickNeed> self,
     SseSerializer serializer,
   );
 

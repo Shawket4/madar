@@ -996,6 +996,160 @@ async fn the_refusals_are_whole_sentences_in_the_tills_language() {
     assert_eq!(d.slots[0].rule_label, "اختر صنفًا واحدًا");
 }
 
+const CLUB: &str = "00000000-0000-0000-0000-00000000b006";
+const S_BREAD: &str = "00000000-0000-0000-0000-00000000c0b1";
+const WHITE: &str = "00000000-0000-0000-0000-00000000d002";
+const BROWN: &str = "00000000-0000-0000-0000-00000000d003";
+
+/// The menu, with a Club sandwich the Main slot also admits: its Bread is
+/// required and has no default (White or Brown, nothing preselected).
+fn seed_club(core: &MadarCore) {
+    seed_with(core, |row| {
+        row["combo"]["slots"][0]["choices"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({ "menu_item_id": CLUB }));
+    });
+    let mut club = item(CLUB, "Club sandwich", 11000, &[], CAT_MAINS);
+    club["addon_slots"] = json!([{
+        "id": S_BREAD, "label": "Bread", "label_translations": { "ar": "الخبز" },
+        "addon_type": "bread", "is_required": true, "min_selections": 1, "max_selections": 1,
+    }]);
+    let mut items: Vec<Value> =
+        serde_json::from_str(&core.store.kv_get(menu::K_MENU_ITEMS).unwrap().unwrap()).unwrap();
+    items.push(club);
+    core.store
+        .kv_put(menu::K_MENU_ITEMS, &Value::from(items).to_string())
+        .unwrap();
+    core.store
+        .kv_put(
+            menu::K_ADDONS,
+            &json!([
+                addon(OAT, "Oat milk", "extra", 1500),
+                addon(WHITE, "White", "bread", 0),
+                addon(BROWN, "Brown", "bread", 0),
+            ])
+            .to_string(),
+        )
+        .unwrap();
+    core.invalidate_catalog_cache();
+}
+
+/// A pick whose item has a required choice with no default (a sandwich's
+/// bread) keeps the combo out of the cart until the choice is made: the
+/// sheet knows to open Customise on it, the quote says what is missing and
+/// where, and the cart refuses it — added, edited or made a meal — with a
+/// coded refusal in the till's language.
+#[tokio::test]
+async fn a_pick_with_a_required_choice_and_no_default_is_refused_until_made() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_club(&core);
+
+    // Picking the club opens Customise at once; the burger (nothing to
+    // choose) and the latte (its choices are optional) never do.
+    let d = core.combo_detail(LUNCH.into()).unwrap();
+    let must = |slot: usize, id: &str| {
+        d.slots[slot]
+            .choices
+            .iter()
+            .find(|c| c.item_id == id)
+            .map(|c| c.must_customise)
+            .expect("the choice")
+    };
+    assert!(must(0, CLUB));
+    assert!(!must(0, BURGER));
+    assert!(!must(2, LATTE));
+
+    let mut no_bread = lunch_picks("Regular", false);
+    no_bread[0] = pick(S_MAIN, CLUB, None, &[]);
+    let q = core
+        .combo_quote(None, LUNCH.into(), no_bread.clone(), 1)
+        .unwrap();
+    assert!(!q.complete);
+    assert_eq!(
+        q.refusal.as_deref(),
+        Some(combos::COMBO_PICK_CHOICE_REQUIRED)
+    );
+    assert_eq!(
+        q.refusal_text.as_deref(),
+        Some("Choose Bread for Club sandwich.")
+    );
+    assert_eq!(
+        q.pick_needs,
+        vec![combos::ComboPickNeed {
+            slot_id: S_MAIN.into(),
+            item_id: CLUB.into(),
+            group_name: "Bread".into(),
+            text: "Choose Bread".into(),
+        }]
+    );
+    // The figures so far still show.
+    assert_eq!(q.unit_total_minor, 15000);
+
+    // The cart refuses it, whole sentence, no field.
+    let said = |r: Result<Vec<cart::CartLineView>, crate::CoreError>| match r {
+        Err(crate::CoreError::Validation { field, detail }) if field.is_empty() => detail,
+        other => panic!("expected a refusal, got {other:?}"),
+    };
+    assert_eq!(
+        said(core.cart_add_combo(None, LUNCH.into(), no_bread.clone(), 1, None)),
+        "Choose Bread for Club sandwich."
+    );
+    assert!(
+        core.cart_lines(None).unwrap().is_empty(),
+        "nothing was added"
+    );
+
+    // Bread chosen: complete, and it goes in.
+    let mut with_bread = no_bread.clone();
+    with_bread[0] = pick(S_MAIN, CLUB, None, &[BROWN]);
+    let q = core
+        .combo_quote(None, LUNCH.into(), with_bread.clone(), 1)
+        .unwrap();
+    assert!(q.complete, "{q:?}");
+    assert!(q.pick_needs.is_empty());
+    let lines = core
+        .cart_add_combo(None, LUNCH.into(), with_bread, 1, None)
+        .unwrap();
+    let line = combo_line(&lines);
+    assert_eq!(line.parts[0].item_id, CLUB);
+    assert_eq!(line.parts[0].addons[0].addon_item_id, BROWN);
+
+    // Editing the line (or making a meal onto it) can't drop the bread.
+    assert_eq!(
+        said(core.cart_replace_combo(
+            None,
+            line.key.clone(),
+            LUNCH.into(),
+            no_bread.clone(),
+            1,
+            None
+        )),
+        "Choose Bread for Club sandwich."
+    );
+    assert_eq!(
+        combo_line(&core.cart_lines(None).unwrap()).parts[0].addons[0].addon_item_id,
+        BROWN,
+        "the line is as it was"
+    );
+
+    // In Arabic, the refusal and the slot's hint.
+    core.set_locale("ar".into());
+    core.invalidate_catalog_cache();
+    let q = core
+        .combo_quote(None, LUNCH.into(), no_bread.clone(), 1)
+        .unwrap();
+    assert_eq!(q.pick_needs[0].text, "اختر الخبز");
+    assert_eq!(
+        said(core.cart_add_combo(None, LUNCH.into(), no_bread, 1, None)),
+        "اختر الخبز لصنف Club sandwich."
+    );
+    assert_eq!(
+        i18n::tr("ar", "combo.pick_choice_required"),
+        "اختر {group} لصنف {item}."
+    );
+}
+
 // ── 3. make it a meal ───────────────────────────────────────────────────────
 
 #[tokio::test]

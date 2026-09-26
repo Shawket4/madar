@@ -18,6 +18,7 @@ export 'src/settings_screen.dart'
     show
         LanguageSegment,
         MotionSegment,
+        SellLayoutSection,
         SettingsScreen,
         ThemeSegment,
         confirmSignOut;

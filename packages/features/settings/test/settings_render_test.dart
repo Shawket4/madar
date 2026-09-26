@@ -665,6 +665,84 @@ void main() {
     expect(MotionChoice.parse('nonsense'), MotionChoice.full);
   });
 
+  group('the Sell layout setting', () {
+    Future<(ProviderContainer, List<SellLayout>)> pump(
+      WidgetTester tester,
+      Size size,
+      Widget home,
+    ) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = size;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final saved = <SellLayout>[];
+      final container = ProviderContainer(
+        overrides: [
+          bridgeProvider.overrideWithValue(_FakeBridge()),
+          sellLayoutPersisterProvider.overrideWithValue(saved.add),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(theme: MadarTheme.light(), home: home),
+        ),
+      );
+      await tester.pump();
+      return (container, saved);
+    }
+
+    testWidgets('switches to Legacy and back, and persists each pick', (
+      tester,
+    ) async {
+      final (container, saved) = await pump(
+        tester,
+        _ipad,
+        const Scaffold(body: Center(child: SellLayoutSection())),
+      );
+      expect(container.read(sellLayoutProvider), SellLayout.standard);
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is MadarSectionHeader && w.text == _en['settings.sell_layout'],
+        ),
+        findsOneWidget,
+      );
+      expect(find.text(_en['settings.sell_layout_hint']!), findsOneWidget);
+      await tester.tap(find.text(_en['settings.sell_layout_legacy']!));
+      await tester.pump();
+      expect(container.read(sellLayoutProvider), SellLayout.legacy);
+      await tester.tap(find.text(_en['settings.sell_layout_standard']!));
+      await tester.pump();
+      expect(saved, [SellLayout.legacy, SellLayout.standard]);
+      expect(SellLayout.parse('nonsense'), SellLayout.standard);
+      expect(SellLayout.parse('legacy'), SellLayout.legacy);
+    });
+
+    testWidgets('is offered on the iPad settings page, to anyone', (
+      tester,
+    ) async {
+      await pump(tester, _ipad, const SettingsScreen());
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(SellLayoutSection), findsOneWidget);
+      expect(find.byKey(const ValueKey('sell-layout')), findsOneWidget);
+    });
+
+    testWidgets('is not offered on a phone, which always sells standard', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        _phone,
+        const Scaffold(body: Center(child: SellLayoutSection())),
+      );
+      expect(find.byKey(const ValueKey('sell-layout')), findsNothing);
+    });
+  });
+
   testWidgets('settings on the iPad, dark', (tester) async {
     await _shoot(
       tester,

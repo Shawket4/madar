@@ -31,6 +31,12 @@ class HostVault {
     unawaited(_prefs.setString('madar.motion', value));
   }
 
+  /// Sell screen layout on a tablet: 'standard' (default) or 'legacy'.
+  String get sellLayout => _prefs.getString('madar.sell_layout') ?? 'standard';
+  set sellLayout(String value) {
+    unawaited(_prefs.setString('madar.sell_layout', value));
+  }
+
   /// Last chosen locale ('' = follow the core's default).
   String get locale => _prefs.getString('madar.locale') ?? '';
   set locale(String value) {

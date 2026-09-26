@@ -17727,6 +17727,7 @@ const _: fn() = || {
         let _: Vec<crate::api::catalog::ComboSizeOption> = ComboChoiceDetail.sizes;
         let _: bool = ComboChoiceDetail.is_default;
         let _: bool = ComboChoiceDetail.customisable;
+        let _: bool = ComboChoiceDetail.must_customise;
     }
     {
         let ComboDetail = None::<crate::api::catalog::ComboDetail>.unwrap();
@@ -17759,6 +17760,13 @@ const _: fn() = || {
         let _: Option<String> = ComboPickInput.notes;
     }
     {
+        let ComboPickNeed = None::<crate::api::catalog::ComboPickNeed>.unwrap();
+        let _: String = ComboPickNeed.slot_id;
+        let _: String = ComboPickNeed.item_id;
+        let _: String = ComboPickNeed.group_name;
+        let _: String = ComboPickNeed.text;
+    }
+    {
         let ComboQuoteView = None::<crate::api::catalog::ComboQuoteView>.unwrap();
         let _: i64 = ComboQuoteView.price_minor;
         let _: i64 = ComboQuoteView.unit_total_minor;
@@ -17770,6 +17778,7 @@ const _: fn() = || {
         let _: bool = ComboQuoteView.complete;
         let _: Option<String> = ComboQuoteView.refusal;
         let _: Option<String> = ComboQuoteView.refusal_text;
+        let _: Vec<crate::api::catalog::ComboPickNeed> = ComboQuoteView.pick_needs;
     }
     {
         let ComboSizeOption = None::<crate::api::catalog::ComboSizeOption>.unwrap();
@@ -19928,6 +19937,7 @@ impl SseDecode for crate::api::catalog::ComboChoiceDetail {
         let mut var_sizes = <Vec<crate::api::catalog::ComboSizeOption>>::sse_decode(deserializer);
         let mut var_isDefault = <bool>::sse_decode(deserializer);
         let mut var_customisable = <bool>::sse_decode(deserializer);
+        let mut var_mustCustomise = <bool>::sse_decode(deserializer);
         return crate::api::catalog::ComboChoiceDetail {
             item_id: var_itemId,
             name: var_name,
@@ -19938,6 +19948,7 @@ impl SseDecode for crate::api::catalog::ComboChoiceDetail {
             sizes: var_sizes,
             is_default: var_isDefault,
             customisable: var_customisable,
+            must_customise: var_mustCustomise,
         };
     }
 }
@@ -20008,6 +20019,22 @@ impl SseDecode for crate::api::catalog::ComboPickInput {
     }
 }
 
+impl SseDecode for crate::api::catalog::ComboPickNeed {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_slotId = <String>::sse_decode(deserializer);
+        let mut var_itemId = <String>::sse_decode(deserializer);
+        let mut var_groupName = <String>::sse_decode(deserializer);
+        let mut var_text = <String>::sse_decode(deserializer);
+        return crate::api::catalog::ComboPickNeed {
+            slot_id: var_slotId,
+            item_id: var_itemId,
+            group_name: var_groupName,
+            text: var_text,
+        };
+    }
+}
+
 impl SseDecode for crate::api::catalog::ComboQuoteView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -20021,6 +20048,7 @@ impl SseDecode for crate::api::catalog::ComboQuoteView {
         let mut var_complete = <bool>::sse_decode(deserializer);
         let mut var_refusal = <Option<String>>::sse_decode(deserializer);
         let mut var_refusalText = <Option<String>>::sse_decode(deserializer);
+        let mut var_pickNeeds = <Vec<crate::api::catalog::ComboPickNeed>>::sse_decode(deserializer);
         return crate::api::catalog::ComboQuoteView {
             price_minor: var_priceMinor,
             unit_total_minor: var_unitTotalMinor,
@@ -20032,6 +20060,7 @@ impl SseDecode for crate::api::catalog::ComboQuoteView {
             complete: var_complete,
             refusal: var_refusal,
             refusal_text: var_refusalText,
+            pick_needs: var_pickNeeds,
         };
     }
 }
@@ -21118,6 +21147,20 @@ impl SseDecode for Vec<crate::api::catalog::ComboPickInput> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::catalog::ComboPickInput>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::catalog::ComboPickNeed> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::catalog::ComboPickNeed>::sse_decode(
                 deserializer,
             ));
         }
@@ -27251,6 +27294,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::catalog::ComboChoi
             self.0.sizes.into_into_dart().into_dart(),
             self.0.is_default.into_into_dart().into_dart(),
             self.0.customisable.into_into_dart().into_dart(),
+            self.0.must_customise.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -27345,6 +27389,29 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::catalog::ComboPick
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::catalog::ComboPickNeed> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.slot_id.into_into_dart().into_dart(),
+            self.0.item_id.into_into_dart().into_dart(),
+            self.0.group_name.into_into_dart().into_dart(),
+            self.0.text.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::catalog::ComboPickNeed>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::catalog::ComboPickNeed>>
+    for crate::api::catalog::ComboPickNeed
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::catalog::ComboPickNeed> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::catalog::ComboQuoteView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -27358,6 +27425,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::catalog::ComboQuot
             self.0.complete.into_into_dart().into_dart(),
             self.0.refusal.into_into_dart().into_dart(),
             self.0.refusal_text.into_into_dart().into_dart(),
+            self.0.pick_needs.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -31568,6 +31636,7 @@ impl SseEncode for crate::api::catalog::ComboChoiceDetail {
         <Vec<crate::api::catalog::ComboSizeOption>>::sse_encode(self.sizes, serializer);
         <bool>::sse_encode(self.is_default, serializer);
         <bool>::sse_encode(self.customisable, serializer);
+        <bool>::sse_encode(self.must_customise, serializer);
     }
 }
 
@@ -31610,6 +31679,16 @@ impl SseEncode for crate::api::catalog::ComboPickInput {
     }
 }
 
+impl SseEncode for crate::api::catalog::ComboPickNeed {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.slot_id, serializer);
+        <String>::sse_encode(self.item_id, serializer);
+        <String>::sse_encode(self.group_name, serializer);
+        <String>::sse_encode(self.text, serializer);
+    }
+}
+
 impl SseEncode for crate::api::catalog::ComboQuoteView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -31623,6 +31702,7 @@ impl SseEncode for crate::api::catalog::ComboQuoteView {
         <bool>::sse_encode(self.complete, serializer);
         <Option<String>>::sse_encode(self.refusal, serializer);
         <Option<String>>::sse_encode(self.refusal_text, serializer);
+        <Vec<crate::api::catalog::ComboPickNeed>>::sse_encode(self.pick_needs, serializer);
     }
 }
 
@@ -32321,6 +32401,16 @@ impl SseEncode for Vec<crate::api::catalog::ComboPickInput> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::catalog::ComboPickInput>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::catalog::ComboPickNeed> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::catalog::ComboPickNeed>::sse_encode(item, serializer);
         }
     }
 }

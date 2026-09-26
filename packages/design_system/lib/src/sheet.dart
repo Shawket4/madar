@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:design_system/src/panel.dart';
 import 'package:design_system/src/responsive.dart';
 import 'package:design_system/src/scrim.dart';
 import 'package:design_system/src/tokens/colors.dart';
@@ -65,6 +66,12 @@ Future<T?> showMadarSheet<T>(
   double maxWidth = Responsive.sheetMaxWidth,
   MadarSheetTone tone = MadarSheetTone.surface,
 }) {
+  // Under a panel host (the Sell screen's legacy layout) the sheet opens in
+  // the panel, in place of what it shows (panel.dart).
+  final hosted = MadarPanelHost.maybeOf(
+    context,
+  )?.present<T>(context, builder: builder, tone: tone);
+  if (hosted != null) return hosted;
   // A surface, not a page: the root navigator, over the whole window and
   // its chrome (tab_stack.dart).
   return Navigator.of(context, rootNavigator: true).push(

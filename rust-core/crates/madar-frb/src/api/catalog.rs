@@ -9,8 +9,8 @@ use crate::api::error::MadarError;
 
 pub use madar_core::catstyle::CatStyleView;
 pub use madar_core::combos::{
-    ComboChoiceDetail, ComboDetail, ComboDraft, ComboPickInput, ComboQuoteView, ComboSizeOption,
-    ComboSlotDetail, MealOffer,
+    ComboChoiceDetail, ComboDetail, ComboDraft, ComboPickInput, ComboPickNeed, ComboQuoteView,
+    ComboSizeOption, ComboSlotDetail, MealOffer,
 };
 pub use madar_core::menu::{
     AddonIngredientView, AddonItemView, AddonSlotView, CategoryView, DiscountView, ItemSizeView,
@@ -117,6 +117,9 @@ pub struct _ComboChoiceDetail {
     pub is_default: bool,
     /// The item has add-ons or options: offer "Customise".
     pub customisable: bool,
+    /// A required choice with no default (a sandwich's bread): picking the
+    /// item opens "Customise" at once; the combo waits for the choice.
+    pub must_customise: bool,
 }
 
 #[frb(mirror(ComboSizeOption))]
@@ -144,6 +147,19 @@ pub struct _ComboQuoteView {
     pub refusal: Option<String>,
     /// The same, in the teller's language.
     pub refusal_text: Option<String>,
+    /// Each pick still wanting a required choice (its slot shows why).
+    pub pick_needs: Vec<ComboPickNeed>,
+}
+
+/// A combo pick still wanting a required choice with no default.
+#[frb(mirror(ComboPickNeed))]
+pub struct _ComboPickNeed {
+    pub slot_id: String,
+    pub item_id: String,
+    /// The choice's name ("Bread"), in the teller's language.
+    pub group_name: String,
+    /// What the slot shows: "Choose Bread".
+    pub text: String,
 }
 
 /// A combo to edit on the sheet (a cart line, or "make it a meal").
