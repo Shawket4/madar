@@ -728,7 +728,7 @@ class _FastSellBody extends StatelessWidget {
         children: [
           SizedBox(
             width: cartWidth,
-            child: AbsorbPointer(absorbing: cartLocked, child: cart),
+            child: _LockableCart(locked: cartLocked, cart: cart),
           ),
           const VerticalDivider(width: 1, thickness: 1),
           Expanded(
@@ -755,6 +755,64 @@ class _FastSellBody extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The cart beside Charge: it stays in view (it is what is being charged)
+/// but takes no taps, and SAYS so — a lock line on top and the lines dimmed.
+/// A cart that only ignored taps looked live and swallowed them silently
+/// (T2, LG4).
+class _LockableCart extends ConsumerWidget {
+  const _LockableCart({required this.locked, required this.cart});
+
+  final bool locked;
+  final Widget cart;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (locked)
+          Semantics(
+            liveRegion: true,
+            child: Container(
+              key: const ValueKey('cart-locked'),
+              color: colors.surfaceAlt,
+              padding: const EdgeInsetsDirectional.symmetric(
+                horizontal: Space.lg,
+                vertical: Space.md,
+              ),
+              child: Row(
+                spacing: Space.sm,
+                children: [
+                  MadarIcon(
+                    'lock',
+                    tint: colors.textSecondary,
+                    size: IconSize.sm,
+                  ),
+                  Expanded(
+                    child: Text(
+                      ref.bridge.tr(key: 'sell.cart_locked'),
+                      style: MadarType.bodySm.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        Expanded(
+          child: AbsorbPointer(
+            absorbing: locked,
+            child: Opacity(opacity: locked ? 0.5 : 1, child: cart),
+          ),
+        ),
+      ],
     );
   }
 }

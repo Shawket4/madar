@@ -1902,6 +1902,7 @@ fn en(key: &str) -> Option<&'static str> {
         "sell.round_total" => "Round",
         "sell.bill_so_far" => "Bill so far (before tax)",
         "sell.charge" => "Charge",
+        "sell.cart_locked" => "Locked while Charge is open. Close it to change the order.",
         "sell.fire" => "Fire",
         "sell.table_required" => "Seat a table first",
         // selling-flow audit (2026-09-13): words that were Dart literals
@@ -4286,6 +4287,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "sell.round_total" => "الجولة",
         "sell.bill_so_far" => "الفاتورة حتى الآن (قبل الضريبة)",
         "sell.charge" => "تحصيل",
+        "sell.cart_locked" => "مقفلة أثناء فتح التحصيل. أغلقه لتعديل الطلب.",
         "sell.fire" => "أرسل",
         "sell.table_required" => "أجلس على طاولة أولًا",
         "sell.rounds_count" => "الجولات: {count}",

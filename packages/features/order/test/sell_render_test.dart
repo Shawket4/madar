@@ -16,6 +16,7 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart'
     show CartKitchenChitSheet, ChargeOutcome, ChargeSheet, KitchenChitSheet;
 import 'package:feature_order/feature_order.dart';
+import 'package:feature_order/src/combo_sheet.dart';
 import 'package:feature_order/src/held_orders_strip.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/sell_cart.dart';
@@ -710,6 +711,167 @@ void main() {
         tester.getRect(find.byType(SellCart)).left,
         lessThan(tester.getRect(find.byType(MenuGrid)).left),
       );
+    });
+
+    // ── T2's walkthrough findings (DEFERRED_T2_REPORT.md, Legacy Mode) ────
+
+    Finder inMenu(Finder f) =>
+        find.descendant(of: find.byType(MenuGrid), matching: f);
+
+    testWidgets('LG1: Add on a combo from its tile closes back to the menu', (
+      tester,
+    ) async {
+      final bridge = _FakeBridge()..withCombo = true;
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+        layout: SellLayout.fast,
+      );
+      // Fast mode opens on the category boxes: into Food, where the combo is.
+      await tester.tap(find.byKey(const ValueKey('category-box-food')));
+      await _settle(tester);
+      await tester.ensureVisible(inMenu(find.text('Lunch deal')));
+      await _settle(tester);
+      await tester.tap(inMenu(find.text('Lunch deal')));
+      await _settle(tester);
+      expect(find.byType(ComboSheet), findsOneWidget);
+      expect(find.text(coreWord('combo.add')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('combo-save')));
+      await _settle(tester);
+      expect(
+        find.byType(ComboSheet),
+        findsNothing,
+        reason: 'no "Update combo"',
+      );
+      expect(find.byType(SellTile), findsWidgets, reason: 'the menu is back');
+      expect(bridge.carts[null]!.where((l) => l.kind == 'combo'), hasLength(1));
+    });
+
+    testWidgets("LG1: the combo's cart line is what opens it to update", (
+      tester,
+    ) async {
+      final bridge = _FakeBridge()..withCombo = true;
+      bridge.carts[null]!.add(_comboCartLine('combo:lunch-x'));
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+        layout: SellLayout.fast,
+      );
+      // Its part's name is in the cart too (T2's harness tapped the first
+      // "Americano" on screen, which in this layout is the cart's).
+      await tester.tap(inCart(find.text('Lunch deal')).first);
+      await _settle(tester);
+      expect(find.byType(ComboSheet), findsOneWidget);
+      expect(find.text(coreWord('combo.update')), findsOneWidget);
+    });
+
+    testWidgets(
+      'LG2: a long-press on a TILE already in the cart starts a fresh item, '
+      'and its meal is a new line',
+      (tester) async {
+        final bridge = _FakeBridge()..withCombo = true;
+        await _mount(
+          tester,
+          screen: const TakeawaySellScreen(),
+          size: _ipad,
+          bridge: bridge,
+          layout: SellLayout.fast,
+        );
+        // Espresso is in the cart AND on the menu.
+        expect(inCart(find.text('Espresso')), findsWidgets);
+        await tester.tap(find.byKey(const ValueKey('category-box-hot')));
+        await _settle(tester);
+        await tester.longPress(inMenu(find.text('Espresso')));
+        await _settle(tester);
+        final sheet = tester.widget<ItemDetailSheet>(
+          find.byType(ItemDetailSheet),
+        );
+        expect(sheet.editLine, isNull, reason: 'the tile, not the cart line');
+        expect(find.text(coreWord('order.add_to_cart')), findsOneWidget);
+
+        await tester.tap(find.byKey(const ValueKey('make-it-a-meal')));
+        await _settle(tester);
+        expect(bridge.mealDrafts, ['item']);
+        expect(find.byType(ComboSheet), findsOneWidget);
+        expect(find.text(coreWord('combo.add')), findsOneWidget);
+        expect(
+          bridge.carts[null]!.map((l) => l.key),
+          contains('k-espresso'),
+          reason: 'the Espresso line is untouched',
+        );
+      },
+    );
+
+    for (final (label, size) in [('ipad', _ipad), ('ipad9', _ipad9)]) {
+      for (final layout in SellLayout.values) {
+        testWidgets('LG3: a line with the staff tile keeps a readable name '
+            '(${layout.name}, $label)', (tester) async {
+          final bridge = _FakeBridge()..staffOffered = true;
+          await _mount(
+            tester,
+            screen: const TakeawaySellScreen(),
+            size: size,
+            bridge: bridge,
+            layout: layout,
+          );
+          await _settle(tester);
+          // The line's controls (the staff tile among them) show on the
+          // selected line: select it.
+          await tester.tap(inCart(find.text('Espresso')).first);
+          await _settle(tester);
+          expect(
+            find.byKey(const ValueKey('staff-drink-k-espresso')),
+            findsOneWidget,
+          );
+          for (final name in ['Espresso', 'Flat white']) {
+            // Whole, never "E…": the name is not cut short.
+            final text = tester.renderObject<RenderParagraph>(
+              inCart(find.text(name)).first,
+            );
+            expect(text.didExceedMaxLines, isFalse, reason: '$name is cut');
+          }
+          await _capture(tester, 'lg3-${layout.name}-$label');
+        });
+      }
+    }
+
+    testWidgets('LG4: the cart says it is locked while Charge is up', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        layout: SellLayout.fast,
+      );
+      final notice = find.byKey(const ValueKey('cart-locked'));
+      expect(notice, findsNothing);
+      await tester.tap(inCart(find.text(coreWord('sell.charge'))).last);
+      await _settle(tester);
+      expect(notice, findsOneWidget);
+      expect(
+        find.descendant(
+          of: notice,
+          matching: find.text(coreWord('sell.cart_locked')),
+        ),
+        findsOneWidget,
+      );
+      final dim = tester.widget<Opacity>(
+        find
+            .ancestor(of: find.byType(SellCart), matching: find.byType(Opacity))
+            .first,
+      );
+      expect(dim.opacity, lessThan(1));
+      await _capture(tester, 'lg4-locked');
+
+      MadarSheet.close<ChargeOutcome>(tester.element(find.byType(ChargeSheet)));
+      await _settle(tester);
+      expect(notice, findsNothing);
     });
 
     for (final (device, size) in _devices) {
