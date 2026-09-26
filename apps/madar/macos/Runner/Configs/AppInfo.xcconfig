@@ -8,7 +8,7 @@
 PRODUCT_NAME = madar
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.madar.pos
+PRODUCT_BUNDLE_IDENTIFIER = com.madar.cashier
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 com.madar. All rights reserved.

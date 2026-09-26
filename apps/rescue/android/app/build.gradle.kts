@@ -29,7 +29,7 @@ android {
     defaultConfig {
         // The POS's own id, so installing this is an UPDATE of the POS and it
         // inherits the POS's sandbox (see README). The POS is com.madar.cashier
-        // from 0.14; a till still on the older com.madar.pos needs
+        // from 0.13; a till still on the older com.madar.pos needs
         // `flutter build apk --release -P posId=com.madar.pos`.
         applicationId = (project.findProperty("posId") as String?) ?: "com.madar.cashier"
         // You can update the following values to match your application needs.

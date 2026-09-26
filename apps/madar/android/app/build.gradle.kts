@@ -42,7 +42,7 @@ android {
     }
 
     defaultConfig {
-        // The same id as iOS (com.madar.cashier). Until 0.14 the Android app
+        // The same id as iOS (com.madar.cashier). Until 0.13 the Android app
         // was com.madar.pos; a package name cannot change in place, so a till
         // on the old id gets this as a NEW app beside it. Drain the old app's
         // outbox before switching (the rescue app, apps/rescue, can still read

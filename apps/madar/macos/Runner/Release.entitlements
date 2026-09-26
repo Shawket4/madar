@@ -10,7 +10,7 @@
 	<true/>
 	<key>keychain-access-groups</key>
 	<array>
-		<string>$(AppIdentifierPrefix)com.madar.pos</string>
+		<string>$(AppIdentifierPrefix)com.madar.cashier</string>
 	</array>
 </dict>
 </plist>
