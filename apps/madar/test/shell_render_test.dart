@@ -897,6 +897,19 @@ class _FakeBridge implements MadarBridge {
     if (name == #listItemAddons) {
       return Future<List<ItemAddonView>>.value(const []);
     }
+    // The item sheet's figures: the item alone, as the core would price it.
+    if (name == #previewConfiguredLine) {
+      final a = invocation.namedArguments;
+      final item = _items.firstWhere((i) => i.id == a[#itemId]);
+      final qty = a[#qty] as int;
+      return Future<LinePreviewView>.value(
+        LinePreviewView(
+          unitTotalMinor: item.basePriceMinor,
+          extrasMinor: 0,
+          lineTotalMinor: item.basePriceMinor * qty,
+        ),
+      );
+    }
     // One cart per context (null = takeaway); nothing is ever active.
     final cartTable = invocation.namedArguments[#tableId] as String?;
     if (name == #cartLines) {
@@ -1779,6 +1792,48 @@ void main() {
       expect(find.byType(TillHistoryScreen), findsNothing);
       expect(find.byType(TillScreen), findsOneWidget);
       expect(_pageStack(tester).canPop(), isFalse);
+    });
+
+    testWidgets("Escape in Fast mode closes the panel's page, never the "
+        "table's Sell under it", (tester) async {
+      final container = await _mount(
+        tester,
+        bridge: _FakeBridge(),
+        size: _ipad,
+      );
+      container.read(sellLayoutProvider.notifier).set(SellLayout.fast);
+      await _tab(tester, 'floor');
+      _pageStack(tester).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const TableOrderScreen(tableId: 't1'),
+        ),
+      );
+      await _settle(tester);
+      // Fast mode's menu opens on its categories; a long press on an item
+      // opens its choices in the menu panel.
+      await tester.tap(
+        find
+            .descendant(of: find.byType(MenuGrid), matching: find.text('Hot'))
+            .first,
+      );
+      await _settle(tester);
+      final add = find.text(coreWord('order.add_to_cart'));
+      await tester.longPress(
+        find
+            .descendant(of: find.byType(MenuGrid), matching: find.text('Latte'))
+            .first,
+      );
+      await _settle(tester);
+      expect(add, findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await _settle(tester);
+      expect(add, findsNothing);
+      expect(
+        find.byType(TableOrderScreen),
+        findsOneWidget,
+        reason: 'the page closed; the Sell screen stayed',
+      );
     });
 
     testWidgets("a table's Sell on the Floor stack keeps its table across "

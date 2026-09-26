@@ -643,19 +643,24 @@ class _PickDetails extends ConsumerWidget {
           ),
           if (choice.sizes.length > 1) ...[
             const SizedBox(height: Space.sm),
-            ItemSheetOptionGrid(
-              children: [
-                for (final size in choice.sizes)
-                  ItemSheetChip(
-                    key: ValueKey('size-${pick.itemId}-${size.label}'),
-                    label: size.label,
-                    sub: size.extraMinor > 0
-                        ? '+${money(size.extraMinor)}'
-                        : bridge.tr(key: 'combo.included'),
-                    active: chosen == size.label,
-                    onTap: () => onSize(size),
-                  ),
-              ],
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final size in choice.sizes) ...[
+                    ItemSheetChip(
+                      key: ValueKey('size-${pick.itemId}-${size.label}'),
+                      label: size.label,
+                      sub: size.extraMinor > 0
+                          ? '+${money(size.extraMinor)}'
+                          : bridge.tr(key: 'combo.included'),
+                      active: chosen == size.label,
+                      onTap: () => onSize(size),
+                    ),
+                    const SizedBox(width: Space.sm),
+                  ],
+                ],
+              ),
             ),
           ],
           if (summary.isNotEmpty) ...[

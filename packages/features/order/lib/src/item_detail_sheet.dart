@@ -8,6 +8,7 @@ import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:feature_order/src/words.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Family TYPE annotations moved to the misc library in Riverpod 3.
 import 'package:flutter_riverpod/misc.dart';
@@ -651,7 +652,9 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(ref.read(itemConfigProvider(_args).notifier).startPricing());
+      _claimKeys();
     });
+    FocusManager.instance.addListener(_reclaimKeys);
   }
 
   late final ItemSheetArgs _args = ItemSheetArgs(
@@ -676,8 +679,187 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
 
   @override
   void dispose() {
+    FocusManager.instance.removeListener(_reclaimKeys);
+    _flashTimer?.cancel();
+    _keys.dispose();
     _notes.dispose();
     super.dispose();
+  }
+
+  // ── guided picks (Fast mode) ─────────────────────────────────────────────
+  /// Each group card's key, to scroll it into view.
+  final Map<String, GlobalKey> _groupKeys = {};
+  GlobalKey _groupKey(String id) => _groupKeys.putIfAbsent(id, GlobalKey.new);
+
+  /// The group flashed last, until the flash fades.
+  String? _flash;
+  Timer? _flashTimer;
+  static const _flashFor = Duration(milliseconds: 1400);
+
+  /// The last build's groups, in the order shown, and the first required one
+  /// still unanswered — what a key press or a disabled tap acts on.
+  List<AddonGroup> _shown = const [];
+  AddonGroup? _open;
+
+  /// Fast mode: the sheet is a page of the Sell screen's menu panel. Only
+  /// there is it guided; the standard sheet behaves as it always has.
+  bool get _guided => MadarPanelHost.isPanelPage(context);
+
+  /// The required groups [config] leaves unanswered, in [groups]' order.
+  static List<AddonGroup> _unanswered(
+    List<AddonGroup> groups,
+    ItemConfigState config,
+  ) => [
+    for (final g in groups)
+      if (g.isRequired &&
+          (g.isMulti
+                  ? (config.multi[g.id]?.length ?? 0)
+                  : (config.single[g.id] != null ? 1 : 0)) <
+              (g.minSel > 1 ? g.minSel : 1))
+        g,
+  ];
+
+  /// A pick-one required group was just answered: on to the next one still
+  /// open (after it, else the first), if any.
+  void _answered(AddonGroup g) {
+    if (!_guided || !g.isRequired || g.isMulti) return;
+    final open = _unanswered(_shown, ref.read(itemConfigProvider(_args)));
+    if (open.isEmpty) return;
+    final at = _shown.indexOf(g);
+    _guideTo(
+      open.firstWhere((o) => _shown.indexOf(o) > at, orElse: () => open.first),
+    );
+  }
+
+  /// Scroll [g] into view and flash it.
+  void _guideTo(AddonGroup g) {
+    _flashTimer?.cancel();
+    setState(() => _flash = g.id);
+    _flashTimer = Timer(_flashFor, () {
+      if (mounted) setState(() => _flash = null);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = _groupKeys[g.id]?.currentContext;
+      if (!mounted || target == null || !target.mounted) return;
+      Scrollable.ensureVisible(
+        target,
+        alignment: 0.05,
+        duration: motionReduced(context)
+            ? Duration.zero
+            : MotionSpec.standardDuration,
+        curve: MotionSpec.standardCurve,
+      );
+    });
+  }
+
+  // ── a hardware keyboard ──────────────────────────────────────────────────
+  /// Holds the sheet's keys: 1–9 set the quantity, + and − step it, Enter
+  /// adds, Esc closes. It never shows anything: without a keyboard attached
+  /// the sheet looks and works as before.
+  final FocusNode _keys = FocusNode(debugLabel: 'item-sheet-keys');
+
+  /// Whether a text field (the note, a group's search) has the keyboard:
+  /// its keys are its own.
+  static bool _typing() {
+    final focused = FocusManager.instance.primaryFocus?.context;
+    return focused != null &&
+        (focused.widget is EditableText ||
+            focused.findAncestorWidgetOfExactType<EditableText>() != null);
+  }
+
+  void _claimKeys() {
+    if (!mounted || _typing()) return;
+    _keys.requestFocus();
+  }
+
+  /// Focus that fell back to the sheet itself (a note field let go) comes
+  /// back to the keys. Focus anywhere else — a surface opened over the
+  /// sheet — is left alone.
+  void _reclaimKeys() {
+    final primary = FocusManager.instance.primaryFocus;
+    if (!mounted || _keys.hasPrimaryFocus || primary == null) return;
+    if (_keys.ancestors.contains(primary)) _claimKeys();
+  }
+
+  static final _digitKeys = <LogicalKeyboardKey, int>{
+    LogicalKeyboardKey.digit1: 1,
+    LogicalKeyboardKey.digit2: 2,
+    LogicalKeyboardKey.digit3: 3,
+    LogicalKeyboardKey.digit4: 4,
+    LogicalKeyboardKey.digit5: 5,
+    LogicalKeyboardKey.digit6: 6,
+    LogicalKeyboardKey.digit7: 7,
+    LogicalKeyboardKey.digit8: 8,
+    LogicalKeyboardKey.digit9: 9,
+    LogicalKeyboardKey.numpad1: 1,
+    LogicalKeyboardKey.numpad2: 2,
+    LogicalKeyboardKey.numpad3: 3,
+    LogicalKeyboardKey.numpad4: 4,
+    LogicalKeyboardKey.numpad5: 5,
+    LogicalKeyboardKey.numpad6: 6,
+    LogicalKeyboardKey.numpad7: 7,
+    LogicalKeyboardKey.numpad8: 8,
+    LogicalKeyboardKey.numpad9: 9,
+  };
+
+  /// 1–9 as typed on any layout: the digit row, the numpad, or an Arabic
+  /// keyboard's Arabic-Indic digits.
+  static int? _digitOf(KeyEvent event) {
+    final char = event.character;
+    if (char != null && char.length == 1) {
+      final unit = char.codeUnitAt(0);
+      for (final zero in const [0x30, 0x660, 0x6F0]) {
+        if (unit > zero && unit <= zero + 9) return unit - zero;
+      }
+    }
+    return _digitKeys[event.logicalKey];
+  }
+
+  KeyEventResult _onKey(FocusNode _, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    final repeat = event is KeyRepeatEvent;
+    if (key == LogicalKeyboardKey.escape) {
+      if (!repeat) MadarSheet.close<void>(context);
+      return KeyEventResult.handled;
+    }
+    if (_typing()) return KeyEventResult.ignored;
+    final config = ref.read(itemConfigProvider(_args));
+    final notifier = ref.read(itemConfigProvider(_args).notifier);
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      // Never twice from a held key: a repeat would add the line again.
+      if (repeat || config.committing) return KeyEventResult.handled;
+      if (_open case final open?) {
+        if (_guided) _guideTo(open);
+      } else {
+        unawaited(_commit(config));
+      }
+      return KeyEventResult.handled;
+    }
+    // Pick mode has no quantity: the combo's count is the pick's.
+    if (widget.pick != null) return KeyEventResult.ignored;
+    if (!repeat) {
+      if (_digitOf(event) case final digit?) {
+        notifier.setQty(digit);
+        return KeyEventResult.handled;
+      }
+    }
+    final char = event.character;
+    if (key == LogicalKeyboardKey.numpadAdd ||
+        key == LogicalKeyboardKey.add ||
+        char == '+') {
+      notifier.setQty(config.qty + 1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.numpadSubtract ||
+        key == LogicalKeyboardKey.minus ||
+        char == '-' ||
+        char == '−') {
+      notifier.setQty(config.qty - 1);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   // ── group derivation ─────────────────────────────────────────────────────
@@ -924,8 +1106,12 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     return () => anchors.fly(from);
   }
 
+  /// The keys (see [_keys]) around the sheet itself.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      Focus(focusNode: _keys, onKeyEvent: _onKey, child: _sheet(context));
+
+  Widget _sheet(BuildContext context) {
     final colors = context.madarColors;
     final bridge = ref.bridge;
     final currency = ref.watch(orderProvider.select((s) => s.currency));
@@ -953,18 +1139,11 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     final price = config.price;
     final headerTotal = price?.unitTotalMinor ?? _item.basePriceMinor;
 
-    AddonGroup? firstUnsatisfied;
-    for (final g in groups) {
-      final count = g.isMulti
-          ? (config.multi[g.id]?.length ?? 0)
-          : (config.single[g.id] != null ? 1 : 0);
-      final needed = g.minSel > 1 ? g.minSel : 1;
-      if (g.isRequired && count < needed) {
-        firstUnsatisfied = g;
-        break;
-      }
-    }
+    final firstUnsatisfied = _unanswered(groups, config).firstOrNull;
     final canAdd = firstUnsatisfied == null;
+    _shown = groups;
+    _open = firstUnsatisfied;
+    final guided = _guided;
 
     final footerLabel = !canAdd
         ? '${bridge.tr(key: 'order.select_prefix')} ${firstUnsatisfied.title}'
@@ -1066,38 +1245,51 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                   if (!picking && _hasSizeChoice(_item.sizes)) ...[
                     MadarSectionHeader(text: bridge.tr(key: 'order.size')),
                     const SizedBox(height: Space.sm),
-                    ItemSheetOptionGrid(
-                      children: [
-                        for (final size in _item.sizes)
-                          ItemSheetChip(
-                            label: size.label,
-                            sub: Money.format(
-                              size.priceMinor,
-                              currency: currency,
-                              locale: MadarFormat.localeOf(context),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final size in _item.sizes) ...[
+                            ItemSheetChip(
+                              label: size.label,
+                              sub: Money.format(
+                                size.priceMinor,
+                                currency: currency,
+                                locale: MadarFormat.localeOf(context),
+                              ),
+                              active: config.size == size.label,
+                              onTap: () => notifier.selectSize(size.label),
                             ),
-                            active: config.size == size.label,
-                            onTap: () => notifier.selectSize(size.label),
-                          ),
-                      ],
+                            const SizedBox(width: Space.sm),
+                          ],
+                        ],
+                      ),
                     ),
                     const SizedBox(height: Space.md),
                   ],
                   for (final g in groups) ...[
-                    ItemSheetGroupCard(
-                      // Stable identity: the "show all" toggle inserts /
-                      // removes groups, and each card carries its own
-                      // search-field state.
-                      key: ValueKey(g.id),
-                      group: g,
-                      currency: currency,
-                      charged: _charged,
-                      selectedSingle: config.single[g.id],
-                      selectedMulti: config.multi[g.id] ?? const {},
-                      onToggleSingle: (id) => notifier.toggleSingle(g, id),
-                      onToggleMulti: (id) => notifier.toggleMulti(g, id),
-                      onInc: (id) => notifier.incMulti(g, id),
-                      onDec: (id) => notifier.decMulti(g, id),
+                    KeyedSubtree(
+                      // Where a guided sheet scrolls to.
+                      key: _groupKey(g.id),
+                      child: ItemSheetGroupCard(
+                        // Stable identity: the "show all" toggle inserts /
+                        // removes groups, and each card carries its own
+                        // search-field state.
+                        key: ValueKey(g.id),
+                        group: g,
+                        currency: currency,
+                        charged: _charged,
+                        selectedSingle: config.single[g.id],
+                        selectedMulti: config.multi[g.id] ?? const {},
+                        highlighted: guided && _flash == g.id,
+                        onToggleSingle: (id) {
+                          notifier.toggleSingle(g, id);
+                          _answered(g);
+                        },
+                        onToggleMulti: (id) => notifier.toggleMulti(g, id),
+                        onInc: (id) => notifier.incMulti(g, id),
+                        onDec: (id) => notifier.decMulti(g, id),
+                      ),
                     ),
                     const SizedBox(height: Space.md),
                   ],
@@ -1179,6 +1371,12 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
             onDec: () => notifier.setQty(config.qty - 1),
             onInc: () => notifier.setQty(config.qty + 1),
             onCommit: () => unawaited(_commit(config)),
+            // Fast mode: Add says it is ready once every required group is
+            // answered, and "Choose X" shows where X is.
+            emphasize: guided && canAdd && groups.any((g) => g.isRequired),
+            onTapDisabled: guided && firstUnsatisfied != null
+                ? () => _guideTo(firstUnsatisfied)
+                : null,
           ),
         ),
       ],
@@ -1255,7 +1453,9 @@ class _OptionalsSectionState extends ConsumerState<_OptionalsSection> {
                             widget.selected.contains(f.id),
                       )
                       .toList(growable: false);
-            return ItemSheetOptionGrid(
+            return Wrap(
+              spacing: Space.sm,
+              runSpacing: Space.sm,
               children: [
                 for (final field in shown)
                   _OptionalChip(
@@ -1448,8 +1648,16 @@ class ItemSheetFooter extends ConsumerWidget {
     this.showQty = true,
     this.note,
     this.ctaKey,
+    this.emphasize = false,
+    this.onTapDisabled,
     super.key,
   });
+
+  /// Add is ready and says so.
+  final bool emphasize;
+
+  /// A tap on the disabled button.
+  final VoidCallback? onTapDisabled;
 
   /// A line under the total (the combo's saving).
   final Widget? note;
@@ -1523,18 +1731,81 @@ class ItemSheetFooter extends ConsumerWidget {
                   const SizedBox(width: Space.md),
                 ],
                 Expanded(
-                  child: MadarButton(
-                    key: ctaKey,
-                    label: label,
-                    enabled: canAdd,
-                    loading: loading,
-                    onTap: onCommit,
+                  child: _AddEmphasis(
+                    on: emphasize && canAdd && !loading,
+                    child: _disabledTap(
+                      MadarButton(
+                        key: ctaKey,
+                        label: label,
+                        enabled: canAdd,
+                        loading: loading,
+                        onTap: onCommit,
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// A disabled button takes no taps; [onTapDisabled] (Fast mode) catches
+  /// them to show which group still wants an answer.
+  Widget _disabledTap(Widget button) {
+    final tap = onTapDisabled;
+    if (tap == null || canAdd || loading) return button;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        MadarHaptics.selection();
+        tap();
+      },
+      child: button,
+    );
+  }
+}
+
+/// Add, ready: an accent ring around the button and one small beat as it
+/// turns on (none under reduced motion). Paint only — the button keeps its
+/// fixed height.
+class _AddEmphasis extends StatelessWidget {
+  const _AddEmphasis({required this.on, required this.child});
+
+  final bool on;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final reduced = motionReduced(context);
+    return TweenAnimationBuilder<double>(
+      // Keyed on the state: turning on plays the beat once, from the start.
+      key: ValueKey(on),
+      tween: Tween(begin: on && !reduced ? 0 : 1, end: 1),
+      duration: reduced ? Duration.zero : MotionSpec.gentleDuration * 2,
+      curve: Curves.easeOut,
+      builder: (context, t, child) => Transform.scale(
+        // Up to 4% and back.
+        scale: on ? 1 + 0.04 * (1 - (2 * t - 1).abs()) : 1,
+        child: child,
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(Radii.control),
+          boxShadow: on
+              ? [
+                  BoxShadow(
+                    color: colors.accent.withValues(alpha: 0.35),
+                    blurRadius: Space.md,
+                    spreadRadius: 2,
+                  ),
+                ]
+              : const [],
+        ),
+        child: child,
       ),
     );
   }
@@ -1642,8 +1913,12 @@ class ItemSheetGroupCard extends ConsumerStatefulWidget {
     this.subtitle,
     this.optionKey,
     this.below,
+    this.highlighted = false,
     super.key,
   });
+
+  /// Flashed: the group a guided sheet just brought into view.
+  final bool highlighted;
 
   /// A line under the title (a combo slot's rule: "Choose 1 item").
   final String? subtitle;
@@ -1682,6 +1957,15 @@ class _ItemSheetGroupCardState extends ConsumerState<ItemSheetGroupCard> {
   late bool _expanded = widget.group.isRequired;
 
   @override
+  void didUpdateWidget(ItemSheetGroupCard old) {
+    super.didUpdateWidget(old);
+    // A group the sheet points at is shown open, even one folded by hand.
+    if (widget.highlighted && !old.highlighted && !_expanded) {
+      setState(() => _expanded = true);
+    }
+  }
+
+  @override
   void dispose() {
     _search.dispose();
     super.dispose();
@@ -1718,12 +2002,26 @@ class _ItemSheetGroupCardState extends ConsumerState<ItemSheetGroupCard> {
         ? widget.selectedMulti.length
         : (widget.selectedSingle != null ? 1 : 0);
 
-    return Container(
+    final flash = widget.highlighted;
+    return AnimatedContainer(
+      duration: motionReduced(context)
+          ? Duration.zero
+          : MotionSpec.gentleDuration,
+      curve: MotionSpec.gentleCurve,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: colors.surface,
+        // Flashed: the accent ring and a wash, the group to answer next.
+        color: flash
+            ? Color.alphaBlend(
+                colors.accent.withValues(alpha: 0.08),
+                colors.surface,
+              )
+            : colors.surface,
         borderRadius: BorderRadius.circular(Radii.md),
-        border: Border.all(color: colors.border),
+        border: Border.all(
+          color: flash ? colors.accent : colors.border,
+          width: flash ? 2 : 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1898,7 +2196,9 @@ class _ItemSheetGroupCardState extends ConsumerState<ItemSheetGroupCard> {
                             ),
                             null => chip,
                           };
-                      return ItemSheetOptionGrid(
+                      return Wrap(
+                        spacing: Space.sm,
+                        runSpacing: Space.sm,
                         children: [
                           for (final addon in shown)
                             if (g.isMulti &&
@@ -1974,15 +2274,47 @@ class _AddonOptionChip extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => _OptionTile(
-    name: name,
-    sub: priceMinor > 0
-        ? '+${Money.format(priceMinor, currency: currency, locale: MadarFormat.localeOf(context))}'
-        : null,
-    selected: selected,
-    check: selected && !multi,
-    onTap: onTap,
-  );
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final fg = selected ? colors.textOnAccent : colors.textPrimary;
+    return TactileScale(
+      onTap: () {
+        MadarHaptics.selection();
+        onTap();
+      },
+      child: Container(
+        constraints: const BoxConstraints(minHeight: kOptionChipMinHeight),
+        padding: _chipPadding,
+        decoration: BoxDecoration(
+          color: selected ? colors.accent : colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(Radii.xs),
+          border: selected ? null : Border.all(color: colors.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (multi && !selected) ...[
+              MadarIcon(
+                'plus',
+                tint: colors.textPrimary.withValues(alpha: 0.6),
+                size: IconSize.sm,
+              ),
+              const SizedBox(width: Space.sm),
+            ],
+            Text(name, style: _chipText.copyWith(color: fg)),
+            if (priceMinor > 0) ...[
+              const SizedBox(width: Space.sm),
+              _PricePill(
+                priceMinor: priceMinor,
+                on: selected,
+                currency: currency,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// An optional-field toggle chip: check-circle leading glyph, accent fill
@@ -2003,15 +2335,41 @@ class _OptionalChip extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => _OptionTile(
-    name: name,
-    sub: priceMinor > 0
-        ? '+${Money.format(priceMinor, currency: currency, locale: MadarFormat.localeOf(context))}'
-        : null,
-    selected: on,
-    check: on,
-    onTap: onTap,
-  );
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final fg = on ? colors.textOnAccent : colors.textPrimary;
+    return TactileScale(
+      onTap: () {
+        MadarHaptics.selection();
+        onTap();
+      },
+      child: Container(
+        constraints: const BoxConstraints(minHeight: kOptionChipMinHeight),
+        padding: _chipPadding,
+        decoration: BoxDecoration(
+          color: on ? colors.accent : colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(Radii.xs),
+          border: on ? null : Border.all(color: colors.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MadarIcon(
+              on ? 'checkmark.circle.fill' : 'circle',
+              tint: fg,
+              size: IconSize.sm,
+            ),
+            const SizedBox(width: Space.sm),
+            Text(name, style: _chipText.copyWith(color: fg)),
+            if (priceMinor > 0) ...[
+              const SizedBox(width: Space.sm),
+              _PricePill(priceMinor: priceMinor, on: on, currency: currency),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// A selected multi-select chip with an inline qty stepper.
@@ -2033,17 +2391,148 @@ class _AddonQtyChip extends StatelessWidget {
   final VoidCallback onInc;
 
   @override
-  Widget build(BuildContext context) => _OptionTile(
-    name: name,
-    sub: priceMinor > 0
-        ? '+${Money.format(priceMinor * qty, currency: currency, locale: MadarFormat.localeOf(context))}'
-        : null,
-    selected: true,
-    count: qty,
-    onTap: onInc,
-    onDec: onDec,
-  );
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return Container(
+      constraints: const BoxConstraints(minHeight: kOptionChipMinHeight),
+      padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.xs),
+      decoration: BoxDecoration(
+        color: colors.accent,
+        borderRadius: BorderRadius.circular(Radii.xs),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ChipStep(glyph: 'minus', onTap: onDec),
+          const SizedBox(width: Space.xs),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(name, style: _chipText.copyWith(color: colors.textOnAccent)),
+              if (priceMinor > 0)
+                Text(
+                  '+${Money.format(priceMinor * qty, currency: currency, locale: MadarFormat.localeOf(context))}',
+                  textDirection: TextDirection.ltr,
+                  style: MadarType.labelSm.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: colors.textOnAccent.withValues(alpha: 0.85),
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: Space.xs),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.textOnAccent.withValues(alpha: 0.22),
+              borderRadius: BorderRadius.circular(Radii.pill),
+            ),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.symmetric(
+                horizontal: Space.sm,
+                vertical: 3,
+              ),
+              child: Text(
+                '$qty',
+                style: MadarType.label.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: colors.textOnAccent,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: Space.xs),
+          _ChipStep(glyph: 'plus', onTap: onInc),
+        ],
+      ),
+    );
+  }
 }
+
+class _ChipStep extends StatelessWidget {
+  const _ChipStep({required this.glyph, required this.onTap});
+
+  final String glyph;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return GestureDetector(
+      onTap: () {
+        MadarHaptics.selection();
+        onTap();
+      },
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 36,
+        height: kOptionChipMinHeight,
+        child: Center(
+          child: MadarIcon(glyph, tint: colors.textOnAccent, size: IconSize.sm),
+        ),
+      ),
+    );
+  }
+}
+
+/// The little "+price" pill inside a chip.
+class _PricePill extends StatelessWidget {
+  const _PricePill({
+    required this.priceMinor,
+    required this.on,
+    required this.currency,
+  });
+
+  final int priceMinor;
+  final bool on;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: on
+            ? colors.textOnAccent.withValues(alpha: 0.2)
+            : colors.accentBg,
+        borderRadius: BorderRadius.circular(Radii.pill),
+      ),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Space.sm,
+          vertical: 3,
+        ),
+        child: Text(
+          '+${Money.format(priceMinor, currency: currency, locale: MadarFormat.localeOf(context))}',
+          textDirection: TextDirection.ltr,
+          style: MadarType.labelSm.copyWith(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: on ? colors.textOnAccent : colors.accent,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A choice's floor: the chips as they were before 0.11.0's tiles, a size
+/// up — about the tiles' touch height, which the owner kept.
+const double kOptionChipMinHeight = 56;
+
+/// The chips' padding: the old chip's, scaled with its height.
+const EdgeInsetsDirectional _chipPadding = EdgeInsetsDirectional.symmetric(
+  horizontal: Space.lg,
+  vertical: Space.md,
+);
+
+/// A chip's name, as big as the tiles' was.
+final TextStyle _chipText = MadarType.bodySm.copyWith(
+  fontSize: 15,
+  fontWeight: FontWeight.w600,
+);
 
 /// Centered "Show all / show assigned add-ons" toggle.
 class _ShowAllToggle extends StatelessWidget {
@@ -2090,204 +2579,7 @@ class _ShowAllToggle extends StatelessWidget {
   }
 }
 
-/// One choice in the item's sheet — a size, an option, an extra — as the
-/// design's tile: a grid cell at least [kOptionTileMinHeight] tall, the name
-/// over its price, the accent wash and a 2pt ring when chosen, a check in the
-/// corner for a pick-one, a count and a − for a pick-many.
-class _OptionTile extends StatelessWidget {
-  const _OptionTile({
-    required this.name,
-    required this.selected,
-    required this.onTap,
-    this.sub,
-    this.check = false,
-    this.count,
-    this.onDec,
-  });
-
-  final String name;
-  final String? sub;
-  final bool selected;
-  final bool check;
-
-  /// A pick-many's count, drawn in the corner; a tap adds one more.
-  final int? count;
-  final VoidCallback? onDec;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final sub = this.sub;
-    final count = this.count;
-    final onDec = this.onDec;
-    final tile = TactileScale(
-      onTap: () {
-        MadarHaptics.selection();
-        onTap();
-      },
-      child: AnimatedContainer(
-        duration: MotionSpec.gentleDuration,
-        curve: MotionSpec.gentleCurve,
-        constraints: const BoxConstraints(minHeight: kOptionTileMinHeight),
-        padding: const EdgeInsetsDirectional.fromSTEB(
-          Space.md,
-          Space.sm,
-          Space.xl + Space.sm,
-          Space.sm,
-        ),
-        decoration: BoxDecoration(
-          color: selected
-              ? colors.accent.withValues(alpha: 0.1)
-              : colors.surface,
-          borderRadius: BorderRadius.circular(Radii.control),
-          border: Border.all(
-            color: selected ? colors.accent : colors.border,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 2,
-          children: [
-            Text(
-              name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: MadarType.bodySm.copyWith(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
-            ),
-            if (sub != null)
-              Text(
-                sub,
-                textDirection: TextDirection.ltr,
-                maxLines: 1,
-                style: MadarType.num.copyWith(color: colors.textSecondary),
-              ),
-          ],
-        ),
-      ),
-    );
-    return Semantics(
-      selected: selected,
-      child: Stack(
-        children: [
-          tile,
-          if (check)
-            PositionedDirectional(
-              top: Space.sm,
-              end: Space.sm,
-              child: IgnorePointer(
-                child: Container(
-                  width: 20,
-                  height: 20,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: colors.accent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: MadarGlyphIcon(
-                    MadarGlyph.check,
-                    size: IconSize.xs,
-                    color: colors.textOnAccent,
-                  ),
-                ),
-              ),
-            ),
-          if (count != null)
-            PositionedDirectional(
-              top: Space.sm,
-              end: Space.sm,
-              child: IgnorePointer(
-                child: Container(
-                  constraints: const BoxConstraints(minWidth: 24),
-                  height: 24,
-                  padding: const EdgeInsetsDirectional.symmetric(
-                    horizontal: Space.sm,
-                  ),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: colors.accent,
-                    borderRadius: BorderRadius.circular(Radii.pill),
-                  ),
-                  child: Text(
-                    '$count×',
-                    textDirection: TextDirection.ltr,
-                    style: MadarType.label.copyWith(color: colors.textOnAccent),
-                  ),
-                ),
-              ),
-            ),
-          if (onDec != null)
-            PositionedDirectional(
-              bottom: Space.xs,
-              end: Space.xs,
-              child: Semantics(
-                button: true,
-                child: TactileScale(
-                  onTap: () {
-                    MadarHaptics.selection();
-                    onDec();
-                  },
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: colors.surface,
-                      borderRadius: BorderRadius.circular(Radii.xs),
-                      border: Border.all(color: colors.border),
-                    ),
-                    child: MadarGlyphIcon(
-                      MadarGlyph.minus,
-                      size: IconSize.sm,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The option tile's floor: taller than a chip, the design's "slightly
-/// larger buttons" a thumb finds without looking.
-const double kOptionTileMinHeight = 64;
-
-/// The choices as a grid of equal tiles: as many columns of at least
-/// [_minTile] as the width holds, two to four.
-class ItemSheetOptionGrid extends StatelessWidget {
-  const ItemSheetOptionGrid({required this.children, super.key});
-
-  final List<Widget> children;
-  static const double _minTile = 140;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        final columns = (c.maxWidth / _minTile).floor().clamp(2, 4);
-        final width = (c.maxWidth - Space.sm * (columns - 1)) / columns;
-        return Wrap(
-          spacing: Space.sm,
-          runSpacing: Space.sm,
-          children: [
-            for (final child in children) SizedBox(width: width, child: child),
-          ],
-        );
-      },
-    );
-  }
-}
-
-/// A size, as an option tile.
+/// A size chip: label over its price, accent fill when active.
 class ItemSheetChip extends StatelessWidget {
   const ItemSheetChip({
     required this.label,
@@ -2303,13 +2595,48 @@ class ItemSheetChip extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => _OptionTile(
-    name: label,
-    sub: sub,
-    selected: active,
-    check: active,
-    onTap: onTap,
-  );
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final fg = active ? colors.textOnAccent : colors.textPrimary;
+    final sub = this.sub;
+    return TactileScale(
+      onTap: () {
+        MadarHaptics.selection();
+        onTap();
+      },
+      child: Container(
+        constraints: const BoxConstraints(minHeight: kOptionChipMinHeight),
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Space.xl,
+          vertical: Space.sm,
+        ),
+        decoration: BoxDecoration(
+          color: active ? colors.accent : colors.surface,
+          borderRadius: BorderRadius.circular(Radii.sm),
+          border: active ? null : Border.all(color: colors.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(label, style: _chipText.copyWith(color: fg)),
+            if (sub != null)
+              Text(
+                sub,
+                textDirection: TextDirection.ltr,
+                style: MadarType.label.copyWith(
+                  fontWeight: FontWeight.w500,
+                  color: active
+                      ? colors.textOnAccent.withValues(alpha: 0.8)
+                      : colors.textSecondary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// The preparation steps, numbered, with one animation playing at a time.
