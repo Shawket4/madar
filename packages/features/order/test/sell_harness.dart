@@ -459,6 +459,63 @@ class _FakeBridge implements MadarBridge {
     final can = fakeCanInvocation(invocation, () => currentSession()?.role);
     if (can != null) return can;
     final name = invocation.memberName;
+    // Charge, drawn in the legacy panel: the core's tender figures restated
+    // (checkout's own tests pin the real ones), cash only.
+    if (name == #tenderSummary) {
+      final a = invocation.namedArguments;
+      final due = a[#dueMinor] as int;
+      final tendered = a[#tenderedMinor] as int;
+      return TenderSummaryView(
+        chargeTotalMinor: due,
+        dueCashMinor: due,
+        changeMinor: tendered > due ? tendered - due : 0,
+        shortMinor: due > tendered ? due - tendered : 0,
+        splitAllocatedMinor: 0,
+        splitRemainingMinor: due,
+        dueLabelKey: 'order.total',
+        dueIsSubtotal: false,
+        showsChange: true,
+      );
+    }
+    if (name == #cashQuickTenders) return const <CashQuickTenderView>[];
+    if (name == #availablePaymentMethods) {
+      return Future<List<PaymentMethodView>>.value(const [
+        PaymentMethodView(
+          id: 'cash',
+          name: 'Cash',
+          isCash: true,
+          icon: 'cash',
+          color: '#178A4C',
+        ),
+      ]);
+    }
+    if (name == #listDiscounts) {
+      return Future<List<DiscountView>>.value(const []);
+    }
+    if (name == #cartRewardLines || name == #ticketRewardLines) {
+      return const <RewardLineInput>[];
+    }
+    if (name == #rewardRedemptions) return const <CheckoutRedemption>[];
+    if (name == #canWaiveServiceCharge) return false;
+    if (name == #loyaltyAwardWindowOpen) return false;
+    if (name == #loyaltySettings) {
+      return Future<LoyaltyProgrammeView>.value(
+        const LoyaltyProgrammeView(
+          enabled: false,
+          mode: 'points',
+          programName: '',
+          balanceLabel: 'points',
+        ),
+      );
+    }
+    if (name == #cartDiscount) {
+      return Future<CartDiscountView>.value(
+        const CartDiscountView(kind: '', offMinor: 0),
+      );
+    }
+    if (name == #cartDiscountId) return Future<String?>.value();
+    if (name == #orgLogoLocalPath) return null;
+    if (name == #receiptFooter) return '';
     if (name == #tr) {
       final key = invocation.namedArguments[#key] as String? ?? '';
       // The core's REAL tables first (read out of i18n.rs), so the PNGs show
@@ -892,6 +949,7 @@ Future<ProviderContainer> _mount(
   required Size size,
   _FakeBridge? bridge,
   bool dark = false,
+  SellLayout layout = SellLayout.standard,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = size;
@@ -901,7 +959,12 @@ Future<ProviderContainer> _mount(
   });
   final fake = bridge ?? _FakeBridge();
   final container = ProviderContainer(
-    overrides: [bridgeProvider.overrideWithValue(fake)],
+    overrides: [
+      bridgeProvider.overrideWithValue(fake),
+      sellLayoutProvider.overrideWith(
+        () => SellLayoutNotifier(initial: layout),
+      ),
+    ],
   );
   addTearDown(container.dispose);
   await tester.pumpWidget(

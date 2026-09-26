@@ -997,7 +997,12 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
         ),
         // Hug content when it fits (short sheet for a sparse item); scroll
         // when the options overflow — the footer stays pinned + visible.
+        // In a panel (the legacy Sell layout) the body fills it instead, so
+        // the footer sits at the panel's foot, not under the last group.
         Flexible(
+          fit: MadarPanelHost.isPanelPage(context)
+              ? FlexFit.tight
+              : FlexFit.loose,
           child: ColoredBox(
             color: colors.surfaceAlt,
             child: SingleChildScrollView(

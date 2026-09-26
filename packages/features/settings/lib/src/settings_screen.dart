@@ -174,6 +174,7 @@ class _Preferences extends ConsumerWidget {
             const MotionSegment(),
           ],
         ),
+        const SellLayoutSection(),
         MadarButton(
           label: t('settings.sign_out'),
           glyph: MadarGlyph.signOut,
@@ -323,6 +324,49 @@ class MotionSegment extends ConsumerWidget {
       ],
       value: ref.watch(motionChoiceProvider),
       onChanged: ref.read(motionChoiceProvider.notifier).set,
+    );
+  }
+}
+
+/// The Sell screen's layout on this tablet: Standard · Legacy, with a line
+/// saying what Legacy changes. Any teller may switch it (no permission);
+/// the choice stays on this device. Nothing at all on a phone, which always
+/// sells the standard way. Shared with the Me tab.
+class SellLayoutSection extends ConsumerWidget {
+  const SellLayoutSection({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!MadarLayout.of(context).isTablet) return const SizedBox.shrink();
+    final bridge = ref.bridge;
+    String t(String key) => bridge.tr(key: key);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
+      children: [
+        MadarSectionHeader(text: t('settings.sell_layout')),
+        MadarSegmented<SellLayout>(
+          key: const ValueKey('sell-layout'),
+          items: [
+            MadarSegmentItem(
+              SellLayout.standard,
+              t('settings.sell_layout_standard'),
+            ),
+            MadarSegmentItem(
+              SellLayout.legacy,
+              t('settings.sell_layout_legacy'),
+            ),
+          ],
+          value: ref.watch(sellLayoutProvider),
+          onChanged: ref.read(sellLayoutProvider.notifier).set,
+        ),
+        Text(
+          t('settings.sell_layout_hint'),
+          style: MadarType.bodySm.copyWith(
+            color: context.madarColors.textSecondary,
+          ),
+        ),
+      ],
     );
   }
 }

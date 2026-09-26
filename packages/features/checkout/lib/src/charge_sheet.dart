@@ -84,7 +84,12 @@ Future<ChargeOutcome?> showCharge(
   final hold = container.listen(checkoutProvider, (_, _) {});
   ChargeOutcome? outcome;
   try {
-    outcome = MadarLayout.of(context).isTablet
+    // A tablet's centred modal, unless the screen hosts its sheets in a
+    // panel (the Sell screen's legacy layout): then Charge replaces the menu
+    // beside the cart, as the sheet it is everywhere else.
+    outcome =
+        MadarLayout.of(context).isTablet &&
+            MadarPanelHost.maybeOf(context) == null
         ? await _showChargeModal(context, target)
         : await showMadarSheet<ChargeOutcome>(
             context,

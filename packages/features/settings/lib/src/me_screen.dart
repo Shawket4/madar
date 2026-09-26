@@ -18,6 +18,7 @@ import 'package:feature_settings/src/settings_screen.dart'
         LanguageSegment,
         MotionSegment,
         ProfileCard,
+        SellLayoutSection,
         ThemeSegment,
         confirmSignOut;
 import 'package:feature_settings/src/settings_sheets.dart';
@@ -319,6 +320,7 @@ class _Preferences extends ConsumerWidget {
             const MotionSegment(),
           ],
         ),
+        const SellLayoutSection(),
         MadarButton(
           label: t('settings.sign_out'),
           glyph: MadarGlyph.signOut,

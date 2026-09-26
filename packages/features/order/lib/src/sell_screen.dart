@@ -8,6 +8,13 @@
 //
 // On an iPad the cart is a column beside the catalog; on a phone it is a bar
 // at the bottom whose ▲ opens it as a sheet. Both draw `SellCart`.
+//
+// LEGACY LAYOUT (a per-till setting, `sellLayoutProvider`, tablets only): the
+// cart comes first and the menu sits at the end, in a panel that hosts the
+// screen's sheets (`MadarPanelHost`). An item's choices, a combo, Charge, a
+// note: each replaces the menu in place and gives it back when it closes.
+// The sheets are the same widgets with the same rules; only where they are
+// drawn changes.
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
@@ -156,6 +163,39 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   /// shares a GlobalKey with the Sell tab mounted underneath it.
   final _anchors = CartAnchors();
 
+  // ── legacy layout ──────────────────────────────────────────────────────────
+
+  /// The menu panel's navigator (legacy layout): the menu is its first page,
+  /// and the sheets this screen opens are pushed over it, in place.
+  final _panelNav = GlobalKey<NavigatorState>();
+
+  /// A context UNDER the panel host: sheets opened from here land in the
+  /// panel. This State's own context sits above the host its build provides.
+  final GlobalKey _hostKey = GlobalKey();
+
+  /// Charge is up in the panel. The cart beside it takes no taps meanwhile:
+  /// the modal it replaces kept the cart out of reach under its scrim, and a
+  /// line changed while money is being taken would charge the old cart.
+  bool _chargingInPanel = false;
+
+  /// Whether this screen sells in the legacy layout right now. Kept while a
+  /// charge is up in the panel, so switching the setting mid-charge cannot
+  /// tear the panel (and the charge in it) away.
+  bool _legacyNow(BuildContext context) =>
+      _chargingInPanel ||
+      (MadarLayout.of(context).isTablet &&
+          ref.watch(sellLayoutProvider) == SellLayout.legacy);
+
+  bool get _legacy =>
+      _chargingInPanel ||
+      (MadarLayout.of(context).isTablet &&
+          ref.read(sellLayoutProvider) == SellLayout.legacy);
+
+  /// Where this screen's sheets open: the panel in the legacy layout, the
+  /// window otherwise.
+  BuildContext get _sheetContext =>
+      _legacy ? (_hostKey.currentContext ?? context) : context;
+
   String? get _tableId => widget.tableId;
 
   OrderNotifier get _notifier => ref.read(orderProvider.notifier);
@@ -264,8 +304,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     if (!mounted) return;
     // The sheet closes with a combo draft when the teller chose "Make it a
     // meal": the combo sheet takes over from there, on that draft.
-    final result = await showMadarSheet<Object?>(
-      context,
+    final pending = showMadarSheet<Object?>(
+      _sheetContext,
       size: SheetSize.hug,
       builder: (_) => CartAnchorScope(
         anchors: _anchors,
@@ -278,6 +318,17 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         ),
       ),
     );
+    // In the legacy layout the choices stay up beside a cart that is still
+    // in reach: the tap is done once they are shown, so the next tile or
+    // line tap is taken (and replaces them) instead of waiting behind them.
+    if (_legacy) {
+      unawaited(pending.then(_afterItemSheet));
+      return;
+    }
+    await _afterItemSheet(await pending);
+  }
+
+  Future<void> _afterItemSheet(Object? result) async {
     if (result is ComboDraft && mounted) {
       await _openComboSheet(result.comboId, draft: result);
     }
@@ -285,15 +336,22 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
   /// The combo sheet: a fresh combo, or [draft] (a combo line to edit, or a
   /// meal made from an item).
-  Future<void> _openComboSheet(String comboId, {ComboDraft? draft}) =>
-      showComboSheet(
-        context,
-        ref,
-        comboId: comboId,
-        tableId: _tableId,
-        draft: draft,
-        anchors: _anchors,
-      );
+  Future<void> _openComboSheet(String comboId, {ComboDraft? draft}) async {
+    final shown = showComboSheet(
+      _sheetContext,
+      ref,
+      comboId: comboId,
+      tableId: _tableId,
+      draft: draft,
+      anchors: _anchors,
+    );
+    // Legacy: shown in the panel is done (see [_openItemSheet]).
+    if (_legacy) {
+      unawaited(shown);
+      return;
+    }
+    await shown;
+  }
 
   Future<void> _editLine(CartLineView line) => _once(() async {
     if (line.kind == 'combo') {
@@ -339,16 +397,23 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     // Captured BEFORE the drawer: settling clears the cart (and with it the
     // draft identity) — this is the parked order the sale completes.
     final settledDraftId = cart.draftId;
-    final outcome = await showCharge(
-      context,
-      ChargeTarget.cart(
-        tableId: _tableId,
-        customerId: ref.read(cartProvider(_tableId)).meta.customerId,
-      ),
-      // "Not printed — no printer ›" on the Done card lands on the printer
-      // sheet, not on a dead end.
-      onPrinterSettings: () => unawaited(showPrinterSheet(context)),
-    );
+    final inPanel = _legacy;
+    if (inPanel) setState(() => _chargingInPanel = true);
+    final ChargeOutcome? outcome;
+    try {
+      outcome = await showCharge(
+        _sheetContext,
+        ChargeTarget.cart(
+          tableId: _tableId,
+          customerId: ref.read(cartProvider(_tableId)).meta.customerId,
+        ),
+        // "Not printed — no printer ›" on the Done card lands on the printer
+        // sheet, not on a dead end.
+        onPrinterSettings: () => unawaited(showPrinterSheet(context)),
+      );
+    } finally {
+      if (inPanel && mounted) setState(() => _chargingInPanel = false);
+    }
     if (!mounted) return;
     if (outcome != null) {
       await _cart.onOrderSettled(settledDraftId);
@@ -416,6 +481,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       });
 
     final layout = MadarLayout.of(context);
+    final legacy = _legacyNow(context);
     final order = ref.watch(orderProvider);
     final cart = ref.watch(cartProvider(_tableId));
     final header = orderHeaderFor(bridge, order, cart);
@@ -482,7 +548,20 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
           below: headerBelow,
           body: SafeArea(
             top: false,
-            child: layout.isTablet
+            child: legacy
+                ? _LegacySellBody(
+                    panelNav: _panelNav,
+                    hostKey: _hostKey,
+                    cartWidth: MadarRoom.of(context).cartColumnWidth,
+                    cartLocked: _chargingInPanel,
+                    catalog: catalog,
+                    cart: SellCart(
+                      tableId: _tableId,
+                      onTerminal: () => unawaited(_terminal()),
+                      onEditLine: (line) => unawaited(_editLine(line)),
+                    ),
+                  )
+                : layout.isTablet
                 ? Row(
                     children: [
                       Expanded(child: catalog),
@@ -511,6 +590,66 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                   ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The legacy layout's body: the cart on the start edge, then the menu in a
+/// panel that hosts this screen's sheets in place ([MadarPanelHost]). The
+/// menu is the panel's first page; whatever opens over it (an item's
+/// choices, a combo, Charge, a note from the cart) is pushed on top and
+/// popped back to it.
+class _LegacySellBody extends StatelessWidget {
+  const _LegacySellBody({
+    required this.panelNav,
+    required this.hostKey,
+    required this.cartWidth,
+    required this.cartLocked,
+    required this.catalog,
+    required this.cart,
+  });
+
+  final GlobalKey<NavigatorState> panelNav;
+
+  /// Keys a context under the host, for the screen's own sheet calls.
+  final GlobalKey hostKey;
+  final double cartWidth;
+
+  /// Charge is up in the panel: the cart stays in view but takes no taps.
+  final bool cartLocked;
+  final Widget catalog;
+  final Widget cart;
+
+  @override
+  Widget build(BuildContext context) {
+    return MadarPanelHost(
+      navigatorKey: panelNav,
+      child: Row(
+        key: hostKey,
+        children: [
+          SizedBox(
+            width: cartWidth,
+            child: AbsorbPointer(absorbing: cartLocked, child: cart),
+          ),
+          const VerticalDivider(width: 1, thickness: 1),
+          Expanded(
+            child: ClipRect(
+              child: Navigator(
+                key: panelNav,
+                // A page, not an initial route: the menu rebuilds with the
+                // screen (search, the cart's badges) under whatever is open.
+                pages: [
+                  MaterialPage<void>(
+                    key: const ValueKey('sell-menu'),
+                    child: catalog,
+                  ),
+                ],
+                onDidRemovePage: (_) {},
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

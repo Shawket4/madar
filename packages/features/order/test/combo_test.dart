@@ -1072,6 +1072,126 @@ void main() {
     );
   }
 
+  // ── the legacy layout: the same sheets, drawn in the menu panel ─────────
+  group('in a panel host (the legacy Sell layout)', () {
+    /// A cart-like column holding the opener, beside a panel whose rest page
+    /// is the menu: the shape the legacy Sell screen gives its sheets.
+    Widget panel(Widget Function(BuildContext) opener) {
+      final nav = GlobalKey<NavigatorState>();
+      return MadarPanelHost(
+        navigatorKey: nav,
+        child: Row(
+          children: [
+            SizedBox(width: 340, child: Builder(builder: opener)),
+            Expanded(
+              child: Navigator(
+                key: nav,
+                pages: const [
+                  MaterialPage<void>(child: Center(child: Text('menu'))),
+                ],
+                onDidRemovePage: (_) {},
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    testWidgets(
+      'a combo opens in the panel; Customise stacks on it and Choose Bread '
+      'still holds Add',
+      (tester) async {
+        final fake = _Fake()..club = true;
+        final c = await _mount(
+          tester,
+          fake,
+          size: _tablet,
+          body: (context, ref) => panel((inner) => _opener(inner, ref)),
+        );
+        await c.read(orderProvider.notifier).loadCatalog();
+        await _open(tester);
+        final combo = find.byType(ComboSheet);
+        expect(
+          ModalRoute.of(tester.element(combo)),
+          isA<MadarPanelRoute<void>>(),
+        );
+        expect(tester.getRect(combo).left, closeTo(340, 1));
+        expect(find.text('menu'), findsNothing);
+
+        // The club's required bread opens Customise, stacked in the panel.
+        await tester.tap(find.byKey(const ValueKey('choice-s-main-club')));
+        await tester.pumpAndSettle();
+        final pick = find.byType(ItemDetailSheet);
+        expect(pick, findsOneWidget);
+        expect(
+          ModalRoute.of(tester.element(pick)),
+          isA<MadarPanelRoute<ComboPickInput>>(),
+        );
+        // Closed with no bread: back on the combo, and Add waits for it.
+        Navigator.of(tester.element(pick)).pop();
+        await tester.pumpAndSettle();
+        expect(find.byType(ComboSheet), findsOneWidget);
+        MadarButton add() => tester.widget<MadarButton>(
+          find.byKey(const ValueKey('combo-save')),
+        );
+        expect((add().label, add().enabled), ('Choose Bread', false));
+
+        await tester.tap(find.byKey(const ValueKey('customise-club')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Brown'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(coreWord('combo.done')));
+        await tester.pumpAndSettle();
+        expect((add().label, add().enabled), (coreWord('combo.add'), true));
+
+        // Saved: the combo goes and the menu is back.
+        await tester.tap(find.byKey(const ValueKey('combo-save')));
+        await tester.pumpAndSettle();
+        expect(fake.saved, hasLength(1));
+        expect(find.byType(ComboSheet), findsNothing);
+        expect(find.text('menu'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('"Make it a meal" from the panel hands back the draft', (
+      tester,
+    ) async {
+      final fake = _Fake();
+      Object? result;
+      await _mount(
+        tester,
+        fake,
+        size: _tablet,
+        body: (context, ref) => panel(
+          (inner) => TextButton(
+            key: const ValueKey('open'),
+            onPressed: () async {
+              result = await showMadarSheet<Object?>(
+                inner,
+                size: SheetSize.hug,
+                builder: (_) =>
+                    ItemDetailSheet(item: _latteItem(), addons: const []),
+              );
+            },
+            child: const Text('open'),
+          ),
+        ),
+      );
+      await _open(tester);
+      final sheet = find.byType(ItemDetailSheet);
+      expect(
+        ModalRoute.of(tester.element(sheet)),
+        isA<MadarPanelRoute<Object?>>(),
+      );
+      await tester.tap(find.byKey(const ValueKey('make-it-a-meal')));
+      await tester.pumpAndSettle();
+      expect(fake.mealDrafts, ['item']);
+      expect(result, isA<ComboDraft>());
+      expect(find.text('menu'), findsOneWidget);
+    });
+  });
+
   testWidgets('editing a combo line saves over that line', (tester) async {
     final fake = _Fake();
     await _mount(

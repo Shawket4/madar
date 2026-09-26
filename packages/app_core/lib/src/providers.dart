@@ -342,6 +342,49 @@ final motionChoicePersisterProvider = Provider<void Function(MotionChoice)>(
   (_) => (_) {},
 );
 
+/// Where the Sell screen puts things on a tablet. [standard]: the menu
+/// first, the cart as a column at the end, an item's choices in a sheet.
+/// [legacy]: the cart first, the menu at the end, and an item's choices,
+/// a combo, the charge or a note opening IN PLACE of the menu, the way the
+/// cashier apps tellers come from lay it out. A phone always sells the
+/// standard way: it has no room for the two side by side.
+///
+/// A per-device preference like the theme: any teller may switch it, it is
+/// no permission and never leaves the till. Persisted through the host hook.
+enum SellLayout {
+  standard,
+  legacy;
+
+  /// The persisted name back to a layout; anything unknown is [standard].
+  static SellLayout parse(String? name) =>
+      name == 'legacy' ? SellLayout.legacy : SellLayout.standard;
+}
+
+class SellLayoutNotifier extends Notifier<SellLayout> {
+  SellLayoutNotifier({this.initial = SellLayout.standard});
+
+  /// The vault-persisted value the ready scope boots with.
+  final SellLayout initial;
+
+  @override
+  SellLayout build() => initial;
+
+  /// User pick — updates + persists through the host hook.
+  void set(SellLayout layout) {
+    state = layout;
+    ref.read(sellLayoutPersisterProvider)(layout);
+  }
+}
+
+final sellLayoutProvider = NotifierProvider<SellLayoutNotifier, SellLayout>(
+  SellLayoutNotifier.new,
+);
+
+/// Host hook the APP overrides at boot; a no-op so tests run bare.
+final sellLayoutPersisterProvider = Provider<void Function(SellLayout)>(
+  (_) => (_) {},
+);
+
 /// Per-board realtime ticks — bumped by the app's SSE listener; boards
 /// watch and reload. The natives' tick counters.
 class TickNotifier extends Notifier<int> {

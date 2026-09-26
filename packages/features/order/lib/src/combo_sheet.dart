@@ -335,7 +335,12 @@ class _ComboSheetState extends ConsumerState<ComboSheet> {
         ),
         // Hug content when it fits; scroll when the slots overflow — the
         // footer stays pinned and visible (the item sheet's body).
+        // In a panel (the legacy Sell layout) the body fills it instead, so
+        // the footer sits at the panel's foot, not under the last group.
         Flexible(
+          fit: MadarPanelHost.isPanelPage(context)
+              ? FlexFit.tight
+              : FlexFit.loose,
           child: ColoredBox(
             color: colors.surfaceAlt,
             // Not lazy: a combo has a handful of slots, and every one of

@@ -157,6 +157,13 @@ List<Override> readyScopeOverrides(BootData boot) {
     motionChoicePersisterProvider.overrideWithValue((choice) {
       boot.vault.motion = choice.name;
     }),
+    sellLayoutProvider.overrideWith(
+      () =>
+          SellLayoutNotifier(initial: SellLayout.parse(boot.vault.sellLayout)),
+    ),
+    sellLayoutPersisterProvider.overrideWithValue((layout) {
+      boot.vault.sellLayout = layout.name;
+    }),
     localePersisterProvider.overrideWithValue((locale) {
       boot.vault.locale = locale;
     }),

@@ -26,6 +26,7 @@ export 'src/list_row.dart';
 export 'src/modal.dart';
 export 'src/money.dart';
 export 'src/page.dart';
+export 'src/panel.dart';
 export 'src/paper.dart';
 export 'src/playful.dart';
 export 'src/preferences.dart';
