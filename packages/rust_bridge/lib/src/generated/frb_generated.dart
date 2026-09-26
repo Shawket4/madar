@@ -17131,8 +17131,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       qty: dco_decode_i_64(arr[1]),
       sizeLabel: dco_decode_opt_String(arr[2]),
       lineTotalMinor: dco_decode_i_64(arr[3]),
-      addons: dco_decode_list_String(arr[4]),
-      optionals: dco_decode_list_String(arr[5]),
+      addons: dco_decode_list_receipt_modifier_view(arr[4]),
+      optionals: dco_decode_list_receipt_modifier_view(arr[5]),
       kind: dco_decode_String(arr[6]),
     );
   }
@@ -17141,19 +17141,21 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   OrderDetailView dco_decode_order_detail_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 10)
-      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return OrderDetailView(
       id: dco_decode_String(arr[0]),
       orderNumber: dco_decode_opt_box_autoadd_i_32(arr[1]),
       status: dco_decode_String(arr[2]),
       paymentLabel: dco_decode_String(arr[3]),
       subtotalMinor: dco_decode_i_64(arr[4]),
-      discountMinor: dco_decode_i_64(arr[5]),
-      taxMinor: dco_decode_i_64(arr[6]),
-      totalMinor: dco_decode_i_64(arr[7]),
-      createdAt: dco_decode_String(arr[8]),
-      lines: dco_decode_list_order_detail_line_view(arr[9]),
+      grossSubtotalMinor: dco_decode_i_64(arr[5]),
+      discountMinor: dco_decode_i_64(arr[6]),
+      taxMinor: dco_decode_i_64(arr[7]),
+      totalMinor: dco_decode_i_64(arr[8]),
+      createdAt: dco_decode_String(arr[9]),
+      lines: dco_decode_list_order_detail_line_view(arr[10]),
+      deals: dco_decode_list_receipt_deal_view(arr[11]),
     );
   }
 
@@ -22576,8 +22578,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_qty = sse_decode_i_64(deserializer);
     var var_sizeLabel = sse_decode_opt_String(deserializer);
     var var_lineTotalMinor = sse_decode_i_64(deserializer);
-    var var_addons = sse_decode_list_String(deserializer);
-    var var_optionals = sse_decode_list_String(deserializer);
+    var var_addons = sse_decode_list_receipt_modifier_view(deserializer);
+    var var_optionals = sse_decode_list_receipt_modifier_view(deserializer);
     var var_kind = sse_decode_String(deserializer);
     return OrderDetailLineView(
       name: var_name,
@@ -22598,22 +22600,26 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_status = sse_decode_String(deserializer);
     var var_paymentLabel = sse_decode_String(deserializer);
     var var_subtotalMinor = sse_decode_i_64(deserializer);
+    var var_grossSubtotalMinor = sse_decode_i_64(deserializer);
     var var_discountMinor = sse_decode_i_64(deserializer);
     var var_taxMinor = sse_decode_i_64(deserializer);
     var var_totalMinor = sse_decode_i_64(deserializer);
     var var_createdAt = sse_decode_String(deserializer);
     var var_lines = sse_decode_list_order_detail_line_view(deserializer);
+    var var_deals = sse_decode_list_receipt_deal_view(deserializer);
     return OrderDetailView(
       id: var_id,
       orderNumber: var_orderNumber,
       status: var_status,
       paymentLabel: var_paymentLabel,
       subtotalMinor: var_subtotalMinor,
+      grossSubtotalMinor: var_grossSubtotalMinor,
       discountMinor: var_discountMinor,
       taxMinor: var_taxMinor,
       totalMinor: var_totalMinor,
       createdAt: var_createdAt,
       lines: var_lines,
+      deals: var_deals,
     );
   }
 
@@ -27602,8 +27608,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_i_64(self.qty, serializer);
     sse_encode_opt_String(self.sizeLabel, serializer);
     sse_encode_i_64(self.lineTotalMinor, serializer);
-    sse_encode_list_String(self.addons, serializer);
-    sse_encode_list_String(self.optionals, serializer);
+    sse_encode_list_receipt_modifier_view(self.addons, serializer);
+    sse_encode_list_receipt_modifier_view(self.optionals, serializer);
     sse_encode_String(self.kind, serializer);
   }
 
@@ -27618,11 +27624,13 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_String(self.status, serializer);
     sse_encode_String(self.paymentLabel, serializer);
     sse_encode_i_64(self.subtotalMinor, serializer);
+    sse_encode_i_64(self.grossSubtotalMinor, serializer);
     sse_encode_i_64(self.discountMinor, serializer);
     sse_encode_i_64(self.taxMinor, serializer);
     sse_encode_i_64(self.totalMinor, serializer);
     sse_encode_String(self.createdAt, serializer);
     sse_encode_list_order_detail_line_view(self.lines, serializer);
+    sse_encode_list_receipt_deal_view(self.deals, serializer);
   }
 
   @protected

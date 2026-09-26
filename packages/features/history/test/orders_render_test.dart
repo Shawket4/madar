@@ -170,10 +170,12 @@ const _detail1042 = OrderDetailView(
   status: 'completed',
   paymentLabel: 'Cash',
   subtotalMinor: 17500,
+  grossSubtotalMinor: 17500,
   discountMinor: 0,
   taxMinor: 2407,
   totalMinor: 19600,
   createdAt: '2026-09-12T19:31:00Z',
+  deals: [],
   lines: [
     OrderDetailLineView(
       kind: 'item',
@@ -181,7 +183,7 @@ const _detail1042 = OrderDetailView(
       qty: 2,
       sizeLabel: 'Large',
       lineTotalMinor: 9000,
-      addons: ['Oat milk'],
+      addons: [ReceiptModifierView(name: 'Oat milk', priceMinor: 0)],
       optionals: [],
     ),
     OrderDetailLineView(
@@ -231,6 +233,114 @@ const _receipt1042 = ReceiptView(
   taxRate: 0.14,
 );
 
+/// T2's bill (B5, B6) as the core hands it over in each language: a combo
+/// whose Latte took oat milk, then two pastries under a deal. Each part's row
+/// is what it adds (its add-ons with it) and the pastries sit at their normal
+/// prices; the deal comes off under the gross subtotal, as on the receipt.
+OrderDetailView _dealComboDetail({required bool arabic}) => OrderDetailView(
+  id: 'o-1044',
+  orderNumber: 1044,
+  status: 'completed',
+  paymentLabel: 'Cash',
+  subtotalMinor: 90000,
+  grossSubtotalMinor: 95000,
+  discountMinor: 0,
+  taxMinor: 11053,
+  totalMinor: 90000,
+  createdAt: '2026-09-12T19:45:00Z',
+  deals: [
+    ReceiptDealView(
+      name: arabic ? 'أي قطعتين معجنات بـ ٢٥٠' : 'Any 2 pastries for 250',
+      discountMinor: 5000,
+    ),
+  ],
+  lines: [
+    OrderDetailLineView(
+      kind: 'combo',
+      name: arabic ? 'قهوة وحلوى' : 'Coffee & Treat',
+      qty: 2,
+      lineTotalMinor: 65000,
+      addons: const [],
+      optionals: const [],
+    ),
+    OrderDetailLineView(
+      kind: 'combo_part',
+      name: arabic ? 'لاتيه' : 'Latte',
+      qty: 2,
+      lineTotalMinor: 22880,
+      addons: [
+        ReceiptModifierView(
+          name: arabic ? 'حليب الشوفان' : 'Oat Milk',
+          priceMinor: 8000,
+        ),
+      ],
+      optionals: const [],
+    ),
+    OrderDetailLineView(
+      kind: 'combo_part',
+      name: arabic ? 'فانيليا سوفت سيرف' : 'Vanilla Soft Serve',
+      qty: 2,
+      sizeLabel: 'large',
+      lineTotalMinor: 16692,
+      addons: const [],
+      optionals: const [],
+    ),
+    OrderDetailLineView(
+      kind: 'combo_part',
+      name: arabic ? 'كوكيز' : 'Cookies',
+      qty: 2,
+      lineTotalMinor: 25428,
+      addons: const [],
+      optionals: const [],
+    ),
+    OrderDetailLineView(
+      kind: 'item',
+      name: arabic ? 'براونيز' : 'Brownies',
+      qty: 1,
+      lineTotalMinor: 12000,
+      addons: const [],
+      optionals: const [],
+    ),
+    OrderDetailLineView(
+      kind: 'item',
+      name: arabic ? 'كوكيز' : 'Cookies',
+      qty: 1,
+      lineTotalMinor: 18000,
+      addons: const [],
+      optionals: const [],
+    ),
+  ],
+);
+
+/// That sale's receipt: VAT inside the prices, no service, no tip.
+const _receiptDealCombo = ReceiptView(
+  deals: [],
+  localOrderId: 'o-1044',
+  orderNumber: 1044,
+  isVoided: false,
+  lines: [],
+  paymentLabel: 'Cash',
+  subtotalMinor: 90000,
+  discountMinor: 0,
+  taxMinor: 11053,
+  serviceChargeMinor: 0,
+  deliveryFeeMinor: 0,
+  totalMinor: 90000,
+  tipMinor: 0,
+  amountTenderedMinor: 90000,
+  changeMinor: 0,
+  isCash: true,
+  tellerName: 'Sara',
+  isDelivery: false,
+  queuedOffline: false,
+  createdAt: '2026-09-12T19:45:00Z',
+  payments: [],
+  displayNumber: '',
+  serviceChargeWaivedMinor: 0,
+  taxInclusive: true,
+  taxRate: 0.14,
+);
+
 const _mona = CustomerView(
   id: 'c-mona',
   name: 'Mona Adel',
@@ -269,6 +379,10 @@ class _FakeBridge implements MadarBridge {
 
   /// This till's rows as the local store holds them now.
   List<OrderSummaryView> tillOrders = _tillOrders;
+
+  /// What `orderDetail` / `orderReceiptView` answer for the open sale.
+  OrderDetailView detail = _detail1042;
+  ReceiptView receipt = _receipt1042;
 
   /// Manual syncs asked for (a person's pull), and what landing one does to
   /// the local rows.
@@ -515,7 +629,7 @@ class _FakeBridge implements MadarBridge {
           const MadarError.offline(detail: 'no route'),
         );
       }
-      return Future<OrderDetailView>.value(_detail1042);
+      return Future<OrderDetailView>.value(detail);
     }
     if (name == #listOrderRefunds) {
       if (!online) {
@@ -529,7 +643,7 @@ class _FakeBridge implements MadarBridge {
     if (name == #orderReceiptView) {
       // The RECEIPT is a local read: the core keeps the one it printed on the
       // sale's own ledger row, so it answers with no network at all.
-      return Future<ReceiptView>.value(_receipt1042);
+      return Future<ReceiptView>.value(receipt);
     }
     if (name == #refreshConnectivity) return Future<bool>.value(online);
     if (name == #pendingOutboxCount) return Future<int>.value(0);
@@ -718,6 +832,100 @@ void main() {
 
       expect(bridge.syncs, 1, reason: 'one manual sync per pull');
       expect(_ref('#1042'), findsWidgets, reason: 'the new sale shows');
+    });
+  }
+
+  // B5 + B6 (T2): the sale's rows add up, as its receipt does. The deal is
+  // its own row under the gross subtotal, and a combo part's row carries its
+  // add-on, priced, so the parts come to the combo.
+  for (final arabic in [false, true]) {
+    final lang = arabic ? 'AR' : 'EN';
+    testWidgets('a sale with a deal and a combo add-on adds up ($lang)', (
+      tester,
+    ) async {
+      final bridge = _FakeBridge(arabic: arabic)
+        ..tillOrders = [
+          _order(1044, at: '2026-09-12T19:45:00Z', total: 90000),
+          ..._tillOrders,
+        ]
+        ..detail = _dealComboDetail(arabic: arabic)
+        ..receipt = _receiptDealCombo;
+      await _shoot(
+        tester,
+        screen: const OrderHistoryScreen(),
+        bridge: bridge,
+        size: _ipad,
+        theme: MadarTheme.light(),
+        name: 'ipad-deal-combo-${lang.toLowerCase()}',
+        then: (t) async {
+          await _open(t, 1044);
+          // Down to the totals, so the board shows the deal row.
+          await t.drag(
+            find.descendant(
+              of: find.byType(SalePanel),
+              matching: find.byType(SingleChildScrollView),
+            ),
+            const Offset(0, -500),
+          );
+          await t.pump(const Duration(milliseconds: 400));
+        },
+      );
+      final panel = find.byType(SalePanel);
+      String plain(String s) =>
+          s.replaceAll('\u2066', '').replaceAll('\u2069', '');
+      Finder inPanel(Finder f) => find.descendant(of: panel, matching: f);
+      final rows = tester
+          .widgetList<MadarListRow>(inPanel(find.byType(MadarListRow)))
+          .where((r) => r.minor != null)
+          .toList();
+      final sums = {
+        for (final l in tester.widgetList<MadarSummaryLine>(
+          inPanel(find.byType(MadarSummaryLine)),
+        ))
+          l.label: l.minor,
+      };
+      final deal = arabic
+          ? 'أي قطعتين معجنات بـ ٢٥٠'
+          : 'Any 2 pastries for 250';
+      final words = arabic ? _ar : _en;
+      final subtotal = words['order.subtotal']!;
+      final total = words['order.total']!;
+
+      // The rows: the combo, its three parts, the two pastries.
+      expect(rows.map((r) => r.minor), [
+        65000,
+        22880,
+        16692,
+        25428,
+        12000,
+        18000,
+      ]);
+      // B6: the parts come to the combo, and the oat milk says what it cost.
+      expect(rows[1].minor! + rows[2].minor! + rows[3].minor!, rows[0].minor);
+      final oat = arabic ? 'حليب الشوفان +80.00 ج.م' : 'Oat Milk +EGP 80.00';
+      expect(plain(rows[1].meta ?? ''), oat);
+      expect(
+        find.byWidgetPredicate((w) => w is Text && plain(w.data ?? '') == oat),
+        findsOneWidget,
+      );
+      // B5: the lines are the subtotal, the deal comes off under it, and
+      // what is left is the total.
+      expect(sums[subtotal], rows[0].minor! + rows[4].minor! + rows[5].minor!);
+      expect(sums[deal], -5000, reason: 'the deal is its own row');
+      expect(sums[subtotal]! + sums[deal]!, sums[total]);
+      expect(sums[total], 90000);
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey('sale-deal-$deal')),
+          matching: find.byWidgetPredicate(
+            (w) =>
+                w is Text &&
+                plain(w.data ?? '') ==
+                    (arabic ? '\u221250.00 ج.م' : '\u2212EGP 50.00'),
+          ),
+        ),
+        findsOneWidget,
+      );
     });
   }
 

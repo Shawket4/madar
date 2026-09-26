@@ -182,7 +182,7 @@ class SalePanel extends ConsumerWidget {
                           ),
                           child: MadarListRow.bill(
                             title: '${ltrIsland('${line.qty}×')} ${line.name}',
-                            meta: _mods(line),
+                            meta: _mods(line, bridge, currency),
                             minor: line.lineTotalMinor,
                             currency: currency,
                             chevron: false,
@@ -219,8 +219,20 @@ class SalePanel extends ConsumerWidget {
     );
   }
 
-  static String? _mods(OrderDetailLineView line) {
-    final mods = <String>[?line.sizeLabel, ...line.addons, ...line.optionals];
+  /// "Large · Oat Milk +EGP 80.00": the size, then each add-on and optional
+  /// field with what it added to the line (B6) — a free one is just named.
+  static String? _mods(
+    OrderDetailLineView line,
+    MadarBridge bridge,
+    String currency,
+  ) {
+    String priced(ReceiptModifierView m) => m.priceMinor > 0
+        ? '${m.name} ${bridge.formatMoney(minor: m.priceMinor, currency: currency, signed: true)}'
+        : m.name;
+    final mods = <String>[
+      ?line.sizeLabel,
+      for (final m in [...line.addons, ...line.optionals]) priced(m),
+    ];
     return mods.isEmpty ? null : mods.join(' · ');
   }
 }
@@ -305,8 +317,10 @@ class _SaleCustomerState extends ConsumerState<_SaleCustomer> {
   }
 }
 
-/// Subtotal · Discount · Service · Tax · Total · Tip. The detail view has
-/// subtotal / discount / tax / total; the receipt projection adds the
+/// Subtotal · Deals · Discount · Service · Tax · Total · Tip. The detail view
+/// has subtotal / deals / discount / tax / total — with deals, the subtotal is
+/// the lines at their normal prices and each deal comes off under it as its
+/// own row, as on the receipt (B5); the receipt projection adds the
 /// service charge and the tip, so those lines appear only once it is in
 /// hand and only when non-zero. Tax reads "VAT included" under an inclusive
 /// policy and sits under the total because it added nothing.
@@ -328,7 +342,10 @@ class _Totals extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String t(String key) => historyTr(bridge, key);
+    // The server's NET subtotal decides the tax policy below; the row shows
+    // the gross one the deal rows come off.
     final subtotal = detail?.subtotalMinor ?? order.subtotalMinor;
+    final deals = detail?.deals ?? const <ReceiptDealView>[];
     final discount = detail?.discountMinor ?? receipt?.discountMinor ?? 0;
     final tax = detail?.taxMinor ?? order.taxMinor;
     final service = receipt?.serviceChargeMinor ?? 0;
@@ -355,7 +372,15 @@ class _Totals extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        line(t('order.subtotal'), subtotal),
+        line(t('order.subtotal'), detail?.grossSubtotalMinor ?? subtotal),
+        for (final d in deals)
+          MadarSummaryLine(
+            key: ValueKey('sale-deal-${d.name}'),
+            label: d.name,
+            minor: -d.discountMinor,
+            currency: currency,
+            tone: MadarTone.success,
+          ),
         if (discount > 0)
           MadarSummaryLine(
             label: t('order.discount'),

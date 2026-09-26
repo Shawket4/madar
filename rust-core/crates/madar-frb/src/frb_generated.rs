@@ -18331,8 +18331,8 @@ const _: fn() = || {
         let _: i64 = OrderDetailLineView.qty;
         let _: Option<String> = OrderDetailLineView.size_label;
         let _: i64 = OrderDetailLineView.line_total_minor;
-        let _: Vec<String> = OrderDetailLineView.addons;
-        let _: Vec<String> = OrderDetailLineView.optionals;
+        let _: Vec<crate::api::orders::ReceiptModifierView> = OrderDetailLineView.addons;
+        let _: Vec<crate::api::orders::ReceiptModifierView> = OrderDetailLineView.optionals;
         let _: String = OrderDetailLineView.kind;
     }
     {
@@ -18342,11 +18342,13 @@ const _: fn() = || {
         let _: String = OrderDetailView.status;
         let _: String = OrderDetailView.payment_label;
         let _: i64 = OrderDetailView.subtotal_minor;
+        let _: i64 = OrderDetailView.gross_subtotal_minor;
         let _: i64 = OrderDetailView.discount_minor;
         let _: i64 = OrderDetailView.tax_minor;
         let _: i64 = OrderDetailView.total_minor;
         let _: String = OrderDetailView.created_at;
         let _: Vec<crate::api::orders::OrderDetailLineView> = OrderDetailView.lines;
+        let _: Vec<crate::api::orders::ReceiptDealView> = OrderDetailView.deals;
     }
     {
         let OrderRefundsView = None::<crate::api::orders::OrderRefundsView>.unwrap();
@@ -22956,8 +22958,10 @@ impl SseDecode for crate::api::orders::OrderDetailLineView {
         let mut var_qty = <i64>::sse_decode(deserializer);
         let mut var_sizeLabel = <Option<String>>::sse_decode(deserializer);
         let mut var_lineTotalMinor = <i64>::sse_decode(deserializer);
-        let mut var_addons = <Vec<String>>::sse_decode(deserializer);
-        let mut var_optionals = <Vec<String>>::sse_decode(deserializer);
+        let mut var_addons =
+            <Vec<crate::api::orders::ReceiptModifierView>>::sse_decode(deserializer);
+        let mut var_optionals =
+            <Vec<crate::api::orders::ReceiptModifierView>>::sse_decode(deserializer);
         let mut var_kind = <String>::sse_decode(deserializer);
         return crate::api::orders::OrderDetailLineView {
             name: var_name,
@@ -22979,23 +22983,27 @@ impl SseDecode for crate::api::orders::OrderDetailView {
         let mut var_status = <String>::sse_decode(deserializer);
         let mut var_paymentLabel = <String>::sse_decode(deserializer);
         let mut var_subtotalMinor = <i64>::sse_decode(deserializer);
+        let mut var_grossSubtotalMinor = <i64>::sse_decode(deserializer);
         let mut var_discountMinor = <i64>::sse_decode(deserializer);
         let mut var_taxMinor = <i64>::sse_decode(deserializer);
         let mut var_totalMinor = <i64>::sse_decode(deserializer);
         let mut var_createdAt = <String>::sse_decode(deserializer);
         let mut var_lines =
             <Vec<crate::api::orders::OrderDetailLineView>>::sse_decode(deserializer);
+        let mut var_deals = <Vec<crate::api::orders::ReceiptDealView>>::sse_decode(deserializer);
         return crate::api::orders::OrderDetailView {
             id: var_id,
             order_number: var_orderNumber,
             status: var_status,
             payment_label: var_paymentLabel,
             subtotal_minor: var_subtotalMinor,
+            gross_subtotal_minor: var_grossSubtotalMinor,
             discount_minor: var_discountMinor,
             tax_minor: var_taxMinor,
             total_minor: var_totalMinor,
             created_at: var_createdAt,
             lines: var_lines,
+            deals: var_deals,
         };
     }
 }
@@ -29028,11 +29036,13 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::OrderDetai
             self.0.status.into_into_dart().into_dart(),
             self.0.payment_label.into_into_dart().into_dart(),
             self.0.subtotal_minor.into_into_dart().into_dart(),
+            self.0.gross_subtotal_minor.into_into_dart().into_dart(),
             self.0.discount_minor.into_into_dart().into_dart(),
             self.0.tax_minor.into_into_dart().into_dart(),
             self.0.total_minor.into_into_dart().into_dart(),
             self.0.created_at.into_into_dart().into_dart(),
             self.0.lines.into_into_dart().into_dart(),
+            self.0.deals.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -33719,8 +33729,8 @@ impl SseEncode for crate::api::orders::OrderDetailLineView {
         <i64>::sse_encode(self.qty, serializer);
         <Option<String>>::sse_encode(self.size_label, serializer);
         <i64>::sse_encode(self.line_total_minor, serializer);
-        <Vec<String>>::sse_encode(self.addons, serializer);
-        <Vec<String>>::sse_encode(self.optionals, serializer);
+        <Vec<crate::api::orders::ReceiptModifierView>>::sse_encode(self.addons, serializer);
+        <Vec<crate::api::orders::ReceiptModifierView>>::sse_encode(self.optionals, serializer);
         <String>::sse_encode(self.kind, serializer);
     }
 }
@@ -33733,11 +33743,13 @@ impl SseEncode for crate::api::orders::OrderDetailView {
         <String>::sse_encode(self.status, serializer);
         <String>::sse_encode(self.payment_label, serializer);
         <i64>::sse_encode(self.subtotal_minor, serializer);
+        <i64>::sse_encode(self.gross_subtotal_minor, serializer);
         <i64>::sse_encode(self.discount_minor, serializer);
         <i64>::sse_encode(self.tax_minor, serializer);
         <i64>::sse_encode(self.total_minor, serializer);
         <String>::sse_encode(self.created_at, serializer);
         <Vec<crate::api::orders::OrderDetailLineView>>::sse_encode(self.lines, serializer);
+        <Vec<crate::api::orders::ReceiptDealView>>::sse_encode(self.deals, serializer);
     }
 }
 
