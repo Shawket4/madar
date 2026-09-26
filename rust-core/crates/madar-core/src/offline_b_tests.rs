@@ -600,6 +600,203 @@ async fn a_discount_deleted_on_the_server_stops_being_offered() {
     );
 }
 
+// ── The item sheet's modifier groups ride the feed (T1 sheet-cache regression) ──
+//
+// An item sold with one tap; the owner attaches a REQUIRED group to it on the
+// dashboard. The pull brought the `menu_item` row (the `SyncItem` shape
+// `/catalog/sync` returns, groups included) within seconds, but the sheet read
+// its groups only from the `/catalog/sync` mirror, which only a manual sync
+// rewrites: the next tap still quick-added the item without its pick.
+
+/// A pull that serves the one sandwich row with `groups()` as its modifier
+/// groups, and records nothing else. `/catalog/sync` and `/menu-items` are
+/// never answered: a test that reaches them has touched the network for a read.
+async fn sandwich_feed(groups: std::sync::Arc<std::sync::Mutex<serde_json::Value>>) -> Stub {
+    Stub::start(move |r| {
+        if !r.path.starts_with("/sync/pull") {
+            return None;
+        }
+        let types: Vec<&str> = crate::sync_pull::REQUIRED_TYPES.to_vec();
+        let mut data = serde_json::Map::new();
+        for t in &types {
+            data.insert(t.to_string(), serde_json::json!([]));
+        }
+        data.insert(
+            "menu_item".into(),
+            serde_json::json!([{ "id": uid("sandwich"), "name": "Chicken sweet chili", "name_translations": {},
+                "category_id": null, "kind": "item", "meal": null, "combo": null, "image_hash": null,
+                "channel_prices": {},
+                "sizes": [{ "id": uid("sandwich-one"), "label": "Regular", "price": 9_000, "is_available": true }],
+                "modifier_groups": groups.lock().unwrap().clone(), "seq": 7 }]),
+        );
+        Some(StubResponse::json(
+            200,
+            serde_json::json!({"full": true, "next": 9, "has_more": false,
+                "server_time": "2026-09-14T10:00:00Z", "types": types, "data": data,
+                "ledger_window": {"from": "2026-09-12T10:00:00Z"}}),
+        ))
+    })
+    .await
+}
+
+/// The dashboard's "Bread" group as the feed ships it (option recipes stripped).
+fn bread_group(required: bool, brown_price: i64) -> serde_json::Value {
+    let opt = |label: &str, name: &str, price: i64| {
+        serde_json::json!({ "id": uid(label), "name": name, "price": price, "is_available": true,
+            "replaces_ingredient_id": null, "is_default": false })
+    };
+    serde_json::json!({ "group_id": uid("bread"), "name": "Bread", "name_translations": {"ar": "الخبز"},
+        "selection_type": "single", "min": i32::from(required), "max": 1, "is_required": required,
+        "legacy_addon_type": null, "effect": "adds", "swap_category_id": null, "swap_category_slug": null,
+        "options": [opt("white", "White bread", 0), opt("brown", "Brown bread", brown_price)] })
+}
+
+/// The catalogue as the last manual sync left it: the sandwich (one size, no
+/// slots) in the menu mirror, and the `/catalog/sync` mirror at revision 5
+/// with `groups` on it.
+fn seed_sandwich_catalog(core: &crate::MadarCore, groups: serde_json::Value) {
+    core.store
+        .kv_put(
+            menu::K_MENU_ITEMS,
+            &serde_json::json!([{ "id": uid("sandwich"), "org_id": testkit::ORG, "name": "Chicken sweet chili",
+                "name_translations": {}, "description_translations": {}, "base_price": 9_000, "is_active": true,
+                "sizes": [], "addon_slots": [], "allowed_addon_ids": [], "optional_fields": [], "recipes": [] }])
+            .to_string(),
+        )
+        .unwrap();
+    core.store.kv_put(menu::K_ADDONS, "[]").unwrap();
+    core.store
+        .kv_put(
+            menu::K_UNIFIED,
+            &serde_json::json!({ "catalog_revision": 5, "changed": true, "ingredients": [],
+                "items": [{ "id": uid("sandwich"), "name": "Chicken sweet chili", "name_translations": {},
+                    "category_id": null, "kind": "item", "sizes": [], "modifier_groups": groups }] })
+            .to_string(),
+        )
+        .unwrap();
+    core.invalidate_catalog_cache();
+}
+
+/// What the tap reads: does the item need its sheet (a required pick)?
+fn needs_a_pick(core: &crate::MadarCore) -> bool {
+    core.list_item_modifier_groups(uid("sandwich"))
+        .unwrap()
+        .iter()
+        .any(|g| g.is_required || g.min_selections > 0)
+}
+
+#[tokio::test]
+async fn a_required_group_attached_on_the_dashboard_reaches_the_sheet_with_the_pull() {
+    let groups = std::sync::Arc::new(std::sync::Mutex::new(serde_json::json!([])));
+    let stub = sandwich_feed(groups.clone()).await;
+    let core = testkit::online_core(&stub.base, "").await;
+    seed_sandwich_catalog(&core, serde_json::json!([]));
+    core.pull(true).await.unwrap();
+    assert!(!needs_a_pick(&core), "one tap while nothing is attached");
+
+    // The owner attaches a REQUIRED bread group; the pull brings the row.
+    *groups.lock().unwrap() = serde_json::json!([bread_group(true, 500)]);
+    let mut ticks = core.store.subscribe_changes();
+    core.pull(true).await.unwrap();
+
+    let sheet = core.list_item_modifier_groups(uid("sandwich")).unwrap();
+    let bread = sheet
+        .iter()
+        .find(|g| g.group_id == uid("bread"))
+        .unwrap_or_else(|| panic!("the pulled group reaches the sheet: {sheet:?}"));
+    assert!(bread.is_required && bread.min_selections >= 1, "{bread:?}");
+    assert_eq!(bread.name, "Bread");
+    assert_eq!(
+        bread.options.iter().map(|o| (o.name.as_str(), o.charged_price_minor)).collect::<Vec<_>>(),
+        vec![("White bread", 0), ("Brown bread", 500)]
+    );
+    assert!(needs_a_pick(&core), "the next tap opens the sheet");
+    let refused = core.validate_item_selections(uid("sandwich"), vec![], vec![]).unwrap();
+    assert_eq!(refused.len(), 1, "no bread picked is refused: {refused:?}");
+    // The catalogue tick still fires, so the till forgets its one-tap answer.
+    let batch = tokio::time::timeout(Duration::from_secs(2), ticks.next(Duration::ZERO)).await.unwrap().unwrap();
+    assert!(batch.iter().any(|t| t == changes::CATALOG || t == changes::ALL), "{batch:?}");
+
+    // An edit to the group (a price, the pick made optional) lands the same way.
+    *groups.lock().unwrap() = serde_json::json!([bread_group(false, 700)]);
+    core.pull(true).await.unwrap();
+    let bread = core
+        .list_item_modifier_groups(uid("sandwich"))
+        .unwrap()
+        .into_iter()
+        .find(|g| g.group_id == uid("bread"))
+        .expect("the group is still attached");
+    assert!(!bread.is_required && bread.min_selections == 0, "{bread:?}");
+    assert_eq!(bread.options[1].charged_price_minor, 700);
+
+    assert!(stub.requests("/catalog").is_empty(), "no catalogue read went to the network");
+    assert!(stub.requests("/menu-items").is_empty(), "no catalogue read went to the network");
+}
+
+#[tokio::test]
+async fn a_group_detached_on_the_dashboard_leaves_the_sheet_with_the_pull() {
+    let groups = std::sync::Arc::new(std::sync::Mutex::new(serde_json::json!([])));
+    let stub = sandwich_feed(groups.clone()).await;
+    let core = testkit::online_core(&stub.base, "").await;
+    // The last manual sync saw the bread group attached, and the tap asked for it.
+    seed_sandwich_catalog(&core, serde_json::json!([bread_group(true, 500)]));
+    assert!(needs_a_pick(&core));
+
+    // The owner detaches it; the pull brings the row with no groups.
+    core.pull(true).await.unwrap();
+    let sheet = core.list_item_modifier_groups(uid("sandwich")).unwrap();
+    assert!(
+        sheet.iter().all(|g| g.group_id != uid("bread")),
+        "a group the feed no longer lists is off the sheet: {sheet:?}"
+    );
+    assert!(!needs_a_pick(&core), "one tap again");
+    assert!(core.validate_item_selections(uid("sandwich"), vec![], vec![]).unwrap().is_empty());
+    assert!(stub.requests("/catalog").is_empty() && stub.requests("/menu-items").is_empty());
+}
+
+/// A group deleted on the dashboard is soft-deleted (`is_active=false`) and
+/// its attachment row stays: the feed and `/catalog/sync` drop it, but the
+/// legacy `/menu-items` slot view does not, so the menu mirror still carries
+/// it as a REQUIRED slot. An item the unified catalogue lists with no groups
+/// then fell back to that slot and opened the sheet on a pick that no longer
+/// exists (T1: the deleted "Glass" group on a freshly wiped till).
+#[tokio::test]
+async fn a_deleted_group_never_comes_back_as_required_from_a_stale_legacy_slot() {
+    let groups = std::sync::Arc::new(std::sync::Mutex::new(serde_json::json!([])));
+    let stub = sandwich_feed(groups).await;
+    let core = testkit::online_core(&stub.base, "").await;
+    seed_sandwich_catalog(&core, serde_json::json!([]));
+    // The menu mirror as the legacy route serves it: the deleted group's slot,
+    // its options still in the addon list.
+    core.store
+        .kv_put(
+            menu::K_MENU_ITEMS,
+            &serde_json::json!([{ "id": uid("sandwich"), "org_id": testkit::ORG, "name": "Chicken sweet chili",
+                "name_translations": {}, "description_translations": {}, "base_price": 9_000, "is_active": true,
+                "sizes": [], "allowed_addon_ids": [], "optional_fields": [], "recipes": [],
+                "addon_slots": [{ "id": uid("glass-slot"), "label": "Glass", "label_translations": {"ar": "الكأس"},
+                    "addon_type": "glass", "is_required": true, "min_selections": 1, "max_selections": 1 }] }])
+            .to_string(),
+        )
+        .unwrap();
+    let glass = |label: &str, name: &str| {
+        serde_json::json!({ "id": uid(label), "name": name, "name_translations": {}, "addon_type": "glass",
+            "default_price": 0, "is_active": true, "ingredients": [] })
+    };
+    core.store
+        .kv_put(menu::K_ADDONS, &serde_json::json!([glass("tall", "Tall"), glass("short", "Short")]).to_string())
+        .unwrap();
+    core.invalidate_catalog_cache();
+
+    core.pull(true).await.unwrap();
+    let sheet = core.list_item_modifier_groups(uid("sandwich")).unwrap();
+    assert!(
+        sheet.iter().all(|g| !g.is_required && g.min_selections == 0),
+        "no attached group, so nothing is required: {sheet:?}"
+    );
+    assert!(core.validate_item_selections(uid("sandwich"), vec![], vec![]).unwrap().is_empty());
+}
+
 /// The production parity guard: a quiescent, complete till whose figures differ
 /// from the server's report is logged.
 #[tokio::test]

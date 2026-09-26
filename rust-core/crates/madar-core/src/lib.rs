@@ -4243,10 +4243,23 @@ impl MadarCore {
                 .map(|u| self.animation_absolute_url(u))
                 .and_then(|u| self.animations.path_if_cached(&u));
         }
+        let unified = menu::unified_doc(&self.store);
+        // An item the unified catalogue lists with no group has none attached:
+        // a legacy slot on it is a group deleted since (the legacy view keeps
+        // soft-deleted groups), and must never make a pick required on the
+        // sheet, the combo sheet or the staff comp. The legacy offer of
+        // unslotted add-ons stays (the per-item fallback rule).
+        if let Some(doc) = &unified {
+            for item in &mut items {
+                if doc.lists_without_groups(&item.id) {
+                    item.addon_slots.clear();
+                }
+            }
+        }
         let snapshot = Arc::new(CatalogSnapshot {
             categories: menu::categories(&self.store, &locale)?,
             addons: menu::addons(&self.store, &locale)?,
-            unified: menu::unified_doc(&self.store),
+            unified,
             pricing: catalog_pricing::PricingMirror::load(&self.store),
             combos: menu::combos(&self.store, &locale)?,
             meals: menu::meals(&self.store)?,
