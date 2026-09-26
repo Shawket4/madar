@@ -16004,12 +16004,43 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   LinePreviewView dco_decode_line_preview_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return LinePreviewView(
       unitTotalMinor: dco_decode_i_64(arr[0]),
       extrasMinor: dco_decode_i_64(arr[1]),
       lineTotalMinor: dco_decode_i_64(arr[2]),
+      qty: dco_decode_i_64(arr[3]),
+      baseMinor: dco_decode_i_64(arr[4]),
+      sizeLabel: dco_decode_opt_String(arr[5]),
+      sizeDeltaMinor: dco_decode_i_64(arr[6]),
+      paid: dco_decode_list_line_price_row_view(arr[7]),
+      summary: dco_decode_list_line_summary_part_view(arr[8]),
+    );
+  }
+
+  @protected
+  LinePriceRowView dco_decode_line_price_row_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return LinePriceRowView(
+      text: dco_decode_String(arr[0]),
+      amountMinor: dco_decode_i_64(arr[1]),
+    );
+  }
+
+  @protected
+  LineSummaryPartView dco_decode_line_summary_part_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return LineSummaryPartView(
+      kind: dco_decode_String(arr[0]),
+      refId: dco_decode_String(arr[1]),
+      text: dco_decode_String(arr[2]),
     );
   }
 
@@ -16303,6 +16334,22 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   List<KitchenSlipItem> dco_decode_list_kitchen_slip_item(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_kitchen_slip_item).toList();
+  }
+
+  @protected
+  List<LinePriceRowView> dco_decode_list_line_price_row_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_line_price_row_view).toList();
+  }
+
+  @protected
+  List<LineSummaryPartView> dco_decode_list_line_summary_part_view(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_line_summary_part_view)
+        .toList();
   }
 
   @protected
@@ -20535,10 +20582,47 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_unitTotalMinor = sse_decode_i_64(deserializer);
     var var_extrasMinor = sse_decode_i_64(deserializer);
     var var_lineTotalMinor = sse_decode_i_64(deserializer);
+    var var_qty = sse_decode_i_64(deserializer);
+    var var_baseMinor = sse_decode_i_64(deserializer);
+    var var_sizeLabel = sse_decode_opt_String(deserializer);
+    var var_sizeDeltaMinor = sse_decode_i_64(deserializer);
+    var var_paid = sse_decode_list_line_price_row_view(deserializer);
+    var var_summary = sse_decode_list_line_summary_part_view(deserializer);
     return LinePreviewView(
       unitTotalMinor: var_unitTotalMinor,
       extrasMinor: var_extrasMinor,
       lineTotalMinor: var_lineTotalMinor,
+      qty: var_qty,
+      baseMinor: var_baseMinor,
+      sizeLabel: var_sizeLabel,
+      sizeDeltaMinor: var_sizeDeltaMinor,
+      paid: var_paid,
+      summary: var_summary,
+    );
+  }
+
+  @protected
+  LinePriceRowView sse_decode_line_price_row_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_text = sse_decode_String(deserializer);
+    var var_amountMinor = sse_decode_i_64(deserializer);
+    return LinePriceRowView(text: var_text, amountMinor: var_amountMinor);
+  }
+
+  @protected
+  LineSummaryPartView sse_decode_line_summary_part_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_kind = sse_decode_String(deserializer);
+    var var_refId = sse_decode_String(deserializer);
+    var var_text = sse_decode_String(deserializer);
+    return LineSummaryPartView(
+      kind: var_kind,
+      refId: var_refId,
+      text: var_text,
     );
   }
 
@@ -21158,6 +21242,34 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var ans_ = <KitchenSlipItem>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_kitchen_slip_item(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<LinePriceRowView> sse_decode_list_line_price_row_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <LinePriceRowView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_line_price_row_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<LineSummaryPartView> sse_decode_list_line_summary_part_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <LineSummaryPartView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_line_summary_part_view(deserializer));
     }
     return ans_;
   }
@@ -25887,6 +25999,33 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_i_64(self.unitTotalMinor, serializer);
     sse_encode_i_64(self.extrasMinor, serializer);
     sse_encode_i_64(self.lineTotalMinor, serializer);
+    sse_encode_i_64(self.qty, serializer);
+    sse_encode_i_64(self.baseMinor, serializer);
+    sse_encode_opt_String(self.sizeLabel, serializer);
+    sse_encode_i_64(self.sizeDeltaMinor, serializer);
+    sse_encode_list_line_price_row_view(self.paid, serializer);
+    sse_encode_list_line_summary_part_view(self.summary, serializer);
+  }
+
+  @protected
+  void sse_encode_line_price_row_view(
+    LinePriceRowView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.text, serializer);
+    sse_encode_i_64(self.amountMinor, serializer);
+  }
+
+  @protected
+  void sse_encode_line_summary_part_view(
+    LineSummaryPartView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.kind, serializer);
+    sse_encode_String(self.refId, serializer);
+    sse_encode_String(self.text, serializer);
   }
 
   @protected
@@ -26423,6 +26562,30 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_kitchen_slip_item(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_line_price_row_view(
+    List<LinePriceRowView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_line_price_row_view(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_line_summary_part_view(
+    List<LineSummaryPartView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_line_summary_part_view(item, serializer);
     }
   }
 
@@ -30550,8 +30713,9 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   List<MetricsPresetView> posMetricsPresets() => RustBridge.instance.api
       .crateApiBridgeMadarBridgePosMetricsPresets(that: this);
 
-  /// What a configured line would cost (unit, extras, whole line) — priced
-  /// by the resolver the add uses. Adds nothing.
+  /// What a configured line would cost (unit, extras, whole line), its price
+  /// breakdown and its summary words — from the resolver the add uses.
+  /// Adds nothing.
   Future<LinePreviewView> previewConfiguredLine({
     required String itemId,
     String? sizeLabel,

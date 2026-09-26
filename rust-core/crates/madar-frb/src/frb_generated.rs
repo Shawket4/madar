@@ -18188,6 +18188,23 @@ const _: fn() = || {
         let _: i64 = LinePreviewView.unit_total_minor;
         let _: i64 = LinePreviewView.extras_minor;
         let _: i64 = LinePreviewView.line_total_minor;
+        let _: i64 = LinePreviewView.qty;
+        let _: i64 = LinePreviewView.base_minor;
+        let _: Option<String> = LinePreviewView.size_label;
+        let _: i64 = LinePreviewView.size_delta_minor;
+        let _: Vec<crate::api::cart::LinePriceRowView> = LinePreviewView.paid;
+        let _: Vec<crate::api::cart::LineSummaryPartView> = LinePreviewView.summary;
+    }
+    {
+        let LinePriceRowView = None::<crate::api::cart::LinePriceRowView>.unwrap();
+        let _: String = LinePriceRowView.text;
+        let _: i64 = LinePriceRowView.amount_minor;
+    }
+    {
+        let LineSummaryPartView = None::<crate::api::cart::LineSummaryPartView>.unwrap();
+        let _: String = LineSummaryPartView.kind;
+        let _: String = LineSummaryPartView.ref_id;
+        let _: String = LineSummaryPartView.text;
     }
     {
         let LoginRequest = None::<crate::api::types::LoginRequest>.unwrap();
@@ -20908,10 +20925,49 @@ impl SseDecode for crate::api::cart::LinePreviewView {
         let mut var_unitTotalMinor = <i64>::sse_decode(deserializer);
         let mut var_extrasMinor = <i64>::sse_decode(deserializer);
         let mut var_lineTotalMinor = <i64>::sse_decode(deserializer);
+        let mut var_qty = <i64>::sse_decode(deserializer);
+        let mut var_baseMinor = <i64>::sse_decode(deserializer);
+        let mut var_sizeLabel = <Option<String>>::sse_decode(deserializer);
+        let mut var_sizeDeltaMinor = <i64>::sse_decode(deserializer);
+        let mut var_paid = <Vec<crate::api::cart::LinePriceRowView>>::sse_decode(deserializer);
+        let mut var_summary =
+            <Vec<crate::api::cart::LineSummaryPartView>>::sse_decode(deserializer);
         return crate::api::cart::LinePreviewView {
             unit_total_minor: var_unitTotalMinor,
             extras_minor: var_extrasMinor,
             line_total_minor: var_lineTotalMinor,
+            qty: var_qty,
+            base_minor: var_baseMinor,
+            size_label: var_sizeLabel,
+            size_delta_minor: var_sizeDeltaMinor,
+            paid: var_paid,
+            summary: var_summary,
+        };
+    }
+}
+
+impl SseDecode for crate::api::cart::LinePriceRowView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_text = <String>::sse_decode(deserializer);
+        let mut var_amountMinor = <i64>::sse_decode(deserializer);
+        return crate::api::cart::LinePriceRowView {
+            text: var_text,
+            amount_minor: var_amountMinor,
+        };
+    }
+}
+
+impl SseDecode for crate::api::cart::LineSummaryPartView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_kind = <String>::sse_decode(deserializer);
+        let mut var_refId = <String>::sse_decode(deserializer);
+        let mut var_text = <String>::sse_decode(deserializer);
+        return crate::api::cart::LineSummaryPartView {
+            kind: var_kind,
+            ref_id: var_refId,
+            text: var_text,
         };
     }
 }
@@ -21513,6 +21569,34 @@ impl SseDecode for Vec<crate::api::printing::KitchenSlipItem> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::printing::KitchenSlipItem>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::cart::LinePriceRowView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::cart::LinePriceRowView>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::cart::LineSummaryPartView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::cart::LineSummaryPartView>::sse_decode(
                 deserializer,
             ));
         }
@@ -28415,6 +28499,12 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::cart::LinePreviewV
             self.0.unit_total_minor.into_into_dart().into_dart(),
             self.0.extras_minor.into_into_dart().into_dart(),
             self.0.line_total_minor.into_into_dart().into_dart(),
+            self.0.qty.into_into_dart().into_dart(),
+            self.0.base_minor.into_into_dart().into_dart(),
+            self.0.size_label.into_into_dart().into_dart(),
+            self.0.size_delta_minor.into_into_dart().into_dart(),
+            self.0.paid.into_into_dart().into_dart(),
+            self.0.summary.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -28427,6 +28517,49 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::cart::LinePreviewV
     for crate::api::cart::LinePreviewView
 {
     fn into_into_dart(self) -> FrbWrapper<crate::api::cart::LinePreviewView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::cart::LinePriceRowView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.text.into_into_dart().into_dart(),
+            self.0.amount_minor.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::cart::LinePriceRowView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::cart::LinePriceRowView>>
+    for crate::api::cart::LinePriceRowView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::cart::LinePriceRowView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::cart::LineSummaryPartView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.kind.into_into_dart().into_dart(),
+            self.0.ref_id.into_into_dart().into_dart(),
+            self.0.text.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::cart::LineSummaryPartView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::cart::LineSummaryPartView>>
+    for crate::api::cart::LineSummaryPartView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::cart::LineSummaryPartView> {
         self.into()
     }
 }
@@ -32262,6 +32395,29 @@ impl SseEncode for crate::api::cart::LinePreviewView {
         <i64>::sse_encode(self.unit_total_minor, serializer);
         <i64>::sse_encode(self.extras_minor, serializer);
         <i64>::sse_encode(self.line_total_minor, serializer);
+        <i64>::sse_encode(self.qty, serializer);
+        <i64>::sse_encode(self.base_minor, serializer);
+        <Option<String>>::sse_encode(self.size_label, serializer);
+        <i64>::sse_encode(self.size_delta_minor, serializer);
+        <Vec<crate::api::cart::LinePriceRowView>>::sse_encode(self.paid, serializer);
+        <Vec<crate::api::cart::LineSummaryPartView>>::sse_encode(self.summary, serializer);
+    }
+}
+
+impl SseEncode for crate::api::cart::LinePriceRowView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.text, serializer);
+        <i64>::sse_encode(self.amount_minor, serializer);
+    }
+}
+
+impl SseEncode for crate::api::cart::LineSummaryPartView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.kind, serializer);
+        <String>::sse_encode(self.ref_id, serializer);
+        <String>::sse_encode(self.text, serializer);
     }
 }
 
@@ -32711,6 +32867,26 @@ impl SseEncode for Vec<crate::api::printing::KitchenSlipItem> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::printing::KitchenSlipItem>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::cart::LinePriceRowView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::cart::LinePriceRowView>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::cart::LineSummaryPartView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::cart::LineSummaryPartView>::sse_encode(item, serializer);
         }
     }
 }

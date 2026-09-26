@@ -1087,8 +1087,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The date presets, in order, labelled.
   List<MetricsPresetView> posMetricsPresets();
 
-  /// What a configured line would cost (unit, extras, whole line) — priced
-  /// by the resolver the add uses. Adds nothing.
+  /// What a configured line would cost (unit, extras, whole line), its price
+  /// breakdown and its summary words — from the resolver the add uses.
+  /// Adds nothing.
   Future<LinePreviewView> previewConfiguredLine({
     required String itemId,
     String? sizeLabel,

@@ -717,16 +717,36 @@ class LinePreviewView {
   final PlatformInt64 unitTotalMinor;
   final PlatformInt64 extrasMinor;
   final PlatformInt64 lineTotalMinor;
+  final PlatformInt64 qty;
+  final PlatformInt64 baseMinor;
+  final String? sizeLabel;
+  final PlatformInt64 sizeDeltaMinor;
+  final List<LinePriceRowView> paid;
+  final List<LineSummaryPartView> summary;
 
   const LinePreviewView({
     required this.unitTotalMinor,
     required this.extrasMinor,
     required this.lineTotalMinor,
+    required this.qty,
+    required this.baseMinor,
+    this.sizeLabel,
+    required this.sizeDeltaMinor,
+    required this.paid,
+    required this.summary,
   });
 
   @override
   int get hashCode =>
-      unitTotalMinor.hashCode ^ extrasMinor.hashCode ^ lineTotalMinor.hashCode;
+      unitTotalMinor.hashCode ^
+      extrasMinor.hashCode ^
+      lineTotalMinor.hashCode ^
+      qty.hashCode ^
+      baseMinor.hashCode ^
+      sizeLabel.hashCode ^
+      sizeDeltaMinor.hashCode ^
+      paid.hashCode ^
+      summary.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -735,7 +755,57 @@ class LinePreviewView {
           runtimeType == other.runtimeType &&
           unitTotalMinor == other.unitTotalMinor &&
           extrasMinor == other.extrasMinor &&
-          lineTotalMinor == other.lineTotalMinor;
+          lineTotalMinor == other.lineTotalMinor &&
+          qty == other.qty &&
+          baseMinor == other.baseMinor &&
+          sizeLabel == other.sizeLabel &&
+          sizeDeltaMinor == other.sizeDeltaMinor &&
+          paid == other.paid &&
+          summary == other.summary;
+}
+
+/// One paid option in a line's price breakdown, per unit.
+class LinePriceRowView {
+  final String text;
+  final PlatformInt64 amountMinor;
+
+  const LinePriceRowView({required this.text, required this.amountMinor});
+
+  @override
+  int get hashCode => text.hashCode ^ amountMinor.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LinePriceRowView &&
+          runtimeType == other.runtimeType &&
+          text == other.text &&
+          amountMinor == other.amountMinor;
+}
+
+/// One word of a line's summary (the cart line's and the receipt's word).
+class LineSummaryPartView {
+  final String kind;
+  final String refId;
+  final String text;
+
+  const LineSummaryPartView({
+    required this.kind,
+    required this.refId,
+    required this.text,
+  });
+
+  @override
+  int get hashCode => kind.hashCode ^ refId.hashCode ^ text.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LineSummaryPartView &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          refId == other.refId &&
+          text == other.text;
 }
 
 /// How a modifier group's selections are submitted at add-to-cart time.

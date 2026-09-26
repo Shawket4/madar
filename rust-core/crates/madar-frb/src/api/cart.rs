@@ -9,7 +9,7 @@ use crate::api::error::MadarError;
 pub use madar_core::deals::{AppliedDealView, DealSuggestion};
 pub use madar_core::cart::{
     AddonSelection, CartAddonView, CartLineView, CartOptionalView, CartPartView, CartStaffDrinkView, CartStaffSummary, CartTotals, CartMeta, DraftSwitchView, DraftView, GroupViolationView, HeldParkInput,
-    ItemAddonView, LinePreviewView, ModifierGroupKind, ModifierGroupView, ModifierOptionView,
+    ItemAddonView, LinePreviewView, LinePriceRowView, LineSummaryPartView, ModifierGroupKind, ModifierGroupView, ModifierOptionView,
 };
 pub use madar_core::recipe::ComputedRecipeLineView;
 
@@ -202,6 +202,27 @@ pub struct _LinePreviewView {
     pub unit_total_minor: i64,
     pub extras_minor: i64,
     pub line_total_minor: i64,
+    pub qty: i64,
+    pub base_minor: i64,
+    pub size_label: Option<String>,
+    pub size_delta_minor: i64,
+    pub paid: Vec<LinePriceRowView>,
+    pub summary: Vec<LineSummaryPartView>,
+}
+
+/// One word of a line's summary (the cart line's and the receipt's word).
+#[frb(mirror(LineSummaryPartView))]
+pub struct _LineSummaryPartView {
+    pub kind: String,
+    pub ref_id: String,
+    pub text: String,
+}
+
+/// One paid option in a line's price breakdown, per unit.
+#[frb(mirror(LinePriceRowView))]
+pub struct _LinePriceRowView {
+    pub text: String,
+    pub amount_minor: i64,
 }
 
 /// The identity a cart is parked under.
@@ -335,8 +356,9 @@ impl MadarBridge {
             .map_err(MadarError::from)
     }
 
-    /// What a configured line would cost (unit, extras, whole line) — priced
-    /// by the resolver the add uses. Adds nothing.
+    /// What a configured line would cost (unit, extras, whole line), its price
+    /// breakdown and its summary words — from the resolver the add uses.
+    /// Adds nothing.
     pub fn preview_configured_line(
         &self,
         item_id: String,
