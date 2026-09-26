@@ -404,6 +404,20 @@ class _Fake implements MadarBridge {
       lines = [_croissants(dealCut: 2000, dealName: 'Two bites')];
       return Future<List<CartLineView>>.value(lines);
     }
+    if (name == #cartRemove) {
+      // Taking a line off breaks the deal it was in: the core drops the
+      // deal and says why.
+      final key = a[#itemId] as String;
+      lines = [
+        for (final l in lines)
+          if (l.key != key) l,
+      ];
+      if (applied.isNotEmpty) {
+        applied = [];
+        notices = ['Two bites no longer applies to the cart, so it came off.'];
+      }
+      return Future<List<CartLineView>>.value(lines);
+    }
     if (name == #cartRemoveDeal) {
       removedIds.add(a[#applicationId] as String);
       applied = [];
@@ -896,6 +910,59 @@ void main() {
       c.read(appToastProvider)?.text,
       'Two bites no longer applies to the cart, so it came off.',
     );
+  });
+
+  testWidgets('swiping away a line that breaks a deal says so, with the Undo', (
+    tester,
+  ) async {
+    const brownie = CartLineView(
+      key: 'k-brownie',
+      itemId: 'brownie',
+      name: 'Brownie',
+      kind: 'item',
+      unitPriceMinor: 4000,
+      qty: 1,
+      lineTotalMinor: 4000,
+      addons: [],
+      optionals: [],
+      parts: [],
+      dealCutMinor: 1000,
+      dealName: 'Two bites',
+    );
+    final fake = _Fake()
+      ..lines = [_croissants(dealCut: 1000, dealName: 'Two bites'), brownie]
+      ..applied = const [
+        AppliedDealView(
+          id: 'app-1',
+          dealId: 'two-bites',
+          name: 'Two bites',
+          times: 1,
+          discountMinor: 2000,
+          lineKeys: ['k-croissant', 'k-brownie'],
+        ),
+      ];
+    final c = await _mount(
+      tester,
+      fake,
+      size: _tablet,
+      body: (context, ref) =>
+          SellCart(tableId: null, onTerminal: () {}, onEditLine: (_) {}),
+    );
+    final cart = c.read(cartProvider(null).notifier);
+    await cart.load();
+    await tester.pump();
+    await cart.swipeRemove(brownie);
+    await tester.pump();
+    final toast = c.read(appToastProvider);
+    // The removal and its Undo, AND why the deal came off: the second toast
+    // used to replace the first in the same frame, so the deal vanished
+    // from the cart without a word.
+    expect(toast?.text, contains('Brownie'));
+    expect(
+      toast?.text,
+      contains('Two bites no longer applies to the cart, so it came off.'),
+    );
+    expect(toast?.actionLabel, isNotNull);
   });
 
   testWidgets('removing an applied deal asks the core', (tester) async {
