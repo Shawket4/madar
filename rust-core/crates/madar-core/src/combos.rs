@@ -131,7 +131,8 @@ pub struct ComboQuoteView {
     pub extras_minor: i64,
     /// Per combo: the same picks bought separately.
     pub list_minor: i64,
-    /// Per combo: `list − unit_total` (0 or less = no saving).
+    /// The whole line (`qty` combos): `(list − unit_total) × qty`, like
+    /// `line_total_minor` (0 or less = no saving).
     pub saving_minor: i64,
     /// Every slot is satisfied: the combo can be added.
     pub complete: bool,
@@ -483,7 +484,7 @@ pub(crate) fn quote_view(
         surcharge_minor: q.parts.iter().map(|p| p.pick_quantity * p.surcharge_unit).sum(),
         extras_minor: q.parts.iter().map(|p| p.pick_quantity * p.extras_unit).sum(),
         list_minor: q.list_unit,
-        saving_minor: q.saving_unit,
+        saving_minor: q.saving_unit * qty,
         complete: true,
         refusal: None,
         refusal_text: None,

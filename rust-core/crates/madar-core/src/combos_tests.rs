@@ -615,6 +615,21 @@ fn the_deal_vectors_rules_parse_from_feed_rows() {
     );
 }
 
+// ── the saving follows the quantity, like the total ─────────────────────────
+
+#[tokio::test]
+async fn the_quotes_saving_is_for_the_whole_line_like_its_total() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed(&core);
+    // Two lunches: the sheet shows the line total for 2, so "You save" must be
+    // the saving on 2 as well (T1 B7: it read 35.00 under a 540.00 line).
+    let one = core.combo_quote(None, LUNCH.into(), lunch_picks("Large", true), 1).unwrap();
+    let two = core.combo_quote(None, LUNCH.into(), lunch_picks("Large", true), 2).unwrap();
+    assert_eq!(two.line_total_minor, 2 * one.line_total_minor);
+    assert_eq!(two.saving_minor, 2 * one.saving_minor, "{two:?}");
+    assert_eq!(one.saving_minor, 6000);
+}
+
 // ── the worked example on the cart ──────────────────────────────────────────
 
 #[tokio::test]
