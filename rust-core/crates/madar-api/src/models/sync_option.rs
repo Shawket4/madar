@@ -24,6 +24,9 @@ pub struct SyncOption {
     pub is_default: Option<bool>,
     #[serde(rename = "name")]
     pub name: String,
+    /// `{locale: name}`, as the dashboard authored it (`{}` when untranslated): a till shows the option in its own language. Additive.
+    #[serde(rename = "name_translations", skip_serializing_if = "Option::is_none")]
+    pub name_translations: Option<serde_json::Value>,
     /// Effective price in piastres (branch_channel → branch → channel → catalog default).
     #[serde(rename = "price")]
     pub price: i32,
@@ -53,6 +56,7 @@ impl SyncOption {
             is_available,
             is_default: None,
             name,
+            name_translations: None,
             price,
             recipe,
             replaces_ingredient_id: None,

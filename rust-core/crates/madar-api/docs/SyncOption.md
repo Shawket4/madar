@@ -8,6 +8,7 @@ Name | Type | Description | Notes
 **is_available** | **bool** | Effective availability (branch_channel → branch → channel → TRUE). | 
 **is_default** | Option<**bool**> | Explicit preselect for non-swap groups (e.g. \"White bread\"). Swap groups derive their default from the drink's recipe; this is always `false` there. | [optional]
 **name** | **String** |  | 
+**name_translations** | Option<**serde_json::Value**> | `{locale: name}`, as the dashboard authored it (`{}` when untranslated): a till shows the option in its own language. Additive. | [optional]
 **price** | **i32** | Effective price in piastres (branch_channel → branch → channel → catalog default). | 
 **recipe** | [**Vec<models::SyncRecipeLine>**](SyncRecipeLine.md) |  | 
 **replaces_ingredient_id** | Option<**uuid::Uuid**> | The org_ingredient this option swaps out, if it is a swap-style option. | [optional]
