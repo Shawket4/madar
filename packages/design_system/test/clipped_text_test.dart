@@ -150,8 +150,8 @@ void main() {
       await _pumpApp(
         tester,
         _app(
-          SizedBox(
-            key: const ValueKey('name'),
+          const SizedBox(
+            key: ValueKey('name'),
             width: 160,
             child: MadarClippedText(
               '#2',
