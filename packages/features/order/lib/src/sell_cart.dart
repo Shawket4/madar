@@ -39,7 +39,8 @@ import 'package:feature_order/src/teller_held_strip.dart';
 import 'package:feature_order/src/words.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/misc.dart' show FutureProviderFamily;
+import 'package:flutter_riverpod/misc.dart'
+    show FutureProviderFamily, NotifierProviderFamily;
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// What the cart's one terminal button does right now, and whether it may.
@@ -645,10 +646,35 @@ const double kCartScrollsBelow = 560;
 /// kitchen button with its note tile, and Park on its own row above Charge.
 const double kCartFooterNarrowWidth = 320;
 
+/// The selected line of each cart (its stepper and actions open), by the
+/// cart's context. ONE at a time: a flag on each line let a second line open
+/// beside the first, both highlighted.
+final NotifierProviderFamily<SelectedCartLine, String?, String?>
+selectedCartLineProvider = NotifierProvider.autoDispose
+    .family<SelectedCartLine, String?, String?>(SelectedCartLine.new);
+
+class SelectedCartLine extends Notifier<String?> {
+  SelectedCartLine(this.arg);
+
+  /// The cart's context (null = takeaway).
+  final String? arg;
+
+  @override
+  String? build() => null;
+
+  /// Select [key], folding the line selected before; the selected line
+  /// folds itself. Whether [key] is selected now.
+  bool toggle(String key) {
+    state = state == key ? null : key;
+    return state == key;
+  }
+}
+
 /// One editable line of this round, one row: "2×", the name and what was
 /// chosen, the price. A tap selects it — its stepper and actions open under
-/// it — and opens the sheet to edit it; a second tap folds it. Swipe
-/// start→end removes it (the notifier offers Undo).
+/// it, and the line selected before folds — and opens the sheet to edit it;
+/// a second tap folds it. Swipe start→end removes it (the notifier offers
+/// Undo).
 ///
 /// The controls live on the selected line only (the Fast mode design's
 /// cart): beside every name they left a 340 column ~30 points for it, so
@@ -686,8 +712,6 @@ class _RoundLine extends ConsumerStatefulWidget {
 }
 
 class _RoundLineState extends ConsumerState<_RoundLine> {
-  bool _open = false;
-
   String? get tableId => widget.tableId;
   CartLineView get line => widget.line;
   bool get counterSale => widget.counterSale;
@@ -696,13 +720,16 @@ class _RoundLineState extends ConsumerState<_RoundLine> {
   String get currency => widget.currency;
 
   void _tap() {
-    setState(() => _open = !_open);
-    if (_open && widget.editOnSelect) widget.onEdit?.call();
+    final opened = ref
+        .read(selectedCartLineProvider(tableId).notifier)
+        .toggle(line.key);
+    if (opened && widget.editOnSelect) widget.onEdit?.call();
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
+    final open = ref.watch(selectedCartLineProvider(tableId)) == line.key;
     final notifier = ref.read(cartProvider(tableId).notifier);
     final isCombo = line.kind == 'combo';
     final mods = <String>[
@@ -806,8 +833,13 @@ class _RoundLineState extends ConsumerState<_RoundLine> {
               color: colors.textPrimary,
             ),
     );
-    final controls = Row(
+    // The stepper and the line's tools wrap onto a second row when the column
+    // is narrow; edit and remove hold the top end corner. In one Row, a staff
+    // drink with a recipe (~300 points of buttons) ran past the card's border
+    // in a 300 cart column, and by 12 points even in a 340 one.
+    final tools = Wrap(
       spacing: Space.xs,
+      runSpacing: Space.xs,
       children: [
         MadarStepper(
           dense: true,
@@ -880,7 +912,13 @@ class _RoundLineState extends ConsumerState<_RoundLine> {
               ),
             ),
           ),
-        const Spacer(),
+      ],
+    );
+    final controls = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: Space.xs,
+      children: [
+        Expanded(child: tools),
         if (widget.onEdit case final edit?)
           MadarGlyphTile(
             key: ValueKey('edit-${line.key}'),
@@ -941,11 +979,11 @@ class _RoundLineState extends ConsumerState<_RoundLine> {
         vertical: Space.sm,
       ),
       decoration: BoxDecoration(
-        color: _open ? colors.accent.withValues(alpha: 0.08) : colors.surface,
+        color: open ? colors.accent.withValues(alpha: 0.08) : colors.surface,
         borderRadius: BorderRadius.circular(Radii.control),
         border: Border.all(
-          color: _open ? colors.accent : colors.borderLight,
-          width: _open ? 2 : 1,
+          color: open ? colors.accent : colors.borderLight,
+          width: open ? 2 : 1,
         ),
       ),
       child: AnimatedSize(
@@ -955,7 +993,7 @@ class _RoundLineState extends ConsumerState<_RoundLine> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.sm,
-          children: [head, if (_open) controls],
+          children: [head, if (open) controls],
         ),
       ),
     );

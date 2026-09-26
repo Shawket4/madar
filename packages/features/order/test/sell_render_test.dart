@@ -72,6 +72,7 @@ void main() {
   group('a tap is never answered with nothing', _neverNothingMain);
   group('the keyboard up on an iPad in landscape', _keyboardMain);
   group('Done after Charge, and the service mode it charges', _doneMain);
+  group('a selected cart line', _selectedLineMain);
 
   group('assigning a held order to a table', () {
     Future<void> assignVia(WidgetTester tester, String chip) async {
@@ -424,7 +425,11 @@ void main() {
         expect(find.byType(MadarStepper), findsNothing);
         await _selectLine(tester, 'k-espresso');
         await _selectLine(tester, 'k-flat');
-        expect(find.byType(MadarStepper), findsNWidgets(2));
+        expect(
+          find.byType(MadarStepper),
+          findsOneWidget,
+          reason: 'one line is selected at a time',
+        );
         for (final stepper in find.byType(MadarStepper).evaluate()) {
           expect(
             tester.getSize(find.byWidget(stepper.widget)).height,
@@ -974,6 +979,158 @@ void main() {
         });
       }
     }
+  }
+}
+
+/// The owner, on 0.12.0: with a cart line selected, "depending on the text
+/// the buttons get thrown out or right around the border", and a second line
+/// selected left the first one highlighted.
+///
+/// The opened line held its stepper and up to five tiles in ONE row: a staff
+/// drink with a recipe needs ~300 points, and a 300 cart column gives the
+/// row ~250, so the end tiles ran past the card's border and were clipped.
+void _selectedLineMain() {
+  Finder inLine(String key, Finder f) =>
+      find.descendant(of: find.byKey(ValueKey('round-$key')), matching: f);
+
+  BoxBorder? borderOf(WidgetTester tester, String key) {
+    final box = tester.widget<AnimatedContainer>(
+      inLine(key, find.byType(AnimatedContainer)).first,
+    );
+    return (box.decoration! as BoxDecoration).border;
+  }
+
+  testWidgets('one line is selected at a time', (tester) async {
+    await _mount(tester, screen: const TakeawaySellScreen(), size: _ipad);
+    await _settle(tester);
+    final plain = borderOf(tester, 'k-espresso');
+
+    await _selectLine(tester, 'k-espresso');
+    expect(inLine('k-espresso', find.byType(MadarStepper)), findsOneWidget);
+    expect(borderOf(tester, 'k-espresso'), isNot(plain));
+
+    await _selectLine(tester, 'k-flat');
+    expect(inLine('k-flat', find.byType(MadarStepper)), findsOneWidget);
+    expect(
+      inLine('k-espresso', find.byType(MadarStepper)),
+      findsNothing,
+      reason: 'selecting a line folds the one before',
+    );
+    expect(
+      borderOf(tester, 'k-espresso'),
+      plain,
+      reason: 'and takes its highlight off',
+    );
+
+    await _selectLine(tester, 'k-flat');
+    expect(
+      find.byType(MadarStepper),
+      findsNothing,
+      reason: 'a second tap on the selected line folds it',
+    );
+    expect(borderOf(tester, 'k-flat'), plain);
+  });
+
+  for (final ar in [false, true]) {
+    final lang = ar ? 'ar' : 'en';
+    for (final (label, size) in const [
+      ('ipad9p', _ipad9Portrait),
+      ('tab8', _tab8),
+      ('ipad9', _ipad9),
+      ('lenovo', _lenovo),
+      ('ipad', _ipad),
+    ]) {
+      for (final layout in SellLayout.values) {
+        testWidgets('its buttons sit inside its card · $label · '
+            '${layout.name} · $lang', (tester) async {
+          final bridge = _WideLineBridge(rtl: ar);
+          bridge.carts[null] = [_StaffBridge._latte];
+          await _mount(
+            tester,
+            screen: const TakeawaySellScreen(),
+            size: size,
+            bridge: bridge,
+            layout: layout,
+          );
+          await _settle(tester);
+          await _selectLine(tester, 'k-latte');
+          await _settle(tester);
+
+          final card = tester.getRect(
+            find.byKey(const ValueKey('line-tap-k-latte')),
+          );
+          // Clear of the selected border, with room to spare: a tile flush
+          // with the edge reads as falling out of the card.
+          final room = card.deflate(Space.sm);
+          final controls = <String, Rect>{
+            'stepper': tester.getRect(
+              inLine('k-latte', find.byType(MadarStepper)),
+            ),
+            for (final k in const [
+              'staff-drink-k-latte',
+              'kitchen-k-latte',
+              'recipe-k-latte',
+              'edit-k-latte',
+              'remove-k-latte',
+            ])
+              k: tester.getRect(find.byKey(ValueKey(k))),
+          };
+          for (final MapEntry(key: k, value: r) in controls.entries) {
+            expect(
+              r.left >= room.left - 0.5 && r.right <= room.right + 0.5,
+              isTrue,
+              reason: '$k ($r) sits inside the card ($card)',
+            );
+          }
+          final rects = controls.entries.toList();
+          for (var i = 0; i < rects.length; i++) {
+            for (var j = i + 1; j < rects.length; j++) {
+              final overlap = rects[i].value.intersect(rects[j].value);
+              expect(
+                overlap.width > 0.5 && overlap.height > 0.5,
+                isFalse,
+                reason: '${rects[i].key} and ${rects[j].key} do not overlap',
+              );
+            }
+          }
+          await _capture(tester, 'sell-line-open-$label-${layout.name}-$lang');
+        });
+      }
+    }
+  }
+}
+
+/// [_StaffBridge] with recipe steps on the Latte: its line opens the widest
+/// row a line can have (stepper, staff drink, kitchen, recipe, edit,
+/// remove).
+class _WideLineBridge extends _StaffBridge {
+  _WideLineBridge({super.rtl});
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #listMenuItems) {
+      return Future<List<MenuItemView>>.value([
+        for (final i in _items)
+          if (i.id == 'latte')
+            MenuItemView(
+              kind: i.kind,
+              id: i.id,
+              name: i.name,
+              categoryId: i.categoryId,
+              basePriceMinor: i.basePriceMinor,
+              isActive: true,
+              allowedAddonIds: const [],
+              sizes: const [],
+              addonSlots: const [],
+              optionalFields: const [],
+              recipes: const [],
+              recipeSteps: const [RecipeStepView(name: 'Pull a double shot')],
+            )
+          else
+            i,
+      ]);
+    }
+    return super.noSuchMethod(invocation);
   }
 }
 
