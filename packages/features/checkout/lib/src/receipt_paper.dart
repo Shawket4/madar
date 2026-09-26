@@ -176,7 +176,8 @@ class ReceiptPaper extends ConsumerWidget {
               ),
               if (r.orderRef != null)
                 _Mono(
-                  '${tr('receipt.ref')}: ${r.orderRef}',
+                  // The core's word carries its own colon ("Ref:", "مرجع:").
+                  '${tr('receipt.ref')} ${r.orderRef}',
                   size: _metaSize,
                   weight: FontWeight.w700,
                 ),
