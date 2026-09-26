@@ -741,6 +741,55 @@ class _Host extends StatelessWidget {
   }
 }
 
+/// A stand-in for the Sell screen in Fast mode: the rail, the cart on the
+/// start edge, and the menu on the end edge in a panel that hosts the
+/// screen's sheets ([MadarPanelHost]) — the context Charge hands the Done
+/// card is under that host.
+class _FastHost extends StatelessWidget {
+  const _FastHost({required this.panelNav});
+
+  final GlobalKey<NavigatorState> panelNav;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return Scaffold(
+      backgroundColor: colors.bg,
+      body: MadarPanelHost(
+        navigatorKey: panelNav,
+        child: Row(
+          children: [
+            SizedBox(
+              width: Metrics.railWidth,
+              child: ColoredBox(color: colors.chrome),
+            ),
+            const SizedBox(
+              key: ValueKey('fast-cart'),
+              width: 340,
+              child: Center(child: Text('(the cart)')),
+            ),
+            const VerticalDivider(width: 1, thickness: 1),
+            Expanded(
+              child: Navigator(
+                key: panelNav,
+                pages: const [
+                  MaterialPage<void>(
+                    child: SizedBox.expand(
+                      key: ValueKey('fast-panel'),
+                      child: Center(child: Text('(the menu)')),
+                    ),
+                  ),
+                ],
+                onDidRemovePage: (_) {},
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 Future<void> _mount(
   WidgetTester tester, {
   required Size size,
@@ -748,6 +797,7 @@ Future<void> _mount(
   ThemeData? theme,
   bool rtl = false,
   String hostTitle = 'Floor',
+  Widget? home,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = size;
@@ -768,7 +818,7 @@ Future<void> _mount(
             textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
             child: child!,
           ),
-          home: _Host(title: hostTitle),
+          home: home ?? _Host(title: hostTitle),
         ),
       ),
     ),
@@ -1287,8 +1337,8 @@ void main() {
     final host = tester.element(find.byType(_Host));
     final pending = showDoneCard(host, _saleOutcome());
     await _settle(tester);
-    expect(find.text('T5 · Cleared'), findsOneWidget);
-    expect(find.text('New sale'), findsOneWidget);
+    expect(find.text('Cleared'), findsOneWidget);
+    expect(find.text('Not yet'), findsOneWidget);
     await _capture(tester, 'done-card-sale-tablet');
     // A tap on the floor behind it dismisses it — and means "not yet".
     await tester.tapAt(const Offset(200, 700));
@@ -1344,9 +1394,333 @@ void main() {
     final host = tester.element(find.byType(_Host));
     final pending = showDoneCard(host, _saleOutcome());
     await _settle(tester);
-    await tester.tap(find.text('T5 · Cleared'));
+    await tester.tap(find.text('Cleared'));
     await _settle(tester);
     expect(await pending, DoneCardResult.cleared);
+  });
+
+  // ── The Done card, per the design (Done.dc.html) ────────────────────
+  //
+  // Row 1: the 28px state disc, "Sale #1042" (or "Queued · #…"), the body
+  // "EGP 196.00 Cash · change 4.00" (+ "· will send when back online"), and
+  // "Printed" at the end once the paper is out. Row 2: Add points and
+  // Reprint; on a table's sale "T5 cleared?" with Cleared / Not yet at the
+  // end. Standard mode keeps the card centred at the top; Fast mode anchors
+  // it over the menu panel — the END side (right in EN, left in AR).
+
+  for (final ar in [false, true]) {
+    final lang = ar ? 'ar' : 'en';
+    String w(String key) => coreWord(key, arabic: ar);
+    Finder inCard(Finder f) =>
+        find.descendant(of: find.byType(DoneCard), matching: f);
+    String plain(WidgetTester tester, String key) => tester
+        .widget<RichText>(
+          find
+              .descendant(
+                of: find.byKey(ValueKey(key)),
+                matching: find.byType(RichText),
+              )
+              .first,
+        )
+        .text
+        .toPlainText();
+    Finder money(int minor) =>
+        find.byWidgetPredicate((x) => x is MoneyText && x.minor == minor);
+    Finder disc(MadarGlyph g) => find.byWidgetPredicate(
+      (x) => x is MadarGlyphIcon && x.glyph == g && x.size == 28,
+    );
+
+    testWidgets('done card online: Sale #, total, tender, change · $lang', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        size: _ipad,
+        bridge: _FakeBridge(rtl: ar),
+        rtl: ar,
+      );
+      final host = tester.element(find.byType(_Host));
+      unawaited(showDoneCard(host, _counterOutcome()));
+      await _settle(tester);
+
+      final title = find.byKey(const ValueKey('done-title'));
+      final body = find.byKey(const ValueKey('done-body'));
+      expect(plain(tester, 'done-title'), startsWith(w('charge.sale')));
+      expect(plain(tester, 'done-title'), isNot(contains(w('sync.queued'))));
+      expect(
+        find.descendant(of: title, matching: find.text('#1043')),
+        findsOneWidget,
+      );
+      // The figures sit in the body, not the title: the total, then the
+      // tender, then the change.
+      expect(find.descendant(of: body, matching: money(15390)), findsOneWidget);
+      expect(find.descendant(of: title, matching: money(15390)), findsNothing);
+      expect(find.descendant(of: body, matching: money(4610)), findsOneWidget);
+      expect(plain(tester, 'done-body'), contains('Cash'));
+      expect(plain(tester, 'done-body'), contains(w('charge.change_short')));
+      expect(
+        plain(tester, 'done-body'),
+        isNot(contains(w('charge.will_send'))),
+      );
+      // The state disc: a whole one, the sale is in.
+      expect(inCard(disc(MadarGlyph.full)), findsOneWidget);
+      expect(inCard(disc(MadarGlyph.half)), findsNothing);
+      // Add points and Reprint ride row 2, secondary and small.
+      for (final key in ['loyalty.add_points', 'charge.reprint']) {
+        final button = tester.widget<MadarButton>(
+          find.ancestor(
+            of: inCard(find.text(w(key))),
+            matching: find.byType(MadarButton),
+          ),
+        );
+        expect(button.variant, MadarButtonVariant.secondary, reason: key);
+        expect(button.size, MadarButtonSize.compact, reason: key);
+      }
+      // The canvas's card: 600 wide on an iPad.
+      expect(tester.getSize(find.byType(DoneCard)).width, 600);
+      await _capture(tester, 'done-card-online-$lang');
+    });
+
+    testWidgets('done card offline: Queued · #ref, will send · $lang', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        size: _ipad,
+        bridge: _FakeBridge(rtl: ar),
+        rtl: ar,
+      );
+      final host = tester.element(find.byType(_Host));
+      unawaited(showDoneCard(host, _queuedOutcome()));
+      await _settle(tester);
+
+      final title = find.byKey(const ValueKey('done-title'));
+      final body = find.byKey(const ValueKey('done-body'));
+      expect(plain(tester, 'done-title'), startsWith(w('sync.queued')));
+      expect(plain(tester, 'done-title'), isNot(contains(w('charge.sale'))));
+      expect(
+        find.descendant(of: title, matching: find.text('#8f2a4c1e')),
+        findsOneWidget,
+      );
+      expect(find.descendant(of: body, matching: money(17500)), findsOneWidget);
+      expect(find.descendant(of: body, matching: money(2500)), findsOneWidget);
+      expect(plain(tester, 'done-body'), contains(w('charge.will_send')));
+      // Half a disc: the sale waits for the network.
+      expect(inCard(disc(MadarGlyph.half)), findsOneWidget);
+      expect(inCard(disc(MadarGlyph.full)), findsNothing);
+      await _capture(tester, 'done-card-offline-$lang');
+    });
+
+    testWidgets('done card says Printed only once the paper is out · $lang', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        size: _ipad,
+        bridge: _FakeBridge(rtl: ar),
+        rtl: ar,
+      );
+      final host = tester.element(find.byType(_Host));
+      final job = Completer<PrintState>();
+      unawaited(
+        showDoneCard(
+          host,
+          ChargeOutcome(
+            target: const ChargeTarget.cart(),
+            queued: false,
+            amountMinor: 15390,
+            methodLabel: 'Cash',
+            isCash: true,
+            currency: 'EGP',
+            createdAt: '2026-09-10T19:45:00Z',
+            receipt: _receipt(queued: false, number: 1043),
+            orderId: 'o-1043',
+            orderNumber: 1043,
+            changeMinor: 4610,
+            printState: PrintState.printing,
+            printJob: job.future,
+          ),
+        ),
+      );
+      await _settle(tester);
+      final printed = inCard(find.text(w('charge.printed')));
+      expect(printed, findsNothing, reason: 'still printing');
+      expect(inCard(find.text(w('receipt.printing'))), findsOneWidget);
+
+      job.complete(PrintState.printed);
+      await _settle(tester);
+      expect(printed, findsOneWidget);
+      // Green, with the printer glyph, at the END of row 1 (beside the body).
+      final label = tester.widget<Text>(printed);
+      expect(label.style?.color, MadarColors.light.success);
+      final glyph = find.descendant(
+        of: find.ancestor(of: printed, matching: find.byType(Row)).first,
+        matching: find.byWidgetPredicate(
+          (x) => x is MadarGlyphIcon && x.glyph == MadarGlyph.printer,
+        ),
+      );
+      expect(glyph, findsOneWidget);
+      final bodyRect = tester.getRect(find.byKey(const ValueKey('done-body')));
+      final printedRect = tester.getRect(printed);
+      expect((printedRect.top - bodyRect.top).abs(), lessThan(40));
+      if (ar) {
+        expect(printedRect.right, lessThan(bodyRect.left + 1));
+      } else {
+        expect(printedRect.left, greaterThan(bodyRect.right - 1));
+      }
+    });
+
+    testWidgets('done card never says Printed when nothing printed · $lang', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        size: _ipad,
+        bridge: _FakeBridge(rtl: ar),
+        rtl: ar,
+      );
+      final host = tester.element(find.byType(_Host));
+      // Queued with no printer bound: the amber line, never "Printed".
+      unawaited(showDoneCard(host, _queuedOutcome()));
+      await _settle(tester);
+      expect(inCard(find.text(w('charge.printed'))), findsNothing);
+      expect(inCard(find.text(w('charge.not_printed'))), findsOneWidget);
+    });
+
+    testWidgets('done card: "T5 cleared?" only on a table sale · $lang', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        size: _ipad,
+        bridge: _FakeBridge(rtl: ar),
+        rtl: ar,
+      );
+      final host = tester.element(find.byType(_Host));
+      final pending = showDoneCard(host, _saleOutcome());
+      await _settle(tester);
+      final question = find.byKey(const ValueKey('done-cleared-q'));
+      expect(question, findsOneWidget);
+      expect(plain(tester, 'done-cleared-q'), contains(w('charge.cleared_q')));
+      expect(
+        find.descendant(of: question, matching: find.text('T5')),
+        findsOneWidget,
+      );
+      MadarButton button(String key) => tester.widget<MadarButton>(
+        find.ancestor(
+          of: inCard(find.text(w(key))),
+          matching: find.byType(MadarButton),
+        ),
+      );
+      expect(button('charge.cleared').variant, MadarButtonVariant.primary);
+      expect(button('charge.not_yet').variant, MadarButtonVariant.ghost);
+      // At the END of row 2: past Add points and Reprint.
+      final cleared = tester.getRect(inCard(find.text(w('charge.cleared'))));
+      final reprint = tester.getRect(inCard(find.text(w('charge.reprint'))));
+      if (ar) {
+        expect(cleared.right, lessThan(reprint.left));
+      } else {
+        expect(cleared.left, greaterThan(reprint.right));
+      }
+      await _capture(tester, 'done-card-table-$lang');
+      // Not yet is the safe answer: the table keeps waiting for a bus.
+      await tester.tap(inCard(find.text(w('charge.not_yet'))));
+      await _settle(tester);
+      expect(await pending, DoneCardResult.notYet);
+      expect(find.byType(DoneCard), findsNothing);
+    });
+
+    testWidgets('done card: a counter sale asks nothing of a table · $lang', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        size: _ipad,
+        bridge: _FakeBridge(rtl: ar),
+        rtl: ar,
+      );
+      final host = tester.element(find.byType(_Host));
+      unawaited(showDoneCard(host, _counterOutcome()));
+      await _settle(tester);
+      expect(find.byKey(const ValueKey('done-cleared-q')), findsNothing);
+      expect(inCard(find.text(w('charge.cleared'))), findsNothing);
+      expect(inCard(find.text(w('charge.not_yet'))), findsNothing);
+    });
+
+    testWidgets('standard mode: the Done card keeps its place · $lang', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        size: _ipad,
+        bridge: _FakeBridge(rtl: ar),
+        rtl: ar,
+      );
+      final host = tester.element(find.byType(_Host));
+      unawaited(showDoneCard(host, _saleOutcome()));
+      await _settle(tester);
+      final card = tester.getRect(find.byType(DoneCard));
+      // Where it has always been: centred on the window, 76 from the top.
+      expect(card.center.dx, closeTo(_ipad.width / 2, 1));
+      expect(card.top, closeTo(76, 1));
+      expect(card.width, 600);
+    });
+
+    testWidgets('Fast mode: the Done card sits over the menu, at the end · '
+        '$lang', (tester) async {
+      final panelNav = GlobalKey<NavigatorState>();
+      await _mount(
+        tester,
+        size: _ipad,
+        bridge: _FakeBridge(rtl: ar),
+        rtl: ar,
+        home: _FastHost(panelNav: panelNav),
+      );
+      final panel = tester.getRect(find.byKey(const ValueKey('fast-panel')));
+      final cart = tester.getRect(find.byKey(const ValueKey('fast-cart')));
+      // The Sell screen hands Charge (and so the card) a context under the
+      // panel host.
+      final under = tester.element(find.byKey(const ValueKey('fast-cart')));
+      unawaited(showDoneCard(under, _saleOutcome()));
+      await _settle(tester);
+      final card = tester.getRect(find.byType(DoneCard));
+      expect(card.width, 600);
+      expect(card.top, closeTo(76, 1));
+      // Centred over the menu panel, clear of the cart.
+      expect(card.center.dx, closeTo(panel.center.dx, 1));
+      expect(card.left, greaterThanOrEqualTo(panel.left - 1));
+      expect(card.right, lessThanOrEqualTo(panel.right + 1));
+      expect(card.overlaps(cart), isFalse);
+      // The END side: right in English, left in Arabic.
+      if (ar) {
+        expect(card.center.dx, lessThan(_ipad.width / 2));
+      } else {
+        expect(card.center.dx, greaterThan(_ipad.width / 2));
+      }
+      await _capture(tester, 'done-card-fast-$lang');
+    });
+  }
+
+  testWidgets('Fast mode on a narrow iPad: the card stays in the window', (
+    tester,
+  ) async {
+    // Portrait: the panel is narrower than the card. It keeps to the end
+    // side as far as the window allows, inside the gutter.
+    const portrait = Size(834, 1194);
+    final panelNav = GlobalKey<NavigatorState>();
+    await _mount(
+      tester,
+      size: portrait,
+      bridge: _FakeBridge(),
+      home: _FastHost(panelNav: panelNav),
+    );
+    final under = tester.element(find.byKey(const ValueKey('fast-cart')));
+    unawaited(showDoneCard(under, _saleOutcome()));
+    await _settle(tester);
+    final card = tester.getRect(find.byType(DoneCard));
+    expect(card.right, closeTo(portrait.width - 24, 1));
+    expect(card.left, greaterThanOrEqualTo(24 - 1));
+    expect(tester.takeException(), isNull);
   });
 
   // ── Sheet over sheet ────────────────────────────────────────────────
@@ -1464,7 +1838,7 @@ void main() {
       await _settle(tester);
       expect(find.byType(LoyaltyAwardSheet), findsNothing);
       expect(find.byType(DoneCard), findsOneWidget, reason: 'the card stays');
-      await tester.tap(find.text('New sale'));
+      await tester.tap(find.text('Not yet'));
       await _settle(tester);
       expect(await done, DoneCardResult.notYet);
       MadarSheet.close<void>(tester.element(find.byType(ChargeSheet)));

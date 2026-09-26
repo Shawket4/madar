@@ -14,7 +14,13 @@ import 'package:app_core/app_core.dart';
 import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart'
-    show CartKitchenChitSheet, ChargeOutcome, ChargeSheet, KitchenChitSheet;
+    show
+        CartKitchenChitSheet,
+        ChargeOutcome,
+        ChargeSheet,
+        ChargeTarget,
+        DoneCard,
+        KitchenChitSheet;
 import 'package:feature_order/feature_order.dart';
 import 'package:feature_order/src/combo_sheet.dart';
 import 'package:feature_order/src/held_orders_strip.dart';
@@ -668,6 +674,69 @@ void main() {
         isFalse,
       );
     });
+
+    // The Done card after Charge. Standard keeps it where it always was,
+    // centred at the top of the window; Fast mode anchors it over the menu
+    // panel — the END side, right in English and left in Arabic — never
+    // centred over the cart.
+    const landed = ChargeOutcome(
+      target: ChargeTarget.cart(),
+      queued: false,
+      amountMinor: 19600,
+      methodLabel: 'Cash',
+      isCash: true,
+      currency: 'EGP',
+      createdAt: '2026-09-26T10:00:00Z',
+      orderId: 'o-1042',
+      orderNumber: 1042,
+      changeMinor: 400,
+    );
+
+    for (final ar in [false, true]) {
+      final lang = ar ? 'ar' : 'en';
+      for (final fast in [true, false]) {
+        final mode = fast ? 'Fast mode' : 'standard mode';
+        testWidgets('$mode: the Done card after Charge · $lang', (
+          tester,
+        ) async {
+          await _mount(
+            tester,
+            screen: const TakeawaySellScreen(),
+            size: _ipad,
+            bridge: _FakeBridge(rtl: ar),
+            layout: fast ? SellLayout.fast : SellLayout.standard,
+          );
+          final menu = tester.getRect(find.byType(MenuGrid));
+          final cart = tester.getRect(find.byType(SellCart));
+          await tester.tap(
+            inCart(find.text(coreWord('sell.charge', arabic: ar))).last,
+          );
+          await _settle(tester);
+          MadarSheet.close<ChargeOutcome>(
+            tester.element(find.byType(ChargeSheet)),
+            landed,
+          );
+          await _settle(tester);
+          expect(find.byType(DoneCard), findsOneWidget);
+          final card = tester.getRect(find.byType(DoneCard));
+          expect(card.width, 600);
+          expect(card.top, closeTo(76, 1));
+          if (!fast) {
+            // Unchanged: centred on the window.
+            expect(card.center.dx, closeTo(_ipad.width / 2, 1));
+          } else {
+            expect(card.center.dx, closeTo(menu.center.dx, 1));
+            expect(card.overlaps(cart), isFalse, reason: 'not over the cart');
+            if (ar) {
+              expect(card.center.dx, lessThan(_ipad.width / 2));
+            } else {
+              expect(card.center.dx, greaterThan(_ipad.width / 2));
+            }
+          }
+          await _capture(tester, 'done-card-${fast ? 'fast' : 'std'}-$lang');
+        });
+      }
+    }
 
     testWidgets('a phone ignores the setting: the cart is still its bar', (
       tester,
