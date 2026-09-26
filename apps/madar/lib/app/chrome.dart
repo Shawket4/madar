@@ -538,11 +538,11 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       maxWidth: Responsive.sheetCompactMaxWidth,
       builder: (sheetContext) => _PersonSheet(
         onSettings: () {
-          Navigator.of(sheetContext).maybePop();
+          MadarSheet.close<void>(sheetContext);
           _openOwned(_OwnedPage.settings);
         },
         onSignOut: () {
-          Navigator.of(sheetContext).maybePop();
+          MadarSheet.close<void>(sheetContext);
           unawaited(_confirmThenSignOut());
         },
       ),

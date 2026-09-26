@@ -32,6 +32,7 @@ import 'package:rust_bridge/rust_bridge.dart';
 
 part 'shell_order_messages.dart';
 part 'shell_till_state.dart';
+part 'shell_meal_tile.dart';
 
 const _render = bool.fromEnvironment('MADAR_RENDER');
 
@@ -1294,6 +1295,7 @@ void main() {
   group('spec board', specBoardMain);
   group('one till owner', tillStateMain);
   group('order messages reach the screen', orderMessagesMain);
+  group('the sell tile after a meal', mealTileMain);
 
   testWidgets('the teller shell on an iPad: Sell, Floor, Queue, Till', (
     tester,

@@ -417,7 +417,12 @@ class SellCart extends ConsumerWidget {
               variant: MadarButtonVariant.danger,
               enabled: cart.lines.isNotEmpty,
               onTap: () {
-                Navigator.of(sheetContext).maybePop();
+                // MadarSheet.close, never `Navigator.maybePop()`: maybePop is
+                // async and DROPS the pop when anything is pushed before it
+                // runs — the confirm below always is — which left this sheet
+                // up after "Clear cart", its scrim eating the next tap on the
+                // menu (T2 B3: the dead Latte tile).
+                MadarSheet.close<void>(sheetContext);
                 // Confirm on the SCREEN's context, not the sheet's: the
                 // sheet is closing, and a dialog raised from a context that
                 // is being torn down never appears.
@@ -938,7 +943,7 @@ class _RowKitchenSheet extends ConsumerWidget {
           MadarButton(
             label: orderWord(bridge, 'sell.kitchen_row_sheet_print'),
             onTap: () {
-              Navigator.of(context).maybePop();
+              MadarSheet.close<void>(context);
               unawaited(
                 ref
                     .read(orderProvider.notifier)

@@ -5,6 +5,7 @@
 // `MADAR_RENDER=true` writes `build/render/sell-<scene>-<device>-<lang>-<theme>.png`.
 // Without it every frame still lays out and fails on any exception.
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -61,6 +62,8 @@ Future<void> _settle(WidgetTester tester) async {
 
 void main() {
   setUpAll(_loadFonts);
+  group('a tap after Clear', _clearThenTapMain);
+  group('a tap is never answered with nothing', _neverNothingMain);
 
   group('assigning a held order to a table', () {
     Future<void> assignVia(WidgetTester tester, String chip) async {
@@ -746,4 +749,176 @@ void main() {
       }
     }
   }
+}
+
+/// T2 B3 (POS 0.9/0.10 on the iPad): after "Make it a meal" and a Clear, a
+/// tap on the Latte tile did nothing at all — no line, no sheet, no toast.
+///
+/// The ⋯ sheet's Clear closed itself with `Navigator.maybePop()` and raised
+/// the confirm in the same tick. `maybePop` is async and drops the pop when
+/// the navigator's history changed meanwhile — which the confirm always
+/// does — so the ⋯ sheet stayed up after "Clear cart", and its scrim
+/// swallowed the next tap on the menu.
+void _clearThenTapMain() {
+  Finder latte() => find
+      .descendant(of: find.byType(SellTile), matching: find.text('Latte'))
+      .hitTestable();
+
+  Future<void> clearFromTheMenu(WidgetTester tester) async {
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (w) => w is MadarGlyphTile && w.glyph == MadarGlyph.more,
+          )
+          .hitTestable()
+          .first,
+    );
+    await _settle(tester);
+    await tester.tap(find.text(coreWord('order.clear')).last);
+    await _settle(tester);
+    await tester.tap(find.text(coreWord('order.clear_cart')).last);
+    await _settle(tester);
+    await tester.pump(const Duration(seconds: 1));
+  }
+
+  testWidgets(
+    "Clear closes the cart's ⋯ sheet: nothing is left over the menu",
+    (tester) async {
+      final bridge = _FakeBridge();
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await clearFromTheMenu(tester);
+      expect(bridge.cleared, 1);
+      expect(
+        find.byWidgetPredicate((w) => w is MadarButton && w.label == 'Clear'),
+        findsNothing,
+        reason: "the ⋯ sheet's Clear button is gone with its sheet",
+      );
+      expect(latte(), findsOneWidget, reason: 'the menu takes taps again');
+    },
+  );
+
+  testWidgets('the Latte tile still sells after a meal and a Clear (T2 B3)', (
+    tester,
+  ) async {
+    final bridge = _MealBridge()..latency = const Duration(milliseconds: 40);
+    bridge.carts[null] = [];
+    final container = await _mount(
+      tester,
+      screen: const TakeawaySellScreen(),
+      size: _ipad,
+      bridge: bridge,
+    );
+    // Long press → the item sheet → "Make it a meal" → the combo sheet → Add.
+    await tester.longPress(latte().first);
+    await _settle(tester);
+    await tester.tap(find.byKey(const ValueKey('make-it-a-meal')));
+    await _settle(tester);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(find.byKey(const ValueKey('combo-save')));
+    await _settle(tester);
+    await tester.pump(const Duration(seconds: 1));
+    expect(bridge.combosAdded, 1, reason: 'the meal went into the cart');
+
+    await clearFromTheMenu(tester);
+    expect(bridge.carts[null], isEmpty);
+    expect(container.read(cartProvider(null)).lines, isEmpty);
+
+    await tester.tap(latte().first);
+    await _settle(tester);
+    await tester.pump(const Duration(seconds: 1));
+    expect(bridge.configuredAdds, [
+      'latte',
+    ], reason: 'the tap reached the cart');
+    expect(bridge.carts[null]!.map((l) => l.itemId), ['latte']);
+  });
+}
+
+/// T2 B3's rule: whatever stops a tap on the Sell screen, the teller is told.
+void _neverNothingMain() {
+  Finder tile(String name) => find
+      .descendant(of: find.byType(SellTile), matching: find.text(name))
+      .hitTestable();
+
+  Future<(ProviderContainer, _MealBridge)> mount(WidgetTester tester) async {
+    final bridge = _MealBridge();
+    bridge.carts[null] = [];
+    final container = await _mount(
+      tester,
+      screen: const TakeawaySellScreen(),
+      size: _ipad,
+      bridge: bridge,
+    );
+    return (container, bridge);
+  }
+
+  String? toast(ProviderContainer c) => c.read(appToastProvider)?.text;
+
+  testWidgets('a tap that fails unexpectedly says so', (tester) async {
+    final (container, bridge) = await mount(tester);
+    bridge.breakAdd = StateError('the bridge fell over');
+    await tester.tap(tile('Latte').first);
+    await _settle(tester);
+    expect(toast(container), "Couldn't add Latte. Try again.");
+    expect(
+      tester.takeException(),
+      isA<StateError>(),
+      reason: 'still reported, as an uncaught error would be',
+    );
+    expect(bridge.configuredAdds, isEmpty);
+
+    // …and the next tap is taken as usual.
+    await tester.tap(tile('Latte').first);
+    await _settle(tester);
+    expect(bridge.configuredAdds, ['latte']);
+  });
+
+  testWidgets('a tap held behind a slow one says so; a double tap does not', (
+    tester,
+  ) async {
+    final (container, bridge) = await mount(tester);
+    bridge.slowGroups = Completer<List<ModifierGroupView>>();
+    await tester.tap(tile('Latte').first);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(tile('Espresso').first);
+    await tester.pump();
+    expect(toast(container), isNull, reason: 'a double tap is not news');
+
+    await tester.pump(const Duration(seconds: 2));
+    await tester.tap(tile('Espresso').first);
+    await tester.pump();
+    expect(
+      toast(container),
+      'One moment, the last tap is still going through.',
+    );
+
+    bridge.slowGroups!.complete(const []);
+    bridge.slowGroups = null;
+    await _settle(tester);
+    expect(bridge.configuredAdds, ['latte'], reason: 'the slow one lands');
+  });
+
+  testWidgets('editing a line whose item left the menu says so', (
+    tester,
+  ) async {
+    final (container, bridge) = await mount(tester);
+    bridge.carts[null] = [_cartLine('gone', 'Pumpkin latte', 6000, 1)];
+    await container.read(cartProvider(null).notifier).load();
+    await _settle(tester);
+    await tester.tap(find.text('Pumpkin latte').hitTestable().first);
+    await _settle(tester);
+    expect(toast(container), "Couldn't open Pumpkin latte. Try again.");
+  });
+
+  testWidgets('a combo this till cannot show says so', (tester) async {
+    final (container, bridge) = await mount(tester);
+    bridge.comboGone = true;
+    await tester.tap(tile('Coffee & Treat').first);
+    await _settle(tester);
+    expect(toast(container), "This combo isn't available right now.");
+  });
 }

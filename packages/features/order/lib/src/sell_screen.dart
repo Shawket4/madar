@@ -212,6 +212,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
   @override
   void dispose() {
+    _slowTimer?.cancel();
     _search.dispose();
     super.dispose();
   }
@@ -243,32 +244,109 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   /// while one is opening used to stack two sheets (or two drawers).
   bool _opening = false;
 
-  Future<void> _once(Future<void> Function() op) async {
-    if (_opening) return;
+  /// The tap holding [_opening] has outlasted a double tap.
+  bool _openingSlow = false;
+  Timer? _slowTimer;
+
+  /// A second tap this soon after the first is a double tap: dropped without
+  /// a word, the first one's result is about to show. Later than this, the
+  /// teller is waiting on something slow (a round on its way to the kitchen)
+  /// and is TOLD so — a tap is never answered with nothing.
+  static const _doubleTap = Duration(milliseconds: 1500);
+
+  /// Run [op] for one tap, once at a time. Whatever goes wrong in it is said
+  /// on the toast — the core's sentence for a refusal, else [failed] — and
+  /// never dies quietly in an unawaited future (T2 B3: a tap on the menu
+  /// that did nothing at all).
+  Future<void> _once(
+    Future<void> Function() op, {
+    String Function()? failed,
+  }) async {
+    if (_opening) {
+      if (_openingSlow) {
+        _notifier.showToast(
+          ref.read(bridgeProvider).tr(key: 'order.still_busy'),
+          icon: 'clock',
+        );
+      }
+      return;
+    }
     _opening = true;
+    _slowTimer = Timer(_doubleTap, () => _openingSlow = true);
     try {
-      await op();
+      await _saying(op, failed: failed);
     } finally {
+      _slowTimer?.cancel();
+      _slowTimer = null;
+      _openingSlow = false;
       if (mounted) _opening = false;
     }
   }
 
-  Future<void> _onTileTap(MenuItemView item, Offset origin) => _once(() async {
-    // A combo always opens its sheet: its slots are the choice to make.
-    if (item.kind == 'combo') {
-      await _openComboSheet(item.id);
-      return;
+  /// [op], with any failure said on the toast rather than lost: a refusal in
+  /// the core's words, anything else as [failed] (or the generic sentence).
+  /// The unexpected ones are still reported, as an uncaught error would be.
+  Future<void> _saying(
+    Future<void> Function() op, {
+    String Function()? failed,
+  }) async {
+    try {
+      await op();
+    } on MadarError catch (e) {
+      if (mounted) {
+        _notifier.showToast(
+          ref.read(bridgeProvider).humanMessage(e),
+          tone: ChipTone.danger,
+          icon: 'xmark.circle',
+        );
+      }
+    } on Object catch (e, st) {
+      if (mounted) {
+        _notifier.showToast(
+          failed?.call() ?? ref.read(bridgeProvider).tr(key: 'err.generic'),
+          tone: ChipTone.danger,
+          icon: 'xmark.circle',
+        );
+      }
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: e,
+          stack: st,
+          library: 'feature_order',
+          context: ErrorDescription('while answering a tap on the Sell screen'),
+        ),
+      );
     }
-    final needs = await _itemNeedsSheet(item);
-    if (needs == null || !mounted) return;
-    if (needs) {
-      await _openItemSheet(item);
-      return;
-    }
-    await _quickAdd(item);
-    if (!mounted) return;
-    _flyToCart(origin);
-  });
+  }
+
+  /// "Couldn't add Latte. Try again." / "Couldn't open Latte. Try again."
+  String _failedOn(String key, String name) =>
+      ref.read(bridgeProvider).tr(key: key).replaceAll('{item}', name);
+
+  Future<void> _onTileTap(MenuItemView item, Offset origin) =>
+      _once(failed: () => _failedOn('order.add_failed', item.name), () async {
+        // A combo always opens its sheet: its slots are the choice to make.
+        if (item.kind == 'combo') {
+          await _openComboSheet(item.id);
+          return;
+        }
+        final needs = await _itemNeedsSheet(item);
+        if (needs == null || !mounted) return;
+        if (needs) {
+          await _openItemSheet(item);
+          return;
+        }
+        await _quickAdd(item);
+        if (!mounted) return;
+        _flyToCart(origin);
+      });
+
+  /// A long press: the item's sheet, whatever its options — its failures
+  /// said like a tap's.
+  Future<void> _onTileLongPress(MenuItemView item) => _saying(
+    failed: () => _failedOn('order.add_failed', item.name),
+    () => _openItemSheet(item),
+  );
 
   /// The quick-add path skips the sheet, but a recipe's base modifier — full
   /// -fat milk under a latte — must still land on the line. `addConfigured`
@@ -353,24 +431,29 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     await shown;
   }
 
-  Future<void> _editLine(CartLineView line) => _once(() async {
-    if (line.kind == 'combo') {
-      final ComboDraft draft;
-      try {
-        draft = await ref
-            .read(bridgeProvider)
-            .cartComboDraft(tableId: _tableId, lineKey: line.key);
-      } on MadarError {
-        return;
-      }
-      if (!mounted) return;
-      await _openComboSheet(line.itemId, draft: draft);
-      return;
-    }
-    final item = ref.read(orderProvider).menuItemById(line.itemId);
-    if (item == null) return;
-    await _openItemSheet(item, edit: line);
-  });
+  Future<void> _editLine(CartLineView line) =>
+      _once(failed: () => _failedOn('order.edit_failed', line.name), () async {
+        if (line.kind == 'combo') {
+          // A refusal (the line is gone) is the core's sentence, on the toast.
+          final draft = await ref
+              .read(bridgeProvider)
+              .cartComboDraft(tableId: _tableId, lineKey: line.key);
+          if (!mounted) return;
+          await _openComboSheet(line.itemId, draft: draft);
+          return;
+        }
+        final item = ref.read(orderProvider).menuItemById(line.itemId);
+        if (item == null) {
+          // Off the menu since it was added: say so, never a dead tap.
+          _notifier.showToast(
+            _failedOn('order.edit_failed', line.name),
+            tone: ChipTone.warning,
+            icon: 'exclamationmark.triangle',
+          );
+          return;
+        }
+        await _openItemSheet(item, edit: line);
+      });
 
   // ── terminal ───────────────────────────────────────────────────────────────
 
@@ -435,7 +518,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         child: SellCart(
           tableId: _tableId,
           onTerminal: () {
-            Navigator.of(sheetContext).maybePop();
+            // Not maybePop: Charge is pushed in this same tick, and maybePop
+            // drops its pop when that happens (the cart sheet stayed up
+            // under Charge). See MadarSheet.close.
+            MadarSheet.close<void>(sheetContext);
             unawaited(_terminal());
           },
           onEditLine: (line) => unawaited(_editLine(line)),
@@ -527,7 +613,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       tableId: _tableId,
       query: _searching ? _search.text : null,
       onItemTap: (item, origin) => unawaited(_onTileTap(item, origin)),
-      onItemLongPress: (item) => unawaited(_openItemSheet(item)),
+      onItemLongPress: (item) => unawaited(_onTileLongPress(item)),
     );
 
     // As a tab body the shell's top bar above it already paid the top inset;
