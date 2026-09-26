@@ -773,7 +773,9 @@ pub(crate) fn discounts(store: &Store, locale: &str) -> CoreResult<Vec<DiscountV
 //
 // The NEW backend serves the unified modifier model (groups + options with
 // branch-effective prices) revision-gated at `/catalog/sync`. The raw response
-// JSON is mirrored under `K_UNIFIED` by `refresh_catalog`; these tolerant
+// JSON is mirrored under `K_UNIFIED` by `refresh_catalog`, and each pull keeps
+// its per-item groups equal to the feed's `menu_item` rows
+// (`unified_with_feed_groups`); these tolerant
 // shapes read back only what the POS consumes. An OLD backend (404) or a
 // not-yet-backfilled org simply never writes the key, and every reader falls
 // back to the legacy projection — no version coupling in either direction.
@@ -847,6 +849,16 @@ impl UnifiedDoc {
             .map(|i| i.modifier_groups.clone())
             .filter(|groups| !groups.is_empty())
     }
+
+    /// The item is listed with NO attached group. The unified wire (the feed
+    /// and `/catalog/sync`) lists only ACTIVE groups, while the legacy
+    /// `/menu-items` slots are a view over the same attachments that keeps a
+    /// soft-deleted group: for such an item every legacy slot is stale.
+    pub(crate) fn lists_without_groups(&self, item_id: &str) -> bool {
+        self.items
+            .iter()
+            .any(|i| i.id == item_id && i.modifier_groups.is_empty())
+    }
 }
 
 /// Parse the mirrored unified catalog once (`None` = never synced / unreadable).
@@ -879,6 +891,93 @@ pub(crate) fn unified_unchanged(body: &str) -> bool {
     serde_json::from_str::<Changed>(body)
         .map(|c| !c.changed)
         .unwrap_or(false)
+}
+
+/// The revision of a unified mirror built from the feed alone: never a real
+/// one, so the next manual sync asks `/catalog/sync` for everything.
+const FEED_ONLY_REVISION: i64 = -1;
+
+/// Keep the unified mirror's per-item modifier groups equal to the
+/// changefeed's `menu_item` rows. A row is the same `SyncItem` shape
+/// `/catalog/sync` returns (the options' recipes stripped), and the feed
+/// moves within seconds of a dashboard edit, while `/catalog/sync` is fetched
+/// only by a first boot or a manual sync. Reading groups from that fetch alone
+/// kept a REQUIRED group attached on the dashboard off the item sheet until
+/// someone pressed sync, and the next tap added the item without its pick
+/// (T1, the till sheet-cache regression). An attached, edited or detached
+/// group now reaches every reader of the mirror with the pull.
+///
+/// Items the feed does not carry keep what the last fetch said, and the
+/// revision is kept, so a manual sync still asks for what changed since.
+/// Returns the new mirror when a group changed, `None` when it already agrees.
+pub(crate) fn unified_with_feed_groups(raw: Option<&str>, feed_items: &[Value]) -> Option<String> {
+    let mut doc = raw
+        .and_then(|r| serde_json::from_str::<Value>(r).ok())
+        .filter(Value::is_object)
+        .unwrap_or_else(
+            || serde_json::json!({ "catalog_revision": FEED_ONLY_REVISION, "items": [] }),
+        );
+    let items = doc
+        .as_object_mut()?
+        .entry("items")
+        .or_insert_with(|| Value::Array(Vec::new()));
+    if !items.is_array() {
+        *items = Value::Array(Vec::new());
+    }
+    let items = items.as_array_mut()?;
+    let mut changed = false;
+    for row in feed_items {
+        let Some(id) = row.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        let groups = row
+            .get("modifier_groups")
+            .filter(|g| g.is_array())
+            .cloned()
+            .unwrap_or_else(|| Value::Array(Vec::new()));
+        match items
+            .iter()
+            .position(|i| i.get("id").and_then(Value::as_str) == Some(id))
+        {
+            Some(at) => {
+                if items[at]
+                    .get("modifier_groups")
+                    .is_some_and(|g| same_groups(g, &groups))
+                {
+                    continue;
+                }
+                items[at]["modifier_groups"] = groups;
+            }
+            None => {
+                let mut item = row.clone();
+                if let Some(m) = item.as_object_mut() {
+                    m.remove("seq");
+                }
+                items.push(item);
+            }
+        }
+        changed = true;
+    }
+    changed.then(|| doc.to_string())
+}
+
+/// Two lists of an item's groups say the same thing to the till. The
+/// `/catalog/sync` fetch carries each option's recipe and the feed does not;
+/// nothing on the till reads it, so it never counts as a change.
+fn same_groups(a: &Value, b: &Value) -> bool {
+    fn without_recipes(v: &Value) -> Value {
+        let mut v = v.clone();
+        for g in v.as_array_mut().into_iter().flatten() {
+            let options = g.get_mut("options").and_then(Value::as_array_mut);
+            for o in options.into_iter().flatten() {
+                if let Some(m) = o.as_object_mut() {
+                    m.remove("recipe");
+                }
+            }
+        }
+        v
+    }
+    without_recipes(a) == without_recipes(b)
 }
 
 /// The unified modifier groups for one item. `None` ⇒ no unified mirror, the
@@ -1543,6 +1642,50 @@ mod tests {
         );
         let a = addons(&store, "en").unwrap();
         assert_eq!(a[0].ingredients[0].quantity, 0.0);
+    }
+
+    // ── the feed keeps the unified groups current (T1 sheet-cache regression) ──
+
+    #[test]
+    fn the_feed_rows_keep_the_unified_groups_current() {
+        let fetched = r#"{"catalog_revision":7,"changed":true,"items":[
+            {"id":"latte","modifier_groups":[{"group_id":"g","options":[{"id":"o","name":"Oat","price":100,
+              "recipe":[{"ingredient_id":"i","quantity":"1","unit":"ml"}]}]}]},
+            {"id":"cake","modifier_groups":[]}]}"#;
+        // The same groups, the recipes stripped as the feed ships them: nothing to write.
+        let same = serde_json::json!([{"id":"latte","seq":3,"modifier_groups":[
+            {"group_id":"g","options":[{"id":"o","name":"Oat","price":100}]}]}]);
+        assert!(unified_with_feed_groups(Some(fetched), same.as_array().unwrap()).is_none());
+
+        // A required group on the cake, and an item the fetch never had.
+        let rows = serde_json::json!([
+            {"id":"cake","seq":4,"modifier_groups":[{"group_id":"k","is_required":true,"min":1,
+              "options":[{"id":"x","name":"Knife"}]}]},
+            {"id":"tea","seq":5,"modifier_groups":[]}]);
+        let raw = unified_with_feed_groups(Some(fetched), rows.as_array().unwrap()).unwrap();
+        let doc: UnifiedDoc = serde_json::from_str(&raw).unwrap();
+        assert_eq!(doc.catalog_revision, 7, "the fetch's revision is kept");
+        assert!(doc.groups_for("cake").unwrap()[0].is_required);
+        assert_eq!(
+            doc.groups_for("latte").unwrap()[0].options[0].name,
+            "Oat",
+            "an item the feed did not carry keeps what the fetch said"
+        );
+        assert!(doc.items.iter().any(|i| i.id == "tea"));
+        assert!(
+            !raw.contains("\"seq\""),
+            "the feed's cursor is not the catalogue's"
+        );
+
+        // No mirror yet: built from the feed, at a revision no server has.
+        let raw = unified_with_feed_groups(None, rows.as_array().unwrap()).unwrap();
+        let doc: UnifiedDoc = serde_json::from_str(&raw).unwrap();
+        assert_eq!(doc.catalog_revision, FEED_ONLY_REVISION);
+        assert!(doc.groups_for("cake").is_some());
+        assert!(
+            unified_with_feed_groups(None, &[]).is_none(),
+            "nothing to build from"
+        );
     }
 
     // ── lenient parse: completely malformed kv JSON IS an error ──────────────

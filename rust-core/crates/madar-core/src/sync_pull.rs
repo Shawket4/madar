@@ -1383,6 +1383,23 @@ impl MadarCore {
                 self.invalidate_catalog_cache();
             }
         }
+        // The item sheet's modifier groups, from the `menu_item` rows (the
+        // `SyncItem` shape `/catalog/sync` returns): a group attached, edited
+        // or detached on the dashboard reaches the sheet, the combo sheet and
+        // the staff comp with the pull, not on the next manual sync.
+        if feed_has_type(store, branch, "menu_item") {
+            let items = rows_of_type(store, branch, "menu_item");
+            let current = store.kv_get(crate::menu::K_UNIFIED).ok().flatten();
+            if let Some(raw) = crate::menu::unified_with_feed_groups(current.as_deref(), &items) {
+                if store.kv_put(crate::menu::K_UNIFIED, &raw).is_ok() {
+                    self.invalidate_catalog_cache();
+                    // The rows' own catalogue tick went out before this
+                    // projection; say it again now the sheet reads the new
+                    // groups, so a tap answered in between is forgotten.
+                    store.emit_changes([crate::changes::CATALOG]);
+                }
+            }
+        }
         // The branch's delivery prep minutes.
         if let Some(prep) = rows_of_type(store, branch, "branch_settings")
             .into_iter()
