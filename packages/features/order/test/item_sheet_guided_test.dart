@@ -592,7 +592,10 @@ void main() {
           expect(find.byType(ItemDetailSheet), findsNothing);
         });
 
-        testWidgets('Enter adds nothing while a required group is open', (
+        // Never a silent Enter: with a required group open it adds nothing
+        // and shows the group, as a tap on the disabled Add does in Fast
+        // mode — here in the standard sheet too.
+        testWidgets('Enter with a required group open shows that group', (
           tester,
         ) async {
           final fake = await _open(
@@ -602,11 +605,31 @@ void main() {
             item: _sandwich,
             groups: _sandwichGroups,
           );
+          await _tapOption(tester, 'bread1');
+          await _tapOption(tester, 'sauce1');
+          // Back to the top: the cheese is out of view again.
+          await tester.drag(
+            find
+                .descendant(
+                  of: find.byType(ItemDetailSheet),
+                  matching: find.byType(SingleChildScrollView),
+                )
+                .first,
+            const Offset(0, 2000),
+          );
+          await _fade(tester);
+          expect(_inView(tester, 'g-cheese'), isFalse);
+          expect(_card(tester, 'g-cheese').highlighted, isFalse);
+
           await tester.sendKeyEvent(LogicalKeyboardKey.numpadEnter);
+          await tester.pump();
           await _settle(tester);
           expect(fake.added, isEmpty);
           expect(find.byType(ItemDetailSheet), findsOneWidget);
+          expect(_card(tester, 'g-cheese').highlighted, isTrue);
+          expect(_inView(tester, 'g-cheese'), isTrue, reason: 'scrolled to it');
           await _fade(tester);
+          expect(_card(tester, 'g-cheese').highlighted, isFalse);
         });
 
         testWidgets('Esc closes and adds nothing', (tester) async {

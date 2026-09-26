@@ -731,7 +731,8 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     );
   }
 
-  /// Scroll [g] into view and flash it.
+  /// Scroll [g] into view and flash it. Fast mode's guide, and Enter with a
+  /// required group open on either sheet.
   void _guideTo(AddonGroup g) {
     _flashTimer?.cancel();
     setState(() => _flash = g.id);
@@ -831,7 +832,9 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
       // Never twice from a held key: a repeat would add the line again.
       if (repeat || config.committing) return KeyEventResult.handled;
       if (_open case final open?) {
-        if (_guided) _guideTo(open);
+        // Never a silent key: Enter shows the group still to answer, in the
+        // standard sheet as in Fast mode (a tap on the disabled Add).
+        _guideTo(open);
       } else {
         unawaited(_commit(config));
       }
@@ -1281,7 +1284,8 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                         charged: _charged,
                         selectedSingle: config.single[g.id],
                         selectedMulti: config.multi[g.id] ?? const {},
-                        highlighted: guided && _flash == g.id,
+                        // Flashed by Fast mode's guide, or by Enter.
+                        highlighted: _flash == g.id,
                         onToggleSingle: (id) {
                           notifier.toggleSingle(g, id);
                           _answered(g);
