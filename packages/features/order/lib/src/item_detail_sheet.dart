@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/cart_anchor.dart';
+import 'package:feature_order/src/item_sheet_header_extras.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:feature_order/src/words.dart';
@@ -513,6 +514,27 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
 
   void toggleShowAll() => state = state.copyWith(showAll: !state.showAll);
 
+  /// Apply the item as this device last sold it (the header's "Last: …"
+  /// chip): its size, add-ons and optional fields replace the selection, and
+  /// a swap group it leaves unanswered opens on the recipe's choice, as a
+  /// fresh sheet does. The quantity stays.
+  void applyLast(LastItemConfig last) {
+    final single = <String, String>{};
+    final multi = <String, Map<String, int>>{};
+    for (final a in last.addons) {
+      _placeAddon(arg, single, multi, a.addonItemId, a.qty);
+    }
+    _seedSwapDefaults(arg, single);
+    state = state.copyWith(
+      size: last.sizeLabel ?? baseSizeLabel(arg.item),
+      single: single,
+      multi: multi,
+      optionals: last.optionalFieldIds.toSet(),
+    );
+    _maybeRefreshRecipe();
+    unawaited(refreshPrice());
+  }
+
   void setQty(int qty) {
     state = state.copyWith(qty: qty.clamp(1, 99));
     unawaited(refreshPrice());
@@ -545,8 +567,9 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
   // ── commit ───────────────────────────────────────────────────────────────
   /// Record the configured line (add, or replace in edit mode). Returns
   /// false when a commit is already in flight (the double-tap guard) — the
-  /// sheet pops only on true.
-  Future<bool> commit({required String? notes}) async {
+  /// sheet pops only on true. [stay] (long-press on Add) keeps the sheet up
+  /// on the same picks, ready for another.
+  Future<bool> commit({required String? notes, bool stay = false}) async {
     if (state.committing) return false;
     state = state.copyWith(committing: true);
     final ok = await ref
@@ -562,7 +585,7 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
         );
     // A refused add or edit keeps the sheet open (the toast says why) with
     // the teller's picks intact, ready to try again.
-    if (!ok && !_disposed) state = state.copyWith(committing: false);
+    if ((!ok || stay) && !_disposed) state = state.copyWith(committing: false);
     return ok;
   }
 }
@@ -662,6 +685,17 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     tableId: widget.tableId,
     pick: widget.pick,
   );
+
+  /// The item as this device last sold it, read once per presentation (local
+  /// rows only). Never offered while editing a line or customising a pick.
+  late final LastItemConfig? _last = () {
+    if (widget.pick != null || widget.editLine != null) return null;
+    try {
+      return ref.read(bridgeProvider).lastItemConfig(itemId: widget.item.id);
+    } on Object {
+      return null;
+    }
+  }();
 
   late final TextEditingController _notes = TextEditingController(
     text: widget.pick?.notes ?? widget.editLine?.notes ?? '',
@@ -842,7 +876,7 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     return false;
   }
 
-  Future<void> _commit(ItemConfigState config) async {
+  Future<void> _commit(ItemConfigState config, {bool stay = false}) async {
     if (!await _selectionValid(config)) return;
     if (!mounted) return;
     final notes = _notes.text.trim();
@@ -864,7 +898,18 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     }
     final committed = await ref
         .read(itemConfigProvider(_args).notifier)
-        .commit(notes: notes.isEmpty ? null : notes);
+        .commit(notes: notes.isEmpty ? null : notes, stay: stay);
+    if (committed && mounted && stay) {
+      // Long-press: the line is in, the sheet stays on the same picks.
+      ref
+          .read(orderProvider.notifier)
+          .showToast(
+            ref.read(bridgeProvider).tr(key: 'order.added_add_another'),
+            tone: ChipTone.success,
+            icon: 'checkmark.circle',
+          );
+      return;
+    }
     if (committed && mounted) {
       // Fresh adds fly a dot to the cart; updates aren't an "add" moment.
       final fly = widget.editLine == null ? _flight() : null;
@@ -973,16 +1018,30 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
         : bridge.tr(key: 'order.update_item');
     final footerPrice = price?.lineTotalMinor ?? headerTotal;
     final picking = widget.pick != null;
-    // "Make it a meal +X": the core says whether this item has a meal on
-    // sale now and what it adds; never in pick mode (already in a combo).
+    // "Make it a meal": the core says whether this item has a meal on sale
+    // now, what it adds and what it saves — for the picks as they stand;
+    // never in pick mode (already in a combo).
     MealOffer? meal;
     if (!picking) {
       try {
-        meal = bridge.mealOffer(itemId: _item.id);
+        meal = bridge.mealOfferFor(
+          itemId: _item.id,
+          sizeLabel: config.size,
+          addons: config.selectedAddons,
+          optionalFieldIds: config.optionals.toList(growable: false),
+        );
       } on Object {
         meal = null;
       }
     }
+    final last = _last;
+    final extras = ItemSheetHeaderExtras(
+      currency: currency,
+      last: last,
+      onApplyLast: last == null ? null : () => notifier.applyLast(last),
+      meal: meal,
+      onMeal: () => unawaited(_makeItAMeal(config)),
+    );
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -996,6 +1055,7 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
           onToggleRecipe: _item.recipes.isNotEmpty
               ? notifier.toggleRecipe
               : null,
+          bottom: extras.isEmpty ? null : extras,
         ),
         // Hug content when it fits (short sheet for a sparse item); scroll
         // when the options overflow — the footer stays pinned + visible.
@@ -1044,25 +1104,6 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                   ),
                   // A single `one_size` is a placeholder the dashboard needs so
                   // a recipe has a column to hang on — never a choice to make.
-                  if (meal != null) ...[
-                    MadarButton(
-                      key: const ValueKey('make-it-a-meal'),
-                      label: bridge
-                          .tr(key: 'meal.make_it_plus')
-                          .replaceAll(
-                            '{amount}',
-                            Money.format(
-                              meal.deltaMinor,
-                              currency: currency,
-                              locale: MadarFormat.localeOf(context),
-                            ),
-                          ),
-                      glyph: MadarGlyph.plus,
-                      variant: MadarButtonVariant.outline,
-                      onTap: () => unawaited(_makeItAMeal(config)),
-                    ),
-                    const SizedBox(height: Space.md),
-                  ],
                   if (!picking && _hasSizeChoice(_item.sizes)) ...[
                     MadarSectionHeader(text: bridge.tr(key: 'order.size')),
                     const SizedBox(height: Space.sm),
@@ -1179,6 +1220,10 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
             onDec: () => notifier.setQty(config.qty - 1),
             onInc: () => notifier.setQty(config.qty + 1),
             onCommit: () => unawaited(_commit(config)),
+            // Long-press adds and keeps the sheet up; a fresh add only.
+            onCommitHold: picking || widget.editLine != null
+                ? null
+                : () => unawaited(_commit(config, stay: true)),
           ),
         ),
       ],
@@ -1289,11 +1334,16 @@ class ItemSheetHeader extends StatelessWidget {
     this.tag,
     this.showRecipe = false,
     this.onToggleRecipe,
+    this.bottom,
     super.key,
   });
 
   final String title;
   final String? description;
+
+  /// Under the title row, above the rule: the item sheet's "Last: …" chip
+  /// and meal banner.
+  final Widget? bottom;
 
   /// Null hides the price badge (pick mode: the combo prices the item).
   final int? totalMinor;
@@ -1422,6 +1472,15 @@ class ItemSheetHeader extends StatelessWidget {
               ],
             ),
           ),
+          if (bottom case final bottom?)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(
+                start: Space.xl,
+                end: Space.xl,
+                bottom: Space.md,
+              ),
+              child: SizedBox(width: double.infinity, child: bottom),
+            ),
           Container(height: 1, color: colors.border),
         ],
       ),
@@ -1448,8 +1507,13 @@ class ItemSheetFooter extends ConsumerWidget {
     this.showQty = true,
     this.note,
     this.ctaKey,
+    this.onCommitHold,
     super.key,
   });
+
+  /// Long-press on the commit button (the item sheet's add-and-stay); null =
+  /// none.
+  final VoidCallback? onCommitHold;
 
   /// A line under the total (the combo's saving).
   final Widget? note;
@@ -1529,6 +1593,7 @@ class ItemSheetFooter extends ConsumerWidget {
                     enabled: canAdd,
                     loading: loading,
                     onTap: onCommit,
+                    onLongPress: onCommitHold,
                   ),
                 ),
               ],

@@ -620,13 +620,15 @@ class _FakeBridge implements MadarBridge {
       }
       return Future<List<CartLineView>>.value(List.of(cart));
     }
-    if (name == #mealOffer) {
+    if (name == #mealOffer || name == #mealOfferFor) {
       return withCombo
           ? const MealOffer(
               comboId: 'lunch',
               slotId: 's-main',
               name: 'Lunch deal',
               deltaMinor: 5000,
+              savingMinor: 0,
+              slotHint: '',
             )
           : null;
     }
@@ -1287,13 +1289,15 @@ class _MealBridge extends _FakeBridge {
   dynamic noSuchMethod(Invocation invocation) {
     final name = invocation.memberName;
     final a = invocation.namedArguments;
-    if (name == #mealOffer) {
+    if (name == #mealOffer || name == #mealOfferFor) {
       return a[#itemId] == 'latte'
           ? const MealOffer(
               comboId: 'meal',
               slotId: 's-coffee',
               name: 'Coffee & Treat',
               deltaMinor: 2000,
+              savingMinor: 0,
+              slotHint: '',
             )
           : null;
     }
