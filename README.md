@@ -38,8 +38,9 @@ dart run melos run gen           # build_runner codegen
 dart run melos run bridge        # regenerate FRB bindings from madar-frb
 ```
 
-- App ids: Android `com.madar.pos` (`.dev` suffix in debug so it installs beside the
-  native app), iOS/macOS `com.madar.pos`.
+- App ids: Android `com.madar.cashier` (`.dev` suffix in debug so it installs beside
+  the release app; `com.madar.pos` before 0.14), iOS `com.madar.cashier`, macOS
+  `com.madar.pos`.
 - Orientation is locked to a single landscape, matching the natives.
 - Launcher icons are copied from the native apps' sources (pixel parity), not generated.
 - Behavioral spec per screen = the Kotlin **and** Swift implementations

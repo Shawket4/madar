@@ -8,7 +8,7 @@ separate task; this document is the requirements list that task works from.
 
 | | Android | iOS |
 |---|---|---|
-| Id | `com.madar.pos` (debug: `.dev` suffix) | `com.madar.pos` (team `6HNBMW6X75`) |
+| Id | `com.madar.cashier` (debug: `.dev` suffix; `com.madar.pos` before 0.14) | `com.madar.pos` (team `6HNBMW6X75`) |
 | Display name | `@string/app_name` — "Madar Cashier" / «كاشير مدار» | "Madar Cashier" |
 | Version | `pubspec.yaml` `0.2.0+1` → `versionName` / `versionCode` | → `CFBundleShortVersionString` / `CFBundleVersion` |
 | Min / target | `flutter.minSdkVersion` (24) / `flutter.targetSdkVersion` (Flutter 3.47 → 36; Play requires ≥ 35 from Aug 2026) | iOS 15.0 |

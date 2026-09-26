@@ -16,9 +16,14 @@ to be doing at that moment.
 ## How it can read the POS's files at all
 
 Android gives each package a private directory and nothing else may look inside
-it. This app ships with `applicationId = com.madar.pos` — the POS's own id — and
+it. This app ships with `applicationId = com.madar.cashier` — the POS's own id — and
 is signed with the production key, so installing it is an **update** of the POS
 rather than a new app, and it inherits that directory.
+
+The POS was `com.madar.pos` on Android before 0.14. For a till still on that id,
+build with `-P posId=com.madar.pos` (`flutter build apk --release -P posId=com.madar.pos`);
+the id must match the installed POS exactly or Android installs it as a separate app
+with an empty sandbox.
 
 Two consequences, both important:
 

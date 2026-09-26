@@ -14,7 +14,7 @@ carries the project's API key and app ids. The app builds and runs without it
 
     cd apps/madar
     flutterfire configure --project=dawam-by-madar --platforms=android,ios \
-      --ios-bundle-id=com.madar.cashier --android-package-name=com.madar.pos
+      --ios-bundle-id=com.madar.cashier --android-package-name=com.madar.cashier
 
 That writes `lib/firebase_options.dart`, `android/app/google-services.json`,
 `ios/Runner/GoogleService-Info.plist` and `firebase.json`, all git-ignored. On
