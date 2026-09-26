@@ -98,7 +98,8 @@ DeliveryOrderView _order({
 }
 
 /// A board with one card in every live state, so one picture shows the
-/// whole vocabulary: new (accept + chips), preparing, ready (pickup), out.
+/// whole vocabulary: new (accept + chips), preparing, ready (a pickup, which
+/// charges), out (which charges).
 final _orders = <DeliveryOrderView>[
   _order(
     id: 'd-118',
@@ -727,10 +728,11 @@ void main() {
     );
     expect(find.text('Accept'), findsNWidgets(2));
     expect(find.text('Decline'), findsOneWidget);
-    // The pickup channel's READY card says Picked up, not Out for delivery.
-    expect(find.text('Picked up'), findsOneWidget);
-    // The last step charges.
-    expect(find.widgetWithText(MadarButton, 'Charge'), findsOneWidget);
+    // A pickup walks no steps: the READY pickup card charges, like the
+    // delivery card at its last step — neither says Out for delivery.
+    expect(find.text('Picked up'), findsNothing);
+    expect(find.widgetWithText(MadarButton, 'Charge'), findsNWidgets(2));
+    expect(find.widgetWithText(MadarButton, 'Out for delivery'), findsNothing);
     // The promise the shop made when it accepted, on the card that is still
     // cooking; the fact, on the one the kitchen already called.
     expect(find.textContaining('Ready by 19:50'), findsOneWidget);

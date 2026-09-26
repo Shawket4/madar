@@ -289,6 +289,17 @@ impl MadarCore {
             .unwrap_or_else(|| self.cached_prep_minutes())
     }
 
+    /// The server answered this device's own write on an online order (a step,
+    /// the prep time, a cancel, the finalize): its row now says so, so the
+    /// queue's next local read shows the answer and not the row as it was
+    /// (`sync_pull::fold_answer`). Best effort: the feed brings the same row.
+    pub(crate) fn fold_delivery_answer(&self, o: &madar_api::models::DeliveryOrder) {
+        let Ok(branch) = self.session_branch_id() else { return };
+        if let Ok(answer) = serde_json::to_value(o) {
+            let _ = sync_pull::fold_answer(&self.store, &branch, "delivery", &o.id.to_string(), &answer);
+        }
+    }
+
     /// The delivery queue (newest first), filtered by a comma-separated status list.
     pub async fn list_delivery_orders(&self, status: Option<String>) -> Result<Vec<delivery::DeliveryOrderView>, CoreError> {
         let branch = self.signed_in_branch()?;

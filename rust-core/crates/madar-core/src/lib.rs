@@ -9161,6 +9161,7 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
+        self.fold_delivery_answer(&o);
         Ok(self.localize_payment_hint(delivery::order_view(&o, &loc, self.cached_prep_minutes())))
     }
 
@@ -9195,6 +9196,7 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
+        self.fold_delivery_answer(&o);
         Ok(self.localize_payment_hint(delivery::order_view(&o, &loc, self.cached_prep_minutes())))
     }
 
@@ -9220,6 +9222,7 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
+        self.fold_delivery_answer(&o);
         Ok(self.localize_payment_hint(delivery::order_view(&o, &loc, self.cached_prep_minutes())))
     }
 
@@ -9259,6 +9262,8 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
+        // The card leaves the queue now, not when the pull brings `delivered`.
+        self.fold_delivery_answer(&res.delivery_order);
         Ok(delivery::DeliveryFinalizeView {
             order_id: res.order_id.to_string(),
             order_ref: res.order_ref.flatten().filter(|s| !s.is_empty()),

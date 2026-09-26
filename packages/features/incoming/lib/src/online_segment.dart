@@ -1,7 +1,12 @@
 /// Queue › Online — the branch's live online orders as a table (rows beside
 /// the order's pane on a wide iPad, like Bills), one next step per row:
 /// `NEW → Accept · ACCEPTED → Start preparing · PREPARING → Mark ready ·
-/// READY → Out for delivery / Picked up · OUT → Charge`.
+/// READY → Out for delivery · OUT → Charge`. A pickup order walks no steps:
+/// once accepted, its one act is Charge.
+///
+/// A step is BLOCKING: its button spins, steady, until the server has
+/// answered, then shows the next step's words — once. It asks for the step's
+/// target, so a second tap or a retry cannot move the order twice.
 ///
 /// Accept is one act with the ready-in time: the branch's base is the
 /// preselected chip, so a new order is accepted in one tap on the card.
@@ -59,7 +64,7 @@ class _OnlineSegmentState extends ConsumerState<OnlineSegment> {
       maxWidth: Responsive.listMaxWidth,
       builder: (sheetContext) => DeliveryDetailsSheet(
         order: o,
-        footer: o.status == 'out_for_delivery'
+        footer: onlineChargesNext(o)
             ? MadarMoneyBar(
                 label: bridge.trOr(QueueKeys.chargeOnline),
                 amountMinor: o.totalMinor,
@@ -115,19 +120,20 @@ class _OnlineSegmentState extends ConsumerState<OnlineSegment> {
   String? _selectedId;
 
   /// The row's one next step. Accept from a row takes the branch's base
-  /// ready-in time; the pane offers the other choices.
+  /// ready-in time; the pane offers the other choices. A step asks for its
+  /// TARGET — the step after the one the teller is looking at.
   void _primary(DeliveryOrderView o, {int? readyIn}) {
     final notifier = ref.read(incomingProvider.notifier);
-    switch (o.status) {
-      case 'received':
-        final prep = ref.read(incomingProvider).prepChoices;
-        unawaited(
-          notifier.acceptDelivery(o, readyInMinutes: readyIn ?? prep?.first),
-        );
-      case 'out_for_delivery':
-        unawaited(_charge(o));
-      default:
-        unawaited(notifier.advanceDelivery(o));
+    final target = onlineStepTarget(o);
+    if (o.status == 'received') {
+      final prep = ref.read(incomingProvider).prepChoices;
+      unawaited(
+        notifier.acceptDelivery(o, readyInMinutes: readyIn ?? prep?.first),
+      );
+    } else if (target == null) {
+      unawaited(_charge(o));
+    } else {
+      unawaited(notifier.stepDelivery(o, to: target));
     }
   }
 
@@ -336,14 +342,15 @@ String? onlineReadyLabel(MadarBridge bridge, DeliveryOrderView o) {
   return '$word ${clockLabel(bridge, stamp)}';
 }
 
-/// The primary's word for an order's next step.
-String onlinePrimaryLabel(MadarBridge bridge, DeliveryOrderView o) =>
-    switch (o.status) {
-      'received' => bridge.trOr(QueueKeys.accept),
-      'out_for_delivery' => bridge.trOr(QueueKeys.chargeOnline),
-      'ready' when o.channel == 'pickup' => bridge.trOr(QueueKeys.pickedUp),
-      _ => bridge.tr(key: 'delivery.action.${nextDeliveryStatus(o.status)}'),
-    };
+/// The primary's word for an order's next step: Accept, the step's own
+/// word, or Charge where the order is finalised (see [onlineStepTarget]).
+String onlinePrimaryLabel(MadarBridge bridge, DeliveryOrderView o) {
+  if (o.status == 'received') return bridge.trOr(QueueKeys.accept);
+  final target = onlineStepTarget(o);
+  return target == null
+      ? bridge.trOr(QueueKeys.chargeOnline)
+      : bridge.tr(key: 'delivery.action.$target');
+}
 
 /// Under the order in the pane: a NEW order's ready-in choice with Accept and
 /// Decline; later, the next step (Charge with its figure at the last one,
@@ -414,7 +421,7 @@ class _OnlinePaneFooterState extends ConsumerState<_OnlinePaneFooter> {
             ],
           ),
         ],
-        if (o.status == 'out_for_delivery')
+        if (onlineChargesNext(o))
           MadarMoneyBar(
             label: bridge.trOr(QueueKeys.chargeOnline),
             amountMinor: o.totalMinor,

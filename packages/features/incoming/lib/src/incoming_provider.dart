@@ -38,6 +38,9 @@ enum QueueSegment { bills, online, kitchen }
 /// explicit `null`.
 const Object _unset = Object();
 
+/// The wire status an Accept moves a new online order to.
+const String _kAccepted = 'confirmed';
+
 /// Immutable Queue state: both feeds plus everything the segments render.
 class IncomingState {
   const IncomingState({
@@ -64,7 +67,9 @@ class IncomingState {
   final bool isBusy;
 
   /// Orders with a lifecycle call in flight — the card's own button spins,
-  /// the rest of the board stays live.
+  /// the rest of the board stays live. While an order is here nothing moves
+  /// its card: a second tap is dropped, and a read that lands keeps the card
+  /// as it was until the call answers (see [IncomingNotifier.stepDelivery]).
   final Set<String> busyOrderIds;
 
   /// The bills list has answered at least once (with bills or a failure) —
@@ -266,7 +271,7 @@ class IncomingNotifier extends Notifier<IncomingState> {
       state = state.copyWith(
         // A good read clears the failure it replaces.
         error: null,
-        deliveryOrders: orders,
+        deliveryOrders: _holdingBusy(orders),
         isLoadingDelivery: false,
         onlineStale: false,
         // A card that left the list takes its notice with it.
@@ -293,6 +298,23 @@ class IncomingNotifier extends Notifier<IncomingState> {
     } on MadarError {
       // Best-effort — the list is the thing; the chips wait for the next pull.
     }
+  }
+
+  /// [orders] as read, except a card with a call in flight: it stays exactly
+  /// as the teller last saw it — in its place, or kept if the read no longer
+  /// lists it — until the call answers and replaces it once. A read that
+  /// lands mid-call used to change the card under its spinner.
+  List<DeliveryOrderView> _holdingBusy(List<DeliveryOrderView> orders) {
+    final busy = state.busyOrderIds;
+    if (busy.isEmpty) return orders;
+    final shown = {for (final o in state.deliveryOrders) o.id: o};
+    final read = {for (final o in orders) o.id};
+    return [
+      for (final o in orders)
+        if (busy.contains(o.id)) shown[o.id] ?? o else o,
+      for (final id in busy)
+        if (!read.contains(id) && shown[id] != null) shown[id]!,
+    ];
   }
 
   /// Cycle a channel's accepting override: auto → open → closed → auto.
@@ -323,11 +345,13 @@ class IncomingNotifier extends Notifier<IncomingState> {
     DeliveryOrderView o, {
     int? readyInMinutes,
   }) async {
+    // One call per card at a time: a second tap is not a second accept.
+    if (state.busyOrderIds.contains(o.id)) return;
     _setBusy(o.id, busy: true);
     try {
-      var updated = await _bridge.deliveryAdvanceStatus(
+      var updated = await _bridge.deliverySetStatus(
         id: o.id,
-        current: o.status,
+        status: _kAccepted,
       );
       final base = state.deliverySettings?.prepTimeMinutes;
       final extra = (readyInMinutes != null && base != null)
@@ -350,7 +374,9 @@ class IncomingNotifier extends Notifier<IncomingState> {
         icon: 'checkmark.circle',
       );
     } on MadarError catch (e) {
-      if (!await _applyConflict(o, e)) state = state.copyWith(error: _fail(e));
+      if (!await _applyConflict(o, e, target: _kAccepted)) {
+        state = state.copyWith(error: _fail(e));
+      }
     } finally {
       _setBusy(o.id, busy: false);
     }
@@ -369,15 +395,25 @@ class IncomingNotifier extends Notifier<IncomingState> {
     );
   }
 
-  /// Advance one lifecycle step (confirmed → preparing → ready → out).
-  Future<void> advanceDelivery(DeliveryOrderView o) async {
+  /// Move an order one step, TO [to] (confirmed → preparing → ready → out).
+  ///
+  /// Blocking and idempotent. The card's button spins until the server
+  /// answers and nothing else moves the card meanwhile
+  /// ([IncomingState.busyOrderIds]); a
+  /// second tap while it spins is dropped. The call names the target, never
+  /// "next", so a retry cannot carry the order two steps, and the server
+  /// answers a step to where the order already is with the order. The card
+  /// changes ONCE, to the server's answer — which the core has also folded
+  /// into its row, so the tick the step sets off reads the new step too.
+  Future<void> stepDelivery(DeliveryOrderView o, {required String to}) async {
+    if (state.busyOrderIds.contains(o.id)) return;
     _setBusy(o.id, busy: true);
     try {
-      _replace(
-        await _bridge.deliveryAdvanceStatus(id: o.id, current: o.status),
-      );
+      _replace(await _bridge.deliverySetStatus(id: o.id, status: to));
     } on MadarError catch (e) {
-      if (!await _applyConflict(o, e)) state = state.copyWith(error: _fail(e));
+      if (!await _applyConflict(o, e, target: to)) {
+        state = state.copyWith(error: _fail(e));
+      }
     } finally {
       _setBusy(o.id, busy: false);
     }
@@ -424,15 +460,23 @@ class IncomingNotifier extends Notifier<IncomingState> {
   /// A card whose status changed under the teller (the server's 409) flips
   /// to its new state with the server's sentence as a one-line notice — no
   /// dialog. Returns true when [e] was such a race and has been applied.
-  Future<bool> _applyConflict(DeliveryOrderView o, MadarError e) async {
+  /// A race that left the order where this call was taking it ([target]) is
+  /// no race to the teller: the card lands, and nothing is said.
+  Future<bool> _applyConflict(
+    DeliveryOrderView o,
+    MadarError e, {
+    String? target,
+  }) async {
     if (e is! MadarError_Server || e.status != 409) return false;
-    _notice(o.id, UiText.error(e));
     try {
-      _replace(await _bridge.deliveryOrderDetail(id: o.id));
+      final fresh = await _bridge.deliveryOrderDetail(id: o.id);
+      _replace(fresh);
+      if (target != null && fresh.status == target) return true;
     } on MadarError {
       // Could not re-read the one card — refresh the board instead.
       await loadDeliveryOrders();
     }
+    _notice(o.id, UiText.error(e));
     return true;
   }
 

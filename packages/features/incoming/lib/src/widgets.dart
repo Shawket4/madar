@@ -58,6 +58,27 @@ String? nextDeliveryStatus(String status) => switch (status) {
   _ => null,
 };
 
+/// The status an online order's step button asks the server for — the
+/// TARGET, named from the status the teller is looking at, never "the next
+/// one" worked out when the call lands. A double tap, a retry or a slow
+/// answer asks for the same place again and the order lands there once (the
+/// server answers a step to where the order already is with the order).
+///
+/// Null when the order's next act is Charge instead: the last delivery step,
+/// and a PICKUP order once it is accepted. The customer collects a pickup at
+/// the counter, with no courier to send it out with, so it walks no steps:
+/// Charge finalises it from wherever it is (the server finalises any order
+/// still on the line). Accept stays: it is the shop's yes, with its ready-in
+/// time, not a step.
+String? onlineStepTarget(DeliveryOrderView o) =>
+    o.channel == 'pickup' && o.status != 'received'
+    ? null
+    : nextDeliveryStatus(o.status);
+
+/// The order's next act is Charge (finalise), not a step.
+bool onlineChargesNext(DeliveryOrderView o) =>
+    !o.isTerminal && onlineStepTarget(o) == null;
+
 /// A figure — an order ref, a phone number, a time — set LTR in Plex Mono
 /// whichever script surrounds it. Figures never mirror.
 class FigureText extends StatelessWidget {

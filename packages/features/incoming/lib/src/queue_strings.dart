@@ -30,10 +30,6 @@ abstract final class QueueKeys {
   static const readyAt = ('queue.ready_at', 'delivery.status.ready');
   static const chargeBill = ('queue.charge', 'waiter.settle');
   static const chargeOnline = ('queue.charge', 'delivery.finalize');
-  static const pickedUp = (
-    'queue.picked_up',
-    'delivery.action.out_for_delivery',
-  );
   static const emptyBills = ('queue.empty', 'waiter.no_tickets');
   static const emptyOnline = ('queue.empty', 'delivery.empty');
   static const offlineNotice = ('queue.offline_notice', 'chrome.offline');
