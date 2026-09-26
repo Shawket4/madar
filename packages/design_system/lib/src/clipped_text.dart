@@ -355,6 +355,7 @@ class MadarClippedText extends StatefulWidget {
     this.textWidthBasis,
     this.textHeightBehavior,
     this.hint,
+    this.shortened = false,
   }) : textSpan = null;
 
   /// A [Text.rich] that may not fit; the hint is its plain text.
@@ -374,6 +375,7 @@ class MadarClippedText extends StatefulWidget {
     this.textWidthBasis,
     this.textHeightBehavior,
     this.hint,
+    this.shortened = false,
   }) : data = null;
 
   final String? data;
@@ -395,6 +397,11 @@ class MadarClippedText extends StatefulWidget {
   /// pass it when the whole story is longer than the text (a chip that
   /// shows a name, whose hint also says who started the order).
   final String? hint;
+
+  /// The text on screen is itself a SHORT FORM of [hint] (a parked chip that
+  /// shows "#2" for "Mona Adel" in a narrow cart): the hint is there whether
+  /// or not the short form fits, like a word dropped for an icon.
+  final bool shortened;
 
   /// The words the bubble shows.
   String get fullText => hint ?? data ?? _plainText(textSpan!);
@@ -495,11 +502,12 @@ class _MadarClippedTextState extends State<MadarClippedText> {
     );
     // Under a reveal: say it there (its bubble is up while the surface is),
     // never on a press of its own.
+    final cut = _clipped || (w.shortened && w.hint != null);
     if (_reveal case final reveal?) {
-      reveal._report(this, _clipped ? w.fullText : null);
+      reveal._report(this, cut ? w.fullText : null);
       return probe;
     }
-    if (!_clipped) return probe;
+    if (!cut) return probe;
     return MadarHoldHint(message: w.fullText, child: probe);
   }
 }

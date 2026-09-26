@@ -282,8 +282,13 @@ class _InlineChip extends StatelessWidget {
   final int number;
   final HeldChipStyle style;
 
+  // A long press on a chip picks it up (the strip's drag): its name hints
+  // nothing of its own here — the lifted chip says it.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      MadarHoldHints.off(child: _chip(context));
+
+  Widget _chip(BuildContext context) {
     final colors = context.madarColors;
     final active = tab.selected;
     final name = tab.title?.trim();
@@ -293,8 +298,12 @@ class _InlineChip extends StatelessWidget {
         name.isNotEmpty;
     final onClose = tab.onClose;
     final onRename = tab.onRename;
+    // A number-only chip is a short form of the order's name: lifting it
+    // says the name (the owner's "hold shows a hint").
     final label = MadarClippedText(
       named ? name : '#$number',
+      hint: named || name == null || name.isEmpty ? null : name,
+      shortened: !named,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       textDirection: named ? null : TextDirection.ltr,

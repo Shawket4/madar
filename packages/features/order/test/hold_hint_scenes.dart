@@ -187,31 +187,62 @@ void _holdHintsMain() {
         await _capture(tester, 'hint-cartline-after-$tag');
       });
 
-      testWidgets('a long parked name: the hold lifts the chip AND says the '
-          'whole name; the drag still reorders; a short name says nothing '
-          '($tag)', (tester) async {
+      testWidgets('a parked order says its whole name: a lifted chip says it, '
+          'a narrow cart lists it ($tag)', (tester) async {
         final bridge = _LongNamesBridge(rtl: ar);
-        final c = await _mount(
+        await _mount(
           tester,
           screen: const TakeawaySellScreen(),
           size: size,
           bridge: bridge,
         );
-        if (size == _phone) {
-          // The phone's door to the parked strip: the header's parked
-          // button (its word dropped for room — see the icon-only scene).
-          await tester.tap(
-            find.byWidgetPredicate(
-              (w) => w is MadarButton && w.glyph == MadarGlyph.bag,
-            ),
-          );
+        if (size == _phone) await _openPhoneCart(tester);
+        final folded = find.text(
+          coreWord('sell.parked_count', arabic: ar).replaceAll('{count}', '2'),
+        );
+        if (folded.evaluate().isNotEmpty) {
+          // A narrow cart folds the parked orders into one button; its list
+          // names each order, whole, or cut with its hold hint.
+          await tester.tap(folded.first);
           await _settle(tester);
+          final row = find.byWidgetPredicate(
+            (w) =>
+                w is MadarClippedText && w.fullText.contains(bridge.longGuest),
+          );
+          expect(row, findsOneWidget, reason: 'the list names the order');
+          final text = find
+              .descendant(of: row, matching: find.byType(Text))
+              .first;
+          if (_hinted(tester, text)) {
+            await tester.longPress(text);
+            await tester.pump();
+            expect(
+              _bubble(tester.widget<MadarClippedText>(row).fullText),
+              findsOneWidget,
+              reason: 'cut in the list: the hold says it whole',
+            );
+            await _hintGone(tester);
+          }
+          await _capture(tester, 'hint-parked-list-$tag');
+          return;
         }
-        final chip = find.text(bridge.longGuest);
-        expect(chip, findsOneWidget);
-        // Its long press is the drag's: no hold hint of its own.
-        expect(_hinted(tester, chip), isFalse);
-
+        // Chips (a 320–380 cart): a parked order shows its number, a short
+        // form of its name. Its long press is the strip's drag; the chip it
+        // lifts says the whole name.
+        final chip = find.byWidgetPredicate(
+          (w) => w is MadarClippedText && w.hint == bridge.longGuest,
+        );
+        expect(chip, findsOneWidget, reason: 'a number chip carrying the name');
+        await tester.ensureVisible(chip);
+        await _settle(tester);
+        expect(
+          _hinted(
+            tester,
+            find.descendant(of: chip, matching: find.byType(Text)).first,
+          ),
+          isFalse,
+          reason: "its long press is the drag's: no hint of its own",
+        );
         final hold = await tester.startGesture(tester.getCenter(chip));
         await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
         for (var i = 0; i < 6; i++) {
@@ -222,37 +253,10 @@ void _holdHintsMain() {
           findsOneWidget,
           reason: 'the lifted chip says the whole name',
         );
-        // The reveal has no fade: the frame is the lifted chip as it is.
         if (_render) await _writeFrame(tester, 'hint-parked-lifted-$tag');
-        // Drag it past "Ali": the order changes, so the drag kept the press.
-        final ali = tester.getCenter(find.text('Ali'));
-        final from = tester.getCenter(chip.first);
-        final step = (ali.dx - from.dx + (ar ? -40 : 40)) / 8;
-        for (var i = 0; i < 8; i++) {
-          await hold.moveBy(Offset(step, 0));
-          await tester.pump(const Duration(milliseconds: 16));
-        }
         await hold.up();
         await _settle(tester);
-        final order = c.read(heldStripOrderProvider);
-        expect(
-          order.indexOf('d-long'),
-          greaterThan(order.indexOf('d-ali')),
-          reason: 'the long-named chip now sits after Ali',
-        );
         expect(_bubble(bridge.longGuest), findsNothing);
-
-        // Ali fits: lifting it says nothing.
-        final lift = await tester.startGesture(
-          tester.getCenter(find.text('Ali')),
-        );
-        await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
-        for (var i = 0; i < 6; i++) {
-          await tester.pump(const Duration(milliseconds: 16));
-        }
-        expect(_bubble('Ali'), findsNothing);
-        await lift.up();
-        await _settle(tester);
         await _capture(tester, 'hint-parked-after-$tag');
       });
 

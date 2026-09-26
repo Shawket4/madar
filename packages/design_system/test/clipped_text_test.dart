@@ -142,6 +142,34 @@ void main() {
       expect(_exactly(_short), findsOneWidget);
     });
 
+    testWidgets('a short form that fits still says what it stands for', (
+      tester,
+    ) async {
+      // A parked chip showing "#2" for "Mona Adel": the name was dropped for
+      // room, like a word dropped for an icon, so the hold says it.
+      await _pumpApp(
+        tester,
+        _app(
+          SizedBox(
+            key: const ValueKey('name'),
+            width: 160,
+            child: MadarClippedText(
+              '#2',
+              hint: 'Mona Adel',
+              shortened: true,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      );
+      expect(find.byType(Tooltip), findsOneWidget);
+      await tester.longPress(find.byKey(const ValueKey('name')));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(_bubble('Mona Adel'), findsOneWidget);
+      await _waitOut(tester);
+    });
+
     testWidgets('a hint says what it is given, when told', (tester) async {
       await _pumpApp(tester, _app(_name(_long, hint: 'Cake · Food')));
       await tester.longPress(find.byKey(const ValueKey('name')));
