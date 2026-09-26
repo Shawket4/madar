@@ -321,6 +321,8 @@ class _Fake implements MadarBridge {
     slotId: 's-drink',
     name: 'Lunch deal',
     deltaMinor: 12500,
+    savingMinor: 3000,
+    slotHint: 'with Main + Side',
   );
   final List<String> mealDrafts = [];
 
@@ -426,7 +428,7 @@ class _Fake implements MadarBridge {
       lines = [_comboLine()];
       return Future<List<CartLineView>>.value(lines);
     }
-    if (name == #mealOffer) return meal;
+    if (name == #mealOffer || name == #mealOfferFor) return meal;
     if (name == #itemMealDraft || name == #cartMakeItAMeal) {
       mealDrafts.add(name == #itemMealDraft ? 'item' : 'line');
       return Future<ComboDraft>.value(
@@ -1247,7 +1249,7 @@ void main() {
   for (final arabic in [false, true]) {
     for (final (device, size) in [('phone', _phone), ('tablet', _tablet)]) {
       testWidgets(
-        'the item sheet offers "Make it a meal +X" ($device, ${arabic ? 'ar' : 'en'})',
+        'the item sheet offers "Make it a meal +X · save Y" ($device, ${arabic ? 'ar' : 'en'})',
         (tester) async {
           final fake = _Fake(arabic: arabic);
           Object? result;
@@ -1271,11 +1273,21 @@ void main() {
             ),
           );
           await _open(tester);
-          final label = coreWord(
-            'meal.make_it_plus',
-            arabic: arabic,
-          ).replaceAll('{amount}', _money(12500, arabic: arabic));
-          expect(find.text(label), findsOneWidget);
+          // The slim banner under the header: the words, +X and the saving.
+          final banner = find.byKey(const ValueKey('make-it-a-meal'));
+          for (final text in [
+            coreWord('meal.make_it', arabic: arabic),
+            '+${_money(12500, arabic: arabic)}',
+            coreWord(
+              'meal.save',
+              arabic: arabic,
+            ).replaceAll('{amount}', _money(3000, arabic: arabic)),
+          ]) {
+            expect(
+              find.descendant(of: banner, matching: find.text(text)),
+              findsOneWidget,
+            );
+          }
           expect(tester.takeException(), isNull);
           await tester.tap(find.byKey(const ValueKey('make-it-a-meal')));
           await tester.pumpAndSettle();

@@ -862,6 +862,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Stop + tear down the LAN relay (idempotent). Call on logout / branch switch.
   Future<void> lanStop();
 
+  /// The item as this device last sold it (local rows only), for the item
+  /// sheet's "Last: …" chip; `None` when it never sold it here.
+  LastItemConfig? lastItemConfig({required String itemId});
+
   Future<List<AddonItemView>> listAddonCatalog();
 
   /// Today's active bookings from the cache, earliest first.
@@ -1008,6 +1012,15 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// "Make it a meal +X" for an item, when it has a meal on sale now.
   MealOffer? mealOffer({required String itemId});
+
+  /// The item sheet's meal banner for the item as configured there: "+X ·
+  /// save Y" and the slots it brings.
+  MealOffer? mealOfferFor({
+    required String itemId,
+    String? sizeLabel,
+    required List<AddonSelection> addons,
+    required List<String> optionalFieldIds,
+  });
 
   /// Reflect a status the server will derive anyway (dirty after checkout,
   /// free after a void or move) in the local canvas. Queues nothing.

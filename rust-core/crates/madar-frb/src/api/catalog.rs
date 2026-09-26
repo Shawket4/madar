@@ -12,6 +12,7 @@ pub use madar_core::combos::{
     ComboChoiceDetail, ComboDetail, ComboDraft, ComboPickInput, ComboPickNeed, ComboQuoteView,
     ComboSizeOption, ComboSlotDetail, MealOffer,
 };
+pub use madar_core::last_config::LastItemConfig;
 pub use madar_core::menu::{
     AddonIngredientView, AddonItemView, AddonSlotView, CategoryView, DiscountView, ItemSizeView,
     MenuItemView, OptionalFieldView, PaymentMethodView, RecipeLineView, RecipeStepView,
@@ -180,6 +181,22 @@ pub struct _MealOffer {
     pub slot_id: String,
     pub name: String,
     pub delta_minor: i64,
+    /// What the meal saves against the picks bought separately (≤ 0 = none).
+    pub saving_minor: i64,
+    /// "with Side + Drink", in the teller's language ("" = nothing to name).
+    pub slot_hint: String,
+}
+
+/// The item sheet's "Last: …" chip: the item as this device last sold it.
+#[frb(mirror(LastItemConfig))]
+pub struct _LastItemConfig {
+    pub size_label: Option<String>,
+    pub addons: Vec<crate::api::cart::AddonSelection>,
+    pub optional_field_ids: Vec<String>,
+    /// In the cart line's words: "Large · Oat milk".
+    pub words: String,
+    /// The chip: "Last: Large · Oat milk".
+    pub text: String,
 }
 
 /// One preparation step: localized, and pointing at the animation's CACHED
@@ -347,6 +364,27 @@ impl MadarBridge {
     #[frb(sync)]
     pub fn meal_offer(&self, item_id: String) -> Option<MealOffer> {
         self.inner.meal_offer(item_id)
+    }
+
+    /// The item sheet's meal banner for the item as configured there: "+X ·
+    /// save Y" and the slots it brings.
+    #[frb(sync)]
+    pub fn meal_offer_for(
+        &self,
+        item_id: String,
+        size_label: Option<String>,
+        addons: Vec<crate::api::cart::AddonSelection>,
+        optional_field_ids: Vec<String>,
+    ) -> Option<MealOffer> {
+        self.inner
+            .meal_offer_for(item_id, size_label, addons, optional_field_ids)
+    }
+
+    /// The item as this device last sold it (local rows only), for the item
+    /// sheet's "Last: …" chip; `None` when it never sold it here.
+    #[frb(sync)]
+    pub fn last_item_config(&self, item_id: String) -> Option<LastItemConfig> {
+        self.inner.last_item_config(item_id)
     }
 
     /// Pull the branch-effective catalog (items + categories + addons +

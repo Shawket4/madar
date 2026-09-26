@@ -1272,6 +1272,53 @@ async fn make_it_a_meal_offers_the_difference_and_turns_the_line_into_the_combo(
     );
 }
 
+/// The item sheet's meal banner: "+X · save Y" for the latte AS IT IS
+/// CONFIGURED on the sheet, from the combo quote (list − combo), and the
+/// other slots the meal brings as its hint. Hand-computed from the menu:
+/// P 15000; Burger 12000, Fries 4000; Latte Small 4500 / Regular 5000
+/// (included) / Large 6000; Oat 1500.
+#[tokio::test]
+async fn the_meal_offer_follows_the_sheets_config_and_names_its_saving() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed(&core);
+
+    // As the item is made (the included Regular): combo 15000 − latte 5000;
+    // list 12000 + 4000 + 5000 = 21000, so the meal saves 6000.
+    let plain = core.meal_offer(LATTE.into()).expect("the latte has a meal");
+    assert_eq!((plain.delta_minor, plain.saving_minor), (10000, 6000));
+    assert_eq!(plain.slot_hint, "with Main + Side");
+
+    // Large with oat: the combo adds the size's extra (1000) and the oat
+    // (1500) → 17500; the latte alone is 6000 + 1500 = 7500 → +10000. The
+    // list is 12000 + 4000 + 6000 + 1500 = 23500 → saves 6000.
+    let oat = vec![AddonSelection {
+        addon_item_id: OAT.into(),
+        qty: 1,
+    }];
+    let large = core
+        .meal_offer_for(LATTE.into(), Some("Large".into()), oat, vec![])
+        .expect("a Large oat latte has a meal");
+    assert_eq!((large.delta_minor, large.saving_minor), (10000, 6000));
+    assert_eq!((large.combo_id.as_str(), large.slot_id.as_str()), (LUNCH, S_DRINK));
+
+    // Small: a smaller size is no credit in the combo (15000), but alone it
+    // is only 4500 → +10500; list 12000 + 4000 + 4500 = 20500 → saves 5500.
+    let small = core
+        .meal_offer_for(LATTE.into(), Some("Small".into()), vec![], vec![])
+        .expect("a Small latte has a meal");
+    assert_eq!((small.delta_minor, small.saving_minor), (10500, 5500));
+
+    // No meal on the burger, whatever the sheet holds.
+    assert!(core
+        .meal_offer_for(BURGER.into(), None, vec![], vec![])
+        .is_none());
+
+    // Arabic: the hint and the saving read in the till's language.
+    assert_eq!(i18n::tr("ar", "meal.with_slots"), "مع {slots}");
+    assert_eq!(i18n::tr("en", "meal.save"), "save {amount}");
+    assert_eq!(i18n::tr("ar", "meal.save"), "وفّر {amount}");
+}
+
 // ── 4. availability ─────────────────────────────────────────────────────────
 
 fn hidden(core: &MadarCore) -> bool {
@@ -2573,4 +2620,83 @@ fn one_size_is_never_a_size_a_person_reads() {
     };
     let printed: Vec<String> = receipt::kitchen_chit_layout(&chit, &labels, 32).into_iter().map(|l| l.text).collect();
     assert!(!printed.iter().any(|t| t.contains("one_size")), "{printed:#?}");
+}
+
+// ── the item sheet's "Last: …" chip ─────────────────────────────────────────
+
+/// A synced sale as the changefeed projects it, with one plain line.
+fn fed_sale(key: &str, device: &str, status: &str, at: &str, size: &str, addons: &[&str]) -> Value {
+    json!({
+        "id": key, "idempotency_key": key, "branch_id": testkit::BRANCH, "till_id": "till-x",
+        "status": status, "payment_method": "Cash", "total_amount": 5000, "tip_amount": 0,
+        "created_at": at, "device_code": device, "order_number": 1,
+        "payment_legs": [{"method": "Cash", "amount": 5000, "is_cash": true}],
+        "items": [
+            { "id": format!("{key}-b"), "menu_item_id": BURGER, "quantity": 1, "size_label": null,
+              "addons": [], "optionals": [] },
+            { "id": format!("{key}-l"), "menu_item_id": LATTE, "quantity": 1, "size_label": size,
+              "addons": addons.iter().map(|a| json!({"addon_item_id": a, "quantity": 1})).collect::<Vec<_>>(),
+              "optionals": [] },
+        ],
+    })
+}
+
+fn feed(core: &MadarCore, key: &str, row: &Value) {
+    core.store
+        .with_tx(|tx| {
+            crate::ledger::write_row(tx, crate::ledger::T_ORDER, key, row, crate::ledger::Origin::Fetch, None)
+                .map(|_| ())
+        })
+        .unwrap();
+}
+
+/// "Last: Large · Oat milk": the item's most recent configuration sold ON THIS
+/// DEVICE, from the local order rows (a queued sale and a synced one alike),
+/// in the cart line's words; another device's sale and a voided one never
+/// count, and an item never sold here has none.
+#[tokio::test]
+async fn the_last_config_is_this_devices_latest_sale_of_the_item_in_the_cart_lines_words() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed(&core);
+    assert!(core.last_item_config(LATTE.into()).is_none(), "nothing sold yet");
+
+    // Rung here and still queued (offline): a Large oat latte.
+    let oat = AddonSelection { addon_item_id: OAT.into(), qty: 1 };
+    let lines = core
+        .cart_add_configured(None, LATTE.into(), Some("Large".into()), vec![oat.clone()], vec![], 1, None)
+        .unwrap();
+    let words = {
+        let l = line_of(&lines, LATTE);
+        let mut w = vec![l.size_label.clone().unwrap()];
+        w.extend(l.addons.iter().map(|a| a.name.clone()));
+        w.join(" · ")
+    };
+    core.open_till(0, None).await.unwrap();
+    core.checkout(None, pay(100_000)).await.unwrap();
+    let last = core.last_item_config(LATTE.into()).expect("the queued sale counts");
+    assert_eq!(last.size_label.as_deref(), Some("Large"));
+    assert_eq!(last.addons, vec![oat]);
+    assert_eq!(last.words, words, "the cart line's words");
+    assert_eq!(last.words, "Large · Oat milk");
+    assert_eq!(last.text, "Last: Large · Oat milk");
+    assert!(core.last_item_config(BURGER.into()).is_none(), "never sold here");
+
+    // A later synced sale from THIS device wins: a Small, nothing added.
+    let me = core.device_code();
+    feed(&core, "srv-1", &fed_sale("srv-1", &me, "completed", "2099-01-01T09:00:00Z", "Small", &[]));
+    let last = core.last_item_config(LATTE.into()).unwrap();
+    assert_eq!((last.size_label.as_deref(), last.addons.len()), (Some("Small"), 0));
+    assert_eq!(last.words, "Small");
+
+    // Another device's newer sale and this device's newer VOIDED sale do not.
+    feed(&core, "srv-2", &fed_sale("srv-2", "ZZ9", "completed", "2099-01-02T09:00:00Z", "Regular", &[]));
+    feed(&core, "srv-3", &fed_sale("srv-3", &me, "voided", "2099-01-03T09:00:00Z", "Regular", &[OAT]));
+    assert_eq!(core.last_item_config(LATTE.into()).unwrap().words, "Small");
+
+    // Arabic: the chip reads in the till's language.
+    core.set_locale("ar".into());
+    let ar = core.last_item_config(LATTE.into()).unwrap();
+    assert_eq!(ar.text, "آخر مرة: Small");
+    assert_eq!(i18n::tr("ar", "order.added_add_another"), "أُضيف — أضف واحدًا آخر");
+    assert_eq!(i18n::tr("en", "order.added_add_another"), "Added — add another");
 }

@@ -93,13 +93,15 @@ class _MealShellBridge extends _FakeBridge {
     if (name == #validateItemSelections) {
       return _later<List<GroupViolationView>>(const []);
     }
-    if (name == #mealOffer) {
+    if (name == #mealOffer || name == #mealOfferFor) {
       return a[#itemId] == 'latte'
           ? const MealOffer(
               comboId: 'meal',
               slotId: 's-coffee',
               name: 'Coffee & Treat',
               deltaMinor: 2000,
+              savingMinor: 0,
+              slotHint: '',
             )
           : null;
     }
