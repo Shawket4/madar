@@ -217,7 +217,9 @@ class CheckoutState {
   /// The customer is drinking in, so no cup, lid or straw comes off stock.
   /// Defaults to false — a pickup. Independent of the floor: a counter shop
   /// with no tables can say it, which is the whole point. It never moves a
-  /// total; the service charge stays tied to a table.
+  /// total; the service charge stays tied to a table. Chosen on the cart
+  /// (`dineInProvider`) and read once when the session starts: Charge no
+  /// longer asks.
   final bool dineIn;
   final bool splitMode;
   final Map<String, int> splitAmounts;
@@ -1081,15 +1083,6 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   void setTip(int minor) => _update((s) => s.copyWith(tipMinor: minor));
 
   void setTipMethod(String id) => _update((s) => s.copyWith(tipMethodId: id));
-
-  /// Drinking in, or taking it away. Nothing else on the sale moves.
-  void setDineIn({required bool dineIn}) {
-    _update((s) => s.copyWith(dineIn: dineIn));
-    // One choice, the cart's: flipping it here flips it on the cart too.
-    if (state.target is CartChargeTarget) {
-      ref.read(dineInProvider(state.cartTableId).notifier).set(dineIn: dineIn);
-    }
-  }
 
   /// Split on or off. Turning it OFF drops every leg: the amounts typed for a
   /// split must never ride along with the single payment that replaced it.

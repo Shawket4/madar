@@ -64,7 +64,9 @@ const double _methodTileMaxWidth = 208;
 /// A centred 620 modal on a tablet; a full-height sheet on a phone. Resolves
 /// with the [ChargeOutcome] — null when the teller closed it without
 /// charging. The Done card is presented by default; pass
-/// [presentDoneCard] false to handle the outcome yourself.
+/// [presentDoneCard] false to handle the outcome yourself. Under a panel
+/// host (the Sell screen's Fast mode) Charge is a page of the panel, and so
+/// is Done ([showDonePage]): the same view model, drawn as a page.
 ///
 /// ```dart
 /// await showCharge(context, ChargeTarget.bill(ticket, tableLabel: 'T5'));
@@ -104,13 +106,12 @@ Future<ChargeOutcome?> showCharge(
   }
   final landed = outcome;
   if (landed != null && presentDoneCard && context.mounted) {
-    unawaited(
-      showDoneCard(
-        context,
-        landed,
-        onPrinterSettings: onPrinterSettings,
-      ).then((result) => onDone?.call(landed, result)),
-    );
+    // Where Charge was a page of the panel, Done is one too; everywhere else
+    // it is the card.
+    final done = MadarPanelHost.maybeOf(context) == null
+        ? showDoneCard(context, landed, onPrinterSettings: onPrinterSettings)
+        : showDonePage(context, landed, onPrinterSettings: onPrinterSettings);
+    unawaited(done.then((result) => onDone?.call(landed, result)));
   }
   return outcome;
 }
@@ -368,39 +369,6 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
           tr: tr,
           onSelect: notifier.selectMethod,
           onToggleSplit: notifier.toggleSplit,
-        ),
-      // Drinking in or taking it away. Only on a COUNTER sale: a table's bill
-      // is dine-in by definition, and this must not depend on the floor module
-      // — a counter shop with no tables is exactly who needs it. It changes no
-      // money, only whether the cup, lid and straw come off stock.
-      if (!s.isBill)
-        Padding(
-          padding: const EdgeInsetsDirectional.only(top: Space.sm),
-          child: Row(
-            spacing: Space.sm,
-            children: [
-              Expanded(
-                child: MadarButton(
-                  label: tr('charge.pickup'),
-                  size: MadarButtonSize.compact,
-                  variant: s.dineIn
-                      ? MadarButtonVariant.outline
-                      : MadarButtonVariant.secondary,
-                  onTap: () => notifier.setDineIn(dineIn: false),
-                ),
-              ),
-              Expanded(
-                child: MadarButton(
-                  label: tr('charge.dine_in'),
-                  size: MadarButtonSize.compact,
-                  variant: s.dineIn
-                      ? MadarButtonVariant.secondary
-                      : MadarButtonVariant.outline,
-                  onTap: () => notifier.setDineIn(dineIn: true),
-                ),
-              ),
-            ],
-          ),
         ),
       if (s.splitMode)
         _SplitAllocator(

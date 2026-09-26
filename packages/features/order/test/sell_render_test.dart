@@ -14,7 +14,12 @@ import 'package:app_core/app_core.dart';
 import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart'
-    show CartKitchenChitSheet, ChargeOutcome, ChargeSheet, KitchenChitSheet;
+    show
+        CartKitchenChitSheet,
+        ChargeOutcome,
+        ChargeSheet,
+        DoneCard,
+        KitchenChitSheet;
 import 'package:feature_order/feature_order.dart';
 import 'package:feature_order/src/combo_sheet.dart';
 import 'package:feature_order/src/held_orders_strip.dart';
@@ -66,6 +71,7 @@ void main() {
   group('a tap after Clear', _clearThenTapMain);
   group('a tap is never answered with nothing', _neverNothingMain);
   group('the keyboard up on an iPad in landscape', _keyboardMain);
+  group('Done after Charge, and the service mode it charges', _doneMain);
 
   group('assigning a held order to a table', () {
     Future<void> assignVia(WidgetTester tester, String chip) async {
@@ -1243,6 +1249,165 @@ void _keyboardMain() {
       await _settle(tester);
       expect(tester.widget<MadarButton>(save).enabled, isTrue);
       await _capture(tester, 'sell-keyboard-staff-sheet-$lang');
+    });
+  }
+}
+
+/// After Charge: Fast mode shows Done as a PAGE of the menu panel, the
+/// standard layout keeps the Done card. And Charge no longer asks pickup or
+/// dine in: the cart's choice is what the sale carries.
+void _doneMain() {
+  Finder inCart(Finder f) =>
+      find.descendant(of: find.byType(SellCart), matching: f);
+  Finder inCharge(Finder f) =>
+      find.descendant(of: find.byType(ChargeSheet), matching: f);
+  final donePage = find.byKey(const ValueKey('done-page'));
+
+  /// Charge from the cart and take the exact amount.
+  Future<void> chargeExact(WidgetTester tester, {bool ar = false}) async {
+    await tester.tap(
+      inCart(find.text(coreWord('sell.charge', arabic: ar))).last,
+    );
+    await _settle(tester);
+    expect(find.byType(ChargeSheet), findsOneWidget);
+    await tester.tap(
+      inCharge(find.text(coreWord('order.exact', arabic: ar))).first,
+    );
+    await _settle(tester);
+  }
+
+  for (final ar in [false, true]) {
+    final lang = ar ? 'ar' : 'en';
+    String w(String key) => coreWord(key, arabic: ar);
+
+    testWidgets('Fast mode: Done fills the panel beside the cart, and New '
+        'sale returns to the menu · $lang', (tester) async {
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: _FakeBridge(rtl: ar),
+        layout: SellLayout.fast,
+      );
+      final menu = tester.getRect(find.byType(MenuGrid));
+      await chargeExact(tester, ar: ar);
+
+      expect(find.byType(ChargeSheet), findsNothing);
+      expect(donePage, findsOneWidget);
+      expect(find.byType(DoneCard), findsNothing, reason: 'not a card');
+      expect(
+        ModalRoute.of(tester.element(donePage)),
+        isA<MadarPanelRoute<Object?>>(),
+      );
+      // It takes the menu's place, the whole panel, beside the cart.
+      final page = tester.getRect(donePage);
+      expect(page.left, closeTo(menu.left, 1));
+      expect(page.right, closeTo(menu.right, 1));
+      expect(page.bottom, closeTo(menu.bottom, 1));
+      expect(find.byType(SellCart), findsOneWidget);
+      expect(find.byType(MenuGrid), findsNothing);
+      Finder inPage(Finder f) => find.descendant(of: donePage, matching: f);
+      expect(inPage(find.text('#1043')), findsOneWidget);
+      expect(inPage(find.textContaining(w('charge.sale'))), findsWidgets);
+      expect(
+        inPage(
+          find.byWidgetPredicate((x) => x is MoneyText && x.minor == 15390),
+        ),
+        findsOneWidget,
+      );
+      expect(inPage(find.text(w('charge.new_sale'))), findsOneWidget);
+      await _capture(tester, 'done-page-fast-counter-ipad-$lang');
+
+      await tester.tap(find.byKey(const ValueKey('done-new-sale')));
+      await _settle(tester);
+      expect(donePage, findsNothing);
+      expect(find.byType(MenuGrid), findsOneWidget);
+      expect(find.byKey(const ValueKey('category-box-hot')), findsOneWidget);
+    });
+
+    testWidgets('Fast mode: a sale rung offline says Queued on the page · '
+        '$lang', (tester) async {
+      final bridge = _FakeBridge(rtl: ar)..checkoutQueued = true;
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+        layout: SellLayout.fast,
+      );
+      await chargeExact(tester, ar: ar);
+      Finder inPage(Finder f) => find.descendant(of: donePage, matching: f);
+      expect(inPage(find.textContaining(w('sync.queued'))), findsWidgets);
+      expect(inPage(find.text('#8f2a4c1e')), findsOneWidget);
+      expect(
+        inPage(find.textContaining(w('charge.will_send'))),
+        findsOneWidget,
+      );
+      await _capture(tester, 'done-page-fast-queued-ipad-$lang');
+    });
+
+    testWidgets('the standard layout keeps the Done card · $lang', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: _FakeBridge(rtl: ar),
+      );
+      await chargeExact(tester, ar: ar);
+      expect(find.byType(DoneCard), findsOneWidget);
+      expect(donePage, findsNothing);
+      expect(find.byType(MenuGrid), findsOneWidget, reason: 'over the menu');
+    });
+
+    for (final layout in SellLayout.values) {
+      testWidgets('Charge has no Pickup / Dine in; a dine-in cart charges '
+          'as dine-in · ${layout.name} · $lang', (tester) async {
+        final bridge = _FakeBridge(rtl: ar);
+        await _mount(
+          tester,
+          screen: const TakeawaySellScreen(),
+          size: _ipad,
+          bridge: bridge,
+          layout: layout,
+        );
+        // The cart owns the choice.
+        final mode = find.byKey(const ValueKey('cart-service-mode'));
+        expect(mode, findsOneWidget);
+        await tester.tap(
+          find.descendant(of: mode, matching: find.text(w('charge.dine_in'))),
+        );
+        await _settle(tester);
+
+        await tester.tap(inCart(find.text(w('sell.charge'))).last);
+        await _settle(tester);
+        expect(find.byType(ChargeSheet), findsOneWidget);
+        expect(inCharge(find.text(w('charge.dine_in'))), findsNothing);
+        expect(inCharge(find.text(w('charge.pickup'))), findsNothing);
+        await _capture(tester, 'charge-no-service-mode-${layout.name}-$lang');
+
+        await tester.tap(inCharge(find.text(w('order.exact'))).first);
+        await _settle(tester);
+        expect(bridge.checkedOut, isNotNull);
+        expect(bridge.checkedOut!.dineIn, isTrue);
+      });
+    }
+
+    testWidgets('a pickup cart (the default) charges as pickup · $lang', (
+      tester,
+    ) async {
+      final bridge = _FakeBridge(rtl: ar);
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+        layout: SellLayout.fast,
+      );
+      await chargeExact(tester, ar: ar);
+      expect(bridge.checkedOut, isNotNull);
+      expect(bridge.checkedOut!.dineIn, isFalse);
     });
   }
 }

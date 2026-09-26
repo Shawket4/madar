@@ -79,6 +79,35 @@ const _totals = CartTotals(
   totalMinor: 15390,
 );
 
+/// The receipt of the cart above, rung up for its exact total: sale #1043
+/// online, or the client key while it waits in the outbox.
+ReceiptView _saleReceipt({required bool queued}) => ReceiptView(
+  deals: const [],
+  payments: const [],
+  localOrderId: '8f2a4c1e-queued',
+  orderNumber: queued ? null : 1043,
+  isVoided: false,
+  lines: const [],
+  paymentLabel: 'Cash',
+  subtotalMinor: 13500,
+  discountMinor: 0,
+  taxMinor: 1890,
+  serviceChargeMinor: 0,
+  deliveryFeeMinor: 0,
+  totalMinor: 15390,
+  tipMinor: 0,
+  amountTenderedMinor: 15390,
+  changeMinor: 0,
+  isCash: true,
+  isDelivery: false,
+  queuedOffline: queued,
+  createdAt: '2026-09-12T15:30:00Z',
+  displayNumber: '',
+  serviceChargeWaivedMinor: 0,
+  taxInclusive: false,
+  taxRate: 0.14,
+);
+
 TicketLineView _line(
   String name,
   int qty,
@@ -448,6 +477,12 @@ class _FakeBridge implements MadarBridge {
   /// Bytes sent for a whole-cart kitchen print, via the till transport.
   final List<List<int>> cartChitsSent = [];
 
+  /// The last sale Charge rang up, as the core was handed it.
+  CheckoutInput? checkedOut;
+
+  /// The next sale rings up offline: it lands in the outbox, "Queued".
+  bool checkoutQueued = false;
+
   List<CartLineView> _cartOf(Invocation i) =>
       carts[i.namedArguments[#tableId] as String?] ??= [];
 
@@ -490,6 +525,12 @@ class _FakeBridge implements MadarBridge {
       );
     }
     if (name == #cashQuickTenders) return const <CashQuickTenderView>[];
+    // The sale itself: the core rings the cart up and empties it.
+    if (name == #checkout) {
+      checkedOut = invocation.namedArguments[#input] as CheckoutInput;
+      _cartOf(invocation).clear();
+      return Future<ReceiptView>.value(_saleReceipt(queued: checkoutQueued));
+    }
     if (name == #availablePaymentMethods) {
       return Future<List<PaymentMethodView>>.value(const [
         PaymentMethodView(

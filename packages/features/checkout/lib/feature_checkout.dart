@@ -4,7 +4,8 @@
 /// `.bill(ticket)`, `.online(order)` presents the tender drawer (a centred
 /// modal on a tablet, a full-height sheet on a phone), takes the money
 /// through the one bridge call that caller has, and slides the `DoneCard`
-/// down over the host. State lives in `checkoutProvider`; the session
+/// down over the host (in Fast mode's panel, Done is a `DonePage` in place
+/// of the menu instead). State lives in `checkoutProvider`; the session
 /// starts itself.
 ///
 /// Also exported: `ReceiptSheet` (a receipt preview with Print + Done) and
@@ -38,7 +39,8 @@ export 'src/customer_card.dart'
     show CustomerCardSheet, LinkedCustomerRow, showCustomerCard;
 export 'src/customer_sheet.dart' show CustomerSheet;
 export 'src/discount_sheet.dart' show cartDiscountLabel, showCartDiscountSheet;
-export 'src/done_card.dart' show DoneCard, DoneCardResult, showDoneCard;
+export 'src/done_card.dart'
+    show DoneCard, DoneCardResult, DonePage, showDoneCard, showDonePage;
 export 'src/kitchen_chit_sheet.dart'
     show
         CartChitPreviewNotifier,

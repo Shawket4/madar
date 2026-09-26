@@ -10,6 +10,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
+part 'done_page.dart';
+part 'done_sale.dart';
+
 /// The card's distance from the top of the window (the canvas: 76 — it
 /// clears the top bar); its width cap is the top card's 600.
 const double _cardTopTablet = 76;
@@ -84,162 +87,12 @@ class DoneCard extends ConsumerStatefulWidget {
   ConsumerState<DoneCard> createState() => _DoneCardState();
 }
 
-class _DoneCardState extends ConsumerState<DoneCard> {
-  late PrintState _print = widget.outcome.printState;
-  bool _clearing = false;
-  String? _clearError;
-
-  // A card kept open for a table's "cleared?" answer can outlive the
-  // outbox drain — without this it would say "Queued" forever even after
-  // the sale synced. Local state so a sync tick can flip it live.
-  late bool _queued = widget.outcome.queued;
-  late ReceiptView? _receipt = widget.outcome.receipt;
-
-  /// The pool line the core worded when the sale was rung ("3 left today").
-  /// The synced record does not carry it, so it is kept across the re-read —
-  /// unless the server turned out not to support staff drinks, which the
-  /// re-read says instead.
-  late String? _staffNotice = widget.outcome.receipt?.staffNotice;
-  bool _syncChecking = false;
-  ProviderSubscription<int>? _syncSub;
-
-  /// The card steps aside by itself once nothing is left to answer — the
-  /// next customer is already at the counter. A touch on the card holds it.
-  Timer? _autoDismiss;
-
-  static const Duration _dismissAfter = Duration(seconds: 6);
-
-  void _holdOpen() {
-    _autoDismiss?.cancel();
-    _autoDismiss = null;
-  }
-
-  void _armDismiss() {
-    _holdOpen();
-    // A table still waiting for "cleared?", or paper that did not come out,
-    // is a question for the teller: those cards wait.
-    final o = widget.outcome;
-    if (o.tableId != null) return;
-    if (_print == PrintState.failed || _print == PrintState.noPrinter) return;
-    _autoDismiss = Timer(_dismissAfter, () {
-      if (mounted) widget.onDone(DoneCardResult.notYet);
-    });
-  }
+class _DoneCardState extends ConsumerState<DoneCard> with _DoneSale<DoneCard> {
+  @override
+  ChargeOutcome get _outcome => widget.outcome;
 
   @override
-  void dispose() {
-    _syncSub?.close();
-    _holdOpen();
-    super.dispose();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _armDismiss();
-    // The auto-print is still running in the background: say "Printing…"
-    // until it answers. It always answers — a timeout is a state too.
-    final job = widget.outcome.printJob;
-    if (job != null) {
-      unawaited(
-        job.then((result) {
-          if (mounted && _print == PrintState.printing) {
-            setState(() => _print = result);
-            if (_autoDismiss != null) _armDismiss();
-          }
-        }),
-      );
-    }
-    // The core bumps this on every sync event; a queued sale re-checks its
-    // own record on each one rather than polling on a timer.
-    if (_queued) {
-      _syncSub = ref.listenManual(syncTickProvider, (_, _) {
-        unawaited(_checkSynced());
-      });
-    }
-  }
-
-  /// Re-read this sale's record — a LOCAL lookup by client key or server id
-  /// (`order_full_for` resolves either), so this only reaches the network in
-  /// the rare case the row is not local yet. Flips the card out of "Queued"
-  /// the moment the outbox has actually acked it.
-  Future<void> _checkSynced() async {
-    final key = widget.outcome.orderKey;
-    if (!mounted || !_queued || _syncChecking || key == null) return;
-    _syncChecking = true;
-    try {
-      final r = await ref.read(bridgeProvider).orderReceiptView(orderId: key);
-      if (!mounted || r.queuedOffline) return;
-      setState(() {
-        _queued = false;
-        _receipt = r;
-        _staffNotice = r.staffNotice ?? _staffNotice;
-      });
-      _syncSub?.close();
-      _syncSub = null;
-      if (_autoDismiss != null) _armDismiss();
-    } on Object catch (_) {
-      // Best-effort, as printReceiptView: the row may not have landed
-      // locally yet, or the bridge threw — the next sync tick tries again.
-    } finally {
-      _syncChecking = false;
-    }
-  }
-
-  Future<void> _reprint() async {
-    final receipt = _receipt;
-    if (receipt == null || _print == PrintState.printing) return;
-    setState(() => _print = PrintState.printing);
-    final result = await printReceiptView(
-      ref.read(bridgeProvider),
-      ref.read(printerServiceProvider),
-      receipt,
-      kickDrawer: false,
-    );
-    if (mounted) setState(() => _print = result);
-  }
-
-  /// The plates are gone. Optimistic locally and queued for the server, so
-  /// it works offline like everything else on the floor.
-  Future<void> _clear(String tableId) async {
-    if (_clearing) return;
-    setState(() {
-      _clearing = true;
-      _clearError = null;
-    });
-    final bridge = ref.read(bridgeProvider);
-    try {
-      await bridge.clearTable(tableId: tableId);
-      if (!mounted) return;
-      MadarHaptics.success();
-      widget.onDone(DoneCardResult.cleared);
-    } on MadarError catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _clearing = false;
-        _clearError = bridge.humanMessage(e);
-      });
-    }
-  }
-
-  Future<void> _addPoints() async {
-    final o = widget.outcome;
-    await showMadarSheet<bool>(
-      context,
-      size: SheetSize.hug,
-      maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (_) => LoyaltyAwardSheet(
-        orderId: o.orderId,
-        // A just-rung cart sale is known by its client key — the server id
-        // may not exist yet.
-        orderKey: o.orderId == null ? o.orderKey : null,
-        orderCreatedAt: o.createdAt,
-        // If a card was scanned to pay, it is the same customer collecting —
-        // no second scan.
-        customerId: o.loyaltyCustomerId,
-      ),
-    );
-  }
+  void _finish(DoneCardResult result) => widget.onDone(result);
 
   @override
   Widget build(BuildContext context) {
@@ -250,16 +103,7 @@ class _DoneCardState extends ConsumerState<DoneCard> {
     final phone = context.isPhone;
 
     // The headline: what happened, and the figure that names it.
-    // The device number reads the same queued or synced (`36B-12`); the
-    // older fallbacks stay for a sale rung without one.
-    final display = _receipt?.displayNumber ?? '';
-    final ref_ = display.isNotEmpty
-        ? '#$display'
-        : _queued
-        ? '#${o.orderKey?.substring(0, o.orderKey!.length.clamp(0, 8)) ?? ''}'
-        : o.orderNumber != null
-        ? '#${o.orderNumber}'
-        : (_receipt?.orderRef ?? '');
+    final ref_ = _saleRef;
     final headline = TextSpan(
       children: [
         TextSpan(
@@ -345,9 +189,7 @@ class _DoneCardState extends ConsumerState<DoneCard> {
 
     final actions = <Widget>[
       // Only where a programme runs — and the sale must name itself.
-      // Read off the OUTCOME: the Charge session may already be gone, and a
-      // fresh one knows nothing about the programme.
-      if (o.canAwardPoints && o.loyaltyOffered)
+      if (_offersPoints)
         MadarButton(
           label: bridge.tr(key: 'loyalty.add_points'),
           glyph: MadarGlyph.star,
