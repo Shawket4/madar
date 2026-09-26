@@ -901,6 +901,7 @@ Class | Method | HTTP request | Description
  - [DrinkRecipe](docs/DrinkRecipe.md)
  - [EarningItem](docs/EarningItem.md)
  - [EarningItemList](docs/EarningItemList.md)
+ - [ElsewhereShift](docs/ElsewhereShift.md)
  - [Employee](docs/Employee.md)
  - [ErrorBody](docs/ErrorBody.md)
  - [ExpenseAdvance](docs/ExpenseAdvance.md)

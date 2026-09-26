@@ -686,6 +686,8 @@ pub struct RecordAdvanceParams {
 pub struct ResetDayParams {
     pub employee_id: String,
     pub on_date: chrono::NaiveDate,
+    /// The board it is reset from (BUG-4): only the blocks worked at that branch go back to the pattern; the other branches' stay (one of the person's branches, else 400 `EMPLOYEE_NOT_AT_BRANCH`). Omitted (an old client) = the branches the caller may edit the roster at: an owner resets the whole date, as before.
+    pub branch_id: Option<String>,
 }
 
 /// struct for passing parameters to the method [`resolve_flag`]
@@ -7543,6 +7545,9 @@ pub async fn reset_day(
 
     req_builder = req_builder.query(&[("employee_id", &params.employee_id.to_string())]);
     req_builder = req_builder.query(&[("on_date", &params.on_date.to_string())]);
+    if let Some(ref param_value) = params.branch_id {
+        req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
