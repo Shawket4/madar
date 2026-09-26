@@ -237,15 +237,25 @@ class CartNotifier extends Notifier<CartState> {
   }
 
   /// Toast why applied deals came off the cart (an edit broke them), in the
-  /// core's words. Never a reason to fail a cart read.
-  Future<void> _sayDealDrops(OrderNotifier order, MadarBridge bridge) async {
+  /// core's words — or, with [say] false, hand the words back for a caller
+  /// that has its own toast to show (the app shows ONE toast; a second one
+  /// in the same frame silently replaces the first). Never a reason to fail
+  /// a cart read.
+  Future<List<String>> _sayDealDrops(
+    OrderNotifier order,
+    MadarBridge bridge, {
+    bool say = true,
+  }) async {
     try {
       final said = await bridge.takeDealNotices(tableId: arg);
-      for (final why in said) {
-        order.showToast(why, tone: ChipTone.warning, seconds: 4);
+      if (say) {
+        for (final why in said) {
+          order.showToast(why, tone: ChipTone.warning, seconds: 4);
+        }
       }
+      return said;
     } on Object {
-      return;
+      return const [];
     }
   }
 
@@ -289,8 +299,15 @@ class CartNotifier extends Notifier<CartState> {
   /// Run a mutation that returns the new lines, then re-read the totals. The
   /// order's identity is stamped on its first line and forgotten once the
   /// cart empties (the booking, guest and covers stay with the table).
-  Future<void> _apply(Future<List<CartLineView>> Function() op) async {
+  ///
+  /// Returns why applied deals came off the cart. They are toasted here
+  /// unless [sayDeals] is false (the caller then says them with its own).
+  Future<List<String>> _apply(
+    Future<List<CartLineView>> Function() op, {
+    bool sayDeals = true,
+  }) async {
     _writes += 1;
+    var dropped = const <String>[];
     try {
       var lines = await op();
       // A change may have cost a staff drink its mark (the core says why);
@@ -301,7 +318,7 @@ class CartNotifier extends Notifier<CartState> {
       final totals =
           await _order._quiet(() => _bridge.cartTotals(tableId: arg)) ??
           _emptyTotals;
-      if (!ref.mounted) return;
+      if (!ref.mounted) return dropped;
       final meta = state.meta;
       final deals = _readDeals(_bridge);
       state = state.copyWith(
@@ -310,8 +327,8 @@ class CartNotifier extends Notifier<CartState> {
         dealSuggestions: deals?.$1,
         appliedDeals: deals?.$2,
       );
-      await _sayDealDrops(_order, _bridge);
-      if (!ref.mounted) return;
+      dropped = await _sayDealDrops(_order, _bridge, say: sayDeals);
+      if (!ref.mounted) return dropped;
       if (lines.isEmpty &&
           (meta.name.isNotEmpty ||
               meta.draftId != null ||
@@ -332,6 +349,7 @@ class CartNotifier extends Notifier<CartState> {
     } on MadarError catch (e) {
       _order._fail(e);
     }
+    return dropped;
   }
 
   /// Add one unit of [item] — the core merges into the matching line.
@@ -460,12 +478,19 @@ class CartNotifier extends Notifier<CartState> {
     state = state.copyWith(
       lines: state.lines.where((l) => l.key != line.key).toList(),
     );
-    await _apply(() => _bridge.cartRemove(tableId: arg, itemId: line.key));
+    // The removal's own toast carries why a deal came off with it: toasted
+    // separately, the second toast replaced the first in the same frame and
+    // the deal left the cart without a word.
+    final dropped = await _apply(
+      () => _bridge.cartRemove(tableId: arg, itemId: line.key),
+      sayDeals: false,
+    );
     _order.showToast(
-      '${_tr('order.removed')} ${line.name}',
+      ['${_tr('order.removed')} ${line.name}', ...dropped].join(' · '),
+      tone: dropped.isEmpty ? ChipTone.neutral : ChipTone.warning,
       actionLabel: _tr('order.undo'),
       action: () => unawaited(undoRemove()),
-      seconds: 4,
+      seconds: dropped.isEmpty ? 4 : 6,
       icon: 'trash',
     );
   }
