@@ -42,8 +42,12 @@ android {
     }
 
     defaultConfig {
-        // Same id the native apps ship under; release replaces them in place.
-        applicationId = "com.madar.pos"
+        // The same id as iOS (com.madar.cashier). Until 0.13 the Android app
+        // was com.madar.pos; a package name cannot change in place, so a till
+        // on the old id gets this as a NEW app beside it. Drain the old app's
+        // outbox before switching (the rescue app, apps/rescue, can still read
+        // a stranded com.madar.pos sandbox).
+        applicationId = "com.madar.cashier"
         // The app localizes en + ar only — drop every other locale's
         // resources from plugins/AndroidX (a quiet multi-hundred-KB saving).
         resourceConfigurations += listOf("en", "ar")
@@ -66,7 +70,7 @@ android {
 
     buildTypes {
         debug {
-            // Installable alongside the native com.madar.pos for parity testing.
+            // com.madar.cashier.dev: installs beside the release app.
             applicationIdSuffix = ".dev"
             // One ABI in debug: every ABI costs a full Rust-workspace
             // cross-compile via Cargokit (~2 GB each) and this machine runs

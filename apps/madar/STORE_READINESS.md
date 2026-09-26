@@ -8,7 +8,7 @@ separate task; this document is the requirements list that task works from.
 
 | | Android | iOS |
 |---|---|---|
-| Id | `com.madar.pos` (debug: `.dev` suffix) | `com.madar.pos` (team `6HNBMW6X75`) |
+| Id | `com.madar.cashier` (debug: `.dev` suffix; `com.madar.pos` before 0.13) | `com.madar.cashier` (team `6HNBMW6X75`) |
 | Display name | `@string/app_name` — "Madar Cashier" / «كاشير مدار» | "Madar Cashier" |
 | Version | `pubspec.yaml` `0.2.0+1` → `versionName` / `versionCode` | → `CFBundleShortVersionString` / `CFBundleVersion` |
 | Min / target | `flutter.minSdkVersion` (24) / `flutter.targetSdkVersion` (Flutter 3.47 → 36; Play requires ≥ 35 from Aug 2026) | iOS 15.0 |
@@ -76,7 +76,7 @@ store holds order data; a restore onto another device must not carry it).
   category (Business), content rating questionnaire (no user content, no ads), target audience
   (18+ / staff tool), "Business" declaration on Play (the app is for restaurant staff — consider
   a private/managed distribution track if the public listing is not wanted).
-- iOS: an Apple Distribution certificate + App Store provisioning profile for `com.madar.pos`
+- iOS: an Apple Distribution certificate + App Store provisioning profile for `com.madar.cashier`
   in the CI signing step (the workflow builds Android and macOS today; add `flutter build ipa
   --export-options-plist`).
 - Test on a physical iPad and an Android tablet before submission (the printer path, LAN relay

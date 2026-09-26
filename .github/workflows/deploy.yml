@@ -78,8 +78,8 @@ jobs:
           echo "$GOOGLE_SERVICES_JSON" | base64 --decode > android/app/google-services.json
           python3 -c "import json; d=json.load(open('android/app/google-services.json')); \
             pk=[c['client_info']['android_client_info']['package_name'] for c in d['client']]; \
-            assert 'com.madar.pos' in pk, pk; print('google-services.json OK:', pk)" \
-            || { echo "::error::POS_GOOGLE_SERVICES_JSON is not a google-services.json for com.madar.pos."; exit 1; }
+            assert 'com.madar.cashier' in pk, pk; print('google-services.json OK:', pk)" \
+            || { echo "::error::POS_GOOGLE_SERVICES_JSON has no client for com.madar.cashier (add that Android app in Firebase and re-download google-services.json)."; exit 1; }
 
       # Fail here, not 20 minutes later inside Gradle. Without the keystore
       # build.gradle.kts silently falls back to the DEBUG key, which would
