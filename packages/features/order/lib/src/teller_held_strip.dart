@@ -8,6 +8,7 @@ import 'package:feature_order/src/order_customer_row.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/sell_screen.dart' show TableOrderScreen;
 import 'package:feature_order/src/tables_screen.dart' show showTablePickerSheet;
+import 'package:feature_order/src/words.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -15,13 +16,32 @@ import 'package:rust_bridge/rust_bridge.dart';
 /// Teller strip: a chip per parked draft PLUS, when the cart is non-empty,
 /// the live cart's own chip (the selected one).
 ///
-/// Drawn by `SellCart` (sell_cart.dart) on the counter: it shows what is
-/// already parked and carries the live order's rename pencil.
+/// Drawn by `SellCart` (sell_cart.dart) on the counter, inside the cart's
+/// header row: it shows what is already parked and carries the live order's
+/// rename pencil.
 class TellerHeldStrip extends ConsumerWidget {
-  const TellerHeldStrip({this.tableId, super.key});
+  const TellerHeldStrip({
+    this.tableId,
+    this.style = HeldChipStyle.full,
+    this.inline = false,
+    this.fold = false,
+    super.key,
+  });
 
   /// The cart whose live chip leads the strip (null = takeaway).
   final String? tableId;
+
+  /// How much each chip says (the cart column's width decides).
+  final HeldChipStyle style;
+
+  /// Laid inside a row — see [HeldOrdersStrip.inline].
+  final bool inline;
+
+  /// Fold the parked orders into ONE "N parked ▾" button that opens them as
+  /// a list — a cart column under 320, where even number chips crowd the
+  /// header. With nothing parked there is nothing to fold: the live order's
+  /// chip (and its pencil) stays.
+  final bool fold;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -37,52 +57,67 @@ class TellerHeldStrip extends ConsumerWidget {
     // chip is the SAME chip across hold/restore cycles — its drag position
     // and time label never jump.
     final liveKey = cartDraftId ?? '__current__';
+    final tabs = [
+      for (final draft in drafts)
+        HeldOrderTab(
+          key: draft.id,
+          sortKey: draft.createdAt,
+          title: _chipTitle(_customName(draft.name), draft.tableLabel),
+          glyph: draft.lockedByOther ? 'lock' : null,
+          author: draft.byOther ? draft.createdByName : null,
+          authorLabel: draft.byOther
+              ? bridge
+                    .tr(key: 'drafts.started_by')
+                    .replaceAll('{name}', draft.createdByName ?? '')
+              : null,
+          count: draft.itemCount,
+          selected: false,
+          onTap: () => unawaited(_openDraft(context, ref, draft)),
+          // The pencil is on EVERY chip now, not only the live one. A
+          // parked order could not be renamed at all before: the core had
+          // no rename, so the only path was restoring it into the cart and
+          // re-parking it, which displaces whatever the till is working on
+          // to fix a label. It is a field on a device-local row.
+          onRename: draft.lockedByOther
+              ? null
+              : () => unawaited(_renameDraft(context, ref, draft)),
+          onClose: draft.lockedByOther
+              ? null
+              : () => unawaited(_confirmDiscard(context, ref, draft)),
+        ),
+      if (hasLines)
+        HeldOrderTab(
+          key: liveKey,
+          // A stamp that is not there yet sorts first and shows no time —
+          // `now` here re-stamped the chip, and re-sorted it, on every build.
+          sortKey: cartStartedAtIso ?? '',
+          title: _chipTitle(
+            cartName,
+            cartTableLabel(ref.watch(orderProvider), cart),
+          ),
+          count: itemCount,
+          selected: true,
+          onTap: () {},
+          onRename: () => unawaited(editLiveOrderName(context, ref, tableId)),
+        ),
+    ];
+    if (fold && drafts.isNotEmpty) {
+      return _FoldedParked(
+        label: orderWord(
+          bridge,
+          'sell.parked_count',
+        ).replaceAll('{count}', '${drafts.length}'),
+        title: orderWord(bridge, 'sell.parked'),
+        renameLabel: bridge.tr(key: 'drafts.rename'),
+        discardLabel: bridge.tr(key: 'drafts.discard'),
+        tabs: tabs,
+      );
+    }
     return HeldOrdersStrip(
       newLabel: bridge.tr(key: 'waiter.new_order'),
-      tabs: [
-        for (final draft in drafts)
-          HeldOrderTab(
-            key: draft.id,
-            sortKey: draft.createdAt,
-            title: _chipTitle(_customName(draft.name), draft.tableLabel),
-            glyph: draft.lockedByOther ? 'lock' : null,
-            author: draft.byOther ? draft.createdByName : null,
-            authorLabel: draft.byOther
-                ? bridge
-                      .tr(key: 'drafts.started_by')
-                      .replaceAll('{name}', draft.createdByName ?? '')
-                : null,
-            count: draft.itemCount,
-            selected: false,
-            onTap: () => unawaited(_openDraft(context, ref, draft)),
-            // The pencil is on EVERY chip now, not only the live one. A
-            // parked order could not be renamed at all before: the core had
-            // no rename, so the only path was restoring it into the cart and
-            // re-parking it, which displaces whatever the till is working on
-            // to fix a label. It is a field on a device-local row.
-            onRename: draft.lockedByOther
-                ? null
-                : () => unawaited(_renameDraft(context, ref, draft)),
-            onClose: draft.lockedByOther
-                ? null
-                : () => unawaited(_confirmDiscard(context, ref, draft)),
-          ),
-        if (hasLines)
-          HeldOrderTab(
-            key: liveKey,
-            // A stamp that is not there yet sorts first and shows no time —
-            // `now` here re-stamped the chip, and re-sorted it, on every build.
-            sortKey: cartStartedAtIso ?? '',
-            title: _chipTitle(
-              cartName,
-              cartTableLabel(ref.watch(orderProvider), cart),
-            ),
-            count: itemCount,
-            selected: true,
-            onTap: () {},
-            onRename: () => unawaited(editLiveOrderName(context, ref, tableId)),
-          ),
-      ],
+      style: style,
+      inline: inline,
+      tabs: tabs,
     );
   }
 
@@ -258,6 +293,211 @@ class TellerHeldStrip extends ConsumerWidget {
   static String? _chipTitle(String? name, String? tableLabel) {
     if (tableLabel == null || tableLabel.isEmpty) return name;
     return name == null ? tableLabel : '$name · $tableLabel';
+  }
+}
+
+/// The parked orders folded into one button ("2 parked ▾") on a narrow cart
+/// column; it opens them as a list. Every row does what its chip does: a tap
+/// resumes it, the pencil renames it, the ✕ discards it (and still asks).
+class _FoldedParked extends StatelessWidget {
+  const _FoldedParked({
+    required this.label,
+    required this.title,
+    required this.renameLabel,
+    required this.discardLabel,
+    required this.tabs,
+  });
+
+  /// "2 parked".
+  final String label;
+
+  /// The list's heading ("Parked").
+  final String title;
+  final String renameLabel;
+  final String discardLabel;
+  final List<HeldOrderTab> tabs;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    Future<void> open() => showMadarSheet<void>(
+      context,
+      size: SheetSize.hug,
+      maxWidth: Responsive.sheetCompactMaxWidth,
+      builder: (sheetContext) => _ParkedList(
+        title: title,
+        renameLabel: renameLabel,
+        discardLabel: discardLabel,
+        tabs: tabs,
+        // Every act leaves the list first: the resume may open a page,
+        // the rename and the discard raise their own sheet or confirm.
+        then: (act) {
+          MadarSheet.close<void>(sheetContext);
+          act();
+        },
+      ),
+    );
+    // Warm on purpose: parked orders are waiting on someone. The pause
+    // glyph is parking's own (the bag is Pickup's).
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: label,
+        triggerMode: TooltipTriggerMode.longPress,
+        excludeFromSemantics: true,
+        child: TactileScale(
+          key: const ValueKey('cart-parked-fold'),
+          onTap: () {
+            MadarHaptics.selection();
+            unawaited(open());
+          },
+          child: SizedBox(
+            height: Metrics.buttonSmallHeight,
+            child: Center(
+              child: Container(
+                height: Metrics.glyphTileDense,
+                padding: const EdgeInsetsDirectional.symmetric(
+                  horizontal: Space.sm,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.warningBg,
+                  borderRadius: BorderRadius.circular(Radii.sm),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: Space.xs,
+                  children: [
+                    MadarGlyphIcon(
+                      MadarGlyph.pause,
+                      size: IconSize.xs,
+                      color: colors.warning,
+                    ),
+                    Flexible(
+                      child: MadarClippedText(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: MadarType.bodySm.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    MadarGlyphIcon(
+                      MadarGlyph.chevronDown,
+                      size: IconSize.xs,
+                      color: colors.textSecondary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ParkedList extends StatelessWidget {
+  const _ParkedList({
+    required this.title,
+    required this.renameLabel,
+    required this.discardLabel,
+    required this.tabs,
+    required this.then,
+  });
+
+  final String title;
+  final String renameLabel;
+  final String discardLabel;
+  final List<HeldOrderTab> tabs;
+  final void Function(VoidCallback act) then;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final numbers = heldTabNumbers(tabs);
+    final ordered = [...tabs]
+      ..sort((a, b) => (numbers[a.key] ?? 0).compareTo(numbers[b.key] ?? 0));
+    return Padding(
+      padding: const EdgeInsetsDirectional.all(Space.xl),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.sm,
+        children: [
+          MadarSectionHeader(text: title),
+          for (final tab in ordered)
+            Row(
+              key: ValueKey('parked-row-${tab.key}'),
+              spacing: Space.sm,
+              children: [
+                Expanded(
+                  child: TactileScale(
+                    onTap: () => then(tab.onTap),
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minHeight: Metrics.buttonSmallHeight,
+                      ),
+                      padding: const EdgeInsetsDirectional.symmetric(
+                        horizontal: Space.md,
+                        vertical: Space.sm,
+                      ),
+                      decoration: BoxDecoration(
+                        color: tab.selected ? colors.accentBg : colors.surface,
+                        borderRadius: BorderRadius.circular(Radii.md),
+                        border: Border.all(
+                          color: tab.selected ? colors.accent : colors.border,
+                        ),
+                      ),
+                      child: Row(
+                        spacing: Space.sm,
+                        children: [
+                          StatusChip(
+                            label: '${tab.count}',
+                            tone: ChipTone.accent,
+                          ),
+                          Expanded(
+                            child: MadarClippedText(
+                              [
+                                '#${numbers[tab.key] ?? 0}',
+                                if (tab.title?.trim() case final t?
+                                    when t.isNotEmpty)
+                                  t,
+                                ?tab.author,
+                              ].join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: MadarType.title.copyWith(
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (tab.onRename case final rename?)
+                  MadarGlyphTile(
+                    glyph: MadarGlyph.edit,
+                    semanticLabel: renameLabel,
+                    onTap: () => then(rename),
+                  ),
+                if (tab.onClose case final close?)
+                  MadarGlyphTile(
+                    glyph: MadarGlyph.close,
+                    semanticLabel: discardLabel,
+                    onTap: () => then(close),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
   }
 }
 

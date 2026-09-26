@@ -574,6 +574,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       order,
       cart,
       dineIn: ref.watch(dineInProvider(_tableId)),
+      // The cart column (a tablet, Fast mode) carries its own Pickup /
+      // Dine in; on a phone the cart is a sheet, and the title is the only
+      // place the mode shows until it opens.
+      cartShowsMode: fast || layout.isTablet,
     );
     final counter =
         !order.isWaiter && _tableId == null && cartTicket(order, cart) == null;
@@ -821,12 +825,17 @@ class _LockableCart extends ConsumerWidget {
 /// with the round under it for a table; "New bill · Sara" for a waiter's
 /// table-less bill.
 ///
-/// A counter cart says what the cart's toggle says: "Pickup" or "Dine in".
+/// A counter cart says what the cart's toggle says: "Pickup" or "Dine in" —
+/// but only where the toggle is not in view ([cartShowsMode] false, a phone).
+/// Beside the cart column the title was the toggle's twin, so it is left
+/// empty: the header row stays for its actions (search, the sync strip).
+/// A table's name, a bill's guest and a waiter's "New bill" always stay.
 ({String title, String? subtitle}) orderHeaderFor(
   MadarBridge bridge,
   OrderState s,
   CartState c, {
   bool dineIn = false,
+  bool cartShowsMode = false,
 }) {
   final ticket = cartTicket(s, c);
   final label = cartTableLabel(s, c);
@@ -854,6 +863,7 @@ class _LockableCart extends ConsumerWidget {
       subtitle: null,
     );
   }
+  if (cartShowsMode) return (title: '', subtitle: null);
   return (
     title: dineIn
         ? bridge.tr(key: 'charge.dine_in')

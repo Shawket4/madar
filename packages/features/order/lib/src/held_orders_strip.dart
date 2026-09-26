@@ -55,6 +55,26 @@ class HeldOrderTab {
   final VoidCallback? onClose;
 }
 
+/// How much a held-order chip says. The cart column picks it from its OWN
+/// width (see `cartDensityFor` in sell_cart.dart).
+enum HeldChipStyle {
+  /// The item-count badge, the order's name (or number), who started it.
+  full,
+
+  /// Just the order's number ("#2"), with its pencil / ✕: a 320–380 column.
+  /// The order IN HAND keeps its name (the customer's, once attached): with
+  /// the Customer chip gone from the cart, it is where the name shows.
+  number,
+}
+
+/// Each tab's number: its place in creation order (the oldest is #1), so a
+/// drag never renumbers the chips and two orders never share one. Shared by
+/// the strip and the folded list a narrow cart opens.
+Map<String, int> heldTabNumbers(List<HeldOrderTab> tabs) {
+  final byAge = [...tabs]..sort((a, b) => a.sortKey.compareTo(b.sortKey));
+  return {for (var i = 0; i < byAge.length; i++) byAge[i].key: i + 1};
+}
+
 /// The drag-chosen chip order (a list of tab keys). Kept in a provider so a
 /// teller's arrangement survives layout flips and strip remounts; keys that
 /// vanish are filtered out per build, new keys slot in at their
@@ -114,10 +134,19 @@ class HeldOrdersStrip extends ConsumerWidget {
   const HeldOrdersStrip({
     required this.tabs,
     required this.newLabel,
+    this.style = HeldChipStyle.full,
+    this.inline = false,
     super.key,
   });
 
   final List<HeldOrderTab> tabs;
+
+  /// How much each chip says.
+  final HeldChipStyle style;
+
+  /// Laid INSIDE a row (the cart's header): no band of its own, no gutter,
+  /// no hairline under it — just the scrolling chips.
+  final bool inline;
 
   /// Localized label for the glyph tab ("New order") — resolved by the
   /// caller so the strip stays string-free.
@@ -155,10 +184,7 @@ class HeldOrdersStrip extends ConsumerWidget {
     final display = _reconcile(saved, tabs);
     // Each order's number: its place in creation order (oldest is #1), so a
     // drag never renumbers the chips and two orders never share one.
-    final byAge = [...tabs]..sort((a, b) => a.sortKey.compareTo(b.sortKey));
-    final numbers = {
-      for (var i = 0; i < byAge.length; i++) byAge[i].key: i + 1,
-    };
+    final numbers = heldTabNumbers(tabs);
     // onReorderItem (3.44+) hands a PRE-adjusted newIndex — no manual
     // removed-item offset like the old onReorder required.
     void handleReorder(int from, int to) {
@@ -168,43 +194,198 @@ class HeldOrdersStrip extends ConsumerWidget {
       ref.read(heldStripOrderProvider.notifier).setOrder(keys);
     }
 
+    final list = ReorderableListView(
+      scrollDirection: Axis.horizontal,
+      buildDefaultDragHandles: false,
+      onReorderItem: handleReorder,
+      proxyDecorator: _proxyDecorator,
+      padding: inline
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(
+              horizontal: Space.lg,
+              vertical: Space.sm,
+            ),
+      children: [
+        for (var i = 0; i < display.length; i++)
+          ReorderableDelayedDragStartListener(
+            key: ValueKey(display[i].key),
+            index: i,
+            child: Padding(
+              padding: EdgeInsetsDirectional.only(
+                end: inline
+                    ? (i == display.length - 1 ? 0 : _inlineChipGap)
+                    : Space.sm,
+              ),
+              child: inline
+                  ? _InlineChip(
+                      tab: display[i],
+                      number: numbers[display[i].key] ?? 0,
+                      style: style,
+                    )
+                  : _HeldOrderChip(
+                      tab: display[i],
+                      newLabel: newLabel,
+                      number: numbers[display[i].key] ?? 0,
+                      style: style,
+                    ),
+            ),
+          ),
+      ],
+    );
+    if (inline) {
+      // The chips scroll under the header's ⋯: fade the end edge so a chip
+      // cut there reads as "more this way", never as a broken chip.
+      final rtl = Directionality.of(context) == TextDirection.rtl;
+      return SizedBox(
+        height: Metrics.buttonSmallHeight,
+        child: ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (rect) => LinearGradient(
+            begin: rtl ? Alignment.centerRight : Alignment.centerLeft,
+            end: rtl ? Alignment.centerLeft : Alignment.centerRight,
+            colors: const [Colors.black, Colors.black, Colors.transparent],
+            stops: [0, 1 - (Space.xl / rect.width).clamp(0, 1), 1],
+          ).createShader(rect),
+          child: list,
+        ),
+      );
+    }
     return ColoredBox(
       color: colors.bg,
       child: Column(
         children: [
-          SizedBox(
-            height: kHeldChipHeight + Space.sm * 2,
-            child: ReorderableListView(
-              scrollDirection: Axis.horizontal,
-              buildDefaultDragHandles: false,
-              onReorderItem: handleReorder,
-              proxyDecorator: _proxyDecorator,
-              padding: const EdgeInsets.symmetric(
-                horizontal: Space.lg,
-                vertical: Space.sm,
-              ),
-              children: [
-                for (var i = 0; i < display.length; i++)
-                  ReorderableDelayedDragStartListener(
-                    key: ValueKey(display[i].key),
-                    index: i,
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.only(end: Space.sm),
-                      child: _HeldOrderChip(
-                        tab: display[i],
-                        newLabel: newLabel,
-                        number: numbers[display[i].key] ?? 0,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          SizedBox(height: kHeldChipHeight + Space.sm * 2, child: list),
           Container(height: 1, color: colors.borderLight),
         ],
       ),
     );
   }
+}
+
+/// An inline chip (the cart's header, look A): 36 to the eye inside a 44
+/// target, 10 round, 10 in from its edges, 6 apart.
+const double _inlineChipHeight = 36;
+const double _inlineChipPad = 10;
+const double _inlineChipGap = 6;
+
+/// The cart header's chip. The order IN HAND is a soft accent wash with its
+/// name (the customer's, once attached) and a pencil; a parked one is white
+/// with a hairline, its number in mono and a quiet ✕.
+class _InlineChip extends StatelessWidget {
+  const _InlineChip({
+    required this.tab,
+    required this.number,
+    required this.style,
+  });
+
+  final HeldOrderTab tab;
+  final int number;
+  final HeldChipStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final active = tab.selected;
+    final name = tab.title?.trim();
+    final named =
+        (active || style == HeldChipStyle.full) &&
+        name != null &&
+        name.isNotEmpty;
+    final onClose = tab.onClose;
+    final onRename = tab.onRename;
+    final label = MadarClippedText(
+      named ? name : '#$number',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      textDirection: named ? null : TextDirection.ltr,
+      style: (named ? MadarType.buttonSm : MadarType.numMd).copyWith(
+        color: active ? colors.accent : colors.textPrimary,
+      ),
+    );
+    return Semantics(
+      button: true,
+      selected: active,
+      label: named ? null : (name == null || name.isEmpty ? null : name),
+      child: TactileScale(
+        onTap: () {
+          MadarHaptics.selection();
+          tab.onTap();
+        },
+        // The target is the header's 44; the chip is 36 of it.
+        child: SizedBox(
+          height: Metrics.buttonSmallHeight,
+          child: Center(
+            child: Container(
+              height: _inlineChipHeight,
+              padding: EdgeInsetsDirectional.only(
+                start: _inlineChipPad,
+                end: onClose != null || (active && onRename != null)
+                    ? Space.xs
+                    : _inlineChipPad,
+              ),
+              decoration: BoxDecoration(
+                color: active ? colors.accentBg : colors.surface,
+                borderRadius: BorderRadius.circular(Radii.sm),
+                border: Border.all(
+                  color: active ? colors.accentBg : colors.border,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 112),
+                    child: label,
+                  ),
+                  if (active && onRename != null)
+                    _ChipAct(
+                      key: ValueKey('held-rename-${tab.key}'),
+                      glyph: MadarGlyph.edit,
+                      color: colors.accent,
+                      onTap: onRename,
+                    ),
+                  if (onClose != null)
+                    _ChipAct(
+                      key: ValueKey('held-close-${tab.key}'),
+                      glyph: MadarGlyph.close,
+                      color: colors.textMuted,
+                      onTap: onClose,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A chip's pencil or ✕: a 14 glyph in a 24 x 36 target at the chip's end.
+class _ChipAct extends StatelessWidget {
+  const _ChipAct({
+    required this.glyph,
+    required this.color,
+    required this.onTap,
+    super.key,
+  });
+
+  final MadarGlyph glyph;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    behavior: HitTestBehavior.opaque,
+    child: SizedBox(
+      width: Space.xl,
+      height: _inlineChipHeight,
+      child: Center(
+        child: MadarGlyphIcon(glyph, size: IconSize.xs, color: color),
+      ),
+    ),
+  );
 }
 
 /// Count-badge circle diameter inside a chip (natives: 24.dp).
@@ -220,10 +401,12 @@ class _HeldOrderChip extends StatelessWidget {
     required this.tab,
     required this.newLabel,
     required this.number,
+    this.style = HeldChipStyle.full,
   });
 
   final HeldOrderTab tab;
   final String newLabel;
+  final HeldChipStyle style;
 
   /// The order's number among the held orders, oldest first.
   final int number;
@@ -239,6 +422,8 @@ class _HeldOrderChip extends StatelessWidget {
     final active = tab.selected;
     final badgeFg = active ? colors.textOnAccent : colors.accent;
     final onClose = tab.onClose;
+    final full = style == HeldChipStyle.full;
+    final named = full || active;
 
     return TactileScale(
       onTap: () {
@@ -260,48 +445,55 @@ class _HeldOrderChip extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             // Count badge — the waiter "New" tab shows a plus glyph instead.
-            Container(
-              width: _badgeSize,
-              height: _badgeSize,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: active
-                    ? colors.textOnAccent.withValues(alpha: 0.22)
-                    : colors.accentBg,
-                shape: BoxShape.circle,
-              ),
-              child: tab.glyph != null
-                  ? MadarIcon(tab.glyph, tint: badgeFg, size: IconSize.xs)
-                  : Text(
-                      '${tab.count}',
-                      maxLines: 1,
-                      style: MadarType.labelSm.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: badgeFg,
+            // A number-only chip drops it: the number IS the chip.
+            if (full || tab.glyph != null) ...[
+              Container(
+                width: _badgeSize,
+                height: _badgeSize,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: active
+                      ? colors.textOnAccent.withValues(alpha: 0.22)
+                      : colors.accentBg,
+                  shape: BoxShape.circle,
+                ),
+                child: tab.glyph != null
+                    ? MadarIcon(tab.glyph, tint: badgeFg, size: IconSize.xs)
+                    : Text(
+                        '${tab.count}',
+                        maxLines: 1,
+                        style: MadarType.labelSm.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: badgeFg,
+                        ),
                       ),
-                    ),
-            ),
-            const SizedBox(width: Space.sm),
+              ),
+              const SizedBox(width: Space.sm),
+            ],
             // The order's NAME when the teller set one, else its number by
             // creation order; the New tab reads "new". The time the order
             // was started shows in the cart's footer.
             ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 140),
-              child: MadarClippedText(
-                tab.glyph != null
-                    ? newLabel
-                    : (tab.title?.trim().isNotEmpty ?? false)
-                    ? tab.title!.trim()
-                    : '#$number',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: MadarType.bodySm.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: active ? colors.textOnAccent : colors.textPrimary,
+              constraints: BoxConstraints(maxWidth: full ? 140 : 96),
+              // A number-only chip still SAYS the order's name.
+              child: Semantics(
+                label: full ? null : tab.title?.trim(),
+                child: MadarClippedText(
+                  tab.glyph != null
+                      ? newLabel
+                      : named && (tab.title?.trim().isNotEmpty ?? false)
+                      ? tab.title!.trim()
+                      : '#$number',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MadarType.bodySm.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: active ? colors.textOnAccent : colors.textPrimary,
+                  ),
                 ),
               ),
             ),
-            if (tab.author case final author?) ...[
+            if (tab.author case final author? when full) ...[
               const SizedBox(width: Space.xs),
               Semantics(
                 label: tab.authorLabel ?? author,

@@ -153,7 +153,68 @@ enum MadarButtonSize {
   /// 36 dense tiles. Tight padding and a 13 label: at the compact size the
   /// padding and the glyph left a word 22 points, so "Kitchen" showed as "…".
   dense,
+
+  /// 48 — a toolbar's button, the height of a segment track (the cart's
+  /// Send to kitchen and its note tiles). A trailing figure sits beside the
+  /// label, not at the far end: it is a count, not a total.
+  tool,
+
+  /// 60 — the cart's terminal row: Park beside Charge.
+  bar,
 }
+
+/// The geometry of each [MadarButtonSize]: height, corner, label, glyph,
+/// side padding and the gap between glyph and label.
+({
+  double height,
+  double radius,
+  TextStyle label,
+  double glyph,
+  double pad,
+  double gap,
+})
+_sizeSpec(MadarButtonSize size) => switch (size) {
+  MadarButtonSize.regular => (
+    height: Metrics.buttonHeight,
+    radius: Radii.control,
+    label: MadarType.button,
+    glyph: IconSize.lg,
+    pad: 22,
+    gap: 10,
+  ),
+  MadarButtonSize.compact => (
+    height: Metrics.buttonSmallHeight,
+    radius: Radii.sm,
+    label: MadarType.buttonSm,
+    glyph: IconSize.md,
+    pad: Space.lg,
+    gap: Space.sm,
+  ),
+  MadarButtonSize.dense => (
+    height: Metrics.glyphTileDense,
+    radius: Radii.sm,
+    label: MadarType.bodySm.copyWith(fontWeight: FontWeight.w600),
+    glyph: IconSize.sm,
+    pad: Space.xs,
+    gap: Space.xs,
+  ),
+  MadarButtonSize.tool => (
+    height: Metrics.toolHeight,
+    radius: Radii.control,
+    label: MadarType.buttonSm,
+    glyph: IconSize.lg,
+    pad: Space.lg,
+    gap: Space.sm,
+  ),
+  MadarButtonSize.bar => (
+    height: Metrics.barHeight,
+    radius: Radii.bar,
+    label: MadarType.button,
+    glyph: IconSize.lg,
+    pad: 18,
+    gap: 10,
+  ),
+};
 
 /// THE button. Flat fill, 12px corners, a 17-bold label, a tactile press
 /// scale and an impact haptic; a spinner (at 40%) while [loading]; one neutral
@@ -221,13 +282,6 @@ class MadarButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     final active = enabled && !loading;
-    final compact = size != MadarButtonSize.regular;
-    final dense = size == MadarButtonSize.dense;
-    final height = switch (size) {
-      MadarButtonSize.regular => Metrics.buttonHeight,
-      MadarButtonSize.compact => Metrics.buttonSmallHeight,
-      MadarButtonSize.dense => Metrics.glyphTileDense,
-    };
 
     var (Color? fill, Color fg) = switch (variant) {
       MadarButtonVariant.primary => (colors.accent, colors.textOnAccent),
@@ -245,33 +299,23 @@ class MadarButton extends StatelessWidget {
       fg = colors.textMuted;
     }
 
-    final labelStyle = switch (size) {
-      MadarButtonSize.regular => MadarType.button,
-      MadarButtonSize.compact => MadarType.buttonSm,
-      MadarButtonSize.dense => MadarType.bodySm.copyWith(
-        fontWeight: FontWeight.w600,
-      ),
-    }.copyWith(color: fg);
-    final glyphSize = dense
-        ? IconSize.sm
-        : compact
-        ? IconSize.md
-        : IconSize.lg;
-    final hPad = dense
-        ? Space.xs
-        : variant == MadarButtonVariant.ghost
+    final spec = _sizeSpec(size);
+    final labelStyle = spec.label.copyWith(color: fg);
+    final glyphSize = spec.glyph;
+    final hPad =
+        size != MadarButtonSize.dense && variant == MadarButtonVariant.ghost
         ? Space.md
-        : (compact ? Space.lg : 22.0);
+        : spec.pad;
 
     Widget button = Container(
-      height: height,
-      constraints: BoxConstraints(minWidth: height),
+      height: spec.height,
+      constraints: BoxConstraints(minWidth: spec.height),
       padding: EdgeInsetsDirectional.symmetric(
         horizontal: label.isEmpty ? 0 : hPad,
       ),
       decoration: BoxDecoration(
         color: fill,
-        borderRadius: BorderRadius.circular(compact ? Radii.sm : Radii.control),
+        borderRadius: BorderRadius.circular(spec.radius),
       ),
       // NO `alignment:` here. A Container with an alignment wraps its child
       // in an Align, which EXPANDS to fill loose constraints — which turned a
@@ -298,7 +342,7 @@ class MadarButton extends StatelessWidget {
           // already reached us, so the NEXT one fails loudly in debug
           // instead of quietly on a tablet.
           assert(() {
-            final want = height;
+            final want = spec.height;
             if ((constraints.maxHeight - want).abs() > 0.5) {
               throw FlutterError(
                 'MadarButton "$label" got '
@@ -336,15 +380,11 @@ class MadarButton extends StatelessWidget {
             style: labelStyle,
           );
           return Row(
-            mainAxisAlignment: trailing == null
+            mainAxisAlignment: trailing == null || size == MadarButtonSize.tool
                 ? MainAxisAlignment.center
                 : MainAxisAlignment.spaceBetween,
             mainAxisSize: fillLine ? MainAxisSize.max : MainAxisSize.min,
-            spacing: dense
-                ? Space.xs
-                : compact
-                ? Space.sm
-                : 10,
+            spacing: spec.gap,
             children: [
               if (glyph != null)
                 MadarGlyphIcon(glyph!, size: glyphSize, color: fg)
@@ -415,8 +455,13 @@ class MadarMoneyBar extends StatelessWidget {
     this.loading = false,
     this.reason,
     this.variant = MadarButtonVariant.primary,
+    this.size = MadarButtonSize.regular,
     super.key,
   });
+
+  /// [MadarButtonSize.regular] is the 64 bar; [MadarButtonSize.bar] the
+  /// cart's 60, its currency code quiet beside the figure.
+  final MadarButtonSize size;
 
   final String label;
   final int amountMinor;
@@ -450,13 +495,16 @@ class MadarMoneyBar extends StatelessWidget {
       fg = colors.textMuted;
     }
     final showReason = !enabled && reason != null;
+    final cart = size == MadarButtonSize.bar;
 
     Widget bar = Container(
-      height: Metrics.moneyBarHeight,
-      padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.xl),
+      height: cart ? Metrics.barHeight : Metrics.moneyBarHeight,
+      padding: EdgeInsetsDirectional.symmetric(
+        horizontal: cart ? _sizeSpec(size).pad : Space.xl,
+      ),
       decoration: BoxDecoration(
         color: fill,
-        borderRadius: BorderRadius.circular(Radii.control),
+        borderRadius: BorderRadius.circular(cart ? Radii.bar : Radii.control),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -467,8 +515,33 @@ class MadarMoneyBar extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: MadarType.button.copyWith(fontSize: 18, color: fg),
+            style: cart
+                ? MadarType.button.copyWith(color: fg)
+                : MadarType.button.copyWith(fontSize: 18, color: fg),
           );
+          // The cart's bar (Park beside it, a 300 column): the verb is never
+          // cut — the figure scales down first if the two do not fit.
+          if (cart && bounded && !loading && !showReason) {
+            return Row(
+              spacing: Space.sm,
+              children: [
+                text,
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: AnimatedMoneyText(
+                      amountMinor,
+                      currency: currency,
+                      style: MadarType.moneyMd,
+                      color: fg,
+                      quietCurrency: true,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
           return Row(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             spacing: Space.lg,
@@ -497,6 +570,7 @@ class MadarMoneyBar extends StatelessWidget {
                   currency: currency,
                   style: MadarType.moneyMd,
                   color: fg,
+                  quietCurrency: cart,
                 ),
             ],
           );
@@ -538,8 +612,17 @@ class MadarGlyphTile extends StatelessWidget {
     this.size = MadarButtonSize.compact,
     this.dense = false,
     this.enabled = true,
+    this.caption,
+    this.tooltip,
     super.key,
   }) : assert(glyph != null || icon != null, 'a tile needs a glyph');
+
+  /// A short word under the glyph ("Park") — a [MadarButtonSize.bar] tile.
+  final String? caption;
+
+  /// Hold to read: the tile's word, shown on a long press (a tile with its
+  /// own [onLongPress] keeps that instead). Usually its [semanticLabel].
+  final String? tooltip;
 
   /// The v2 glyph.
   final MadarGlyph? glyph;
@@ -565,7 +648,8 @@ class MadarGlyphTile extends StatelessWidget {
   /// everyone else. A glyph alone says nothing.
   final String? semanticLabel;
 
-  /// [MadarButtonSize.compact] is 44; [MadarButtonSize.regular] is 56.
+  /// [MadarButtonSize.compact] is 44, [MadarButtonSize.tool] 48,
+  /// [MadarButtonSize.regular] 56 and [MadarButtonSize.bar] 60.
   final MadarButtonSize size;
 
   /// 36 square with a smaller glyph, beside a dense [MadarStepper] on a cart
@@ -577,25 +661,65 @@ class MadarGlyphTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final compact = dense || size == MadarButtonSize.compact;
-    final side = dense
-        ? Metrics.glyphTileDense
-        : compact
-        ? Metrics.glyphTile
-        : Metrics.glyphTileLarge;
-    final glyphSize = dense ? IconSize.md : IconSize.xl;
+    final (double side, double radius, double glyphSize) = dense
+        ? (Metrics.glyphTileDense, Radii.sm, IconSize.md)
+        : switch (size) {
+            MadarButtonSize.compact => (
+              Metrics.glyphTile,
+              Radii.sm,
+              IconSize.xl,
+            ),
+            MadarButtonSize.dense => (
+              Metrics.glyphTileDense,
+              Radii.sm,
+              IconSize.md,
+            ),
+            MadarButtonSize.tool => (
+              Metrics.toolHeight,
+              Radii.control,
+              IconSize.lg,
+            ),
+            MadarButtonSize.regular => (
+              Metrics.glyphTileLarge,
+              Radii.control,
+              IconSize.xl,
+            ),
+            MadarButtonSize.bar => (Metrics.barHeight, Radii.bar, IconSize.md),
+          };
     final fg = tint ?? colors.textPrimary;
+    final mark = glyph != null
+        ? MadarGlyphIcon(glyph!, size: glyphSize, color: fg)
+        : MadarIcon(icon, tint: fg, size: glyphSize);
+    final word = caption;
     Widget tile = Container(
       width: side,
       height: side,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: background ?? colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(compact ? Radii.sm : Radii.control),
+        borderRadius: BorderRadius.circular(radius),
       ),
-      child: glyph != null
-          ? MadarGlyphIcon(glyph!, size: glyphSize, color: fg)
-          : MadarIcon(icon, tint: fg, size: glyphSize),
+      child: word == null
+          ? mark
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 2,
+              children: [
+                mark,
+                Padding(
+                  padding: const EdgeInsetsDirectional.symmetric(
+                    horizontal: Space.xs,
+                  ),
+                  child: MadarClippedText(
+                    word,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: MadarType.labelSm.copyWith(color: fg),
+                  ),
+                ),
+              ],
+            ),
     );
     if (!enabled) {
       tile = Opacity(opacity: Opacities.disabled, child: tile);
@@ -615,12 +739,12 @@ class MadarGlyphTile extends StatelessWidget {
         child: tile,
       );
     }
-    final word = semanticLabel;
-    if (word != null) {
+    final hint = tooltip ?? semanticLabel;
+    if (hint != null) {
       // The word the glyph stands in for. The Semantics below already reads
       // it, so the bubble adds no second reading.
       tile = MadarHoldHint(
-        message: word,
+        message: hint,
         hold: onLongPress == null || !enabled,
         child: tile,
       );
@@ -1638,10 +1762,19 @@ class MadarChip extends StatelessWidget {
 /// One option in a [MadarSegmented].
 @immutable
 class MadarSegmentItem<T> {
-  const MadarSegmentItem(this.value, this.label, {this.count, this.glyph});
+  const MadarSegmentItem(
+    this.value,
+    this.label, {
+    this.count,
+    this.glyph,
+    this.key,
+  });
 
   final T value;
   final String label;
+
+  /// The segment's own key (a test finds one segment by it).
+  final Key? key;
 
   /// A count in the label ("Bills 3"), mono.
   final int? count;
@@ -1666,6 +1799,8 @@ class MadarSegmented<T> extends StatelessWidget {
     required this.items,
     required this.value,
     required this.onChanged,
+    this.glyphOnly = false,
+    this.style = MadarSegmentStyle.buttons,
     super.key,
   });
 
@@ -1673,8 +1808,18 @@ class MadarSegmented<T> extends StatelessWidget {
   final T value;
   final ValueChanged<T> onChanged;
 
+  /// The kit's buttons (the default), or a sunk track with a white thumb.
+  final MadarSegmentStyle style;
+
+  /// Glyphs only, for a toggle that must fit a narrow column (the cart's
+  /// Pickup / Dine in under 320). Each segment's label becomes its tooltip,
+  /// and so what a screen reader says; a segment with no glyph keeps its
+  /// label.
+  final bool glyphOnly;
+
   @override
   Widget build(BuildContext context) {
+    if (style == MadarSegmentStyle.track) return _track(context);
     // THE kit's button, not a segmented track.
     //
     // This used to be a pill of cells on a sunk surface — the platform's own
@@ -1690,23 +1835,28 @@ class MadarSegmented<T> extends StatelessWidget {
       children: [
         for (final item in items)
           Expanded(
-            child: MadarButton(
-              label: item.label,
-              glyph: item.glyph,
-              // The count rides the button's own trailing slot rather than
-              // being glued onto the label — it stays mono, and the label
-              // stays the label for anything reading the screen.
-              trailing: item.count == null
-                  ? null
-                  : Text('${item.count}', style: MadarType.numMd),
-              variant: item.value == value
-                  ? MadarButtonVariant.primary
-                  : MadarButtonVariant.secondary,
-              size: MadarButtonSize.compact,
-              onTap: () {
-                if (item.value == value) return;
-                onTap(item.value);
-              },
+            key: item.key,
+            child: Semantics(
+              selected: item.value == value,
+              child: MadarButton(
+                label: glyphOnly && item.glyph != null ? '' : item.label,
+                tooltip: glyphOnly && item.glyph != null ? item.label : null,
+                glyph: item.glyph,
+                // The count rides the button's own trailing slot rather than
+                // being glued onto the label — it stays mono, and the label
+                // stays the label for anything reading the screen.
+                trailing: item.count == null
+                    ? null
+                    : Text('${item.count}', style: MadarType.numMd),
+                variant: item.value == value
+                    ? MadarButtonVariant.primary
+                    : MadarButtonVariant.secondary,
+                size: MadarButtonSize.compact,
+                onTap: () {
+                  if (item.value == value) return;
+                  onTap(item.value);
+                },
+              ),
             ),
           ),
       ],
@@ -1714,6 +1864,121 @@ class MadarSegmented<T> extends StatelessWidget {
   }
 
   void onTap(T v) => onChanged(v);
+
+  /// The sunk track: 48 tall, the chosen segment a white thumb with a soft
+  /// shadow and ink words, the others quiet. No fill shouts which is on —
+  /// the cart's Pickup / Dine in is a setting, not an action.
+  Widget _track(BuildContext context) {
+    final colors = context.madarColors;
+    final shadow = colors.chrome;
+    return Container(
+      height: Metrics.segmentHeight,
+      padding: const EdgeInsetsDirectional.all(Space.xs),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(Radii.control),
+      ),
+      child: Row(
+        spacing: Space.xs,
+        children: [
+          for (final item in items)
+            Expanded(
+              key: item.key,
+              child: Builder(
+                builder: (context) {
+                  final on = item.value == value;
+                  final fg = on ? colors.accent : colors.textSecondary;
+                  final words = !glyphOnly || item.glyph == null;
+                  Widget face = AnimatedContainer(
+                    duration: MotionSpec.standardDuration,
+                    curve: MotionSpec.standardCurve,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsetsDirectional.symmetric(
+                      horizontal: Space.xs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: on
+                          ? colors.surface
+                          : colors.surface.withValues(alpha: 0),
+                      borderRadius: BorderRadius.circular(_thumbRadius),
+                      boxShadow: on
+                          ? [
+                              BoxShadow(
+                                color: shadow.withValues(alpha: 0.14),
+                                offset: const Offset(0, 1),
+                                blurRadius: 2,
+                              ),
+                              BoxShadow(
+                                color: shadow.withValues(alpha: 0.06),
+                                offset: const Offset(0, 1),
+                                blurRadius: 1,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: Space.sm,
+                      children: [
+                        if (item.glyph case final g?)
+                          MadarGlyphIcon(g, size: IconSize.md, color: fg),
+                        if (words)
+                          Flexible(
+                            child: MadarClippedText(
+                              item.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: MadarType.buttonSm.copyWith(color: fg),
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                  face = GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: on
+                        ? null
+                        : () {
+                            MadarHaptics.selection();
+                            onTap(item.value);
+                          },
+                    child: face,
+                  );
+                  if (!words) {
+                    // Hold to read: a glyph-only segment says its word.
+                    face = Tooltip(
+                      message: item.label,
+                      triggerMode: TooltipTriggerMode.longPress,
+                      excludeFromSemantics: true,
+                      child: face,
+                    );
+                  }
+                  return Semantics(
+                    button: true,
+                    selected: on,
+                    label: words ? null : item.label,
+                    child: face,
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The track's thumb sits [Space.xs] inside a [Radii.control] track, one
+/// point rounder than the inset would give, so it reads soft.
+const double _thumbRadius = Radii.control - Space.xs + 1;
+
+/// How a [MadarSegmented] is drawn.
+enum MadarSegmentStyle {
+  /// A row of the kit's buttons, the chosen one filled.
+  buttons,
+
+  /// A sunk track with a white thumb under the chosen segment.
+  track,
 }
 
 /// THE tag: a 26px uppercase state word on its tone's wash — NEW, READY,

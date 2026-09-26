@@ -36,6 +36,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 part 'hold_hint_scenes.dart';
+part 'cart_layout_scenes.dart';
 part 'sell_harness.dart';
 
 const Size _ipadPortrait = Size(834, 1194);
@@ -77,6 +78,7 @@ void main() {
   group('a selected cart line', _selectedLineMain);
   group("a selected line's buttons: one row, or two on purpose", _lineRowsMain);
   group('hold hints', _holdHintsMain);
+  group('the cart column layout', _cartLayoutMain);
 
   group('assigning a held order to a table', () {
     Future<void> assignVia(WidgetTester tester, String chip) async {
@@ -365,11 +367,7 @@ void main() {
         bridge: bridge,
       );
       Future<void> tapClose() async {
-        await tester.tap(
-          find
-              .byWidgetPredicate((w) => w is MadarIcon && w.name == 'xmark')
-              .first,
-        );
+        await tester.tap(find.byKey(const ValueKey('held-close-d1')));
         await _settle(tester);
       }
 
@@ -414,8 +412,8 @@ void main() {
             reason: '$key is fully in view ($line within $cart)',
           );
         }
-        // The dense footer: the compact kitchen button with the note as a
-        // tile beside it — nothing hidden, the note still one tap away.
+        // The toolbar: the 48 kitchen button with its note as a tile beside
+        // it — nothing hidden, the note still one tap away.
         expect(find.byKey(const ValueKey('cart-kitchen-note')), findsOneWidget);
         expect(
           tester
@@ -423,7 +421,7 @@ void main() {
                 find.byKey(const ValueKey('print-cart-kitchen')),
               )
               .size,
-          MadarButtonSize.compact,
+          MadarButtonSize.tool,
         );
         // The controls sit on the selected line only.
         expect(find.byType(MadarStepper), findsNothing);
@@ -464,10 +462,18 @@ void main() {
             )
             .length;
         expect(inFirstRow, 3);
-        // Park keeps its word above Charge in the narrow column.
+        // Park stays beside Charge in the narrow column, its word under
+        // its glyph.
+        final park = tester.widget<MadarGlyphTile>(
+          find.byKey(const ValueKey('cart-park')),
+        );
+        expect(park.caption, isNotEmpty);
         expect(
-          tester.widget(find.byKey(const ValueKey('cart-park'))),
-          isA<MadarButton>(),
+          tester.getCenter(find.byKey(const ValueKey('cart-park'))).dy,
+          closeTo(
+            tester.getCenter(find.byKey(const ValueKey('cart-charge'))).dy,
+            0.5,
+          ),
         );
         await _capture(tester, 'sell-counter-narrow-column');
       },

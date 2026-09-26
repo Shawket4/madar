@@ -151,6 +151,12 @@ enum MadarGlyph {
   wifi,
   wifiOff,
 
+  /// Park (hold) an order: two bars. Never the bag — the bag is Pickup.
+  pause,
+
+  /// The kitchen: a chef's hat. The kitchen-only note.
+  chef,
+
   // ── State discs (the outbox pill, a row's state word) ─────────────────
   /// Queued: half full.
   half,
@@ -371,6 +377,14 @@ final Map<MadarGlyph, List<GlyphShape>> _shapes = {
     GlyphShape(
       'M5 4h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-8l-5 4v-4H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z',
     ),
+  ],
+  MadarGlyph.pause: [
+    GlyphShape(_rect(6.5, 5, 3.5, 14, 1), fill: true),
+    GlyphShape(_rect(14, 5, 3.5, 14, 1), fill: true),
+  ],
+  MadarGlyph.chef: const [
+    GlyphShape('M7 14v5h10v-5', duo: false),
+    GlyphShape('M7 14a4 4 0 1 1 1.5-7.7A4 4 0 0 1 16 6.5 4 4 0 1 1 17 14z'),
   ],
   MadarGlyph.phone: const [
     GlyphShape(

@@ -31,6 +31,9 @@ abstract final class Radii {
   /// A card.
   static const double card = 16;
 
+  /// The cart's terminal row (Park, Charge).
+  static const double bar = 14;
+
   /// A sheet or a modal.
   static const double sheet = 20;
 
@@ -133,6 +136,13 @@ abstract final class Metrics {
   /// The whole dense stepper, for a row that works out what fits beside it.
   static const double stepperDenseWidth =
       stepperDenseKey * 2 + stepperDenseValue;
+
+  /// A toolbar's button and tile (the cart's Send to kitchen, its notes):
+  /// the height of a segment track.
+  static const double toolHeight = 48;
+
+  /// The cart's terminal row: Park and Charge.
+  static const double barHeight = 60;
 
   /// The dark rail on the start edge of a tablet.
   static const double railWidth = 88;
