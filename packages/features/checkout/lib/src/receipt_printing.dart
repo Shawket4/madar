@@ -94,6 +94,23 @@ Future<CartLineChit> buildCartLineChit(
   tillBrand: printerBrandOf(bridge.deviceConfig().printerBrand),
 );
 
+/// The same line's RECIPE CARD: its chit, routed the same way, with each
+/// dish's ingredients for one and its steps under it.
+Future<CartLineChit> buildCartLineRecipeChit(
+  MadarBridge bridge, {
+  required String? tableId,
+  required String lineKey,
+  String? tableLabel,
+  String? ticketRef,
+}) => bridge.cartLineRecipeChit(
+  tableId: tableId,
+  lineKey: lineKey,
+  tableLabel: tableLabel,
+  ticketRef: ticketRef,
+  width: kReceiptChars,
+  tillBrand: printerBrandOf(bridge.deviceConfig().printerBrand),
+);
+
 /// Send a built [chit] to the printer the core routed it to: its station's
 /// LAN printer, or the device's till printer when `target.host` is null.
 ///

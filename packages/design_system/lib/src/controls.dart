@@ -491,6 +491,7 @@ class MadarGlyphTile extends StatelessWidget {
     this.background,
     this.semanticLabel,
     this.size = MadarButtonSize.compact,
+    this.dense = false,
     this.enabled = true,
     super.key,
   }) : assert(glyph != null || icon != null, 'a tile needs a glyph');
@@ -521,13 +522,22 @@ class MadarGlyphTile extends StatelessWidget {
   /// [MadarButtonSize.compact] is 44; [MadarButtonSize.regular] is 56.
   final MadarButtonSize size;
 
+  /// 36 square with a smaller glyph, beside a dense [MadarStepper] on a cart
+  /// line. Overrides [size].
+  final bool dense;
+
   final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final compact = size == MadarButtonSize.compact;
-    final side = compact ? Metrics.glyphTile : Metrics.glyphTileLarge;
+    final compact = dense || size == MadarButtonSize.compact;
+    final side = dense
+        ? Metrics.glyphTileDense
+        : compact
+        ? Metrics.glyphTile
+        : Metrics.glyphTileLarge;
+    final glyphSize = dense ? IconSize.md : IconSize.xl;
     final fg = tint ?? colors.textPrimary;
     Widget tile = Container(
       width: side,
@@ -538,8 +548,8 @@ class MadarGlyphTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(compact ? Radii.sm : Radii.control),
       ),
       child: glyph != null
-          ? MadarGlyphIcon(glyph!, size: IconSize.xl, color: fg)
-          : MadarIcon(icon, tint: fg, size: IconSize.xl),
+          ? MadarGlyphIcon(glyph!, size: glyphSize, color: fg)
+          : MadarIcon(icon, tint: fg, size: glyphSize),
     );
     if (!enabled) {
       tile = Opacity(opacity: Opacities.disabled, child: tile);
@@ -1708,6 +1718,7 @@ class MadarStepper extends StatelessWidget {
     this.max,
     this.decrementLabel,
     this.incrementLabel,
+    this.dense = false,
     super.key,
   });
 
@@ -1715,6 +1726,10 @@ class MadarStepper extends StatelessWidget {
   final ValueChanged<int> onChanged;
   final int min;
   final int? max;
+
+  /// 36 tall with narrower keys — a cart line, where the name needs the
+  /// width more than the keys do.
+  final bool dense;
 
   /// Screen-reader labels for the two keys, already localised.
   final String? decrementLabel;
@@ -1725,6 +1740,7 @@ class MadarStepper extends StatelessWidget {
     final colors = context.madarColors;
     final canDown = value > min;
     final canUp = max == null || value < max!;
+    final side = dense ? Metrics.stepperDense : Metrics.stepper;
     Widget key(
       MadarGlyph glyph, {
       required bool enabled,
@@ -1732,11 +1748,11 @@ class MadarStepper extends StatelessWidget {
       String? label,
     }) {
       final face = SizedBox.square(
-        dimension: Metrics.stepper,
+        dimension: side,
         child: Center(
           child: MadarGlyphIcon(
             glyph,
-            size: IconSize.md,
+            size: dense ? IconSize.sm : IconSize.md,
             color: enabled ? colors.textPrimary : colors.textMuted,
           ),
         ),
@@ -1764,7 +1780,7 @@ class MadarStepper extends StatelessWidget {
     }
 
     return Container(
-      height: Metrics.stepper,
+      height: side,
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
         borderRadius: BorderRadius.circular(Radii.sm),
@@ -1779,12 +1795,14 @@ class MadarStepper extends StatelessWidget {
             label: decrementLabel,
           ),
           SizedBox(
-            width: 32,
+            width: dense ? 26 : 32,
             child: Text(
               '$value',
               textAlign: TextAlign.center,
               textDirection: TextDirection.ltr,
-              style: MadarType.numLg.copyWith(color: colors.textPrimary),
+              style: (dense ? MadarType.num : MadarType.numLg).copyWith(
+                color: colors.textPrimary,
+              ),
             ),
           ),
           key(

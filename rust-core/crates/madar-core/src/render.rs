@@ -900,6 +900,21 @@ impl Renderer {
             if let Some(n) = it.note.as_deref().filter(|s| !s.trim().is_empty()) {
                 self.indented(&format!("{} {}", labels.note, n.trim()), RS_SMALL, 0);
             }
+            // The recipe card: what goes into one, then the steps in order.
+            if !it.recipe.is_empty() {
+                self.gap(self.sx(4));
+                self.indented_w(&labels.recipe, RS_BODY, Weight::BOLD, 0);
+                for r in &it.recipe {
+                    self.indented(&format!("• {}", r.trim()), RS_SMALL, 16);
+                }
+            }
+            if !it.steps.is_empty() {
+                self.gap(self.sx(4));
+                self.indented_w(&labels.steps, RS_BODY, Weight::BOLD, 0);
+                for (n, st) in it.steps.iter().enumerate() {
+                    self.indented(&format!("{}. {}", n + 1, st.trim()), RS_SMALL, 16);
+                }
+            }
         }
 
         self.rule();
@@ -1676,6 +1691,8 @@ mod tests {
             heading: "المطبخ".into(),
             table: "طاولة".into(),
             note: "ملاحظة:".into(),
+            recipe: "Recipe:".into(),
+            steps: "Steps:".into(),
         }
     }
 
@@ -1693,6 +1710,8 @@ mod tests {
                 modifiers: vec!["زيادة جبنة".into()],
                 note: Some("بدون بصل".into()), // "no onions"
                 combo: None,
+                recipe: Vec::new(),
+                steps: Vec::new(),
             }],
         }
     }
@@ -1740,6 +1759,8 @@ mod tests {
             modifiers: vec![],
             note: None,
             combo: None,
+            recipe: Vec::new(),
+            steps: Vec::new(),
         });
         let one_bitmap = render_kitchen_chit(&slip, &kitchen_labels(), PRINT_WIDTH);
         let mut first_only = slip.clone();
@@ -1804,6 +1825,8 @@ mod tests {
             heading: tr("kitchen.chit_heading"),
             table: tr("kitchen.chit_table"),
             note: tr("kitchen.chit_note"),
+            recipe: tr("kitchen.recipe"),
+            steps: tr("kitchen.steps"),
         }
     }
 
@@ -1913,6 +1936,8 @@ mod tests {
             heading: "KITCHEN".into(),
             table: "Table".into(),
             note: "Note:".into(),
+            recipe: "Recipe:".into(),
+            steps: "Steps:".into(),
         };
         let mut slip = arabic_slip();
         slip.at = "03:31 AM".into();
@@ -1988,6 +2013,8 @@ mod tests {
             heading: "KITCHEN".into(),
             table: "Table".into(),
             note: "Note:".into(),
+            recipe: "Recipe:".into(),
+            steps: "Steps:".into(),
         };
         let mut ar_report = till_report();
         ar_report.teller_name = "منى".into();

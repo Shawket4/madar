@@ -695,7 +695,7 @@ void main() {
       return (container, saved);
     }
 
-    testWidgets('switches to Legacy and back, and persists each pick', (
+    testWidgets('switches to Fast mode and back, and persists each pick', (
       tester,
     ) async {
       final (container, saved) = await pump(
@@ -711,15 +711,19 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text(_en['settings.sell_layout_hint']!), findsOneWidget);
-      await tester.tap(find.text(_en['settings.sell_layout_legacy']!));
+      expect(find.text(_en['settings.sell_layout_body']!), findsOneWidget);
+      // The Fast mode note shows only while it is on.
+      expect(find.text(_en['settings.sell_layout_hint']!), findsNothing);
+      await tester.tap(find.text(_en['settings.sell_layout_fast']!));
       await tester.pump();
-      expect(container.read(sellLayoutProvider), SellLayout.legacy);
+      expect(container.read(sellLayoutProvider), SellLayout.fast);
+      expect(find.text(_en['settings.sell_layout_hint']!), findsOneWidget);
       await tester.tap(find.text(_en['settings.sell_layout_standard']!));
       await tester.pump();
-      expect(saved, [SellLayout.legacy, SellLayout.standard]);
+      expect(saved, [SellLayout.fast, SellLayout.standard]);
       expect(SellLayout.parse('nonsense'), SellLayout.standard);
-      expect(SellLayout.parse('legacy'), SellLayout.legacy);
+      expect(SellLayout.parse('fast'), SellLayout.fast);
+      expect(SellLayout.parse('legacy'), SellLayout.fast);
     });
 
     testWidgets('is offered on the iPad settings page, to anyone', (
@@ -961,6 +965,9 @@ void main() {
       name: 'settings-sheets-base',
     );
     Future<void> open(String row, String expectText, String shot) async {
+      // The device rows sit under the Sell layout and Appearance cards now.
+      await tester.ensureVisible(find.text(row));
+      await tester.pump();
       await tester.tap(find.text(row));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 700));

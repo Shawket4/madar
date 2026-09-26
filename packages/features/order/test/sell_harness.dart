@@ -459,7 +459,7 @@ class _FakeBridge implements MadarBridge {
     final can = fakeCanInvocation(invocation, () => currentSession()?.role);
     if (can != null) return can;
     final name = invocation.memberName;
-    // Charge, drawn in the legacy panel: the core's tender figures restated
+    // Charge, drawn in Fast mode's panel: the core's tender figures restated
     // (checkout's own tests pin the real ones), cash only.
     if (name == #tenderSummary) {
       final a = invocation.namedArguments;
@@ -638,7 +638,15 @@ class _FakeBridge implements MadarBridge {
           chit: KitchenSlip(
             at: '13:05',
             topNotes: const [],
-            items: [KitchenSlipItem(item: key, qty: 1, modifiers: const [])],
+            items: [
+              KitchenSlipItem(
+                item: key,
+                qty: 1,
+                modifiers: const [],
+                recipe: const [],
+                steps: const [],
+              ),
+            ],
           ),
           preview: [
             const ChitLineView(
@@ -755,7 +763,13 @@ class _FakeBridge implements MadarBridge {
             topNotes: cartNote == null ? const [] : [cartNote],
             items: [
               for (final l in lines)
-                KitchenSlipItem(item: l.name, qty: l.qty, modifiers: const []),
+                KitchenSlipItem(
+                  item: l.name,
+                  qty: l.qty,
+                  modifiers: const [],
+                  recipe: const [],
+                  steps: const [],
+                ),
             ],
           ),
           cartNote: cartNote,

@@ -335,7 +335,7 @@ class _ComboSheetState extends ConsumerState<ComboSheet> {
         ),
         // Hug content when it fits; scroll when the slots overflow — the
         // footer stays pinned and visible (the item sheet's body).
-        // In a panel (the legacy Sell layout) the body fills it instead, so
+        // In a panel (the Sell screen's Fast mode) the body fills it instead, so
         // the footer sits at the panel's foot, not under the last group.
         Flexible(
           fit: MadarPanelHost.isPanelPage(context)
@@ -631,24 +631,19 @@ class _PickDetails extends ConsumerWidget {
           ),
           if (choice.sizes.length > 1) ...[
             const SizedBox(height: Space.sm),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final size in choice.sizes) ...[
-                    ItemSheetChip(
-                      key: ValueKey('size-${pick.itemId}-${size.label}'),
-                      label: size.label,
-                      sub: size.extraMinor > 0
-                          ? '+${money(size.extraMinor)}'
-                          : bridge.tr(key: 'combo.included'),
-                      active: chosen == size.label,
-                      onTap: () => onSize(size),
-                    ),
-                    const SizedBox(width: Space.sm),
-                  ],
-                ],
-              ),
+            ItemSheetOptionGrid(
+              children: [
+                for (final size in choice.sizes)
+                  ItemSheetChip(
+                    key: ValueKey('size-${pick.itemId}-${size.label}'),
+                    label: size.label,
+                    sub: size.extraMinor > 0
+                        ? '+${money(size.extraMinor)}'
+                        : bridge.tr(key: 'combo.included'),
+                    active: chosen == size.label,
+                    onTap: () => onSize(size),
+                  ),
+              ],
             ),
           ],
           if (summary.isNotEmpty) ...[

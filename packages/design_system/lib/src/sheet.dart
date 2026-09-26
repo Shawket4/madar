@@ -66,7 +66,7 @@ Future<T?> showMadarSheet<T>(
   double maxWidth = Responsive.sheetMaxWidth,
   MadarSheetTone tone = MadarSheetTone.surface,
 }) {
-  // Under a panel host (the Sell screen's legacy layout) the sheet opens in
+  // Under a panel host (the Sell screen's Fast mode) the sheet opens in
   // the panel, in place of what it shows (panel.dart).
   final hosted = MadarPanelHost.maybeOf(
     context,

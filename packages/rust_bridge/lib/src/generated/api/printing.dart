@@ -250,6 +250,12 @@ class KitchenSlipItem {
   /// The combo this dish belongs to, already worded ("In Lunch deal").
   final String? combo;
 
+  /// A recipe card's ingredients for one, already worded; else empty.
+  final List<String> recipe;
+
+  /// A recipe card's steps in order, already worded; else empty.
+  final List<String> steps;
+
   const KitchenSlipItem({
     required this.item,
     required this.qty,
@@ -257,6 +263,8 @@ class KitchenSlipItem {
     required this.modifiers,
     this.note,
     this.combo,
+    required this.recipe,
+    required this.steps,
   });
 
   @override
@@ -266,7 +274,9 @@ class KitchenSlipItem {
       sizeLabel.hashCode ^
       modifiers.hashCode ^
       note.hashCode ^
-      combo.hashCode;
+      combo.hashCode ^
+      recipe.hashCode ^
+      steps.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -278,7 +288,9 @@ class KitchenSlipItem {
           sizeLabel == other.sizeLabel &&
           modifiers == other.modifiers &&
           note == other.note &&
-          combo == other.combo;
+          combo == other.combo &&
+          recipe == other.recipe &&
+          steps == other.steps;
 }
 
 /// Which thermal-printer command dialect to emit. Epson (ESC/POS) and Star

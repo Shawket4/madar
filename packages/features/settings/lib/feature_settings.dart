@@ -16,6 +16,7 @@ export 'src/settings_provider.dart'
     show SettingsNotifier, SettingsState, settingsProvider;
 export 'src/settings_screen.dart'
     show
+        AppearanceCard,
         LanguageSegment,
         MotionSegment,
         SellLayoutSection,

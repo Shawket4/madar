@@ -91,6 +91,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       textDirection: locale.rtl ? TextDirection.rtl : TextDirection.ltr,
       child: MadarPageScaffold(
         title: bridge.tr(key: 'settings.title'),
+        subtitle: bridge.tr(key: 'settings.subtitle'),
         width: MadarContentWidth.reading,
         body: SingleChildScrollView(
           padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
@@ -147,6 +148,10 @@ class _Preferences extends ConsumerWidget {
             onTap: ref.read(settingsProvider.notifier).clearWriteError,
           ),
         const ProfileCard(),
+        // How this till looks and behaves first, as the design has it; the
+        // device's hardware and diagnostics under it.
+        const SellLayoutSection(),
+        const AppearanceCard(),
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.md,
@@ -155,26 +160,6 @@ class _Preferences extends ConsumerWidget {
             const _RowList(),
           ],
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.md,
-          children: [
-            MadarSectionHeader(text: t('settings.language')),
-            const LanguageSegment(),
-          ],
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.md,
-          children: [
-            MadarSectionHeader(text: t('settings.theme')),
-            const ThemeSegment(),
-            const SizedBox(height: Space.sm),
-            MadarSectionHeader(text: t('settings.motion')),
-            const MotionSegment(),
-          ],
-        ),
-        const SellLayoutSection(),
         MadarButton(
           label: t('settings.sign_out'),
           glyph: MadarGlyph.signOut,
@@ -328,45 +313,391 @@ class MotionSegment extends ConsumerWidget {
   }
 }
 
-/// The Sell screen's layout on this tablet: Standard · Legacy, with a line
-/// saying what Legacy changes. Any teller may switch it (no permission);
-/// the choice stays on this device. Nothing at all on a phone, which always
-/// sells the standard way. Shared with the Me tab.
+/// Theme, language and animations as one card of rows, the label at the
+/// start and its control at the end (stacked when the card is narrow) — the
+/// design's Preferences card. Shared with the Me tab.
+class AppearanceCard extends ConsumerWidget {
+  const AppearanceCard({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.bridge;
+    String t(String key) => bridge.tr(key: key);
+    final rows = [
+      (t('settings.theme'), const ThemeSegment()),
+      (t('settings.language'), const LanguageSegment()),
+      (t('settings.motion'), const MotionSegment()),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
+      children: [
+        MadarSectionHeader(text: t('settings.appearance')),
+        MadarCard(
+          flush: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final (index, (label, control)) in rows.indexed) ...[
+                if (index > 0) const MadarHairline.row(),
+                _Preference(label: label, control: control),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One preference in the card: a kit row with its control at the end, or —
+/// in a card too narrow for both — the label over the control.
+class _Preference extends StatelessWidget {
+  const _Preference({required this.label, required this.control});
+
+  final String label;
+  final Widget control;
+
+  /// Under this the control goes under its label instead of beside it.
+  static const double _sideBySide = 520;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        if (c.maxWidth >= _sideBySide) {
+          return MadarListRow.nav(
+            title: label,
+            trailing: SizedBox(width: c.maxWidth * 0.55, child: control),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Space.card,
+            vertical: Space.md,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: Space.sm,
+            children: [
+              Text(
+                label,
+                style: MadarType.title.copyWith(
+                  color: context.madarColors.textPrimary,
+                ),
+              ),
+              control,
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// The Sell screen's layout on this tablet, as the design draws it: a card
+/// with what the choice is about and that it is this till's alone, then the
+/// two layouts side by side as radio cards — each a small picture of the
+/// screen, its name and one line on what it changes — and, while Fast mode
+/// is on, a note saying so. Any teller may switch it (no permission); the
+/// choice stays on this device. Nothing at all on a phone, which always sells
+/// the standard way. Shared with the Me tab.
 class SellLayoutSection extends ConsumerWidget {
   const SellLayoutSection({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (!MadarLayout.of(context).isTablet) return const SizedBox.shrink();
+    final colors = context.madarColors;
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
+    final value = ref.watch(sellLayoutProvider);
+    final notifier = ref.read(sellLayoutProvider.notifier);
+    final options = [
+      (
+        SellLayout.standard,
+        t('settings.sell_layout_standard'),
+        t('settings.sell_layout_standard_desc'),
+      ),
+      (
+        SellLayout.fast,
+        t('settings.sell_layout_fast'),
+        t('settings.sell_layout_fast_desc'),
+      ),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
       children: [
-        MadarSectionHeader(text: t('settings.sell_layout')),
-        MadarSegmented<SellLayout>(
-          key: const ValueKey('sell-layout'),
-          items: [
-            MadarSegmentItem(
-              SellLayout.standard,
-              t('settings.sell_layout_standard'),
-            ),
-            MadarSegmentItem(
-              SellLayout.legacy,
-              t('settings.sell_layout_legacy'),
-            ),
-          ],
-          value: ref.watch(sellLayoutProvider),
-          onChanged: ref.read(sellLayoutProvider.notifier).set,
+        MadarSectionHeader(
+          text: t('settings.sell_layout'),
+          trailing: MadarTag(label: t('settings.this_till_only')),
         ),
-        Text(
-          t('settings.sell_layout_hint'),
-          style: MadarType.bodySm.copyWith(
-            color: context.madarColors.textSecondary,
+        MadarCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: Space.lg,
+            children: [
+              Text(
+                t('settings.sell_layout_body'),
+                style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+              ),
+              Semantics(
+                key: const ValueKey('sell-layout'),
+                container: true,
+                label: t('settings.sell_layout'),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: Space.lg,
+                  children: [
+                    for (final (layout, name, desc) in options)
+                      Expanded(
+                        child: _LayoutOption(
+                          key: ValueKey('sell-layout-${layout.name}'),
+                          layout: layout,
+                          name: name,
+                          description: desc,
+                          selected: value == layout,
+                          onTap: () => notifier.set(layout),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (value == SellLayout.fast)
+                NoticeBanner(
+                  text: t('settings.sell_layout_hint'),
+                  tone: ChipTone.info,
+                  icon: 'exclamationmark.circle',
+                ),
+            ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// One layout as a radio card: the screen in miniature, a radio, its name
+/// and what it changes.
+class _LayoutOption extends StatelessWidget {
+  const _LayoutOption({
+    required this.layout,
+    required this.name,
+    required this.description,
+    required this.selected,
+    required this.onTap,
+    super.key,
+  });
+
+  final SellLayout layout;
+  final String name;
+  final String description;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return Semantics(
+      inMutuallyExclusiveGroup: true,
+      checked: selected,
+      button: true,
+      label: name,
+      child: TactileScale(
+        onTap: () {
+          MadarHaptics.selection();
+          onTap();
+        },
+        child: AnimatedContainer(
+          duration: MotionSpec.gentleDuration,
+          curve: MotionSpec.gentleCurve,
+          padding: const EdgeInsetsDirectional.all(Space.md),
+          decoration: BoxDecoration(
+            color: selected
+                ? colors.accent.withValues(alpha: 0.08)
+                : colors.surface,
+            borderRadius: BorderRadius.circular(Radii.card),
+            border: Border.all(
+              color: selected ? colors.accent : colors.borderLight,
+              width: 2,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: Space.md,
+            children: [
+              ExcludeSemantics(child: _LayoutPreview(layout: layout)),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: Space.md,
+                children: [
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(top: 2),
+                    child: _Radio(on: selected),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 2,
+                      children: [
+                        Text(
+                          name,
+                          style: MadarType.title.copyWith(
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          description,
+                          style: MadarType.bodySm.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Radio extends StatelessWidget {
+  const _Radio({required this.on});
+
+  final bool on;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return Container(
+      width: 22,
+      height: 22,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: on ? colors.accent : colors.border, width: 2),
+      ),
+      child: AnimatedScale(
+        scale: on ? 1 : 0,
+        duration: MotionSpec.gentleDuration,
+        child: Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: colors.accent,
+            shape: BoxShape.circle,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The Sell screen in miniature: the rail, the top bar, the cart column and
+/// the menu. Standard puts the menu first; Fast mode the cart first, over
+/// category boxes. Follows the reading direction like the real screen.
+class _LayoutPreview extends StatelessWidget {
+  const _LayoutPreview({required this.layout});
+
+  final SellLayout layout;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final fast = layout == SellLayout.fast;
+    Widget bar(double widthFactor, Color color, double height) =>
+        FractionallySizedBox(
+          widthFactor: widthFactor,
+          alignment: AlignmentDirectional.centerStart,
+          child: Container(
+            height: height,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+        );
+    final cart = Expanded(
+      flex: 34,
+      child: Container(
+        padding: const EdgeInsetsDirectional.all(6),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          border: BorderDirectional(
+            start: BorderSide(color: colors.borderLight),
+            end: BorderSide(color: colors.borderLight),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 4,
+          children: [
+            bar(0.55, colors.textPrimary, 6),
+            for (var i = 0; i < 3; i++) bar(1, colors.surfaceAlt, 10),
+            const Spacer(),
+            bar(1, colors.accent, 14),
+          ],
+        ),
+      ),
+    );
+    final menu = Expanded(
+      flex: 66,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.all(6),
+        child: GridView.count(
+          crossAxisCount: fast ? 3 : 4,
+          mainAxisSpacing: 4,
+          crossAxisSpacing: 4,
+          childAspectRatio: fast ? 1.3 : 1,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            for (var i = 0; i < (fast ? 6 : 12); i++)
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: fast && i.isEven
+                      ? colors.accent.withValues(alpha: 0.12)
+                      : colors.surface,
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: colors.borderLight),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+    return Container(
+      height: 150,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: colors.bg,
+        borderRadius: BorderRadius.circular(Radii.sm),
+        border: Border.all(color: colors.borderLight),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(width: 12, color: colors.textPrimary),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(height: 10, color: colors.textPrimary),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: fast ? [cart, menu] : [menu, cart],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

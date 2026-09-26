@@ -2243,6 +2243,8 @@ async fn the_kitchen_gets_one_dish_per_part_tagged_with_its_combo() {
         heading: "KITCHEN".into(),
         table: "Table".into(),
         note: "Note:".into(),
+        recipe: "Recipe:".into(),
+        steps: "Steps:".into(),
     };
     let printed: Vec<String> = receipt::kitchen_chit_layout(&chits[2], &labels, 32)
         .into_iter()
@@ -2566,6 +2568,8 @@ fn one_size_is_never_a_size_a_person_reads() {
         heading: "KITCHEN".into(),
         table: "Table".into(),
         note: "Note:".into(),
+        recipe: "Recipe:".into(),
+        steps: "Steps:".into(),
     };
     let printed: Vec<String> = receipt::kitchen_chit_layout(&chit, &labels, 32).into_iter().map(|l| l.text).collect();
     assert!(!printed.iter().any(|t| t.contains("one_size")), "{printed:#?}");

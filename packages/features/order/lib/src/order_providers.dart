@@ -1362,6 +1362,53 @@ class OrderNotifier extends Notifier<OrderState> {
     sayChitPrint(ref.read(appToastProvider.notifier), _bridge, result);
   }
 
+  /// [line]'s recipe card to the kitchen: the printer its chit goes to,
+  /// each dish's ingredients for one and its steps. Changes nothing on the
+  /// line (its kitchen note stays for the real chit).
+  Future<void> printRecipeChit(
+    CartLineView line, {
+    required String? tableId,
+    String? tableLabel,
+    String? ticketRef,
+  }) async {
+    PrintState result;
+    try {
+      final chit = await buildCartLineRecipeChit(
+        _bridge,
+        tableId: tableId,
+        lineKey: line.key,
+        tableLabel: tableLabel,
+        ticketRef: ticketRef,
+      );
+      result = await printCartLineChit(
+        _bridge,
+        ref.read(printerServiceProvider),
+        chit,
+      );
+    } on Object {
+      result = PrintState.failed;
+    }
+    sayChitPrint(
+      ref.read(appToastProvider.notifier),
+      _bridge,
+      result,
+      sentKey: 'printing.recipe_sent',
+    );
+  }
+
+  /// Whether [line] has anything a recipe card would print: a recipe or
+  /// steps on its item, or on any of a combo's items.
+  bool lineHasRecipe(CartLineView line) {
+    final ids = line.kind == 'combo'
+        ? line.parts.map((p) => p.itemId).toSet()
+        : {line.itemId};
+    return state.menuItems.any(
+      (i) =>
+          ids.contains(i.id) &&
+          (i.recipes.isNotEmpty || i.recipeSteps.isNotEmpty),
+    );
+  }
+
   /// One cart line rendered for the kitchen: one chit per dish — a combo's
   /// items each on their own, tagged with the combo (C12). The core builds
   /// the chits; `null` when it could not lay them out — the caller decides

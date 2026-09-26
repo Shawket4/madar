@@ -79,11 +79,15 @@ class StaffDrinkTile extends ConsumerWidget {
     required this.line,
     this.tableId,
     this.counterSale = true,
+    this.dense = false,
     super.key,
   });
 
   final CartLineView line;
   final String? tableId;
+
+  /// The cart line's dense tile, beside its dense stepper.
+  final bool dense;
 
   /// The cart CHARGES a counter sale. False on a cart that fires a round (a
   /// table's cart, a targeted bill, a waiter's): a ticket never carries a
@@ -108,6 +112,7 @@ class StaffDrinkTile extends ConsumerWidget {
       child: MadarGlyphTile(
         key: ValueKey('staff-drink-${line.key}'),
         glyph: MadarGlyph.users,
+        dense: dense,
         semanticLabel: label,
         onTap: () => unawaited(
           showStaffDrinkSheet(context, ref, line: line, tableId: tableId),

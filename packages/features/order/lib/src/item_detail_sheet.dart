@@ -5,6 +5,8 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/order_providers.dart';
+import 'package:feature_order/src/widgets.dart';
+import 'package:feature_order/src/words.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Family TYPE annotations moved to the misc library in Riverpod 3.
@@ -361,7 +363,7 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
     final single = <String, String>{};
     final multi = <String, Map<String, int>>{};
     var optionals = const <String>{};
-    var size = item.sizes.firstOrNull?.label;
+    var size = baseSizeLabel(item);
     var qty = 1;
     final editLine = args.editLine;
     final pick = args.pick;
@@ -997,7 +999,7 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
         ),
         // Hug content when it fits (short sheet for a sparse item); scroll
         // when the options overflow — the footer stays pinned + visible.
-        // In a panel (the legacy Sell layout) the body fills it instead, so
+        // In a panel (the Sell screen's Fast mode) the body fills it instead, so
         // the footer sits at the panel's foot, not under the last group.
         Flexible(
           fit: MadarPanelHost.isPanelPage(context)
@@ -1064,25 +1066,20 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                   if (!picking && _hasSizeChoice(_item.sizes)) ...[
                     MadarSectionHeader(text: bridge.tr(key: 'order.size')),
                     const SizedBox(height: Space.sm),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          for (final size in _item.sizes) ...[
-                            ItemSheetChip(
-                              label: size.label,
-                              sub: Money.format(
-                                size.priceMinor,
-                                currency: currency,
-                                locale: MadarFormat.localeOf(context),
-                              ),
-                              active: config.size == size.label,
-                              onTap: () => notifier.selectSize(size.label),
+                    ItemSheetOptionGrid(
+                      children: [
+                        for (final size in _item.sizes)
+                          ItemSheetChip(
+                            label: size.label,
+                            sub: Money.format(
+                              size.priceMinor,
+                              currency: currency,
+                              locale: MadarFormat.localeOf(context),
                             ),
-                            const SizedBox(width: Space.sm),
-                          ],
-                        ],
-                      ),
+                            active: config.size == size.label,
+                            onTap: () => notifier.selectSize(size.label),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: Space.md),
                   ],
@@ -1129,6 +1126,28 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                     MadarSectionHeader(text: bridge.tr(key: 'order.steps')),
                     const SizedBox(height: Space.sm),
                     _StepList(steps: _item.recipeSteps),
+                    const SizedBox(height: Space.lg),
+                  ],
+                  // Editing a line of the cart: its recipe card (ingredients
+                  // for one and these steps) to the kitchen, from where the
+                  // recipe is being read. It prints the line as it is in the
+                  // cart — what the kitchen is making.
+                  if (widget.editLine case final line?
+                      when widget.pick == null &&
+                          (_item.recipes.isNotEmpty ||
+                              _item.recipeSteps.isNotEmpty)) ...[
+                    MadarButton(
+                      key: const ValueKey('item-send-recipe'),
+                      label: orderWord(bridge, 'sell.send_recipe'),
+                      glyph: MadarGlyph.list,
+                      variant: MadarButtonVariant.secondary,
+                      size: MadarButtonSize.compact,
+                      onTap: () => unawaited(
+                        ref
+                            .read(orderProvider.notifier)
+                            .printRecipeChit(line, tableId: widget.tableId),
+                      ),
+                    ),
                     const SizedBox(height: Space.lg),
                   ],
                   MadarSectionHeader(text: bridge.tr(key: 'order.notes')),
@@ -1236,9 +1255,7 @@ class _OptionalsSectionState extends ConsumerState<_OptionalsSection> {
                             widget.selected.contains(f.id),
                       )
                       .toList(growable: false);
-            return Wrap(
-              spacing: Space.sm,
-              runSpacing: Space.sm,
+            return ItemSheetOptionGrid(
               children: [
                 for (final field in shown)
                   _OptionalChip(
@@ -1702,167 +1719,233 @@ class _ItemSheetGroupCardState extends ConsumerState<ItemSheetGroupCard> {
         : (widget.selectedSingle != null ? 1 : 0);
 
     return Container(
-      padding: const EdgeInsetsDirectional.all(Space.md),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(Radii.md),
         border: Border.all(color: colors.border),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // The whole header is the toggle: a 4px chevron is not a tap target
-          // on a tablet someone is using one-handed with a cup in the other.
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: Row(
+          // The whole top of the card is the toggle — the title band, its
+          // subtitle and, folded, the summary under it — padding and all. Only
+          // the title row used to be: an 18pt strip, so a tap on the card's
+          // edge or on the summary did nothing and people aimed for the arrow.
+          Semantics(
+            button: true,
+            expanded: _expanded,
+            // Its own transparent Material: an InkWell draws its ripple on the
+            // nearest one, which is under this card's fill.
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                onTap: () {
+                  MadarHaptics.selection();
+                  setState(() => _expanded = !_expanded);
+                },
+                child: Padding(
+                  padding: EdgeInsetsDirectional.fromSTEB(
+                    Space.md,
+                    Space.md,
+                    Space.md,
+                    _expanded ? Space.sm : Space.md,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: Space.xl),
+                        child: Row(
+                          children: [
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: colors.accent,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const SizedBox.square(dimension: Space.sm),
+                            ),
+                            const SizedBox(width: Space.sm),
+                            // Title flexes + ellipsizes so a long group name can't push
+                            // the chips off the end edge.
+                            Expanded(
+                              child: Text(
+                                g.title.toUpperCase(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: MadarType.labelSm.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: colors.textSecondary,
+                                  letterSpacing: MadarType.tracking,
+                                ),
+                              ),
+                            ),
+                            if (g.isRequired) ...[
+                              const SizedBox(width: Space.sm),
+                              // Answered: a check in green. Still open: the
+                              // warning dot, the thing between you and Add.
+                              StatusChip(
+                                key: ValueKey(
+                                  'required-${g.id}-${count > 0 ? 'ok' : 'open'}',
+                                ),
+                                label: bridge.tr(key: 'order.required'),
+                                tone: count > 0
+                                    ? ChipTone.success
+                                    : ChipTone.warning,
+                                icon: count > 0 ? 'checkmark' : null,
+                              ),
+                            ],
+                            if (g.isMulti && g.maxSel != null) ...[
+                              const SizedBox(width: Space.sm),
+                              StatusChip(label: '≤${g.maxSel}'),
+                            ],
+                            if (g.isMulti && count > 0) ...[
+                              const SizedBox(width: Space.sm),
+                              StatusChip(
+                                label: '$count',
+                                tone: ChipTone.accent,
+                              ),
+                            ],
+                            const SizedBox(width: Space.sm),
+                            AnimatedRotation(
+                              turns: _expanded ? 0.5 : 0,
+                              duration: MotionSpec.gentleDuration,
+                              curve: MotionSpec.gentleCurve,
+                              child: Icon(
+                                Icons.keyboard_arrow_down,
+                                size: 18,
+                                color: colors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (widget.subtitle case final subtitle?) ...[
+                        const SizedBox(height: Space.xs),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: MadarType.bodySm.copyWith(
+                            color: colors.textMuted,
+                          ),
+                        ),
+                      ],
+                      // Folded: the selection, so nothing is hidden — only folded.
+                      if (!_expanded) ...[
+                        const SizedBox(height: Space.sm),
+                        Text(
+                          _summary(bridge),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: MadarType.bodySm.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsetsDirectional.fromSTEB(
+              Space.md,
+              0,
+              Space.md,
+              _expanded || widget.below != null ? Space.md : 0,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.accent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const SizedBox.square(dimension: Space.sm),
-                ),
-                const SizedBox(width: Space.sm),
-                // Title flexes + ellipsizes so a long group name can't push
-                // the chips off the end edge.
-                Expanded(
-                  child: Text(
-                    g.title.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: MadarType.labelSm.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: colors.textSecondary,
-                      letterSpacing: MadarType.tracking,
+                if (_expanded) ...[
+                  const SizedBox(height: Space.xs),
+                  if (g.addons.length > 5) ...[
+                    MadarField(
+                      controller: _search,
+                      placeholder: bridge.tr(key: 'order.search_addons'),
+                      kind: MadarFieldKind.search,
+                      icon: 'magnifyingglass',
                     ),
-                  ),
-                ),
-                if (g.isRequired) ...[
-                  const SizedBox(width: Space.sm),
-                  StatusChip(
-                    label: bridge.tr(key: 'order.required'),
-                    tone: ChipTone.danger,
+                    const SizedBox(height: Space.md),
+                  ],
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _search,
+                    builder: (context, search, _) {
+                      // Filter by the live query; selected chips always stay
+                      // visible so a filter never hides an active selection.
+                      final q = search.text.trim().toLowerCase();
+                      final shown = q.isEmpty
+                          ? g.addons
+                          : g.addons
+                                .where(
+                                  (a) =>
+                                      a.name.toLowerCase().contains(q) ||
+                                      (g.isMulti
+                                          ? widget.selectedMulti.containsKey(
+                                              a.addonItemId,
+                                            )
+                                          : widget.selectedSingle ==
+                                                a.addonItemId),
+                                )
+                                .toList(growable: false);
+                      Widget keyed(String id, Widget chip) =>
+                          switch (widget.optionKey) {
+                            final key? => KeyedSubtree(
+                              key: key(id),
+                              child: chip,
+                            ),
+                            null => chip,
+                          };
+                      return ItemSheetOptionGrid(
+                        children: [
+                          for (final addon in shown)
+                            if (g.isMulti &&
+                                widget.selectedMulti.containsKey(
+                                  addon.addonItemId,
+                                ))
+                              keyed(
+                                addon.addonItemId,
+                                _AddonQtyChip(
+                                  name: addon.name,
+                                  priceMinor: widget.charged(addon.addonItemId),
+                                  qty:
+                                      widget.selectedMulti[addon.addonItemId] ??
+                                      1,
+                                  currency: widget.currency,
+                                  onDec: () => widget.onDec(addon.addonItemId),
+                                  onInc: () => widget.onInc(addon.addonItemId),
+                                ),
+                              )
+                            else
+                              keyed(
+                                addon.addonItemId,
+                                _AddonOptionChip(
+                                  name: addon.name,
+                                  priceMinor: widget.charged(addon.addonItemId),
+                                  selected:
+                                      !g.isMulti &&
+                                      widget.selectedSingle ==
+                                          addon.addonItemId,
+                                  multi: g.isMulti,
+                                  currency: widget.currency,
+                                  onTap: () => g.isMulti
+                                      ? widget.onToggleMulti(addon.addonItemId)
+                                      : widget.onToggleSingle(
+                                          addon.addonItemId,
+                                        ),
+                                ),
+                              ),
+                        ],
+                      );
+                    },
                   ),
                 ],
-                if (g.isMulti && g.maxSel != null) ...[
-                  const SizedBox(width: Space.sm),
-                  StatusChip(label: '≤${g.maxSel}'),
-                ],
-                if (g.isMulti && count > 0) ...[
-                  const SizedBox(width: Space.sm),
-                  StatusChip(label: '$count', tone: ChipTone.accent),
-                ],
-                const SizedBox(width: Space.sm),
-                AnimatedRotation(
-                  turns: _expanded ? 0.5 : 0,
-                  duration: MotionSpec.gentleDuration,
-                  curve: MotionSpec.gentleCurve,
-                  child: Icon(
-                    Icons.keyboard_arrow_down,
-                    size: 18,
-                    color: colors.textSecondary,
-                  ),
-                ),
+                ?widget.below,
               ],
             ),
           ),
-          if (widget.subtitle case final subtitle?) ...[
-            const SizedBox(height: Space.xs),
-            Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: MadarType.bodySm.copyWith(color: colors.textMuted),
-            ),
-          ],
-          // Folded: the selection, so nothing is hidden — only folded.
-          if (!_expanded) ...[
-            const SizedBox(height: Space.sm),
-            Text(
-              _summary(bridge),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: MadarType.bodySm.copyWith(color: colors.textSecondary),
-            ),
-          ],
-          if (_expanded) ...[
-            const SizedBox(height: Space.md),
-            if (g.addons.length > 5) ...[
-              MadarField(
-                controller: _search,
-                placeholder: bridge.tr(key: 'order.search_addons'),
-                kind: MadarFieldKind.search,
-                icon: 'magnifyingglass',
-              ),
-              const SizedBox(height: Space.md),
-            ],
-            ValueListenableBuilder<TextEditingValue>(
-              valueListenable: _search,
-              builder: (context, search, _) {
-                // Filter by the live query; selected chips always stay
-                // visible so a filter never hides an active selection.
-                final q = search.text.trim().toLowerCase();
-                final shown = q.isEmpty
-                    ? g.addons
-                    : g.addons
-                          .where(
-                            (a) =>
-                                a.name.toLowerCase().contains(q) ||
-                                (g.isMulti
-                                    ? widget.selectedMulti.containsKey(
-                                        a.addonItemId,
-                                      )
-                                    : widget.selectedSingle == a.addonItemId),
-                          )
-                          .toList(growable: false);
-                Widget keyed(String id, Widget chip) =>
-                    switch (widget.optionKey) {
-                      final key? => KeyedSubtree(key: key(id), child: chip),
-                      null => chip,
-                    };
-                return Wrap(
-                  spacing: Space.sm,
-                  runSpacing: Space.sm,
-                  children: [
-                    for (final addon in shown)
-                      if (g.isMulti &&
-                          widget.selectedMulti.containsKey(addon.addonItemId))
-                        keyed(
-                          addon.addonItemId,
-                          _AddonQtyChip(
-                            name: addon.name,
-                            priceMinor: widget.charged(addon.addonItemId),
-                            qty: widget.selectedMulti[addon.addonItemId] ?? 1,
-                            currency: widget.currency,
-                            onDec: () => widget.onDec(addon.addonItemId),
-                            onInc: () => widget.onInc(addon.addonItemId),
-                          ),
-                        )
-                      else
-                        keyed(
-                          addon.addonItemId,
-                          _AddonOptionChip(
-                            name: addon.name,
-                            priceMinor: widget.charged(addon.addonItemId),
-                            selected:
-                                !g.isMulti &&
-                                widget.selectedSingle == addon.addonItemId,
-                            multi: g.isMulti,
-                            currency: widget.currency,
-                            onTap: () => g.isMulti
-                                ? widget.onToggleMulti(addon.addonItemId)
-                                : widget.onToggleSingle(addon.addonItemId),
-                          ),
-                        ),
-                  ],
-                );
-              },
-            ),
-          ],
-          ?widget.below,
         ],
       ),
     );
@@ -1891,55 +1974,15 @@ class _AddonOptionChip extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final fg = selected ? colors.textOnAccent : colors.textPrimary;
-    return TactileScale(
-      onTap: () {
-        MadarHaptics.selection();
-        onTap();
-      },
-      child: Container(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Space.md,
-          vertical: 9,
-        ),
-        decoration: BoxDecoration(
-          color: selected ? colors.accent : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(Radii.xs),
-          border: selected ? null : Border.all(color: colors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (multi && !selected) ...[
-              MadarIcon(
-                'plus',
-                tint: colors.textPrimary.withValues(alpha: 0.6),
-                size: IconSize.xs,
-              ),
-              const SizedBox(width: 6),
-            ],
-            Text(
-              name,
-              style: MadarType.bodySm.copyWith(
-                fontWeight: FontWeight.w600,
-                color: fg,
-              ),
-            ),
-            if (priceMinor > 0) ...[
-              const SizedBox(width: 6),
-              _PricePill(
-                priceMinor: priceMinor,
-                on: selected,
-                currency: currency,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _OptionTile(
+    name: name,
+    sub: priceMinor > 0
+        ? '+${Money.format(priceMinor, currency: currency, locale: MadarFormat.localeOf(context))}'
+        : null,
+    selected: selected,
+    check: selected && !multi,
+    onTap: onTap,
+  );
 }
 
 /// An optional-field toggle chip: check-circle leading glyph, accent fill
@@ -1960,49 +2003,15 @@ class _OptionalChip extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final fg = on ? colors.textOnAccent : colors.textPrimary;
-    return TactileScale(
-      onTap: () {
-        MadarHaptics.selection();
-        onTap();
-      },
-      child: Container(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Space.md,
-          vertical: 9,
-        ),
-        decoration: BoxDecoration(
-          color: on ? colors.accent : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(Radii.xs),
-          border: on ? null : Border.all(color: colors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            MadarIcon(
-              on ? 'checkmark.circle.fill' : 'circle',
-              tint: fg,
-              size: IconSize.xs,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              name,
-              style: MadarType.bodySm.copyWith(
-                fontWeight: FontWeight.w600,
-                color: fg,
-              ),
-            ),
-            if (priceMinor > 0) ...[
-              const SizedBox(width: 6),
-              _PricePill(priceMinor: priceMinor, on: on, currency: currency),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _OptionTile(
+    name: name,
+    sub: priceMinor > 0
+        ? '+${Money.format(priceMinor, currency: currency, locale: MadarFormat.localeOf(context))}'
+        : null,
+    selected: on,
+    check: on,
+    onTap: onTap,
+  );
 }
 
 /// A selected multi-select chip with an inline qty stepper.
@@ -2024,138 +2033,16 @@ class _AddonQtyChip extends StatelessWidget {
   final VoidCallback onInc;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Container(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Space.xs,
-        vertical: 3,
-      ),
-      decoration: BoxDecoration(
-        color: colors.accent,
-        borderRadius: BorderRadius.circular(Radii.xs),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _ChipStep(glyph: 'minus', onTap: onDec),
-          const SizedBox(width: 2),
-          Column(
-            children: [
-              Text(
-                name,
-                style: MadarType.label.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: colors.textOnAccent,
-                ),
-              ),
-              if (priceMinor > 0)
-                Text(
-                  '+${Money.format(priceMinor * qty, currency: currency, locale: MadarFormat.localeOf(context))}',
-                  textDirection: TextDirection.ltr,
-                  style: MadarType.labelSm.copyWith(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textOnAccent.withValues(alpha: 0.85),
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 2),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: colors.textOnAccent.withValues(alpha: 0.22),
-              borderRadius: BorderRadius.circular(Radii.pill),
-            ),
-            child: Padding(
-              padding: const EdgeInsetsDirectional.symmetric(
-                horizontal: 6,
-                vertical: 2,
-              ),
-              child: Text(
-                '$qty',
-                style: MadarType.labelSm.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: colors.textOnAccent,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 2),
-          _ChipStep(glyph: 'plus', onTap: onInc),
-        ],
-      ),
-    );
-  }
-}
-
-class _ChipStep extends StatelessWidget {
-  const _ChipStep({required this.glyph, required this.onTap});
-
-  final String glyph;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return GestureDetector(
-      onTap: () {
-        MadarHaptics.selection();
-        onTap();
-      },
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        width: 24,
-        height: Metrics.stepper,
-        child: Center(
-          child: MadarIcon(glyph, tint: colors.textOnAccent, size: IconSize.sm),
-        ),
-      ),
-    );
-  }
-}
-
-/// The little "+price" pill inside a chip.
-class _PricePill extends StatelessWidget {
-  const _PricePill({
-    required this.priceMinor,
-    required this.on,
-    required this.currency,
-  });
-
-  final int priceMinor;
-  final bool on;
-  final String currency;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: on
-            ? colors.textOnAccent.withValues(alpha: 0.2)
-            : colors.accentBg,
-        borderRadius: BorderRadius.circular(Radii.pill),
-      ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: 6,
-          vertical: 2,
-        ),
-        child: Text(
-          '+${Money.format(priceMinor, currency: currency, locale: MadarFormat.localeOf(context))}',
-          textDirection: TextDirection.ltr,
-          style: MadarType.labelSm.copyWith(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            color: on ? colors.textOnAccent : colors.accent,
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _OptionTile(
+    name: name,
+    sub: priceMinor > 0
+        ? '+${Money.format(priceMinor * qty, currency: currency, locale: MadarFormat.localeOf(context))}'
+        : null,
+    selected: true,
+    count: qty,
+    onTap: onInc,
+    onDec: onDec,
+  );
 }
 
 /// Centered "Show all / show assigned add-ons" toggle.
@@ -2203,7 +2090,204 @@ class _ShowAllToggle extends StatelessWidget {
   }
 }
 
-/// A size chip: label over its price, accent fill when active.
+/// One choice in the item's sheet — a size, an option, an extra — as the
+/// design's tile: a grid cell at least [kOptionTileMinHeight] tall, the name
+/// over its price, the accent wash and a 2pt ring when chosen, a check in the
+/// corner for a pick-one, a count and a − for a pick-many.
+class _OptionTile extends StatelessWidget {
+  const _OptionTile({
+    required this.name,
+    required this.selected,
+    required this.onTap,
+    this.sub,
+    this.check = false,
+    this.count,
+    this.onDec,
+  });
+
+  final String name;
+  final String? sub;
+  final bool selected;
+  final bool check;
+
+  /// A pick-many's count, drawn in the corner; a tap adds one more.
+  final int? count;
+  final VoidCallback? onDec;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final sub = this.sub;
+    final count = this.count;
+    final onDec = this.onDec;
+    final tile = TactileScale(
+      onTap: () {
+        MadarHaptics.selection();
+        onTap();
+      },
+      child: AnimatedContainer(
+        duration: MotionSpec.gentleDuration,
+        curve: MotionSpec.gentleCurve,
+        constraints: const BoxConstraints(minHeight: kOptionTileMinHeight),
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          Space.md,
+          Space.sm,
+          Space.xl + Space.sm,
+          Space.sm,
+        ),
+        decoration: BoxDecoration(
+          color: selected
+              ? colors.accent.withValues(alpha: 0.1)
+              : colors.surface,
+          borderRadius: BorderRadius.circular(Radii.control),
+          border: Border.all(
+            color: selected ? colors.accent : colors.border,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 2,
+          children: [
+            Text(
+              name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: MadarType.bodySm.copyWith(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
+            ),
+            if (sub != null)
+              Text(
+                sub,
+                textDirection: TextDirection.ltr,
+                maxLines: 1,
+                style: MadarType.num.copyWith(color: colors.textSecondary),
+              ),
+          ],
+        ),
+      ),
+    );
+    return Semantics(
+      selected: selected,
+      child: Stack(
+        children: [
+          tile,
+          if (check)
+            PositionedDirectional(
+              top: Space.sm,
+              end: Space.sm,
+              child: IgnorePointer(
+                child: Container(
+                  width: 20,
+                  height: 20,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: colors.accent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: MadarGlyphIcon(
+                    MadarGlyph.check,
+                    size: IconSize.xs,
+                    color: colors.textOnAccent,
+                  ),
+                ),
+              ),
+            ),
+          if (count != null)
+            PositionedDirectional(
+              top: Space.sm,
+              end: Space.sm,
+              child: IgnorePointer(
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 24),
+                  height: 24,
+                  padding: const EdgeInsetsDirectional.symmetric(
+                    horizontal: Space.sm,
+                  ),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: colors.accent,
+                    borderRadius: BorderRadius.circular(Radii.pill),
+                  ),
+                  child: Text(
+                    '$count×',
+                    textDirection: TextDirection.ltr,
+                    style: MadarType.label.copyWith(color: colors.textOnAccent),
+                  ),
+                ),
+              ),
+            ),
+          if (onDec != null)
+            PositionedDirectional(
+              bottom: Space.xs,
+              end: Space.xs,
+              child: Semantics(
+                button: true,
+                child: TactileScale(
+                  onTap: () {
+                    MadarHaptics.selection();
+                    onDec();
+                  },
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: colors.surface,
+                      borderRadius: BorderRadius.circular(Radii.xs),
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: MadarGlyphIcon(
+                      MadarGlyph.minus,
+                      size: IconSize.sm,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The option tile's floor: taller than a chip, the design's "slightly
+/// larger buttons" a thumb finds without looking.
+const double kOptionTileMinHeight = 64;
+
+/// The choices as a grid of equal tiles: as many columns of at least
+/// [_minTile] as the width holds, two to four.
+class ItemSheetOptionGrid extends StatelessWidget {
+  const ItemSheetOptionGrid({required this.children, super.key});
+
+  final List<Widget> children;
+  static const double _minTile = 140;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final columns = (c.maxWidth / _minTile).floor().clamp(2, 4);
+        final width = (c.maxWidth - Space.sm * (columns - 1)) / columns;
+        return Wrap(
+          spacing: Space.sm,
+          runSpacing: Space.sm,
+          children: [
+            for (final child in children) SizedBox(width: width, child: child),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// A size, as an option tile.
 class ItemSheetChip extends StatelessWidget {
   const ItemSheetChip({
     required this.label,
@@ -2219,52 +2303,13 @@ class ItemSheetChip extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final fg = active ? colors.textOnAccent : colors.textPrimary;
-    final sub = this.sub;
-    return TactileScale(
-      onTap: () {
-        MadarHaptics.selection();
-        onTap();
-      },
-      child: Container(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Space.lg,
-          vertical: Space.sm,
-        ),
-        decoration: BoxDecoration(
-          color: active ? colors.accent : colors.surface,
-          borderRadius: BorderRadius.circular(Radii.sm),
-          border: active ? null : Border.all(color: colors.border),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: MadarType.bodySm.copyWith(
-                fontWeight: FontWeight.w600,
-                color: fg,
-              ),
-            ),
-            if (sub != null)
-              Text(
-                sub,
-                textDirection: TextDirection.ltr,
-                style: MadarType.labelSm.copyWith(
-                  fontWeight: FontWeight.w500,
-                  color: active
-                      ? colors.textOnAccent.withValues(alpha: 0.8)
-                      : colors.textSecondary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _OptionTile(
+    name: label,
+    sub: sub,
+    selected: active,
+    check: active,
+    onTap: onTap,
+  );
 }
 
 /// The preparation steps, numbered, with one animation playing at a time.

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:design_system/design_system.dart' show ThemeChoice;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// The booted core. The app overrides this on the post-boot subtree:
@@ -344,7 +345,7 @@ final motionChoicePersisterProvider = Provider<void Function(MotionChoice)>(
 
 /// Where the Sell screen puts things on a tablet. [standard]: the menu
 /// first, the cart as a column at the end, an item's choices in a sheet.
-/// [legacy]: the cart first, the menu at the end, and an item's choices,
+/// [fast] ("Fast mode"): the cart first, the menu at the end, and an item's choices,
 /// a combo, the charge or a note opening IN PLACE of the menu, the way the
 /// cashier apps tellers come from lay it out. A phone always sells the
 /// standard way: it has no room for the two side by side.
@@ -353,11 +354,13 @@ final motionChoicePersisterProvider = Provider<void Function(MotionChoice)>(
 /// no permission and never leaves the till. Persisted through the host hook.
 enum SellLayout {
   standard,
-  legacy;
+  fast;
 
   /// The persisted name back to a layout; anything unknown is [standard].
-  static SellLayout parse(String? name) =>
-      name == 'legacy' ? SellLayout.legacy : SellLayout.standard;
+  /// 'legacy' is what a till saved before the mode was renamed Fast.
+  static SellLayout parse(String? name) => name == 'fast' || name == 'legacy'
+      ? SellLayout.fast
+      : SellLayout.standard;
 }
 
 class SellLayoutNotifier extends Notifier<SellLayout> {
@@ -737,3 +740,31 @@ final deviceResetProvider =
     NotifierProvider<DeviceResetNotifier, void Function()?>(
       DeviceResetNotifier.new,
     );
+
+/// Pickup or dine in, per cart (null = the counter's takeaway cart, else that
+/// table's), chosen at the top of the cart and carried into Charge.
+///
+/// It changes no money: a dine-in sale is sent as `service_mode: dine_in` and
+/// the server leaves every ingredient in a PACKAGING category (cups, lids,
+/// straws, bags — the dashboard's Inventory › Settings switch) off its
+/// deduction. It has nothing to do with the floor: a counter shop with no
+/// tables is who needs it most. A table's cart starts dine-in; any cart goes
+/// back to its default once its sale is taken.
+class DineInNotifier extends Notifier<bool> {
+  DineInNotifier(this.tableId);
+
+  final String? tableId;
+
+  @override
+  bool build() => tableId != null;
+
+  // A notifier's verb, like every other notifier's `set`; not a setter.
+  // ignore: use_setters_to_change_properties
+  void set({required bool dineIn}) => state = dineIn;
+
+  /// Back to this cart's default, after its sale.
+  void reset() => state = tableId != null;
+}
+
+final NotifierProviderFamily<DineInNotifier, bool, String?> dineInProvider =
+    NotifierProvider.family<DineInNotifier, bool, String?>(DineInNotifier.new);

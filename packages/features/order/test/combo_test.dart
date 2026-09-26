@@ -891,12 +891,19 @@ void main() {
     final c = await _mount(tester, fake, size: _tablet, body: _opener);
     await _open(tester);
 
+    // The size tiles are the taller option tiles now: scroll to them.
+    await tester.ensureVisible(find.byKey(const ValueKey('size-latte-Large')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('size-latte-Large')));
     await tester.pumpAndSettle();
     expect(
       fake.quoted.last.firstWhere((p) => p.itemId == 'latte').sizeLabel,
       'Large',
     );
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('choice-s-main-chicken')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('choice-s-main-chicken')));
     await tester.pumpAndSettle();
     final picks = fake.quoted.last;
@@ -1086,10 +1093,10 @@ void main() {
     );
   }
 
-  // ── the legacy layout: the same sheets, drawn in the menu panel ─────────
-  group('in a panel host (the legacy Sell layout)', () {
+  // ── Fast mode: the same sheets, drawn in the menu panel ─────────────────
+  group('in a panel host (Fast mode)', () {
     /// A cart-like column holding the opener, beside a panel whose rest page
-    /// is the menu: the shape the legacy Sell screen gives its sheets.
+    /// is the menu: the shape Fast mode gives its sheets.
     Widget panel(Widget Function(BuildContext) opener) {
       final nav = GlobalKey<NavigatorState>();
       return MadarPanelHost(

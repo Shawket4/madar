@@ -60,6 +60,7 @@ export 'src/receipt_printing.dart'
         PrintState,
         buildCartKitchenChit,
         buildCartLineChit,
+        buildCartLineRecipeChit,
         kPrintTimeout,
         kReceiptChars,
         printCartKitchenChit,

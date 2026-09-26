@@ -9,7 +9,7 @@
 // On an iPad the cart is a column beside the catalog; on a phone it is a bar
 // at the bottom whose ▲ opens it as a sheet. Both draw `SellCart`.
 //
-// LEGACY LAYOUT (a per-till setting, `sellLayoutProvider`, tablets only): the
+// FAST MODE (a per-till setting, `sellLayoutProvider`, tablets only): the
 // cart comes first and the menu sits at the end, in a panel that hosts the
 // screen's sheets (`MadarPanelHost`). An item's choices, a combo, Charge, a
 // note: each replaces the menu in place and gives it back when it closes.
@@ -163,9 +163,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   /// shares a GlobalKey with the Sell tab mounted underneath it.
   final _anchors = CartAnchors();
 
-  // ── legacy layout ──────────────────────────────────────────────────────────
+  // ── fast mode ──────────────────────────────────────────────────────────────
 
-  /// The menu panel's navigator (legacy layout): the menu is its first page,
+  /// The menu panel's navigator (Fast mode): the menu is its first page,
   /// and the sheets this screen opens are pushed over it, in place.
   final _panelNav = GlobalKey<NavigatorState>();
 
@@ -178,23 +178,23 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   /// line changed while money is being taken would charge the old cart.
   bool _chargingInPanel = false;
 
-  /// Whether this screen sells in the legacy layout right now. Kept while a
+  /// Whether this screen sells in Fast mode right now. Kept while a
   /// charge is up in the panel, so switching the setting mid-charge cannot
   /// tear the panel (and the charge in it) away.
-  bool _legacyNow(BuildContext context) =>
+  bool _fastNow(BuildContext context) =>
       _chargingInPanel ||
       (MadarLayout.of(context).isTablet &&
-          ref.watch(sellLayoutProvider) == SellLayout.legacy);
+          ref.watch(sellLayoutProvider) == SellLayout.fast);
 
-  bool get _legacy =>
+  bool get _fast =>
       _chargingInPanel ||
       (MadarLayout.of(context).isTablet &&
-          ref.read(sellLayoutProvider) == SellLayout.legacy);
+          ref.read(sellLayoutProvider) == SellLayout.fast);
 
-  /// Where this screen's sheets open: the panel in the legacy layout, the
+  /// Where this screen's sheets open: the panel in Fast mode, the
   /// window otherwise.
   BuildContext get _sheetContext =>
-      _legacy ? (_hostKey.currentContext ?? context) : context;
+      _fast ? (_hostKey.currentContext ?? context) : context;
 
   String? get _tableId => widget.tableId;
 
@@ -218,9 +218,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
   // ── quick-add ──────────────────────────────────────────────────────────────
 
-  /// The rule: a sheet iff the item has more than one size, or any modifier
-  /// group that is required (or wants at least one pick). Everything else is
-  /// one tap.
+  /// The rule: a sheet iff the item has a modifier group that is required
+  /// (or wants at least one pick). Everything else is one tap — an item with
+  /// sizes too: it lands at its base size ([baseSizeLabel]), and a tap on the
+  /// line changes it (owner decision, 2026-09-26).
   ///
   /// Null when the options could not be read: nothing is added then (the
   /// notifier says why), and nothing is remembered, so the next tap asks
@@ -229,12 +230,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   Future<bool?> _itemNeedsSheet(MenuItemView item) async {
     final known = _needsSheet[item.id];
     if (known != null) return known;
-    var needs = item.sizes.length > 1;
-    if (!needs) {
-      final groups = await _notifier.tryLoadItemModifierGroups(item.id);
-      if (groups == null) return null;
-      needs = groups.any((g) => g.isRequired || g.minSelections > 0);
-    }
+    final groups = await _notifier.tryLoadItemModifierGroups(item.id);
+    if (groups == null) return null;
+    final needs = groups.any((g) => g.isRequired || g.minSelections > 0);
     _needsSheet[item.id] = needs;
     return needs;
   }
@@ -277,13 +275,14 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   /// items keep the cheaper `add`.
   Future<void> _quickAdd(MenuItemView item) {
     final milk = item.defaultMilkAddonId;
-    if (milk == null) return _cart.add(item);
+    final size = baseSizeLabel(item);
+    if (milk == null && size == null) return _cart.add(item);
     return _cart.addConfigured(
       itemId: item.id,
-      addons: [AddonSelection(addonItemId: milk, qty: 1)],
+      addons: [if (milk != null) AddonSelection(addonItemId: milk, qty: 1)],
       optionalIds: const [],
       qty: 1,
-      sizeLabel: item.sizes.firstOrNull?.label,
+      sizeLabel: size,
     );
   }
 
@@ -318,10 +317,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         ),
       ),
     );
-    // In the legacy layout the choices stay up beside a cart that is still
+    // In Fast mode the choices stay up beside a cart that is still
     // in reach: the tap is done once they are shown, so the next tile or
     // line tap is taken (and replaces them) instead of waiting behind them.
-    if (_legacy) {
+    if (_fast) {
       unawaited(pending.then(_afterItemSheet));
       return;
     }
@@ -345,8 +344,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       draft: draft,
       anchors: _anchors,
     );
-    // Legacy: shown in the panel is done (see [_openItemSheet]).
-    if (_legacy) {
+    // Fast mode: shown in the panel is done (see [_openItemSheet]).
+    if (_fast) {
       unawaited(shown);
       return;
     }
@@ -397,7 +396,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     // Captured BEFORE the drawer: settling clears the cart (and with it the
     // draft identity) — this is the parked order the sale completes.
     final settledDraftId = cart.draftId;
-    final inPanel = _legacy;
+    final inPanel = _fast;
     if (inPanel) setState(() => _chargingInPanel = true);
     final ChargeOutcome? outcome;
     try {
@@ -481,10 +480,15 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       });
 
     final layout = MadarLayout.of(context);
-    final legacy = _legacyNow(context);
+    final fast = _fastNow(context);
     final order = ref.watch(orderProvider);
     final cart = ref.watch(cartProvider(_tableId));
-    final header = orderHeaderFor(bridge, order, cart);
+    final header = orderHeaderFor(
+      bridge,
+      order,
+      cart,
+      dineIn: ref.watch(dineInProvider(_tableId)),
+    );
     final counter =
         !order.isWaiter && _tableId == null && cartTicket(order, cart) == null;
     final drafts = order.drafts.length;
@@ -528,6 +532,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       query: _searching ? _search.text : null,
       onItemTap: (item, origin) => unawaited(_onTileTap(item, origin)),
       onItemLongPress: (item) => unawaited(_openItemSheet(item)),
+      categoryBoxes: _fastNow(context),
     );
 
     // As a tab body the shell's top bar above it already paid the top inset;
@@ -548,17 +553,19 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
           below: headerBelow,
           body: SafeArea(
             top: false,
-            child: legacy
-                ? _LegacySellBody(
+            child: fast
+                ? _FastSellBody(
                     panelNav: _panelNav,
                     hostKey: _hostKey,
                     cartWidth: MadarRoom.of(context).cartColumnWidth,
                     cartLocked: _chargingInPanel,
+                    backLabel: orderWord(ref.bridge, 'sell.back_to_menu'),
                     catalog: catalog,
                     cart: SellCart(
                       tableId: _tableId,
                       onTerminal: () => unawaited(_terminal()),
                       onEditLine: (line) => unawaited(_editLine(line)),
+                      editOnSelect: true,
                     ),
                   )
                 : layout.isTablet
@@ -595,22 +602,26 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   }
 }
 
-/// The legacy layout's body: the cart on the start edge, then the menu in a
+/// Fast mode's body: the cart on the start edge, then the menu in a
 /// panel that hosts this screen's sheets in place ([MadarPanelHost]). The
 /// menu is the panel's first page; whatever opens over it (an item's
 /// choices, a combo, Charge, a note from the cart) is pushed on top and
 /// popped back to it.
-class _LegacySellBody extends StatelessWidget {
-  const _LegacySellBody({
+class _FastSellBody extends StatelessWidget {
+  const _FastSellBody({
     required this.panelNav,
     required this.hostKey,
     required this.cartWidth,
     required this.cartLocked,
     required this.catalog,
     required this.cart,
+    required this.backLabel,
   });
 
   final GlobalKey<NavigatorState> panelNav;
+
+  /// The bar over whatever opens in the panel ("Back to menu").
+  final String backLabel;
 
   /// Keys a context under the host, for the screen's own sheet calls.
   final GlobalKey hostKey;
@@ -625,6 +636,7 @@ class _LegacySellBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return MadarPanelHost(
       navigatorKey: panelNav,
+      backLabel: backLabel,
       child: Row(
         key: hostKey,
         children: [
@@ -635,17 +647,23 @@ class _LegacySellBody extends StatelessWidget {
           const VerticalDivider(width: 1, thickness: 1),
           Expanded(
             child: ClipRect(
-              child: Navigator(
-                key: panelNav,
-                // A page, not an initial route: the menu rebuilds with the
-                // screen (search, the cart's badges) under whatever is open.
-                pages: [
-                  MaterialPage<void>(
-                    key: const ValueKey('sell-menu'),
-                    child: catalog,
-                  ),
-                ],
-                onDidRemovePage: (_) {},
+              // The system back closes what the panel shows before it ever
+              // leaves the screen: the panel's navigator is nested, and the
+              // root one would otherwise take the gesture.
+              child: NavigatorPopHandler(
+                onPopWithResult: (_) => panelNav.currentState?.maybePop(),
+                child: Navigator(
+                  key: panelNav,
+                  // A page, not an initial route: the menu rebuilds with the
+                  // screen (search, the cart's badges) under whatever is open.
+                  pages: [
+                    MaterialPage<void>(
+                      key: const ValueKey('sell-menu'),
+                      child: catalog,
+                    ),
+                  ],
+                  onDidRemovePage: (_) {},
+                ),
               ),
             ),
           ),
@@ -658,11 +676,14 @@ class _LegacySellBody extends StatelessWidget {
 /// The page header over one cart: "Takeaway" at the counter; "T5 · 4 guests"
 /// with the round under it for a table; "New bill · Sara" for a waiter's
 /// table-less bill.
+///
+/// A counter cart says what the cart's toggle says: "Pickup" or "Dine in".
 ({String title, String? subtitle}) orderHeaderFor(
   MadarBridge bridge,
   OrderState s,
-  CartState c,
-) {
+  CartState c, {
+  bool dineIn = false,
+}) {
   final ticket = cartTicket(s, c);
   final label = cartTableLabel(s, c);
   final round = ticket == null ? 1 : groupBillByRound(ticket.lines).length + 1;
@@ -689,7 +710,12 @@ class _LegacySellBody extends StatelessWidget {
       subtitle: null,
     );
   }
-  return (title: orderWord(bridge, 'sell.takeaway'), subtitle: null);
+  return (
+    title: dineIn
+        ? bridge.tr(key: 'charge.dine_in')
+        : orderWord(bridge, 'sell.takeaway'),
+    subtitle: null,
+  );
 }
 
 /// The menu both order screens share: category chips over the tile grid,
@@ -701,10 +727,16 @@ class MenuGrid extends ConsumerStatefulWidget {
     required this.onItemTap,
     required this.onItemLongPress,
     this.query,
+    this.categoryBoxes = false,
     super.key,
   });
 
   final String? tableId;
+
+  /// Fast mode: the categories as whole boxes that open into their items,
+  /// with a back bar over the items, instead of the chip strip over every
+  /// item. Search still reaches every item from either.
+  final bool categoryBoxes;
 
   /// The search text while searching (null = not searching: chips shown).
   final String? query;
@@ -722,6 +754,31 @@ class _MenuGridState extends ConsumerState<MenuGrid> {
   Widget build(BuildContext context) {
     final layout = MadarLayout.of(context);
     final searching = widget.query != null;
+    if (widget.categoryBoxes && !searching) {
+      final open = _categoryId;
+      if (open == null) {
+        return _CategoryBoxes(onOpen: (id) => setState(() => _categoryId = id));
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _CategoryBar(
+            categoryId: open,
+            onBack: () => setState(() => _categoryId = null),
+          ),
+          const MadarHairline(light: true),
+          Expanded(
+            child: _Catalog(
+              tableId: widget.tableId,
+              categoryId: open,
+              query: '',
+              onItemTap: widget.onItemTap,
+              onItemLongPress: widget.onItemLongPress,
+            ),
+          ),
+        ],
+      );
+    }
     // The strip belongs to the catalog's width, not the window's: hung under
     // the page header it ran across the divider and over the cart.
     return Column(
@@ -783,6 +840,237 @@ class _CategoryChips extends ConsumerWidget {
               onTap: () => onSelect(c.id),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Fast mode's front page: every active category as a box — its monogram on
+/// a wash of its colour, its name, how many items it holds. A tap opens it.
+class _CategoryBoxes extends ConsumerWidget {
+  const _CategoryBoxes({required this.onOpen});
+
+  final ValueChanged<String> onOpen;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.bridge;
+    final notifier = ref.read(orderProvider.notifier);
+    final layout = MadarLayout.of(context);
+    final loading = ref.watch(orderProvider.select((s) => s.isLoadingCatalog));
+    final categories = ref.watch(
+      orderProvider.select(
+        (s) => s.categories.where((c) => c.isActive).toList(growable: false),
+      ),
+    );
+    final items = ref.watch(orderProvider.select((s) => s.menuItems));
+    if (!loading && categories.isEmpty) {
+      return EmptyState(
+        icon: 'tray',
+        title: bridge.tr(key: 'order.empty'),
+        message: bridge.tr(key: 'order.empty_desc'),
+        actionLabel: bridge.tr(key: 'order.sync_menu'),
+        onAction: () => unawaited(notifier.refreshServerData()),
+      );
+    }
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final itemsWord = bridge.tr(key: 'order.items');
+    return GridView.builder(
+      key: const PageStorageKey('sell-category-boxes'),
+      padding: EdgeInsetsDirectional.all(layout.gutter),
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: kCategoryBoxMaxWidth,
+        mainAxisExtent:
+            kCategoryBoxHeight *
+            MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.4),
+        mainAxisSpacing: kSellTileGap,
+        crossAxisSpacing: kSellTileGap,
+      ),
+      itemCount: categories.length,
+      itemBuilder: (context, i) {
+        final c = categories[i];
+        final count = items
+            .where((it) => it.isActive && it.categoryId == c.id)
+            .length;
+        return _CategoryBox(
+          key: ValueKey('category-box-${c.id}'),
+          name: c.name,
+          count: '$count $itemsWord',
+          accent: hexColor(notifier.categoryStyle(c.name, dark: dark).accent),
+          onTap: () => onOpen(c.id),
+        );
+      },
+    );
+  }
+}
+
+/// A category box's widest column and its height: three across a landscape
+/// tablet's menu panel, two on a portrait one.
+const double kCategoryBoxMaxWidth = 240;
+const double kCategoryBoxHeight = 132;
+
+class _CategoryBox extends StatelessWidget {
+  const _CategoryBox({
+    required this.name,
+    required this.count,
+    required this.accent,
+    required this.onTap,
+    super.key,
+  });
+
+  final String name;
+  final String count;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final wash = accent.withValues(alpha: dark ? 0.2 : 0.14);
+    return Semantics(
+      button: true,
+      label: '$name, $count',
+      excludeSemantics: true,
+      child: TactileScale(
+        onTap: () {
+          MadarHaptics.selection();
+          onTap();
+        },
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          padding: const EdgeInsetsDirectional.all(Space.lg),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(Radii.card),
+            border: Border.all(color: colors.borderLight),
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // The soft disc bleeding off the top corner, the design's.
+              PositionedDirectional(
+                top: -64,
+                end: -54,
+                width: 140,
+                height: 140,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: wash,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: wash,
+                      borderRadius: BorderRadius.circular(Radii.control),
+                    ),
+                    child: Text(
+                      monogram(name),
+                      style: MadarType.title.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: accent,
+                      ),
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: MadarType.title.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        count,
+                        maxLines: 1,
+                        style: MadarType.bodySm.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Over an open category's items: back to the boxes, and which one is open.
+class _CategoryBar extends ConsumerWidget {
+  const _CategoryBar({required this.categoryId, required this.onBack});
+
+  final String categoryId;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.bridge;
+    final layout = MadarLayout.of(context);
+    final name = ref.watch(
+      orderProvider.select(
+        (s) => s.categories.where((c) => c.id == categoryId).firstOrNull?.name,
+      ),
+    );
+    final count = ref.watch(
+      orderProvider.select(
+        (s) => s.menuItems
+            .where((i) => i.isActive && i.categoryId == categoryId)
+            .length,
+      ),
+    );
+    return Padding(
+      padding: EdgeInsetsDirectional.fromSTEB(
+        layout.gutter,
+        Space.sm,
+        layout.gutter,
+        Space.sm,
+      ),
+      child: Row(
+        spacing: Space.md,
+        children: [
+          MadarGlyphTile(
+            key: const ValueKey('category-back'),
+            glyph: MadarGlyph.chevronBack,
+            semanticLabel: orderWord(bridge, 'sell.back_to_categories'),
+            onTap: onBack,
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MadarType.h3.copyWith(color: colors.textPrimary),
+                ),
+                Text(
+                  '$count ${bridge.tr(key: 'order.items')}',
+                  style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
