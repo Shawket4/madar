@@ -412,6 +412,50 @@ pub(crate) fn patch_branch_setting(store: &Store, branch_id: &str, field: &str, 
     })
 }
 
+/// Fold the server's answer to a write THIS device made (an online order's
+/// step, its cancel, its finalize) into the row the screen reads. The fields
+/// the server answered replace the row's; the rest stay as the feed brought
+/// them, and the seq is kept, so the feed's next change for the row still
+/// lands over it.
+///
+/// Without it a local read after the write showed the row as it was: the
+/// realtime event the write itself set off ticks the board at once, before the
+/// pull that same event nudges has brought the row — so a card that had just
+/// moved on flipped back to its old step, then forward again when the pull
+/// landed. `false` (and nothing written) when the device holds no such row.
+pub(crate) fn fold_answer(
+    store: &Store,
+    branch: &str,
+    ty: &str,
+    id: &str,
+    answer: &serde_json::Value,
+) -> CoreResult<bool> {
+    let serde_json::Value::Object(fields) = answer else { return Ok(false) };
+    let folded = store.with_tx_touch(|tx, touched| {
+        use rusqlite::OptionalExtension;
+        let current: Option<String> = tx
+            .query_row(
+                "SELECT data FROM sync_rows WHERE branch_id=?1 AND type=?2 AND id=?3",
+                rusqlite::params![branch, ty, id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        let Some(current) = current else { return Ok(false) };
+        let mut row: serde_json::Value = serde_json::from_str(&current)?;
+        let Some(obj) = row.as_object_mut() else { return Ok(false) };
+        for (k, v) in fields {
+            obj.insert(k.clone(), v.clone());
+        }
+        tx.execute(
+            "UPDATE sync_rows SET data=?4 WHERE branch_id=?1 AND type=?2 AND id=?3",
+            rusqlite::params![branch, ty, id, row.to_string()],
+        )?;
+        touched.push(crate::changes::table_for_sync_type(ty));
+        Ok(true)
+    })?;
+    Ok(folded)
+}
+
 /// Has this branch completed a full snapshot? Until it has, the rows cannot
 /// answer "there is none".
 pub(crate) fn branch_snapshotted(store: &Store, branch_id: &str) -> bool {
@@ -1830,6 +1874,77 @@ mod tests {
 
     fn cursor(store: &Store) -> Option<String> {
         store.kv_get(&format!("{K_NEXT}{B}")).unwrap()
+    }
+
+    fn delivery_change(seq: i64, id: &str, data: serde_json::Value) -> madar_api::models::PullChange {
+        madar_api::models::PullChange {
+            seq,
+            r#type: "delivery".into(),
+            id: uuid::Uuid::parse_str(&uid(id)).unwrap(),
+            op: "upsert".into(),
+            data,
+        }
+    }
+
+    /// The server's answer to this device's own step lands in the row the
+    /// queue reads, so the tick the step set off re-reads the NEW step — the
+    /// card no longer flips back to its old one until the pull catches up.
+    /// The feed still wins with its next change for the row.
+    #[tokio::test]
+    async fn an_answer_to_our_own_write_folds_into_the_row_and_the_feed_still_wins() {
+        let store = Store::open("").unwrap();
+        let id = uid("d1");
+        apply_page(
+            &store,
+            B,
+            &incr(
+                5,
+                vec![delivery_change(
+                    5,
+                    "d1",
+                    serde_json::json!({"id": id, "status": "confirmed", "channel": "pickup",
+                        "confirmed_at": "2026-09-26T10:00:00Z", "preparing_at": null}),
+                )],
+            ),
+            &Protected::new(),
+            true,
+        )
+        .unwrap();
+        let mut sub = store.subscribe_changes();
+
+        let answer = serde_json::json!({"id": id, "status": "preparing",
+            "confirmed_at": null, "preparing_at": "2026-09-26T10:02:00Z"});
+        assert!(fold_answer(&store, B, "delivery", &id, &answer).unwrap());
+        let (seq, data) = row(&store, "delivery", "d1").unwrap();
+        assert_eq!(seq, 5, "the seq stays: the feed's next change still lands");
+        assert_eq!(data["status"], "preparing");
+        assert_eq!(data["preparing_at"], "2026-09-26T10:02:00Z");
+        assert!(data["confirmed_at"].is_null(), "a field the server cleared is cleared");
+        assert_eq!(data["channel"], "pickup", "what the answer left out stays");
+        assert!(
+            sub.next(std::time::Duration::ZERO)
+                .await
+                .unwrap()
+                .iter()
+                .any(|t| t == crate::changes::DELIVERY),
+            "the board is told"
+        );
+
+        // The feed's next change is the server's word again.
+        apply_page(
+            &store,
+            B,
+            &incr(7, vec![delivery_change(7, "d1", serde_json::json!({"id": id, "status": "ready"}))]),
+            &Protected::new(),
+            true,
+        )
+        .unwrap();
+        assert_eq!(row(&store, "delivery", "d1").unwrap().1["status"], "ready");
+
+        // No row here: nothing is invented (the feed brings it).
+        let other = uid("d2");
+        assert!(!fold_answer(&store, B, "delivery", &other, &serde_json::json!({"id": other})).unwrap());
+        assert!(row(&store, "delivery", "d2").is_none());
     }
 
     #[test]

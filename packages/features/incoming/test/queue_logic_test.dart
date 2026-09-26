@@ -78,12 +78,13 @@ class _Recorder implements MadarBridge {
         ),
       );
     }
-    if (name == #deliveryAdvanceStatus) {
-      calls.add('advance ${args[#id]} from ${args[#current]}');
+    // A step names its TARGET, never "next from where I think it is".
+    if (name == #deliverySetStatus) {
+      calls.add('status ${args[#id]} -> ${args[#status]}');
       final f = advanceFailure;
       if (f != null) return Future<DeliveryOrderView>.error(f);
       return Future<DeliveryOrderView>.value(
-        _order(args[#id] as String, 'confirmed'),
+        _order(args[#id] as String, args[#status] as String),
       );
     }
     if (name == #deliverySetPrepTime) {
@@ -174,7 +175,7 @@ void main() {
       await n.loadDeliveryOrders();
       await n.acceptDelivery(_order('d1', 'received'), readyInMinutes: 30);
       expect(bridge.calls.where((c) => !c.startsWith('list')), [
-        'advance d1 from received',
+        'status d1 -> confirmed',
         'prep d1 +10',
       ]);
       expect(
@@ -189,7 +190,7 @@ void main() {
       await n.loadDeliveryOrders();
       await n.acceptDelivery(_order('d1', 'received'), readyInMinutes: 20);
       expect(bridge.calls.where((c) => !c.startsWith('list')), [
-        'advance d1 from received',
+        'status d1 -> confirmed',
       ]);
     });
 

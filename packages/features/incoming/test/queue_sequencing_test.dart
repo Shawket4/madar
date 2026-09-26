@@ -59,7 +59,7 @@ class _Fake implements MadarBridge {
     if (name == #deliverySettings) {
       return Future<Never>.error(const MadarError.offline(detail: 'no'));
     }
-    if (name == #deliveryAdvanceStatus) {
+    if (name == #deliverySetStatus) {
       return Future<DeliveryOrderView>.value(_order('confirmed'));
     }
     return null;
