@@ -101,8 +101,18 @@ pub(crate) fn order_json(cmd: &CheckoutCommand, okey: &str, who: &Ringer<'_>, me
         "price_flagged": false,
         "created_at": flat(&r.created_at).map(|d| d.to_rfc3339()),
         "items": [],
+        // The lines as rung (ids, size, add-ons), until the feed's named
+        // `items` supersede them: see [`LOCAL_ITEMS`].
+        LOCAL_ITEMS: serde_json::to_value(&r.items).unwrap_or(Value::Null),
     })
 }
+
+/// Where a queued sale keeps its lines AS RUNG: the command's items (menu item
+/// id, size, add-on ids, optional field ids), with no names. `items` stays
+/// empty for the reason [`LOCAL_RECEIPT`] gives; this is only what this device
+/// sold, read by the item sheet's "Last: …" chip (`last_config.rs`) so the sale
+/// just rung counts before it acks. Local-only, like the receipt stash.
+pub(crate) const LOCAL_ITEMS: &str = "local_items";
 
 /// Where a queued sale keeps the receipt it printed, on its own ledger row.
 ///

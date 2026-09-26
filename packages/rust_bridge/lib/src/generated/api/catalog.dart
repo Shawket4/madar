@@ -657,6 +657,46 @@ class ItemSizeView {
           isActive == other.isActive;
 }
 
+/// The item sheet's "Last: …" chip: the item as this device last sold it.
+class LastItemConfig {
+  final String? sizeLabel;
+  final List<AddonSelection> addons;
+  final List<String> optionalFieldIds;
+
+  /// In the cart line's words: "Large · Oat milk".
+  final String words;
+
+  /// The chip: "Last: Large · Oat milk".
+  final String text;
+
+  const LastItemConfig({
+    this.sizeLabel,
+    required this.addons,
+    required this.optionalFieldIds,
+    required this.words,
+    required this.text,
+  });
+
+  @override
+  int get hashCode =>
+      sizeLabel.hashCode ^
+      addons.hashCode ^
+      optionalFieldIds.hashCode ^
+      words.hashCode ^
+      text.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LastItemConfig &&
+          runtimeType == other.runtimeType &&
+          sizeLabel == other.sizeLabel &&
+          addons == other.addons &&
+          optionalFieldIds == other.optionalFieldIds &&
+          words == other.words &&
+          text == other.text;
+}
+
 /// "Make it a meal +X" on an item.
 class MealOffer {
   final String comboId;
@@ -664,16 +704,29 @@ class MealOffer {
   final String name;
   final PlatformInt64 deltaMinor;
 
+  /// What the meal saves against the picks bought separately (≤ 0 = none).
+  final PlatformInt64 savingMinor;
+
+  /// "with Side + Drink", in the teller's language ("" = nothing to name).
+  final String slotHint;
+
   const MealOffer({
     required this.comboId,
     required this.slotId,
     required this.name,
     required this.deltaMinor,
+    required this.savingMinor,
+    required this.slotHint,
   });
 
   @override
   int get hashCode =>
-      comboId.hashCode ^ slotId.hashCode ^ name.hashCode ^ deltaMinor.hashCode;
+      comboId.hashCode ^
+      slotId.hashCode ^
+      name.hashCode ^
+      deltaMinor.hashCode ^
+      savingMinor.hashCode ^
+      slotHint.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -683,7 +736,9 @@ class MealOffer {
           comboId == other.comboId &&
           slotId == other.slotId &&
           name == other.name &&
-          deltaMinor == other.deltaMinor;
+          deltaMinor == other.deltaMinor &&
+          savingMinor == other.savingMinor &&
+          slotHint == other.slotHint;
 }
 
 class MenuItemView {

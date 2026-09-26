@@ -186,6 +186,12 @@ pub struct MealOffer {
     /// What the meal adds over the item alone: the combo with this item in
     /// its slot and the defaults elsewhere, minus the item's own price.
     pub delta_minor: i64,
+    /// What the meal saves against the same picks bought separately (the
+    /// combo quote's `list − combo`, one combo). 0 or less = no saving.
+    pub saving_minor: i64,
+    /// The other slots the meal brings, in the teller's words: "with Side +
+    /// Drink". Empty when the combo has no other required slot.
+    pub slot_hint: String,
 }
 
 /// Where and when the till sells: the channel switches at this branch, the
@@ -639,18 +645,22 @@ fn meal_target<'a>(
     Some((meal, def, combo_item))
 }
 
-/// "Make it a meal +X" for `item` (C14): the combo with the item at the size
-/// the combo includes and the defaults elsewhere, minus the item alone at
-/// that size.
+/// "Make it a meal +X" for `item` (C14): the combo with the item in its slot
+/// as `pick` holds it (by default at the size the combo includes, nothing
+/// added) and the defaults elsewhere, minus the item alone as picked: its
+/// normal price at that size with its add-ons. The saving is the quote's
+/// own `list − combo`, so it is the rule's figure and never re-added here.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn meal_offer(
     item: &MenuItemView,
+    pick: Option<ComboPickInput>,
     meals: &HashMap<String, MealRef>,
     combos: &[ComboDef],
     items: &[MenuItemView],
     addons: &[AddonItemView],
     pricing: &PricingMirror,
     at: &At,
+    locale: &str,
 ) -> Option<MealOffer> {
     let (meal, def, combo_item) = meal_target(item, meals, combos, items, pricing, at)?;
     let mut picks = default_picks(def, items, Some(&meal.slot_id), true);
@@ -658,16 +668,29 @@ pub(crate) fn meal_offer(
         slot_id: meal.slot_id.clone(),
         item_id: item.id.clone(),
         qty: 1,
-        ..Default::default()
+        ..pick.unwrap_or_default()
     });
     let (view, ins) = rule_inputs(def, combo_item, items, addons, pricing, &picks).ok()?;
     let q = rule::quote(&view, &ins, 1).ok()?;
     let own = q.parts.iter().find(|p| p.slot_id == meal.slot_id && p.menu_item_id == item.id)?;
+    let others: Vec<&str> = def
+        .slots
+        .iter()
+        .filter(|s| s.id != meal.slot_id && s.min >= 1 && !s.name.trim().is_empty())
+        .map(|s| s.name.trim())
+        .collect();
+    let slot_hint = if others.is_empty() {
+        String::new()
+    } else {
+        i18n::tr(locale, "meal.with_slots").replace("{slots}", &others.join(" + "))
+    };
     Some(MealOffer {
         combo_id: combo_item.id.clone(),
         slot_id: meal.slot_id.clone(),
         name: def.name.clone(),
-        delta_minor: q.unit_total - own.unit_price,
+        delta_minor: q.unit_total - (own.unit_price + own.extras_unit),
+        saving_minor: q.saving_unit,
+        slot_hint,
     })
 }
 
@@ -851,17 +874,41 @@ impl crate::MadarCore {
     /// "Make it a meal +X" for an item (C14): `None` when it has no meal the
     /// till can sell now.
     pub fn meal_offer(&self, item_id: String) -> Option<MealOffer> {
+        self.meal_offer_with(&item_id, None)
+    }
+
+    /// The item sheet's meal banner: "Make it a meal with Side + Drink +X ·
+    /// save Y" for the item AS CONFIGURED on the sheet (its size, add-ons and
+    /// optional fields). When the combo will not take that selection as it
+    /// is (a size its slot does not sell), the offer as the item is made, so
+    /// the banner stays and the combo sheet settles the size. `None` when the
+    /// item has no meal the till can sell now.
+    pub fn meal_offer_for(
+        &self,
+        item_id: String,
+        size_label: Option<String>,
+        addons: Vec<AddonSelection>,
+        optional_field_ids: Vec<String>,
+    ) -> Option<MealOffer> {
+        let pick = pick_of(&item_id, size_label, addons, optional_field_ids, None);
+        self.meal_offer_with(&item_id, Some(pick))
+            .or_else(|| self.meal_offer_with(&item_id, None))
+    }
+
+    fn meal_offer_with(&self, item_id: &str, pick: Option<ComboPickInput>) -> Option<MealOffer> {
         let catalog = self.catalog().ok()?;
         let item = catalog.items.iter().find(|i| i.id == item_id)?;
         let at = self.combo_at(&catalog);
         meal_offer(
             item,
+            pick,
             &catalog.meals,
             &catalog.combos,
             &catalog.items,
             &catalog.addons,
             &catalog.pricing,
             &at,
+            &catalog.locale,
         )
     }
 

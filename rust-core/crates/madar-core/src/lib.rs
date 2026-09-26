@@ -34,6 +34,8 @@ pub mod cart;
 pub(crate) mod catalog_pricing;
 /// Combos on the till: the combo sheet, its live figures, "make it a meal".
 pub mod combos;
+/// The item sheet's "Last: …" chip: an item as this device last sold it.
+pub mod last_config;
 /// Deals on the till: suggested, the teller applies (C8).
 pub mod deals;
 /// Category styling (icon + gradient palette) — port of Flutter's `CatStyle`.

@@ -2512,6 +2512,13 @@ fn en(key: &str) -> Option<&'static str> {
         "combo.warn_choice_inactive" => "An item in this combo is switched off.",
         "meal.make_it" => "Make it a meal",
         "meal.make_it_plus" => "Make it a meal +{amount}",
+        // The item sheet's meal banner: the slots the meal brings, and what it saves.
+        "meal.with_slots" => "with {slots}",
+        "meal.save" => "save {amount}",
+        // The item sheet's header chip: this item as this till last sold it.
+        "order.last_config" => "Last: {config}",
+        // Long-press on Add: the line is in, the sheet stays for another.
+        "order.added_add_another" => "Added — add another",
         "meal.target_invalid" => "That combo has no slot for this item.",
         "deal.badge" => "Deal",
         "deal.qualifies" => "This order qualifies for {deal}",
@@ -4886,6 +4893,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "combo.warn_choice_inactive" => "أحد أصناف هذا الكومبو موقوف.",
         "meal.make_it" => "اجعلها وجبة",
         "meal.make_it_plus" => "اجعلها وجبة +{amount}",
+        "meal.with_slots" => "مع {slots}",
+        "meal.save" => "وفّر {amount}",
+        "order.last_config" => "آخر مرة: {config}",
+        "order.added_add_another" => "أُضيف — أضف واحدًا آخر",
         "meal.target_invalid" => "لا توجد خانة لهذا الصنف في الكومبو.",
         "deal.badge" => "عرض",
         "deal.qualifies" => "هذا الطلب يستحق عرض {deal}",
