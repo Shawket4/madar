@@ -183,6 +183,14 @@ struct Renderer {
     /// Every string shaped, in order — lets tests read what was printed.
     #[cfg(test)]
     shaped: Vec<String>,
+    /// Every blit's text and its unclipped ink box `(x0, y0, x1, y1)` (end
+    /// exclusive) — lets tests check where the ink landed, off-paper included.
+    #[cfg(test)]
+    inked: Vec<(String, (i32, i32, i32, i32))>,
+    /// The strings drawn centred (`center` / `boxed`), each with the index
+    /// of its blit in `inked`.
+    #[cfg(test)]
+    centered: Vec<(String, usize)>,
 }
 
 impl Renderer {
@@ -211,6 +219,10 @@ impl Renderer {
             logo_h: (LOGO_MAX_H as f32 * scale).round() as u32,
             #[cfg(test)]
             shaped: Vec::new(),
+            #[cfg(test)]
+            inked: Vec::new(),
+            #[cfg(test)]
+            centered: Vec::new(),
         }
     }
 
@@ -252,9 +264,27 @@ impl Renderer {
         (w, h)
     }
 
+    /// How far a shaped buffer's ink starts from its left edge, in dots.
+    /// cosmic-text lays an RTL (Arabic) paragraph out right-aligned inside
+    /// the width it was shaped at, so its glyphs start at `max_w - line_w`,
+    /// not at 0 as an LTR one's do. Whoever places a buffer by its measured
+    /// width (centred, flush-right) subtracts this, or an Arabic line lands
+    /// that far to the right, off the paper (B9). Always 0 for LTR text, so
+    /// English prints exactly as before.
+    fn rtl_lead(buf: &Buffer) -> i32 {
+        buf.layout_runs()
+            .filter(|run| run.rtl)
+            .flat_map(|run| run.glyphs.iter())
+            .map(|g| g.x)
+            .reduce(f32::min)
+            .map_or(0, |x| x.round() as i32)
+    }
+
     /// Blit a shaped buffer with its left edge at `ox` and top at `oy`.
     fn blit(&mut self, buf: &Buffer, ox: i32, oy: i32) {
         let ink = Color::rgb(0, 0, 0);
+        #[cfg(test)]
+        let mut bx = (i32::MAX, i32::MAX, i32::MIN, i32::MIN);
         for run in buf.layout_runs() {
             let base_y = oy + run.line_y as i32;
             for glyph in run.glyphs.iter() {
@@ -263,9 +293,19 @@ impl Renderer {
                 let gy = base_y + phys.y;
                 self.cache
                     .with_pixels(&mut self.fonts, phys.cache_key, ink, |dx, dy, color| {
+                        #[cfg(test)]
+                        if color.a() >= 128 {
+                            let (x, y) = (gx + dx, gy + dy);
+                            bx = (bx.0.min(x), bx.1.min(y), bx.2.max(x + 1), bx.3.max(y + 1));
+                        }
                         self.canvas.cover(gx + dx, gy + dy, color.a());
                     });
             }
+        }
+        #[cfg(test)]
+        {
+            let text: Vec<&str> = buf.lines.iter().map(|l| l.text()).collect();
+            self.inked.push((text.join("\n"), bx));
         }
     }
 
@@ -276,8 +316,10 @@ impl Renderer {
         }
         let buf = self.shape(s, size, weight, self.content_w());
         let (w, h) = Self::measure(&buf);
-        let ox = ((self.width as f32 - w) / 2.0).round() as i32;
+        let ox = ((self.width as f32 - w) / 2.0).round() as i32 - Self::rtl_lead(&buf);
         let oy = self.y;
+        #[cfg(test)]
+        self.centered.push((s.to_string(), self.inked.len()));
         self.blit(&buf, ox, oy);
         self.y += h.ceil() as i32;
     }
@@ -294,7 +336,7 @@ impl Renderer {
         let oy = self.y;
         self.blit(&left_buf, self.margin, oy);
         if !right.is_empty() {
-            let rx = self.width - self.margin - rw.round() as i32;
+            let rx = self.width - self.margin - rw.round() as i32 - Self::rtl_lead(&right_buf);
             self.blit(&right_buf, rx, oy);
         }
         self.y += lh.max(rh).ceil() as i32;
@@ -342,7 +384,9 @@ impl Renderer {
                 self.canvas.cover(x0 + bw - 1 - x, y, 255);
             }
         }
-        let ox = ((self.width as f32 - w) / 2.0).round() as i32;
+        let ox = ((self.width as f32 - w) / 2.0).round() as i32 - Self::rtl_lead(&buf);
+        #[cfg(test)]
+        self.centered.push((s.to_string(), self.inked.len()));
         self.blit(&buf, ox, y0 + pad_y);
         self.y += bh;
     }
@@ -413,7 +457,8 @@ impl Renderer {
         self.gap(self.sx(6));
         self.center(&fmt_dt(lab, &r.created_at), RS_SMALL, Weight::BOLD);
         if let Some(rf) = &r.order_ref {
-            self.center(&format!("{}: {}", lab.reference, rf), RS_SMALL, Weight::BOLD);
+            // The label carries its own colon ("Ref:", "مرجع:").
+            self.center(&format!("{} {}", lab.reference, rf), RS_SMALL, Weight::BOLD);
         }
         self.rule();
 
@@ -970,7 +1015,8 @@ impl Renderer {
             let (_, lh) = Self::measure(&buf);
             let oy = self.y;
             self.blit(&buf, self.margin + indent, oy);
-            self.blit(&right, self.width - self.margin - rw.round() as i32, oy);
+            let rx = self.width - self.margin - rw.round() as i32 - Self::rtl_lead(&right);
+            self.blit(&right, rx, oy);
             self.y += lh.max(rh).ceil() as i32;
         } else {
             self.indented(&format!("+ {}", m.name), RS_SMALL, indent);
@@ -1703,5 +1749,260 @@ mod tests {
             one_bitmap.rows > smaller.rows,
             "the second item adds rows to the SAME bitmap, not a second document"
         );
+    }
+
+    // ── B9: Arabic centred lines sit on the paper ─────────────────────────────
+
+    /// Both rolls the tills print on: 58 mm (384 dots) and 80 mm (576 dots).
+    const ROLLS: [u32; 2] = [384, PRINT_WIDTH];
+
+    /// The receipt labels exactly as the till builds them in Arabic.
+    fn ar_ctx() -> EscPosCtx {
+        let tr = |k: &str| crate::i18n::tr("ar", k);
+        let mut c = ctx();
+        c.store_name = "ARKAN".into();
+        c.labels.order = tr("receipt.order");
+        c.labels.reference = tr("receipt.ref");
+        c.labels.subtotal = tr("order.subtotal");
+        c.labels.total = tr("order.total");
+        c.labels.cash = tr("receipt.cash");
+        c.labels.change = tr("order.change");
+        c.labels.thank_you = "شكراً لزيارتكم".into();
+        c.labels.locale = "ar".into();
+        c
+    }
+
+    /// T1's AR receipt: the order label, the number, the date and the Ref.
+    fn ar_receipt() -> ReceiptView {
+        let mut r = receipt();
+        r.display_number = "E38-1".into();
+        r.order_ref = Some("ARKAN-260926-E38-0001".into());
+        r.created_at = "2026-09-26T03:31:00Z".into();
+        r.payment_label = "نقدي".into();
+        r
+    }
+
+    /// T1's AR chit: a counter sale (no table, no ticket ref), so the foot is
+    /// the Arabic time alone; the teller's name in Arabic.
+    fn ar_chit() -> KitchenSlip {
+        let mut s = arabic_slip();
+        s.table_label = None;
+        s.ticket_ref = None;
+        s.at = crate::timefmt::format_in(
+            chrono_tz::UTC,
+            "2026-09-26T03:31:00Z",
+            crate::timefmt::TimeStyle::Time,
+            "ar",
+        );
+        s.teller = Some("مريم عادل".into());
+        s
+    }
+
+    fn ar_chit_labels() -> KitchenChitLabels {
+        let tr = |k: &str| crate::i18n::tr("ar", k);
+        KitchenChitLabels {
+            heading: tr("kitchen.chit_heading"),
+            table: tr("kitchen.chit_table"),
+            note: tr("kitchen.chit_note"),
+        }
+    }
+
+    /// Every centred line put ink down, all of it on the paper, centred; and
+    /// nothing else drawn on the page runs off it either.
+    fn assert_on_paper(r: &Renderer, want_centred: &[String], what: &str) {
+        let w = r.width;
+        for want in want_centred {
+            assert!(
+                r.centered.iter().any(|(t, _)| t == want),
+                "{what} @{w}: {want:?} was not drawn centred; centred: {:?}",
+                r.centered
+            );
+        }
+        for (text, at) in &r.centered {
+            let (_, (x0, y0, x1, y1)) = r.inked[*at].clone();
+            assert!(x0 < x1 && y0 < y1, "{what} @{w}: {text:?} put no ink down");
+            assert!(
+                x0 >= 0 && x1 <= w,
+                "{what} @{w}: {text:?} is inked at x {x0}..{x1}, off the {w}-dot paper"
+            );
+            let mid = (x0 + x1) / 2;
+            assert!(
+                (mid - w / 2).abs() <= w / 16,
+                "{what} @{w}: {text:?} is inked at x {x0}..{x1}, not centred on {}",
+                w / 2
+            );
+        }
+        for (text, (x0, _, x1, _)) in &r.inked {
+            if x0 < x1 {
+                assert!(
+                    *x0 >= 0 && *x1 <= w,
+                    "{what} @{w}: {text:?} is inked at x {x0}..{x1}, off the {w}-dot paper"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_arabic_receipt_prints_its_centred_lines_on_the_paper() {
+        let (c, rc) = (ar_ctx(), ar_receipt());
+        let date = fmt_dt(&c.labels, &rc.created_at);
+        assert!(date.contains('ص'), "the AR date is Arabic (RTL): {date:?}");
+        let want = [
+            c.labels.order.to_uppercase(),
+            "#E38-1".to_string(),
+            date,
+            format!("{} {}", c.labels.reference, "ARKAN-260926-E38-0001"),
+            "نقدي".to_string(),
+            c.labels.thank_you.clone(),
+        ];
+        for roll in ROLLS {
+            let mut r = Renderer::new(roll);
+            r.build(&rc, &c, None);
+            assert_on_paper(&r, &want, "AR receipt");
+        }
+    }
+
+    #[test]
+    fn an_arabic_kitchen_chit_prints_its_title_and_time_on_the_paper() {
+        let labels = ar_chit_labels();
+        let slip = ar_chit();
+        assert!(slip.at.contains('ص'), "the AR time is Arabic (RTL): {:?}", slip.at);
+        let mut with_table = ar_chit();
+        with_table.table_label = Some("٤".into());
+        for roll in ROLLS {
+            let mut r = Renderer::new(roll);
+            r.build_kitchen_slip(&slip, &labels);
+            let want = [labels.heading.clone(), slip.at.clone(), "مريم عادل".to_string()];
+            assert_on_paper(&r, &want, "AR chit");
+
+            let mut r = Renderer::new(roll);
+            r.build_kitchen_slip(&with_table, &labels);
+            assert_on_paper(&r, &[format!("{} ٤", labels.table)], "AR chit at a table");
+        }
+    }
+
+    /// The Z-report's flush-right values (an Arabic date, an Arabic teller
+    /// name) and its centred headings land on the paper too.
+    #[test]
+    fn an_arabic_till_report_prints_on_the_paper() {
+        let mut report = till_report();
+        report.teller_name = "منى".into();
+        let mut labels = till_labels();
+        labels.title = "تقرير إغلاق الخزينة".into();
+        labels.locale = "ar".into();
+        for roll in ROLLS {
+            let mut r = Renderer::new(roll);
+            r.build_till(&report, "Store", "EGP", &labels, &[]);
+            assert_on_paper(&r, &[labels.title.clone()], "AR Z-report");
+        }
+    }
+
+    /// English is unchanged by the fix: the same checks pass for it.
+    #[test]
+    fn an_english_receipt_and_chit_stay_centred_on_the_paper() {
+        let mut en = receipt();
+        en.order_ref = Some("ARKAN-260926-E38-0001".into());
+        let want = [
+            "ORDER".to_string(),
+            "Ref: ARKAN-260926-E38-0001".to_string(),
+            "Thank you!".to_string(),
+        ];
+        let mut c = ctx();
+        c.labels.reference = crate::i18n::tr("en", "receipt.ref");
+        let chit_labels = KitchenChitLabels {
+            heading: "KITCHEN".into(),
+            table: "Table".into(),
+            note: "Note:".into(),
+        };
+        let mut slip = arabic_slip();
+        slip.at = "03:31 AM".into();
+        slip.ticket_ref = None;
+        slip.teller = Some("Mariam Adel".into());
+        for roll in ROLLS {
+            let mut r = Renderer::new(roll);
+            r.build(&en, &c, None);
+            assert_on_paper(&r, &want, "EN receipt");
+            let mut r = Renderer::new(roll);
+            r.build_kitchen_slip(&slip, &chit_labels);
+            assert_on_paper(&r, &["KITCHEN".to_string(), "03:31 AM".to_string()], "EN chit");
+        }
+    }
+
+    /// B12: the label already ends in its colon ("Ref:", "مرجع:"), so the
+    /// line must not add another ("Ref:: …").
+    #[test]
+    fn the_ref_line_has_one_colon() {
+        for loc in ["en", "ar"] {
+            let mut c = ctx();
+            c.labels.reference = crate::i18n::tr(loc, "receipt.ref");
+            let mut rc = receipt();
+            rc.order_ref = Some("ARKAN-1".into());
+            let mut r = Renderer::new(PRINT_WIDTH);
+            r.build(&rc, &c, None);
+            let line = r
+                .shaped
+                .iter()
+                .find(|t| t.contains("ARKAN-1"))
+                .unwrap_or_else(|| panic!("{loc}: no Ref line in {:?}", r.shaped));
+            assert_eq!(line.matches(':').count(), 1, "{loc}: {line:?}");
+            assert_eq!(*line, format!("{} ARKAN-1", c.labels.reference), "{loc}");
+        }
+    }
+
+    /// Proof renders for the AR print fix: writes the AR/EN receipt, chit
+    /// and Z-report at both rolls as PNGs (+ the raw bitmap SHA-256) into
+    /// `$MADAR_PRINT_PROOF_DIR`. `cargo test -- --ignored dump_print_proof`.
+    #[test]
+    #[ignore]
+    fn dump_print_proof() {
+        use sha2::Digest;
+        let Ok(dir) = std::env::var("MADAR_PRINT_PROOF_DIR") else { return };
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut sums = String::new();
+        let mut save = |name: String, bmp: Bitmap| {
+            let mut img = image::GrayImage::from_pixel(bmp.width, bmp.rows, image::Luma([255u8]));
+            let wb = bmp.row_bytes();
+            for y in 0..bmp.rows as usize {
+                for x in 0..bmp.width as usize {
+                    if bmp.bytes[y * wb + (x >> 3)] & (0x80 >> (x & 7)) != 0 {
+                        img.put_pixel(x as u32, y as u32, image::Luma([0u8]));
+                    }
+                }
+            }
+            img.save(format!("{dir}/{name}.png")).unwrap();
+            let sum: String = sha2::Sha256::digest(&bmp.bytes).iter().map(|b| format!("{b:02x}")).collect();
+            sums.push_str(&format!("{sum}  {name}\n"));
+        };
+        let mut en = receipt();
+        en.order_ref = Some("ARKAN-260926-E38-0001".into());
+        let mut en_ctx = ctx();
+        en_ctx.labels.reference = crate::i18n::tr("en", "receipt.ref");
+        let en_chit = {
+            let mut s = arabic_slip();
+            s.table_label = Some("4".into());
+            s.at = "03:31 AM".into();
+            s.teller = Some("Mona".into());
+            s
+        };
+        let en_chit_labels = KitchenChitLabels {
+            heading: "KITCHEN".into(),
+            table: "Table".into(),
+            note: "Note:".into(),
+        };
+        let mut ar_report = till_report();
+        ar_report.teller_name = "منى".into();
+        let mut ar_till = till_labels();
+        ar_till.title = "تقرير إغلاق الخزينة".into();
+        ar_till.locale = "ar".into();
+        for roll in ROLLS {
+            save(format!("ar-receipt-{roll}"), render_receipt(&ar_receipt(), &ar_ctx(), None, roll));
+            save(format!("ar-chit-{roll}"), render_kitchen_chit(&ar_chit(), &ar_chit_labels(), roll));
+            save(format!("ar-zreport-{roll}"), render_till_report(&ar_report, "Store", "EGP", &ar_till, &[], roll));
+            save(format!("en-receipt-noref-{roll}"), render_receipt(&receipt(), &ctx(), None, roll));
+            save(format!("en-receipt-ref-{roll}"), render_receipt(&en, &en_ctx, None, roll));
+            save(format!("en-chit-{roll}"), render_kitchen_chit(&en_chit, &en_chit_labels, roll));
+            save(format!("en-zreport-{roll}"), render_till_report(&till_report(), "Store", "EGP", &till_labels(), &[], roll));
+        }
+        std::fs::write(format!("{dir}/SHA256SUMS"), sums).unwrap();
     }
 }

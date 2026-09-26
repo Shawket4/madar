@@ -155,6 +155,7 @@ ReceiptView _r({
   int tendered = 20000,
   int change = 4500,
   String display = '',
+  String? orderRef,
   bool inclusive = false,
   int waived = 0,
   String? waivedBy,
@@ -182,6 +183,7 @@ ReceiptView _r({
   queuedOffline: false,
   createdAt: '2026-09-10T19:45:00Z',
   displayNumber: display,
+  orderRef: orderRef,
   serviceChargeWaivedMinor: waived,
   serviceChargeWaivedByName: waivedBy,
   taxInclusive: inclusive,
@@ -226,6 +228,8 @@ final _cases = <String, ReceiptView>{
   'void': _r(voided: true),
   // Two devices shared a code offline: the server's ~suffix stays on.
   'device': _r(display: '36B-12~AB12'),
+  // The order's reference, under the time: one colon (the word has it).
+  'ref': _r(orderRef: 'ARKAN-260926-E38-0001'),
   // A staff drink: see [_staffLines]. (Rebuilt per language in the loop.)
   'staff': _r(subtotal: 4500, total: 4500, tendered: 5000, change: 500),
   'combo': _r(
@@ -371,6 +375,12 @@ void main() {
             case 'device':
               expect(find.textContaining('#36B-12~AB12'), findsOneWidget);
               expect(find.textContaining('#1042'), findsNothing);
+            case 'ref':
+              expect(
+                find.text('${w('receipt.ref')} ARKAN-260926-E38-0001'),
+                findsOneWidget,
+              );
+              expect(find.textContaining('::'), findsNothing);
           }
           if (!_render) return;
           final b =
