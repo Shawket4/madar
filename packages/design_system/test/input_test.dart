@@ -314,6 +314,43 @@ void main() {
       );
     });
 
+    // The bar lives in MaterialApp.builder, above every Scaffold, so no
+    // Material paints under it. Without one, Flutter falls back to its debug
+    // text style: the "Done" word came out with a double yellow underline on
+    // real iOS and Android builds.
+    testWidgets('the Done word is plain text, not the debug fallback style', (
+      tester,
+    ) async {
+      _size(tester, _ipad9);
+      _keyboardUp(tester);
+      await tester.pumpWidget(
+        _appWithBar(
+          MadarField(
+            controller: TextEditingController(),
+            placeholder: 'Count',
+            kind: MadarFieldKind.digits,
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+
+      final word = tester.widget<RichText>(
+        find.descendant(of: find.text('Done'), matching: find.byType(RichText)),
+      );
+      final style = word.text.style!;
+      expect(
+        style.decoration,
+        anyOf(isNull, TextDecoration.none),
+        reason: 'no debug underline under the word',
+      );
+      expect(
+        style.debugLabel ?? '',
+        isNot(contains('fallback style')),
+        reason: 'the bar sits on a Material, not on the debug fallback',
+      );
+    });
+
     testWidgets('a note keyboard has a return key, so no bar appears', (
       tester,
     ) async {

@@ -30,6 +30,7 @@
 ///   LTR — "12.50" can render as "50.12".
 library;
 
+import 'package:flutter/material.dart' show Material, MaterialType;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -384,26 +385,32 @@ class _DoneBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The bar sits in MaterialApp.builder, above every Scaffold, so nothing
+    // under it is a Material. Without this one the word falls back to
+    // Flutter's debug text style: a double yellow underline on real devices.
     return Semantics(
       container: true,
-      child: Container(
-        height: MadarKeyboardDoneBar.height,
-        alignment: AlignmentDirectional.centerEnd,
-        padding: const EdgeInsetsDirectional.only(end: 12),
-        decoration: const BoxDecoration(color: Color(0xFFD1D4DA)),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onDone,
-          child: Container(
-            // The 44pt touch rule applies to the one control on this bar.
-            constraints: const BoxConstraints(minWidth: 64, minHeight: 44),
-            alignment: Alignment.center,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF0B63CE),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Container(
+          height: MadarKeyboardDoneBar.height,
+          alignment: AlignmentDirectional.centerEnd,
+          padding: const EdgeInsetsDirectional.only(end: 12),
+          decoration: const BoxDecoration(color: Color(0xFFD1D4DA)),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onDone,
+            child: Container(
+              // The 44pt touch rule applies to the one control on this bar.
+              constraints: const BoxConstraints(minWidth: 64, minHeight: 44),
+              alignment: Alignment.center,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF0B63CE),
+                ),
               ),
             ),
           ),
