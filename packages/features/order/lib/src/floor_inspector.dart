@@ -269,7 +269,7 @@ class _FloorTableDetailState extends State<FloorTableDetail> {
                 spacing: Space.sm,
                 children: [
                   Flexible(
-                    child: Text(
+                    child: MadarClippedText(
                       t.label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -278,7 +278,7 @@ class _FloorTableDetailState extends State<FloorTableDetail> {
                   ),
                   if (w.sectionName != null)
                     Flexible(
-                      child: Text(
+                      child: MadarClippedText(
                         w.sectionName!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

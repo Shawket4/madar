@@ -105,7 +105,7 @@ class ItemSheetMealBanner extends ConsumerWidget {
         if (hint.isNotEmpty) ...[
           const SizedBox(width: Space.xs),
           Flexible(
-            child: Text(
+            child: MadarClippedText(
               hint,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -135,7 +135,7 @@ class ItemSheetMealBanner extends ConsumerWidget {
             ),
             const SizedBox(width: Space.sm),
             Flexible(
-              child: Text(
+              child: MadarClippedText(
                 save,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:design_system/src/clipped_text.dart';
 import 'package:design_system/src/tokens/motion.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
@@ -63,6 +64,9 @@ class TactileScale extends StatefulWidget {
   /// whose tap commits. Setting it alone (with [onTap] null) still puts this
   /// wrapper in the gesture arena, because a long press has to be recognised
   /// somewhere.
+  ///
+  /// It also turns the hold hints under [child] off ([MadarHoldHints.off]):
+  /// a cut label inside must not take this press for its own bubble.
   final VoidCallback? onLongPress;
 
   /// Whether to fire [MadarHaptics.selection] on pointer-down.
@@ -123,7 +127,9 @@ class _TactileScaleState extends State<TactileScale>
       onTap: onTap,
       onLongPress: onLongPress,
       behavior: HitTestBehavior.opaque,
-      child: pressable,
+      child: onLongPress == null
+          ? pressable
+          : MadarHoldHints.off(child: pressable),
     );
   }
 }

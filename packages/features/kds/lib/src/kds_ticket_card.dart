@@ -156,7 +156,7 @@ class _Header extends ConsumerWidget {
               spacing: Space.sm,
               children: [
                 Flexible(
-                  child: Text(
+                  child: MadarClippedText(
                     // A card with neither a table nor a kitchen ref (an old
                     // teller order) is named by its round, the way it always was.
                     label ?? '#${ticket.roundNumber}',

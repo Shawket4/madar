@@ -1122,6 +1122,42 @@ void main() {
     expect(find.byType(ReceiptPaper), findsOneWidget);
   });
 
+  // Reprint prints on a tap and PREVIEWS on a long press. Its label is now a
+  // hold-hint text; the hint must never take that long press.
+  for (final (tag, size) in [('phone', _phone), ('ipad', _ipad)]) {
+    for (final arabic in [false, true]) {
+      final lang = arabic ? 'ar' : 'en';
+      testWidgets('Reprint: a long press still previews ($tag-$lang)', (
+        tester,
+      ) async {
+        final bridge = _FakeBridge(arabic: arabic);
+        await _shoot(
+          tester,
+          screen: const OrderHistoryScreen(),
+          bridge: bridge,
+          size: size,
+          theme: MadarTheme.light(),
+          name: 'reprint-hold-$tag-$lang',
+          then: (t) => _open(t, 1042),
+        );
+        final reprint = find.widgetWithText(
+          MadarButton,
+          bridge.trChecked('history.reprint'),
+        );
+        expect(reprint, findsOneWidget);
+        expect(
+          find.descendant(of: reprint, matching: find.byType(Tooltip)),
+          findsNothing,
+          reason: 'its label hints nothing: the long press is spoken for',
+        );
+        await tester.longPress(reprint);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.byType(ReceiptPaper), findsOneWidget);
+      });
+    }
+  }
+
   testWidgets('All, in the dark: every shift, dated, Load more', (
     tester,
   ) async {

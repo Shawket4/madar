@@ -35,8 +35,7 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_history/feature_history.dart' show askManager;
 import 'package:feature_order/src/order_providers.dart';
-import 'package:flutter/material.dart'
-    show InkWell, Material, MaterialType, Tooltip;
+import 'package:flutter/material.dart' show InkWell, Material, MaterialType;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -144,16 +143,14 @@ class StaffDrinkTile extends ConsumerWidget {
       );
     }
     final label = bridge.tr(key: 'staff_pool.action');
-    return Tooltip(
-      message: label,
-      child: MadarGlyphTile(
-        key: ValueKey('staff-drink-${line.key}'),
-        glyph: MadarGlyph.users,
-        dense: dense,
-        semanticLabel: label,
-        onTap: () => unawaited(
-          showStaffDrinkSheet(context, ref, line: line, tableId: tableId),
-        ),
+    // The tile's own hold hint says the word (its semantic label).
+    return MadarGlyphTile(
+      key: ValueKey('staff-drink-${line.key}'),
+      glyph: MadarGlyph.users,
+      dense: dense,
+      semanticLabel: label,
+      onTap: () => unawaited(
+        showStaffDrinkSheet(context, ref, line: line, tableId: tableId),
       ),
     );
   }
@@ -480,7 +477,7 @@ class _StaffDrinkSheetState extends ConsumerState<StaffDrinkSheet> {
                   spacing: Space.sm,
                   children: [
                     Flexible(
-                      child: Text(
+                      child: MadarClippedText(
                         widget.line.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

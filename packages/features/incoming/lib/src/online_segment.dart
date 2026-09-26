@@ -601,7 +601,7 @@ class _DeclineSheetState extends ConsumerState<_DeclineSheet> {
             spacing: Space.sm,
             children: [
               Flexible(
-                child: Text(
+                child: MadarClippedText(
                   o.customerName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

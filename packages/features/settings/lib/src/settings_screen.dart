@@ -223,14 +223,14 @@ class ProfileCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: 2,
               children: [
-                Text(
+                MadarClippedText(
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: MadarType.h3.copyWith(color: colors.textPrimary),
                 ),
                 if (meta.isNotEmpty)
-                  Text(
+                  MadarClippedText(
                     meta,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

@@ -11,6 +11,7 @@ export 'src/banners.dart';
 export 'src/brand.dart';
 export 'src/brand_panel.dart';
 export 'src/chrome.dart';
+export 'src/clipped_text.dart';
 export 'src/controls.dart';
 export 'src/data_table.dart';
 export 'src/date_range_picker.dart';

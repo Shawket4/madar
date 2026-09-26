@@ -299,7 +299,7 @@ class _SheetHeader extends StatelessWidget {
               child: MadarIcon(icon, tint: colors.accent, size: IconSize.xl),
             ),
             Expanded(
-              child: Text(
+              child: MadarClippedText(
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -359,7 +359,7 @@ class _CustomerHero extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: Space.xs / 2,
               children: [
-                Text(
+                MadarClippedText(
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

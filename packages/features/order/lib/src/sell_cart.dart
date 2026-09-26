@@ -615,7 +615,7 @@ class _OnBillLine extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(
+            child: MadarClippedText(
               '${MadarFormat.ltr('${line.qty}×')} ${line.name}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -750,7 +750,7 @@ class _RoundLineState extends ConsumerState<_RoundLine> {
       mainAxisSize: MainAxisSize.min,
       spacing: 2,
       children: [
-        Text(
+        MadarClippedText(
           line.name,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
@@ -780,14 +780,14 @@ class _RoundLineState extends ConsumerState<_RoundLine> {
         if (isCombo)
           for (final p in line.parts) CartPartRow(part: p, currency: currency),
         if (mods.isNotEmpty)
-          Text(
+          MadarClippedText(
             mods.join(' · '),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: MadarType.bodySm.copyWith(color: colors.textSecondary),
           ),
         if (notes != null && notes.isNotEmpty)
-          Text(
+          MadarClippedText(
             // The quote marks are the language's: “…” in English,
             // «…» in Arabic — hard-coded curly quotes read backwards
             // in RTL.
@@ -800,14 +800,14 @@ class _RoundLineState extends ConsumerState<_RoundLine> {
             ),
           ),
         if (line.dealName case final d? when line.dealCutMinor > 0)
-          Text(
+          MadarClippedText(
             d,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: MadarType.bodySm.copyWith(color: colors.success),
           ),
         if (line.kitchenNote case final k? when k.trim().isNotEmpty)
-          Text(
+          MadarClippedText(
             '${orderWord(bridge, 'sell.kitchen_note')}: ${k.trim()}',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -932,30 +932,26 @@ class _RoundLineState extends ConsumerState<_RoundLine> {
                         counterSale: counterSale,
                         dense: true,
                       ),
-                    Tooltip(
-                      message: orderWord(bridge, 'sell.kitchen_row_hint'),
-                      child: MadarGlyphTile(
-                        key: ValueKey('kitchen-${line.key}'),
-                        glyph: MadarGlyph.printer,
-                        dense: true,
-                        semanticLabel: orderWord(
-                          bridge,
-                          'sell.kitchen_row_hint',
-                        ),
-                        onTap: printDish,
-                        onLongPress: openDishSheet,
-                      ),
+                    // Its long press is its own (the dish's sheet, titled
+                    // with the item), so its word shows on a resting mouse
+                    // only.
+                    MadarGlyphTile(
+                      key: ValueKey('kitchen-${line.key}'),
+                      glyph: MadarGlyph.printer,
+                      dense: true,
+                      semanticLabel: orderWord(bridge, 'sell.kitchen_row_hint'),
+                      onTap: printDish,
+                      onLongPress: openDishSheet,
                     ),
+                    // A long press says what it does (the tile's own hold
+                    // hint).
                     if (recipe)
-                      Tooltip(
-                        message: orderWord(bridge, 'sell.send_recipe'),
-                        child: MadarGlyphTile(
-                          key: ValueKey('recipe-${line.key}'),
-                          glyph: MadarGlyph.list,
-                          dense: true,
-                          semanticLabel: orderWord(bridge, 'sell.send_recipe'),
-                          onTap: printRecipe,
-                        ),
+                      MadarGlyphTile(
+                        key: ValueKey('recipe-${line.key}'),
+                        glyph: MadarGlyph.list,
+                        dense: true,
+                        semanticLabel: orderWord(bridge, 'sell.send_recipe'),
+                        onTap: printRecipe,
                       ),
                   ],
                 ),
@@ -1035,7 +1031,7 @@ class _RoundLineState extends ConsumerState<_RoundLine> {
               // In an applied deal: the line keeps its normal price, and
               // what the deal takes off it reads under it.
               if (line.dealCutMinor > 0)
-                Text(
+                MadarClippedText(
                   '−${Money.format(line.dealCutMinor, currency: currency, locale: MadarFormat.localeOf(context))}',
                   key: ValueKey('deal-cut-${line.key}'),
                   maxLines: 1,
@@ -1590,7 +1586,7 @@ class _FigureRow extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(
+          child: MadarClippedText(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -1671,7 +1667,7 @@ class SellBar extends ConsumerWidget {
             else if (!cta.enabled && cta.reason != null)
               Padding(
                 padding: const EdgeInsetsDirectional.only(bottom: Space.xs),
-                child: Text(
+                child: MadarClippedText(
                   cta.reason!,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -1712,7 +1708,7 @@ class SellBar extends ConsumerWidget {
                               // Pops as the count rises — the bar's bump.
                               child: Nudge(
                                 trigger: cta.itemCount,
-                                child: Text(
+                                child: MadarClippedText(
                                   '${cta.itemCount} ${bridge.tr(key: 'waiter.items')}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -2166,7 +2162,7 @@ class CartPartRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
+          MadarClippedText(
             part.surchargeMinor > 0
                 ? '$head  +${money(part.surchargeMinor)}'
                 : head,
@@ -2177,7 +2173,7 @@ class CartPartRow extends StatelessWidget {
           if (extras.isNotEmpty)
             Padding(
               padding: const EdgeInsetsDirectional.only(start: Space.md),
-              child: Text(
+              child: MadarClippedText(
                 extras.map((e) => '+ $e').join('  '),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -2243,7 +2239,7 @@ class DealSuggestionBanner extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
+                  MadarClippedText(
                     bridge
                         .tr(key: 'deal.qualifies')
                         .replaceAll('{deal}', suggestion.name),
@@ -2251,7 +2247,7 @@ class DealSuggestionBanner extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                     style: MadarType.title.copyWith(color: colors.textPrimary),
                   ),
-                  Text(
+                  MadarClippedText(
                     suggestion.times > 1
                         ? '$save · ${suggestion.timesLabel}'
                         : save,
@@ -2302,7 +2298,7 @@ class _AppliedDealRow extends ConsumerWidget {
             tone: MadarTone.success,
           ),
           Expanded(
-            child: Text(
+            child: MadarClippedText(
               bridge.tr(key: 'deal.applied').replaceAll('{deal}', deal.name),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

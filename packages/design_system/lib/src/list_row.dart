@@ -21,6 +21,7 @@
 /// these.
 library;
 
+import 'package:design_system/src/clipped_text.dart';
 import 'package:design_system/src/controls.dart';
 import 'package:design_system/src/format.dart';
 import 'package:design_system/src/glyphs.dart';
@@ -311,14 +312,14 @@ class MadarListRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 spacing: 2,
                 children: [
-                  Text(
+                  MadarClippedText(
                     title,
                     maxLines: titleLines,
                     overflow: TextOverflow.ellipsis,
                     style: MadarType.title.copyWith(color: colors.textPrimary),
                   ),
                   if (meta != null)
-                    Text(
+                    MadarClippedText(
                       meta!,
                       maxLines: metaLines,
                       overflow: TextOverflow.ellipsis,
@@ -463,7 +464,7 @@ class MadarSummaryLine extends StatelessWidget {
         spacing: Space.lg,
         children: [
           Expanded(
-            child: Text(
+            child: MadarClippedText(
               label,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,

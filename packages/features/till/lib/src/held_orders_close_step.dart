@@ -77,7 +77,7 @@ class HeldOrdersCloseWarning extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      MadarClippedText(
                         h.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

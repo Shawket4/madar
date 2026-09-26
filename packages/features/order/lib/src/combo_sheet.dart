@@ -621,7 +621,7 @@ class _PickDetails extends ConsumerWidget {
           Row(
             children: [
               Expanded(
-                child: Text(
+                child: MadarClippedText(
                   choice.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -665,7 +665,7 @@ class _PickDetails extends ConsumerWidget {
           ],
           if (summary.isNotEmpty) ...[
             const SizedBox(height: Space.sm),
-            Text(
+            MadarClippedText(
               summary,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,

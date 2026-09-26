@@ -1,3 +1,4 @@
+import 'package:design_system/src/clipped_text.dart';
 import 'package:design_system/src/icons.dart';
 import 'package:design_system/src/toast.dart';
 import 'package:design_system/src/tokens/colors.dart';
@@ -268,7 +269,7 @@ class StatusChip extends StatelessWidget {
               ),
             const SizedBox(width: _chipGap),
             Flexible(
-              child: Text(
+              child: MadarClippedText(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

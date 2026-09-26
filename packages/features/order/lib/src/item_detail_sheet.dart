@@ -1694,7 +1694,7 @@ class ItemSheetHeader extends StatelessWidget {
                       if (description != null && description.isNotEmpty)
                         Padding(
                           padding: const EdgeInsetsDirectional.only(top: 2),
-                          child: Text(
+                          child: MadarClippedText(
                             description,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -2077,7 +2077,7 @@ class _SummaryChip extends ConsumerWidget {
                   ),
                   child: Center(
                     widthFactor: 1,
-                    child: Text(
+                    child: MadarClippedText(
                       part.text,
                       maxLines: 1,
                       style: MadarType.label.copyWith(
@@ -2221,7 +2221,7 @@ class ItemPriceBreakdown extends ConsumerWidget {
         spacing: Space.md,
         children: [
           Expanded(
-            child: Text(
+            child: MadarClippedText(
               label,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -2548,7 +2548,7 @@ class _ItemSheetGroupCardState extends ConsumerState<ItemSheetGroupCard> {
                             // Title flexes + ellipsizes so a long group name can't push
                             // the chips off the end edge.
                             Expanded(
-                              child: Text(
+                              child: MadarClippedText(
                                 g.title.toUpperCase(),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -2601,7 +2601,7 @@ class _ItemSheetGroupCardState extends ConsumerState<ItemSheetGroupCard> {
                       ),
                       if (widget.subtitle case final subtitle?) ...[
                         const SizedBox(height: Space.xs),
-                        Text(
+                        MadarClippedText(
                           subtitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -2613,7 +2613,7 @@ class _ItemSheetGroupCardState extends ConsumerState<ItemSheetGroupCard> {
                       // Folded: the selection, so nothing is hidden — only folded.
                       if (!_expanded) ...[
                         const SizedBox(height: Space.sm),
-                        Text(
+                        MadarClippedText(
                           _summary(bridge),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -3351,7 +3351,7 @@ class GrandTotalBlock extends StatelessWidget {
         children: [
           // A long label (an Arabic one, a combo's) gives way to the figure.
           Expanded(
-            child: Text(
+            child: MadarClippedText(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

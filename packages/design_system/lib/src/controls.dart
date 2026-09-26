@@ -19,10 +19,16 @@
 /// A control that is genuinely one screen's own — a PIN pad, a floor-plan
 /// table — still belongs to that feature. Only the things every screen needs
 /// live here.
+///
+/// Text that may not fit is `MadarClippedText` (clipped_text.dart), never a
+/// bare ellipsised `Text`: a cut label shows its whole self on a long press.
+/// Every label, title and chip in this file already is one, and a glyph tile
+/// says its [MadarGlyphTile.semanticLabel] the same way.
 library;
 
 import 'dart:async';
 
+import 'package:design_system/src/clipped_text.dart';
 import 'package:design_system/src/focus.dart';
 import 'package:design_system/src/format.dart';
 import 'package:design_system/src/glyphs.dart';
@@ -202,8 +208,13 @@ class MadarButton extends StatelessWidget {
   /// Dims the fill and blocks taps when false.
   final bool enabled;
 
-  /// When set, wraps the button in a [Tooltip] — use it to say WHY a disabled
-  /// button is disabled, which is the only honest way to disable one.
+  /// When set, a long press (or a resting mouse) shows it in the kit's hold
+  /// hint ([MadarHoldHint]) — use it to say WHY a disabled button is
+  /// disabled, which is the only honest way to disable one, or to give a
+  /// glyph-only button (an empty or bare-figure [label]) the word it dropped
+  /// for room. It speaks for the whole button, so a cut [label] under it
+  /// hints nothing of its own; with [onLongPress] set, the long press stays
+  /// the button's and the tooltip answers a mouse only.
   final String? tooltip;
 
   @override
@@ -317,7 +328,8 @@ class MadarButton extends StatelessWidget {
               ],
             );
           }
-          final text = Text(
+          // A label cut for room shows itself on a long press.
+          final text = MadarClippedText(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -373,7 +385,14 @@ class MadarButton extends StatelessWidget {
       );
     }
     final tip = tooltip;
-    if (tip != null) button = Tooltip(message: tip, child: button);
+    if (tip != null) {
+      button = MadarHoldHint(
+        message: tip,
+        hold: onLongPress == null || !active,
+        semantics: true,
+        child: MadarHoldHints.off(child: button),
+      );
+    }
     return Semantics(button: true, enabled: active, child: button);
   }
 }
@@ -444,7 +463,7 @@ class MadarMoneyBar extends StatelessWidget {
           // Same rule as the button: fill a dictated width, shrink-wrap a
           // loose one, and never put a Flexible under an unbounded one.
           final bounded = constraints.hasBoundedWidth;
-          final text = Text(
+          final text = MadarClippedText(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -465,7 +484,7 @@ class MadarMoneyBar extends StatelessWidget {
                 )
               else if (showReason)
                 Flexible(
-                  child: Text(
+                  child: MadarClippedText(
                     reason!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -503,6 +522,10 @@ class MadarMoneyBar extends StatelessWidget {
 /// A square glyph tile — a verb with no room for a word: the header's back
 /// tile, a row's ⋯, a field's clear. 44 square on the sunk grey; 56 beside
 /// a regular button so the pair lines up.
+///
+/// The word it has no room for is its [semanticLabel]: a long press (or a
+/// resting mouse) shows it in the hold hint, unless the tile's own
+/// [onLongPress] does something — then the press stays the tile's.
 class MadarGlyphTile extends StatelessWidget {
   const MadarGlyphTile({
     required this.onTap,
@@ -538,7 +561,8 @@ class MadarGlyphTile extends StatelessWidget {
   /// Tile fill. Defaults to the sunk grey.
   final Color? background;
 
-  /// What the tile does, for a screen reader. A glyph alone says nothing.
+  /// What the tile does, for a screen reader — and, on a long press, for
+  /// everyone else. A glyph alone says nothing.
   final String? semanticLabel;
 
   /// [MadarButtonSize.compact] is 44; [MadarButtonSize.regular] is 56.
@@ -588,6 +612,16 @@ class MadarGlyphTile extends StatelessWidget {
                 MadarHaptics.impact();
                 onLongPress!();
               },
+        child: tile,
+      );
+    }
+    final word = semanticLabel;
+    if (word != null) {
+      // The word the glyph stands in for. The Semantics below already reads
+      // it, so the bubble adds no second reading.
+      tile = MadarHoldHint(
+        message: word,
+        hold: onLongPress == null || !enabled,
         child: tile,
       );
     }
@@ -1307,7 +1341,7 @@ class MadarRow extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  MadarClippedText(
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1316,7 +1350,7 @@ class MadarRow extends StatelessWidget {
                         MadarType.title.copyWith(color: colors.textPrimary),
                   ),
                   if (subtitle != null)
-                    Text(
+                    MadarClippedText(
                       subtitle!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1365,6 +1399,9 @@ class MadarRow extends StatelessWidget {
       );
     }
     if (onTap == null && onLongPress == null) return row;
+    // The row's own long press is spoken for: a cut title under it must not
+    // take the press for its hint.
+    if (onLongPress != null) row = MadarHoldHints.off(child: row);
     return Semantics(
       button: true,
       child: GestureDetector(
@@ -1439,7 +1476,7 @@ class MadarSectionHeader extends StatelessWidget {
           else if (icon != null)
             MadarIcon(icon, tint: colors.textSecondary, size: IconSize.xs),
           Expanded(
-            child: Text(
+            child: MadarClippedText(
               text.toUpperCase(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1559,7 +1596,7 @@ class MadarChip extends StatelessWidget {
       // would throw, so the box decides.
       child: LayoutBuilder(
         builder: (context, c) {
-          final text = Text(
+          final text = MadarClippedText(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -1717,7 +1754,7 @@ class MadarTag extends StatelessWidget {
           // is not the thing that should win that argument, and clipping a
           // word beats a black-and-yellow stripe across a real screen.
           Flexible(
-            child: Text(
+            child: MadarClippedText(
               label.toUpperCase(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

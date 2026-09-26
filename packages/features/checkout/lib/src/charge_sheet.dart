@@ -649,7 +649,7 @@ class _ChargeHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: 2,
             children: [
-              Text.rich(
+              MadarClippedText.rich(
                 TextSpan(
                   children: [
                     TextSpan(text: '${tr('charge.title')} · '),
@@ -675,7 +675,7 @@ class _ChargeHeader extends StatelessWidget {
                 style: title,
               ),
               if (sub != null && sub.isNotEmpty)
-                Text(
+                MadarClippedText(
                   sub,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1165,7 +1165,7 @@ class _QuietRow extends StatelessWidget {
             ),
           ),
           Flexible(
-            child: Text(
+            child: MadarClippedText(
               value,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1266,7 +1266,7 @@ class _RewardLine extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
+                  MadarClippedText(
                     name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1277,7 +1277,7 @@ class _RewardLine extends StatelessWidget {
                     ),
                   ),
                   if (reason case final why?)
-                    Text(
+                    MadarClippedText(
                       why,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1457,14 +1457,14 @@ class _MethodTile extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    MadarClippedText(
                       method.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: MadarType.buttonSm.copyWith(color: fg),
                     ),
                     if (showKind)
-                      Text(
+                      MadarClippedText(
                         kind,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1582,7 +1582,7 @@ class _SplitAllocator extends StatelessWidget {
             children: [
               SizedBox(
                 width: 96,
-                child: Text(
+                child: MadarClippedText(
                   m.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1852,7 +1852,7 @@ class _PresetTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     final ink = selected ? Colors.white : colors.textPrimary;
-    final figure = Text(
+    final figure = MadarClippedText(
       label,
       textDirection: TextDirection.ltr,
       maxLines: 1,

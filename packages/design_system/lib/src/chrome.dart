@@ -13,6 +13,7 @@
 /// how many and in what words.
 library;
 
+import 'package:design_system/src/clipped_text.dart';
 import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/playful.dart';
 import 'package:design_system/src/responsive.dart';
@@ -136,7 +137,7 @@ class MadarRailTab extends StatelessWidget {
                         filled: selected,
                       ),
                     ),
-                    Text(
+                    MadarClippedText(
                       tab.label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -457,7 +458,7 @@ class _Who extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final name = Text(
+    final name = MadarClippedText(
       person.name,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
@@ -575,7 +576,7 @@ class _BarTab extends StatelessWidget {
                     color: fg,
                     filled: selected,
                   ),
-                  Text(
+                  MadarClippedText(
                     tab.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -633,8 +634,9 @@ class MadarOutboxPill extends StatelessWidget {
   final int count;
   final VoidCallback? onTap;
 
-  /// Glyph and count only (the word stays in the semantics): the top bar
-  /// asks for it when a narrow phone also carries actions.
+  /// Glyph and count only (the word stays in the semantics, and a long
+  /// press shows it): the top bar asks for it when a narrow phone also
+  /// carries actions.
   final bool compact;
 
   @override
@@ -723,10 +725,13 @@ class MadarOutboxPill extends StatelessWidget {
         ],
       ),
     );
+    final pressable = TactileScale(onTap: onTap, child: pill);
     return Semantics(
       button: onTap != null,
       label: '$count $label',
-      child: TactileScale(onTap: onTap, child: pill),
+      child: compact
+          ? MadarHoldHint(message: label, child: pressable)
+          : pressable,
     );
   }
 }
@@ -815,10 +820,14 @@ class MadarTopBar extends StatelessWidget {
           Semantics(
             button: onPersonTap != null,
             label: person!.name,
-            child: TactileScale(
-              onTap: onPersonTap,
-              child: ExcludeSemantics(
-                child: MadarAvatar(person: person!, size: 28),
+            // The name the avatar stands in for, on a long press.
+            child: MadarHoldHint(
+              message: person!.name,
+              child: TactileScale(
+                onTap: onPersonTap,
+                child: ExcludeSemantics(
+                  child: MadarAvatar(person: person!, size: 28),
+                ),
               ),
             ),
           )
@@ -840,7 +849,7 @@ class MadarTopBar extends StatelessWidget {
             spacing: Space.md,
             children: [
               Flexible(
-                child: Text(
+                child: MadarClippedText(
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -860,7 +869,7 @@ class MadarTopBar extends StatelessWidget {
                 // money CB7); the title keeps most of the row.
                 Flexible(
                   flex: 3,
-                  child: Text(
+                  child: MadarClippedText(
                     subtitle!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
