@@ -142,6 +142,11 @@ enum MadarButtonSize {
   /// 44 — a dense row where several buttons stand shoulder to shoulder (a
   /// card's Accept / Decline, a row's Retry / Discard).
   compact,
+
+  /// 36 — a cart line's labelled tools, three to an ~80-wide slot beside its
+  /// 36 dense tiles. Tight padding and a 13 label: at the compact size the
+  /// padding and the glyph left a word 22 points, so "Kitchen" showed as "…".
+  dense,
 }
 
 /// THE button. Flat fill, 12px corners, a 17-bold label, a tactile press
@@ -205,7 +210,13 @@ class MadarButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     final active = enabled && !loading;
-    final compact = size == MadarButtonSize.compact;
+    final compact = size != MadarButtonSize.regular;
+    final dense = size == MadarButtonSize.dense;
+    final height = switch (size) {
+      MadarButtonSize.regular => Metrics.buttonHeight,
+      MadarButtonSize.compact => Metrics.buttonSmallHeight,
+      MadarButtonSize.dense => Metrics.glyphTileDense,
+    };
 
     var (Color? fill, Color fg) = switch (variant) {
       MadarButtonVariant.primary => (colors.accent, colors.textOnAccent),
@@ -223,18 +234,27 @@ class MadarButton extends StatelessWidget {
       fg = colors.textMuted;
     }
 
-    final labelStyle = (compact ? MadarType.buttonSm : MadarType.button)
-        .copyWith(color: fg);
-    final glyphSize = compact ? IconSize.md : IconSize.lg;
-    final hPad = variant == MadarButtonVariant.ghost
+    final labelStyle = switch (size) {
+      MadarButtonSize.regular => MadarType.button,
+      MadarButtonSize.compact => MadarType.buttonSm,
+      MadarButtonSize.dense => MadarType.bodySm.copyWith(
+        fontWeight: FontWeight.w600,
+      ),
+    }.copyWith(color: fg);
+    final glyphSize = dense
+        ? IconSize.sm
+        : compact
+        ? IconSize.md
+        : IconSize.lg;
+    final hPad = dense
+        ? Space.xs
+        : variant == MadarButtonVariant.ghost
         ? Space.md
         : (compact ? Space.lg : 22.0);
 
     Widget button = Container(
-      height: compact ? Metrics.buttonSmallHeight : Metrics.buttonHeight,
-      constraints: BoxConstraints(
-        minWidth: compact ? Metrics.buttonSmallHeight : Metrics.buttonHeight,
-      ),
+      height: height,
+      constraints: BoxConstraints(minWidth: height),
       padding: EdgeInsetsDirectional.symmetric(
         horizontal: label.isEmpty ? 0 : hPad,
       ),
@@ -267,15 +287,13 @@ class MadarButton extends StatelessWidget {
           // already reached us, so the NEXT one fails loudly in debug
           // instead of quietly on a tablet.
           assert(() {
-            final want = compact
-                ? Metrics.buttonSmallHeight
-                : Metrics.buttonHeight;
+            final want = height;
             if ((constraints.maxHeight - want).abs() > 0.5) {
               throw FlutterError(
                 'MadarButton "$label" got '
                 '${constraints.maxHeight.toStringAsFixed(1)}px of height '
                 'instead of the fixed ${want.toStringAsFixed(0)}px the '
-                '${compact ? 'compact' : 'regular'} size defines. Something '
+                '${size.name} size defines. Something '
                 'upstream is squeezing (or stretching) its slot — an '
                 '`Expanded` losing a flex fight, a fixed-height Row — give '
                 'it a slot that is exactly ${want.toStringAsFixed(0)}px tall '
@@ -310,7 +328,11 @@ class MadarButton extends StatelessWidget {
                 ? MainAxisAlignment.center
                 : MainAxisAlignment.spaceBetween,
             mainAxisSize: fillLine ? MainAxisSize.max : MainAxisSize.min,
-            spacing: compact ? Space.sm : 10,
+            spacing: dense
+                ? Space.xs
+                : compact
+                ? Space.sm
+                : 10,
             children: [
               if (glyph != null)
                 MadarGlyphIcon(glyph!, size: glyphSize, color: fg)
@@ -1747,8 +1769,9 @@ class MadarStepper extends StatelessWidget {
       required VoidCallback onTap,
       String? label,
     }) {
-      final face = SizedBox.square(
-        dimension: side,
+      final face = SizedBox(
+        width: dense ? Metrics.stepperDenseKey : side,
+        height: side,
         child: Center(
           child: MadarGlyphIcon(
             glyph,
@@ -1795,13 +1818,18 @@ class MadarStepper extends StatelessWidget {
             label: decrementLabel,
           ),
           SizedBox(
-            width: dense ? 26 : 32,
-            child: Text(
-              '$value',
-              textAlign: TextAlign.center,
-              textDirection: TextDirection.ltr,
-              style: (dense ? MadarType.num : MadarType.numLg).copyWith(
-                color: colors.textPrimary,
+            width: dense ? Metrics.stepperDenseValue : 32,
+            // A three-figure count scales down in place: the stepper keeps
+            // its width, so a line's row never reflows under the thumb.
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '$value',
+                textAlign: TextAlign.center,
+                textDirection: TextDirection.ltr,
+                style: (dense ? MadarType.num : MadarType.numLg).copyWith(
+                  color: colors.textPrimary,
+                ),
               ),
             ),
           ),

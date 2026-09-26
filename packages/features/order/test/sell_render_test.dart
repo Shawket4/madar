@@ -73,6 +73,7 @@ void main() {
   group('the keyboard up on an iPad in landscape', _keyboardMain);
   group('Done after Charge, and the service mode it charges', _doneMain);
   group('a selected cart line', _selectedLineMain);
+  group("a selected line's buttons: one row, or two on purpose", _lineRowsMain);
 
   group('assigning a held order to a table', () {
     Future<void> assignVia(WidgetTester tester, String chip) async {
@@ -1100,6 +1101,192 @@ void _selectedLineMain() {
   }
 }
 
+/// The owner, on the first cart redesign: "make the stepper narrower because
+/// on smaller tablets it makes the buttons take a second row, and if for some
+/// reason it needs to take a second row make it look polished not like it
+/// overflowed."
+///
+/// The dense stepper is 86 wide (32 keys). A food line (kitchen + recipe) fits
+/// one row in a 300 column; a staff drink with a recipe fits one row at 340,
+/// and at 300 takes two rows ON PURPOSE: the stepper, edit and remove on top,
+/// its tools as one even row of labelled buttons under them.
+void _lineRowsMain() {
+  const cake = CartLineView(
+    dealCutMinor: 0,
+    kind: 'item',
+    parts: [],
+    key: 'k-cake',
+    itemId: 'cake',
+    name: 'Chocolate cake',
+    addons: [],
+    optionals: [],
+    unitPriceMinor: 6000,
+    qty: 1,
+    lineTotalMinor: 6000,
+  );
+
+  Future<void> open(
+    WidgetTester tester,
+    Size size,
+    String key, {
+    bool ar = false,
+  }) async {
+    final bridge = _WideLineBridge(rtl: ar);
+    bridge.carts[null] = [_StaffBridge._latte, cake];
+    await _mount(
+      tester,
+      screen: const TakeawaySellScreen(),
+      size: size,
+      bridge: bridge,
+    );
+    await _settle(tester);
+    await _selectLine(tester, key);
+    await _settle(tester);
+  }
+
+  Rect rectOf(WidgetTester tester, String key) =>
+      tester.getRect(find.byKey(ValueKey(key)));
+
+  Rect stepperOf(WidgetTester tester, String line) => tester.getRect(
+    find.descendant(
+      of: find.byKey(ValueKey('round-$line')),
+      matching: find.byType(MadarStepper),
+    ),
+  );
+
+  testWidgets('the dense stepper is 86 wide: two 32 keys and the figure', (
+    tester,
+  ) async {
+    await open(tester, _ipad, 'k-cake');
+    expect(stepperOf(tester, 'k-cake').width, Metrics.stepperDenseWidth);
+    expect(Metrics.stepperDenseWidth, 86);
+    expect(stepperOf(tester, 'k-cake').height, Metrics.stepperDense);
+  });
+
+  for (final (label, size) in const [
+    ('tab8', _tab8),
+    ('ipad9p', _ipad9Portrait),
+  ]) {
+    testWidgets('a food line keeps every button on one row · $label', (
+      tester,
+    ) async {
+      await open(tester, size, 'k-cake');
+      final row = stepperOf(tester, 'k-cake').center.dy;
+      for (final k in const [
+        'kitchen-k-cake',
+        'recipe-k-cake',
+        'edit-k-cake',
+        'remove-k-cake',
+      ]) {
+        expect(
+          rectOf(tester, k).center.dy,
+          moreOrLessEquals(row, epsilon: 0.5),
+          reason: "$k is on the stepper's row",
+        );
+      }
+      await _capture(tester, 'sell-line-rows-food-$label');
+    });
+  }
+
+  for (final ar in [false, true]) {
+    final lang = ar ? 'ar' : 'en';
+    testWidgets('a staff drink with a recipe takes two even rows · tab8 · '
+        '$lang', (tester) async {
+      await open(tester, _tab8, 'k-latte', ar: ar);
+      final stepper = stepperOf(tester, 'k-latte');
+      final edit = rectOf(tester, 'edit-k-latte');
+      final remove = rectOf(tester, 'remove-k-latte');
+      for (final r in [edit, remove]) {
+        expect(
+          r.center.dy,
+          moreOrLessEquals(stepper.center.dy, epsilon: 0.5),
+          reason: "edit and remove stay on the stepper's row",
+        );
+      }
+      final tools = [
+        for (final k in const [
+          'staff-drink-k-latte',
+          'kitchen-k-latte',
+          'recipe-k-latte',
+        ])
+          rectOf(tester, k),
+      ];
+      for (final t in tools) {
+        expect(
+          t.top,
+          greaterThan(stepper.bottom),
+          reason: 'the tools are the second row',
+        );
+        expect(
+          t.center.dy,
+          moreOrLessEquals(tools.first.center.dy, epsilon: 0.5),
+          reason: 'one row of them',
+        );
+        expect(
+          t.width,
+          moreOrLessEquals(tools.first.width, epsilon: 0.5),
+          reason: 'even widths: the row is laid out, not spilled',
+        );
+      }
+      // The row spans the card's content, edge to edge with the row above.
+      final start = ar ? remove.left : stepper.left;
+      final end = ar ? stepper.right : remove.right;
+      final left = tools.map((t) => t.left).reduce((a, b) => a < b ? a : b);
+      final right = tools.map((t) => t.right).reduce((a, b) => a > b ? a : b);
+      expect(left, moreOrLessEquals(start, epsilon: 0.5));
+      expect(right, moreOrLessEquals(end, epsilon: 0.5));
+      // Each says what it does, in the language on screen.
+      for (final k in const [
+        'sell.tool_staff',
+        'sell.tool_kitchen',
+        'sell.tool_recipe',
+      ]) {
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('round-k-latte')),
+            matching: find.text(coreWord(k, arabic: ar)),
+          ),
+          findsOneWidget,
+          reason: '$k labels its button',
+        );
+      }
+      await _capture(tester, 'sell-line-rows-two-tab8-$lang');
+    });
+  }
+
+  testWidgets('the same staff drink is one row at 340 · ipad', (tester) async {
+    await open(tester, _ipad, 'k-latte');
+    final row = stepperOf(tester, 'k-latte').center.dy;
+    for (final k in const [
+      'staff-drink-k-latte',
+      'kitchen-k-latte',
+      'recipe-k-latte',
+      'edit-k-latte',
+      'remove-k-latte',
+    ]) {
+      expect(
+        rectOf(tester, k).center.dy,
+        moreOrLessEquals(row, epsilon: 0.5),
+        reason: "$k is on the stepper's row",
+      );
+    }
+    await _capture(tester, 'sell-line-rows-one-ipad');
+  });
+
+  testWidgets('in two rows the kitchen button keeps its long press', (
+    tester,
+  ) async {
+    await open(tester, _tab8, 'k-latte');
+    await tester.longPress(find.byKey(const ValueKey('kitchen-k-latte')));
+    await _settle(tester);
+    expect(
+      find.text(coreWord('sell.kitchen_row_sheet_preview')),
+      findsOneWidget,
+      reason: 'the row sheet opened: its note, preview and print',
+    );
+  });
+}
+
 /// [_StaffBridge] with recipe steps on the Latte: its line opens the widest
 /// row a line can have (stepper, staff drink, kitchen, recipe, edit,
 /// remove).
@@ -1111,7 +1298,7 @@ class _WideLineBridge extends _StaffBridge {
     if (invocation.memberName == #listMenuItems) {
       return Future<List<MenuItemView>>.value([
         for (final i in _items)
-          if (i.id == 'latte')
+          if (i.id == 'latte' || i.id == 'cake')
             MenuItemView(
               kind: i.kind,
               id: i.id,

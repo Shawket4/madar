@@ -833,109 +833,184 @@ class _RoundLineState extends ConsumerState<_RoundLine> {
               color: colors.textPrimary,
             ),
     );
-    // The stepper and the line's tools wrap onto a second row when the column
-    // is narrow; edit and remove hold the top end corner. In one Row, a staff
-    // drink with a recipe (~300 points of buttons) ran past the card's border
-    // in a 300 cart column, and by 12 points even in a 340 one.
-    final tools = Wrap(
-      spacing: Space.xs,
-      runSpacing: Space.xs,
-      children: [
-        MadarStepper(
-          dense: true,
-          value: line.qty,
-          onChanged: (q) => unawaited(notifier.setQty(line.key, q)),
-        ),
-        // The branch's staff pool: hidden unless the core says this line is
-        // on it and this person may act. See `staff_drink_sheet.dart`.
-        StaffDrinkTile(
-          line: line,
+    // The line's own acts. Tap prints just this dish now; a long press opens
+    // a sheet for its kitchen note, a preview, and print. ONE button for this
+    // row's kitchen action, never confused with the cart-level "Send to
+    // kitchen" in the footer, which sends every line.
+    void printDish() => unawaited(
+      ref
+          .read(orderProvider.notifier)
+          .printKitchenChit(
+            line,
+            tableId: tableId,
+            tableLabel: tableLabel,
+            ticketRef: ticketRef,
+          ),
+    );
+    void openDishSheet() => unawaited(
+      showMadarSheet<void>(
+        context,
+        size: SheetSize.hug,
+        maxWidth: Responsive.sheetCompactMaxWidth,
+        builder: (_) => _RowKitchenSheet(
           tableId: tableId,
-          counterSale: counterSale,
-          dense: true,
+          line: line,
+          tableLabel: tableLabel,
+          ticketRef: ticketRef,
         ),
-        // ONE small button for this row's kitchen action — never confused
-        // with the cart-level "Send to kitchen" in the footer, which sends
-        // every line. Tap prints just this dish now; long press opens a sheet
-        // for its kitchen note, a preview, and print.
-        Tooltip(
-          message: orderWord(bridge, 'sell.kitchen_row_hint'),
-          child: MadarGlyphTile(
-            key: ValueKey('kitchen-${line.key}'),
-            glyph: MadarGlyph.printer,
-            dense: true,
-            semanticLabel: orderWord(bridge, 'sell.kitchen_row_hint'),
-            onTap: () => unawaited(
-              ref
-                  .read(orderProvider.notifier)
-                  .printKitchenChit(
-                    line,
-                    tableId: tableId,
-                    tableLabel: tableLabel,
-                    ticketRef: ticketRef,
-                  ),
-            ),
-            onLongPress: () => unawaited(
-              showMadarSheet<void>(
-                context,
-                size: SheetSize.hug,
-                maxWidth: Responsive.sheetCompactMaxWidth,
-                builder: (_) => _RowKitchenSheet(
-                  tableId: tableId,
-                  line: line,
-                  tableLabel: tableLabel,
-                  ticketRef: ticketRef,
+      ),
+    );
+    // The recipe card: what goes into one and the steps, to the same printer
+    // as this dish's chit. Only on an item that has either.
+    void printRecipe() => unawaited(
+      ref
+          .read(orderProvider.notifier)
+          .printRecipeChit(
+            line,
+            tableId: tableId,
+            tableLabel: tableLabel,
+            ticketRef: ticketRef,
+          ),
+    );
+    // The branch's staff pool: only when the core says this line is on it and
+    // this person may act. See `staff_drink_sheet.dart`.
+    final staff = staffDrinkTileShows(
+      ref,
+      line,
+      tableId: tableId,
+      counterSale: counterSale,
+    );
+    final recipe = ref.read(orderProvider.notifier).lineHasRecipe(line);
+    final stepper = MadarStepper(
+      dense: true,
+      value: line.qty,
+      onChanged: (q) => unawaited(notifier.setQty(line.key, q)),
+    );
+    final fate = [
+      if (widget.onEdit case final edit?)
+        MadarGlyphTile(
+          key: ValueKey('edit-${line.key}'),
+          glyph: MadarGlyph.edit,
+          dense: true,
+          semanticLabel: orderWord(bridge, 'sell.edit_line'),
+          onTap: edit,
+        ),
+      MadarGlyphTile(
+        key: ValueKey('remove-${line.key}'),
+        glyph: MadarGlyph.trash,
+        dense: true,
+        tint: colors.danger,
+        semanticLabel: bridge.tr(key: 'order.remove_line'),
+        onTap: () => unawaited(notifier.swipeRemove(line)),
+      ),
+    ];
+    // ONE row when the stepper, the tools, edit and remove all fit (the
+    // 86-wide stepper fits a food line in a 300 column, a staff drink with a
+    // recipe at 340). When they do not, TWO rows on purpose: the stepper,
+    // edit and remove on top, the tools as one even row of labelled buttons
+    // under them. The owner: "if for some reason it needs to take a second
+    // row make it look polished not like it overflowed".
+    final controls = LayoutBuilder(
+      builder: (context, box) {
+        final toolCount = 1 + (staff ? 1 : 0) + (recipe ? 1 : 0);
+        final oneRow =
+            Metrics.stepperDenseWidth +
+            (toolCount + fate.length) * (Metrics.glyphTileDense + Space.xs);
+        if (oneRow <= box.maxWidth) {
+          return Row(
+            spacing: Space.xs,
+            children: [
+              Expanded(
+                child: Row(
+                  spacing: Space.xs,
+                  children: [
+                    stepper,
+                    if (staff)
+                      StaffDrinkTile(
+                        line: line,
+                        tableId: tableId,
+                        counterSale: counterSale,
+                        dense: true,
+                      ),
+                    Tooltip(
+                      message: orderWord(bridge, 'sell.kitchen_row_hint'),
+                      child: MadarGlyphTile(
+                        key: ValueKey('kitchen-${line.key}'),
+                        glyph: MadarGlyph.printer,
+                        dense: true,
+                        semanticLabel: orderWord(
+                          bridge,
+                          'sell.kitchen_row_hint',
+                        ),
+                        onTap: printDish,
+                        onLongPress: openDishSheet,
+                      ),
+                    ),
+                    if (recipe)
+                      Tooltip(
+                        message: orderWord(bridge, 'sell.send_recipe'),
+                        child: MadarGlyphTile(
+                          key: ValueKey('recipe-${line.key}'),
+                          glyph: MadarGlyph.list,
+                          dense: true,
+                          semanticLabel: orderWord(bridge, 'sell.send_recipe'),
+                          onTap: printRecipe,
+                        ),
+                      ),
+                  ],
                 ),
               ),
+              ...fate,
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.sm,
+          children: [
+            Row(
+              spacing: Space.xs,
+              children: [stepper, const Spacer(), ...fate],
             ),
-          ),
-        ),
-        // The recipe card: what goes into one and the steps, to the same
-        // printer as this dish's chit. Only on an item that has either.
-        if (ref.read(orderProvider.notifier).lineHasRecipe(line))
-          Tooltip(
-            message: orderWord(bridge, 'sell.send_recipe'),
-            child: MadarGlyphTile(
-              key: ValueKey('recipe-${line.key}'),
-              glyph: MadarGlyph.list,
-              dense: true,
-              semanticLabel: orderWord(bridge, 'sell.send_recipe'),
-              onTap: () => unawaited(
-                ref
-                    .read(orderProvider.notifier)
-                    .printRecipeChit(
-                      line,
+            Row(
+              spacing: Space.xs,
+              children: [
+                if (staff)
+                  Expanded(
+                    child: StaffDrinkTile(
+                      line: line,
                       tableId: tableId,
-                      tableLabel: tableLabel,
-                      ticketRef: ticketRef,
+                      counterSale: counterSale,
+                      label: orderWord(bridge, 'sell.tool_staff'),
                     ),
-              ),
+                  ),
+                Expanded(
+                  child: MadarButton(
+                    key: ValueKey('kitchen-${line.key}'),
+                    label: orderWord(bridge, 'sell.tool_kitchen'),
+                    glyph: MadarGlyph.printer,
+                    variant: MadarButtonVariant.secondary,
+                    size: MadarButtonSize.dense,
+                    onTap: printDish,
+                    onLongPress: openDishSheet,
+                  ),
+                ),
+                if (recipe)
+                  Expanded(
+                    child: MadarButton(
+                      key: ValueKey('recipe-${line.key}'),
+                      label: orderWord(bridge, 'sell.tool_recipe'),
+                      glyph: MadarGlyph.list,
+                      variant: MadarButtonVariant.secondary,
+                      size: MadarButtonSize.dense,
+                      onTap: printRecipe,
+                    ),
+                  ),
+              ],
             ),
-          ),
-      ],
-    );
-    final controls = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: Space.xs,
-      children: [
-        Expanded(child: tools),
-        if (widget.onEdit case final edit?)
-          MadarGlyphTile(
-            key: ValueKey('edit-${line.key}'),
-            glyph: MadarGlyph.edit,
-            dense: true,
-            semanticLabel: orderWord(bridge, 'sell.edit_line'),
-            onTap: edit,
-          ),
-        MadarGlyphTile(
-          key: ValueKey('remove-${line.key}'),
-          glyph: MadarGlyph.trash,
-          dense: true,
-          tint: colors.danger,
-          semanticLabel: bridge.tr(key: 'order.remove_line'),
-          onTap: () => unawaited(notifier.swipeRemove(line)),
-        ),
-      ],
+          ],
+        );
+      },
     );
 
     final head = Row(

@@ -124,6 +124,16 @@ abstract final class Metrics {
   static const double stepperDense = 36;
   static const double glyphTileDense = 36;
 
+  /// The dense stepper's keys are narrower than they are tall, and its figure
+  /// narrower than the regular one: at 98 wide it pushed a food line's recipe
+  /// tile onto a second row in a 300 cart column (the owner, 2026-09-26).
+  static const double stepperDenseKey = 32;
+  static const double stepperDenseValue = 22;
+
+  /// The whole dense stepper, for a row that works out what fits beside it.
+  static const double stepperDenseWidth =
+      stepperDenseKey * 2 + stepperDenseValue;
+
   /// The dark rail on the start edge of a tablet.
   static const double railWidth = 88;
   static const double railTabWidth = 72;

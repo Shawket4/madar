@@ -74,12 +74,33 @@ final staffDrinkPreviewProvider = Provider.autoDispose
 /// about a pool the branch never switched on, or an item that was never on its
 /// list, and a dead control on every line of every cart is worse than no
 /// control at all.
+/// Whether [StaffDrinkTile] shows for [line]: the cart charges a counter
+/// sale, the line is not marked yet, and the core offers the pool on it. The
+/// cart line asks too, to lay its row out before it draws it.
+bool staffDrinkTileShows(
+  WidgetRef ref,
+  CartLineView line, {
+  String? tableId,
+  bool counterSale = true,
+}) {
+  // Not on a table's bill and not twice: a marked line's way back in is its
+  // badge.
+  if (!counterSale || tableId != null || line.staffDrink != null) {
+    return false;
+  }
+  final preview = ref.watch(
+    staffDrinkPreviewProvider((line.itemId, line.sizeLabel, line.qty, null)),
+  );
+  return preview != null && preview.offered;
+}
+
 class StaffDrinkTile extends ConsumerWidget {
   const StaffDrinkTile({
     required this.line,
     this.tableId,
     this.counterSale = true,
     this.dense = false,
+    this.label,
     super.key,
   });
 
@@ -94,18 +115,34 @@ class StaffDrinkTile extends ConsumerWidget {
   /// staff drink, so the action is not there to be tapped.
   final bool counterSale;
 
+  /// A short word to show beside the glyph: the cart line's second row of
+  /// labelled tools, when its buttons do not fit one row.
+  final String? label;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Not on a table's bill and not twice: a marked line's way back in is its
-    // badge.
-    if (!counterSale || tableId != null || line.staffDrink != null) {
+    if (!staffDrinkTileShows(
+      ref,
+      line,
+      tableId: tableId,
+      counterSale: counterSale,
+    )) {
       return const SizedBox.shrink();
     }
-    final preview = ref.watch(
-      staffDrinkPreviewProvider((line.itemId, line.sizeLabel, line.qty, null)),
-    );
-    if (preview == null || !preview.offered) return const SizedBox.shrink();
     final bridge = ref.read(bridgeProvider);
+    void open() => unawaited(
+      showStaffDrinkSheet(context, ref, line: line, tableId: tableId),
+    );
+    if (this.label case final word?) {
+      return MadarButton(
+        key: ValueKey('staff-drink-${line.key}'),
+        label: word,
+        glyph: MadarGlyph.users,
+        variant: MadarButtonVariant.secondary,
+        size: MadarButtonSize.dense,
+        onTap: open,
+      );
+    }
     final label = bridge.tr(key: 'staff_pool.action');
     return Tooltip(
       message: label,
