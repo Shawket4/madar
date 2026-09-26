@@ -1941,6 +1941,9 @@ fn en(key: &str) -> Option<&'static str> {
         "sell.note" => "Note",
         "sell.note_title" => "Note for this order",
         "sell.note_hint" => "Rides the kitchen ticket and the order",
+        // cart column layout (2026-09-26): the parked orders, folded into one
+        // button on a narrow cart column.
+        "sell.parked_count" => "{count} parked",
         "charge.reason_cash" => "Enter the cash received",
         "charge.reason_split" => "The split has to add up to the total",
         "charge.reason_method" => "Pick how they are paying",
@@ -4342,6 +4345,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "sell.note" => "ملاحظة",
         "sell.note_title" => "ملاحظة على الطلب",
         "sell.note_hint" => "تصل مع تذكرة المطبخ والطلب",
+        "sell.parked_count" => "{count} مركونة",
         "charge.reason_cash" => "أدخل المبلغ النقدي المستلم",
         "charge.reason_split" => "يجب أن يساوي مجموع التقسيم الإجمالي",
         "charge.reason_method" => "اختر طريقة الدفع",

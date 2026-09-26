@@ -1349,7 +1349,25 @@ void main() {
           ),
         )
         .title;
-    expect(sellTitle(), 'Pickup', reason: 'a launch opens takeaway');
+    // Takeaway: no table's title over the Sell tab (beside the cart column
+    // the page title is empty; the cart's own toggle says Pickup).
+    void expectTakeaway({String? reason}) {
+      expect(sellTitle(), '', reason: reason);
+      expect(
+        find.descendant(
+          of: find.byType(TakeawaySellScreen, skipOffstage: false),
+          matching: find.byKey(
+            const ValueKey('cart-mode-pickup'),
+            skipOffstage: false,
+          ),
+          skipOffstage: false,
+        ),
+        findsOneWidget,
+        reason: reason,
+      );
+    }
+
+    expectTakeaway(reason: 'a launch opens takeaway');
     container.read(orderProvider.notifier).setPendingCovers('t1', 4);
 
     await _tab(tester, 'floor');
@@ -1366,7 +1384,7 @@ void main() {
     await _tab(tester, 'sell');
     await _tab(tester, 'sell');
     await _settle(tester);
-    expect(sellTitle(), 'Pickup');
+    expectTakeaway();
     expect(container.read(cartProvider(null)).lines, _cart);
     await _tab(tester, 'floor');
     await _settle(tester);

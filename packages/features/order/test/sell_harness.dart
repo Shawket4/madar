@@ -407,9 +407,24 @@ const _ar = {
 };
 
 class _FakeBridge implements MadarBridge {
-  _FakeBridge({this.rtl = false, this.tillOpen = true})
-    : role = 'teller',
-      drafts = _drafts;
+  _FakeBridge({
+    this.rtl = false,
+    this.tillOpen = true,
+    List<DraftView>? drafts,
+    this.totals = _totals,
+    this.discount = const CartDiscountView(kind: '', offMinor: 0),
+  }) : role = 'teller',
+       drafts = drafts ?? _drafts;
+
+  /// What the core sums the cart to (the cart-layout scenes carry a
+  /// discount and four lines).
+  CartTotals totals;
+
+  /// The discount the core holds on the cart.
+  CartDiscountView discount;
+
+  /// The order's note, as the core keeps it (null = none).
+  String? orderNote = 'Birthday — bring the cake last';
 
   final String role;
 
@@ -562,9 +577,7 @@ class _FakeBridge implements MadarBridge {
       );
     }
     if (name == #cartDiscount) {
-      return Future<CartDiscountView>.value(
-        const CartDiscountView(kind: '', offMinor: 0),
-      );
+      return Future<CartDiscountView>.value(discount);
     }
     if (name == #cartDiscountId) return Future<String?>.value();
     if (name == #orgLogoLocalPath) return null;
@@ -578,8 +591,10 @@ class _FakeBridge implements MadarBridge {
       if (real != key) return real;
       return (rtl ? _ar[key] : null) ?? _en[key] ?? key;
     }
-    if (name == #cartNote) {
-      return Future<String?>.value('Birthday — bring the cake last');
+    if (name == #cartNote) return Future<String?>.value(orderNote);
+    if (name == #cartSetNote) {
+      orderNote = invocation.namedArguments[#note] as String?;
+      return Future<void>.value();
     }
     if (name == #isRtl) return rtl;
     if (name == #locale) return rtl ? 'ar' : 'en';
@@ -931,7 +946,7 @@ class _FakeBridge implements MadarBridge {
         ),
       );
     }
-    if (name == #cartTotals) return Future<CartTotals>.value(_totals);
+    if (name == #cartTotals) return Future<CartTotals>.value(totals);
     if (name == #decideDraftAct) {
       return const ActDecisionView(outcome: 'allow', reason: '');
     }

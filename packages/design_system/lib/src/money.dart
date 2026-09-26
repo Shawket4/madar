@@ -62,8 +62,13 @@ class MoneyText extends StatelessWidget {
     this.signed = false,
     this.locale,
     this.textAlign,
+    this.quietCurrency = false,
     super.key,
   });
+
+  /// The currency code smaller (13) and at 75% — the figure is what is read
+  /// (the cart's Charge bar).
+  final bool quietCurrency;
 
   /// The amount in minor units (e.g. piastres/cents). May be negative.
   final int minor;
@@ -92,11 +97,37 @@ class MoneyText extends StatelessWidget {
     final resolved = color ?? base.color ?? context.madarColors.accent;
     final lang = locale ?? MadarFormat.localeOf(context);
     final ar = MadarFormat.isArabic(lang);
-    return Text(
-      Money.format(minor, currency: currency, locale: lang, signed: signed),
-      style: base.copyWith(color: resolved),
+    final direction = ar ? TextDirection.rtl : TextDirection.ltr;
+    final label = MadarFormat.currencyLabel(currency, locale: lang);
+    if (!quietCurrency || label.isEmpty) {
+      return Text(
+        Money.format(minor, currency: currency, locale: lang, signed: signed),
+        style: base.copyWith(color: resolved),
+        textAlign: textAlign,
+        textDirection: direction,
+      );
+    }
+    // The same string Money.format builds, with the code in its own span.
+    final sign = minor < 0
+        ? MadarFormat.minus
+        : (signed && minor > 0 ? '+' : '');
+    final amount = MadarFormat.groupAmount(minor);
+    final quiet = TextSpan(
+      text: label,
+      style: base.copyWith(
+        fontSize: MadarType.num.fontSize,
+        color: resolved.withValues(alpha: resolved.a * 0.75),
+      ),
+    );
+    return Text.rich(
+      TextSpan(
+        style: base.copyWith(color: resolved),
+        children: ar
+            ? [TextSpan(text: '${MadarFormat.ltr('$sign$amount')} '), quiet]
+            : [TextSpan(text: sign), quiet, TextSpan(text: ' $amount')],
+      ),
       textAlign: textAlign,
-      textDirection: ar ? TextDirection.rtl : TextDirection.ltr,
+      textDirection: direction,
     );
   }
 }
@@ -111,6 +142,7 @@ class AnimatedMoneyText extends StatelessWidget {
     this.currency = '',
     this.style,
     this.color,
+    this.quietCurrency = false,
     super.key,
   });
 
@@ -118,6 +150,7 @@ class AnimatedMoneyText extends StatelessWidget {
   final String currency;
   final TextStyle? style;
   final Color? color;
+  final bool quietCurrency;
 
   @override
   Widget build(BuildContext context) {
@@ -142,6 +175,7 @@ class AnimatedMoneyText extends StatelessWidget {
         currency: currency,
         style: style,
         color: color,
+        quietCurrency: quietCurrency,
       ),
     );
   }
