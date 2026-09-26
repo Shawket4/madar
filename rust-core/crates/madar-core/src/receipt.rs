@@ -2256,6 +2256,9 @@ pub struct KitchenChitLabels {
     pub heading: String,
     pub table: String,
     pub note: String,
+    /// Over a recipe card's ingredients, and over its steps.
+    pub recipe: String,
+    pub steps: String,
 }
 
 /// Build a chit's line list — pure, golden-tested like `layout`.
@@ -2359,6 +2362,13 @@ pub struct KitchenSlipItem {
     pub note: Option<String>,
     /// The combo this dish is part of, already worded ("In Lunch deal").
     pub combo: Option<String>,
+    /// The recipe card only ([`crate::MadarCore::cart_line_recipe_chit`]):
+    /// what goes into ONE of this dish, already worded ("18 g Espresso").
+    /// Empty on every ordinary chit.
+    pub recipe: Vec<String>,
+    /// The recipe card only: the item's steps in order, already worded
+    /// ("Pull the shot — 25 s"). Empty on every ordinary chit.
+    pub steps: Vec<String>,
 }
 
 /// A kitchen slip: one header (table/ticket/time), the notes that apply to
@@ -2426,6 +2436,8 @@ pub fn slip_item_for_cart_line(line: &crate::cart::CartLineView) -> KitchenSlipI
         modifiers,
         note,
         combo: None,
+        recipe: Vec::new(),
+        steps: Vec::new(),
     }
 }
 
@@ -2464,6 +2476,8 @@ pub fn slip_items_for_cart_line(line: &crate::cart::CartLineView, locale: &str) 
                 modifiers,
                 note,
                 combo: Some(tag.clone()),
+                recipe: Vec::new(),
+                steps: Vec::new(),
             }
         })
         .collect()
@@ -2593,6 +2607,18 @@ pub fn kitchen_slip_layout(slip: &KitchenSlip, labels: &KitchenChitLabels, width
                 size: Size::Normal,
             });
         }
+        if !item.recipe.is_empty() {
+            out.push(Line { text: labels.recipe.clone(), align: Align::Left, bold: true, size: Size::Normal });
+            for r in &item.recipe {
+                out.push(Line::plain(format!("  • {}", r.trim())));
+            }
+        }
+        if !item.steps.is_empty() {
+            out.push(Line { text: labels.steps.clone(), align: Align::Left, bold: true, size: Size::Normal });
+            for (n, st) in item.steps.iter().enumerate() {
+                out.push(Line::plain(format!("  {}. {}", n + 1, st.trim())));
+            }
+        }
     }
 
     out.push(Line::plain("-".repeat(w)));
@@ -2625,6 +2651,8 @@ pub fn slip_for_kitchen_chit(chit: &KitchenChit) -> KitchenSlip {
             modifiers: chit.modifiers.clone(),
             note: chit.note.clone(),
             combo: chit.combo.clone(),
+            recipe: Vec::new(),
+            steps: Vec::new(),
         }],
     }
 }
@@ -2675,11 +2703,47 @@ pub fn escpos_kitchen_chit(
 mod kitchen_chit_tests {
     use super::*;
 
+    #[test]
+    fn a_recipe_card_prints_the_ingredients_then_the_numbered_steps() {
+        let slip = KitchenSlip {
+            table_label: None,
+            ticket_ref: None,
+            at: "09:12".into(),
+            teller: None,
+            top_notes: Vec::new(),
+            items: vec![KitchenSlipItem {
+                item: "Latte".into(),
+                qty: 2,
+                size_label: Some("Large".into()),
+                modifiers: vec!["Oat milk".into()],
+                note: None,
+                combo: None,
+                recipe: vec!["18 g Espresso".into(), "240 ml Oat milk".into()],
+                steps: vec!["Pull the shot".into(), "Steam the milk — 65°C".into()],
+            }],
+        };
+        let text: Vec<String> = kitchen_slip_layout(&slip, &labels(), 32).into_iter().map(|l| l.text).collect();
+        let at = |needle: &str| text.iter().position(|t| t == needle).unwrap_or_else(|| panic!("{needle}: {text:#?}"));
+        assert!(at("Recipe:") < at("  • 18 g Espresso"));
+        assert!(at("  • 240 ml Oat milk") < at("Steps:"));
+        assert!(at("Steps:") < at("  1. Pull the shot"));
+        assert!(at("  1. Pull the shot") < at("  2. Steam the milk — 65°C"));
+    }
+
+    #[test]
+    fn an_ordinary_chit_prints_no_recipe_section() {
+        let slip = slip_for_kitchen_chit(&chit());
+        let text: Vec<String> = kitchen_slip_layout(&slip, &labels(), 32).into_iter().map(|l| l.text).collect();
+        assert!(!text.iter().any(|t| t == "Recipe:" || t == "Steps:"), "{text:#?}");
+    }
+
     fn labels() -> KitchenChitLabels {
         KitchenChitLabels {
             heading: "KITCHEN".into(),
             table: "Table".into(),
             note: "NOTE:".into(),
+            recipe: "Recipe:".into(),
+            steps: "Steps:".into(),
         }
     }
 

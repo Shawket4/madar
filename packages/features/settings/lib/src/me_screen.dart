@@ -14,13 +14,7 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_settings/src/labels.dart';
 import 'package:feature_settings/src/settings_provider.dart';
 import 'package:feature_settings/src/settings_screen.dart'
-    show
-        LanguageSegment,
-        MotionSegment,
-        ProfileCard,
-        SellLayoutSection,
-        ThemeSegment,
-        confirmSignOut;
+    show AppearanceCard, ProfileCard, SellLayoutSection, confirmSignOut;
 import 'package:feature_settings/src/settings_sheets.dart';
 import 'package:feature_settings/src/sync_provider.dart';
 import 'package:feature_settings/src/sync_screen.dart';
@@ -296,31 +290,8 @@ class _Preferences extends ConsumerWidget {
             text: error.of(ref.bridge),
             icon: 'exclamationmark.circle',
           ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.md,
-          children: [
-            MadarSectionHeader(text: t('settings.language')),
-            const LanguageSegment(),
-          ],
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.md,
-          children: [
-            MadarSectionHeader(text: t('settings.theme')),
-            const ThemeSegment(),
-          ],
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.md,
-          children: [
-            MadarSectionHeader(text: t('settings.motion')),
-            const MotionSegment(),
-          ],
-        ),
         const SellLayoutSection(),
+        const AppearanceCard(),
         MadarButton(
           label: t('settings.sign_out'),
           glyph: MadarGlyph.signOut,

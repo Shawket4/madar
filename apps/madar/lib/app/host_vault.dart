@@ -31,7 +31,8 @@ class HostVault {
     unawaited(_prefs.setString('madar.motion', value));
   }
 
-  /// Sell screen layout on a tablet: 'standard' (default) or 'legacy'.
+  /// Sell screen layout on a tablet: 'standard' (default) or 'fast'
+  /// ('legacy' before the rename, still read as fast).
   String get sellLayout => _prefs.getString('madar.sell_layout') ?? 'standard';
   set sellLayout(String value) {
     unawaited(_prefs.setString('madar.sell_layout', value));

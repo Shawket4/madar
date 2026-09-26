@@ -69,16 +69,13 @@ chitPreviewProvider = NotifierProvider.autoDispose(ChitPreviewNotifier.new);
 void sayChitPrint(
   AppToastNotifier toasts,
   MadarBridge bridge,
-  PrintState result,
-) {
+  PrintState result, {
+  String sentKey = 'printing.chit_sent',
+}) {
   String tr(String key) => bridge.tr(key: key);
   switch (result) {
     case PrintState.printed:
-      toasts.show(
-        tr('printing.chit_sent'),
-        tone: ChipTone.success,
-        icon: 'printer',
-      );
+      toasts.show(tr(sentKey), tone: ChipTone.success, icon: 'printer');
     case PrintState.noPrinter:
       toasts.show(
         tr('printing.no_printer'),

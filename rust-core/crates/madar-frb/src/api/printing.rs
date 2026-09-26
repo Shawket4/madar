@@ -89,6 +89,23 @@ impl MadarBridge {
             .map_err(MadarError::from)
     }
 
+    /// ONE cart line's RECIPE CARD: the line's kitchen chit (same routing and
+    /// printer), with each dish's ingredients for one and its steps under
+    /// it. Local only; marks nothing sent.
+    pub fn cart_line_recipe_chit(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+        table_label: Option<String>,
+        ticket_ref: Option<String>,
+        width: u32,
+        till_brand: PrinterBrand,
+    ) -> Result<CartLineChit, MadarError> {
+        self.inner
+            .cart_line_recipe_chit(table_id, line_key, table_label, ticket_ref, width, till_brand)
+            .map_err(MadarError::from)
+    }
+
     /// The WHOLE cart as one kitchen print (the cart-level print button):
     /// every line's chit, one after another, each carrying its own kitchen
     /// note, plus the cart-level kitchen note. Always to the till printer —
@@ -243,6 +260,10 @@ pub struct _KitchenSlipItem {
     pub note: Option<String>,
     /// The combo this dish belongs to, already worded ("In Lunch deal").
     pub combo: Option<String>,
+    /// A recipe card's ingredients for one, already worded; else empty.
+    pub recipe: Vec<String>,
+    /// A recipe card's steps in order, already worded; else empty.
+    pub steps: Vec<String>,
 }
 
 /// Mirrors `madar_core::receipt::KitchenSlip` — a kitchen slip: one header,

@@ -3873,6 +3873,8 @@ impl MadarCore {
             heading: tr("kitchen.chit_heading"),
             table: tr("kitchen.chit_table"),
             note: tr("kitchen.chit_note"),
+            recipe: tr("kitchen.recipe"),
+            steps: tr("kitchen.steps"),
         }
     }
 
@@ -3883,7 +3885,16 @@ impl MadarCore {
     /// cuts) happens exactly once, at the end — however many items are on
     /// the slip.
     fn raster_kitchen_slip(&self, slip: &receipt::KitchenSlip, brand: receipt::PrinterBrand) -> Vec<u8> {
-        let labels = self.kitchen_chit_labels();
+        self.raster_kitchen_slip_with(slip, &self.kitchen_chit_labels(), brand)
+    }
+
+    fn raster_kitchen_slip_with(
+        &self,
+        slip: &receipt::KitchenSlip,
+        labels: &receipt::KitchenChitLabels,
+        brand: receipt::PrinterBrand,
+    ) -> Vec<u8> {
+        let labels = labels.clone();
         let cfg = device::load(&self.store);
         let bitmap = render::render_kitchen_chit(slip, &labels, cfg.paper_dots());
         receipt::raster_for(brand, &bitmap, cfg.printer_has_cutter())
@@ -3912,7 +3923,68 @@ impl MadarCore {
             .into_iter()
             .find(|l| l.key == line_key)
             .ok_or_else(|| CoreError::Validation { field: "line_key".into(), detail: "cart line not found".into() })?;
-        self.build_line_chit(&line, table_id.as_deref(), table_label, ticket_ref, width, till_brand)
+        self.build_line_chit(&line, table_id.as_deref(), table_label, ticket_ref, width, till_brand, false)
+    }
+
+    /// ONE cart line's RECIPE CARD for the kitchen: the line's own chit
+    /// (same header, notes, routing and printer), with what goes into ONE of
+    /// each dish (its size, swaps and add-ons applied, as [`Self::compute_recipe`]
+    /// shows them) and the item's steps in order under it. A combo gets a
+    /// card per item. Changes nothing, local only, like [`Self::cart_line_chit`].
+    pub fn cart_line_recipe_chit(
+        &self,
+        table_id: Option<String>,
+        line_key: String,
+        table_label: Option<String>,
+        ticket_ref: Option<String>,
+        width: u32,
+        till_brand: receipt::PrinterBrand,
+    ) -> Result<receipt::CartLineChit, CoreError> {
+        let line = cart::lines(&self.store, table_id.as_deref())?
+            .into_iter()
+            .find(|l| l.key == line_key)
+            .ok_or_else(|| CoreError::Validation { field: "line_key".into(), detail: "cart line not found".into() })?;
+        self.build_line_chit(&line, table_id.as_deref(), table_label, ticket_ref, width, till_brand, true)
+    }
+
+    /// One dish's recipe card lines: its ingredients for ONE (size, swaps and
+    /// add-ons applied) and its steps. Empty lists when the item has none.
+    fn recipe_card(
+        &self,
+        items: &[menu::MenuItemView],
+        item_id: &str,
+        size_label: Option<String>,
+        addons: &[cart::CartAddonView],
+        optionals: &[cart::CartOptionalView],
+    ) -> (Vec<String>, Vec<String>) {
+        let Some(item) = items.iter().find(|i| i.id == item_id) else {
+            return (Vec::new(), Vec::new());
+        };
+        let selections = addons
+            .iter()
+            .map(|a| cart::AddonSelection { addon_item_id: a.addon_item_id.clone(), qty: a.qty })
+            .collect();
+        let optional_ids = optionals.iter().map(|o| o.optional_field_id.clone()).collect();
+        let recipe = self
+            .compute_recipe(item_id.to_string(), size_label, selections, optional_ids)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|r| {
+                let qty = format!("{:.2}", r.quantity);
+                let qty = qty.trim_end_matches('0').trim_end_matches('.');
+                let amount = if r.unit.trim().is_empty() { qty.to_string() } else { format!("{qty} {}", r.unit.trim()) };
+                format!("{amount} {}", r.ingredient_name.trim())
+            })
+            .collect();
+        let steps = item
+            .recipe_steps
+            .iter()
+            .map(|st| match st.note.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
+                Some(n) => format!("{} — {n}", st.name.trim()),
+                None => st.name.trim().to_string(),
+            })
+            .collect();
+        (recipe, steps)
     }
 
     /// Shared by [`Self::cart_line_chit`] and [`Self::cart_kitchen_chit`]: one
@@ -3928,13 +4000,31 @@ impl MadarCore {
         ticket_ref: Option<String>,
         width: u32,
         till_brand: receipt::PrinterBrand,
+        with_recipe: bool,
     ) -> Result<receipt::CartLineChit, CoreError> {
         let loc = self.current_locale();
         let at = timefmt::format(&self.store, &self.corrected_now().to_rfc3339(), timefmt::TimeStyle::Time, &loc);
         let teller = self.current_session().map(|s| s.display_name).filter(|n| !n.trim().is_empty());
         let order_note = cart::note(&self.store, table_id)?;
         let cart_kitchen_note = cart::kitchen_note(&self.store, table_id)?;
-        let slip = receipt::slip_for_cart_line(line, table_label, ticket_ref, at, teller, order_note, cart_kitchen_note, &loc);
+        let mut slip =
+            receipt::slip_for_cart_line(line, table_label, ticket_ref, at, teller, order_note, cart_kitchen_note, &loc);
+        let mut labels = self.kitchen_chit_labels();
+        if with_recipe {
+            labels.heading = i18n::tr(&loc, "kitchen.recipe_heading");
+            let items = menu::menu_items(&self.store, &loc).unwrap_or_default();
+            // The slip's dishes are the line's own (one) or its combo's parts,
+            // in order — see `receipt::slip_items_for_cart_line`.
+            if line.kind == menu::KIND_COMBO {
+                for (dish, part) in slip.items.iter_mut().zip(&line.parts) {
+                    (dish.recipe, dish.steps) =
+                        self.recipe_card(&items, &part.item_id, part.size_label.clone(), &part.addons, &part.optionals);
+                }
+            } else if let Some(dish) = slip.items.first_mut() {
+                (dish.recipe, dish.steps) =
+                    self.recipe_card(&items, &line.item_id, line.size_label.clone(), &line.addons, &line.optionals);
+            }
+        }
 
         // A combo's chit goes where its first item goes (each item routes to
         // its own station when the round fires; this is the early copy).
@@ -3963,10 +4053,9 @@ impl MadarCore {
             Some(_) if !target.is_till() => receipt::PrinterBrand::Epson,
             _ => till_brand,
         };
-        let labels = self.kitchen_chit_labels();
         Ok(receipt::CartLineChit {
             preview: receipt::kitchen_slip_preview(&slip, &labels, width),
-            bytes: self.raster_kitchen_slip(&slip, brand),
+            bytes: self.raster_kitchen_slip_with(&slip, &labels, brand),
             chit: slip,
             target,
         })

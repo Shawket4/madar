@@ -739,7 +739,17 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     _customerTouched = false;
     if (_live) {
       state = _priced(
-        CheckoutState(target: target, tillId: ref.read(shellProvider).till?.id),
+        CheckoutState(
+          target: target,
+          tillId: ref.read(shellProvider).till?.id,
+          // Chosen on the cart. A bill is the server's (it settles dine-in).
+          dineIn: switch (target) {
+            CartChargeTarget(:final tableId) => ref.read(
+              dineInProvider(tableId),
+            ),
+            _ => false,
+          },
+        ),
       );
     }
     return switch (target) {
@@ -1073,8 +1083,13 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   void setTipMethod(String id) => _update((s) => s.copyWith(tipMethodId: id));
 
   /// Drinking in, or taking it away. Nothing else on the sale moves.
-  void setDineIn({required bool dineIn}) =>
-      _update((s) => s.copyWith(dineIn: dineIn));
+  void setDineIn({required bool dineIn}) {
+    _update((s) => s.copyWith(dineIn: dineIn));
+    // One choice, the cart's: flipping it here flips it on the cart too.
+    if (state.target is CartChargeTarget) {
+      ref.read(dineInProvider(state.cartTableId).notifier).set(dineIn: dineIn);
+    }
+  }
 
   /// Split on or off. Turning it OFF drops every leg: the amounts typed for a
   /// split must never ride along with the single payment that replaced it.
@@ -1419,6 +1434,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         loyaltyRedemptions: s.rewardRedemptions,
       ),
     );
+    // The sale is taken: the next one on this cart starts at its default.
+    ref.read(dineInProvider(s.cartTableId).notifier).reset();
     return ChargeOutcome(
       target: s.target ?? const CartChargeTarget(),
       queued: receipt.queuedOffline,

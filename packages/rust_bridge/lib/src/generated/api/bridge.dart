@@ -313,6 +313,18 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required PrinterBrand tillBrand,
   });
 
+  /// ONE cart line's RECIPE CARD: the line's kitchen chit (same routing and
+  /// printer), with each dish's ingredients for one and its steps under
+  /// it. Local only; marks nothing sent.
+  Future<CartLineChit> cartLineRecipeChit({
+    String? tableId,
+    required String lineKey,
+    String? tableLabel,
+    String? ticketRef,
+    required int width,
+    required PrinterBrand tillBrand,
+  });
+
   /// The current cart lines (empty when none).
   Future<List<CartLineView>> cartLines({String? tableId});
 

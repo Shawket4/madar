@@ -128,6 +128,7 @@ void main() {
         size: _ipad,
         bridge: bridge,
       );
+      await _selectLine(tester, 'k-espresso');
       expect(
         find.bySemanticsLabel(coreWord('sell.kitchen_row_hint')),
         findsWidgets,
@@ -157,6 +158,7 @@ void main() {
           size: _ipad,
           bridge: bridge,
         );
+        await _selectLine(tester, 'k-espresso');
         await tester.longPress(find.byKey(tile));
         await _settle(tester);
         expect(
@@ -202,6 +204,7 @@ void main() {
         size: _ipad,
         bridge: bridge,
       );
+      await _selectLine(tester, 'k-espresso');
       await tester.longPress(find.byKey(tile));
       await _settle(tester);
       await tester.tap(find.text(coreWord('sell.kitchen_row_sheet_print')));
@@ -224,6 +227,7 @@ void main() {
           size: _ipad,
           bridge: bridge,
         );
+        await _selectLine(tester, 'k-espresso');
         await tester.longPress(find.byKey(tile));
         await _settle(tester);
         await tester.tap(find.text(coreWord('sell.kitchen_row_sheet_note')));
@@ -237,7 +241,9 @@ void main() {
           'no ice',
           reason: 'the core keeps it, keyed by cart line',
         );
-        expect(find.textContaining('no ice'), findsOneWidget);
+        // On the line, and on the still-open row sheet's note chip, which
+        // now follows the line it was opened for.
+        expect(find.textContaining('no ice'), findsNWidgets(2));
 
         // Print from the still-open row sheet (the note-edit sheet popped back
         // to it) — the same "Print for kitchen" action the row's own tile
@@ -403,12 +409,16 @@ void main() {
               .size,
           MadarButtonSize.compact,
         );
+        // The controls sit on the selected line only.
+        expect(find.byType(MadarStepper), findsNothing);
+        await _selectLine(tester, 'k-espresso');
+        await _selectLine(tester, 'k-flat');
         expect(find.byType(MadarStepper), findsNWidgets(2));
         for (final stepper in find.byType(MadarStepper).evaluate()) {
           expect(
             tester.getSize(find.byWidget(stepper.widget)).height,
-            greaterThanOrEqualTo(44),
-            reason: 'a 44pt target',
+            Metrics.stepperDense,
+            reason: "the cart line's dense stepper",
           );
         }
         await _capture(tester, 'sell-round-$label-inview');
@@ -444,9 +454,54 @@ void main() {
     );
   });
 
-  group('the legacy layout', () {
+  group('Fast mode', () {
     Finder inCart(Finder f) =>
         find.descendant(of: find.byType(SellCart), matching: f);
+
+    /// Fast mode's menu opens on the category boxes: open one.
+    Future<void> openCategory(WidgetTester tester, String id) async {
+      await tester.tap(find.byKey(ValueKey('category-box-$id')));
+      await _settle(tester);
+    }
+
+    testWidgets('the menu is category boxes; one opens, back returns', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        layout: SellLayout.fast,
+      );
+      expect(find.byType(SellTile), findsNothing);
+      for (final id in ['hot', 'cold', 'food']) {
+        expect(find.byKey(ValueKey('category-box-$id')), findsOneWidget);
+      }
+      await openCategory(tester, 'cold');
+      expect(find.byType(SellTile), findsNWidgets(2));
+      expect(find.text('Iced latte'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('category-back')));
+      await _settle(tester);
+      expect(find.byType(SellTile), findsNothing);
+      expect(find.byKey(const ValueKey('category-box-cold')), findsOneWidget);
+    });
+
+    testWidgets('a page in the panel closes from its back bar', (tester) async {
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        layout: SellLayout.fast,
+      );
+      await tester.tap(inCart(find.text(coreWord('sell.charge'))).last);
+      await _settle(tester);
+      expect(find.byType(ChargeSheet), findsOneWidget);
+      expect(find.text(coreWord('sell.back_to_menu')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('panel-back')));
+      await _settle(tester);
+      expect(find.byType(ChargeSheet), findsNothing);
+      expect(find.byKey(const ValueKey('category-box-hot')), findsOneWidget);
+    });
 
     /// The page that holds [f]: a panel page, a sheet, or the screen.
     Route<Object?>? routeOf(WidgetTester tester, Finder f) =>
@@ -459,13 +514,13 @@ void main() {
         tester,
         screen: const TakeawaySellScreen(),
         size: _ipad,
-        layout: SellLayout.legacy,
+        layout: SellLayout.fast,
       );
       final cart = tester.getRect(find.byType(SellCart));
       final menu = tester.getRect(find.byType(MenuGrid));
       expect(cart.left, lessThan(menu.left));
       expect(cart.right, lessThanOrEqualTo(menu.left + 1));
-      await _capture(tester, 'legacy-counter-order');
+      await _capture(tester, 'fast-counter-order');
     });
 
     testWidgets('in Arabic the cart comes first from the right', (
@@ -476,7 +531,7 @@ void main() {
         screen: const TakeawaySellScreen(),
         size: _ipad,
         bridge: _FakeBridge(rtl: true),
-        layout: SellLayout.legacy,
+        layout: SellLayout.fast,
       );
       final cart = tester.getRect(find.byType(SellCart));
       final menu = tester.getRect(find.byType(MenuGrid));
@@ -490,9 +545,10 @@ void main() {
         tester,
         screen: const TakeawaySellScreen(),
         size: _ipad,
-        layout: SellLayout.legacy,
+        layout: SellLayout.fast,
       );
       final menu = tester.getRect(find.byType(MenuGrid));
+      await openCategory(tester, 'hot');
       await tester.longPress(find.byType(SellTile).at(1));
       await _settle(tester);
 
@@ -509,7 +565,7 @@ void main() {
         tester.getRect(find.byType(ItemSheetFooter)).bottom,
         closeTo(rect.bottom, 1),
       );
-      await _capture(tester, 'legacy-item-open');
+      await _capture(tester, 'fast-item-open');
 
       // Close: the menu is back.
       await tester.tap(
@@ -533,7 +589,7 @@ void main() {
           tester,
           screen: const TakeawaySellScreen(),
           size: _ipad,
-          layout: SellLayout.legacy,
+          layout: SellLayout.fast,
         );
         await tester.tap(inCart(find.text('Espresso')).first);
         await _settle(tester);
@@ -556,7 +612,7 @@ void main() {
           tester.widget<ItemDetailSheet>(find.byType(ItemDetailSheet)).item.id,
           'flat',
         );
-        await _capture(tester, 'legacy-line-edit');
+        await _capture(tester, 'fast-line-edit');
       },
     );
 
@@ -567,7 +623,7 @@ void main() {
         tester,
         screen: const TakeawaySellScreen(),
         size: _ipad,
-        layout: SellLayout.legacy,
+        layout: SellLayout.fast,
       );
       final menu = tester.getRect(find.byType(MenuGrid));
       await tester.tap(inCart(find.text(coreWord('sell.charge'))).last);
@@ -586,13 +642,13 @@ void main() {
             .first,
       );
       expect(lock.absorbing, isTrue, reason: 'no cart edits mid-charge');
-      await _capture(tester, 'legacy-charge');
+      await _capture(tester, 'fast-charge');
 
       // Put away without taking money: the menu and the cart are back.
       MadarSheet.close<ChargeOutcome>(tester.element(charge));
       await _settle(tester);
       expect(find.byType(ChargeSheet), findsNothing);
-      expect(find.byType(SellTile), findsWidgets);
+      expect(find.byKey(const ValueKey('category-box-hot')), findsOneWidget);
       expect(
         tester
             .widget<AbsorbPointer>(
@@ -615,7 +671,7 @@ void main() {
         tester,
         screen: const TakeawaySellScreen(),
         size: _phone,
-        layout: SellLayout.legacy,
+        layout: SellLayout.fast,
       );
       expect(find.byType(SellBar), findsOneWidget);
       expect(find.byType(MadarPanelHost), findsNothing);
@@ -634,7 +690,7 @@ void main() {
       );
     });
 
-    testWidgets('a table round sells in the legacy layout too', (tester) async {
+    testWidgets('a table round sells in Fast mode too', (tester) async {
       final bridge = _FakeBridge();
       bridge.carts['t2'] = List.of(_cart);
       await _mount(
@@ -642,7 +698,7 @@ void main() {
         screen: const TableOrderScreen(tableId: 't2'),
         size: _ipad,
         bridge: bridge,
-        layout: SellLayout.legacy,
+        layout: SellLayout.fast,
       );
       await _settle(tester);
       expect(find.byType(MadarPanelHost), findsOneWidget);
@@ -657,20 +713,21 @@ void main() {
       for (final ar in [false, true]) {
         for (final dark in [false, true]) {
           final tag = '$device-${ar ? 'ar' : 'en'}-${dark ? 'dark' : 'light'}';
-          testWidgets('legacy counter and item $tag', (tester) async {
+          testWidgets('fast mode counter and item $tag', (tester) async {
             await _mount(
               tester,
               screen: const TakeawaySellScreen(),
               size: size,
               dark: dark,
               bridge: _FakeBridge(rtl: ar),
-              layout: SellLayout.legacy,
+              layout: SellLayout.fast,
             );
-            await _capture(tester, 'legacy-counter-$tag');
+            await _capture(tester, 'fast-counter-$tag');
+            await openCategory(tester, 'hot');
             await tester.longPress(find.byType(SellTile).at(1));
             await _settle(tester);
             expect(find.byType(ItemDetailSheet), findsOneWidget);
-            await _capture(tester, 'legacy-item-$tag');
+            await _capture(tester, 'fast-item-$tag');
           });
         }
       }
@@ -746,4 +803,10 @@ void main() {
       }
     }
   }
+}
+
+/// Select a cart line: its stepper and actions open under it.
+Future<void> _selectLine(WidgetTester tester, String key) async {
+  await tester.tap(find.byKey(ValueKey('line-tap-$key')));
+  await tester.pumpAndSettle();
 }

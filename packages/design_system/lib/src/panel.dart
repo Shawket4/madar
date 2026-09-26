@@ -1,11 +1,15 @@
+import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/responsive.dart';
 import 'package:design_system/src/sheet.dart';
 import 'package:design_system/src/tokens/colors.dart';
+import 'package:design_system/src/tokens/dimens.dart';
 import 'package:design_system/src/tokens/motion.dart';
+import 'package:design_system/src/tokens/typography.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// A region of a screen where sheets open IN PLACE instead of over the
-/// window: the Sell screen's legacy layout, whose menu panel is replaced by
+/// window: the Sell screen's Fast mode, whose menu panel is replaced by
 /// an item's choices, a combo, the charge or a note, and back.
 ///
 /// Opt-in and invisible to the sheets themselves. [showMadarSheet] asks for
@@ -24,11 +28,17 @@ class MadarPanelHost extends InheritedWidget {
   const MadarPanelHost({
     required this.navigatorKey,
     required super.child,
+    this.backLabel,
     super.key,
   });
 
   /// The panel's navigator. Its first route is what the panel shows at rest.
   final GlobalKey<NavigatorState> navigatorKey;
+
+  /// The words on the bar over every page the panel shows ("Back to
+  /// menu"): a page here has no scrim to tap and no handle to drag, so the
+  /// bar is its one visible way out. Null draws no bar.
+  final String? backLabel;
 
   /// The nearest host above [context], or null. Does not subscribe.
   static MadarPanelHost? maybeOf(BuildContext context) =>
@@ -53,13 +63,19 @@ class MadarPanelHost extends InheritedWidget {
     if (!nested) nav.popUntil((route) => route.isFirst);
     final reduced = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     return nav.push(
-      MadarPanelRoute<T>(builder: builder, tone: tone, animate: !reduced),
+      MadarPanelRoute<T>(
+        builder: builder,
+        tone: tone,
+        animate: !reduced,
+        backLabel: backLabel,
+      ),
     );
   }
 
   @override
   bool updateShouldNotify(MadarPanelHost oldWidget) =>
-      navigatorKey != oldWidget.navigatorKey;
+      navigatorKey != oldWidget.navigatorKey ||
+      backLabel != oldWidget.backLabel;
 }
 
 /// A sheet shown as a page of a [MadarPanelHost]: it fills the panel on the
@@ -70,7 +86,11 @@ class MadarPanelRoute<T> extends PageRoute<T> {
     required this.builder,
     this.tone = MadarSheetTone.surface,
     this.animate = true,
+    this.backLabel,
   });
+
+  /// The words on the page's back bar; null draws no bar.
+  final String? backLabel;
 
   /// The sheet's content.
   final WidgetBuilder builder;
@@ -110,6 +130,7 @@ class MadarPanelRoute<T> extends PageRoute<T> {
     final colors = context.madarColors;
     return _PanelPage(
       color: tone == MadarSheetTone.ground ? colors.bg : colors.surface,
+      backLabel: backLabel,
       child: Builder(builder: builder),
     );
   }
@@ -142,10 +163,11 @@ class MadarPanelRoute<T> extends PageRoute<T> {
 /// for, so a close from the content pops this page and never reaches past
 /// it to a sheet or drawer the whole screen might be standing in.
 class _PanelPage extends StatefulWidget {
-  const _PanelPage({required this.color, required this.child});
+  const _PanelPage({required this.color, required this.child, this.backLabel});
 
   final Color color;
   final Widget child;
+  final String? backLabel;
 
   @override
   State<_PanelPage> createState() => _PanelPageState();
@@ -165,11 +187,69 @@ class _PanelPageState extends State<_PanelPage> implements DismissibleSurface {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: widget.color,
-      // The keyboard a field in the page raises (a note, the cash amount)
-      // lifts the page's foot above it, as it lifts a sheet.
-      child: MadarKeyboardInset(child: widget.child),
+    final colors = context.madarColors;
+    final label = widget.backLabel;
+    // Escape closes the page, as it would close a sheet on a keyboard.
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () =>
+            dismissWith(null),
+      },
+      child: Focus(
+        autofocus: true,
+        child: Material(
+          color: widget.color,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (label != null) ...[
+                Semantics(
+                  button: true,
+                  label: label,
+                  excludeSemantics: true,
+                  child: InkWell(
+                    key: const ValueKey('panel-back'),
+                    onTap: () => dismissWith(null),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minHeight: Metrics.buttonSmallHeight,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsetsDirectional.symmetric(
+                          horizontal: Space.md,
+                        ),
+                        child: Row(
+                          spacing: Space.xs,
+                          children: [
+                            MadarGlyphIcon(
+                              MadarGlyph.chevronBack,
+                              color: colors.accent,
+                            ),
+                            Flexible(
+                              child: Text(
+                                label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: MadarType.title.copyWith(
+                                  color: colors.accent,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Divider(height: 1, thickness: 1, color: colors.borderLight),
+              ],
+              // The keyboard a field in the page raises (a note, the cash
+              // amount) lifts the page's foot above it, as it lifts a sheet.
+              Expanded(child: MadarKeyboardInset(child: widget.child)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

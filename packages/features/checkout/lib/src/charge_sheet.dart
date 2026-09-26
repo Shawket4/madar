@@ -85,7 +85,7 @@ Future<ChargeOutcome?> showCharge(
   ChargeOutcome? outcome;
   try {
     // A tablet's centred modal, unless the screen hosts its sheets in a
-    // panel (the Sell screen's legacy layout): then Charge replaces the menu
+    // panel (the Sell screen's Fast mode): then Charge replaces the menu
     // beside the cart, as the sheet it is everywhere else.
     outcome =
         MadarLayout.of(context).isTablet &&

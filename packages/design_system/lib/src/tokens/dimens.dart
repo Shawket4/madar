@@ -119,6 +119,11 @@ abstract final class Metrics {
   /// other thing a thumb hits all shift (SPEC §13).
   static const double stepper = 44;
 
+  /// The dense stepper and glyph tile of a cart line: a narrow cart column
+  /// gives its width to the item's name, not to its controls.
+  static const double stepperDense = 36;
+  static const double glyphTileDense = 36;
+
   /// The dark rail on the start edge of a tablet.
   static const double railWidth = 88;
   static const double railTabWidth = 72;

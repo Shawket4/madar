@@ -158,8 +158,14 @@ class SellCart extends ConsumerWidget {
     required this.onTerminal,
     required this.onEditLine,
     this.onClose,
+    this.editOnSelect = false,
     super.key,
   });
+
+  /// Fast mode: selecting a line also opens its editor, which shows beside
+  /// the cart rather than over it. Elsewhere the editor is a sheet that
+  /// would cover the controls the tap just showed; the line's pencil opens it.
+  final bool editOnSelect;
 
   /// The cart this panel shows — null = takeaway, else that table's own.
   final String? tableId;
@@ -221,6 +227,38 @@ class SellCart extends ConsumerWidget {
             onMore: () => unawaited(_moreSheet(context, ref, cart)),
             onClose: onClose,
           ),
+          // Pickup or dine in, at the top where the design has it. Only on a
+          // cart that charges: a round fired to a bill is dine-in already.
+          // Nothing to do with the floor — it decides whether the cups and
+          // lids come off stock (see `dineInProvider`).
+          if (!cta.sendsToKitchen)
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                Space.lg,
+                0,
+                Space.lg,
+                Space.md,
+              ),
+              child: MadarSegmented<bool>(
+                key: const ValueKey('cart-service-mode'),
+                items: [
+                  MadarSegmentItem(
+                    false,
+                    bridge.tr(key: 'charge.pickup'),
+                    glyph: MadarGlyph.bag,
+                  ),
+                  MadarSegmentItem(
+                    true,
+                    bridge.tr(key: 'charge.dine_in'),
+                    glyph: MadarGlyph.table,
+                  ),
+                ],
+                value: ref.watch(dineInProvider(tableId)),
+                onChanged: (dineIn) => ref
+                    .read(dineInProvider(tableId).notifier)
+                    .set(dineIn: dineIn),
+              ),
+            ),
           const MadarHairline(),
           // The parked-orders strip: what is already parked, and the pencil
           // to rename it. Without it parking reads as a dead end.
@@ -247,7 +285,7 @@ class SellCart extends ConsumerWidget {
                   )
                 : ListView(
                     padding: const EdgeInsetsDirectional.symmetric(
-                      horizontal: Space.lg,
+                      horizontal: Space.md,
                       vertical: Space.md,
                     ),
                     children: [
@@ -338,6 +376,7 @@ class SellCart extends ConsumerWidget {
                           ticketRef: ticket?.ticketRef,
                           currency: state.currency,
                           counterSale: !cta.sendsToKitchen,
+                          editOnSelect: editOnSelect,
                           onEdit: () => onEditLine(line),
                         ),
                     ],
@@ -569,19 +608,19 @@ class _OnBillLine extends StatelessWidget {
   }
 }
 
-/// One editable line of this round: swipe start→end removes it (the notifier
-/// offers Undo), tap opens the sheet to edit it, the stepper changes its
-/// count and removes it at zero.
 /// A cart footer narrower than this takes the dense footer: the compact
 /// kitchen button with its note tile, and Park on its own row above Charge.
 const double kCartFooterNarrowWidth = 320;
 
-/// A round line's inner width under which its stepper and print tile drop
-/// under the name instead of sitting beside it: the stepper (3 × 44), the
-/// tile (44), the gaps, and at least a word's worth of name.
-const double kRoundLineStackWidth = 264;
-
-class _RoundLine extends ConsumerWidget {
+/// One editable line of this round, one row: "2×", the name and what was
+/// chosen, the price. A tap selects it — its stepper and actions open under
+/// it — and opens the sheet to edit it; a second tap folds it. Swipe
+/// start→end removes it (the notifier offers Undo).
+///
+/// The controls live on the selected line only (the Fast mode design's
+/// cart): beside every name they left a 340 column ~30 points for it, so
+/// every name ellipsised after a word.
+class _RoundLine extends ConsumerStatefulWidget {
   const _RoundLine({
     required this.tableId,
     required this.line,
@@ -590,11 +629,13 @@ class _RoundLine extends ConsumerWidget {
     this.tableLabel,
     this.ticketRef,
     this.onEdit,
+    this.editOnSelect = false,
     super.key,
   });
 
   final String? tableId;
   final CartLineView line;
+  final bool editOnSelect;
 
   /// The cart charges a counter sale (it does not fire a round): the only
   /// flow that offers the staff-drink action.
@@ -608,7 +649,26 @@ class _RoundLine extends ConsumerWidget {
   final VoidCallback? onEdit;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_RoundLine> createState() => _RoundLineState();
+}
+
+class _RoundLineState extends ConsumerState<_RoundLine> {
+  bool _open = false;
+
+  String? get tableId => widget.tableId;
+  CartLineView get line => widget.line;
+  bool get counterSale => widget.counterSale;
+  String? get tableLabel => widget.tableLabel;
+  String? get ticketRef => widget.ticketRef;
+  String get currency => widget.currency;
+
+  void _tap() {
+    setState(() => _open = !_open);
+    if (_open && widget.editOnSelect) widget.onEdit?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.madarColors;
     final notifier = ref.read(cartProvider(tableId).notifier);
     final isCombo = line.kind == 'combo';
@@ -621,27 +681,39 @@ class _RoundLine extends ConsumerWidget {
     final notes = line.notes?.trim();
     final bridge = ref.read(bridgeProvider);
 
+    // The name owns the row's whole width and may take two lines: the
+    // stepper and the tiles sit on their own row under it. Beside the name
+    // they left a 340 cart column ~30 points for it (~90 with no staff-drink
+    // tile), so every name ellipsised after a word.
     final info = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
+      spacing: 2,
       children: [
         Text(
           line.name,
-          maxLines: 1,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: MadarType.title.copyWith(color: colors.textPrimary),
         ),
         // A staff drink says so, on the line. The badge is also the way back
         // to its note, and to taking the mark off.
-        if (line.staffDrink != null)
+        if (line.staffDrink != null || isCombo)
           Padding(
             padding: const EdgeInsetsDirectional.only(top: Space.xs),
-            child: StaffDrinkBadge(line: line, tableId: tableId),
-          ),
-        if (isCombo)
-          MadarTag(
-            label: bridge.tr(key: 'combo.badge'),
-            tone: MadarTone.accent,
+            child: Wrap(
+              spacing: Space.xs,
+              runSpacing: Space.xs,
+              children: [
+                if (line.staffDrink != null)
+                  StaffDrinkBadge(line: line, tableId: tableId),
+                if (isCombo)
+                  MadarTag(
+                    label: bridge.tr(key: 'combo.badge'),
+                    tone: MadarTone.accent,
+                  ),
+              ],
+            ),
           ),
         // A combo's items, indented under it: each with its size, what a
         // bigger size or the choice added, and its own add-ons (C12).
@@ -650,7 +722,7 @@ class _RoundLine extends ConsumerWidget {
         if (mods.isNotEmpty)
           Text(
             mods.join(' · '),
-            maxLines: 2,
+            maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: MadarType.bodySm.copyWith(color: colors.textSecondary),
           ),
@@ -659,144 +731,199 @@ class _RoundLine extends ConsumerWidget {
             // The quote marks are the language's: “…” in English,
             // «…» in Arabic — hard-coded curly quotes read backwards
             // in RTL.
-            ref
-                .read(bridgeProvider)
-                .tr(key: 'common.quoted')
-                .replaceAll('{text}', notes),
-            maxLines: 1,
+            bridge.tr(key: 'common.quoted').replaceAll('{text}', notes),
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: MadarType.bodySm.copyWith(
               color: colors.textMuted,
               fontStyle: FontStyle.italic,
             ),
           ),
+        if (line.dealName case final d? when line.dealCutMinor > 0)
+          Text(
+            d,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: MadarType.bodySm.copyWith(color: colors.success),
+          ),
         if (line.kitchenNote case final k? when k.trim().isNotEmpty)
           Text(
-            '${orderWord(ref.read(bridgeProvider), 'sell.kitchen_note')}: ${k.trim()}',
-            maxLines: 1,
+            '${orderWord(bridge, 'sell.kitchen_note')}: ${k.trim()}',
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: MadarType.bodySm.copyWith(
               color: colors.warning,
               fontStyle: FontStyle.italic,
             ),
           ),
-        const SizedBox(height: Space.xs),
-        // One line, scaled down before it ever wraps: "EGP 100.00" beside a
-        // stepper in a 340 column has ~80 points, and a figure broken over
-        // two lines reads as two figures.
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: AlignmentDirectional.centerStart,
-          // A staff drink: the normal price struck through, then what the
-          // pool leaves to pay ("Free" / "Extras 25.00") — the core's figures.
-          child: line.staffDrink != null
-              ? StaffDrinkPrice(line: line, currency: currency)
-              : MoneyText(
-                  line.lineTotalMinor,
-                  currency: currency,
-                  color: colors.textPrimary,
-                ),
-        ),
-        // In an applied deal: the line keeps its normal price above, and
-        // what the deal takes off it reads under it.
-        if (line.dealCutMinor > 0)
-          Text(
-            '−${Money.format(line.dealCutMinor, currency: currency, locale: MadarFormat.localeOf(context))}'
-            '${line.dealName == null ? '' : ' · ${line.dealName}'}',
-            key: ValueKey('deal-cut-${line.key}'),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: MadarType.bodySm.copyWith(color: colors.success),
-          ),
       ],
     );
-    final controls = <Widget>[
-      // The branch's staff pool: hidden unless the core says this line is on
-      // it and this person may act. See `staff_drink_sheet.dart`.
-      StaffDrinkTile(line: line, tableId: tableId, counterSale: counterSale),
-      MadarStepper(
-        value: line.qty,
-        onChanged: (q) => unawaited(notifier.setQty(line.key, q)),
-      ),
-      // ONE small trailing button for this row's kitchen action — never
-      // confused with the cart-level "Send to kitchen" in the footer,
-      // which sends every line. Tap prints just this dish now; long
-      // press opens a sheet for its kitchen note, a preview, and print.
-      Tooltip(
-        message: orderWord(ref.read(bridgeProvider), 'sell.kitchen_row_hint'),
-        child: MadarGlyphTile(
-          key: ValueKey('kitchen-${line.key}'),
-          glyph: MadarGlyph.printer,
-          semanticLabel: orderWord(
-            ref.read(bridgeProvider),
-            'sell.kitchen_row_hint',
-          ),
-          onTap: () => unawaited(
-            ref
-                .read(orderProvider.notifier)
-                .printKitchenChit(
-                  line,
+    // One line, scaled down before it ever wraps: a figure broken over two
+    // lines reads as two figures.
+    // A staff drink: the normal price struck through, then what the pool
+    // leaves to pay ("Free" / "Extras 25.00") — the core's figures.
+    final price = FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: AlignmentDirectional.centerEnd,
+      child: line.staffDrink != null
+          ? StaffDrinkPrice(line: line, currency: currency)
+          : MoneyText(
+              line.lineTotalMinor,
+              currency: currency,
+              color: colors.textPrimary,
+            ),
+    );
+    final controls = Row(
+      spacing: Space.xs,
+      children: [
+        MadarStepper(
+          dense: true,
+          value: line.qty,
+          onChanged: (q) => unawaited(notifier.setQty(line.key, q)),
+        ),
+        // The branch's staff pool: hidden unless the core says this line is
+        // on it and this person may act. See `staff_drink_sheet.dart`.
+        StaffDrinkTile(
+          line: line,
+          tableId: tableId,
+          counterSale: counterSale,
+          dense: true,
+        ),
+        // ONE small button for this row's kitchen action — never confused
+        // with the cart-level "Send to kitchen" in the footer, which sends
+        // every line. Tap prints just this dish now; long press opens a sheet
+        // for its kitchen note, a preview, and print.
+        Tooltip(
+          message: orderWord(bridge, 'sell.kitchen_row_hint'),
+          child: MadarGlyphTile(
+            key: ValueKey('kitchen-${line.key}'),
+            glyph: MadarGlyph.printer,
+            dense: true,
+            semanticLabel: orderWord(bridge, 'sell.kitchen_row_hint'),
+            onTap: () => unawaited(
+              ref
+                  .read(orderProvider.notifier)
+                  .printKitchenChit(
+                    line,
+                    tableId: tableId,
+                    tableLabel: tableLabel,
+                    ticketRef: ticketRef,
+                  ),
+            ),
+            onLongPress: () => unawaited(
+              showMadarSheet<void>(
+                context,
+                size: SheetSize.hug,
+                maxWidth: Responsive.sheetCompactMaxWidth,
+                builder: (_) => _RowKitchenSheet(
                   tableId: tableId,
+                  line: line,
                   tableLabel: tableLabel,
                   ticketRef: ticketRef,
                 ),
-          ),
-          onLongPress: () => unawaited(
-            showMadarSheet<void>(
-              context,
-              size: SheetSize.hug,
-              maxWidth: Responsive.sheetCompactMaxWidth,
-              builder: (_) => _RowKitchenSheet(
-                tableId: tableId,
-                line: line,
-                tableLabel: tableLabel,
-                ticketRef: ticketRef,
               ),
             ),
           ),
         ),
-      ),
-    ];
+        // The recipe card: what goes into one and the steps, to the same
+        // printer as this dish's chit. Only on an item that has either.
+        if (ref.read(orderProvider.notifier).lineHasRecipe(line))
+          Tooltip(
+            message: orderWord(bridge, 'sell.send_recipe'),
+            child: MadarGlyphTile(
+              key: ValueKey('recipe-${line.key}'),
+              glyph: MadarGlyph.list,
+              dense: true,
+              semanticLabel: orderWord(bridge, 'sell.send_recipe'),
+              onTap: () => unawaited(
+                ref
+                    .read(orderProvider.notifier)
+                    .printRecipeChit(
+                      line,
+                      tableId: tableId,
+                      tableLabel: tableLabel,
+                      ticketRef: ticketRef,
+                    ),
+              ),
+            ),
+          ),
+        const Spacer(),
+        if (widget.onEdit case final edit?)
+          MadarGlyphTile(
+            key: ValueKey('edit-${line.key}'),
+            glyph: MadarGlyph.edit,
+            dense: true,
+            semanticLabel: orderWord(bridge, 'sell.edit_line'),
+            onTap: edit,
+          ),
+        MadarGlyphTile(
+          key: ValueKey('remove-${line.key}'),
+          glyph: MadarGlyph.trash,
+          dense: true,
+          tint: colors.danger,
+          semanticLabel: bridge.tr(key: 'order.remove_line'),
+          onTap: () => unawaited(notifier.swipeRemove(line)),
+        ),
+      ],
+    );
 
-    final body = Container(
+    final head = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: Space.sm,
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 26),
+          child: Text(
+            MadarFormat.ltr('${line.qty}×'),
+            style: MadarType.numLg.copyWith(color: colors.textPrimary),
+          ),
+        ),
+        Expanded(child: info),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 112),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              price,
+              // In an applied deal: the line keeps its normal price, and
+              // what the deal takes off it reads under it.
+              if (line.dealCutMinor > 0)
+                Text(
+                  '−${Money.format(line.dealCutMinor, currency: currency, locale: MadarFormat.localeOf(context))}',
+                  key: ValueKey('deal-cut-${line.key}'),
+                  maxLines: 1,
+                  style: MadarType.bodySm.copyWith(color: colors.success),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+    final body = AnimatedContainer(
+      duration: MotionSpec.gentleDuration,
+      curve: MotionSpec.gentleCurve,
       padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Space.lg,
-        vertical: Space.md,
+        horizontal: Space.md,
+        vertical: Space.sm,
       ),
       decoration: BoxDecoration(
-        color: colors.surface,
+        color: _open ? colors.accent.withValues(alpha: 0.08) : colors.surface,
         borderRadius: BorderRadius.circular(Radii.control),
-        border: Border.all(color: colors.borderLight),
+        border: Border.all(
+          color: _open ? colors.accent : colors.borderLight,
+          width: _open ? 2 : 1,
+        ),
       ),
-      // Beside the name where the row is wide enough for both; under it in
-      // a narrow cart (the 300 column of a portrait tablet), so the name and
-      // its modifiers keep the whole width and never lose a word to the
-      // stepper. Decided by this row's own box, not the window.
-      child: LayoutBuilder(
-        builder: (context, c) {
-          final stacked = c.maxWidth < kRoundLineStackWidth;
-          if (!stacked) {
-            return Row(
-              spacing: Space.md,
-              children: [
-                Expanded(child: info),
-                ...controls,
-              ],
-            );
-          }
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: Space.sm,
-            children: [
-              info,
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                spacing: Space.md,
-                children: controls,
-              ),
-            ],
-          );
-        },
+      child: AnimatedSize(
+        duration: MotionSpec.gentleDuration,
+        curve: MotionSpec.gentleCurve,
+        alignment: AlignmentDirectional.topStart,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.sm,
+          children: [head, if (_open) controls],
+        ),
       ),
     );
 
@@ -835,9 +962,11 @@ class _RoundLine extends ConsumerWidget {
           // TactileScale, not a bare GestureDetector: the old cart's line row
           // had the press-shrink and the row that replaced it did not, so a
           // tap on a line in the live bill felt like nothing happening.
-          child: onEdit == null
-              ? body
-              : TactileScale(onTap: onEdit, child: body),
+          child: TactileScale(
+            key: ValueKey('line-tap-${line.key}'),
+            onTap: _tap,
+            child: body,
+          ),
         ),
       ),
     );
@@ -935,6 +1064,25 @@ class _RowKitchenSheet extends ConsumerWidget {
               ),
             ),
           ),
+          if (ref.read(orderProvider.notifier).lineHasRecipe(line))
+            MadarButton(
+              label: orderWord(bridge, 'sell.send_recipe'),
+              glyph: MadarGlyph.list,
+              variant: MadarButtonVariant.secondary,
+              onTap: () {
+                Navigator.of(context).maybePop();
+                unawaited(
+                  ref
+                      .read(orderProvider.notifier)
+                      .printRecipeChit(
+                        line,
+                        tableId: tableId,
+                        tableLabel: tableLabel,
+                        ticketRef: ticketRef,
+                      ),
+                );
+              },
+            ),
           MadarButton(
             label: orderWord(bridge, 'sell.kitchen_row_sheet_print'),
             onTap: () {
@@ -1864,7 +2012,7 @@ class CartPartRow extends StatelessWidget {
             part.surchargeMinor > 0
                 ? '$head  +${money(part.surchargeMinor)}'
                 : head,
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: MadarType.bodySm.copyWith(color: colors.textSecondary),
           ),
