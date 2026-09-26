@@ -5,6 +5,7 @@
 // `MADAR_RENDER=true` writes `build/render/sell-<scene>-<device>-<lang>-<theme>.png`.
 // Without it every frame still lays out and fails on any exception.
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -61,6 +62,9 @@ Future<void> _settle(WidgetTester tester) async {
 
 void main() {
   setUpAll(_loadFonts);
+  group('a tap after Clear', _clearThenTapMain);
+  group('a tap is never answered with nothing', _neverNothingMain);
+  group('the keyboard up on an iPad in landscape', _keyboardMain);
 
   group('assigning a held order to a table', () {
     Future<void> assignVia(WidgetTester tester, String chip) async {
@@ -809,4 +813,274 @@ void main() {
 Future<void> _selectLine(WidgetTester tester, String key) async {
   await tester.tap(find.byKey(ValueKey('line-tap-$key')));
   await tester.pumpAndSettle();
+}
+
+/// T2 B3 (POS 0.9/0.10 on the iPad): after "Make it a meal" and a Clear, a
+/// tap on the Latte tile did nothing at all — no line, no sheet, no toast.
+///
+/// The ⋯ sheet's Clear closed itself with `Navigator.maybePop()` and raised
+/// the confirm in the same tick. `maybePop` is async and drops the pop when
+/// the navigator's history changed meanwhile — which the confirm always
+/// does — so the ⋯ sheet stayed up after "Clear cart", and its scrim
+/// swallowed the next tap on the menu.
+void _clearThenTapMain() {
+  Finder latte() => find
+      .descendant(of: find.byType(SellTile), matching: find.text('Latte'))
+      .hitTestable();
+
+  Future<void> clearFromTheMenu(WidgetTester tester) async {
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (w) => w is MadarGlyphTile && w.glyph == MadarGlyph.more,
+          )
+          .hitTestable()
+          .first,
+    );
+    await _settle(tester);
+    await tester.tap(find.text(coreWord('order.clear')).last);
+    await _settle(tester);
+    await tester.tap(find.text(coreWord('order.clear_cart')).last);
+    await _settle(tester);
+    await tester.pump(const Duration(seconds: 1));
+  }
+
+  testWidgets(
+    "Clear closes the cart's ⋯ sheet: nothing is left over the menu",
+    (tester) async {
+      final bridge = _FakeBridge();
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await clearFromTheMenu(tester);
+      expect(bridge.cleared, 1);
+      expect(
+        find.byWidgetPredicate((w) => w is MadarButton && w.label == 'Clear'),
+        findsNothing,
+        reason: "the ⋯ sheet's Clear button is gone with its sheet",
+      );
+      expect(latte(), findsOneWidget, reason: 'the menu takes taps again');
+    },
+  );
+
+  testWidgets('the Latte tile still sells after a meal and a Clear (T2 B3)', (
+    tester,
+  ) async {
+    final bridge = _MealBridge()..latency = const Duration(milliseconds: 40);
+    bridge.carts[null] = [];
+    final container = await _mount(
+      tester,
+      screen: const TakeawaySellScreen(),
+      size: _ipad,
+      bridge: bridge,
+    );
+    // Long press → the item sheet → "Make it a meal" → the combo sheet → Add.
+    await tester.longPress(latte().first);
+    await _settle(tester);
+    await tester.tap(find.byKey(const ValueKey('make-it-a-meal')));
+    await _settle(tester);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(find.byKey(const ValueKey('combo-save')));
+    await _settle(tester);
+    await tester.pump(const Duration(seconds: 1));
+    expect(bridge.combosAdded, 1, reason: 'the meal went into the cart');
+
+    await clearFromTheMenu(tester);
+    expect(bridge.carts[null], isEmpty);
+    expect(container.read(cartProvider(null)).lines, isEmpty);
+
+    await tester.tap(latte().first);
+    await _settle(tester);
+    await tester.pump(const Duration(seconds: 1));
+    expect(bridge.configuredAdds, [
+      'latte',
+    ], reason: 'the tap reached the cart');
+    expect(bridge.carts[null]!.map((l) => l.itemId), ['latte']);
+  });
+}
+
+/// T2 B3's rule: whatever stops a tap on the Sell screen, the teller is told.
+void _neverNothingMain() {
+  Finder tile(String name) => find
+      .descendant(of: find.byType(SellTile), matching: find.text(name))
+      .hitTestable();
+
+  Future<(ProviderContainer, _MealBridge)> mount(WidgetTester tester) async {
+    final bridge = _MealBridge();
+    bridge.carts[null] = [];
+    final container = await _mount(
+      tester,
+      screen: const TakeawaySellScreen(),
+      size: _ipad,
+      bridge: bridge,
+    );
+    return (container, bridge);
+  }
+
+  String? toast(ProviderContainer c) => c.read(appToastProvider)?.text;
+
+  testWidgets('a tap that fails unexpectedly says so', (tester) async {
+    final (container, bridge) = await mount(tester);
+    bridge.breakAdd = StateError('the bridge fell over');
+    await tester.tap(tile('Latte').first);
+    await _settle(tester);
+    expect(toast(container), "Couldn't add Latte. Try again.");
+    expect(
+      tester.takeException(),
+      isA<StateError>(),
+      reason: 'still reported, as an uncaught error would be',
+    );
+    expect(bridge.configuredAdds, isEmpty);
+
+    // …and the next tap is taken as usual.
+    await tester.tap(tile('Latte').first);
+    await _settle(tester);
+    expect(bridge.configuredAdds, ['latte']);
+  });
+
+  testWidgets('a tap held behind a slow one says so; a double tap does not', (
+    tester,
+  ) async {
+    final (container, bridge) = await mount(tester);
+    bridge.slowGroups = Completer<List<ModifierGroupView>>();
+    await tester.tap(tile('Latte').first);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(tile('Espresso').first);
+    await tester.pump();
+    expect(toast(container), isNull, reason: 'a double tap is not news');
+
+    await tester.pump(const Duration(seconds: 2));
+    await tester.tap(tile('Espresso').first);
+    await tester.pump();
+    expect(
+      toast(container),
+      'One moment, the last tap is still going through.',
+    );
+
+    bridge.slowGroups!.complete(const []);
+    bridge.slowGroups = null;
+    await _settle(tester);
+    expect(bridge.configuredAdds, ['latte'], reason: 'the slow one lands');
+  });
+
+  testWidgets('editing a line whose item left the menu says so', (
+    tester,
+  ) async {
+    final (container, bridge) = await mount(tester);
+    bridge.carts[null] = [_cartLine('gone', 'Pumpkin latte', 6000, 1)];
+    await container.read(cartProvider(null).notifier).load();
+    await _settle(tester);
+    // 0.11.0's cart: a tap selects the line, its edit tile opens the sheet.
+    await _selectLine(tester, 'k-gone');
+    await tester.tap(find.byKey(const ValueKey('edit-k-gone')));
+    await _settle(tester);
+    expect(toast(container), "Couldn't open Pumpkin latte. Try again.");
+  });
+
+  testWidgets('a combo this till cannot show says so', (tester) async {
+    final (container, bridge) = await mount(tester);
+    bridge.comboGone = true;
+    await tester.tap(tile('Coffee & Treat').first);
+    await _settle(tester);
+    expect(toast(container), "This combo isn't available right now.");
+  });
+}
+
+/// T2 B1: on an iPad in landscape with the on-screen keyboard up (the staff
+/// drink's note), the sheet overflowed and its "Mark as staff drink" sat under
+/// the keyboard, and the cart beside it overflowed too: ~300 px were left above
+/// the keyboard and neither could scroll.
+void _keyboardMain() {
+  /// What T2's shot measures: the iPad's keyboard with its suggestion bar.
+  const keyboard = 430.0;
+
+  for (final ar in [false, true]) {
+    final lang = ar ? 'ar' : 'en';
+    Future<_StaffBridge> mount(WidgetTester tester) async {
+      final bridge = _StaffBridge(rtl: ar);
+      bridge.carts[null] = [_StaffBridge._combo, _StaffBridge._latte];
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      return bridge;
+    }
+
+    void keyboardUp(WidgetTester tester) {
+      tester.view.viewInsets = const FakeViewPadding(bottom: keyboard);
+      addTearDown(tester.view.resetViewInsets);
+    }
+
+    testWidgets('the cart fits and scrolls above the keyboard · $lang', (
+      tester,
+    ) async {
+      await mount(tester);
+      expect(tester.takeException(), isNull, reason: 'fits with no keyboard');
+      keyboardUp(tester);
+      await _settle(tester);
+      expect(tester.takeException(), isNull, reason: 'no overflow over it');
+      // The cart's action is still there to reach: it scrolls into view.
+      final charge = find.text(coreWord('sell.charge', arabic: ar));
+      expect(charge, findsWidgets);
+      await tester.dragUntilVisible(
+        charge.first,
+        find.byType(SellCart),
+        const Offset(0, -120),
+      );
+      expect(charge.hitTestable(), findsWidgets);
+      await tester.pump(const Duration(milliseconds: 500));
+      await _capture(tester, 'sell-keyboard-cart-$lang');
+    });
+
+    testWidgets('an empty cart fits above the keyboard too · $lang', (
+      tester,
+    ) async {
+      final bridge = _StaffBridge(rtl: ar);
+      bridge.carts[null] = [];
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      // The menu's search raises the same keyboard.
+      await tester.tap(find.byType(MadarGlyphTile).first);
+      await _settle(tester);
+      keyboardUp(tester);
+      await _settle(tester);
+      expect(tester.takeException(), isNull);
+      await _capture(tester, 'sell-keyboard-empty-$lang');
+    });
+
+    testWidgets('the staff drink sheet keeps its button above the keyboard · '
+        '$lang', (tester) async {
+      await mount(tester);
+      // 0.11.0's cart: the staff-drink tile is on the selected line.
+      await _selectLine(tester, 'k-latte');
+      await tester.tap(find.byKey(const ValueKey('staff-drink-k-latte')));
+      await _settle(tester);
+      keyboardUp(tester);
+      await _settle(tester);
+      expect(tester.takeException(), isNull, reason: 'the sheet fits');
+      final save = find.byKey(const ValueKey('staff-drink-save'));
+      expect(save.hitTestable(), findsOneWidget, reason: 'not under the keys');
+      expect(
+        tester.getRect(save).bottom,
+        lessThanOrEqualTo(_ipad.height - keyboard),
+        reason: 'the whole button is above the keyboard',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('staff-drink-note')),
+        'Sara, closing shift',
+      );
+      await _settle(tester);
+      expect(tester.widget<MadarButton>(save).enabled, isTrue);
+      await _capture(tester, 'sell-keyboard-staff-sheet-$lang');
+    });
+  }
 }

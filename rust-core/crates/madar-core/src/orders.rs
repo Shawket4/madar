@@ -143,11 +143,15 @@ pub struct OrderDetailLineView {
     pub name: String,
     pub qty: i64,
     pub size_label: Option<String>,
+    /// What the line adds to the bill, its add-ons and optionals included:
+    /// an item's normal price (a deal is its own row, [`OrderDetailView::deals`]),
+    /// a combo's P with its surcharges and add-ons, a part's share of it.
     pub line_total_minor: i64,
-    /// Addon labels ("Oat milk ×2"), already qty-suffixed for display.
-    pub addons: Vec<String>,
-    /// Optional-field labels.
-    pub optionals: Vec<String>,
+    /// Add-ons, the name already qty-suffixed ("Oat milk ×2"), each with what
+    /// it adds for the whole line (0 when free).
+    pub addons: Vec<crate::checkout::ReceiptModifierView>,
+    /// Optional fields, each with what it adds for the whole line.
+    pub optionals: Vec<crate::checkout::ReceiptModifierView>,
     /// `"item"`, `"combo"` (a combo's header: its parts follow it, and its
     /// total is theirs) or `"combo_part"` (one item of the combo above,
     /// drawn indented).
@@ -184,12 +188,18 @@ pub struct OrderDetailView {
     pub order_number: Option<i32>,
     pub status: String,
     pub payment_label: String,
+    /// The server's subtotal, NET of the deals.
     pub subtotal_minor: i64,
+    /// The lines at their normal prices: the subtotal plus what the deals
+    /// took off. The row the deal rows sit under, as on the receipt (C8).
+    pub gross_subtotal_minor: i64,
     pub discount_minor: i64,
     pub tax_minor: i64,
     pub total_minor: i64,
     pub created_at: String,
     pub lines: Vec<OrderDetailLineView>,
+    /// Each deal on the bill, `<name> −discount` under the gross subtotal.
+    pub deals: Vec<crate::checkout::ReceiptDealView>,
 }
 
 /// What has already been given back against ONE sale.
@@ -404,13 +414,54 @@ fn addon_label(name: &str, translations: &serde_json::Value, qty: i32, locale: &
     }
 }
 
+/// A line's add-ons, each with what it adds for the WHOLE line (the row's
+/// own `line_total`, all units): the receipt's combo part and the history
+/// detail read them the same way.
+fn priced_addons(it: &models::OrderItemFull, locale: &str) -> Vec<crate::checkout::ReceiptModifierView> {
+    it.addons
+        .iter()
+        .map(|a| crate::checkout::ReceiptModifierView {
+            name: addon_label(&a.addon_name, &a.name_translations, a.quantity, locale),
+            price_minor: a.line_total as i64,
+        })
+        .collect()
+}
+
+/// A line's optional fields, each with what it adds for the whole line.
+fn priced_optionals(it: &models::OrderItemFull, locale: &str) -> Vec<crate::checkout::ReceiptModifierView> {
+    it.optionals
+        .iter()
+        .map(|op| crate::checkout::ReceiptModifierView {
+            name: loc(&op.name_translations, &op.field_name, locale),
+            price_minor: op.price as i64 * it.quantity.max(1) as i64,
+        })
+        .collect()
+}
+
+/// The bill's deals, `<name> −discount` (C8), in the device's language.
+fn deal_views(o: &models::OrderFull, locale: &str) -> Vec<crate::checkout::ReceiptDealView> {
+    o.deals
+        .iter()
+        .flatten()
+        .map(|d| crate::checkout::ReceiptDealView {
+            name: loc(&d.name_translations, &d.name, locale),
+            discount_minor: d.discount as i64,
+        })
+        .collect()
+}
+
 pub(crate) fn order_detail_view(o: &models::OrderFull, locale: &str) -> OrderDetailView {
+    let deals = deal_views(o, locale);
     OrderDetailView {
         id: o.id.to_string(),
         order_number: Some(o.order_number),
         status: o.status.clone(),
         payment_label: o.payment_method.clone(),
         subtotal_minor: o.subtotal as i64,
+        // The lines print at their normal prices, so the subtotal they sit
+        // over does too; each deal then comes off as its own row (B5).
+        gross_subtotal_minor: o.subtotal as i64
+            + deals.iter().map(|d| d.discount_minor).sum::<i64>(),
         discount_minor: o.discount_amount as i64,
         tax_minor: o.tax_amount as i64,
         total_minor: o.total_amount as i64,
@@ -426,25 +477,20 @@ pub(crate) fn order_detail_view(o: &models::OrderFull, locale: &str) -> OrderDet
                     .clone()
                     .filter(|s| !s.is_empty() && !crate::cart::is_one_size(s)),
                 kind: line_kind(it).to_string(),
-                // A combo's header shows what its parts come to; a line in a
-                // deal shows its normal price (the deal is its own figure).
-                line_total_minor: if line_kind(it) == crate::menu::KIND_COMBO {
-                    parts_of(o, it).iter().map(|p| with_extras(p)).sum()
-                } else {
-                    it.line_total as i64 + it.deal_minor.unwrap_or(0).max(0) as i64
+                // A combo's header shows what its parts come to, and a part
+                // what it adds: its add-ons sit ON TOP of its `line_total`
+                // (B6), where an item's are inside it. A line in a deal
+                // shows its normal price (the deal is its own row).
+                line_total_minor: match line_kind(it) {
+                    crate::menu::KIND_COMBO => parts_of(o, it).iter().map(|p| with_extras(p)).sum(),
+                    "combo_part" => with_extras(it),
+                    _ => it.line_total as i64 + it.deal_minor.unwrap_or(0).max(0) as i64,
                 },
-                addons: it
-                    .addons
-                    .iter()
-                    .map(|a| addon_label(&a.addon_name, &a.name_translations, a.quantity, locale))
-                    .collect(),
-                optionals: it
-                    .optionals
-                    .iter()
-                    .map(|op| loc(&op.name_translations, &op.field_name, locale))
-                    .collect(),
+                addons: priced_addons(it, locale),
+                optionals: priced_optionals(it, locale),
             })
             .collect(),
+        deals,
     }
 }
 
@@ -456,7 +502,7 @@ fn combo_receipt_line(
     header: &models::OrderItemFull,
     locale: &str,
 ) -> crate::checkout::ReceiptLineView {
-    use crate::checkout::{ReceiptLineView, ReceiptModifierView, ReceiptPartView};
+    use crate::checkout::{ReceiptLineView, ReceiptPartView};
     let parts = parts_of(o, header);
     ReceiptLineView {
         name: loc(&header.name_translations, &header.item_name, locale),
@@ -481,22 +527,8 @@ fn combo_receipt_line(
                     .filter(|s| !s.is_empty() && !crate::cart::is_one_size(s)),
                 slot_name: p.combo_slot_name.clone().filter(|s| !s.is_empty()),
                 surcharge_minor: p.combo_surcharge.unwrap_or(0) as i64,
-                addons: p
-                    .addons
-                    .iter()
-                    .map(|a| ReceiptModifierView {
-                        name: addon_label(&a.addon_name, &a.name_translations, a.quantity, locale),
-                        price_minor: a.line_total as i64,
-                    })
-                    .collect(),
-                optionals: p
-                    .optionals
-                    .iter()
-                    .map(|op| ReceiptModifierView {
-                        name: loc(&op.name_translations, &op.field_name, locale),
-                        price_minor: op.price as i64 * p.quantity.max(1) as i64,
-                    })
-                    .collect(),
+                addons: priced_addons(p, locale),
+                optionals: priced_optionals(p, locale),
             })
             .collect(),
         deal_minor: 0,
@@ -659,15 +691,7 @@ pub(crate) fn order_to_receipt(
         created_at: o.created_at.to_rfc3339(),
         // Only a SPLIT lists its legs; one leg is the payment line already.
         staff_notice: None,
-        deals: o
-            .deals
-            .iter()
-            .flatten()
-            .map(|d| crate::checkout::ReceiptDealView {
-                name: loc(&d.name_translations, &d.name, locale),
-                discount_minor: d.discount as i64,
-            })
-            .collect(),
+        deals: deal_views(o, locale),
         loyalty_notice: o
             .loyalty_redemption_refused
             .clone()
@@ -1189,11 +1213,107 @@ mod tests {
                 ("combo", 35000),
                 ("combo_part", 17142),
                 ("combo_part", 5716),
-                ("combo_part", 9142),
+                // A part's add-ons are on top of its share: its row adds them.
+                ("combo_part", 9142 + 3000),
                 ("item", 11000)
             ]
         );
         assert_eq!(v.lines[1].size_label, None, "one_size is no size");
+    }
+
+    /// T2's bill (B5, B6): "Coffee & Treat" ×2 at P 250.00, its Latte with
+    /// oat milk (+80.00 for both), a large Vanilla Soft Serve (+30.00) and
+    /// Cookies (+40.00); then two pastries in "Any 2 pastries for 250"
+    /// (120.00 + 180.00, −50.00). Net subtotal 900.00, tax 126.00 on top.
+    fn deal_and_combo_order() -> models::OrderFull {
+        let header_id = uid(120);
+        let mut header = item("Coffee & Treat", 2, 0);
+        header.id = header_id;
+        header.unit_price = 0;
+        header.line_kind = Some("combo".into());
+        header.combo_unit_price = Some(25000);
+        let part = |id: u8, name: &str, line_total: i32, surcharge: i32| {
+            let mut p = item(name, 2, line_total);
+            p.id = uid(id);
+            p.line_kind = Some("combo_part".into());
+            p.combo_line_id = Some(header_id);
+            p.combo_share = Some(line_total - surcharge);
+            p.combo_surcharge = Some(surcharge);
+            p
+        };
+        let mut latte = part(121, "Latte", 14880, 0);
+        latte.addons = vec![addon("Oat Milk", 1, 4000)];
+        latte.addons[0].line_total = 8000; // the pick, for both combos
+        latte.addons[0].name_translations = serde_json::json!({ "ar": "حليب الشوفان" });
+        let mut vanilla = part(122, "Vanilla Soft Serve", 16692, 3000);
+        vanilla.size_label = Some("large".into());
+        let cookie_part = part(123, "Cookies", 25428, 4000);
+        let mut brownies = item("Brownies", 1, 10000);
+        brownies.id = uid(124);
+        brownies.unit_price = 12000;
+        brownies.deal_minor = Some(2000);
+        let mut cookies = item("Cookies", 1, 15000);
+        cookies.id = uid(125);
+        cookies.unit_price = 18000;
+        cookies.deal_minor = Some(3000);
+        let mut o = order_full(vec![header, latte, vanilla, cookie_part, brownies, cookies]);
+        o.subtotal = 90000;
+        o.tax_amount = 12600;
+        o.total_amount = 102600;
+        o.deals = Some(vec![models::OrderDeal::new(
+            uid(126),
+            5000,
+            uid(127),
+            vec![
+                models::OrderDealLine::new(2000, uid(124), 1),
+                models::OrderDealLine::new(3000, uid(125), 1),
+            ],
+            "Any 2 pastries for 250".into(),
+            serde_json::json!({ "ar": "أي قطعتين معجنات بـ ٢٥٠" }),
+            1,
+        )]);
+        o
+    }
+
+    #[test]
+    fn the_order_detail_adds_up_with_a_deal_and_combo_add_ons() {
+        let v = order_detail_view(&deal_and_combo_order(), "en");
+        let row = |kind: &str| -> i64 {
+            v.lines.iter().filter(|l| l.kind == kind).map(|l| l.line_total_minor).sum()
+        };
+        // B6: each part's row is what it adds, its add-ons included, so the
+        // parts come to their combo's own figure (500 + 30 + 40 + 80).
+        assert_eq!(row("combo"), 65000);
+        assert_eq!(row("combo_part"), 65000, "the parts add up to the combo");
+        let latte = &v.lines[1];
+        assert_eq!((latte.name.as_str(), latte.line_total_minor), ("Latte", 22880));
+        assert_eq!(
+            latte.addons.iter().map(|a| (a.name.as_str(), a.price_minor)).collect::<Vec<_>>(),
+            vec![("Oat Milk", 8000)],
+            "the add-on carries its price for the whole line"
+        );
+        // B5: the lines at their normal prices, then the deal as its own row.
+        assert_eq!(
+            v.lines.iter().filter(|l| l.kind == "item").map(|l| l.line_total_minor).collect::<Vec<_>>(),
+            vec![12000, 18000]
+        );
+        assert_eq!(
+            v.deals.iter().map(|d| (d.name.as_str(), d.discount_minor)).collect::<Vec<_>>(),
+            vec![("Any 2 pastries for 250", 5000)]
+        );
+        // The top-level rows are the gross subtotal; less the deals, the
+        // server's net one; with the tax, the total.
+        assert_eq!(v.gross_subtotal_minor, row("combo") + row("item"));
+        assert_eq!(v.gross_subtotal_minor, 95000);
+        let deals: i64 = v.deals.iter().map(|d| d.discount_minor).sum();
+        assert_eq!(v.gross_subtotal_minor - deals, v.subtotal_minor);
+        assert_eq!(v.subtotal_minor - v.discount_minor + v.tax_minor, v.total_minor);
+
+        // In Arabic, the frozen translations.
+        let ar = order_detail_view(&deal_and_combo_order(), "ar");
+        assert_eq!(ar.deals[0].name, "أي قطعتين معجنات بـ ٢٥٠");
+        assert_eq!(ar.lines[1].addons[0].name, "حليب الشوفان");
+        assert_eq!(ar.gross_subtotal_minor, 95000);
     }
 
     #[test]
@@ -1293,12 +1413,16 @@ mod tests {
         it.optionals = vec![optional("Extra hot", 0)];
         let o = order_full(vec![it]);
         let v = order_detail_view(&o, "en");
-        // qty>1 gets the " ×N" suffix; qty==1 stays bare.
+        // qty>1 gets the " ×N" suffix; qty==1 stays bare. Each carries what
+        // it adds to the line.
+        let named = |m: &[crate::checkout::ReceiptModifierView]| -> Vec<(String, i64)> {
+            m.iter().map(|m| (m.name.clone(), m.price_minor)).collect()
+        };
         assert_eq!(
-            v.lines[0].addons,
-            vec!["Oat milk ×2".to_string(), "Shot".to_string()]
+            named(&v.lines[0].addons),
+            vec![("Oat milk ×2".to_string(), 1000), ("Shot".to_string(), 700)]
         );
-        assert_eq!(v.lines[0].optionals, vec!["Extra hot".to_string()]);
+        assert_eq!(named(&v.lines[0].optionals), vec![("Extra hot".to_string(), 0)]);
     }
 
     #[test]

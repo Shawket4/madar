@@ -173,7 +173,7 @@ class _BillScreenState extends ConsumerState<BillScreen> {
                 glyph: MadarGlyph.clock,
                 variant: MadarButtonVariant.secondary,
                 onTap: () {
-                  Navigator.of(sheetContext).maybePop();
+                  MadarSheet.close<void>(sheetContext);
                   unawaited(
                     showTableHistory(
                       context,
@@ -189,7 +189,7 @@ class _BillScreenState extends ConsumerState<BillScreen> {
                 glyph: MadarGlyph.move,
                 variant: MadarButtonVariant.secondary,
                 onTap: () {
-                  Navigator.of(sheetContext).maybePop();
+                  MadarSheet.close<void>(sheetContext);
                   unawaited(_move(t));
                 },
               ),
@@ -199,7 +199,7 @@ class _BillScreenState extends ConsumerState<BillScreen> {
                 glyph: MadarGlyph.users,
                 variant: MadarButtonVariant.ghost,
                 onTap: () {
-                  Navigator.of(sheetContext).maybePop();
+                  MadarSheet.close<void>(sheetContext);
                   unawaited(_unseat(t));
                 },
               ),
@@ -208,7 +208,7 @@ class _BillScreenState extends ConsumerState<BillScreen> {
               glyph: MadarGlyph.trash,
               variant: MadarButtonVariant.danger,
               onTap: () {
-                Navigator.of(sheetContext).maybePop();
+                MadarSheet.close<void>(sheetContext);
                 unawaited(_void(t));
               },
             ),

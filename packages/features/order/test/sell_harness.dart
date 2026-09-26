@@ -1028,3 +1028,354 @@ Future<void> _writeFrame(WidgetTester tester, String name) async {
   final dir = Directory('build/render')..createSync(recursive: true);
   File('${dir.path}/$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());
 }
+
+// ── make it a meal (T2 B3) ─────────────────────────────────────────────────
+
+/// The Latte's meal: a one-slot combo holding the Latte, with the Latte's
+/// "Make it a meal" on its item sheet. Every figure is the fixture's.
+class _MealBridge extends _FakeBridge {
+  _MealBridge();
+
+  /// Every configured add the core was asked for, by item id.
+  final List<String> configuredAdds = [];
+
+  /// Every combo the core put on a cart.
+  int combosAdded = 0;
+
+  /// The next configured add fails with something that is not a refusal —
+  /// the kind of failure that used to die in an unawaited future.
+  Object? breakAdd;
+
+  /// Held open: the Latte's options have not answered yet.
+  Completer<List<ModifierGroupView>>? slowGroups;
+
+  /// The combo has gone from this till's menu.
+  bool comboGone = false;
+
+  static const _slot = ComboSlotDetail(
+    id: 's-coffee',
+    name: 'Coffee',
+    min: 1,
+    max: 1,
+    ruleLabel: 'Pick 1',
+    defaultItemId: 'latte',
+    choices: [
+      ComboChoiceDetail(
+        itemId: 'latte',
+        name: 'Latte',
+        basePriceMinor: 4500,
+        surchargeMinor: 0,
+        sizes: [],
+        isDefault: true,
+        customisable: false,
+        mustCustomise: false,
+      ),
+    ],
+  );
+
+  static final _picks = [
+    const ComboPickInput(
+      slotId: 's-coffee',
+      itemId: 'latte',
+      qty: 1,
+      addons: [],
+      optionalFieldIds: [],
+    ),
+  ];
+
+  /// How long a bridge answer takes (a device's thread pool, not a
+  /// microtask): the long press's sheet then opens after the finger lifts.
+  Duration latency = Duration.zero;
+
+  Future<T> _later<T>(T value) => Future<T>.delayed(latency, () => value);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    final name = invocation.memberName;
+    final a = invocation.namedArguments;
+    if (name == #mealOffer) {
+      return a[#itemId] == 'latte'
+          ? const MealOffer(
+              comboId: 'meal',
+              slotId: 's-coffee',
+              name: 'Coffee & Treat',
+              deltaMinor: 2000,
+            )
+          : null;
+    }
+    if (name == #itemMealDraft) {
+      return Future<ComboDraft>.value(
+        ComboDraft(comboId: 'meal', qty: 1, picks: _picks),
+      );
+    }
+    if (name == #comboDetail) {
+      if (comboGone) return null;
+      return const ComboDetail(
+        id: 'meal',
+        name: 'Coffee & Treat',
+        priceMinor: 6500,
+        isFixed: false,
+        availableNow: true,
+        slots: [_slot],
+      );
+    }
+    if (name == #comboNewDraft) {
+      return ComboDraft(comboId: 'meal', qty: 1, picks: _picks);
+    }
+    if (name == #comboQuote) {
+      return Future<ComboQuoteView>.value(
+        const ComboQuoteView(
+          priceMinor: 6500,
+          unitTotalMinor: 6500,
+          lineTotalMinor: 6500,
+          surchargeMinor: 0,
+          extrasMinor: 0,
+          listMinor: 6500,
+          savingMinor: 0,
+          complete: true,
+          pickNeeds: [],
+        ),
+      );
+    }
+    if (name == #cartAddCombo) {
+      combosAdded += 1;
+      _cartOf(invocation).add(
+        const CartLineView(
+          dealCutMinor: 0,
+          kind: 'combo',
+          parts: [],
+          key: 'combo:meal|s-coffee:latte',
+          itemId: 'meal',
+          name: 'Coffee & Treat',
+          addons: [],
+          optionals: [],
+          unitPriceMinor: 6500,
+          qty: 1,
+          lineTotalMinor: 6500,
+        ),
+      );
+      return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
+    }
+    if (name == #cartAddConfigured) {
+      final broken = breakAdd;
+      if (broken != null) {
+        breakAdd = null;
+        return Future<List<CartLineView>>.error(broken);
+      }
+      configuredAdds.add(a[#itemId] as String);
+    }
+    // The Latte as T2's menu has it: its recipe names full-fat milk, so a
+    // tap is a configured add (the milk rides the line).
+    if (name == #listMenuItems) {
+      menuReads++;
+      return Future<List<MenuItemView>>.value([
+        for (final i in _items)
+          if (i.id == 'latte')
+            const MenuItemView(
+              kind: 'item',
+              id: 'latte',
+              name: 'Latte',
+              categoryId: 'hot',
+              basePriceMinor: 4500,
+              isActive: true,
+              allowedAddonIds: [],
+              sizes: [],
+              addonSlots: [],
+              optionalFields: [],
+              recipes: [],
+              recipeSteps: [],
+              defaultMilkAddonId: 'full',
+            )
+          else
+            i,
+        // The meal itself, sold on its own too.
+        const MenuItemView(
+          kind: 'combo',
+          id: 'meal',
+          name: 'Coffee & Treat',
+          categoryId: 'hot',
+          basePriceMinor: 6500,
+          isActive: true,
+          allowedAddonIds: [],
+          sizes: [],
+          addonSlots: [],
+          optionalFields: [],
+          recipes: [],
+          recipeSteps: [],
+        ),
+      ]);
+    }
+    if (name == #listItemAddons && a[#itemId] == 'latte') {
+      return _later<List<ItemAddonView>>(const [
+        ItemAddonView(
+          addonItemId: 'full',
+          name: 'Full fat',
+          addonType: 'milk_type',
+          chargedPriceMinor: 0,
+        ),
+        ItemAddonView(
+          addonItemId: 'oat',
+          name: 'Oat milk',
+          addonType: 'milk_type',
+          chargedPriceMinor: 4000,
+        ),
+      ]);
+    }
+    if (name == #listItemModifierGroups &&
+        a[#itemId] == 'latte' &&
+        slowGroups != null) {
+      return slowGroups!.future;
+    }
+    if (name == #listItemModifierGroups && a[#itemId] == 'latte') {
+      return _later<List<ModifierGroupView>>(const [
+        ModifierGroupView(
+          groupId: 'g-milk',
+          name: 'milk_type',
+          kind: ModifierGroupKind.addon,
+          addonType: 'milk_type',
+          isRequired: false,
+          minSelections: 0,
+          maxSelections: 1,
+          defaultOptionId: 'full',
+          options: [
+            ModifierOptionView(
+              id: 'full',
+              name: 'Full fat',
+              chargedPriceMinor: 0,
+            ),
+            ModifierOptionView(
+              id: 'oat',
+              name: 'Oat milk',
+              chargedPriceMinor: 4000,
+            ),
+          ],
+        ),
+      ]);
+    }
+    return super.noSuchMethod(invocation);
+  }
+}
+
+// ── the keyboard over the Sell screen (T2 B1) ──────────────────────────────
+
+/// The cart T2 had when the keyboard came up: a combo with its parts and a
+/// plain Latte the staff pool offers — tall enough that its fixed rows alone
+/// outgrew the ~300 px an iPad in landscape keeps above the keyboard.
+class _StaffBridge extends _FakeBridge {
+  _StaffBridge({super.rtl});
+
+  static const _combo = CartLineView(
+    dealCutMinor: 0,
+    kind: 'combo',
+    key: 'combo:meal',
+    itemId: 'meal',
+    name: 'Coffee & Treat',
+    addons: [],
+    optionals: [],
+    unitPriceMinor: 25000,
+    qty: 1,
+    lineTotalMinor: 25000,
+    parts: [
+      CartPartView(
+        slotId: 's-coffee',
+        slotName: 'Coffee',
+        itemId: 'latte',
+        itemName: 'Latte',
+        qty: 1,
+        unitPriceMinor: 12500,
+        shareMinor: 7440,
+        surchargeMinor: 0,
+        addons: [
+          CartAddonView(
+            addonItemId: 'full',
+            name: 'Full fat milk',
+            qty: 1,
+            priceModifierMinor: 0,
+          ),
+        ],
+        optionals: [],
+      ),
+      CartPartView(
+        slotId: 's-dessert',
+        slotName: 'Dessert',
+        itemId: 'vanilla',
+        itemName: 'Vanilla Soft Serve',
+        sizeLabel: 'small',
+        qty: 1,
+        unitPriceMinor: 11500,
+        shareMinor: 6846,
+        surchargeMinor: 0,
+        addons: [],
+        optionals: [],
+      ),
+      CartPartView(
+        slotId: 's-bite',
+        slotName: 'Bite',
+        itemId: 'brownies',
+        itemName: 'Brownies',
+        qty: 1,
+        unitPriceMinor: 12000,
+        shareMinor: 10714,
+        surchargeMinor: 0,
+        addons: [],
+        optionals: [],
+      ),
+    ],
+  );
+
+  static const _latte = CartLineView(
+    dealCutMinor: 0,
+    kind: 'item',
+    parts: [],
+    key: 'k-latte',
+    itemId: 'latte',
+    name: 'Latte',
+    addons: [
+      CartAddonView(
+        addonItemId: 'full',
+        name: 'Full fat milk',
+        qty: 1,
+        priceModifierMinor: 0,
+      ),
+    ],
+    optionals: [],
+    unitPriceMinor: 12500,
+    qty: 1,
+    lineTotalMinor: 12500,
+  );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    final name = invocation.memberName;
+    if (name == #previewStaffDrink) {
+      final input = invocation.namedArguments[#input]! as StaffDrinkInput;
+      final hasNote = input.note.trim().isNotEmpty;
+      const pool = StaffPoolDay(
+        businessDate: '2026-09-26',
+        allowance: 10,
+        used: 0,
+        remaining: 10,
+        over: 0,
+      );
+      return StaffDrinkPreviewView(
+        // Offered on a plain line only: never inside a combo.
+        offered: input.menuItemId == 'latte',
+        access: const ActDecisionView(outcome: 'allow', reason: ''),
+        decision: StaffDrinkDecision(
+          allowed: hasNote,
+          refusal: hasNote ? null : StaffDrinkRefusal.noteRequired,
+          overspent: false,
+          pool: pool,
+        ),
+        reason: hasNote ? '' : coreWord('staff_pool.refused.note', arabic: rtl),
+        overWarning: '',
+        poolLabel: coreWord(
+          'staff_pool.left_today',
+          arabic: rtl,
+        ).replaceAll('{count}', '10'),
+      );
+    }
+    if (name == #takeStaffDrinkNotices) return <String>[];
+    return super.noSuchMethod(invocation);
+  }
+}

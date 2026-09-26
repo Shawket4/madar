@@ -50,7 +50,19 @@ Future<void> showComboSheet(
         );
     return;
   }
-  if (detail == null || !context.mounted) return;
+  if (!context.mounted) return;
+  if (detail == null) {
+    // Not a combo this till can sell (gone from the menu, off here): say so
+    // rather than answer the tap with nothing.
+    ref
+        .read(orderProvider.notifier)
+        .showToast(
+          bridge.tr(key: 'combo.unavailable'),
+          tone: ChipTone.warning,
+          icon: 'exclamationmark.triangle',
+        );
+    return;
+  }
   final sheet = ComboSheet(
     detail: detail,
     draft:

@@ -167,13 +167,16 @@ class OrderDetailLineView {
   final String name;
   final PlatformInt64 qty;
   final String? sizeLabel;
+
+  /// What the line adds to the bill, its add-ons included: an item at its
+  /// normal price (a deal is its own row), a combo part with its add-ons.
   final PlatformInt64 lineTotalMinor;
 
-  /// Addon labels ("Oat milk ×2"), already qty-suffixed for display.
-  final List<String> addons;
+  /// Add-ons ("Oat milk ×2"), each with what it adds for the whole line.
+  final List<ReceiptModifierView> addons;
 
-  /// Optional-field labels.
-  final List<String> optionals;
+  /// Optional fields, each with what it adds for the whole line.
+  final List<ReceiptModifierView> optionals;
 
   /// `"item"`, `"combo"` (its parts follow) or `"combo_part"` (indented).
   final String kind;
@@ -218,12 +221,21 @@ class OrderDetailView {
   final int? orderNumber;
   final String status;
   final String paymentLabel;
+
+  /// The server's subtotal, net of the deals.
   final PlatformInt64 subtotalMinor;
+
+  /// The lines at their normal prices (subtotal + the deals): the row the
+  /// deal rows sit under.
+  final PlatformInt64 grossSubtotalMinor;
   final PlatformInt64 discountMinor;
   final PlatformInt64 taxMinor;
   final PlatformInt64 totalMinor;
   final String createdAt;
   final List<OrderDetailLineView> lines;
+
+  /// Each deal on the bill, `<name> −discount`.
+  final List<ReceiptDealView> deals;
 
   const OrderDetailView({
     required this.id,
@@ -231,11 +243,13 @@ class OrderDetailView {
     required this.status,
     required this.paymentLabel,
     required this.subtotalMinor,
+    required this.grossSubtotalMinor,
     required this.discountMinor,
     required this.taxMinor,
     required this.totalMinor,
     required this.createdAt,
     required this.lines,
+    required this.deals,
   });
 
   @override
@@ -245,11 +259,13 @@ class OrderDetailView {
       status.hashCode ^
       paymentLabel.hashCode ^
       subtotalMinor.hashCode ^
+      grossSubtotalMinor.hashCode ^
       discountMinor.hashCode ^
       taxMinor.hashCode ^
       totalMinor.hashCode ^
       createdAt.hashCode ^
-      lines.hashCode;
+      lines.hashCode ^
+      deals.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -261,11 +277,13 @@ class OrderDetailView {
           status == other.status &&
           paymentLabel == other.paymentLabel &&
           subtotalMinor == other.subtotalMinor &&
+          grossSubtotalMinor == other.grossSubtotalMinor &&
           discountMinor == other.discountMinor &&
           taxMinor == other.taxMinor &&
           totalMinor == other.totalMinor &&
           createdAt == other.createdAt &&
-          lines == other.lines;
+          lines == other.lines &&
+          deals == other.deals;
 }
 
 /// What has already been given back against one sale.

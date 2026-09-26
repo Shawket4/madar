@@ -210,195 +210,215 @@ class SellCart extends ConsumerWidget {
       );
     }
 
+    final head = [
+      _CartHeader(
+        // As a COLUMN the page header above already says where this sale
+        // is going ("Takeaway", "T2 · Round 3"); saying it again here was
+        // the owner's "Takeaway twice". The phone's sheet has no page
+        // header over it, so there the cart carries the context itself.
+        title: onClose == null
+            ? orderWord(bridge, 'sell.order_title')
+            : _title(bridge, state, cart, ticket, tableLabel),
+        itemCount: cart.totals.itemCount,
+        onMore: () => unawaited(_moreSheet(context, ref, cart)),
+        onClose: onClose,
+      ),
+      // Pickup or dine in, at the top where the design has it. Only on a
+      // cart that charges: a round fired to a bill is dine-in already.
+      // Nothing to do with the floor — it decides whether the cups and
+      // lids come off stock (see `dineInProvider`).
+      if (!cta.sendsToKitchen)
+        Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            Space.lg,
+            0,
+            Space.lg,
+            Space.md,
+          ),
+          child: MadarSegmented<bool>(
+            key: const ValueKey('cart-service-mode'),
+            items: [
+              MadarSegmentItem(
+                false,
+                bridge.tr(key: 'charge.pickup'),
+                glyph: MadarGlyph.bag,
+              ),
+              MadarSegmentItem(
+                true,
+                bridge.tr(key: 'charge.dine_in'),
+                glyph: MadarGlyph.table,
+              ),
+            ],
+            value: ref.watch(dineInProvider(tableId)),
+            onChanged: (dineIn) =>
+                ref.read(dineInProvider(tableId).notifier).set(dineIn: dineIn),
+          ),
+        ),
+      const MadarHairline(),
+      // The parked-orders strip: what is already parked, and the pencil
+      // to rename it. Without it parking reads as a dead end.
+      if (isCounterFlow && (state.drafts.isNotEmpty || lines.isNotEmpty))
+        TellerHeldStrip(tableId: tableId),
+      // Who the sale is for and what comes off it — on the cart, where
+      // the teller is looking, not three taps deep inside Charge.
+      if (lines.isNotEmpty)
+        _CartSummary(
+          tableId: tableId,
+          counter: isCounterFlow,
+          lineCount: lines.length,
+        ),
+    ];
+    final rows = <Widget>[
+      if (ticket != null) ...[
+        MadarSectionHeader(
+          text: orderWord(bridge, 'sell.on_the_bill'),
+          trailing: Text(
+            orderWord(
+              bridge,
+              'sell.rounds_count',
+            ).replaceAll('{count}', '${groupBillByRound(ticket.lines).length}'),
+            textDirection: TextDirection.ltr,
+            style: MadarType.num.copyWith(color: colors.textMuted),
+          ),
+        ),
+        const SizedBox(height: Space.sm),
+        if (ticket.lines.isEmpty)
+          Text(
+            bridge.tr(key: 'tables.bill_pending'),
+            style: MadarType.bodySm.copyWith(color: colors.textMuted),
+          )
+        else
+          for (final round in groupBillByRound(ticket.lines))
+            for (final line in round.lines)
+              _OnBillLine(
+                roundTag: orderWord(
+                  bridge,
+                  'sell.round_tag',
+                ).replaceAll('{count}', '${round.number}'),
+                line: line,
+                currency: state.currency,
+                time: round.firedAt.isEmpty
+                    ? ''
+                    : bridge.formatTime(
+                        rfc3339: round.firedAt,
+                        style: TimeStyle.time,
+                      ),
+              ),
+        const SizedBox(height: Space.md),
+        const MadarHairline(light: true),
+        const SizedBox(height: Space.md),
+        MadarSectionHeader(text: orderWord(bridge, 'sell.this_round')),
+        const SizedBox(height: Space.sm),
+        if (lines.isEmpty)
+          Text(
+            bridge.tr(key: 'order.cart_empty'),
+            style: MadarType.bodySm.copyWith(color: colors.textMuted),
+          ),
+      ],
+      // The deals this cart qualifies for (the teller applies
+      // one with a tap, C8), and the ones already applied.
+      for (final d in cart.appliedDeals)
+        _AppliedDealRow(
+          key: ValueKey('deal-applied-${d.id}'),
+          deal: d,
+          currency: state.currency,
+          onRemove: () => unawaited(
+            ref.read(cartProvider(tableId).notifier).removeDeal(d.id),
+          ),
+        ),
+      for (final d in cart.dealSuggestions)
+        DealSuggestionBanner(
+          key: ValueKey('deal-suggest-${d.dealId}'),
+          suggestion: d,
+          currency: state.currency,
+          onApply: () => unawaited(
+            ref.read(cartProvider(tableId).notifier).applyDeal(d.dealId),
+          ),
+        ),
+      for (final line in lines)
+        _RoundLine(
+          tableId: tableId,
+          key: ValueKey('round-${line.key}'),
+          line: line,
+          tableLabel: tableLabel,
+          ticketRef: ticket?.ticketRef,
+          currency: state.currency,
+          counterSale: !cta.sendsToKitchen,
+          editOnSelect: editOnSelect,
+          onEdit: () => onEditLine(line),
+        ),
+    ];
+    final foot = [
+      if (lines.isNotEmpty)
+        _CartFooter(
+          tableId: tableId,
+          cta: cta,
+          ticket: ticket,
+          onTerminal: onTerminal,
+          canPark: canPark,
+          onHold: () =>
+              unawaited(ref.read(cartProvider(tableId).notifier).hold()),
+          tableLabel: tableLabel,
+          ticketRef: ticket?.ticketRef,
+          lineCount: lines.length,
+        ),
+      // A round with nothing in it yet still needs a way to be built; the
+      // empty-state above says so. Nothing else to draw.
+      if (lines.isEmpty && ticket != null) const SizedBox(height: Space.lg),
+    ];
+    const roundPadding = EdgeInsetsDirectional.symmetric(
+      horizontal: Space.md,
+      vertical: Space.md,
+    );
+
     return ColoredBox(
       color: colors.bg,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _CartHeader(
-            // As a COLUMN the page header above already says where this sale
-            // is going ("Takeaway", "T2 · Round 3"); saying it again here was
-            // the owner's "Takeaway twice". The phone's sheet has no page
-            // header over it, so there the cart carries the context itself.
-            title: onClose == null
-                ? orderWord(bridge, 'sell.order_title')
-                : _title(bridge, state, cart, ticket, tableLabel),
-            itemCount: cart.totals.itemCount,
-            onMore: () => unawaited(_moreSheet(context, ref, cart)),
-            onClose: onClose,
-          ),
-          // Pickup or dine in, at the top where the design has it. Only on a
-          // cart that charges: a round fired to a bill is dine-in already.
-          // Nothing to do with the floor — it decides whether the cups and
-          // lids come off stock (see `dineInProvider`).
-          if (!cta.sendsToKitchen)
-            Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                Space.lg,
-                0,
-                Space.lg,
-                Space.md,
-              ),
-              child: MadarSegmented<bool>(
-                key: const ValueKey('cart-service-mode'),
-                items: [
-                  MadarSegmentItem(
-                    false,
-                    bridge.tr(key: 'charge.pickup'),
-                    glyph: MadarGlyph.bag,
-                  ),
-                  MadarSegmentItem(
-                    true,
-                    bridge.tr(key: 'charge.dine_in'),
-                    glyph: MadarGlyph.table,
-                  ),
-                ],
-                value: ref.watch(dineInProvider(tableId)),
-                onChanged: (dineIn) => ref
-                    .read(dineInProvider(tableId).notifier)
-                    .set(dineIn: dineIn),
-              ),
-            ),
-          const MadarHairline(),
-          // The parked-orders strip: what is already parked, and the pencil
-          // to rename it. Without it parking reads as a dead end.
-          if (isCounterFlow && (state.drafts.isNotEmpty || lines.isNotEmpty))
-            TellerHeldStrip(tableId: tableId),
-          // Who the sale is for and what comes off it — on the cart, where
-          // the teller is looking, not three taps deep inside Charge.
-          if (lines.isNotEmpty)
-            _CartSummary(
-              tableId: tableId,
-              counter: isCounterFlow,
-              lineCount: lines.length,
-            ),
-          Expanded(
-            child: lines.isEmpty && ticket == null
-                // The Lottie was already in the bundle and already supported
-                // by EmptyState — the new cart just never asked for it, so
-                // the asset shipped as dead weight and the screen showed a
-                // flat glyph where it used to breathe.
-                ? EmptyState(
-                    icon: 'cart',
-                    lottieAsset: 'empty_cart',
-                    title: bridge.tr(key: 'order.cart_empty'),
-                  )
-                : ListView(
-                    padding: const EdgeInsetsDirectional.symmetric(
-                      horizontal: Space.md,
-                      vertical: Space.md,
+      child: LayoutBuilder(
+        builder: (context, c) {
+          // Short on height — the on-screen keyboard is up (an iPad in
+          // landscape keeps ~300 px for the cart) or the window is small: the
+          // fixed rows alone outgrew the column and overflowed (T2 B1). The
+          // whole cart then scrolls as one, its footer and Charge with it.
+          if (c.maxHeight < kCartScrollsBelow &&
+              (lines.isNotEmpty || ticket != null)) {
+            return SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ...head,
+                  Padding(
+                    padding: roundPadding,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: rows,
                     ),
-                    children: [
-                      if (ticket != null) ...[
-                        MadarSectionHeader(
-                          text: orderWord(bridge, 'sell.on_the_bill'),
-                          trailing: Text(
-                            orderWord(bridge, 'sell.rounds_count').replaceAll(
-                              '{count}',
-                              '${groupBillByRound(ticket.lines).length}',
-                            ),
-                            textDirection: TextDirection.ltr,
-                            style: MadarType.num.copyWith(
-                              color: colors.textMuted,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: Space.sm),
-                        if (ticket.lines.isEmpty)
-                          Text(
-                            bridge.tr(key: 'tables.bill_pending'),
-                            style: MadarType.bodySm.copyWith(
-                              color: colors.textMuted,
-                            ),
-                          )
-                        else
-                          for (final round in groupBillByRound(ticket.lines))
-                            for (final line in round.lines)
-                              _OnBillLine(
-                                roundTag: orderWord(
-                                  bridge,
-                                  'sell.round_tag',
-                                ).replaceAll('{count}', '${round.number}'),
-                                line: line,
-                                currency: state.currency,
-                                time: round.firedAt.isEmpty
-                                    ? ''
-                                    : bridge.formatTime(
-                                        rfc3339: round.firedAt,
-                                        style: TimeStyle.time,
-                                      ),
-                              ),
-                        const SizedBox(height: Space.md),
-                        const MadarHairline(light: true),
-                        const SizedBox(height: Space.md),
-                        MadarSectionHeader(
-                          text: orderWord(bridge, 'sell.this_round'),
-                        ),
-                        const SizedBox(height: Space.sm),
-                        if (lines.isEmpty)
-                          Text(
-                            bridge.tr(key: 'order.cart_empty'),
-                            style: MadarType.bodySm.copyWith(
-                              color: colors.textMuted,
-                            ),
-                          ),
-                      ],
-                      // The deals this cart qualifies for (the teller applies
-                      // one with a tap, C8), and the ones already applied.
-                      for (final d in cart.appliedDeals)
-                        _AppliedDealRow(
-                          key: ValueKey('deal-applied-${d.id}'),
-                          deal: d,
-                          currency: state.currency,
-                          onRemove: () => unawaited(
-                            ref
-                                .read(cartProvider(tableId).notifier)
-                                .removeDeal(d.id),
-                          ),
-                        ),
-                      for (final d in cart.dealSuggestions)
-                        DealSuggestionBanner(
-                          key: ValueKey('deal-suggest-${d.dealId}'),
-                          suggestion: d,
-                          currency: state.currency,
-                          onApply: () => unawaited(
-                            ref
-                                .read(cartProvider(tableId).notifier)
-                                .applyDeal(d.dealId),
-                          ),
-                        ),
-                      for (final line in lines)
-                        _RoundLine(
-                          tableId: tableId,
-                          key: ValueKey('round-${line.key}'),
-                          line: line,
-                          tableLabel: tableLabel,
-                          ticketRef: ticket?.ticketRef,
-                          currency: state.currency,
-                          counterSale: !cta.sendsToKitchen,
-                          editOnSelect: editOnSelect,
-                          onEdit: () => onEditLine(line),
-                        ),
-                    ],
                   ),
-          ),
-          if (lines.isNotEmpty)
-            _CartFooter(
-              tableId: tableId,
-              cta: cta,
-              ticket: ticket,
-              onTerminal: onTerminal,
-              canPark: canPark,
-              onHold: () =>
-                  unawaited(ref.read(cartProvider(tableId).notifier).hold()),
-              tableLabel: tableLabel,
-              ticketRef: ticket?.ticketRef,
-              lineCount: lines.length,
-            ),
-          // A round with nothing in it yet still needs a way to be built; the
-          // empty-state above says so. Nothing else to draw.
-          if (lines.isEmpty && ticket != null) const SizedBox(height: Space.lg),
-        ],
+                  ...foot,
+                ],
+              ),
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ...head,
+              Expanded(
+                child: lines.isEmpty && ticket == null
+                    // The Lottie was already in the bundle and already
+                    // supported by EmptyState — the new cart just never asked
+                    // for it, so the asset shipped as dead weight and the
+                    // screen showed a flat glyph where it used to breathe.
+                    ? EmptyState(
+                        icon: 'cart',
+                        lottieAsset: 'empty_cart',
+                        title: bridge.tr(key: 'order.cart_empty'),
+                      )
+                    : ListView(padding: roundPadding, children: rows),
+              ),
+              ...foot,
+            ],
+          );
+        },
       ),
     );
   }
@@ -456,7 +476,12 @@ class SellCart extends ConsumerWidget {
               variant: MadarButtonVariant.danger,
               enabled: cart.lines.isNotEmpty,
               onTap: () {
-                Navigator.of(sheetContext).maybePop();
+                // MadarSheet.close, never `Navigator.maybePop()`: maybePop is
+                // async and DROPS the pop when anything is pushed before it
+                // runs — the confirm below always is — which left this sheet
+                // up after "Clear cart", its scrim eating the next tap on the
+                // menu (T2 B3: the dead Latte tile).
+                MadarSheet.close<void>(sheetContext);
                 // Confirm on the SCREEN's context, not the sheet's: the
                 // sheet is closing, and a dialog raised from a context that
                 // is being torn down never appears.
@@ -607,6 +632,14 @@ class _OnBillLine extends StatelessWidget {
     );
   }
 }
+
+/// A cart column shorter than this scrolls as ONE (header, lines and footer
+/// together) instead of pinning its header and footer around a scrolling
+/// list: below it the pinned rows alone — the parked strip, the summary, the
+/// totals and Charge, ~480 px with a combo in the cart — leave the list no
+/// room, and with the keyboard up on an iPad in landscape (~300 px) they
+/// overflowed (T2 B1).
+const double kCartScrollsBelow = 560;
 
 /// A cart footer narrower than this takes the dense footer: the compact
 /// kitchen button with its note tile, and Park on its own row above Charge.
@@ -1031,6 +1064,17 @@ class _RowKitchenSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
+    // The line as the cart has it NOW: its note is edited from this sheet,
+    // and the chip says the saved one. Read by key, never through the row
+    // that opened the sheet — that row may rebuild after this sheet does
+    // (the cart lays its rows out in a LayoutBuilder).
+    final line =
+        ref.watch(
+          cartProvider(tableId).select(
+            (c) => c.lines.where((l) => l.key == this.line.key).firstOrNull,
+          ),
+        ) ??
+        this.line;
     final note = line.kitchenNote?.trim();
     return Padding(
       padding: const EdgeInsetsDirectional.all(Space.xl),
@@ -1070,7 +1114,8 @@ class _RowKitchenSheet extends ConsumerWidget {
               glyph: MadarGlyph.list,
               variant: MadarButtonVariant.secondary,
               onTap: () {
-                Navigator.of(context).maybePop();
+                // MadarSheet.close, never maybePop: see the Print below.
+                MadarSheet.close<void>(context);
                 unawaited(
                   ref
                       .read(orderProvider.notifier)
@@ -1086,7 +1131,7 @@ class _RowKitchenSheet extends ConsumerWidget {
           MadarButton(
             label: orderWord(bridge, 'sell.kitchen_row_sheet_print'),
             onTap: () {
-              Navigator.of(context).maybePop();
+              MadarSheet.close<void>(context);
               unawaited(
                 ref
                     .read(orderProvider.notifier)

@@ -325,11 +325,13 @@ pub struct _OrderDetailLineView {
     pub name: String,
     pub qty: i64,
     pub size_label: Option<String>,
+    /// What the line adds to the bill, its add-ons included: an item at its
+    /// normal price (a deal is its own row), a combo part with its add-ons.
     pub line_total_minor: i64,
-    /// Addon labels ("Oat milk ×2"), already qty-suffixed for display.
-    pub addons: Vec<String>,
-    /// Optional-field labels.
-    pub optionals: Vec<String>,
+    /// Add-ons ("Oat milk ×2"), each with what it adds for the whole line.
+    pub addons: Vec<ReceiptModifierView>,
+    /// Optional fields, each with what it adds for the whole line.
+    pub optionals: Vec<ReceiptModifierView>,
     /// `"item"`, `"combo"` (its parts follow) or `"combo_part"` (indented).
     pub kind: String,
 }
@@ -341,12 +343,18 @@ pub struct _OrderDetailView {
     pub order_number: Option<i32>,
     pub status: String,
     pub payment_label: String,
+    /// The server's subtotal, net of the deals.
     pub subtotal_minor: i64,
+    /// The lines at their normal prices (subtotal + the deals): the row the
+    /// deal rows sit under.
+    pub gross_subtotal_minor: i64,
     pub discount_minor: i64,
     pub tax_minor: i64,
     pub total_minor: i64,
     pub created_at: String,
     pub lines: Vec<OrderDetailLineView>,
+    /// Each deal on the bill, `<name> −discount`.
+    pub deals: Vec<ReceiptDealView>,
 }
 
 /// A page of all-orders search results (history lookup across shifts).

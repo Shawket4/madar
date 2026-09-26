@@ -453,7 +453,7 @@ class _FloorScreenState extends ConsumerState<FloorScreen> {
                                 unawaited(_notifier.noShowBooking(b.id)),
                           ),
                           onTap: () {
-                            Navigator.of(sheetContext).maybePop();
+                            MadarSheet.close<void>(sheetContext);
                             unawaited(
                               at == null
                                   ? _notifier.seatArrival(b)
@@ -514,7 +514,7 @@ class _FloorScreenState extends ConsumerState<FloorScreen> {
                                 unawaited(_confirmCancelTransfer(e.id)),
                           ),
                           onTap: () {
-                            Navigator.of(sheetContext).maybePop();
+                            MadarSheet.close<void>(sheetContext);
                             unawaited(_fulfill(e));
                           },
                         ),

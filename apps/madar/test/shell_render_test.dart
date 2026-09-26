@@ -32,6 +32,7 @@ import 'package:rust_bridge/rust_bridge.dart';
 
 part 'shell_order_messages.dart';
 part 'shell_till_state.dart';
+part 'shell_meal_tile.dart';
 
 const _render = bool.fromEnvironment('MADAR_RENDER');
 
@@ -512,17 +513,19 @@ OrderDetailView _detail(String id) => OrderDetailView(
   status: 'completed',
   paymentLabel: 'cash',
   subtotalMinor: 14000,
+  grossSubtotalMinor: 14000,
   discountMinor: 0,
   taxMinor: 2000,
   totalMinor: 16000,
   createdAt: _ago(38),
+  deals: const [],
   lines: const [
     OrderDetailLineView(
       kind: 'item',
       name: 'Flat white',
       qty: 2,
       lineTotalMinor: 10000,
-      addons: ['Oat milk'],
+      addons: [ReceiptModifierView(name: 'Oat milk', priceMinor: 0)],
       optionals: [],
     ),
     OrderDetailLineView(
@@ -1294,6 +1297,7 @@ void main() {
   group('spec board', specBoardMain);
   group('one till owner', tillStateMain);
   group('order messages reach the screen', orderMessagesMain);
+  group('the sell tile after a meal', mealTileMain);
 
   testWidgets('the teller shell on an iPad: Sell, Floor, Queue, Till', (
     tester,
