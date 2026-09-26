@@ -14,8 +14,13 @@ enum MadarElevation {
   /// A card. Flat — the border does the work. Draws nothing.
   card,
 
-  /// A modal, a floating done-card, a toast.
+  /// A modal, a toast.
   raised,
+
+  /// A card that floats over a page it does not block: the post-sale Done
+  /// card (the canvas: `0 24px 60px rgba(0,0,0,.28)`). A touch lighter
+  /// than [raised] — nothing behind it is dimmed.
+  floating,
 
   /// Legacy: the old primary-button halo. Draws nothing; glows are gone.
   glow,
@@ -37,6 +42,14 @@ extension MadarElevationX on MadarElevation {
         return [
           BoxShadow(
             color: const Color(0xFF000000).withValues(alpha: dark ? 0.6 : 0.35),
+            blurRadius: 60,
+            offset: const Offset(0, 24),
+          ),
+        ];
+      case MadarElevation.floating:
+        return [
+          BoxShadow(
+            color: const Color(0xFF000000).withValues(alpha: dark ? 0.5 : 0.28),
             blurRadius: 60,
             offset: const Offset(0, 24),
           ),
