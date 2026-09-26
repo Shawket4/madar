@@ -3288,7 +3288,7 @@ Name | Type | Description  | Required | Notes
 
 ## reset_day
 
-> models::DayView reset_day(employee_id, on_date)
+> models::DayView reset_day(employee_id, on_date, branch_id)
 Put a date back on the standing pattern.
 
 ### Parameters
@@ -3298,6 +3298,7 @@ Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **employee_id** | **uuid::Uuid** |  | [required] |
 **on_date** | **chrono::NaiveDate** |  | [required] |
+**branch_id** | Option<**uuid::Uuid**> | The board it is reset from (BUG-4): only the blocks worked at that branch go back to the pattern; the other branches' stay (one of the person's branches, else 400 `EMPLOYEE_NOT_AT_BRANCH`). Omitted (an old client) = the branches the caller may edit the roster at: an owner resets the whole date, as before. |  |
 
 ### Return type
 

@@ -269,6 +269,7 @@ docs/DiscountsApi.md
 docs/DrinkRecipe.md
 docs/EarningItem.md
 docs/EarningItemList.md
+docs/ElsewhereShift.md
 docs/Employee.md
 docs/ErrorBody.md
 docs/ExpenseAdvance.md
@@ -1123,6 +1124,7 @@ src/models/discount_audit_entry.rs
 src/models/drink_recipe.rs
 src/models/earning_item.rs
 src/models/earning_item_list.rs
+src/models/elsewhere_shift.rs
 src/models/employee.rs
 src/models/error_body.rs
 src/models/expense_advance.rs

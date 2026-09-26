@@ -504,6 +504,8 @@ pub mod earning_item;
 pub use self::earning_item::EarningItem;
 pub mod earning_item_list;
 pub use self::earning_item_list::EarningItemList;
+pub mod elsewhere_shift;
+pub use self::elsewhere_shift::ElsewhereShift;
 pub mod employee;
 pub use self::employee::Employee;
 pub mod error_body;

@@ -15,9 +15,12 @@ use serde::{Deserialize, Serialize};
 pub struct RosterView {
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
-    /// The dates that hold their own set (a date change), a day off included: the ones \"back to the pattern\" applies to.
+    /// The dates whose part at THIS branch is not the pattern's (a date change here, a day off included): the ones \"back to the pattern\" applies to on this board. A date changed only at another branch is not one (BUG-4).
     #[serde(rename = "date_sets", skip_serializing_if = "Option::is_none")]
     pub date_sets: Option<Vec<models::DateSet>>,
+    /// The staff's shifts at other branches in range, for display only (BUG-4).
+    #[serde(rename = "elsewhere", skip_serializing_if = "Option::is_none")]
+    pub elsewhere: Option<Vec<models::ElsewhereShift>>,
     #[serde(rename = "from")]
     pub from: chrono::NaiveDate,
     #[serde(rename = "holidays")]
@@ -60,6 +63,7 @@ impl RosterView {
         RosterView {
             branch_id,
             date_sets: None,
+            elsewhere: None,
             from,
             holidays,
             limits_unconfirmed,
