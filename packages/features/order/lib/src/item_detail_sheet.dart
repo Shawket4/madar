@@ -924,6 +924,97 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     return () => anchors.fly(from);
   }
 
+  // ── footer summary ───────────────────────────────────────────────────────
+  /// The core's summary words as footer chips. Each word finds the group it
+  /// came from — the sheet only sequences: a tap scrolls there, and ✕ runs
+  /// the same toggle the group's own chip runs. ✕ only on an OPTIONAL choice:
+  /// never the size, never a required group's pick, never a swap family (the
+  /// drink always has its one milk; pick another to change it).
+  Widget? _summaryLine(
+    LinePreviewView? price,
+    List<AddonGroup> groups,
+    ItemConfigState config,
+    ItemConfigNotifier notifier,
+  ) {
+    final parts = price?.summary ?? const <LineSummaryPartView>[];
+    if (parts.isEmpty) return null;
+    final words = <ItemSummaryWord>[];
+    for (final p in parts) {
+      switch (p.kind) {
+        case 'addon':
+          final g = groups
+              .where(
+                (g) =>
+                    config.single[g.id] == p.refId ||
+                    (config.multi[g.id]?.containsKey(p.refId) ?? false),
+              )
+              .firstOrNull;
+          final swap = [
+            ...?g?.addons,
+            ...widget.addons,
+          ].any((a) => a.addonItemId == p.refId && isSwapFamily(a.addonType));
+          words.add(
+            ItemSummaryWord(
+              part: p,
+              onTap: g == null
+                  ? null
+                  : () => _reveal(
+                      (w) => w is ItemSheetGroupCard && w.group.id == g.id,
+                    ),
+              onRemove: g == null || g.isRequired || swap
+                  ? null
+                  : () => g.isMulti
+                        ? notifier.toggleMulti(g, p.refId)
+                        : notifier.toggleSingle(g, p.refId),
+            ),
+          );
+        case 'optional':
+          words.add(
+            ItemSummaryWord(
+              part: p,
+              onTap: () => _reveal((w) => w is _OptionalsSection),
+              onRemove: () => notifier.toggleOptional(p.refId),
+            ),
+          );
+        default:
+          words.add(
+            ItemSummaryWord(
+              part: p,
+              onTap: () =>
+                  _reveal((w) => w is ItemSheetChip && w.label == p.refId),
+            ),
+          );
+      }
+    }
+    return ItemSummaryLine(words: words);
+  }
+
+  /// Scroll the sheet's body to the first widget under it that [match]es.
+  /// Found by walking this sheet's own subtree on the tap — the body's
+  /// layout keeps no handles for the footer to hold.
+  void _reveal(bool Function(Widget widget) match) {
+    Element? found;
+    void visit(Element e) {
+      if (found != null) return;
+      if (match(e.widget)) {
+        found = e;
+        return;
+      }
+      e.visitChildElements(visit);
+    }
+
+    (context as Element).visitChildElements(visit);
+    final target = found;
+    if (target == null) return;
+    final still = MediaQuery.disableAnimationsOf(context);
+    Scrollable.ensureVisible(
+      target,
+      alignment: 0.1,
+      duration: still ? Duration.zero : MotionSpec.standardDuration,
+      curve: MotionSpec.standardCurve,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
@@ -1166,6 +1257,9 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
         KeyedSubtree(
           key: _footerKey,
           child: ItemSheetFooter(
+            summary: _summaryLine(price, groups, config, notifier),
+            // Pick mode's figure is the extras only; the combo prices the rest.
+            breakdown: picking ? null : price,
             currency: currency,
             totalMinor: picking ? (price?.extrasMinor ?? 0) : footerPrice,
             totalLabel: picking ? bridge.tr(key: 'combo.extras') : null,
@@ -1448,11 +1542,20 @@ class ItemSheetFooter extends ConsumerWidget {
     this.showQty = true,
     this.note,
     this.ctaKey,
+    this.summary,
+    this.breakdown,
     super.key,
   });
 
   /// A line under the total (the combo's saving).
   final Widget? note;
+
+  /// The selection in words, above the total (the item sheet's summary line).
+  final Widget? summary;
+
+  /// The core's figures for this line: when set, tapping the total opens
+  /// their breakdown (base, size, each paid option, each, × qty).
+  final LinePreviewView? breakdown;
 
   /// The commit button's key.
   final Key? ctaKey;
@@ -1490,11 +1593,19 @@ class ItemSheetFooter extends ConsumerWidget {
         child: Column(
           children: [
             Container(height: 1, color: colors.border),
+            if (summary case final summary?) ...[
+              const SizedBox(height: Space.sm),
+              summary,
+            ],
             const SizedBox(height: Space.md),
-            GrandTotalBlock(
-              label: totalLabel ?? bridge.tr(key: 'order.total'),
-              totalMinor: totalMinor,
+            _TotalWithBreakdown(
+              breakdown: breakdown,
               currency: currency,
+              child: GrandTotalBlock(
+                label: totalLabel ?? bridge.tr(key: 'order.total'),
+                totalMinor: totalMinor,
+                currency: currency,
+              ),
             ),
             if (note case final note?) ...[
               const SizedBox(height: Space.sm),
@@ -1532,6 +1643,307 @@ class ItemSheetFooter extends ConsumerWidget {
                   ),
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Footer: summary line + price breakdown ─────────────────────────────────────
+
+/// One word of the footer's summary line, wired by the sheet.
+@immutable
+class ItemSummaryWord {
+  const ItemSummaryWord({required this.part, this.onTap, this.onRemove});
+
+  /// The core's word (its text is shown verbatim).
+  final LineSummaryPartView part;
+
+  /// Scroll to the group this word came from (null: nothing to show).
+  final VoidCallback? onTap;
+
+  /// Take the choice off — only set for an optional choice.
+  final VoidCallback? onRemove;
+}
+
+/// The selection in the cart line's own words — "Large · Oat · Extra shot ·
+/// Less ice" — one chip per word on a single scrolling row, so the footer
+/// never grows with the selection.
+class ItemSummaryLine extends StatelessWidget {
+  const ItemSummaryLine({required this.words, super.key});
+
+  final List<ItemSummaryWord> words;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    key: const ValueKey('item-summary'),
+    height: Metrics.chipHeight,
+    child: ListView.separated(
+      scrollDirection: Axis.horizontal,
+      itemCount: words.length,
+      separatorBuilder: (_, _) => const SizedBox(width: Space.xs),
+      itemBuilder: (context, i) => _SummaryChip(word: words[i]),
+    ),
+  );
+}
+
+class _SummaryChip extends ConsumerWidget {
+  const _SummaryChip({required this.word});
+
+  final ItemSummaryWord word;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final part = word.part;
+    final onTap = word.onTap;
+    final onRemove = word.onRemove;
+    final removable = onRemove != null;
+    // A quiet pill drawn inside the row's full 44pt height: the pill stays
+    // small, the two tap targets (the word, the ✕) take the whole height.
+    return Stack(
+      key: ValueKey('item-summary-${part.kind}-${part.refId}'),
+      children: [
+        Positioned.fill(
+          top: (Metrics.chipHeight - Metrics.stepperDense) / 2,
+          bottom: (Metrics.chipHeight - Metrics.stepperDense) / 2,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(Radii.pill),
+              border: Border.all(color: colors.border),
+            ),
+          ),
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Semantics(
+              button: onTap != null,
+              child: InkWell(
+                onTap: onTap == null
+                    ? null
+                    : () {
+                        MadarHaptics.selection();
+                        onTap();
+                      },
+                borderRadius: BorderRadius.circular(Radii.pill),
+                child: Padding(
+                  padding: EdgeInsetsDirectional.only(
+                    start: Space.md,
+                    end: removable ? Space.xs : Space.md,
+                  ),
+                  child: Center(
+                    widthFactor: 1,
+                    child: Text(
+                      part.text,
+                      maxLines: 1,
+                      style: MadarType.label.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (removable)
+              Semantics(
+                button: true,
+                label: ref.bridge
+                    .tr(key: 'order.summary_remove')
+                    .replaceAll('{name}', part.text),
+                excludeSemantics: true,
+                child: InkWell(
+                  key: ValueKey('item-summary-remove-${part.refId}'),
+                  onTap: () {
+                    MadarHaptics.selection();
+                    onRemove();
+                  },
+                  borderRadius: BorderRadius.circular(Radii.pill),
+                  child: SizedBox(
+                    width: Metrics.chipHeight,
+                    child: Center(
+                      child: MadarIcon(
+                        'xmark',
+                        size: 12,
+                        tint: colors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// The footer total; with a [breakdown], tapping it opens the core's figures
+/// in a small popover above it. A tap anywhere else puts it away.
+class _TotalWithBreakdown extends StatefulWidget {
+  const _TotalWithBreakdown({
+    required this.breakdown,
+    required this.currency,
+    required this.child,
+  });
+
+  final LinePreviewView? breakdown;
+  final String currency;
+  final Widget child;
+
+  @override
+  State<_TotalWithBreakdown> createState() => _TotalWithBreakdownState();
+}
+
+class _TotalWithBreakdownState extends State<_TotalWithBreakdown> {
+  final _portal = OverlayPortalController();
+  final _link = LayerLink();
+
+  @override
+  Widget build(BuildContext context) {
+    final breakdown = widget.breakdown;
+    if (breakdown == null) return widget.child;
+    final dir = Directionality.of(context);
+    return TapRegion(
+      groupId: _link,
+      child: CompositedTransformTarget(
+        link: _link,
+        child: OverlayPortal(
+          controller: _portal,
+          overlayChildBuilder: (context) => Positioned(
+            width: 320,
+            child: CompositedTransformFollower(
+              link: _link,
+              showWhenUnlinked: false,
+              targetAnchor: AlignmentDirectional.topEnd.resolve(dir),
+              followerAnchor: AlignmentDirectional.bottomEnd.resolve(dir),
+              offset: const Offset(0, -Space.sm),
+              child: TapRegion(
+                groupId: _link,
+                onTapOutside: (_) => _portal.hide(),
+                child: Directionality(
+                  textDirection: dir,
+                  child: ItemPriceBreakdown(
+                    // Live: the figures follow the selection while it is open.
+                    price: breakdown,
+                    currency: widget.currency,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          child: Semantics(
+            button: true,
+            child: InkWell(
+              key: const ValueKey('item-total'),
+              borderRadius: BorderRadius.circular(Radii.md),
+              onTap: () {
+                MadarHaptics.selection();
+                _portal.toggle();
+              },
+              child: widget.child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The core's price for one configured line, laid out: the from price, what
+/// the size adds, each paid option — the unit — then × the quantity = the
+/// line. Every figure is the core's; nothing is added up here.
+class ItemPriceBreakdown extends ConsumerWidget {
+  const ItemPriceBreakdown({
+    required this.price,
+    required this.currency,
+    super.key,
+  });
+
+  final LinePreviewView price;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.bridge;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final locale = MadarFormat.localeOf(context);
+    String money(int minor, {bool signed = false}) =>
+        Money.format(minor, currency: currency, locale: locale, signed: signed);
+    Widget row(String label, String figure, {bool strong = false}) => Padding(
+      padding: const EdgeInsetsDirectional.symmetric(vertical: 2),
+      child: Row(
+        spacing: Space.md,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: MadarType.bodySm.copyWith(
+                fontWeight: strong ? FontWeight.w700 : FontWeight.w400,
+                color: strong ? colors.textPrimary : colors.textSecondary,
+              ),
+            ),
+          ),
+          Text(
+            figure,
+            style: MadarType.money.copyWith(
+              fontWeight: strong ? FontWeight.w800 : FontWeight.w500,
+              color: strong ? colors.textPrimary : colors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+    final size = price.sizeLabel;
+    return Material(
+      type: MaterialType.transparency,
+      child: Container(
+        key: const ValueKey('item-price-breakdown'),
+        padding: const EdgeInsetsDirectional.all(Space.md),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(Radii.md),
+          border: Border.all(color: colors.border),
+          boxShadow: MadarElevation.raised.shadows(colors, dark: dark),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              bridge.tr(key: 'order.price_breakdown'),
+              style: MadarType.label.copyWith(
+                fontWeight: FontWeight.w700,
+                color: colors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: Space.sm),
+            row(bridge.tr(key: 'order.price_base'), money(price.baseMinor)),
+            if (size != null && price.sizeDeltaMinor != 0)
+              row(size, money(price.sizeDeltaMinor, signed: true)),
+            for (final r in price.paid)
+              row(r.text, money(r.amountMinor, signed: true)),
+            const SizedBox(height: Space.xs),
+            const MadarHairline(),
+            const SizedBox(height: Space.xs),
+            row(
+              bridge.tr(key: 'order.price_each'),
+              money(price.unitTotalMinor),
+              strong: true,
+            ),
+            row(
+              bridge
+                  .tr(key: 'order.price_times')
+                  .replaceAll('{count}', '${price.qty}'),
+              money(price.lineTotalMinor),
+              strong: true,
             ),
           ],
         ),
