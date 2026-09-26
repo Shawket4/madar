@@ -4570,8 +4570,9 @@ impl MadarCore {
         let lines = cart::replace_resolved(&self.store, table_id.as_deref(), &line_key, line)?;
         self.lines_with_staff_marks_settled(table_id.as_deref(), lines)
     }
-    /// What a configured line would cost — the item sheet's figures, priced by
-    /// the same resolver the add uses. Adds nothing.
+    /// What a configured line would cost — the item sheet's figures, its price
+    /// breakdown and its summary words, all from the resolver the add uses.
+    /// Adds nothing.
     pub fn preview_configured_line(
         &self,
         item_id: String,
@@ -4589,7 +4590,7 @@ impl MadarCore {
                 field: "item".into(),
                 detail: "unknown item".into(),
             })?;
-        let line = cart::resolve_line(
+        Ok(cart::preview_configured(
             item,
             &catalog.addons,
             &catalog.pricing,
@@ -4597,9 +4598,7 @@ impl MadarCore {
             &addons,
             &optional_field_ids,
             qty,
-            None,
-        );
-        Ok(cart::preview_line(&line))
+        ))
     }
     /// "Bill so far" under a round: what the bill already carries plus what
     /// this round adds, both as subtotals (the ticket view prices nothing

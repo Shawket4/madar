@@ -82,6 +82,11 @@ class _MealShellBridge extends _FakeBridge {
           unitTotalMinor: 4500,
           extrasMinor: 0,
           lineTotalMinor: 4500,
+          qty: 1,
+          baseMinor: 4500,
+          sizeDeltaMinor: 0,
+          paid: [],
+          summary: [],
         ),
       );
     }

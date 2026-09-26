@@ -1247,6 +1247,12 @@ fn en(key: &str) -> Option<&'static str> {
         "order.max_reached" => "Maximum reached",
         "order.removed" => "Removed",
         "order.undo" => "Undo",
+        // item sheet footer: the summary line + the price breakdown
+        "order.price_breakdown" => "Price breakdown",
+        "order.price_base" => "Base price",
+        "order.price_each" => "Each",
+        "order.price_times" => "Total × {count}",
+        "order.summary_remove" => "Remove {name}",
         // tables / floor canvas / transfer waitlist
         "tables.title" => "Tables",
         "tables.no_table" => "No table",
@@ -3657,6 +3663,12 @@ fn ar(key: &str) -> Option<&'static str> {
         "order.max_reached" => "تم بلوغ الحد الأقصى",
         "order.removed" => "تم الحذف",
         "order.undo" => "تراجع",
+        // item sheet footer: the summary line + the price breakdown
+        "order.price_breakdown" => "تفاصيل السعر",
+        "order.price_base" => "السعر الأساسي",
+        "order.price_each" => "سعر الواحد",
+        "order.price_times" => "الإجمالي × {count}",
+        "order.summary_remove" => "إزالة {name}",
         // tables / floor canvas / transfer waitlist
         "tables.title" => "الطاولات",
         "tables.no_table" => "بدون طاولة",

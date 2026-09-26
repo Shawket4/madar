@@ -1628,9 +1628,87 @@ pub struct LinePreviewView {
     pub extras_minor: i64,
     /// The whole line at its quantity.
     pub line_total_minor: i64,
+    /// The quantity the line was priced at (the core's floor of one applied).
+    pub qty: i64,
+    /// The item's from price: one unit with no size named and no option —
+    /// the first row of the footer's breakdown.
+    pub base_minor: i64,
+    /// The size the line is made in, in the cart line's word.
+    pub size_label: Option<String>,
+    /// What that size adds over [`Self::base_minor`] (0 = nothing).
+    pub size_delta_minor: i64,
+    /// Every option that costs something, per unit, in summary order. With
+    /// the base and the size difference it adds up to `unit_total_minor`.
+    pub paid: Vec<LinePriceRowView>,
+    /// The line's choices in the cart line's and the receipt's words.
+    pub summary: Vec<LineSummaryPartView>,
 }
 
-pub(crate) fn preview_line(line: &StoredLine) -> LinePreviewView {
+/// One word of a line's summary: the size, an add-on, an optional field.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LineSummaryPartView {
+    /// `"size"`, `"addon"` or `"optional"`.
+    pub kind: String,
+    /// What it names: the size label, the addon item id, the optional field id.
+    pub ref_id: String,
+    /// The word, exactly as the cart line and the receipt print it.
+    pub text: String,
+}
+
+/// One paid option in a line's price breakdown, for ONE unit.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LinePriceRowView {
+    /// The option's summary word.
+    pub text: String,
+    /// What it adds to one unit (its charged price × its count).
+    pub amount_minor: i64,
+}
+
+/// An add-on as a line names it: `Extra shot`, or `Extra shot ×2` past one.
+/// The cart line, the receipt and the item sheet's summary all say this.
+pub(crate) fn addon_word(name: &str, qty: i64) -> String {
+    if qty > 1 {
+        format!("{name} ×{qty}")
+    } else {
+        name.to_string()
+    }
+}
+
+/// A line's choices in words: its size, each add-on, each optional field —
+/// the order the cart line lists them in. A combo names its choices under
+/// its parts, so it has none of its own here.
+pub(crate) fn line_words(l: &CartLineView) -> Vec<LineSummaryPartView> {
+    let word = |kind: &str, ref_id: &str, text: String| LineSummaryPartView {
+        kind: kind.to_string(),
+        ref_id: ref_id.to_string(),
+        text,
+    };
+    let size = l
+        .size_label
+        .as_deref()
+        .filter(|s| !s.is_empty() && l.kind != menu::KIND_COMBO);
+    size.map(|s| word("size", s, s.to_string()))
+        .into_iter()
+        .chain(
+            l.addons
+                .iter()
+                .map(|a| word("addon", &a.addon_item_id, addon_word(&a.name, a.qty))),
+        )
+        .chain(
+            l.optionals
+                .iter()
+                .map(|o| word("optional", &o.optional_field_id, o.name.clone())),
+        )
+        .collect()
+}
+
+/// A configured line's figures and words for the item sheet, resolved by the
+/// add's own [`resolve_line`]. `base_minor` is the from price the breakdown
+/// starts at.
+pub(crate) fn preview_line(line: &StoredLine, base_minor: i64) -> LinePreviewView {
+    let shown = view(std::slice::from_ref(line)).remove(0);
     if line.combo.is_some() {
         let total = line_total(line);
         let unit = total / line.qty.max(1);
@@ -1638,14 +1716,68 @@ pub(crate) fn preview_line(line: &StoredLine) -> LinePreviewView {
             unit_total_minor: unit,
             extras_minor: unit - line.unit_price_minor,
             line_total_minor: total,
+            qty: line.qty,
+            base_minor: unit,
+            size_label: None,
+            size_delta_minor: 0,
+            paid: vec![],
+            summary: vec![],
         };
     }
     let extras = line_extras(line);
+    let size_label = line.size_label.clone().filter(|s| !s.is_empty());
+    let paid = shown
+        .addons
+        .iter()
+        .map(|a| LinePriceRowView {
+            text: addon_word(&a.name, a.qty),
+            amount_minor: a.price_modifier_minor * a.qty,
+        })
+        .chain(shown.optionals.iter().map(|o| LinePriceRowView {
+            text: o.name.clone(),
+            amount_minor: o.price_minor,
+        }))
+        .filter(|r| r.amount_minor != 0)
+        .collect();
     LinePreviewView {
         unit_total_minor: line.unit_price_minor + extras,
         extras_minor: extras,
         line_total_minor: line_total(line),
+        qty: line.qty,
+        // No size named: the unit IS the from price, whatever the mirror says.
+        base_minor: if size_label.is_some() { base_minor } else { line.unit_price_minor },
+        size_delta_minor: if size_label.is_some() { line.unit_price_minor - base_minor } else { 0 },
+        size_label,
+        paid,
+        summary: line_words(&shown),
     }
+}
+
+/// What a configured line WOULD be — its figures, its breakdown, its words —
+/// resolved exactly as the add resolves it, and never added.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn preview_configured(
+    item: &menu::MenuItemView,
+    addon_catalog: &[menu::AddonItemView],
+    pricing: &PricingMirror,
+    size_label: Option<String>,
+    addon_sels: &[AddonSelection],
+    optional_ids: &[String],
+    qty: i64,
+) -> LinePreviewView {
+    let line = resolve_line(
+        item,
+        addon_catalog,
+        pricing,
+        size_label,
+        addon_sels,
+        optional_ids,
+        qty,
+        None,
+    );
+    let view = pricing.view_for(item, addon_catalog);
+    let base = madar_catalog::unit_price(&view.item, None).unwrap_or(item.base_price_minor);
+    preview_line(&line, base)
 }
 
 /// Add one unit of an option-less item (the basic catalog tap).
@@ -3283,12 +3415,120 @@ mod tests {
             2,
             None,
         );
-        let p = preview_line(&line);
+        let p = preview_line(&line, 5000);
         let v = add_resolved(&s, None, line).unwrap();
         assert_eq!(p.line_total_minor, v[0].line_total_minor);
         assert_eq!(p.extras_minor, 500 + 300);
         assert_eq!(p.unit_total_minor, 6000 + 800);
         assert_eq!(p.line_total_minor, 13_600);
+    }
+
+    fn configured_preview(size: Option<&str>, qty: i64) -> LinePreviewView {
+        preview_configured(
+            &item(),
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            size.map(str::to_string),
+            &[
+                AddonSelection {
+                    addon_item_id: "almond".into(),
+                    qty: 1,
+                },
+                AddonSelection {
+                    addon_item_id: "shot".into(),
+                    qty: 2,
+                },
+            ],
+            &["van".into()],
+            qty,
+        )
+    }
+
+    /// The item sheet's summary line is the cart line's words — the size,
+    /// each add-on (`×n` past one), each optional field, in that order — each
+    /// word tagged with what it names so the sheet can find its group.
+    #[test]
+    fn preview_summary_is_the_cart_lines_words() {
+        let p = configured_preview(Some("Large"), 1);
+        let words: Vec<(&str, &str, &str)> = p
+            .summary
+            .iter()
+            .map(|w| (w.kind.as_str(), w.ref_id.as_str(), w.text.as_str()))
+            .collect();
+        assert_eq!(
+            words,
+            [
+                ("size", "Large", "Large"),
+                ("addon", "almond", "almond"),
+                ("addon", "shot", "shot ×2"),
+                ("optional", "van", "Vanilla"),
+            ]
+        );
+        // The very words the cart line shows once the line is added.
+        let s = store();
+        let line = resolve_line(
+            &item(),
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("Large".into()),
+            &[
+                AddonSelection {
+                    addon_item_id: "almond".into(),
+                    qty: 1,
+                },
+                AddonSelection {
+                    addon_item_id: "shot".into(),
+                    qty: 2,
+                },
+            ],
+            &["van".into()],
+            1,
+            None,
+        );
+        let v = add_resolved(&s, None, line).unwrap();
+        assert_eq!(line_words(&v[0]), p.summary);
+        // No size: no size word.
+        let p = configured_preview(None, 1);
+        assert_eq!(p.summary[0].kind, "addon");
+    }
+
+    /// The footer's breakdown: the from price, what the size adds, each PAID
+    /// option per unit — adding up to the unit total, times the quantity to
+    /// the line. Free options (the recipe's own milk, a downgrade) are not
+    /// rows.
+    #[test]
+    fn preview_breakdown_adds_up_to_the_unit_and_the_line() {
+        let p = configured_preview(Some("Large"), 3);
+        assert_eq!(p.base_minor, 5000); // the from price: Small
+        assert_eq!(p.size_label.as_deref(), Some("Large"));
+        assert_eq!(p.size_delta_minor, 1000);
+        let rows: Vec<(&str, i64)> =
+            p.paid.iter().map(|r| (r.text.as_str(), r.amount_minor)).collect();
+        assert_eq!(rows, [("almond", 500), ("shot ×2", 1600), ("Vanilla", 300)]);
+        let sum = p.base_minor + p.size_delta_minor + p.paid.iter().map(|r| r.amount_minor).sum::<i64>();
+        assert_eq!(sum, p.unit_total_minor);
+        assert_eq!(p.unit_total_minor, 8400);
+        assert_eq!(p.qty, 3);
+        assert_eq!(p.unit_total_minor * p.qty, p.line_total_minor);
+        assert_eq!(p.extras_minor, 2400);
+
+        // A free choice is a word but not a price row.
+        let free = preview_configured(
+            &item(),
+            &catalog(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            None,
+            &[AddonSelection {
+                addon_item_id: "whole".into(),
+                qty: 1,
+            }],
+            &[],
+            1,
+        );
+        assert_eq!(free.summary.len(), 1);
+        assert!(free.paid.is_empty());
+        assert_eq!(free.size_delta_minor, 0);
+        assert_eq!(free.base_minor, free.unit_total_minor);
     }
 
     #[test]

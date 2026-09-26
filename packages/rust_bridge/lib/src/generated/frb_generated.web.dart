@@ -465,6 +465,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   LinePreviewView dco_decode_line_preview_view(dynamic raw);
 
   @protected
+  LinePriceRowView dco_decode_line_price_row_view(dynamic raw);
+
+  @protected
+  LineSummaryPartView dco_decode_line_summary_part_view(dynamic raw);
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
@@ -600,6 +606,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<KitchenSlipItem> dco_decode_list_kitchen_slip_item(dynamic raw);
+
+  @protected
+  List<LinePriceRowView> dco_decode_list_line_price_row_view(dynamic raw);
+
+  @protected
+  List<LineSummaryPartView> dco_decode_list_line_summary_part_view(dynamic raw);
 
   @protected
   List<LoyaltyLedgerView> dco_decode_list_loyalty_ledger_view(dynamic raw);
@@ -1661,6 +1673,14 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   LinePreviewView sse_decode_line_preview_view(SseDeserializer deserializer);
 
   @protected
+  LinePriceRowView sse_decode_line_price_row_view(SseDeserializer deserializer);
+
+  @protected
+  LineSummaryPartView sse_decode_line_summary_part_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
@@ -1868,6 +1888,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<KitchenSlipItem> sse_decode_list_kitchen_slip_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<LinePriceRowView> sse_decode_list_line_price_row_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<LineSummaryPartView> sse_decode_list_line_summary_part_view(
     SseDeserializer deserializer,
   );
 
@@ -3262,6 +3292,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_line_price_row_view(
+    LinePriceRowView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_line_summary_part_view(
+    LineSummaryPartView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
@@ -3525,6 +3567,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_kitchen_slip_item(
     List<KitchenSlipItem> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_line_price_row_view(
+    List<LinePriceRowView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_line_summary_part_view(
+    List<LineSummaryPartView> self,
     SseSerializer serializer,
   );
 

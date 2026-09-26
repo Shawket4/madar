@@ -153,6 +153,11 @@ class _Fake implements MadarBridge {
           unitTotalMinor: 6000,
           extrasMinor: 500,
           lineTotalMinor: 6000 * qty,
+          qty: qty,
+          baseMinor: 5500,
+          sizeDeltaMinor: 0,
+          paid: const [],
+          summary: const [],
         ),
       );
     }

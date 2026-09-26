@@ -1006,11 +1006,7 @@ fn receipt_line_from_cart(l: &cart::CartLineView) -> ReceiptLineView {
         .addons
         .iter()
         .map(|a| ReceiptModifierView {
-            name: if a.qty > 1 {
-                format!("{} ×{}", a.name, a.qty)
-            } else {
-                a.name.clone()
-            },
+            name: cart::addon_word(&a.name, a.qty),
             price_minor: a.price_modifier_minor * a.qty.max(1) as i64,
         })
         .collect();
@@ -1039,11 +1035,7 @@ fn receipt_line_from_cart(l: &cart::CartLineView) -> ReceiptLineView {
                     .addons
                     .iter()
                     .map(|a| ReceiptModifierView {
-                        name: if a.qty > 1 {
-                            format!("{} ×{}", a.name, a.qty)
-                        } else {
-                            a.name.clone()
-                        },
+                        name: cart::addon_word(&a.name, a.qty),
                         price_minor: a.price_modifier_minor * a.qty.max(1) * times,
                     })
                     .collect(),
@@ -2857,6 +2849,58 @@ mod tests {
         )
         .unwrap();
         assert_eq!(p2.receipt.customer_name, Some("Mona".into()));
+    }
+
+    /// The receipt prints a line's choices in the words the item sheet's
+    /// summary and the cart line show: one formatter, `cart::line_words`.
+    #[test]
+    fn the_receipt_prints_the_summary_words() {
+        let line = cart::CartLineView {
+            key: "k".into(),
+            item_id: "latte".into(),
+            name: "Latte".into(),
+            size_label: Some("Large".into()),
+            addons: vec![
+                cart::CartAddonView {
+                    addon_item_id: "oat".into(),
+                    name: "Oat".into(),
+                    qty: 1,
+                    price_modifier_minor: 0,
+                },
+                cart::CartAddonView {
+                    addon_item_id: "shot".into(),
+                    name: "Extra shot".into(),
+                    qty: 2,
+                    price_modifier_minor: 800,
+                },
+            ],
+            optionals: vec![cart::CartOptionalView {
+                optional_field_id: "ice".into(),
+                name: "Less ice".into(),
+                price_minor: 0,
+            }],
+            notes: None,
+            unit_price_minor: 6000,
+            qty: 1,
+            line_total_minor: 7600,
+            kitchen_note: None,
+            staff_drink: None,
+            kind: "item".into(),
+            parts: vec![],
+            deal_cut_minor: 0,
+            deal_name: None,
+        };
+        let r = receipt_line_from_cart(&line);
+        let printed: Vec<String> = r
+            .size_label
+            .iter()
+            .cloned()
+            .chain(r.addons.iter().map(|m| m.name.clone()))
+            .chain(r.optionals.iter().map(|m| m.name.clone()))
+            .collect();
+        let words: Vec<String> = cart::line_words(&line).into_iter().map(|w| w.text).collect();
+        assert_eq!(words, ["Large", "Oat", "Extra shot ×2", "Less ice"]);
+        assert_eq!(printed, words);
     }
 
     /// A line's kitchen-only note must never ride the checkout wire item or
