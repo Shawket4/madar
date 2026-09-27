@@ -13,12 +13,18 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PutModifierGroupsRequest {
-    #[serde(rename = "groups")]
-    pub groups: Vec<models::GroupAttachInput>,
+    /// The item's full set of reusable groups, in order. `[]` detaches every group (the item then offers none). Omitted or `null` changes nothing, so a partial update or an older client never detaches by accident. The item's own priced options are not in this set: they belong to `PUT /menu-items/{id}/options`.
+    #[serde(
+        rename = "groups",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub groups: Option<Option<Vec<models::GroupAttachInput>>>,
 }
 
 impl PutModifierGroupsRequest {
-    pub fn new(groups: Vec<models::GroupAttachInput>) -> PutModifierGroupsRequest {
-        PutModifierGroupsRequest { groups }
+    pub fn new() -> PutModifierGroupsRequest {
+        PutModifierGroupsRequest { groups: None }
     }
 }

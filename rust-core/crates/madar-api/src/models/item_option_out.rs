@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ItemOptionOut : A priced optional — a member of the item-private `Options` group (a modifier_group with `legacy_addon_type IS NULL` owned by this item).
+/// ItemOptionOut : A priced optional — a member of the item's own `Options` group (what `PUT /menu-items/{id}/options` edits).
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ItemOptionOut {
     #[serde(rename = "cost_incomplete")]
@@ -36,7 +36,7 @@ pub struct ItemOptionOut {
 }
 
 impl ItemOptionOut {
-    /// A priced optional — a member of the item-private `Options` group (a modifier_group with `legacy_addon_type IS NULL` owned by this item).
+    /// A priced optional — a member of the item's own `Options` group (what `PUT /menu-items/{id}/options` edits).
     pub fn new(
         cost_incomplete: bool,
         id: uuid::Uuid,

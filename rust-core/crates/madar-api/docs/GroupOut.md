@@ -7,6 +7,7 @@ Name | Type | Description | Notes
 **effect** | **String** | What choosing does: `none` | `adds` | `swaps`. | 
 **id** | **uuid::Uuid** |  | 
 **is_active** | **bool** |  | 
+**is_item_options** | Option<**bool**> | An item's own priced Options group (what `PUT /menu-items/{id}/options` edits), not a reusable group: never offered for attaching to an item. | [optional]
 **is_required** | **bool** |  | 
 **legacy_addon_type** | Option<**String**> |  | [optional]
 **max_selections** | Option<**i32**> |  | [optional]

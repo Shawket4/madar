@@ -21,6 +21,9 @@ pub struct GroupOut {
     pub id: uuid::Uuid,
     #[serde(rename = "is_active")]
     pub is_active: bool,
+    /// An item's own priced Options group (what `PUT /menu-items/{id}/options` edits), not a reusable group: never offered for attaching to an item.
+    #[serde(rename = "is_item_options", skip_serializing_if = "Option::is_none")]
+    pub is_item_options: Option<bool>,
     #[serde(rename = "is_required")]
     pub is_required: bool,
     #[serde(
@@ -87,6 +90,7 @@ impl GroupOut {
             effect,
             id,
             is_active,
+            is_item_options: None,
             is_required,
             legacy_addon_type: None,
             max_selections: None,
