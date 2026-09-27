@@ -194,7 +194,7 @@ No authorization required
 
 ## public_branches
 
-> Vec<models::PublicBranch> public_branches(org_id)
+> Vec<models::PublicBranch> public_branches(org_id, browse)
 
 
 ### Parameters
@@ -203,6 +203,7 @@ No authorization required
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **org_id** | **uuid::Uuid** |  | [required] |
+**browse** | Option<**bool**> | The read-only menu (`/menu`): every active branch, not only the ones taking online orders — a shop with ordering switched off still has a menu to show. Each branch's channel flags stay as they are, so a client never offers an order where none is taken. |  |
 
 ### Return type
 
@@ -230,7 +231,7 @@ No authorization required
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**channel** | **String** |  | [required] |
+**channel** | **String** | A delivery channel, or `dine_in` — the dine-in menu (branch prices, no channel discount), accepted ONLY with `preview=true`: the read-only menu of a shop that takes no online orders. Nothing can be ordered against it; quote and intake know no such channel. | [required] |
 **id** | **uuid::Uuid** |  | [required] |
 **preview** | Option<**bool**> | Read-only browse preview. When `true`, the menu is returned even if the channel is closed right now, so customers can browse while a branch is closed. This NEVER relaxes the channel-*enabled* check, and the delivery-quote / order-intake endpoints stay gated on open-now — so a preview can never become a real order against a closed channel. |  |
 

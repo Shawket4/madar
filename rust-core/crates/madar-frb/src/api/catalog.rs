@@ -121,6 +121,11 @@ pub struct _ComboChoiceDetail {
     /// A required choice with no default (a sandwich's bread): picking the
     /// item opens "Customise" at once; the combo waits for the choice.
     pub must_customise: bool,
+    /// `false`: the till can't sell it now. Shown greyed with
+    /// `unavailable_label`, never picked, never the default.
+    pub available: bool,
+    /// "Unavailable", in the teller's language; `None` when available.
+    pub unavailable_label: Option<String>,
 }
 
 #[frb(mirror(ComboSizeOption))]
@@ -358,6 +363,13 @@ impl MadarBridge {
     #[frb(sync)]
     pub fn combo_new_draft(&self, item_id: String) -> Option<ComboDraft> {
         self.inner.combo_new_draft(item_id)
+    }
+
+    /// One tap: the draft a combo with nothing to choose goes into the cart
+    /// with (save it with `cart_add_combo`), or `None` to open the sheet.
+    #[frb(sync)]
+    pub fn combo_one_tap_draft(&self, item_id: String) -> Option<ComboDraft> {
+        self.inner.combo_one_tap_draft(item_id)
     }
 
     /// "Make it a meal +X" for an item, when it has a meal on sale now.

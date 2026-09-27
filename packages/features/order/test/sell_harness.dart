@@ -448,6 +448,12 @@ class _FakeBridge implements MadarBridge {
   /// a meal offer on every item — the legacy panel's combo flows.
   bool withCombo = false;
 
+  /// The combo has nothing to choose: the core hands back its one-tap draft.
+  bool comboOneTap = false;
+
+  /// Every combo the Sell screen asked for a one-tap draft.
+  final List<String> oneTapAsked = [];
+
   /// The core offers the staff-drink action on every counter line.
   bool staffOffered = false;
 
@@ -635,6 +641,12 @@ class _FakeBridge implements MadarBridge {
       );
     }
     if (name == #comboDetail) return withCombo ? _comboDetail : null;
+    if (name == #comboOneTapDraft) {
+      oneTapAsked.add(invocation.namedArguments[#itemId] as String);
+      return withCombo && comboOneTap
+          ? ComboDraft(comboId: 'lunch', qty: 1, picks: [_comboPick()])
+          : null;
+    }
     if (name == #comboNewDraft) {
       return ComboDraft(comboId: 'lunch', qty: 1, picks: [_comboPick()]);
     }
@@ -1155,6 +1167,7 @@ const _comboDetail = ComboDetail(
           isDefault: true,
           customisable: false,
           mustCustomise: false,
+          available: true,
         ),
         ComboChoiceDetail(
           itemId: 'cake',
@@ -1165,6 +1178,7 @@ const _comboDetail = ComboDetail(
           isDefault: false,
           customisable: false,
           mustCustomise: false,
+          available: true,
         ),
       ],
     ),
@@ -1326,6 +1340,7 @@ class _MealBridge extends _FakeBridge {
         isDefault: true,
         customisable: false,
         mustCustomise: false,
+        available: true,
       ),
     ],
   );

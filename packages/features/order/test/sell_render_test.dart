@@ -72,6 +72,7 @@ Future<void> _settle(WidgetTester tester) async {
 void main() {
   setUpAll(_loadFonts);
   group('a tap after Clear', _clearThenTapMain);
+  group('one tap on a combo with nothing to choose', _oneTapComboMain);
   group('a tap is never answered with nothing', _neverNothingMain);
   group('the keyboard up on an iPad in landscape', _keyboardMain);
   group('Done after Charge, and the service mode it charges', _doneMain);
@@ -1762,5 +1763,75 @@ void _doneMain() {
       expect(bridge.checkedOut, isNotNull);
       expect(bridge.checkedOut!.dineIn, isFalse);
     });
+  }
+}
+
+/// One tap (owner, 2026-09-27): a combo with nothing to choose (the core's
+/// call) goes straight into the cart from its tile, in the standard layout
+/// and in Fast mode alike; a combo with any choice still opens its sheet.
+void _oneTapComboMain() {
+  Finder inMenu(Finder f) =>
+      find.descendant(of: find.byType(MenuGrid), matching: f);
+
+  Future<void> toTheCombo(WidgetTester tester, SellLayout layout) async {
+    // Fast mode opens on the category boxes: into Food, where the combo is.
+    if (layout == SellLayout.fast) {
+      await tester.tap(find.byKey(const ValueKey('category-box-food')));
+      await _settle(tester);
+    }
+    await tester.ensureVisible(inMenu(find.text('Lunch deal')));
+    await _settle(tester);
+  }
+
+  for (final layout in SellLayout.values) {
+    testWidgets('a fixed bundle adds in one tap (${layout.name})', (
+      tester,
+    ) async {
+      final bridge = _FakeBridge()
+        ..withCombo = true
+        ..comboOneTap = true;
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+        layout: layout,
+      );
+      final before = bridge.carts[null]!.length;
+      await toTheCombo(tester, layout);
+      await tester.tap(inMenu(find.text('Lunch deal')));
+      await _settle(tester);
+      expect(bridge.oneTapAsked, ['lunch']);
+      expect(find.byType(ComboSheet), findsNothing, reason: 'no sheet');
+      final cart = bridge.carts[null]!;
+      expect(cart.length, before + 1);
+      final combo = cart.where((l) => l.kind == 'combo').single;
+      expect((combo.itemId, combo.qty), ('lunch', 1));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'a combo with a choice still opens the sheet (${layout.name})',
+      (tester) async {
+        final bridge = _FakeBridge()..withCombo = true;
+        await _mount(
+          tester,
+          screen: const TakeawaySellScreen(),
+          size: _ipad,
+          bridge: bridge,
+          layout: layout,
+        );
+        await toTheCombo(tester, layout);
+        await tester.tap(inMenu(find.text('Lunch deal')));
+        await _settle(tester);
+        expect(bridge.oneTapAsked, ['lunch']);
+        expect(find.byType(ComboSheet), findsOneWidget);
+        expect(
+          bridge.carts[null]!.where((l) => l.kind == 'combo'),
+          isEmpty,
+          reason: 'nothing added until the sheet saves',
+        );
+      },
+    );
   }
 }

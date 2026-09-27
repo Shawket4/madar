@@ -58,6 +58,7 @@ ComboChoiceDetail _choice(
   bool isDefault = false,
   bool customisable = false,
   bool mustCustomise = false,
+  String? unavailable,
 }) => ComboChoiceDetail(
   itemId: id,
   name: name,
@@ -68,12 +69,15 @@ ComboChoiceDetail _choice(
   isDefault: isDefault,
   customisable: customisable,
   mustCustomise: mustCustomise,
+  available: unavailable == null,
+  unavailableLabel: unavailable,
 );
 
 ComboDetail _detail({
   required bool arabic,
   bool available = true,
   bool club = false,
+  bool wrapOff = false,
 }) {
   String rule(int n) => coreWord(
     n == 1 ? 'combo.pick_n_one' : 'combo.pick_n',
@@ -104,6 +108,14 @@ ComboDetail _detail({
             13000,
             surcharge: 1500,
           ),
+          // A wrap the till can't sell now: shown greyed, as the core says.
+          if (wrapOff)
+            _choice(
+              'wrap',
+              arabic ? 'راب' : 'Wrap',
+              0,
+              unavailable: coreWord('combo.choice_unavailable', arabic: arabic),
+            ),
           // A sandwich whose Bread is required and has no default.
           if (club)
             _choice(
@@ -316,6 +328,9 @@ class _Fake implements MadarBridge {
 
   /// The Main slot also offers a Club sandwich (Bread required, no default).
   bool club = false;
+
+  /// The Main slot also shows a Wrap the till can't sell now.
+  bool wrapOff = false;
   MealOffer? meal = const MealOffer(
     comboId: 'lunch',
     slotId: 's-drink',
@@ -358,7 +373,12 @@ class _Fake implements MadarBridge {
       return const DeviceConfigView(reconfiguring: false, configured: true);
     }
     if (name == #comboDetail) {
-      return _detail(arabic: arabic, available: available, club: club);
+      return _detail(
+        arabic: arabic,
+        available: available,
+        club: club,
+        wrapOff: wrapOff,
+      );
     }
     if (name == #comboNewDraft) {
       return ComboDraft(comboId: 'lunch', qty: 1, picks: _defaults);
@@ -986,6 +1006,73 @@ void main() {
         expect(tester.takeException(), isNull);
       },
     );
+  }
+
+  // Arabic slot names (owner, 2026-09-27): the core hands the sheet each
+  // slot's name in the till's language; the slot headers show it.
+  for (final arabic in [false, true]) {
+    final lang = arabic ? 'ar' : 'en';
+    testWidgets("each slot is headed in the till's language ($lang)", (
+      tester,
+    ) async {
+      final fake = _Fake(arabic: arabic);
+      await _mount(tester, fake, size: _tablet, body: _opener);
+      await _open(tester);
+      final heads = arabic
+          ? ['الطبق الرئيسي', 'الطبق الجانبي', 'المشروب']
+          : ['MAIN', 'SIDE', 'DRINK'];
+      for (final h in heads) {
+        expect(
+          find.descendant(of: find.byType(ComboSheet), matching: find.text(h)),
+          findsOneWidget,
+          reason: h,
+        );
+      }
+      if (arabic) {
+        for (final en in ['MAIN', 'SIDE', 'DRINK']) {
+          expect(find.text(en), findsNothing, reason: en);
+        }
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    // Greyed out, not hidden (owner, 2026-09-27): a choice the till can't
+    // sell is shown with the core's word, takes no tap, and never reaches
+    // the picks.
+    testWidgets("an unavailable choice is shown greyed and can't be picked "
+        '($lang)', (tester) async {
+      final fake = _Fake(arabic: arabic)..wrapOff = true;
+      await _mount(tester, fake, size: _tablet, body: _opener);
+      await _open(tester);
+      final chip = find.byKey(const ValueKey('choice-s-main-wrap'));
+      await tester.ensureVisible(chip);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: chip,
+          matching: find.text(
+            coreWord('combo.choice_unavailable', arabic: arabic),
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: chip, matching: find.text(arabic ? 'راب' : 'Wrap')),
+        findsOneWidget,
+      );
+      final quotes = fake.quoted.length;
+      await tester.tap(chip, warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(fake.quoted.length, quotes, reason: 'no new quote: nothing moved');
+      await tester.tap(find.byKey(const ValueKey('combo-save')));
+      await tester.pumpAndSettle();
+      expect(fake.saved.single.$2.map((p) => p.itemId), [
+        'burger',
+        'fries',
+        'latte',
+      ]);
+      expect(tester.takeException(), isNull);
+    });
   }
 
   testWidgets('a combo not on sale now says why and cannot be added', (

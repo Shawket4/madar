@@ -323,8 +323,23 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
   Future<void> _onTileTap(MenuItemView item, Offset origin) =>
       _once(failed: () => _failedOn('order.add_failed', item.name), () async {
-        // A combo always opens its sheet: its slots are the choice to make.
+        // A combo opens its sheet: its slots are the choice to make. One with
+        // nothing to choose (a fixed bundle) goes straight into the cart, as
+        // the sheet's Add would put it (owner, 2026-09-27); the core decides.
         if (item.kind == 'combo') {
+          final draft = ref
+              .read(bridgeProvider)
+              .comboOneTapDraft(itemId: item.id);
+          if (draft != null) {
+            final added = await _cart.saveCombo(
+              comboId: item.id,
+              picks: draft.picks,
+              qty: draft.qty,
+              notes: draft.notes,
+            );
+            if (added && mounted) _flyToCart(origin);
+            return;
+          }
           await _openComboSheet(item.id);
           return;
         }

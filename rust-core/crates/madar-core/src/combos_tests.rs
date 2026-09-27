@@ -2700,3 +2700,265 @@ async fn the_last_config_is_this_devices_latest_sale_of_the_item_in_the_cart_lin
     assert_eq!(i18n::tr("ar", "order.added_add_another"), "أُضيف — أضف واحدًا آخر");
     assert_eq!(i18n::tr("en", "order.added_add_another"), "Added — add another");
 }
+
+// ── Arabic slot names, greyed choices, one tap (owner, 2026-09-27) ─────────
+
+/// Main and Drink carry Arabic names; Side has none.
+fn arabic_slots(row: &mut Value) {
+    row["combo"]["slots"][0]["name_translations"] = json!({ "ar": "الطبق الرئيسي" });
+    row["combo"]["slots"][2]["name_translations"] = json!({ "ar": "مشروب" });
+}
+
+/// The slot names on the sheet, in the cart's parts and on the rule's
+/// words follow the till's language; a slot with no Arabic name falls back
+/// to its English one, and switching back to English reads English again.
+#[tokio::test]
+async fn slot_names_follow_the_tills_language_with_an_english_fallback() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_with(&core, arabic_slots);
+    core.set_locale("ar".into());
+    let names = |core: &MadarCore| -> Vec<String> {
+        core.combo_detail(LUNCH.into())
+            .unwrap()
+            .slots
+            .iter()
+            .map(|s| s.name.clone())
+            .collect()
+    };
+    assert_eq!(names(&core), vec!["الطبق الرئيسي", "Side", "مشروب"]);
+
+    // The cart's parts carry the slot's name in the till's language.
+    let lines = core
+        .cart_add_combo(None, LUNCH.into(), lunch_picks("Regular", false), 1, None)
+        .unwrap();
+    let parts: Vec<(String, String)> = combo_line(&lines)
+        .parts
+        .iter()
+        .map(|p| (p.item_id.clone(), p.slot_name.clone()))
+        .collect();
+    assert_eq!(
+        parts,
+        vec![
+            (BURGER.to_string(), "الطبق الرئيسي".to_string()),
+            (FRIES.to_string(), "Side".to_string()),
+            (LATTE.to_string(), "مشروب".to_string()),
+        ]
+    );
+    // A slot named in a refusal is named in Arabic too.
+    let q = core
+        .combo_quote(None, LUNCH.into(), vec![pick(S_SIDE, FRIES, None, &[])], 1)
+        .unwrap();
+    assert!(
+        q.refusal_text.as_deref().unwrap_or_default().contains("الطبق الرئيسي"),
+        "{:?}",
+        q.refusal_text
+    );
+
+    core.set_locale("en".into());
+    assert_eq!(names(&core), vec!["Main", "Side", "Drink"]);
+}
+
+/// An item choice the till does not sell (not on its menu) and an item it
+/// cannot price at all are SHOWN greyed with "Unavailable",
+/// in both languages, never the default and never filled in; a pick of one
+/// is refused.
+#[tokio::test]
+async fn unavailable_choices_are_shown_greyed_and_never_picked() {
+    const TEA: &str = "00000000-0000-0000-0000-00000000b0ee";
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_with(&core, |row| {
+        let drink = &mut row["combo"]["slots"][2];
+        drink["choices"].as_array_mut().unwrap().push(json!({
+            "menu_item_id": TEA, "name": "Tea", "name_translations": { "ar": "شاي" }, "sort": 1,
+        }));
+    });
+    // Every size of the Latte is switched off here: the rule cannot price
+    // it (one size off is not enough: the rule prices the lowest one on).
+    let mut items: Vec<Value> =
+        serde_json::from_str(&core.store.kv_get(menu::K_MENU_ITEMS).unwrap().unwrap()).unwrap();
+    for it in items.iter_mut().filter(|i| i["id"] == LATTE) {
+        for s in it["sizes"].as_array_mut().unwrap() {
+            s["is_active"] = json!(false);
+        }
+    }
+    core.store
+        .kv_put(menu::K_MENU_ITEMS, &Value::from(items).to_string())
+        .unwrap();
+    core.invalidate_catalog_cache();
+
+    for (locale, tea, word) in [("en", "Tea", "Unavailable"), ("ar", "شاي", "غير متاح")] {
+        core.set_locale(locale.into());
+        let d = core.combo_detail(LUNCH.into()).unwrap();
+        let drink = &d.slots[2];
+        let shown: Vec<(&str, &str, bool, Option<&str>, bool)> = drink
+            .choices
+            .iter()
+            .map(|c| {
+                (
+                    c.item_id.as_str(),
+                    c.name.as_str(),
+                    c.available,
+                    c.unavailable_label.as_deref(),
+                    c.is_default,
+                )
+            })
+            .collect();
+        assert_eq!(
+            shown,
+            vec![
+                (LATTE, "Latte", false, Some(word), false),
+                (TEA, tea, false, Some(word), false),
+            ],
+            "{locale}"
+        );
+        assert!(drink.choices.iter().all(|c| c.sizes.is_empty()));
+        // Never the default: the slot's own default is cleared.
+        assert_eq!(drink.default_item_id, None, "{locale}");
+        assert_eq!(drink.default_size_label, None, "{locale}");
+        // The other slots are untouched.
+        assert!(d.slots[0].choices.iter().all(|c| c.available && c.unavailable_label.is_none()));
+    }
+    // Never filled in: the draft leaves the Drink slot for the teller.
+    let draft = core.combo_new_draft(LUNCH.into()).unwrap();
+    assert_eq!(
+        draft.picks.iter().map(|p| p.slot_id.as_str()).collect::<Vec<_>>(),
+        vec![S_MAIN, S_SIDE]
+    );
+    assert!(core.combo_one_tap_draft(LUNCH.into()).is_none());
+    // Never picked: the cart refuses either one.
+    for p in [pick(S_DRINK, TEA, None, &[]), pick(S_DRINK, LATTE, Some("Regular"), &[])] {
+        let picks = vec![pick(S_MAIN, BURGER, None, &[]), pick(S_SIDE, FRIES, None, &[]), p];
+        assert!(core.cart_add_combo(None, LUNCH.into(), picks, 1, None).is_err());
+    }
+    assert!(core.cart_lines(None).unwrap().is_empty());
+}
+
+const BOX: &str = "00000000-0000-0000-0000-00000000c002";
+const S_BOX_MAIN: &str = "00000000-0000-0000-0000-00000000c0c1";
+const S_BOX_SIDE: &str = "00000000-0000-0000-0000-00000000c0c2";
+
+/// A fixed bundle: a Burger and two Fries for 180.00, one-size items, one
+/// choice per slot, nothing to pick on either.
+fn box_row(tweak: impl FnOnce(&mut Value)) -> Value {
+    let mut row = item(BOX, "Burger box", 18000, &[], CAT_MAINS);
+    row["kind"] = json!("combo");
+    row["combo"] = json!({
+        "is_fixed": true,
+        "sell": { "pos": true, "qr": true, "online": true, "delivery": true },
+        "windows": [],
+        "slots": [
+            { "id": S_BOX_MAIN, "name": "Main", "sort": 0, "min": 1, "max": 1,
+              "choices": [{ "menu_item_id": BURGER }] },
+            { "id": S_BOX_SIDE, "name": "Side", "sort": 1, "min": 2, "max": 2,
+              "choices": [{ "menu_item_id": FRIES }] },
+        ],
+    });
+    tweak(&mut row);
+    row
+}
+
+fn seed_box(core: &MadarCore, tweak: impl FnOnce(&mut Value)) {
+    let mut items: Vec<Value> =
+        serde_json::from_str(&core.store.kv_get(menu::K_MENU_ITEMS).unwrap().unwrap()).unwrap();
+    items.retain(|i| i["id"] != BOX);
+    items.push(box_row(tweak));
+    core.store
+        .kv_put(menu::K_MENU_ITEMS, &Value::from(items).to_string())
+        .unwrap();
+    core.invalidate_catalog_cache();
+}
+
+/// One tap: a combo with nothing to choose goes into the cart as the sheet
+/// would add it (every slot's one choice, its count, the included size), at
+/// its price, split over its parts. Burger 12000 and two Fries 4000 weigh
+/// 12000 / 8000 of W = 20000: shares round(18000·12000/20000) = 10800 and
+/// 18000 − 10800 = 7200; the line is 18000.
+#[tokio::test]
+async fn a_combo_with_nothing_to_choose_adds_in_one_tap() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed(&core);
+    seed_box(&core, |_| {});
+    let draft = core.combo_one_tap_draft(BOX.into()).expect("nothing to choose");
+    assert_eq!(draft.qty, 1);
+    assert_eq!(
+        draft
+            .picks
+            .iter()
+            .map(|p| (p.slot_id.as_str(), p.item_id.as_str(), p.qty))
+            .collect::<Vec<_>>(),
+        vec![(S_BOX_MAIN, BURGER, 1), (S_BOX_SIDE, FRIES, 2)]
+    );
+    // It is the sheet's own starting draft.
+    assert_eq!(draft.picks, core.combo_new_draft(BOX.into()).unwrap().picks);
+    let lines = core
+        .cart_add_combo(None, BOX.into(), draft.picks, draft.qty, None)
+        .unwrap();
+    let l = combo_line(&lines);
+    assert_eq!((l.item_id.as_str(), l.qty), (BOX, 1));
+    assert_eq!(l.line_total_minor, 18000);
+    assert_eq!(
+        l.parts
+            .iter()
+            .map(|p| (p.item_id.as_str(), p.qty, p.share_minor, p.surcharge_minor))
+            .collect::<Vec<_>>(),
+        vec![(BURGER, 1, 10800, 0), (FRIES, 2, 7200, 0)]
+    );
+    assert_eq!(part_totals(&l).iter().sum::<i64>(), 18000);
+}
+
+/// Anything to choose opens the sheet: a size beyond the included one (the
+/// Lunch deal's Latte), a second choice in a slot, an optional slot, a
+/// count to choose, a part with a required pick of its own (a sandwich's
+/// bread), a choice greyed out, or the combo off right now.
+#[tokio::test]
+async fn a_combo_with_anything_to_choose_opens_the_sheet() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed(&core);
+    // The Latte has sizes to pick from.
+    assert!(core.combo_one_tap_draft(LUNCH.into()).is_none());
+    let cases: Vec<(&str, Box<dyn FnOnce(&mut Value)>)> = vec![
+        (
+            "a second choice",
+            Box::new(|r: &mut Value| {
+                r["combo"]["slots"][1]["choices"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!({ "menu_item_id": COOKIE }))
+            }),
+        ),
+        (
+            "an optional slot",
+            Box::new(|r: &mut Value| r["combo"]["slots"][0]["min"] = json!(0)),
+        ),
+        (
+            "a count to choose",
+            Box::new(|r: &mut Value| r["combo"]["slots"][1]["min"] = json!(1)),
+        ),
+        (
+            "a greyed choice",
+            Box::new(|r: &mut Value| {
+                r["combo"]["slots"][1]["choices"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!({ "menu_item_id": "00000000-0000-0000-0000-00000000b0ee", "name": "Tea" }))
+            }),
+        ),
+        (
+            "not on sale now",
+            Box::new(|r: &mut Value| r["is_active"] = json!(false)),
+        ),
+    ];
+    for (why, tweak) in cases {
+        seed_box(&core, tweak);
+        assert!(core.combo_one_tap_draft(BOX.into()).is_none(), "{why}");
+        assert!(core.combo_detail(BOX.into()).is_some(), "{why}: the sheet still opens");
+    }
+    // The control: untouched, it is one tap.
+    seed_box(&core, |_| {});
+    assert!(core.combo_one_tap_draft(BOX.into()).is_some());
+    // A part whose item has a required pick with no default (the Club's bread).
+    seed_club(&core);
+    seed_box(&core, |r| r["combo"]["slots"][0]["choices"] = json!([{ "menu_item_id": CLUB }]));
+    assert!(core.combo_one_tap_draft(BOX.into()).is_none(), "a required pick");
+    assert!(core.cart_lines(None).unwrap().is_empty(), "nothing was added");
+}

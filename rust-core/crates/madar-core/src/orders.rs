@@ -525,7 +525,15 @@ fn combo_receipt_line(
                     .size_label
                     .clone()
                     .filter(|s| !s.is_empty() && !crate::cart::is_one_size(s)),
-                slot_name: p.combo_slot_name.clone().filter(|s| !s.is_empty()),
+                // The slot as sold, in the device's language (English when
+                // it was sold without an Arabic name, or before they were kept).
+                slot_name: p.combo_slot_name.as_deref().filter(|s| !s.is_empty()).map(|s| {
+                    loc(
+                        p.combo_slot_name_translations.as_ref().unwrap_or(&serde_json::Value::Null),
+                        s,
+                        locale,
+                    )
+                }),
                 surcharge_minor: p.combo_surcharge.unwrap_or(0) as i64,
                 addons: priced_addons(p, locale),
                 optionals: priced_optionals(p, locale),
@@ -1197,6 +1205,39 @@ mod tests {
         let ar = order_to_receipt(&combo_order(), "ar");
         assert_eq!(ar.lines[0].name, "وجبة الغداء");
         assert_eq!(ar.deals[0].name, "أي قطعتين بـ 90");
+    }
+
+    /// Arabic slot names on a sold combo (owner, 2026-09-27): a part keeps
+    /// the slot's names as sold, and the reprint names it in the device's
+    /// language; a slot sold with no Arabic name (or from a server that did
+    /// not keep them) reads in English.
+    #[test]
+    fn a_reprint_names_each_slot_in_the_devices_language() {
+        let mut o = combo_order();
+        o.items[1].combo_slot_name_translations = Some(serde_json::json!({ "ar": "الطبق الرئيسي" }));
+        o.items[3].combo_slot_name_translations = Some(serde_json::json!({ "ar": "مشروب" }));
+        let slots = |r: &crate::checkout::ReceiptView| -> Vec<Option<String>> {
+            r.lines[0].parts.iter().map(|p| p.slot_name.clone()).collect()
+        };
+        assert_eq!(
+            slots(&order_to_receipt(&o, "ar")),
+            vec![
+                Some("الطبق الرئيسي".to_string()),
+                Some("Side".to_string()),
+                Some("مشروب".to_string())
+            ]
+        );
+        assert_eq!(
+            slots(&order_to_receipt(&o, "en")),
+            vec![Some("Main".to_string()), Some("Side".to_string()), Some("Drink".to_string())]
+        );
+        // The stored row the feed sends parses with and without the field.
+        let row = serde_json::to_value(&o.items[3]).unwrap();
+        assert_eq!(row["combo_slot_name_translations"]["ar"], "مشروب");
+        let mut old = row.clone();
+        old.as_object_mut().unwrap().remove("combo_slot_name_translations");
+        let old: models::OrderItemFull = serde_json::from_value(old).unwrap();
+        assert_eq!(old.combo_slot_name_translations, None);
     }
 
     #[test]

@@ -332,6 +332,7 @@ Class | Method | HTTP request | Description
 *OrgsApi* | [**complete_onboarding**](docs/OrgsApi.md#complete_onboarding) | **POST** /orgs/{id}/onboarding/complete | 
 *OrgsApi* | [**create_org**](docs/OrgsApi.md#create_org) | **POST** /orgs | 
 *OrgsApi* | [**delete_org**](docs/OrgsApi.md#delete_org) | **DELETE** /orgs/{id} | 
+*OrgsApi* | [**get_links_page**](docs/OrgsApi.md#get_links_page) | **GET** /orgs/{id}/links-page | The links page, as the editor sees it.
 *OrgsApi* | [**get_onboarding**](docs/OrgsApi.md#get_onboarding) | **GET** /orgs/{id}/onboarding | 
 *OrgsApi* | [**get_org**](docs/OrgsApi.md#get_org) | **GET** /orgs/{id} | 
 *OrgsApi* | [**get_org_modules**](docs/OrgsApi.md#get_org_modules) | **GET** /orgs/{id}/modules | The org's modules, for anyone who works there: the dashboard routes by the server's answer (PS-3), and a branch manager cannot read the org itself (`orgs:read` is the owner's). Switching them is `PATCH /orgs/{id}`, a super admin's alone (SA-1).
@@ -341,6 +342,8 @@ Class | Method | HTTP request | Description
 *OrgsApi* | [**provision_org**](docs/OrgsApi.md#provision_org) | **POST** /orgs/provision | 
 *OrgsApi* | [**public_org_brand**](docs/OrgsApi.md#public_org_brand) | **GET** /public/orgs/brand | The shop behind a guest page.
 *OrgsApi* | [**public_org_favicon**](docs/OrgsApi.md#public_org_favicon) | **GET** /public/orgs/favicon | The shop's own logo, as a favicon.
+*OrgsApi* | [**public_org_links**](docs/OrgsApi.md#public_org_links) | **GET** /public/orgs/links | The shop's links page, in one request.
+*OrgsApi* | [**put_links_page**](docs/OrgsApi.md#put_links_page) | **PUT** /orgs/{id}/links-page | Save the links page.
 *OrgsApi* | [**update_org**](docs/OrgsApi.md#update_org) | **PATCH** /orgs/{id} | 
 *OrgsApi* | [**upload_org_card_image**](docs/OrgsApi.md#upload_org_card_image) | **PUT** /orgs/{id}/card-image | The photograph across the loyalty card — Apple's strip, Google's hero image.
 *OrgsApi* | [**upload_org_logo**](docs/OrgsApi.md#upload_org_logo) | **PUT** /orgs/{id}/logo | 
@@ -386,6 +389,7 @@ Class | Method | HTTP request | Description
 *QrApi* | [**list_marketing_links**](docs/QrApi.md#list_marketing_links) | **GET** /qr/links | 
 *QrApi* | [**list_tables**](docs/QrApi.md#list_tables) | **GET** /branches/{id}/tables | 
 *QrApi* | [**org_booking_qr**](docs/QrApi.md#org_booking_qr) | **GET** /orgs/{id}/booking-qr | 
+*QrApi* | [**org_links_qr**](docs/QrApi.md#org_links_qr) | **GET** /orgs/{id}/links-qr | The code for the shop's links page — the one address that leads to everything else (menu, ordering, rewards, bookings, socials).
 *QrApi* | [**org_loyalty_qr**](docs/QrApi.md#org_loyalty_qr) | **GET** /orgs/{id}/loyalty-qr | The shop's join QR: one code for the whole organisation.
 *QrApi* | [**org_qr**](docs/QrApi.md#org_qr) | **GET** /orgs/{id}/qr | 
 *QrApi* | [**table_qr**](docs/QrApi.md#table_qr) | **GET** /branches/{id}/tables/{tid}/qr | 
@@ -968,6 +972,13 @@ Class | Method | HTTP request | Description
  - [LiabilityTrendPoint](docs/LiabilityTrendPoint.md)
  - [LimitsView](docs/LimitsView.md)
  - [LinkableUser](docs/LinkableUser.md)
+ - [LinksItemKind](docs/LinksItemKind.md)
+ - [LinksModuleStatus](docs/LinksModuleStatus.md)
+ - [LinksPageBranch](docs/LinksPageBranch.md)
+ - [LinksPageBranchInput](docs/LinksPageBranchInput.md)
+ - [LinksPageInput](docs/LinksPageInput.md)
+ - [LinksPageItem](docs/LinksPageItem.md)
+ - [LinksPageSettings](docs/LinksPageSettings.md)
  - [LintIssue](docs/LintIssue.md)
  - [LintSeverity](docs/LintSeverity.md)
  - [LoginRequest](docs/LoginRequest.md)
@@ -1146,6 +1157,9 @@ Class | Method | HTTP request | Description
  - [PublicComboChoice](docs/PublicComboChoice.md)
  - [PublicComboSize](docs/PublicComboSize.md)
  - [PublicComboSlot](docs/PublicComboSlot.md)
+ - [PublicLinksBranch](docs/PublicLinksBranch.md)
+ - [PublicLinksItem](docs/PublicLinksItem.md)
+ - [PublicLinksPage](docs/PublicLinksPage.md)
  - [PublicReward](docs/PublicReward.md)
  - [PublicSlot](docs/PublicSlot.md)
  - [PublicSlots](docs/PublicSlots.md)

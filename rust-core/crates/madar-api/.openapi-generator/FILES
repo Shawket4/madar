@@ -342,6 +342,13 @@ docs/LiabilityTrend.md
 docs/LiabilityTrendPoint.md
 docs/LimitsView.md
 docs/LinkableUser.md
+docs/LinksItemKind.md
+docs/LinksModuleStatus.md
+docs/LinksPageBranch.md
+docs/LinksPageBranchInput.md
+docs/LinksPageInput.md
+docs/LinksPageItem.md
+docs/LinksPageSettings.md
 docs/LintIssue.md
 docs/LintSeverity.md
 docs/LoginRequest.md
@@ -530,6 +537,9 @@ docs/PublicCombo.md
 docs/PublicComboChoice.md
 docs/PublicComboSize.md
 docs/PublicComboSlot.md
+docs/PublicLinksBranch.md
+docs/PublicLinksItem.md
+docs/PublicLinksPage.md
 docs/PublicReward.md
 docs/PublicSlot.md
 docs/PublicSlots.md
@@ -1191,6 +1201,13 @@ src/models/liability_trend.rs
 src/models/liability_trend_point.rs
 src/models/limits_view.rs
 src/models/linkable_user.rs
+src/models/links_item_kind.rs
+src/models/links_module_status.rs
+src/models/links_page_branch.rs
+src/models/links_page_branch_input.rs
+src/models/links_page_input.rs
+src/models/links_page_item.rs
+src/models/links_page_settings.rs
 src/models/lint_issue.rs
 src/models/lint_severity.rs
 src/models/login_request.rs
@@ -1370,6 +1387,9 @@ src/models/public_combo.rs
 src/models/public_combo_choice.rs
 src/models/public_combo_size.rs
 src/models/public_combo_slot.rs
+src/models/public_links_branch.rs
+src/models/public_links_item.rs
+src/models/public_links_page.rs
 src/models/public_reward.rs
 src/models/public_slot.rs
 src/models/public_slots.rs

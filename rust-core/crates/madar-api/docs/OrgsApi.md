@@ -7,6 +7,7 @@ Method | HTTP request | Description
 [**complete_onboarding**](OrgsApi.md#complete_onboarding) | **POST** /orgs/{id}/onboarding/complete | 
 [**create_org**](OrgsApi.md#create_org) | **POST** /orgs | 
 [**delete_org**](OrgsApi.md#delete_org) | **DELETE** /orgs/{id} | 
+[**get_links_page**](OrgsApi.md#get_links_page) | **GET** /orgs/{id}/links-page | The links page, as the editor sees it.
 [**get_onboarding**](OrgsApi.md#get_onboarding) | **GET** /orgs/{id}/onboarding | 
 [**get_org**](OrgsApi.md#get_org) | **GET** /orgs/{id} | 
 [**get_org_modules**](OrgsApi.md#get_org_modules) | **GET** /orgs/{id}/modules | The org's modules, for anyone who works there: the dashboard routes by the server's answer (PS-3), and a branch manager cannot read the org itself (`orgs:read` is the owner's). Switching them is `PATCH /orgs/{id}`, a super admin's alone (SA-1).
@@ -16,6 +17,8 @@ Method | HTTP request | Description
 [**provision_org**](OrgsApi.md#provision_org) | **POST** /orgs/provision | 
 [**public_org_brand**](OrgsApi.md#public_org_brand) | **GET** /public/orgs/brand | The shop behind a guest page.
 [**public_org_favicon**](OrgsApi.md#public_org_favicon) | **GET** /public/orgs/favicon | The shop's own logo, as a favicon.
+[**public_org_links**](OrgsApi.md#public_org_links) | **GET** /public/orgs/links | The shop's links page, in one request.
+[**put_links_page**](OrgsApi.md#put_links_page) | **PUT** /orgs/{id}/links-page | Save the links page.
 [**update_org**](OrgsApi.md#update_org) | **PATCH** /orgs/{id} | 
 [**upload_org_card_image**](OrgsApi.md#upload_org_card_image) | **PUT** /orgs/{id}/card-image | The photograph across the loyalty card — Apple's strip, Google's hero image.
 [**upload_org_logo**](OrgsApi.md#upload_org_logo) | **PUT** /orgs/{id}/logo | 
@@ -104,6 +107,34 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
  (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## get_links_page
+
+> models::LinksPageSettings get_links_page(id)
+The links page, as the editor sees it.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Organization ID | [required] |
+
+### Return type
+
+[**models::LinksPageSettings**](LinksPageSettings.md)
 
 ### Authorization
 
@@ -366,6 +397,68 @@ No authorization required
 
 - **Content-Type**: Not defined
 - **Accept**: image/png, application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## public_org_links
+
+> models::PublicLinksPage public_org_links(org_id, slug)
+The shop's links page, in one request.
+
+Public for the same reason `/public/orgs/brand` is — it is the first thing a customer's browser asks — and it answers \"no shop\" identically for a shop that does not exist and one that is switched off, for the same reason.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | Option<**uuid::Uuid**> | The shop, when the page already knows which one it is. |  |
+**slug** | Option<**String**> | The first label of the hostname, when it does not — `rue` for `rue.madar-pos.cloud`. |  |
+
+### Return type
+
+[**models::PublicLinksPage**](PublicLinksPage.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## put_links_page
+
+> models::LinksPageSettings put_links_page(id, links_page_input)
+Save the links page.
+
+The organisation settings capability, as every other settings screen — and the same one that lets a manager change the shop's logo. The social links ride along because the page shows them; they are written to the organisation's own column, under the same rules as `PATCH /orgs/{id}`.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Organization ID | [required] |
+**links_page_input** | [**LinksPageInput**](LinksPageInput.md) |  | [required] |
+
+### Return type
+
+[**models::LinksPageSettings**](LinksPageSettings.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 

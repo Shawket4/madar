@@ -517,6 +517,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The picks a fresh combo opens with (every slot's default).
   ComboDraft? comboNewDraft({required String itemId});
 
+  /// One tap: the draft a combo with nothing to choose goes into the cart
+  /// with (save it with `cart_add_combo`), or `None` to open the sheet.
+  ComboDraft? comboOneTapDraft({required String itemId});
+
   /// The combo sheet's live figures for the picks so far (× `qty`).
   Future<ComboQuoteView> comboQuote({
     String? tableId,

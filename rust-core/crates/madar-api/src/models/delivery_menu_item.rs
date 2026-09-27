@@ -66,7 +66,7 @@ pub struct DeliveryMenuItem {
         skip_serializing_if = "Option::is_none"
     )]
     pub meal: Option<Option<Box<models::MealLink>>>,
-    /// The item's modifier groups (unified model), channel-effective. Empty ⇒ the customizer falls back to `addons` + `allowed_addon_ids`.
+    /// The item's modifier groups (unified model), channel-effective: every active attached group, a group with no option here included (options `[]`). Non-empty ⇒ the item's add-ons are SET: the page offers only what these groups hold, and no \"show all\" (none at all when every group is empty). Empty ⇒ not set up in the unified model: the page falls back to `addons` + `allowed_addon_ids`.
     #[serde(rename = "modifier_groups")]
     pub modifier_groups: Vec<models::DeliveryModifierGroup>,
     #[serde(rename = "name")]

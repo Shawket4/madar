@@ -61,11 +61,14 @@ pub struct OtpVerifyParams {
 #[derive(Clone, Debug)]
 pub struct PublicBranchesParams {
     pub org_id: String,
+    /// The read-only menu (`/menu`): every active branch, not only the ones taking online orders — a shop with ordering switched off still has a menu to show. Each branch's channel flags stay as they are, so a client never offers an order where none is taken.
+    pub browse: Option<bool>,
 }
 
 /// struct for passing parameters to the method [`public_menu`]
 #[derive(Clone, Debug)]
 pub struct PublicMenuParams {
+    /// A delivery channel, or `dine_in` — the dine-in menu (branch prices, no channel discount), accepted ONLY with `preview=true`: the read-only menu of a shop that takes no online orders. Nothing can be ordered against it; quote and intake know no such channel.
     pub channel: String,
     pub id: String,
     /// Read-only browse preview. When `true`, the menu is returned even if the channel is closed right now, so customers can browse while a branch is closed. This NEVER relaxes the channel-*enabled* check, and the delivery-quote / order-intake endpoints stay gated on open-now — so a preview can never become a real order against a closed channel.
@@ -475,6 +478,9 @@ pub async fn public_branches(
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     req_builder = req_builder.query(&[("org_id", &params.org_id.to_string())]);
+    if let Some(ref param_value) = params.browse {
+        req_builder = req_builder.query(&[("browse", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }

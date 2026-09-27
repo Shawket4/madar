@@ -15,6 +15,9 @@ use serde::{Deserialize, Serialize};
 pub struct MixSlot {
     #[serde(rename = "name")]
     pub name: String,
+    /// The slot's names by language: the catalogue's when it has any, else what the sales stored (a deleted slot's). `{}` when neither has any.
+    #[serde(rename = "name_translations", skip_serializing_if = "Option::is_none")]
+    pub name_translations: Option<serde_json::Value>,
     #[serde(rename = "picks")]
     pub picks: Vec<models::MixPick>,
     /// `null` for parts whose slot was deleted since.
@@ -31,6 +34,7 @@ impl MixSlot {
     pub fn new(name: String, picks: Vec<models::MixPick>) -> MixSlot {
         MixSlot {
             name,
+            name_translations: None,
             picks,
             slot_id: None,
         }

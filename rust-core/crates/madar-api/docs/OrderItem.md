@@ -8,6 +8,7 @@ Name | Type | Description | Notes
 **combo_share** | Option<**i32**> | A part: its share of the combo price, whole line. | [optional]
 **combo_slot_id** | Option<**uuid::Uuid**> | A part: the slot it filled (soft: the slot may be gone since). | [optional]
 **combo_slot_name** | Option<**String**> | A part: the slot's name at the sale. | [optional]
+**combo_slot_name_translations** | Option<**serde_json::Value**> | A part: the slot's names by language at the sale (`{\"ar\": \"مشروب\"}`), beside `combo_slot_name` as `name_translations` is beside `item_name`. `{}` on any other line, and on a part whose slot had none; a reader falls back to `combo_slot_name`. Additive. | [optional]
 **combo_surcharge** | Option<**i32**> | A part: its choice and size surcharges, whole line. | [optional]
 **combo_unit_price** | Option<**i32**> | A header: P per combo unit, as charged. | [optional]
 **cost_missing** | **bool** | True when any cost component could not be resolved. | 

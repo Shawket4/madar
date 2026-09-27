@@ -14,6 +14,7 @@ Method | HTTP request | Description
 [**list_marketing_links**](QrApi.md#list_marketing_links) | **GET** /qr/links | 
 [**list_tables**](QrApi.md#list_tables) | **GET** /branches/{id}/tables | 
 [**org_booking_qr**](QrApi.md#org_booking_qr) | **GET** /orgs/{id}/booking-qr | 
+[**org_links_qr**](QrApi.md#org_links_qr) | **GET** /orgs/{id}/links-qr | The code for the shop's links page — the one address that leads to everything else (menu, ordering, rewards, bookings, socials).
 [**org_loyalty_qr**](QrApi.md#org_loyalty_qr) | **GET** /orgs/{id}/loyalty-qr | The shop's join QR: one code for the whole organisation.
 [**org_qr**](QrApi.md#org_qr) | **GET** /orgs/{id}/qr | 
 [**table_qr**](QrApi.md#table_qr) | **GET** /branches/{id}/tables/{tid}/qr | 
@@ -316,6 +317,41 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **id** | **uuid::Uuid** | Organisation ID | [required] |
+**card** | Option<**bool**> | `true` (default) → branded A6 card PNG; `false` → plain receipt QR PNG. |  |
+**caption** | Option<**String**> | Dynamic caption line beneath the tagline (A6 card only). |  |
+**dpi** | Option<**u32**> | Raster DPI for the A6 card (clamped 72–2400). Default 600. |  |
+**bleed_mm** | Option<**f32**> | Print bleed in mm (A6 card only). Default 0. |  |
+**crop_marks** | Option<**bool**> | Draw crop marks (A6 card, only meaningful when `bleed_mm > 0`). |  |
+**svg** | Option<**bool**> | Return the A6 card as SVG (`data:image/svg+xml;base64,…`). Default false. |  |
+**module_px** | Option<**u32**> | Pixels per module for the plain receipt QR (1–40). Default 16. |  |
+
+### Return type
+
+[**models::QrResponse**](QrResponse.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## org_links_qr
+
+> models::QrResponse org_links_qr(id, card, caption, dpi, bleed_mm, crop_marks, svg, module_px)
+The code for the shop's links page — the one address that leads to everything else (menu, ordering, rewards, bookings, socials).
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Organization ID | [required] |
 **card** | Option<**bool**> | `true` (default) → branded A6 card PNG; `false` → plain receipt QR PNG. |  |
 **caption** | Option<**String**> | Dynamic caption line beneath the tagline (A6 card only). |  |
 **dpi** | Option<**u32**> | Raster DPI for the A6 card (clamped 72–2400). Default 600. |  |

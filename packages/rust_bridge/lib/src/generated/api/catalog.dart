@@ -218,6 +218,13 @@ class ComboChoiceDetail {
   /// item opens "Customise" at once; the combo waits for the choice.
   final bool mustCustomise;
 
+  /// `false`: the till can't sell it now. Shown greyed with
+  /// `unavailable_label`, never picked, never the default.
+  final bool available;
+
+  /// "Unavailable", in the teller's language; `None` when available.
+  final String? unavailableLabel;
+
   const ComboChoiceDetail({
     required this.itemId,
     required this.name,
@@ -229,6 +236,8 @@ class ComboChoiceDetail {
     required this.isDefault,
     required this.customisable,
     required this.mustCustomise,
+    required this.available,
+    this.unavailableLabel,
   });
 
   @override
@@ -242,7 +251,9 @@ class ComboChoiceDetail {
       sizes.hashCode ^
       isDefault.hashCode ^
       customisable.hashCode ^
-      mustCustomise.hashCode;
+      mustCustomise.hashCode ^
+      available.hashCode ^
+      unavailableLabel.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -258,7 +269,9 @@ class ComboChoiceDetail {
           sizes == other.sizes &&
           isDefault == other.isDefault &&
           customisable == other.customisable &&
-          mustCustomise == other.mustCustomise;
+          mustCustomise == other.mustCustomise &&
+          available == other.available &&
+          unavailableLabel == other.unavailableLabel;
 }
 
 /// The combo sheet, priced.

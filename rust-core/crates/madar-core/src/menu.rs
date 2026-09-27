@@ -504,6 +504,10 @@ pub(crate) struct ComboSlotDef {
     pub default_item_id: Option<String>,
     pub default_size_label: Option<String>,
     pub choices: Vec<madar_catalog::combo::ChoiceView>,
+    /// Each item choice's name as the server sent it, localized, by item id:
+    /// how the sheet names an item this till does not sell (inactive, or
+    /// switched off here), shown greyed.
+    pub choice_names: Vec<(String, String)>,
 }
 
 /// "Make it a meal": the combo a plain item upgrades to and the slot it fills.
@@ -562,7 +566,19 @@ struct WireSlot {
     #[serde(default)]
     default_size_label: Option<String>,
     #[serde(default)]
-    choices: Vec<madar_catalog::combo::ChoiceView>,
+    choices: Vec<WireChoice>,
+}
+
+/// A choice as the feed sends it: the rule's view, plus its item's (or
+/// category's) name for display.
+#[derive(Deserialize)]
+struct WireChoice {
+    #[serde(flatten)]
+    view: madar_catalog::combo::ChoiceView,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    name_translations: Value,
 }
 
 fn yes() -> bool {
@@ -594,7 +610,16 @@ pub(crate) fn combos(store: &Store, locale: &str) -> CoreResult<Vec<ComboDef>> {
                     max: sl.max.max(1),
                     default_item_id: sl.default_item_id.filter(|s| !s.is_empty()),
                     default_size_label: sl.default_size_label.filter(|s| !s.is_empty()),
-                    choices: sl.choices,
+                    choice_names: sl
+                        .choices
+                        .iter()
+                        .filter_map(|c| {
+                            let id = c.view.menu_item_id.clone()?;
+                            let name = resolve(&c.name_translations, &c.name, locale);
+                            (!name.trim().is_empty()).then_some((id, name))
+                        })
+                        .collect(),
+                    choices: sl.choices.into_iter().map(|c| c.view).collect(),
                 })
                 .collect();
             slots.sort_by_key(|s| s.sort);

@@ -135,6 +135,7 @@ class _MealShellBridge extends _FakeBridge {
                 isDefault: true,
                 customisable: false,
                 mustCustomise: false,
+                available: true,
               ),
             ],
           ),

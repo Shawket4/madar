@@ -25,6 +25,12 @@ pub struct OrderItemFull {
     /// A part: the slot's name at the sale.
     #[serde(rename = "combo_slot_name", skip_serializing_if = "Option::is_none")]
     pub combo_slot_name: Option<String>,
+    /// A part: the slot's names by language at the sale (`{\"ar\": \"مشروب\"}`), beside `combo_slot_name` as `name_translations` is beside `item_name`. `{}` on any other line, and on a part whose slot had none; a reader falls back to `combo_slot_name`. Additive.
+    #[serde(
+        rename = "combo_slot_name_translations",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub combo_slot_name_translations: Option<serde_json::Value>,
     /// A part: its choice and size surcharges, whole line.
     #[serde(rename = "combo_surcharge", skip_serializing_if = "Option::is_none")]
     pub combo_surcharge: Option<i32>,
@@ -111,6 +117,7 @@ impl OrderItemFull {
             combo_share: None,
             combo_slot_id: None,
             combo_slot_name: None,
+            combo_slot_name_translations: None,
             combo_surcharge: None,
             combo_unit_price: None,
             cost_missing,

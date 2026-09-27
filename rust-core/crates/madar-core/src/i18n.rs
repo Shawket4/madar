@@ -2503,6 +2503,8 @@ fn en(key: &str) -> Option<&'static str> {
         "combo.default_pick" => "Default",
         "combo.not_now" => "Not available right now",
         "combo.nothing_to_choose" => "Nothing here can be chosen right now.",
+        // A choice the till can't sell now, shown greyed on the sheet.
+        "combo.choice_unavailable" => "Unavailable",
         "combo.channel_off" => "Combos are switched off on the till at this branch.",
         "combo.in_combo" => "In {combo}",
         // The coded refusals, one per server code (§2.7).
@@ -4899,6 +4901,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "combo.default_pick" => "الافتراضي",
         "combo.not_now" => "غير متاح الآن",
         "combo.nothing_to_choose" => "لا يوجد ما يمكن اختياره هنا الآن.",
+        "combo.choice_unavailable" => "غير متاح",
         "combo.channel_off" => "الكومبو موقوف على الكاشير في هذا الفرع.",
         "combo.in_combo" => "ضمن {combo}",
         "combo.unavailable" => "هذا الكومبو غير متاح الآن.",

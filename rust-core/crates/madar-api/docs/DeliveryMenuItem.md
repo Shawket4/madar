@@ -13,7 +13,7 @@ Name | Type | Description | Notes
 **image_url** | Option<**String**> |  | [optional]
 **kind** | **String** | `item` | `combo` (combos module). Additive. | 
 **meal** | Option<[**models::MealLink**](MealLink.md)> | A kind=item row: its \"make it a meal\" upsell (C14), when that combo is on this menu. | [optional]
-**modifier_groups** | [**Vec<models::DeliveryModifierGroup>**](DeliveryModifierGroup.md) | The item's modifier groups (unified model), channel-effective. Empty ⇒ the customizer falls back to `addons` + `allowed_addon_ids`. | 
+**modifier_groups** | [**Vec<models::DeliveryModifierGroup>**](DeliveryModifierGroup.md) | The item's modifier groups (unified model), channel-effective: every active attached group, a group with no option here included (options `[]`). Non-empty ⇒ the item's add-ons are SET: the page offers only what these groups hold, and no \"show all\" (none at all when every group is empty). Empty ⇒ not set up in the unified model: the page falls back to `addons` + `allowed_addon_ids`. | 
 **name** | **String** |  | 
 **name_translations** | **serde_json::Value** |  | 
 **optionals** | [**Vec<models::DeliveryOptionalField>**](DeliveryOptionalField.md) |  | 

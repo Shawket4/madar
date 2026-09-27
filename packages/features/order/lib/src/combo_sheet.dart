@@ -189,6 +189,8 @@ class _ComboSheetState extends ConsumerState<ComboSheet> {
   /// picked, let it go); larger slots add it while there is room. An item
   /// with a required choice and no default opens its sheet at once.
   void _tapChoice(ComboSlotDetail slot, ComboChoiceDetail c) {
+    // Greyed out (the till can't sell it now): never picked.
+    if (!c.available) return;
     final mine = _picksOf(slot);
     final picked = mine.any((p) => p.itemId == c.itemId);
     if (slot.max <= 1) {
@@ -555,6 +557,11 @@ class _SlotCard extends ConsumerWidget {
         if (_pick(id) case final p?) onLess(p);
       },
       optionKey: (id) => ValueKey('choice-${slot.id}-$id'),
+      unavailable: (id) => switch (_choice(id)) {
+        final c? when !c.available =>
+          c.unavailableLabel ?? bridge.tr(key: 'combo.choice_unavailable'),
+        _ => null,
+      },
       below: slot.choices.isEmpty
           ? Padding(
               padding: const EdgeInsetsDirectional.only(top: Space.sm),

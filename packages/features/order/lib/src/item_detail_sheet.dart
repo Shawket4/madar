@@ -2408,11 +2408,18 @@ class ItemSheetGroupCard extends ConsumerStatefulWidget {
     this.optionKey,
     this.below,
     this.highlighted = false,
+    this.unavailable,
     super.key,
   });
 
   /// Flashed: the group a guided sheet just brought into view.
   final bool highlighted;
+
+  /// Why an option can't be picked now ("Unavailable"), or null when it can.
+  /// Such an option is SHOWN greyed with that word and takes no tap (a combo
+  /// slot's choice the till can't sell: the owner's "greyed out, not
+  /// hidden").
+  final String? Function(String id)? unavailable;
 
   /// A line under the title (a combo slot's rule: "Choose 1 item").
   final String? subtitle;
@@ -2695,7 +2702,13 @@ class _ItemSheetGroupCardState extends ConsumerState<ItemSheetGroupCard> {
                         runSpacing: Space.sm,
                         children: [
                           for (final addon in shown)
-                            if (g.isMulti &&
+                            if (widget.unavailable?.call(addon.addonItemId)
+                                case final why?)
+                              keyed(
+                                addon.addonItemId,
+                                _UnavailableChip(name: addon.name, why: why),
+                              )
+                            else if (g.isMulti &&
                                 widget.selectedMulti.containsKey(
                                   addon.addonItemId,
                                 ))
@@ -2805,6 +2818,48 @@ class _AddonOptionChip extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// An option that can't be picked now: shown, greyed, with why, and it
+/// takes no tap.
+class _UnavailableChip extends StatelessWidget {
+  const _UnavailableChip({required this.name, required this.why});
+
+  final String name;
+  final String why;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return Semantics(
+      enabled: false,
+      label: '$name, $why',
+      excludeSemantics: true,
+      child: Opacity(
+        opacity: 0.55,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: kOptionChipMinHeight),
+          padding: _chipPadding,
+          decoration: BoxDecoration(
+            color: colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(Radii.xs),
+            border: Border.all(color: colors.borderLight),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(name, style: _chipText.copyWith(color: colors.textMuted)),
+              const SizedBox(width: Space.sm),
+              Text(
+                why,
+                style: MadarType.labelSm.copyWith(color: colors.textMuted),
+              ),
+            ],
+          ),
         ),
       ),
     );

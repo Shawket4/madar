@@ -101,6 +101,13 @@ pub struct ComboChoiceDetail {
     /// picking it opens "Customise" at once, and the combo can't be added
     /// until the choice is made ([`COMBO_PICK_CHOICE_REQUIRED`]).
     pub must_customise: bool,
+    /// `false`: the till can't sell it now (not on this till's menu —
+    /// inactive, or switched off here — or the rule can't price it: no size
+    /// of it on). Shown greyed with [`Self::unavailable_label`], never picked,
+    /// never the default (owner, 2026-09-27: greyed out, not hidden).
+    pub available: bool,
+    /// "Unavailable", in the teller's language; `None` when available.
+    pub unavailable_label: Option<String>,
 }
 
 /// A size of a choice.
@@ -357,6 +364,47 @@ pub(crate) fn refusal_text(
     }
 }
 
+/// A choice's item at the size the combo includes, and its price there;
+/// `None` when the till can't price it (the size is off here, or unpriced):
+/// the item is then unavailable in the combo.
+fn priced_at_included(cv: &madar_catalog::CatalogView, choice: &rule::ChoiceView) -> Option<(String, i64)> {
+    let included = rule::included_size(cv, choice).ok()?;
+    let base = madar_catalog::unit_price(&cv.item, Some(&included)).ok()?;
+    Some((included, base))
+}
+
+/// Can `item` be picked in `slot` of `def` at this till now: the rule admits
+/// it there and prices it at its included size.
+fn sellable_in(
+    view: &ComboView,
+    slot_id: &str,
+    item: &MenuItemView,
+    pricing: &PricingMirror,
+) -> bool {
+    let Some(rule_slot) = view.slots.iter().find(|s| s.id == slot_id) else {
+        return false;
+    };
+    let Some(choice) = rule::choice_for(rule_slot, &item.id, item.category_id.as_deref()) else {
+        return false;
+    };
+    priced_at_included(&pricing.view_for(item, &[]), choice).is_some()
+}
+
+/// One tap (owner, 2026-09-27): a combo with nothing to choose goes straight
+/// into the cart. Nothing to choose means: on sale now, and every slot takes
+/// exactly its one choice a fixed number of times (`min == max`), that choice
+/// sellable, with no size to pick beyond the included one and no required
+/// pick of its own (a sandwich's bread). Anything else opens the sheet.
+pub(crate) fn nothing_to_choose(d: &ComboDetail) -> bool {
+    d.available_now
+        && !d.slots.is_empty()
+        && d.slots.iter().all(|s| {
+            s.min >= 1
+                && s.min == s.max
+                && matches!(s.choices.as_slice(), [c] if c.available && !c.must_customise && c.sizes.len() <= 1)
+        })
+}
+
 /// The detail the combo sheet draws. `customisable` says whether an item has
 /// anything to pick (the item sheet's own modifier groups), `must_customise`
 /// whether one of those picks is required and has no default.
@@ -387,8 +435,38 @@ pub(crate) fn detail(
             choices.sort_by_key(|c| c.sort);
             let mut seen: Vec<String> = Vec::new();
             let mut out: Vec<ComboChoiceDetail> = Vec::new();
+            let unavailable = |item_id: &str, name: String, image: Option<String>| ComboChoiceDetail {
+                item_id: item_id.to_string(),
+                name,
+                local_image_path: image,
+                base_price_minor: 0,
+                included_size_label: None,
+                surcharge_minor: 0,
+                sizes: Vec::new(),
+                is_default: false,
+                customisable: false,
+                must_customise: false,
+                available: false,
+                unavailable_label: Some(i18n::tr(locale, "combo.choice_unavailable")),
+            };
             for c in choices {
-                for item in choice_items(c, items) {
+                let offered = choice_items(c, items);
+                // An item choice this till does not sell: named as the
+                // server sent it, greyed. (A category's missing members are
+                // unknown here, so never shown.)
+                if offered.is_empty() {
+                    let named = c.menu_item_id.as_deref().and_then(|id| {
+                        slot.choice_names.iter().find(|(i, _)| i == id).map(|(_, n)| (id, n))
+                    });
+                    if let Some((id, name)) = named {
+                        if !seen.iter().any(|s| s == id) {
+                            seen.push(id.to_string());
+                            out.push(unavailable(id, name.clone(), None));
+                        }
+                    }
+                    continue;
+                }
+                for item in offered {
                     if seen.contains(&item.id) {
                         continue;
                     }
@@ -400,10 +478,13 @@ pub(crate) fn detail(
                         continue;
                     };
                     let cv = pricing.view_for(item, addons);
-                    let Ok(included) = rule::included_size(&cv, choice) else {
-                        continue;
-                    };
-                    let Ok(base) = madar_catalog::unit_price(&cv.item, Some(&included)) else {
+                    let Some((included, base)) = priced_at_included(&cv, choice) else {
+                        seen.push(item.id.clone());
+                        out.push(unavailable(
+                            &item.id,
+                            item.name.clone(),
+                            item.local_image_path.clone(),
+                        ));
                         continue;
                     };
                     let sizes = item
@@ -441,17 +522,24 @@ pub(crate) fn detail(
                         is_default: slot.default_item_id.as_deref() == Some(item.id.as_str()),
                         customisable: customisable(item),
                         must_customise: must_customise(item),
+                        available: true,
+                        unavailable_label: None,
                     });
                 }
             }
+            // An unavailable item is never the default.
+            let default_item_id = slot
+                .default_item_id
+                .clone()
+                .filter(|d| out.iter().any(|c| &c.item_id == d && c.available));
             ComboSlotDetail {
                 id: slot.id.clone(),
                 name: slot.name.clone(),
                 min: slot.min,
                 max: slot.max,
                 rule_label: rule_label(slot.min, slot.max, locale),
-                default_item_id: slot.default_item_id.clone(),
-                default_size_label: slot.default_size_label.clone(),
+                default_size_label: default_item_id.as_ref().and(slot.default_size_label.clone()),
+                default_item_id,
                 choices: out,
             }
         })
@@ -541,28 +629,38 @@ pub(crate) fn quote_view(
 /// teller has not seen.
 fn default_picks(
     def: &ComboDef,
+    combo_item: &MenuItemView,
     items: &[MenuItemView],
+    pricing: &PricingMirror,
     skip_slot: Option<&str>,
     fill_required: bool,
 ) -> Vec<ComboPickInput> {
+    let view = catalog_pricing::combo_view_for(def, combo_item, pricing);
     let mut out = Vec::new();
     for slot in &def.slots {
         if Some(slot.id.as_str()) == skip_slot || slot.min < 1 {
             continue;
         }
-        let admitted = |id: &str| {
-            slot.choices
-                .iter()
-                .any(|c| choice_items(c, items).iter().any(|i| i.id == id))
-        };
+        // Only what the till can sell here now: an unavailable item is
+        // never a default, nor the only choice filled in.
+        let offered: Vec<&MenuItemView> = slot
+            .choices
+            .iter()
+            .flat_map(|c| choice_items(c, items))
+            .filter(|i| sellable_in(&view, &slot.id, i, pricing))
+            .collect();
         let default = slot
             .default_item_id
             .as_deref()
-            .filter(|id| admitted(id))
+            .filter(|id| offered.iter().any(|i| i.id == *id))
             .map(|id| (id.to_string(), slot.default_size_label.clone()));
         let only = || {
-            let all: Vec<&MenuItemView> =
-                slot.choices.iter().flat_map(|c| choice_items(c, items)).collect();
+            let mut all: Vec<&MenuItemView> = Vec::new();
+            for i in &offered {
+                if !all.iter().any(|a| a.id == i.id) {
+                    all.push(i);
+                }
+            }
             match all.as_slice() {
                 [one] => Some((one.id.clone(), None)),
                 [first, ..] if fill_required => Some((first.id.clone(), None)),
@@ -583,13 +681,18 @@ fn default_picks(
 }
 
 /// The draft a new combo opens with: every slot's default.
-pub(crate) fn new_draft(def: &ComboDef, items: &[MenuItemView]) -> ComboDraft {
+pub(crate) fn new_draft(
+    def: &ComboDef,
+    combo_item: &MenuItemView,
+    items: &[MenuItemView],
+    pricing: &PricingMirror,
+) -> ComboDraft {
     ComboDraft {
         combo_id: def.id.clone(),
         line_key: None,
         qty: 1,
         notes: None,
-        picks: default_picks(def, items, None, false),
+        picks: default_picks(def, combo_item, items, pricing, None, false),
     }
 }
 
@@ -611,7 +714,7 @@ pub(crate) fn meal_draft(
     at: &At,
 ) -> Option<ComboDraft> {
     let (meal, def, combo_item) = meal_target(item, meals, combos, items, pricing, at)?;
-    let mut picks = default_picks(def, items, Some(&meal.slot_id), false);
+    let mut picks = default_picks(def, combo_item, items, pricing, Some(&meal.slot_id), false);
     picks.push(ComboPickInput {
         slot_id: meal.slot_id.clone(),
         ..pick
@@ -663,7 +766,7 @@ pub(crate) fn meal_offer(
     locale: &str,
 ) -> Option<MealOffer> {
     let (meal, def, combo_item) = meal_target(item, meals, combos, items, pricing, at)?;
-    let mut picks = default_picks(def, items, Some(&meal.slot_id), true);
+    let mut picks = default_picks(def, combo_item, items, pricing, Some(&meal.slot_id), true);
     picks.push(ComboPickInput {
         slot_id: meal.slot_id.clone(),
         item_id: item.id.clone(),
@@ -867,8 +970,24 @@ impl crate::MadarCore {
     /// The draft a fresh combo opens with: every slot's default pick.
     pub fn combo_new_draft(&self, item_id: String) -> Option<ComboDraft> {
         let catalog = self.catalog().ok()?;
-        let (def, _) = Self::combo_of(&catalog, &item_id).ok()?;
-        Some(new_draft(def, &catalog.items))
+        let (def, item) = Self::combo_of(&catalog, &item_id).ok()?;
+        Some(new_draft(def, item, &catalog.items, &catalog.pricing))
+    }
+
+    /// One tap (owner, 2026-09-27): the draft a combo with nothing to choose
+    /// goes into the cart with — exactly what the sheet would add if the
+    /// teller pressed Add straight away — or `None`: open the sheet. See
+    /// [`nothing_to_choose`]. The host saves it through `cart_add_combo`.
+    pub fn combo_one_tap_draft(&self, item_id: String) -> Option<ComboDraft> {
+        let d = self.combo_detail(item_id.clone())?;
+        if !nothing_to_choose(&d) {
+            return None;
+        }
+        let draft = self.combo_new_draft(item_id.clone())?;
+        let q = self
+            .combo_quote(None, item_id, draft.picks.clone(), draft.qty)
+            .ok()?;
+        q.complete.then_some(draft)
     }
 
     /// "Make it a meal +X" for an item (C14): `None` when it has no meal the
