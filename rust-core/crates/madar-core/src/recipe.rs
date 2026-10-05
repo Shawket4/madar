@@ -10,6 +10,10 @@
 //!      pricing rule's decision (madar-catalog), so the preview shows the cup
 //!      the line is charged for,
 //!   3. additive addons — every other addon adds its ingredients × selected qty,
+//!      and an additive line in a swap family FOLLOWS the drink's choice: an
+//!      extra shot on a cup whose beans were swapped is a shot of the swapped
+//!      bean, extra milk on an oat latte is oat (the server's rule,
+//!      `component_resolve`, which the dashboard's preview shows too),
 //!   4. optional fields that carry an ingredient deduction add their line.
 //!
 //! Pure (item + catalog + selection in, view rows out) so it's unit-testable
@@ -18,7 +22,7 @@
 
 use crate::cart::AddonSelection;
 use crate::catalog_pricing::PricingMirror;
-use crate::menu::{AddonItemView, MenuItemView, RecipeLineView};
+use crate::menu::{AddonCategories, AddonItemView, MenuItemView, RecipeLineView};
 
 /// One effective ingredient line, tagged by origin so the sheet can chip it.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
@@ -45,16 +49,22 @@ struct Row {
     is_base: bool,
     /// `None` for base rows; `Some(label)` once an addon/optional sets the tag.
     source_label: Option<String>,
+    /// The org ingredient, when known (base, swapped-in and add-on lines).
+    ingredient_id: Option<String>,
+    /// An additive add-on's line (it may follow the drink's choice).
+    additive: bool,
 }
 
 /// Compute the effective recipe for `item` given the chosen `size_label`,
 /// `addons` (id + qty) and `optional_ids`. Which option swaps what, into
 /// which ingredient, is the shared pricing rule's decision (madar-catalog, the
 /// server's): the preview shows the cup the line is charged for.
-/// `addon_catalog` supplies the additive options' ingredient quantities.
+/// `addon_catalog` supplies the additive options' ingredient quantities and
+/// `addon_categories` their ingredients' categories.
 pub(crate) fn compute_recipe(
     item: &MenuItemView,
     addon_catalog: &[AddonItemView],
+    addon_categories: &AddonCategories,
     pricing: &PricingMirror,
     size_label: Option<&str>,
     addons: &[AddonSelection],
@@ -81,6 +91,8 @@ pub(crate) fn compute_recipe(
             category: r.category.clone(),
             is_base: true,
             source_label: None,
+            ingredient_id: r.org_ingredient_id.clone(),
+            additive: false,
         })
         .collect();
 
@@ -100,11 +112,17 @@ pub(crate) fn compute_recipe(
         optionals: Vec::new(),
     };
     let priced = madar_catalog::price_options(&view, &selection).unwrap_or_default();
+    // Categories an explicit choice on this line belongs to (the server's
+    // `swap_slugs`), whether or not the choice changed the cup.
+    let mut swap_slugs: Vec<String> = Vec::new();
     for p in &priced.options {
         let Some(addon) = addon_catalog.iter().find(|a| a.id == p.id) else {
             continue;
         };
         if let Some(target) = &p.target {
+            if !swap_slugs.contains(&target.slug) {
+                swap_slugs.push(target.slug.clone());
+            }
             // The recipe's own choice, or nothing to swap in: the cup is as
             // the recipe makes it.
             if let Some(repl) = p.replacement.as_ref().filter(|_| !p.is_base) {
@@ -118,24 +136,35 @@ pub(crate) fn compute_recipe(
                     r.name = repl.name.clone();
                     r.unit = repl.unit.clone();
                     r.source_label = Some(addon.name.clone());
+                    r.ingredient_id = repl.id.clone();
                     r.is_base = false;
                 }
             }
             continue; // swap families never add a separate line
         }
 
-        // Additive addon: append each ingredient, scaled by the selected qty.
-        for ing in &addon.ingredients {
+        // Additive addon: append each ingredient, scaled by the selected qty,
+        // keeping the ingredient's OWN category (an extra shot is a
+        // coffee_bean) so the pass below can make it follow the drink.
+        let slugs = addon_categories.get(&addon.id);
+        for (i, ing) in addon.ingredients.iter().enumerate() {
+            let category = slugs
+                .and_then(|s| s.get(i).cloned().flatten())
+                .unwrap_or_else(|| "general".into());
             rows.push(Row {
                 name: ing.ingredient_name.clone(),
                 unit: ing.unit.clone(),
                 quantity: ing.quantity * p.quantity as f64,
-                category: "general".into(),
+                category,
                 is_base: false,
                 source_label: Some("addon".into()),
+                ingredient_id: ing.org_ingredient_id.clone(),
+                additive: true,
             });
         }
     }
+
+    follow_the_drink(&mut rows, &swap_slugs);
 
     // 4. Optional fields that carry an ingredient deduction.
     for oid in optional_ids {
@@ -154,6 +183,8 @@ pub(crate) fn compute_recipe(
                 category: "general".into(),
                 is_base: false,
                 source_label: Some(f.name.clone()),
+                ingredient_id: None,
+                additive: false,
             });
         }
     }
@@ -167,6 +198,48 @@ pub(crate) fn compute_recipe(
             is_base: r.is_base,
         })
         .collect()
+}
+
+/// An ADDITIVE add-on line in a swap family follows the drink's own choice,
+/// exactly as the server deducts it (`orders::component_resolve`): milk and
+/// coffee always, a custom swap family only where one of its choices was made
+/// on this line. The drink's choice is its first non-additive line of the
+/// category — the recipe's own ingredient, or what a swap put in its place.
+/// The add-on's quantity is converted into the chosen ingredient's unit
+/// (madar-units, the server's rule); across unit families the line is left as
+/// authored, as the server leaves it.
+fn follow_the_drink(rows: &mut [Row], swap_slugs: &[String]) {
+    let mut follow: Vec<&str> = vec!["milk", "coffee_bean"];
+    for s in swap_slugs {
+        if !follow.contains(&s.as_str()) {
+            follow.push(s);
+        }
+    }
+    for cat in follow {
+        let Some(chosen) = rows
+            .iter()
+            .find(|r| r.category == cat && !r.additive)
+            .map(|r| (r.ingredient_id.clone(), r.name.clone(), r.unit.clone()))
+        else {
+            continue;
+        };
+        let (id, name, unit) = chosen;
+        for r in rows.iter_mut().filter(|r| r.additive && r.category == cat) {
+            let same = match (&r.ingredient_id, &id) {
+                (Some(a), Some(b)) => a == b,
+                _ => r.name == name,
+            };
+            if same {
+                continue;
+            }
+            if let Some(q) = madar_units::convert(r.quantity, &r.unit, &unit).ok() {
+                r.quantity = q;
+                r.ingredient_id = id.clone();
+                r.name = name.clone();
+                r.unit = unit.clone();
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -272,6 +345,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[],
@@ -307,6 +381,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[oat],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[sel("a-oat", 1)],
@@ -345,6 +420,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[same],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[sel("a-whole", 1)],
@@ -378,6 +454,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[syrup],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[sel("a-syrup", 2)],
@@ -419,6 +496,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[],
@@ -447,6 +525,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[empty],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[sel("a-x", 1)],
@@ -480,6 +559,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[shot.clone(), shot],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[sel("a-shot", 1), sel("a-shot", 1)],
@@ -496,6 +576,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[],
@@ -517,6 +598,7 @@ mod tests {
         let m = compute_recipe(
             &it,
             &[],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[],
@@ -525,6 +607,7 @@ mod tests {
         let none = compute_recipe(
             &it,
             &[],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             None,
             &[],
@@ -565,6 +648,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             None,
             &[],
@@ -595,6 +679,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("XL"),
             &[],
@@ -628,6 +713,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[decaf],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[sel("a-decaf", 1)],
@@ -664,6 +750,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[oat],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[sel("a-oat", 1)],
@@ -693,6 +780,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[oat],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             None,
             &[sel("a-oat", 1)],
@@ -722,6 +810,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[oat],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[sel("a-oat", 1)],
@@ -750,6 +839,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[sel("ghost", 1)],
@@ -768,6 +858,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[],
@@ -797,6 +888,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[],
@@ -820,6 +912,7 @@ mod tests {
         let zero = compute_recipe(
             &it,
             &[syrup.clone()],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             None,
             &[sel("a-syrup", 0)],
@@ -830,6 +923,7 @@ mod tests {
         let neg = compute_recipe(
             &it,
             &[syrup],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             None,
             &[sel("a-syrup", -5)],
@@ -853,6 +947,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[combo],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             None,
             &[sel("a-combo", 2)],
@@ -898,6 +993,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[syrup],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[sel("a-syrup", 1)],
@@ -939,6 +1035,7 @@ mod tests {
         let out = compute_recipe(
             &it,
             &[oat, syrup],
+            &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             Some("M"),
             &[sel("a-oat", 1), sel("a-syrup", 1)],
@@ -948,5 +1045,160 @@ mod tests {
         assert_eq!(out[0].ingredient_name, "Oat milk"); // swapped base line, in place
         assert_eq!(out[0].source_label, "Oat");
         assert_eq!(out[1].ingredient_name, "Syrup"); // additive appended
+    }
+
+    // ── an additive line follows the drink's choice (the server's rule) ─────
+
+    fn cats(pairs: &[(&str, &[Option<&str>])]) -> AddonCategories {
+        pairs
+            .iter()
+            .map(|(id, slugs)| (id.to_string(), slugs.iter().map(|s| s.map(str::to_string)).collect()))
+            .collect()
+    }
+
+    fn house_latte() -> MenuItemView {
+        item(
+            vec![
+                recipe("House Beans", "g", 18.0, Some("M"), "coffee_bean", Some("o-house")),
+                recipe("Whole milk", "ml", 200.0, Some("M"), "milk", Some("o-whole")),
+            ],
+            vec![],
+        )
+    }
+
+    fn extra_shot() -> AddonItemView {
+        addon("a-shot", "Extra shot", "extra", vec![ing("House Beans", "g", 9.0, Some("o-house"))])
+    }
+
+    fn decaf() -> AddonItemView {
+        addon("a-decaf", "Decaf", "coffee_type", vec![ing("Decaf beans", "g", 99.0, Some("o-decaf"))])
+    }
+
+    #[test]
+    fn an_extra_shot_on_a_swapped_coffee_is_a_shot_of_the_swapped_coffee() {
+        let out = compute_recipe(
+            &house_latte(),
+            &[decaf(), extra_shot()],
+            &cats(&[("a-shot", &[Some("coffee_bean")]), ("a-decaf", &[Some("coffee_bean")])]),
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[sel("a-decaf", 1), sel("a-shot", 1)],
+            &[],
+        );
+        assert_eq!(out[0].ingredient_name, "Decaf beans", "the swap");
+        let shot = out.iter().find(|r| r.source_label == "addon").unwrap();
+        assert_eq!(shot.ingredient_name, "Decaf beans", "the shot follows the swapped coffee: {out:?}");
+        assert_eq!((shot.unit.as_str(), shot.quantity), ("g", 9.0), "its own quantity");
+        // Picked in the other order, the same cup.
+        let again = compute_recipe(
+            &house_latte(),
+            &[decaf(), extra_shot()],
+            &cats(&[("a-shot", &[Some("coffee_bean")])]),
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[sel("a-shot", 2), sel("a-decaf", 1)],
+            &[],
+        );
+        let shot = again.iter().find(|r| r.source_label == "addon").unwrap();
+        assert_eq!((shot.ingredient_name.as_str(), shot.quantity), ("Decaf beans", 18.0));
+    }
+
+    #[test]
+    fn an_extra_shot_with_no_swap_stays_the_recipes_coffee() {
+        let out = compute_recipe(
+            &house_latte(),
+            &[extra_shot()],
+            &cats(&[("a-shot", &[Some("coffee_bean")])]),
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[sel("a-shot", 1)],
+            &[],
+        );
+        let shot = out.iter().find(|r| r.source_label == "addon").unwrap();
+        assert_eq!((shot.ingredient_name.as_str(), shot.quantity), ("House Beans", 9.0));
+    }
+
+    #[test]
+    fn extra_milk_follows_a_swapped_milk_and_converts_its_unit() {
+        let oat = addon("a-oat", "Oat Milk", "milk_type", vec![ing("Oat milk", "ml", 999.0, Some("o-oat"))]);
+        let splash = addon("a-splash", "Extra milk", "extra", vec![ing("Whole milk", "l", 0.05, Some("o-whole"))]);
+        let out = compute_recipe(
+            &house_latte(),
+            &[oat, splash],
+            &cats(&[("a-splash", &[Some("milk")])]),
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[sel("a-oat", 1), sel("a-splash", 1)],
+            &[],
+        );
+        let extra = out.iter().find(|r| r.source_label == "addon").unwrap();
+        assert_eq!(extra.ingredient_name, "Oat milk");
+        assert_eq!((extra.unit.as_str(), extra.quantity), ("ml", 50.0), "0.05 l in the chosen milk's ml");
+    }
+
+    #[test]
+    fn a_line_with_no_category_or_across_unit_families_is_left_as_authored() {
+        // An older backend sends no category: nothing to follow, as before.
+        let out = compute_recipe(
+            &house_latte(),
+            &[decaf(), extra_shot()],
+            &Default::default(),
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[sel("a-decaf", 1), sel("a-shot", 1)],
+            &[],
+        );
+        let shot = out.iter().find(|r| r.source_label == "addon").unwrap();
+        assert_eq!(shot.ingredient_name, "House Beans");
+        // A shot counted in pieces cannot become grams of the chosen bean.
+        let pod = addon("a-pod", "Pod", "extra", vec![ing("House pod", "pcs", 1.0, Some("o-pod"))]);
+        let out = compute_recipe(
+            &house_latte(),
+            &[decaf(), pod],
+            &cats(&[("a-pod", &[Some("coffee_bean")])]),
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[sel("a-decaf", 1), sel("a-pod", 1)],
+            &[],
+        );
+        let pod = out.iter().find(|r| r.source_label == "addon").unwrap();
+        assert_eq!((pod.ingredient_name.as_str(), pod.unit.as_str(), pod.quantity), ("House pod", "pcs", 1.0));
+    }
+
+    #[test]
+    fn a_general_add_on_never_follows_anything() {
+        let syrup = addon("a-syrup", "Vanilla", "extra", vec![ing("Vanilla syrup", "ml", 10.0, Some("o-van"))]);
+        let out = compute_recipe(
+            &house_latte(),
+            &[decaf(), syrup],
+            &cats(&[("a-syrup", &[Some("syrup")])]),
+            &crate::catalog_pricing::PricingMirror::default(),
+            Some("M"),
+            &[sel("a-decaf", 1), sel("a-syrup", 1)],
+            &[],
+        );
+        let syrup = out.iter().find(|r| r.source_label == "addon").unwrap();
+        assert_eq!(syrup.ingredient_name, "Vanilla syrup");
+    }
+
+    #[test]
+    fn the_snapshot_reads_each_add_on_ingredients_category_from_the_synced_rows() {
+        let store = crate::store::Store::open("").unwrap();
+        store
+            .kv_put(
+                crate::menu::K_ADDONS,
+                r#"[{"id":"00000000-0000-0000-0000-00000000a501","name":"Extra shot","addon_type":"extra",
+                     "default_price":1500,"is_active":true,"ingredients":[
+                       {"ingredient_name":"House Beans","ingredient_unit":"g","quantity_used":"9.000",
+                        "org_ingredient_id":"o-house","category_slug":"coffee_bean"},
+                       {"ingredient_name":"Cup","ingredient_unit":"pcs","quantity_used":"1"}]}]"#,
+            )
+            .unwrap();
+        let c = crate::menu::addon_categories(&store).unwrap();
+        assert_eq!(
+            c["00000000-0000-0000-0000-00000000a501"],
+            vec![Some("coffee_bean".to_string()), None],
+            "in ingredient order; an older row's missing category is None"
+        );
     }
 }

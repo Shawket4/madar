@@ -243,6 +243,8 @@ struct CatalogSnapshot {
     items: Vec<menu::MenuItemView>,
     categories: Vec<menu::CategoryView>,
     addons: Vec<menu::AddonItemView>,
+    /// The add-ons' ingredient categories (see [`menu::AddonCategories`]).
+    addon_categories: menu::AddonCategories,
     unified: Option<menu::UnifiedDoc>,
     /// The menu rows' and add-on rows' `pricing` (madar-catalog's view).
     pricing: catalog_pricing::PricingMirror,
@@ -4367,6 +4369,7 @@ impl MadarCore {
         let snapshot = Arc::new(CatalogSnapshot {
             categories: menu::categories(&self.store, &locale)?,
             addons: menu::addons(&self.store, &locale)?,
+            addon_categories: menu::addon_categories(&self.store)?,
             unified,
             pricing: catalog_pricing::PricingMirror::load(&self.store),
             combos: menu::combos(&self.store, &locale)?,
@@ -4730,6 +4733,7 @@ impl MadarCore {
         Ok(recipe::compute_recipe(
             item,
             &catalog.addons,
+            &catalog.addon_categories,
             &catalog.pricing,
             size_label.as_deref(),
             &addons,

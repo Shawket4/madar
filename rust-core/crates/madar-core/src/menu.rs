@@ -359,6 +359,10 @@ struct FullAddonIngredient {
     org_ingredient_id: Option<String>,
     #[serde(default)]
     quantity_used: Value,
+    /// The ingredient's category slug (`coffee_bean`, `milk`, …; backend B12).
+    /// Absent from an older backend's rows.
+    #[serde(default)]
+    category_slug: Option<String>,
 }
 
 /// Pick the language for a value that ships as a plain pair rather than a
@@ -718,6 +722,28 @@ pub(crate) fn addons(store: &Store, locale: &str) -> CoreResult<Vec<AddonItemVie
                     org_ingredient_id: ing.org_ingredient_id.clone().filter(|s| !s.is_empty()),
                 })
                 .collect(),
+        })
+        .collect())
+}
+
+/// Each add-on's ingredient category slugs, by add-on id, in the same order as
+/// its [`AddonItemView::ingredients`] (`None` where the server sent none). Kept
+/// beside the view rather than on it: the view crosses the bridge, and the
+/// category is only the core's business (an extra shot is a `coffee_bean`, so
+/// it follows the drink's chosen bean — `recipe::compute_recipe`).
+pub(crate) type AddonCategories = std::collections::HashMap<String, Vec<Option<String>>>;
+
+pub(crate) fn addon_categories(store: &Store) -> CoreResult<AddonCategories> {
+    let items: Vec<FullAddon> = parse_kv_lenient(store, K_ADDONS)?;
+    Ok(items
+        .into_iter()
+        .map(|a| {
+            let slugs = a
+                .ingredients
+                .into_iter()
+                .map(|i| i.category_slug.filter(|s| !s.is_empty()))
+                .collect();
+            (a.id.to_string(), slugs)
         })
         .collect())
 }

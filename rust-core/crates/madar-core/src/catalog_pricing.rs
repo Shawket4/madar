@@ -503,6 +503,7 @@ mod tests {
             crate::recipe::compute_recipe(
                 item,
                 &addons,
+                &Default::default(),
                 &PricingMirror::load(&store),
                 Some(size),
                 &sels,
