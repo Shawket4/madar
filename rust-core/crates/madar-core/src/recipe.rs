@@ -12,8 +12,8 @@
 //!   3. additive addons — every other addon adds its ingredients × selected qty,
 //!      and an additive line in a swap family FOLLOWS the drink's choice: an
 //!      extra shot on a cup whose beans were swapped is a shot of the swapped
-//!      bean, extra milk on an oat latte is oat (the server's rule,
-//!      `component_resolve`, which the dashboard's preview shows too),
+//!      bean, extra milk on an oat latte is oat (madar-shared's
+//!      `madar_catalog::follow`, the rule the server deducts stock by),
 //!   4. optional fields that carry an ingredient deduction add their line.
 //!
 //! Pure (item + catalog + selection in, view rows out) so it's unit-testable
@@ -112,17 +112,11 @@ pub(crate) fn compute_recipe(
         optionals: Vec::new(),
     };
     let priced = madar_catalog::price_options(&view, &selection).unwrap_or_default();
-    // Categories an explicit choice on this line belongs to (the server's
-    // `swap_slugs`), whether or not the choice changed the cup.
-    let mut swap_slugs: Vec<String> = Vec::new();
     for p in &priced.options {
         let Some(addon) = addon_catalog.iter().find(|a| a.id == p.id) else {
             continue;
         };
         if let Some(target) = &p.target {
-            if !swap_slugs.contains(&target.slug) {
-                swap_slugs.push(target.slug.clone());
-            }
             // The recipe's own choice, or nothing to swap in: the cup is as
             // the recipe makes it.
             if let Some(repl) = p.replacement.as_ref().filter(|_| !p.is_base) {
@@ -164,7 +158,7 @@ pub(crate) fn compute_recipe(
         }
     }
 
-    follow_the_drink(&mut rows, &swap_slugs);
+    follow_the_drink(&mut rows, &madar_catalog::follow::families(&priced));
 
     // 4. Optional fields that carry an ingredient deduction.
     for oid in optional_ids {
@@ -200,44 +194,29 @@ pub(crate) fn compute_recipe(
         .collect()
 }
 
-/// An ADDITIVE add-on line in a swap family follows the drink's own choice,
-/// exactly as the server deducts it (`orders::component_resolve`): milk and
-/// coffee always, a custom swap family only where one of its choices was made
-/// on this line. The drink's choice is its first non-additive line of the
-/// category — the recipe's own ingredient, or what a swap put in its place.
-/// The add-on's quantity is converted into the chosen ingredient's unit
-/// (madar-units, the server's rule); across unit families the line is left as
-/// authored, as the server leaves it.
-fn follow_the_drink(rows: &mut [Row], swap_slugs: &[String]) {
-    let mut follow: Vec<&str> = vec!["milk", "coffee_bean"];
-    for s in swap_slugs {
-        if !follow.contains(&s.as_str()) {
-            follow.push(s);
-        }
-    }
-    for cat in follow {
-        let Some(chosen) = rows
-            .iter()
-            .find(|r| r.category == cat && !r.additive)
-            .map(|r| (r.ingredient_id.clone(), r.name.clone(), r.unit.clone()))
-        else {
-            continue;
-        };
-        let (id, name, unit) = chosen;
-        for r in rows.iter_mut().filter(|r| r.additive && r.category == cat) {
-            let same = match (&r.ingredient_id, &id) {
-                (Some(a), Some(b)) => a == b,
-                _ => r.name == name,
-            };
-            if same {
-                continue;
-            }
-            if let Some(q) = madar_units::convert(r.quantity, &r.unit, &unit).ok() {
-                r.quantity = q;
-                r.ingredient_id = id.clone();
-                r.name = name.clone();
-                r.unit = unit.clone();
-            }
+/// An ADDITIVE add-on line in a swap family follows the drink's own choice:
+/// madar-shared's rule (`madar_catalog::follow`), the one the server deducts
+/// stock by. Maps the rows onto it and its answer back; a line it cannot
+/// convert is left as authored, as the server leaves it.
+fn follow_the_drink(rows: &mut [Row], families: &[String]) {
+    let mut lines: Vec<madar_catalog::follow::DrinkLine> = rows
+        .iter()
+        .map(|r| madar_catalog::follow::DrinkLine {
+            ingredient_id: r.ingredient_id.clone(),
+            name: r.name.clone(),
+            unit: r.unit.clone(),
+            quantity: r.quantity,
+            category: r.category.clone(),
+            additive: r.additive,
+        })
+        .collect();
+    for f in madar_catalog::follow::follow_the_drink(&mut lines, families) {
+        if let madar_catalog::follow::Followed::Followed { line, .. } = f {
+            let (r, l) = (&mut rows[line], &lines[line]);
+            r.ingredient_id = l.ingredient_id.clone();
+            r.name = l.name.clone();
+            r.unit = l.unit.clone();
+            r.quantity = l.quantity;
         }
     }
 }

@@ -155,7 +155,10 @@ its outbox op commit in ONE transaction; acks fold the server's answer in.
   the crate over a view built from the mirror (`catalog_pricing.rs`, from the
   `pricing` field the server ships on every menu row and add-on row). Never add
   a swap family, a base-price or a size rule to the core; a rule change is a
-  madar-shared tag, with vectors the backend regenerates.
+  madar-shared tag, with vectors the backend regenerates. The same goes for an
+  add-on line following the drink's choice (an extra shot on a decaf latte is
+  a decaf shot): `madar_catalog::follow`, run by `recipe::compute_recipe` over
+  the add-on ingredients' `category_slug` — the rule the server deducts by.
 - **The local rows are the only read path.** No screen read waits on the network:
   it returns what the device holds at once. A till not held completely is filled
   in the background (`ledger_ops::fill_till_soon`, short timeout) and a table
