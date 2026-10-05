@@ -467,6 +467,24 @@ pub(crate) fn table_contexts_with_lines(store: &Store) -> CoreResult<Vec<String>
     Ok(out)
 }
 
+/// Every context the till knows of: the counter (`None`) and each table.
+pub(crate) fn contexts(store: &Store) -> CoreResult<Vec<Option<String>>> {
+    Ok(std::iter::once(None).chain(context_tables(store)?.into_iter().map(Some)).collect())
+}
+
+/// The held order a context's cart was resumed from, if any.
+pub(crate) fn draft_in_hand(store: &Store, ctx: Ctx<'_>) -> Option<String> {
+    meta(store, ctx).ok()?.draft_id.filter(|d| !d.is_empty())
+}
+
+/// Every held order some context's cart was resumed from.
+pub(crate) fn drafts_in_hand(store: &Store) -> CoreResult<Vec<String>> {
+    Ok(contexts(store)?
+        .iter()
+        .filter_map(|c| draft_in_hand(store, c.as_deref()))
+        .collect())
+}
+
 /// Empty EVERY context's cart and meta (sign-out, shift close).
 pub(crate) fn clear_all(store: &Store) -> CoreResult<()> {
     let tables = context_tables(store)?;
@@ -2289,10 +2307,10 @@ pub(crate) fn set_deal_cuts(
 
 // ── cart payload (the wire shape a held order carries) ───────────────────────
 //
-// A server-backed held order stores the WHOLE working cart as one opaque JSON
-// payload: the raw `StoredLine`s plus the selected discount. The backend never
-// interprets it — these functions are the only (de)serialization boundary, so
-// a payload written by any till restores bit-identically on any other.
+// A held order stores the WHOLE working cart as one opaque JSON payload: the
+// raw `StoredLine`s plus the selected discount. These functions are the only
+// (de)serialization boundary, so a payload restores bit-identically on the
+// device that parked it, across app versions.
 
 /// Snapshot the current cart (lines + discount) as the held-order payload.
 pub(crate) fn cart_payload(store: &Store, ctx: Ctx<'_>) -> CoreResult<serde_json::Value> {
@@ -2361,9 +2379,9 @@ pub(crate) fn payload_counts(payload: &serde_json::Value) -> (i64, i64) {
 
 // ── drafts (parked / held carts) ─────────────────────────────────────────────
 //
-// LEGACY device-local drafts. Superseded by the server-backed `held` module
-// (branch-shared, table-owning); these remain only so `held::migrate_legacy`
-// can lift pre-existing parked carts off a device into the new model.
+// LEGACY drafts (the first format). Superseded by the `held` module (still
+// device-local, but table-owning and attributed); these remain only so
+// `held::migrate_legacy` can lift pre-existing parked carts into it.
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct StoredDraft {
@@ -2373,9 +2391,9 @@ struct StoredDraft {
     lines: Vec<StoredLine>,
 }
 
-/// A parked cart, summarized for the drafts list. `table_*`/`locked_by_other`
-/// come from the server-backed held-order model (always unset on the legacy
-/// local path).
+/// A parked cart, summarized for the drafts list. `table_*` come from the
+/// held-order model; `locked_by_other` is kept for older hosts and is never set
+/// by a device-local queue (see `held::drafts`).
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DraftView {
@@ -2485,8 +2503,7 @@ pub(crate) fn drafts(store: &Store) -> CoreResult<Vec<DraftView>> {
     Ok(out)
 }
 
-/// Drain the LEGACY local drafts for migration into the server-backed held
-/// model: returns `(id, name, created_at, payload)` per draft and clears the
+/// Drain the LEGACY local drafts for migration into the held model: returns `(id, name, created_at, payload)` per draft and clears the
 /// legacy key, so the lift happens exactly once.
 pub(crate) fn take_legacy_drafts(
     store: &Store,

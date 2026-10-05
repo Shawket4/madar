@@ -121,6 +121,15 @@ Mirrors in `madar-core/src/held.rs`: `floor:sections`, `floor:tables`, `held:mir
 `transfers:mirror` (+ cursors). An **empty floor mirror is the feature gate** — no
 authored layout means the POS renders no canvas at all.
 
+**Held (parked) orders are device-local, not a mirror of anything.** `held:mirror`
+holds only the orders parked on THIS terminal: nothing is pulled, nothing is queued
+for the order itself, and only its table claim syncs (a `party` occupancy). Whoever
+is signed in sees, resumes and settles all of them — never filtered by person, role
+or shift (`queue.rs` rules); another till never sees them, and a till close leaves
+them parked for the next till (`held_orders_left_open`). A resumed order IS the cart
+in hand, so its claim must never outlive that cart: emptying a cart hands it back,
+firing retires it, checkout completes it, and boot runs `held::repair_mirror`.
+
 Realtime is the fast path (`floor.*`, ticket ticks); a gated poll is the fallback while
 the SSE stream is down. Both exist on purpose — don't remove the poll.
 

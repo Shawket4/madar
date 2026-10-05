@@ -1,25 +1,29 @@
-//! Server-backed held orders, the floor-layout mirror, and the transfer
-//! waitlist — the POS side of the backend's `held_orders` feature.
+//! Held (parked) orders, the floor-layout mirror, and the transfer waitlist.
 //!
-//! Three kv mirrors, all refreshed best-effort on catalog sync and after every
-//! outbox drain, all readable fully OFFLINE:
+//! Three kv mirrors, all readable fully OFFLINE:
 //!
 //! - `floor:sections` / `floor:tables` — the dashboard-authored branch layout
 //!   (geometry only; an EMPTY mirror is the feature gate: no layout → the host
-//!   renders no canvas, no table pickers, nothing changes).
-//! - `held:mirror` — the branch's held orders (this till's AND every other
-//!   till's), merged from `GET /held-orders` pulls. Local mutations update the
-//!   mirror OPTIMISTICALLY and enqueue an outbox op; the server arbitrates on
-//!   drain and the next pull reconciles (server wins, except entries with a
-//!   still-pending local op).
-//! - `transfers:mirror` — the "wants to move inside" queue, same model.
+//!   renders no canvas, no table pickers, nothing changes). Rebuilt from the
+//!   changefeed once the branch holds a full snapshot.
+//! - `held:mirror` — THIS DEVICE's held orders, and nobody else's. A parked
+//!   order is the terminal's own draft (the 5 Sep refactor): there is no
+//!   server copy, nothing is pulled and nothing is queued for the order
+//!   itself — only its claim on a table crosses the wire, as a `party`
+//!   occupancy (`hold_table` / `release_table`). Whoever is signed in on the
+//!   device sees every order on it (`queue.rs` has the person rules); another
+//!   till never does. The name "mirror" is historical: builds before the
+//!   refactor merged every till's orders from `GET /held-orders`, and
+//!   [`repair_mirror`] removes what they left behind at boot.
+//! - `transfers:mirror` — the "wants to move inside" queue. Server-backed:
+//!   local mutations apply OPTIMISTICALLY and enqueue an outbox op; the server
+//!   arbitrates on drain and the next pull reconciles (server wins, except
+//!   entries with a still-pending local op).
 //!
-//! Offline semantics mirror the backend contract: a PARK never fails on a
-//! table race (the table is dropped, flagged), interactive assignment fails
-//! loudly against the local mirror, and cross-till conflicts the mirror can't
-//! see are surfaced by the drain (dead-letter → sync-center) or silently
-//! reconciled by the next pull, depending on the op (see the drain arms in
-//! `lib.rs`).
+//! A resumed order is the cart in hand, so the strip hides it. Its claim must
+//! therefore never outlive its cart: emptying the cart hands it back (the
+//! order returns to the strip), firing the cart retires it ([`retire_local`]),
+//! checking it out completes it.
 
 use serde::{Deserialize, Serialize};
 
@@ -547,6 +551,99 @@ pub(crate) fn release_local(store: &Store, id: &str, device: &str, now: &str) ->
     Ok(())
 }
 
+/// A resumed order whose cart was FIRED to the kitchen: its lines are on the
+/// bill now, so the draft is done. Unlike [`terminate_local`] the table is
+/// left alone — the ticket that was just opened holds it (the server's
+/// `take_table` ends this till's party hold as `seated`), and busing or
+/// freeing it here would contradict the room. Idempotent; unknown is a no-op.
+pub(crate) fn retire_local(store: &Store, id: &str, now: &str) -> CoreResult<()> {
+    let mut list = load_held(store)?;
+    let Some(e) = get_mut(&mut list, id) else {
+        return Ok(());
+    };
+    if !e.is_live() {
+        return Ok(());
+    }
+    e.status = "completed".into();
+    e.table_id = None;
+    e.table_label = None;
+    e.claimed_by_device = None;
+    e.revision += 1;
+    e.updated_at = now.to_string();
+    save_held(store, &list)
+}
+
+/// What [`repair_mirror`] changed.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(crate) struct MirrorRepair {
+    /// Copies of another till's orders, pulled in by builds that still
+    /// synced held orders, removed.
+    pub dropped: u32,
+    /// This till's own claims handed back (the order returns to the strip).
+    pub released: u32,
+}
+
+/// Bring the held mirror back to what a device-local queue can hold. Run at
+/// boot, before anything reads it.
+///
+/// A parked order is this terminal's own draft (the 5 Sep refactor): only
+/// this device writes the mirror, so two kinds of entry are leftovers that no
+/// act on this till can ever resolve:
+///
+/// - **Another till's order.** Builds before the refactor pulled every till's
+///   held orders into this mirror. The till that parked one still holds it as
+///   its own, so the copy here is a duplicate: resumable on BOTH tills (the
+///   same order rung twice), or — when the other till had it open — locked
+///   for ever, unresumable and undiscardable, and still counted by every till
+///   close here. Recognised by its `device_id` (the parking device's
+///   `lan_device_id`, the same id this build stamps) or a claim held by
+///   another device. An entry with no device recorded is kept: it was this
+///   device's own pre-sync draft.
+/// - **A claim with no cart.** A resumed order is shown as the cart in hand,
+///   so the strip hides it. If that cart was emptied without handing the
+///   claim back (fixed now, but already on devices in the field), the order
+///   vanished from the strip while every close still warned about it. Its
+///   claim is given back, so it reappears parked with the cart it was parked
+///   with. `in_hand` is every draft id a cart context currently carries.
+pub(crate) fn repair_mirror(
+    store: &Store,
+    my_device: &str,
+    in_hand: &[String],
+    now: &str,
+) -> CoreResult<MirrorRepair> {
+    let mut list = load_held(store)?;
+    let mut out = MirrorRepair::default();
+    let foreign = |d: &Option<String>| matches!(d.as_deref(), Some(d) if !d.is_empty() && d != my_device);
+    list.retain(|h| {
+        if !h.is_live() {
+            return true;
+        }
+        let claimed_here = h.claimed_by_device.as_deref() == Some(my_device);
+        let theirs = (h.status == "resumed" && foreign(&h.claimed_by_device))
+            || (foreign(&h.device_id) && !claimed_here);
+        if theirs {
+            out.dropped += 1;
+        }
+        !theirs
+    });
+    for h in list.iter_mut() {
+        // Resumed by this device (or by nobody recorded, which no device could
+        // ever resume again) but in no cart: hand it back.
+        let mine_or_nobodys = h.claimed_by_device.as_deref().is_none_or(|d| d.is_empty() || d == my_device);
+        if h.status == "resumed" && mine_or_nobodys && !in_hand.iter().any(|d| d == &h.id) {
+            h.status = "held".into();
+            h.claimed_by_device = None;
+            h.revision += 1;
+            h.updated_at = now.to_string();
+            out.released += 1;
+        }
+    }
+    if out != MirrorRepair::default() {
+        save_held(store, &list)?;
+    }
+    Ok(out)
+}
+
 /// Tombstone locally (`discarded` / `completed`), hand the table on, and
 /// cancel the party's waiting transfer, mirroring the server walk.
 pub(crate) fn terminate_local(
@@ -1017,10 +1114,12 @@ pub(crate) fn set_table_state_local(
 
 // ── Views ────────────────────────────────────────────────────────────────────
 
-/// The strip/list of parked orders: every live held order in the branch,
-/// EXCEPT the one this till itself is editing (that IS the live cart). Orders
-/// resumed on other tills render locked. Newest first (legacy order — the
-/// host strip re-sorts oldest→newest by `created_at`).
+/// The strip/list of parked orders: every live held order on this device,
+/// EXCEPT the one this till itself is editing (that IS the live cart).
+/// `locked_by_other` is kept on the view for older hosts; with a device-local
+/// queue (and [`repair_mirror`] at boot) nothing reaches it any more. Newest
+/// first (legacy order — the host strip re-sorts oldest→newest by
+/// `created_at`).
 pub(crate) fn drafts(store: &Store, my_device: &str, me: &str) -> CoreResult<Vec<cart::DraftView>> {
     let mut live: Vec<HeldWire> = load_held(store)?
         .into_iter()
@@ -1768,4 +1867,113 @@ mod tests {
 
     const T0: &str = "2026-09-12T18:00:00Z";
     const T1: &str = "2026-09-12T18:45:00Z";
+
+    // ── repair_mirror / retire_local ─────────────────────────────────────────
+
+    fn put(s: &Store, id: &str, status: &str, device: Option<&str>, claim: Option<&str>) {
+        let mut list = load_held(s).unwrap();
+        list.push(HeldWire {
+            id: id.into(),
+            branch_id: "b".into(),
+            table_id: None,
+            table_label: None,
+            name: id.into(),
+            cart: payload(1),
+            status: status.into(),
+            device_id: device.map(str::to_string),
+            claimed_by_device: claim.map(str::to_string),
+            revision: 1,
+            created_at: "t0".into(),
+            updated_at: "t0".into(),
+            created_by: None,
+            created_by_name: None,
+        });
+        save_held(s, &list).unwrap();
+    }
+
+    fn ids_and_status(s: &Store) -> Vec<(String, String)> {
+        load_held(s).unwrap().into_iter().map(|h| (h.id, h.status)).collect()
+    }
+
+    #[test]
+    fn repair_drops_other_tills_copies_and_keeps_this_tills_own() {
+        let s = store();
+        put(&s, "own", "held", Some("me"), None);
+        put(&s, "pre-sync", "held", None, None);
+        put(&s, "blank-device", "held", Some(""), None);
+        put(&s, "theirs", "held", Some("dev-b"), None);
+        put(&s, "theirs-open", "resumed", Some("dev-b"), Some("dev-b"));
+        put(&s, "mine-taken", "resumed", Some("me"), Some("dev-b"));
+        // Another till's order this till took and still has in its cart: it
+        // is being worked HERE, and the next park stamps it as this device's.
+        put(&s, "theirs-in-hand", "resumed", Some("dev-b"), Some("me"));
+        put(&s, "gone", "completed", Some("dev-b"), None);
+
+        let r = repair_mirror(&s, "me", &["theirs-in-hand".to_string()], "t9").unwrap();
+
+        assert_eq!(r, MirrorRepair { dropped: 3, released: 0 });
+        let ids: Vec<String> = ids_and_status(&s).into_iter().map(|(i, _)| i).collect();
+        assert_eq!(ids, ["own", "pre-sync", "blank-device", "theirs-in-hand", "gone"]);
+    }
+
+    #[test]
+    fn repair_hands_back_a_claim_whose_cart_is_gone_and_keeps_the_one_in_hand() {
+        let s = store();
+        put(&s, "orphan", "resumed", Some("me"), Some("me"));
+        put(&s, "in-hand", "resumed", Some("me"), Some("me"));
+        put(&s, "unclaimed", "resumed", Some("me"), None);
+
+        let r = repair_mirror(&s, "me", &["in-hand".to_string()], "t9").unwrap();
+
+        assert_eq!(r, MirrorRepair { dropped: 0, released: 2 });
+        assert_eq!(
+            ids_and_status(&s),
+            [
+                ("orphan".to_string(), "held".to_string()),
+                ("in-hand".to_string(), "resumed".to_string()),
+                ("unclaimed".to_string(), "held".to_string()),
+            ]
+        );
+        let orphan = get(&s, "orphan").unwrap().unwrap();
+        assert_eq!(orphan.claimed_by_device, None);
+        assert_eq!((orphan.revision, orphan.updated_at.as_str()), (2, "t9"));
+        // The cart it was parked with is untouched.
+        assert_eq!(orphan.cart, payload(1));
+        // A handed-back order resumes again on this device.
+        claim_local(&s, "orphan", "me", "t10").unwrap();
+    }
+
+    #[test]
+    fn repair_is_idempotent_and_writes_nothing_on_a_healthy_mirror() {
+        let s = store();
+        put(&s, "own", "held", Some("me"), None);
+        put(&s, "in-hand", "resumed", Some("me"), Some("me"));
+        let before = s.kv_get(K_HELD_MIRROR).unwrap();
+        let r = repair_mirror(&s, "me", &["in-hand".to_string()], "t9").unwrap();
+        assert_eq!(r, MirrorRepair::default());
+        assert_eq!(s.kv_get(K_HELD_MIRROR).unwrap(), before);
+        // An empty mirror is fine too.
+        assert_eq!(repair_mirror(&store(), "me", &[], "t9").unwrap(), MirrorRepair::default());
+    }
+
+    #[test]
+    fn retiring_a_fired_draft_completes_it_and_leaves_its_table_alone() {
+        let s = store();
+        seed_floor(&s);
+        park_local(&s, "h1", "b", "Booth", payload(1), Some("t1".into()), "me", "t0").unwrap();
+        claim_local(&s, "h1", "me", "t1").unwrap();
+        let table_before = load_tables(&s).unwrap().into_iter().find(|t| t.id == "t1").unwrap().status;
+
+        retire_local(&s, "h1", "t2").unwrap();
+
+        let h = get(&s, "h1").unwrap().unwrap();
+        assert_eq!(h.status, "completed");
+        assert_eq!((h.table_id, h.claimed_by_device), (None, None));
+        let table_after = load_tables(&s).unwrap().into_iter().find(|t| t.id == "t1").unwrap().status;
+        assert_eq!(table_after, table_before, "the fired ticket holds the table, not a bus or a free");
+        // Idempotent, and a no-op for an order this till never had.
+        retire_local(&s, "h1", "t3").unwrap();
+        assert_eq!(get(&s, "h1").unwrap().unwrap().revision, h.revision);
+        retire_local(&s, "nope", "t3").unwrap();
+    }
 }

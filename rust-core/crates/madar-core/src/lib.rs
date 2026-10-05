@@ -502,6 +502,14 @@ impl MadarCore {
                 id
             }
         };
+        // The held queue is this device's own: drop the copies of other tills'
+        // orders that pre-refactor builds pulled in, and hand back any claim
+        // whose cart is gone (see `held::repair_mirror`). Local, idempotent,
+        // and before anything reads the strip or a close preflight.
+        if let Ok(in_hand) = cart::drafts_in_hand(&store) {
+            let now = (chrono::Utc::now() + chrono::Duration::seconds(skew)).to_rfc3339();
+            let _ = held::repair_mirror(&store, &device_id, &in_hand, &now);
+        }
         let api = net::ApiClient::with_device(
             config.base_url.clone(),
             clock_skew_secs.clone(),
@@ -841,6 +849,13 @@ impl MadarCore {
         // A teller switch keeps the queue (queue.rs rule 1): every cart in hand
         // is parked under its author first — still under the outgoing session,
         // so the park is attributed to them — and only the empty ones are reset.
+        // An emptied cart still naming the held order it was resumed from
+        // hands that order back before its meta is reset.
+        for ctx in cart::contexts(&self.store).unwrap_or_default() {
+            if cart::lines(&self.store, ctx.as_deref()).is_ok_and(|l| l.is_empty()) {
+                self.release_draft_in(ctx.as_deref());
+            }
+        }
         let _ = cart::clear_empty(&self.store);
         let _ = till::set_active_user(&self.store, None);
         if wipe_outbox {
@@ -4749,8 +4764,13 @@ impl MadarCore {
         let lines = cart::restore_last_removed(&self.store, table_id.as_deref())?;
         self.lines_with_staff_marks_settled(table_id.as_deref(), lines)
     }
-    /// Empty one context's cart + meta (other contexts are untouched).
+    /// Empty one context's cart + meta (other contexts are untouched). A cart
+    /// resumed from a held order hands its claim back first, so the order
+    /// returns to the strip as it was parked: emptying a cart is never a
+    /// discard (that is its own act, gated by `orders.void`).
     pub fn cart_clear(&self, table_id: Option<String>) -> Result<(), CoreError> {
+        let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
+        self.release_draft_in(table_id.as_deref());
         cart::clear(&self.store, table_id.as_deref())
     }
     /// The cart meta of one context (`None` = takeaway): its name, the parked
@@ -4771,15 +4791,51 @@ impl MadarCore {
     pub fn cart_table_contexts(&self) -> Result<Vec<String>, CoreError> {
         cart::table_contexts_with_lines(&self.store)
     }
-    /// Empty EVERY context's cart and meta (sign-out / shift close).
+    /// Empty EVERY context's cart and meta (sign-out / shift close). Held
+    /// orders resumed into any of them go back to the strip (see `cart_clear`).
     pub fn cart_clear_all(&self) -> Result<(), CoreError> {
+        let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
+        for ctx in cart::contexts(&self.store)? {
+            self.release_draft_in(ctx.as_deref());
+        }
         cart::clear_all(&self.store)
     }
-    // ── held orders (server-backed parked carts, branch-shared) ───────────
+
+    /// Hand back the claim a context's cart holds on the held order it was
+    /// resumed from. Call it before the cart (and with it the meta naming the
+    /// draft) is emptied: a claim with no cart hides the order from the strip
+    /// while every till close still counts it. A no-op when the cart came from
+    /// no draft, or the draft is no longer claimed here.
+    fn release_draft_in(&self, ctx: cart::Ctx<'_>) {
+        if let Some(id) = cart::draft_in_hand(&self.store, ctx) {
+            let now = self.corrected_now().to_rfc3339();
+            let _ = held::release_local(&self.store, &id, &self.lan_device_id(), &now);
+        }
+    }
+
+    /// The cart of `ctx` was fired to the kitchen: the held order it was
+    /// resumed from is done (its lines are on the bill). Call it before the
+    /// cart is emptied. The fired ticket now holds the cart's table; a hold the
+    /// draft had on some OTHER table is given back.
+    fn retire_draft_in(&self, ctx: cart::Ctx<'_>) -> Result<(), CoreError> {
+        let Some(id) = cart::draft_in_hand(&self.store, ctx) else {
+            return Ok(());
+        };
+        let was_on = self.draft_table(&id);
+        held::retire_local(&self.store, &id, &self.corrected_now().to_rfc3339())?;
+        let fired_on = ctx.filter(|t| !t.is_empty()).map(str::to_string);
+        if was_on.is_some() && was_on != fired_on {
+            self.sync_hold_occupancy(was_on, None, false)?;
+        }
+        Ok(())
+    }
+    // ── held orders (parked carts, device-local) ───────────────────────────
     //
-    // The old device-local drafts became first-class backend entities that own
-    // floor tables. Every mutation is optimistic-local (the `held` mirror) plus
-    // a queued `/sync/replay` op — same offline-first walk as orders/tickets.
+    // A parked order lives only on the terminal that parked it (`held.rs`):
+    // every mutation is a local write to the held mirror, nothing is queued
+    // for the order itself, and only its claim on a floor table is synced
+    // (`sync_hold_occupancy`). Whoever is signed in sees and resumes all of
+    // them (`queue.rs`).
 
     /// Park the current cart as a held order (no table). `draft_id`/`started_at`
     /// keep a re-parked (previously restored) draft's identity + strip position.
@@ -4992,9 +5048,9 @@ impl MadarCore {
         Ok(conflict)
     }
 
-    /// The branch's parked orders (every till's), newest first. Orders being
-    /// edited on another till come back `locked_by_other`. Also lifts any
-    /// pre-upgrade device-local drafts into the shared model (once).
+    /// This device's parked orders, newest first, for whoever is signed in
+    /// (never filtered by person, role or shift). Another till's orders are
+    /// never here. Also lifts any pre-upgrade drafts into the model (once).
     pub fn list_drafts(&self) -> Result<Vec<cart::DraftView>, CoreError> {
         self.migrate_legacy_drafts();
         let me = self.current_session().map(|s| s.user_id).unwrap_or_default();
@@ -7083,7 +7139,14 @@ impl MadarCore {
             }
             Ok(())
         })?;
-        // The sale is committed locally; the cart is now spent.
+        // The sale is committed locally; the cart is now spent. A held order
+        // it was resumed from is completed HERE, with the sale, not only by the
+        // host's `complete_draft` afterwards (which is then a no-op): a crash
+        // between the two would otherwise leave the claim without its cart,
+        // and the boot repair would hand a SOLD order back to the strip.
+        if let Some(id) = cart::draft_in_hand(&self.store, table_id.as_deref()) {
+            let _ = self.complete_draft(id, None);
+        }
         cart::clear(&self.store, table_id.as_deref())?;
         // The counter's other till must not spend the same drink: the peers
         // hear each one now. No replay op of its own — the drink rides the
@@ -8439,6 +8502,8 @@ impl MadarCore {
             till_id: None, // the waiter holds no shift
             ..Default::default()
         })?;
+        // A held order resumed onto this table is on the bill now.
+        let _ = self.retire_draft_in(table_id.as_deref());
         cart::clear(&self.store, table_id.as_deref())?;
         // Instant LAN delivery → the KDS sees the fire NOW. `data` is a projection of
         // the ticket with the SAME derived ids the server will mint (so it dedups on
@@ -8511,6 +8576,8 @@ impl MadarCore {
             till_id: None,
             ..Default::default()
         })?;
+        // A held order resumed onto this table is on the bill now.
+        let _ = self.retire_draft_in(table_id.as_deref());
         cart::clear(&self.store, table_id.as_deref())?;
         // Instant LAN delivery of the new round — its own kitchen ticket (derived
         // from THIS round's id), projected for offline visibility + a mirror envelope.

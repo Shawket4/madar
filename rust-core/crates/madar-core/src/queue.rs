@@ -59,6 +59,16 @@
 //!    included. The till's open drawer is device state and stays, as before;
 //!    the realtime stream, the bearer and the session are still torn down on
 //!    every sign-out.
+//! 9. **A claim never outlives its cart.** A resumed order IS the cart in
+//!    hand, so the strip hides it. Emptying that cart — Clear, clearing every
+//!    cart, a switch emptying a table cart, a sign-out resetting an emptied
+//!    one — hands the claim back and the order returns to the strip as it was
+//!    parked (emptying is never a discard; rule 6 still gates that). Firing
+//!    the cart to the kitchen retires it (its lines are on the bill now) and
+//!    checking it out completes it. At boot `held::repair_mirror` hands back
+//!    any claim already stranded and drops copies of other tills' orders that
+//!    builds before the device-local queue pulled in. The close warning lists
+//!    a resumed counter order once, as the cart in hand.
 
 use madar_authz::{Cap, Decision, Why};
 
@@ -308,6 +318,8 @@ impl MadarCore {
         let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
         // Tables first (rule 4a): nothing person-scoped survives on a table.
         for t in cart::table_contexts_with_lines(&self.store).unwrap_or_default() {
+            // A held order resumed onto the table goes back on the strip.
+            self.release_draft_in(Some(&t));
             let _ = cart::clear(&self.store, Some(&t));
         }
         if cart::lines(&self.store, None).map(|l| l.is_empty()).unwrap_or(true) {
@@ -334,10 +346,16 @@ impl MadarCore {
         let locale = self.current_locale();
         let (me, _) = self.me();
         let this_order = crate::i18n::tr(&locale, "drafts.this_order");
+        // The counter cart, when it holds lines, is listed below as the order
+        // in hand. If it was resumed from a held order, that order is the same
+        // order (its parked copy is stale): listing both counted it twice.
+        let counter_lines = cart::lines(&self.store, None).unwrap_or_default();
+        let in_hand_draft = cart::draft_in_hand(&self.store, None).filter(|_| !counter_lines.is_empty());
         let mut held: Vec<HeldLeftOpenView> = held::load_held(&self.store)
             .unwrap_or_default()
             .into_iter()
             .filter(|h| h.is_live())
+            .filter(|h| in_hand_draft.as_deref() != Some(h.id.as_str()))
             .map(|h| {
                 let (item_count, total_minor) = cart::payload_counts(&h.cart);
                 let label = [Some(h.name.clone()), h.table_label.clone()]
@@ -357,19 +375,18 @@ impl MadarCore {
                 }
             })
             .collect();
-        if let Ok(lines) = cart::lines(&self.store, None) {
-            if !lines.is_empty() {
-                let meta = cart::meta(&self.store, None).unwrap_or_default();
-                let (author, author_name) = self.cart_author(None);
-                held.push(HeldLeftOpenView {
-                    id: meta.draft_id.clone().unwrap_or_default(),
-                    label: Some(meta.name).filter(|n| !n.trim().is_empty()).unwrap_or_else(|| this_order.clone()),
-                    started_by_name: (author != me).then_some(author_name),
-                    item_count: lines.iter().map(|l| l.qty).sum(),
-                    total_minor: lines.iter().map(|l| l.line_total_minor).sum(),
-                    in_hand: true,
-                });
-            }
+        if !counter_lines.is_empty() {
+            let lines = counter_lines;
+            let meta = cart::meta(&self.store, None).unwrap_or_default();
+            let (author, author_name) = self.cart_author(None);
+            held.push(HeldLeftOpenView {
+                id: meta.draft_id.clone().unwrap_or_default(),
+                label: Some(meta.name).filter(|n| !n.trim().is_empty()).unwrap_or_else(|| this_order.clone()),
+                started_by_name: (author != me).then_some(author_name),
+                item_count: lines.iter().map(|l| l.qty).sum(),
+                total_minor: lines.iter().map(|l| l.line_total_minor).sum(),
+                in_hand: true,
+            });
         }
         let count = held.len() as i64;
         ClosePreflightView {
@@ -414,10 +431,26 @@ mod tests {
     /// A device with three people in its bundle: two tellers and a manager
     /// (PIN 9999) whose grants the feed carries.
     fn device() -> Arc<MadarCore> {
+        device_at("")
+    }
+
+    /// The same device over a store on disk, so a test can boot it again.
+    fn open_at(path: &str) -> Arc<MadarCore> {
+        MadarCore::new(MadarConfig {
+            base_url: "http://127.0.0.1:1".into(),
+            environment: "dev".into(),
+            db_path: path.into(),
+            locale: "en".into(),
+            app_version: None,
+        })
+        .unwrap()
+    }
+
+    fn device_at(path: &str) -> Arc<MadarCore> {
         let core = MadarCore::new(MadarConfig {
             base_url: "http://127.0.0.1:1".into(),
             environment: "dev".into(),
-            db_path: String::new(),
+            db_path: path.into(),
             locale: "en".into(),
             app_version: None,
         })
@@ -786,5 +819,243 @@ mod tests {
         sign_in(&core, BADR, "Badr", &["orders.void"]);
         assert!(!core.list_drafts().unwrap()[0].by_other);
         assert_eq!(core.decide_draft_act("discard".into(), id).outcome, "allow");
+    }
+
+    // ── a held order is never stranded by its own cart ──────────────────────
+
+    fn status_of(core: &MadarCore, id: &str) -> String {
+        held::get(&core.store, id).unwrap().unwrap().status
+    }
+
+    fn strip(core: &MadarCore) -> Vec<String> {
+        core.list_drafts().unwrap().into_iter().map(|d| d.name).collect()
+    }
+
+    #[test]
+    fn clearing_a_resumed_cart_puts_the_order_back_on_the_strip() {
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let id = park(&core, "Window");
+        core.switch_to_draft(None, id.clone(), None, None).unwrap();
+        assert!(strip(&core).is_empty(), "in hand, so not on the strip");
+        put_line(&core, None, "Extra");
+
+        core.cart_clear(None).unwrap();
+
+        assert_eq!(strip(&core), vec!["Window".to_string()], "back on the strip, not gone");
+        assert_eq!(status_of(&core, &id), "held");
+        let d = &core.list_drafts().unwrap()[0];
+        assert!(!d.locked_by_other);
+        assert_eq!(d.item_count, 1, "as it was parked: the cleared lines were never parked");
+        // The strip and the close warning agree.
+        assert_eq!(core.close_preflight().held_count, 1);
+        core.switch_to_draft(None, id, None, None).expect("and it resumes again");
+    }
+
+    #[test]
+    fn clearing_every_cart_puts_each_resumed_order_back() {
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let id = park(&core, "Counter");
+        core.switch_to_draft(None, id.clone(), None, None).unwrap();
+
+        core.cart_clear_all().unwrap();
+
+        assert_eq!(status_of(&core, &id), "held");
+        assert_eq!(strip(&core), vec!["Counter".to_string()]);
+    }
+
+    #[test]
+    fn clearing_a_cart_that_came_from_no_held_order_touches_no_held_order() {
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let id = park(&core, "Parked");
+        put_line(&core, None, "Fresh");
+        core.cart_clear(None).unwrap();
+        assert_eq!(status_of(&core, &id), "held");
+        assert_eq!(strip(&core), vec!["Parked".to_string()]);
+    }
+
+    #[test]
+    fn a_switch_puts_an_order_resumed_onto_a_table_back_on_the_strip() {
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let id = park(&core, "Table four");
+        let mut list = held::load_held(&core.store).unwrap();
+        list[0].table_id = Some("t-4".into());
+        core.store.kv_put(held::K_HELD_MIRROR, &serde_json::to_string(&list).unwrap()).unwrap();
+        let landed = core.switch_to_draft(None, id.clone(), None, None).unwrap();
+        assert_eq!(landed.table_id.as_deref(), Some("t-4"), "into its own table's cart");
+
+        // Rule 4a empties the table cart at a switch; the order must survive it.
+        core.logout(false).unwrap();
+        sign_in(&core, BADR, "Badr", &[]);
+
+        assert_eq!(status_of(&core, &id), "held");
+        assert_eq!(strip(&core), vec!["Table four".to_string()]);
+    }
+
+    #[test]
+    fn a_switch_after_emptying_a_resumed_cart_line_by_line_keeps_the_order() {
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let id = park(&core, "Emptied");
+        core.switch_to_draft(None, id.clone(), None, None).unwrap();
+        cart::set_cart_payload(&core.store, None, &serde_json::json!({ "lines": [] })).unwrap();
+
+        core.logout(false).unwrap();
+        sign_in(&core, BADR, "Badr", &[]);
+
+        assert_eq!(status_of(&core, &id), "held");
+        assert_eq!(strip(&core), vec!["Emptied".to_string()]);
+    }
+
+    #[test]
+    fn boot_repairs_a_mirror_left_by_older_builds() {
+        let dir = std::env::temp_dir().join(format!("madar-held-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("core.db").to_string_lossy().to_string();
+        let me;
+        {
+            let core = device_at(&path);
+            sign_in(&core, ALI, "Ali", &[]);
+            me = core.lan_device_id();
+            let own = park(&core, "Own");
+            let orphan = park(&core, "Orphan");
+            let in_hand = park(&core, "In hand");
+            core.switch_to_draft(None, in_hand, None, None).unwrap();
+            let mut list = held::load_held(&core.store).unwrap();
+            for h in list.iter_mut() {
+                if h.id == orphan {
+                    // Resumed here, then its cart emptied by a build that did
+                    // not hand the claim back.
+                    h.status = "resumed".into();
+                    h.claimed_by_device = Some(me.clone());
+                }
+            }
+            let template = list.iter().find(|h| h.id == own).unwrap().clone();
+            let entry = |id: &str, name: &str, status: &str, device: Option<&str>, claim: Option<&str>| {
+                let mut e = template.clone();
+                e.id = id.into();
+                e.name = name.into();
+                e.status = status.into();
+                e.device_id = device.map(str::to_string);
+                e.claimed_by_device = claim.map(str::to_string);
+                e
+            };
+            list.push(entry("x1", "Other till parked", "held", Some("dev-other"), None));
+            list.push(entry("x2", "Other till open", "resumed", Some("dev-other"), Some("dev-other")));
+            list.push(entry("x3", "Mine, taken by another", "resumed", Some(&me), Some("dev-other")));
+            list.push(entry("x4", "Pre-sync draft", "held", None, None));
+            core.store.kv_put(held::K_HELD_MIRROR, &serde_json::to_string(&list).unwrap()).unwrap();
+        }
+
+        let core = open_at(&path);
+        assert_eq!(core.lan_device_id(), me, "the same device");
+        sign_in(&core, ALI, "Ali", &[]);
+        let mut names = strip(&core);
+        names.sort();
+        assert_eq!(
+            names,
+            vec!["Orphan".to_string(), "Own".to_string(), "Pre-sync draft".to_string()],
+            "other tills' copies gone; the orphan back; the one in hand still in hand"
+        );
+        assert!(core.list_drafts().unwrap().iter().all(|d| !d.locked_by_other), "no chip locked for ever");
+        assert_eq!(core.close_preflight().held_count, 4, "the strip's three plus the one in hand");
+        assert_eq!(core.cart_lines(None).unwrap()[0].name, "In hand");
+        // A second boot changes nothing.
+        let before = core.store.kv_get(held::K_HELD_MIRROR).unwrap();
+        drop(core);
+        let core = open_at(&path);
+        assert_eq!(core.store.kv_get(held::K_HELD_MIRROR).unwrap(), before);
+        drop(core);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn firing_an_order_resumed_onto_a_table_retires_it_and_keeps_the_table() {
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let table = "00000000-0000-0000-0000-0000000000d4";
+        let id = park(&core, "Booth");
+        let mut list = held::load_held(&core.store).unwrap();
+        list[0].table_id = Some(table.into());
+        core.store.kv_put(held::K_HELD_MIRROR, &serde_json::to_string(&list).unwrap()).unwrap();
+        core.switch_to_draft(None, id.clone(), None, None).unwrap();
+        let releases = |core: &MadarCore| {
+            core.store.pending().unwrap().into_iter().filter(|o| o.op_type == "release_table").count()
+        };
+        let before = releases(&core);
+
+        core.fire_ticket(Some(table.into()), None, None, None, None, None).await.unwrap();
+
+        assert_eq!(status_of(&core, &id), "completed", "its lines are on the bill");
+        assert!(strip(&core).is_empty());
+        assert_eq!(core.close_preflight().held_count, 0, "no ghost at the close");
+        assert_eq!(releases(&core), before, "the ticket holds the table: nothing gives it back");
+    }
+
+    #[test]
+    fn the_close_warning_lists_a_resumed_counter_order_once_with_its_current_lines() {
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let id = park(&core, "Resumed");
+        core.switch_to_draft(None, id.clone(), None, None).unwrap();
+        core.cart_add(None, "item-more".into(), "More".into(), 3000).unwrap();
+        let in_cart: i64 = core.cart_lines(None).unwrap().iter().map(|l| l.line_total_minor).sum();
+
+        let p = core.close_preflight();
+
+        assert_eq!(p.held_count, 1, "one order, not its parked copy and its cart: {:?}", p.held);
+        assert!(p.held[0].in_hand);
+        assert_eq!(p.held[0].id, id);
+        assert_eq!(p.held_total_minor, in_cart, "what is in the cart now");
+    }
+
+    #[tokio::test]
+    async fn checking_out_a_resumed_order_completes_it_with_the_sale() {
+        let core = crate::testkit::offline_core("http://127.0.0.1:1", "").await;
+        core.store
+            .kv_put(
+                crate::menu::K_PAYMENT_METHODS,
+                r#"[{"id":"00000000-0000-0000-0000-0000000000e1","name":"Cash","is_cash":true,"is_active":true,"created_at":"2026-01-01T00:00:00Z"}]"#,
+            )
+            .unwrap();
+        core.cart_add(None, "c".into(), "Cookie".into(), 300).unwrap();
+        core.hold_cart(None, "Regular".into(), None, None).unwrap();
+        let id = core.list_drafts().unwrap()[0].id.clone();
+        core.switch_to_draft(None, id.clone(), None, None).unwrap();
+        core.open_till(0, None).await.unwrap();
+
+        core.checkout(
+            None,
+            crate::checkout::CheckoutInput {
+                payment_method_id: "00000000-0000-0000-0000-0000000000e1".into(),
+                amount_tendered_minor: 10_000,
+                tip_minor: 0,
+                tip_payment_method_id: None,
+                customer_name: None,
+                notes: None,
+                splits: vec![],
+                loyalty_customer_id: None,
+                dine_in: false,
+                customer_id: None,
+                loyalty_redemptions: vec![],
+            },
+        )
+        .await
+        .unwrap();
+
+        // Completed by the sale itself, so no crash before the host's
+        // `complete_draft` can strand it — and the boot repair, which hands
+        // stranded claims back, can never offer a sold order again.
+        assert_eq!(status_of(&core, &id), "completed");
+        let in_hand = cart::drafts_in_hand(&core.store).unwrap();
+        let r = held::repair_mirror(&core.store, &core.lan_device_id(), &in_hand, "t9").unwrap();
+        assert_eq!(r, held::MirrorRepair::default());
+        assert!(strip(&core).is_empty());
+        // The host's own call afterwards is a harmless no-op.
+        core.complete_draft(id.clone(), None).unwrap();
+        assert_eq!(status_of(&core, &id), "completed");
     }
 }
