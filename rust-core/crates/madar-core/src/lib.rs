@@ -6218,6 +6218,10 @@ impl MadarCore {
     }
 }
 
+/// The backend's wrong-branch PIN refusal, as servers before its
+/// `PIN_WRONG_BRANCH` code send it (`MadarRust/src/auth/handlers.rs`).
+const WRONG_BRANCH_SENTENCE: &str = "You can't sign in at a till in this branch";
+
 #[cfg_attr(feature = "uniffi-ffi", uniffi::export(async_runtime = "tokio"))]
 impl MadarCore {
     /// Online login (PIN or email). Mints a bearer, mirrors permissions, caches
@@ -6261,7 +6265,7 @@ impl MadarCore {
                     let until = chrono::Utc::now().timestamp() + secs;
                     let _ = self.store.kv_put(K_PIN_BLOCKED_UNTIL, &until.to_string());
                 }
-                return Err(e);
+                return Err(self.sign_in_refusal(e).await);
             }
         };
         let resp: madar_api::models::LoginResponse =
@@ -6352,6 +6356,42 @@ impl MadarCore {
         // will mint (identical post-checkout + reprint receipts). Best-effort.
         let _ = self.cache_numbering_context().await;
         Ok(snapshot)
+    }
+
+    /// A refused sign-in, worded so the person reads WHY. Every 403 used to show
+    /// as one "You don't have permission to do that", which hid a paused
+    /// business, a correct PIN at the wrong branch and a device the dashboard had
+    /// moved behind the same sentence, and sent a shop hunting for a missing
+    /// grant. Not a 403 → unchanged.
+    async fn sign_in_refusal(&self, e: CoreError) -> CoreError {
+        let CoreError::Forbidden { resource, action } = e else { return e };
+        let locale = self.current_locale();
+        // An older backend sends the wrong-branch refusal without its code.
+        let code = match resource.as_str() {
+            "api" if action.trim() == WRONG_BRANCH_SENTENCE => "PIN_WRONG_BRANCH",
+            r => r,
+        }
+        .to_string();
+        let key = match code.as_str() {
+            "ORG_SUSPENDED" => "login.org_suspended",
+            "OWNER_PIN_NEEDS_UPDATE" => "login.owner_needs_update",
+            // The device's binding may be what is wrong, not the person: the
+            // dashboard moved the tablet and nothing told it.
+            "PIN_WRONG_BRANCH" if self.device_moved_elsewhere().await => {
+                return CoreError::Forbidden {
+                    resource: "DEVICE_MOVED".into(),
+                    action: i18n::tr(&locale, "login.device_moved"),
+                };
+            }
+            "PIN_WRONG_BRANCH" => "login.wrong_branch",
+            // Our backend refused with a sentence of its own: show it rather
+            // than a bare "no permission".
+            "api" if !action.trim().is_empty() => {
+                return CoreError::Forbidden { resource: "LOGIN_REFUSED".into(), action };
+            }
+            _ => return CoreError::Forbidden { resource, action },
+        };
+        CoreError::Forbidden { resource: code, action: i18n::tr(&locale, key) }
     }
 
     /// Cache the branch code + IANA timezone (from `get_branch`) so an OFFLINE
@@ -9543,6 +9583,14 @@ mod tests {
             ),
             SendOutcome::Refused(_)
         ));
+        // ...but a 403 a firewall or WAF sent in our backend's place is not a
+        // refusal: the sale waits and goes again, like any other blocked link.
+        for idem in [Idem::No, Idem::Yes, Idem::VoidIdem] {
+            assert!(matches!(
+                classify_send(net::status_to_error(403, "<html>Access denied</html>"), idem),
+                SendOutcome::Offline
+            ));
+        }
         // 409: order/open NOT recorded → dead; void/close already-applied → ack.
         assert!(dead(&classify_send(srv(409), Idem::No)));
         assert!(ack(&classify_send(srv(409), Idem::Yes)));

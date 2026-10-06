@@ -7,6 +7,11 @@ import 'package:rust_bridge/src/generated/api/error.dart';
 extension MadarErrorMessage on MadarBridge {
   String humanMessage(MadarError e) {
     return switch (e) {
+      // A firewall or WAF answering in the server's place reaches the core as
+      // Offline with its own detail: say that, not "not set up offline".
+      MadarError_Offline(:final detail)
+          when coreDetailKeys.containsKey(detail) =>
+        _or(detail),
       MadarError_Offline() => tr(key: 'err.offline_no_setup'),
       MadarError_Unauthenticated(:final detail) => _or(detail),
       // Keep the FIELD in the message: bare details read as "is required"
@@ -29,10 +34,20 @@ extension MadarErrorMessage on MadarBridge {
       MadarError_Forbidden(resource: 'deal', :final action)
           when action.trim().isNotEmpty =>
         action,
+      // A CODED refusal (`ORG_SUSPENDED`, `PIN_WRONG_BRANCH`, `DEVICE_MOVED`,
+      // `LOGIN_REFUSED`, …): the core already worded why. Hiding it behind
+      // "no permission" sent a shop hunting for a grant nobody had removed.
+      MadarError_Forbidden(:final resource, :final action)
+          when _coded.hasMatch(resource) && action.trim().isNotEmpty =>
+        action,
       MadarError_Forbidden() => tr(key: 'err.not_allowed'),
       MadarError_Internal(:final detail) => _or(detail),
     };
   }
+
+  /// A refusal code (`PIN_WRONG_BRANCH`), as opposed to a resource name
+  /// (`orders`) whose `action` is a verb, not a sentence.
+  static final _coded = RegExp(r'^[A-Z][A-Z0-9_]+$');
 
   String _or(String detail) {
     if (detail.trim().isEmpty) return tr(key: 'err.generic');
@@ -61,6 +76,9 @@ const Map<String, String> coreDetailKeys = {
   'This PIN belongs to more than one person. Ask a manager for a new PIN.':
       'err.pin_not_unique',
   'PIN not recognized.': 'err.wrong_pin',
+  // `net::BLOCKED_UPSTREAM`: a 403 that did not come from the Madar server.
+  'blocked before reaching the Madar server (403 without a Madar answer)':
+      'err.blocked_upstream',
   'no offline bundle cached — sign in online once first':
       'err.no_offline_bundle',
   'cart is empty': 'err.cart_empty',

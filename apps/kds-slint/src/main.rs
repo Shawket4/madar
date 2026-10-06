@@ -54,6 +54,10 @@ fn human_message(core: &MadarCore, e: &CoreError) -> String {
         if detail.trim().is_empty() { core.tr("err.generic".into()) } else { detail.to_string() }
     };
     match e {
+        // A firewall / WAF answering in the server's place (a 403 not from Madar).
+        CoreError::Offline { detail } if detail == madar_core::net::BLOCKED_UPSTREAM => {
+            core.tr("err.blocked_upstream".into())
+        }
         CoreError::Offline { .. } => core.tr("err.offline_no_setup".into()),
         CoreError::Unauthenticated { detail } => or(detail),
         CoreError::Validation { field, detail } => {
@@ -61,6 +65,14 @@ fn human_message(core: &MadarCore, e: &CoreError) -> String {
         }
         CoreError::Server { detail, .. } => or(detail),
         CoreError::Transient { .. } => core.tr("err.network".into()),
+        // A coded refusal the core already worded (`PIN_WRONG_BRANCH`, …).
+        CoreError::Forbidden { resource, action }
+            if !action.trim().is_empty()
+                && resource.len() > 1
+                && resource.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_') =>
+        {
+            action.clone()
+        }
         CoreError::Forbidden { .. } => core.tr("err.not_allowed".into()),
         CoreError::Internal { detail } => or(detail),
     }

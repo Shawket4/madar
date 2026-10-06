@@ -59,6 +59,12 @@ pub(crate) fn verify(
     check_binding(&signed.body, device_id, branch_id, now)
 }
 
+/// The server's branch for this device differs from the one bound here.
+fn moved(server: &str, bound: &str) -> bool {
+    let (server, bound) = (server.trim(), bound.trim());
+    !server.is_empty() && !server.eq_ignore_ascii_case(bound)
+}
+
 /// The grants a verified snapshot holds for one person.
 pub(crate) fn grants_for(body: &SnapshotBody, user_id: &str) -> Option<AuthzGrants> {
     let u = body.user(user_id).filter(|u| u.active)?;
@@ -128,6 +134,25 @@ impl MadarCore {
         }
     }
 
+    /// Whether the server registers this device at a DIFFERENT branch than the
+    /// one it is bound to here: the dashboard moved it, and the tablet's own
+    /// binding (which nothing refreshes) still names the old branch, so every
+    /// PIN is checked against a shop its people do not work at. Asked only after
+    /// a sign-in refusal, bounded, and only by an activated device; the answer
+    /// words a message and decides nothing.
+    pub(crate) async fn device_moved_elsewhere(&self) -> bool {
+        let Some(token) = self.device_credential() else { return false };
+        let Some(bound) = crate::device::load(&self.store).branch_id else { return false };
+        let device = self.lan_device_id();
+        let headers = [("X-Madar-Device", device.as_str()), ("X-Madar-Device-Token", token.as_str())];
+        let ask = self.api.get_with_headers("/devices/me/authz-snapshot", &headers);
+        let Ok(Ok(text)) = tokio::time::timeout(std::time::Duration::from_secs(5), ask).await else {
+            return false;
+        };
+        serde_json::from_str::<SignedSnapshot>(&text)
+            .is_ok_and(|s| moved(&s.body.branch_id, &bound))
+    }
+
     /// Whether this device holds a server-signed permission snapshot that
     /// verifies for its bound branch right now (diagnostics and scenarios).
     pub fn has_verified_authz_snapshot(&self) -> bool {
@@ -153,6 +178,89 @@ mod tests {
     use ed25519_dalek::{Signer, SigningKey};
     use madar_authz::snapshot::SnapshotUser;
     use madar_authz::{Cap, EffectiveSet};
+
+    /// A refused sign-in says WHY: the wrong branch, a tablet the dashboard
+    /// moved (asked of the server only by an activated device), a paused
+    /// business, or the server's own sentence; never a bare "no permission".
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_refused_sign_in_says_why() {
+        use crate::error::CoreError;
+        use crate::testkit::{Stub, StubResponse, BRANCH};
+        use std::sync::{Arc, Mutex};
+        let server_branch = Arc::new(Mutex::new(BRANCH.to_string()));
+        let key = SigningKey::from_bytes(&[7; 32]);
+        let answer = server_branch.clone();
+        let stub = Stub::start(move |r| {
+            r.path.starts_with("/devices/me/authz-snapshot").then(|| {
+                let mut b = body();
+                b.branch_id = answer.lock().unwrap().clone();
+                StubResponse::json(200, serde_json::to_value(signed(&key, b)).unwrap())
+            })
+        })
+        .await;
+        let core = crate::testkit::offline_core(&stub.base, "").await;
+        core.set_device_branch(BRANCH.into(), None).unwrap();
+        let tr = |k: &str| crate::i18n::tr(&core.current_locale(), k);
+        let wrong_branch = || CoreError::Forbidden {
+            resource: "PIN_WRONG_BRANCH".into(),
+            action: "You can't sign in at a till in this branch".into(),
+        };
+        let said = |e: CoreError| match e {
+            CoreError::Forbidden { resource, action } => (resource, action),
+            e => panic!("{e:?}"),
+        };
+
+        // Not activated: nothing to ask, the person's words.
+        assert_eq!(
+            said(core.sign_in_refusal(wrong_branch()).await),
+            ("PIN_WRONG_BRANCH".into(), tr("login.wrong_branch"))
+        );
+        assert!(stub.requests("/devices/").is_empty(), "no credential, no question");
+
+        // Activated, and the server has it where it is bound: still the person.
+        core.store.kv_put(crate::K_DEVICE_CREDENTIAL, "cred").unwrap();
+        assert_eq!(said(core.sign_in_refusal(wrong_branch()).await).1, tr("login.wrong_branch"));
+
+        // The dashboard moved it: the tablet is what is wrong.
+        *server_branch.lock().unwrap() = "00000000-0000-0000-0000-0000000000b2".into();
+        assert_eq!(
+            said(core.sign_in_refusal(wrong_branch()).await),
+            ("DEVICE_MOVED".into(), tr("login.device_moved"))
+        );
+
+        // An older backend sends the sentence without the code.
+        let old = CoreError::Forbidden {
+            resource: "api".into(),
+            action: "You can't sign in at a till in this branch".into(),
+        };
+        assert_eq!(said(core.sign_in_refusal(old).await).0, "DEVICE_MOVED");
+
+        // A paused business.
+        let paused = CoreError::Forbidden { resource: "ORG_SUSPENDED".into(), action: "suspended".into() };
+        assert_eq!(said(core.sign_in_refusal(paused).await).1, tr("login.org_suspended"));
+
+        // Any other sentence of ours is shown as the server said it.
+        let other = CoreError::Forbidden { resource: "api".into(), action: "Account locked".into() };
+        assert_eq!(
+            said(core.sign_in_refusal(other).await),
+            ("LOGIN_REFUSED".into(), "Account locked".into())
+        );
+
+        // Not a refusal: untouched.
+        assert!(matches!(
+            core.sign_in_refusal(CoreError::Offline { detail: "x".into() }).await,
+            CoreError::Offline { .. }
+        ));
+    }
+
+    #[test]
+    fn a_device_moved_only_when_the_server_names_another_branch() {
+        let b = "6f1c2d3e-0000-4000-8000-000000000001";
+        assert!(!moved(b, b));
+        assert!(!moved(&b.to_uppercase(), b), "case is not a move");
+        assert!(!moved("", b), "no answer is not a move");
+        assert!(moved("6f1c2d3e-0000-4000-8000-000000000002", b));
+    }
 
     fn hex(b: &[u8]) -> String {
         b.iter().map(|x| format!("{x:02x}")).collect()

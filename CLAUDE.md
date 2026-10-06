@@ -351,6 +351,15 @@ step with no cached file shows its number and name instead.
 
 ## Gotchas
 - **`melos run bridge` ≠ rebuilding the native library.** See above.
+- **A 403 is not always a refusal.** Only a 403 carrying the backend's
+  `{ "error": … }` envelope is the server saying no. A 403 without it is a
+  firewall, WAF or shop router answering in its place: `net::status_to_error`
+  makes it `Offline` (`net::BLOCKED_UPSTREAM`, worded `err.blocked_upstream`),
+  so it never refuses a queued sale and never reads as "no permission". A
+  sign-in refusal is worded by `sign_in_refusal` (`ORG_SUSPENDED`,
+  `PIN_WRONG_BRANCH`, `DEVICE_MOVED` when the dashboard moved the tablet); a
+  coded `Forbidden` shows its `action`, a resource-named one stays
+  `err.not_allowed`.
 - **Text has a legibility floor; geometry does not.** Zoomed far out, an 11px label no
   longer fits a 15px table — wrap cell text in `Flexible` so it clips instead of
   throwing a layout overflow.

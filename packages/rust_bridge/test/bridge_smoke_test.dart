@@ -102,6 +102,40 @@ void main() {
     expect(words, isNot(contains('payment_method')));
   });
 
+  test('a coded refusal says why, a plain one stays "no permission"', () {
+    final b = core.bridge;
+    final why = b.tr(key: 'login.wrong_branch');
+    expect(
+      b.humanMessage(
+        MadarError.forbidden(resource: 'PIN_WRONG_BRANCH', action: why),
+      ),
+      why,
+    );
+    expect(
+      b.humanMessage(
+        const MadarError.forbidden(resource: 'orders', action: 'void'),
+      ),
+      b.tr(key: 'err.not_allowed'),
+    );
+  });
+
+  test('a network that blocks the server is not "offline, not set up"', () {
+    final b = core.bridge;
+    expect(
+      b.humanMessage(
+        const MadarError.offline(
+          detail:
+              'blocked before reaching the Madar server (403 without a Madar answer)',
+        ),
+      ),
+      b.tr(key: 'err.blocked_upstream'),
+    );
+    expect(
+      b.humanMessage(const MadarError.offline(detail: 'connection refused')),
+      b.tr(key: 'err.offline_no_setup'),
+    );
+  });
+
   test('realtime is gated on auth', () async {
     expect(core.startRealtime, throwsA(isA<MadarError_Unauthenticated>()));
   });

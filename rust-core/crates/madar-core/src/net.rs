@@ -809,6 +809,21 @@ pub(crate) const STAFF_CODES: &[&str] = &[
     "ORG_SUSPENDED",
 ];
 
+/// The detail of the `Offline` a 403 without our envelope becomes: something
+/// between the tablet and the server refused the request (a firewall, a WAF
+/// rule, a filtering router). The hosts word it (`err.blocked_upstream`).
+pub const BLOCKED_UPSTREAM: &str =
+    "blocked before reaching the Madar server (403 without a Madar answer)";
+
+/// The backend's coded refusals of a sign-in (`POST /auth/login`). A 403 one
+/// becomes `Forbidden { resource: code }`; `MadarCore::sign_in_refusal` words it.
+pub(crate) const SIGN_IN_CODES: &[&str] = &[
+    // A correct PIN at a branch its holder may not sign in at.
+    "PIN_WRONG_BRANCH",
+    // An owner's PIN on a pre-0.8 tablet.
+    "OWNER_PIN_NEEDS_UPDATE",
+];
+
 /// Dawam refusals the app words for the person (`MadarCore::staff_error`).
 /// They stay `Server { code }` so the code survives to the wording.
 pub(crate) const DAWAM_CODES: &[&str] = &[
@@ -901,6 +916,23 @@ pub(crate) fn status_to_error(status: u16, body: &str) -> CoreError {
                 "captive portal or proxy returned 401 without a backend error body: {message}"
             ),
         },
+        // A 403 WITHOUT our envelope never came from our backend: a firewall, a
+        // WAF / bot rule at the edge, or a shop's filtering router answered in its
+        // place. It says nothing about the person's permissions, so it must not
+        // read as "you don't have permission" (it did, and it sent a whole shop
+        // hunting for a missing grant), nor refuse a queued sale for good. Like
+        // the captive-portal 401 above: Offline, with a detail the host words.
+        403 if backend_envelope.is_none() => CoreError::Offline {
+            detail: BLOCKED_UPSTREAM.into(),
+        },
+        // A coded sign-in refusal keeps its code, so the core can say WHY
+        // (`MadarCore::sign_in_refusal`) instead of a bare "no permission".
+        403 if extract_error_code(body).is_some_and(|c| SIGN_IN_CODES.contains(&c.as_str())) => {
+            CoreError::Forbidden {
+                resource: extract_error_code(body).unwrap_or_default(),
+                action: message,
+            }
+        }
         // Network 403s carry no resource/action pair (that's `has_permission`'s
         // job); surface the server's message in `action` so the host can show it.
         403 => CoreError::Forbidden {
@@ -1136,6 +1168,38 @@ mod tests {
                 assert_eq!(resource, "api");
                 assert_eq!(action, "insufficient role");
             }
+            other => panic!("expected Forbidden, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn status_to_error_403_without_backend_envelope_is_blocked_not_forbidden() {
+        // A firewall / WAF page is not our backend refusing the person: it must
+        // never read as a permission problem, and never refuse a queued sale.
+        for body in ["<html>Access denied</html>", "", "{}", "error code: 1020"] {
+            match status_to_error(403, body) {
+                CoreError::Offline { detail } => assert_eq!(detail, BLOCKED_UPSTREAM),
+                other => panic!("{body:?}: expected Offline, got {other:?}"),
+            }
+        }
+        assert!(is_connectivity_failure(&status_to_error(403, "<html/>")));
+        // Our own 403 is still a refusal.
+        assert!(!is_connectivity_failure(&status_to_error(403, r#"{"error":"no"}"#)));
+    }
+
+    #[test]
+    fn a_coded_sign_in_refusal_keeps_its_code() {
+        let body = r#"{"error":"You can't sign in at a till in this branch","code":"PIN_WRONG_BRANCH"}"#;
+        match status_to_error(403, body) {
+            CoreError::Forbidden { resource, action } => {
+                assert_eq!(resource, "PIN_WRONG_BRANCH");
+                assert_eq!(action, "You can't sign in at a till in this branch");
+            }
+            other => panic!("expected Forbidden, got {other:?}"),
+        }
+        // A suspended business keeps its code too (a staff code already).
+        match status_to_error(403, r#"{"error":"suspended","code":"ORG_SUSPENDED"}"#) {
+            CoreError::Forbidden { resource, .. } => assert_eq!(resource, "ORG_SUSPENDED"),
             other => panic!("expected Forbidden, got {other:?}"),
         }
     }

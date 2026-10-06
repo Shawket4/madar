@@ -1869,6 +1869,11 @@ fn en(key: &str) -> Option<&'static str> {
         }
         "err.network" => "Network problem, please try again.",
         "err.not_allowed" => "You don't have permission to do that.",
+        "err.blocked_upstream" => "Something on this network is blocking the Madar server. Try another connection, or ask whoever runs the shop's internet.",
+        "login.org_suspended" => "This business is paused, so nobody can sign in. Ask the owner.",
+        "login.wrong_branch" => "Your PIN is right, but you can't sign in at a till in this branch. Ask a manager to add you to it.",
+        "login.device_moved" => "This tablet was moved to another branch in the dashboard. Reconfigure it in Settings to sign in there.",
+        "login.owner_needs_update" => "Owners sign in on this tablet after updating the Madar app.",
         "err.generic" => "Something went wrong.",
         // The core's own refusals, worded for a teller. The core raises them in
         // English (a log reads them); `humanMessage` in rust_bridge swaps each
@@ -4285,6 +4290,11 @@ fn ar(key: &str) -> Option<&'static str> {
         "err.offline_no_setup" => "أنت غير متصل ولم يتم تهيئة هذا الأمين للدخول دون اتصال بعد.",
         "err.network" => "مشكلة في الشبكة، حاول مرة أخرى.",
         "err.not_allowed" => "ليس لديك صلاحية للقيام بذلك.",
+        "err.blocked_upstream" => "شيء ما على هذه الشبكة يحجب خادم مدار. جرّب اتصالًا آخر، أو اسأل المسؤول عن إنترنت المحل.",
+        "login.org_suspended" => "هذا النشاط متوقف مؤقتًا، فلا يمكن لأحد تسجيل الدخول. اسأل المالك.",
+        "login.wrong_branch" => "الرقم السري صحيح، لكن لا يمكنك الدخول على نقطة بيع في هذا الفرع. اطلب من المدير إضافتك إليه.",
+        "login.device_moved" => "نُقل هذا الجهاز إلى فرع آخر من لوحة التحكم. أعد تهيئته من الإعدادات لتسجيل الدخول هناك.",
+        "login.owner_needs_update" => "يسجّل المالك الدخول على هذا الجهاز بعد تحديث تطبيق مدار.",
         "err.generic" => "حدث خطأ ما.",
         "err.not_signed_in" => "سجّل الدخول أولًا.",
         "err.session_expired" => "انتهت الجلسة — سجّل الدخول مرة أخرى.",
