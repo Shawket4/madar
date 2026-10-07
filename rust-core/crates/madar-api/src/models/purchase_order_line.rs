@@ -17,6 +17,9 @@ pub struct PurchaseOrderLine {
     pub id: uuid::Uuid,
     #[serde(rename = "ingredient_name")]
     pub ingredient_name: String,
+    /// Piastres for the whole line, as on the supplier's invoice. The unit cost is derived from it, never the other way round.
+    #[serde(rename = "line_cost")]
+    pub line_cost: i64,
     #[serde(rename = "org_ingredient_id")]
     pub org_ingredient_id: uuid::Uuid,
     #[serde(rename = "purchase_order_id")]
@@ -30,9 +33,12 @@ pub struct PurchaseOrderLine {
     /// Ingredient's base stock unit.
     #[serde(rename = "unit")]
     pub unit: String,
-    /// Piastres per PURCHASE unit.
+    /// Piastres per PURCHASE unit, rounded to whole piastres (older readers; the truth is `line_cost`, the precise figure `unit_cost_exact`).
     #[serde(rename = "unit_cost")]
     pub unit_cost: i64,
+    /// Piastres per PURCHASE unit, exact: `line_cost / quantity_ordered`.
+    #[serde(rename = "unit_cost_exact")]
+    pub unit_cost_exact: f64,
     #[serde(rename = "units_per_purchase_unit")]
     pub units_per_purchase_unit: f64,
 }
@@ -41,6 +47,7 @@ impl PurchaseOrderLine {
     pub fn new(
         id: uuid::Uuid,
         ingredient_name: String,
+        line_cost: i64,
         org_ingredient_id: uuid::Uuid,
         purchase_order_id: uuid::Uuid,
         purchase_unit: String,
@@ -48,11 +55,13 @@ impl PurchaseOrderLine {
         quantity_received: f64,
         unit: String,
         unit_cost: i64,
+        unit_cost_exact: f64,
         units_per_purchase_unit: f64,
     ) -> PurchaseOrderLine {
         PurchaseOrderLine {
             id,
             ingredient_name,
+            line_cost,
             org_ingredient_id,
             purchase_order_id,
             purchase_unit,
@@ -60,6 +69,7 @@ impl PurchaseOrderLine {
             quantity_received,
             unit,
             unit_cost,
+            unit_cost_exact,
             units_per_purchase_unit,
         }
     }

@@ -17,6 +17,14 @@ pub struct GoodsReceiptLine {
     pub id: uuid::Uuid,
     #[serde(rename = "ingredient_name")]
     pub ingredient_name: String,
+    /// Piastres this delivery cost (negative for a return); null when unknown.
+    #[serde(
+        rename = "line_cost",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub line_cost: Option<Option<i64>>,
     #[serde(rename = "org_ingredient_id")]
     pub org_ingredient_id: uuid::Uuid,
     #[serde(
@@ -29,7 +37,7 @@ pub struct GoodsReceiptLine {
     /// Base stock units received (+) or returned (−).
     #[serde(rename = "quantity")]
     pub quantity: f64,
-    /// Piastres per base stock unit (actual).
+    /// Piastres per base stock unit (actual), rounded to whole piastres.
     #[serde(
         rename = "unit_cost",
         default,
@@ -37,6 +45,14 @@ pub struct GoodsReceiptLine {
         skip_serializing_if = "Option::is_none"
     )]
     pub unit_cost: Option<Option<i64>>,
+    /// Piastres per base stock unit at full precision.
+    #[serde(
+        rename = "unit_cost_exact",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub unit_cost_exact: Option<Option<f64>>,
 }
 
 impl GoodsReceiptLine {
@@ -49,10 +65,12 @@ impl GoodsReceiptLine {
         GoodsReceiptLine {
             id,
             ingredient_name,
+            line_cost: None,
             org_ingredient_id,
             purchase_order_line_id: None,
             quantity,
             unit_cost: None,
+            unit_cost_exact: None,
         }
     }
 }

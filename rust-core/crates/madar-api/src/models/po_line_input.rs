@@ -13,15 +13,28 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PoLineInput {
+    /// Piastres for the whole line, as invoiced. Preferred: the unit cost is derived from it exactly (12 000 g for 548.16 EGP is 4.568 piastres/g, where a whole-piastre unit cost made it 5 and the order 600.00).
+    #[serde(
+        rename = "line_cost",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub line_cost: Option<Option<i64>>,
     #[serde(rename = "org_ingredient_id")]
     pub org_ingredient_id: uuid::Uuid,
     #[serde(rename = "purchase_unit")]
     pub purchase_unit: String,
     #[serde(rename = "quantity_ordered")]
     pub quantity_ordered: f64,
-    /// Piastres per purchase unit.
-    #[serde(rename = "unit_cost")]
-    pub unit_cost: i64,
+    /// Piastres per purchase unit, for clients that predate `line_cost`. Ignored when `line_cost` is sent; one of the two is required.
+    #[serde(
+        rename = "unit_cost",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub unit_cost: Option<Option<i64>>,
     /// Stock units per purchase unit. Ignored when `purchase_unit` is a known inventory unit (the factor is derived from the ingredient's base unit).
     #[serde(
         rename = "units_per_purchase_unit",
@@ -37,13 +50,13 @@ impl PoLineInput {
         org_ingredient_id: uuid::Uuid,
         purchase_unit: String,
         quantity_ordered: f64,
-        unit_cost: i64,
     ) -> PoLineInput {
         PoLineInput {
+            line_cost: None,
             org_ingredient_id,
             purchase_unit,
             quantity_ordered,
-            unit_cost,
+            unit_cost: None,
             units_per_purchase_unit: None,
         }
     }

@@ -13,11 +13,19 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReceiveLineInput {
+    /// Optional ACTUAL invoice total (piastres) for what this delivery brought, when it differs from the ordered price. Preferred over `unit_cost`. Drives weighted-average cost + the ledger; omitted (with `unit_cost`) ⟹ the ordered line total, pro rata to the quantity received.
+    #[serde(
+        rename = "line_cost",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub line_cost: Option<Option<i64>>,
     #[serde(rename = "line_id")]
     pub line_id: uuid::Uuid,
     #[serde(rename = "quantity_received")]
     pub quantity_received: f64,
-    /// Optional ACTUAL invoice cost (piastres per purchase unit) for this delivery, when it differs from the ordered price. Drives weighted-average cost + the ledger; omitted ⟹ the PO line's ordered cost is used.
+    /// Optional ACTUAL invoice cost in piastres per purchase unit (older clients). Ignored when `line_cost` is sent.
     #[serde(
         rename = "unit_cost",
         default,
@@ -30,6 +38,7 @@ pub struct ReceiveLineInput {
 impl ReceiveLineInput {
     pub fn new(line_id: uuid::Uuid, quantity_received: f64) -> ReceiveLineInput {
         ReceiveLineInput {
+            line_cost: None,
             line_id,
             quantity_received,
             unit_cost: None,
