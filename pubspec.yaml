@@ -46,7 +46,11 @@ melos:
       run: git ls-files '*.dart' | grep -v '/cargokit/' | xargs dart format --set-exit-if-changed --output=none
       description: Verify formatting across the workspace.
     test:
-      run: melos exec --dir-exists=test --fail-fast -- flutter test
+      # One package at a time: parallel `flutter` processes queue on the
+      # tool's startup lock and melos prints every "Waiting for another
+      # flutter command" line as an ERROR. --no-pub: `melos bootstrap`
+      # already resolved the workspace, so each package need not re-resolve.
+      run: melos exec --dir-exists=test --fail-fast --concurrency=1 -- flutter test --no-pub
       description: Run every package's tests.
     gen:
       run: melos exec --depends-on=build_runner -- dart run build_runner build --delete-conflicting-outputs

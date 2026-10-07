@@ -50,7 +50,7 @@ MADAR_QA_API=http://127.0.0.1:8099 \
 MADAR_QA_EMAIL="${MADAR_QA_EMAIL:?set the seeded org email}" \
 MADAR_QA_PASSWORD="${MADAR_QA_PASSWORD:?set the seeded org password}" \
 MADAR_QA_MARKERS="$MARKERS" \
-flutter test --tags qa-late-replay test/qa_late_replay_test.dart
+flutter test --tags qa-late-replay qa_test/qa_late_replay_test.dart
 STATUS=$?
 
 kill "$WATCHER_PID" 2>/dev/null || true

@@ -56,10 +56,10 @@ Future<bool> onShiftAfter(MadarBridge bridge, Map<String, Object?> fix) async {
   final age = Duration(seconds: (fix['age_s'] as num?)?.round() ?? 0);
   final wake = fix['wake'] as String?;
   if (age > DawamStore.wakeFresh) {
-    debugPrint('dawam: a $wake reading ${age.inMinutes} min old is not sent');
+    dawamLog('dawam: a $wake reading ${age.inMinutes} min old is not sent');
     return true;
   }
-  if (wake != null) debugPrint('dawam: ping ($wake, no UI)');
+  if (wake != null) dawamLog('dawam: ping ($wake, no UI)');
   try {
     final snap = await bridge.dawamPing(
       latitude: (fix['latitude']! as num).toDouble(),

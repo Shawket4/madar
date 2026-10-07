@@ -102,8 +102,8 @@ jobs:
           done
           echo "::warning::Could not push the formatting to $BRANCH; it will be formatted on the next run."
 
-      # 9 bridge smoke tests against the release dylib. The QA-tagged E2E
-      # suite self-skips without MADAR_QA_API (needs a live backend).
+      # The bridge smoke tests against the release dylib. The QA E2E suites
+      # live in qa_test/ (they need a live backend) and are not loaded here.
       - name: Host tests
         working-directory: packages/rust_bridge
         run: flutter test

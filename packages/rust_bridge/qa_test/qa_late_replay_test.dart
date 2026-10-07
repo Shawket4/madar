@@ -6,7 +6,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-import 'host_library.dart';
+import '../test/host_library.dart';
 
 /// Reproduces the cross-till close race and its fix: a teller queues orders
 /// OFFLINE, ANOTHER till closes the till server-side, then the queue drains.

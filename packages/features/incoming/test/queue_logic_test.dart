@@ -54,7 +54,9 @@ class _Recorder implements MadarBridge {
     if (can != null) return can;
     final name = invocation.memberName;
     final args = invocation.namedArguments;
-    if (name == #tr) return args[#key] as String;
+    // Words, not the key echoed back: an echo is how the core says a key is
+    // missing, and trChecked would report every one of them.
+    if (name == #tr) return 'words:${args[#key]}';
     if (name == #humanMessage) {
       final e = invocation.positionalArguments.first;
       return e is MadarError_Server ? e.detail : 'error';

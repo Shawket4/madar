@@ -1,0 +1,6 @@
+# Tags the QA suites in qa_test/ carry (run on purpose from tool/qa_*.sh,
+# never by a plain `flutter test`, which loads test/ only).
+tags:
+  qa: {}
+  qa-late-replay: {}
+  qa-offline: {}

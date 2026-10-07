@@ -6,7 +6,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-import 'host_library.dart';
+import '../test/host_library.dart';
 
 /// Reproduces the offline→online outbox drain against a local backend
 /// behind a killable TCP proxy (tool/tcp_proxy.py). Orchestrated by marker

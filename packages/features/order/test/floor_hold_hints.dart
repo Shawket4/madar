@@ -130,6 +130,13 @@ void _floorHoldHintsMain() {
         expect(_bubble('T5'), findsNothing);
         await tester.pump(const Duration(seconds: 4));
         await _settle(tester);
+        if (device == _Device.phone) {
+          // The plan gives a hold no act of its own, so on a phone a hold on
+          // a label that fits is a tap: T5's sheet comes up over the room.
+          // Close it, or the next tap lands on the sheet, not the table.
+          await tester.binding.handlePopRoute();
+          await _settle(tester);
+        }
 
         // A tap still selects it: the inspector (or the phone's sheet)
         // names the table — and says the whole of it on a hold there too.

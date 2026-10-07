@@ -9,6 +9,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:staff_core/src/format.dart';
 
+/// Where the location tracker's diagnostics go ("dawam: ping (…)"): the
+/// debug console. A test that drives the tracker points it elsewhere.
+DebugPrintCallback dawamLog = debugPrint;
+
 /// Templates by id, so a [Shift] can resolve its own.
 final tplIndex = <String, Tpl>{};
 
@@ -1696,12 +1700,12 @@ class DawamStore extends ChangeNotifier {
   }) async {
     if (me == null) return;
     if (age > wakeFresh) {
-      debugPrint('dawam: a $wake reading ${age.inMinutes} min old is not sent');
+      dawamLog('dawam: a $wake reading ${age.inMinutes} min old is not sent');
       return;
     }
     if (fix.battery != null) battery = fix.battery!;
     _lastPing = DateTime.now();
-    debugPrint('dawam: ping ($wake)');
+    dawamLog('dawam: ping ($wake)');
     await _run(() => backend.ping(fix));
   }
 

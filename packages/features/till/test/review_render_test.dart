@@ -395,10 +395,17 @@ void main() {
             name: 'waste-approval-$tag',
             then: (tester) async {
               await _fillWaste(tester);
-              final word = (arabic ? _ar : _en)['waste.record']!;
-              await tester.tap(find.text(word).last);
+              final words = arabic ? _ar : _en;
+              final record = find.text(words['waste.record']!).last;
+              // The button sits below the fold on a landscape tablet: bring
+              // it into view, or the tap lands on nothing and the shot shows
+              // the form instead of the manager's sheet.
+              await tester.ensureVisible(record);
+              await tester.pump();
+              await tester.tap(record);
               await tester.pump();
               await tester.pump(const Duration(milliseconds: 400));
+              expect(find.text(words['approval.title']!), findsOneWidget);
             },
           );
         });

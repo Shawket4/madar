@@ -36,7 +36,7 @@ MADAR_QA_API=http://127.0.0.1:8099 \
 MADAR_QA_EMAIL="${MADAR_QA_EMAIL:?set the seeded org email}" \
 MADAR_QA_PASSWORD="${MADAR_QA_PASSWORD:?set the seeded org password}" \
 MADAR_QA_MARKERS="$MARKERS" \
-flutter test --tags qa-offline test/qa_offline_drain_test.dart
+flutter test --tags qa-offline qa_test/qa_offline_drain_test.dart
 STATUS=$?
 
 kill "$WATCHER_PID" 2>/dev/null || true

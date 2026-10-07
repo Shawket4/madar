@@ -56,6 +56,12 @@ String _label(Line l, bool arabic) =>
 String _day(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
+/// [text] without the bidi isolates (U+2066–U+2069) the core wraps figures
+/// in for the screen. The PDF engine lays out bidi itself from the page's
+/// direction and has no glyph for them: left in, each one is a missing-glyph
+/// warning and, in some viewers, a box.
+String _plain(String text) => text.replaceAll(RegExp('[\u2066-\u2069]'), '');
+
 /// The PDF bytes.
 Future<Uint8List> payslipPdf({
   required Slip slip,
@@ -89,7 +95,7 @@ Future<Uint8List> payslipPdf({
       children: [
         pw.Expanded(
           child: pw.Text(
-            label,
+            _plain(label),
             style: pw.TextStyle(
               fontWeight: strong ? pw.FontWeight.bold : null,
               decoration: struck ? pw.TextDecoration.lineThrough : null,
@@ -98,7 +104,7 @@ Future<Uint8List> payslipPdf({
           ),
         ),
         pw.Text(
-          value,
+          _plain(value),
           style: pw.TextStyle(
             fontWeight: strong ? pw.FontWeight.bold : null,
             decoration: struck ? pw.TextDecoration.lineThrough : null,
@@ -117,12 +123,12 @@ Future<Uint8List> payslipPdf({
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
           pw.Text(
-            business,
+            _plain(business),
             style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
           ),
           pw.SizedBox(height: 4),
           pw.Text(
-            _w('staff.pdf_payslip', arabic),
+            _plain(_w('staff.pdf_payslip', arabic)),
             style: const pw.TextStyle(
               fontSize: 22,
               fontWeight: pw.FontWeight.bold,

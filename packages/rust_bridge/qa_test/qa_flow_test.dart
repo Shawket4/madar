@@ -6,13 +6,13 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-import 'host_library.dart';
+import '../test/host_library.dart';
 
 /// End-to-end flow test against a LOCAL QA backend + seeded demo org —
 /// exercises the same bridge calls the screens make (bind → PIN login →
 /// catalog sync → configured cart add). Skipped unless MADAR_QA_API is set:
 ///   MADAR_QA_API=http://127.0.0.1:8081 MADAR_QA_EMAIL=... MADAR_QA_PASSWORD=... \
-///   flutter test --tags qa test/qa_flow_test.dart
+///   flutter test --tags qa qa_test/qa_flow_test.dart
 void main() {
   final api = Platform.environment['MADAR_QA_API'];
   final email = Platform.environment['MADAR_QA_EMAIL'];
