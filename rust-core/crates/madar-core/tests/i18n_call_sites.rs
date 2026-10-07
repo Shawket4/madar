@@ -36,13 +36,19 @@ fn dart_files(dir: &Path, out: &mut Vec<PathBuf>) {
         let name = e.file_name();
         let name = name.to_string_lossy();
         if p.is_dir() {
+            // A symlinked or hidden directory is a platform build's copy of
+            // someone else's code (`ios/.symlinks/plugins/*`,
+            // `linux/flutter/ephemeral/.plugin_symlinks`), never our strings.
+            let linked = e.file_type().is_ok_and(|t| t.is_symlink());
+            if linked || name.starts_with('.') || matches!(name.as_ref(), "Pods" | "ephemeral") {
+                continue;
+            }
             // Generated bindings carry no authored strings, and a test file
             // may legitimately assert on a key that does not exist.
             if matches!(
                 name.as_ref(),
                 "test"
                     | "build"
-                    | ".dart_tool"
                     | "generated"
                     | "rust_bridge_dashboard"
                     | "rust_bridge_staff"
