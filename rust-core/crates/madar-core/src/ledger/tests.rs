@@ -563,7 +563,9 @@ fn the_order_number_range_reads_numbers_and_the_greatest_code() {
     assert_eq!(r.device_code.as_deref(), Some("36b"), "lowercase sorts after uppercase, as in C collation");
 }
 
-/// Timing probe for a very large till (run with --release --ignored).
+/// Timing probe for a very large till:
+/// `cargo test --release -p madar-core --features probes -- --ignored probe_report`.
+#[cfg(feature = "probes")]
 #[test]
 #[ignore]
 fn probe_report_on_34k_sales() {

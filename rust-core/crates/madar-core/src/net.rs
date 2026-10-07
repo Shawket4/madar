@@ -239,12 +239,6 @@ impl ApiClient {
         *self.staff_anchor.write().unwrap_or_else(|e| e.into_inner()) = a;
     }
 
-    /// The phone's device token, while one is bound (the host keeps it in
-    /// the platform's secure storage).
-    pub(crate) fn staff_device(&self) -> Option<String> {
-        self.staff_device.read().unwrap_or_else(|e| e.into_inner()).clone()
-    }
-
     /// The staff token's expiry as epoch ms, if known.
     pub(crate) fn staff_expires_ms(&self) -> Option<i64> {
         *self.staff_expires_ms.read().unwrap_or_else(|e| e.into_inner())

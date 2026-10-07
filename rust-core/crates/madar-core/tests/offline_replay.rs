@@ -7,7 +7,7 @@
 //!
 //! ```sh
 //! MADAR_IT_BASE=http://127.0.0.1:8082 \
-//! cargo test -p madar-core --test offline_replay -- --ignored --nocapture
+//! cargo test -p madar-core --features backend-tests --test offline_replay -- --ignored --nocapture
 //! ```
 //!
 //! Fixture defaults match the throwaway org/branch/teller seeded for these

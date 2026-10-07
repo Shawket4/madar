@@ -6,7 +6,7 @@
 //!
 //! ```sh
 //! MADAR_OB_BASE=http://127.0.0.1:8094 MADAR_OB_DB=postgres://localhost:5432/madar_ob_perf \
-//! MADAR_OB_BRANCH=<branch> cargo test --release -p madar-core --test offline_b_perf -- --ignored --nocapture
+//! MADAR_OB_BRANCH=<branch> cargo test --release -p madar-core --features backend-tests --test offline_b_perf -- --ignored --nocapture
 //! ```
 //!
 //! Prints one `PERF` line: the cold first sync (sign-in to a complete store), the

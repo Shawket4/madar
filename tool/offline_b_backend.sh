@@ -99,7 +99,7 @@ cd "$ROOT/rust-core"
 export MADAR_OB_BASE="http://127.0.0.1:$PORT" MADAR_OB_DB="$DB_URL" MADAR_OB_BRANCH="$BRANCH"
 for t in ${MADAR_OB_TESTS:-${MADAR_OB_TEST:-offline_b_backend}}; do
   echo "==> scenarios: $t"
-  cargo test -p madar-core --test "$t" -- ${MADAR_OB_FILTER:-} --ignored --nocapture --test-threads=1
+  cargo test -p madar-core --features backend-tests --test "$t" -- ${MADAR_OB_FILTER:-} --ignored --nocapture --test-threads=1
 done
 
 if [[ $PERF -eq 1 ]]; then
@@ -126,6 +126,6 @@ INSERT INTO order_payments SELECT (jsonb_populate_record(NULL::order_payments, t
 SQL
   psql "${PG_ARGS[@]}" -d "$COPY" -qc "VACUUM ANALYZE" >/dev/null
   echo "==> performance probe on $PERF_BRANCH"
-  MADAR_OB_BRANCH="$PERF_BRANCH" cargo test --release -p madar-core --test offline_b_perf -- --ignored --nocapture
+  MADAR_OB_BRANCH="$PERF_BRANCH" cargo test --release -p madar-core --features backend-tests --test offline_b_perf -- --ignored --nocapture
 fi
 echo "==> all passed"

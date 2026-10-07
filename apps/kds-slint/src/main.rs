@@ -7,8 +7,14 @@
 
 slint::include_modules!();
 
+// Ported from the Flutter features (checkout, incoming, settings) and not wired
+// into the board yet: their screens land one at a time. Until each is, its glue
+// is compiled (so it keeps up with the core) but nothing calls it.
+#[allow(dead_code, unused_imports)]
 mod feature_checkout;
+#[allow(dead_code, unused_imports)]
 mod feature_incoming;
+#[allow(dead_code, unused_imports)]
 mod feature_settings;
 
 use madar_core::{

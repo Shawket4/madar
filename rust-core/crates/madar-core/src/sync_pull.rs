@@ -693,6 +693,7 @@ fn each_row(
     Ok(())
 }
 
+#[cfg(test)]
 pub(crate) fn apply_page(
     store: &Store,
     branch: &str,
@@ -1825,8 +1826,6 @@ mod tests {
         assert!(g.limits["orders.void"].own);
         assert_eq!(g.limits["orders.void"].max_age_minutes, Some(10));
     }
-
-    use super::*;
 
     const B: &str = "B1";
 

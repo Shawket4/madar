@@ -1530,6 +1530,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "probes")]
     fn save_png(bmp: &Bitmap, path: &str) {
         let wb = bmp.row_bytes();
         let mut img = image::GrayImage::new(bmp.width, bmp.rows);
@@ -1543,8 +1544,10 @@ mod tests {
         eprintln!("wrote {} ({}x{})", path, bmp.width, bmp.rows);
     }
 
-    // Visual check: `cargo test -p madar-core dump_receipt_png -- --ignored`
-    // writes the rendered receipt + shift report to /tmp to be eyeballed.
+    // Visual check: `cargo test -p madar-core --features probes
+    // dump_receipt_png -- --ignored` writes the rendered receipt + shift
+    // report to /tmp to be eyeballed.
+    #[cfg(feature = "probes")]
     #[test]
     #[ignore]
     fn dump_receipt_png() {
@@ -1976,7 +1979,9 @@ mod tests {
 
     /// Proof renders for the AR print fix: writes the AR/EN receipt, chit
     /// and Z-report at both rolls as PNGs (+ the raw bitmap SHA-256) into
-    /// `$MADAR_PRINT_PROOF_DIR`. `cargo test -- --ignored dump_print_proof`.
+    /// `$MADAR_PRINT_PROOF_DIR`.
+    /// `cargo test -p madar-core --features probes -- --ignored dump_print_proof`.
+    #[cfg(feature = "probes")]
     #[test]
     #[ignore]
     fn dump_print_proof() {

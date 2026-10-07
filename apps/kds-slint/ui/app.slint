@@ -331,10 +331,9 @@ export component AppWindow inherits Window {
     }
 }
 
-// Kit smoke imports — keep the shared kit compiling with the app.
-import { MadarHeader, HeaderAction, SkeletonList, EmptyState, ErrorState, ToastHost, Rsp } from "kit.slint";
-import { SheetFrame } from "sheet.slint";
-export { MadarHeader, SkeletonList, ToastHost, SheetFrame }
+// The shared kit (kit.slint, sheet.slint) compiles with the app through the
+// feature screens that import it; exporting its pieces from here only made
+// Slint warn that a non-Window component generates no code.
 
 // ── Feature: floor (integration in progress) ────────────────────────────────
 

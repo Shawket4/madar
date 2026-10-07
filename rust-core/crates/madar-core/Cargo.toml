@@ -22,35 +22,33 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
 [dependencies]
 # Permission decisions, shared with the backend: one crate in madar-shared,
 # pinned by tag in both repos (bump them together; see madar-shared's README).
-# Pinned by rev to madar-shared v0.5.3 (f7f6872, POS metrics vectors) until
-# the v0.5.3 tag is pushed; then switch every line back to `tag = "v0.5.3"`.
-madar-authz = { git = "https://github.com/Shawket4/madar-shared", rev = "f7f687253e57ab28faf2ed0092c8924d0377ec6d" }
+madar-authz = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.5.3" }
 # Money rules the server runs too (tax engine, refund split, staff pool/comp,
 # reward cover, POS-metrics average): one copy, in madar-shared, same tag.
-madar-money = { git = "https://github.com/Shawket4/madar-shared", rev = "f7f687253e57ab28faf2ed0092c8924d0377ec6d" }
+madar-money = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.5.3" }
 # Business-day rules the server runs too (week start, business date, YYMMDD,
 # day bounds with the DST-gap rule), same tag.
-madar-time = { git = "https://github.com/Shawket4/madar-shared", rev = "f7f687253e57ab28faf2ed0092c8924d0377ec6d" }
+madar-time = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.5.3" }
 # /sync/pull contract pieces the server runs too (type lists, ledger
 # classification, the R-checksum, kitchen UUIDv5 ids), same tag.
-madar-sync = { git = "https://github.com/Shawket4/madar-shared", rev = "f7f687253e57ab28faf2ed0092c8924d0377ec6d" }
+madar-sync = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.5.3" }
 # A till's drawer / Z report fold, the carryover picker and close
 # reconciliation, the server's rules (its SQL is pinned to them), same tag.
-madar-till = { git = "https://github.com/Shawket4/madar-shared", rev = "f7f687253e57ab28faf2ed0092c8924d0377ec6d" }
+madar-till = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.5.3" }
 # Inventory units and conversion, the server's rule (a waste is converted and
 # judged with it), same tag.
-madar-units = { git = "https://github.com/Shawket4/madar-shared", rev = "f7f687253e57ab28faf2ed0092c8924d0377ec6d" }
+madar-units = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.5.3" }
 # The canonical phone, order-ref formats and the member card token, the
 # server's, same tag.
-madar-ids = { git = "https://github.com/Shawket4/madar-shared", rev = "f7f687253e57ab28faf2ed0092c8924d0377ec6d" }
+madar-ids = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.5.3" }
 # Dawam rules the server runs too (the geofence, the pay period, the offline
 # stamp's shape), same tag.
-madar-dawam = { git = "https://github.com/Shawket4/madar-shared", rev = "f7f687253e57ab28faf2ed0092c8924d0377ec6d" }
+madar-dawam = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.5.3" }
 # How a sale line is priced from the catalogue (size, swaps, add-ons, optional
 # fields): the server's rule, run over the menu mirror, same tag.
-madar-catalog = { git = "https://github.com/Shawket4/madar-shared", rev = "f7f687253e57ab28faf2ed0092c8924d0377ec6d" }
+madar-catalog = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.5.3" }
 # Which rewards a sale may take: the server's rules, trimming here, same tag.
-madar-loyalty = { git = "https://github.com/Shawket4/madar-shared", rev = "f7f687253e57ab28faf2ed0092c8924d0377ec6d" }
+madar-loyalty = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.5.3" }
 # Proc-macro UniFFI (no .udl). "cli" gates uniffi_bindgen_main for the bin below;
 # "tokio" lets us export `async fn`s with `async_runtime = "tokio"`.
 uniffi = { version = "0.32", features = ["cli", "tokio"], optional = true }
@@ -160,6 +158,13 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 [features]
 default = []
 uniffi-ffi = ["dep:uniffi"]
+# The integration suites that drive a LIVE backend (tests/*_backend.rs and
+# friends). A plain `cargo test` neither builds nor lists them;
+# tool/offline_b_backend.sh turns this on and runs them with --ignored.
+backend-tests = []
+# Manual probes kept beside the code they measure (a 34k-sale timing probe,
+# receipt / print-proof PNG dumps): `cargo test -p madar-core --features probes`.
+probes = []
 
 # The standalone uniffi-bindgen used to emit Swift/Kotlin bindings in library
 # mode (`uniffi-bindgen generate --library <dylib> --language swift`).
@@ -182,3 +187,80 @@ proptest = "1"
 # offline_replay reads the persisted session blob straight from the core's db
 # file (the option-C durability model) to hand a session to a second core.
 rusqlite = { version = "0.40", features = ["bundled"] }
+
+# Live-backend suites: see the `backend-tests` feature.
+[[test]]
+name = "cash_spot_backend"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "combos_backend"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "customers_backend"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "discounts_backend"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "metrics_backend"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "network_budget"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "offline_b_backend"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "offline_b_perf"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "offline_replay"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "permissions_backend"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "pricing_backend"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "queue_backend"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "readpath_parity"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "refund_waste_backend"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "signin_backend"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "split_backend"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "staff_drink_backend"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "till_review_backend"
+required-features = ["backend-tests"]
+
+[[test]]
+name = "waste_backend"
+required-features = ["backend-tests"]

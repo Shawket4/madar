@@ -53,6 +53,9 @@ held-orders strip, open tickets, and the **tables/floor canvas** (`tables_screen
 - `melos run bridge_dashboard` — same for `apps/dashboard`
 - `melos run gen` — `build_runner` where configured
 - Core tests: `cd rust-core && cargo test -p madar-core`
+- Everything, every repo, one summary: `tool/check_everything.sh` (fails on any
+  warning or ignored/skipped test; live-backend suites stay behind
+  `--features backend-tests` / `tool/offline_b_backend.sh` and `rust_bridge/qa_test`)
 
 Run the POS against a local backend (same Mac):
 

@@ -250,6 +250,7 @@ fn flat<T: Clone>(o: &Option<Option<T>>) -> Option<T> {
 
 /// Project a server `OpenTicketView` to the FFI `TicketView`. `queued_offline` is
 /// set by the caller (true for a still-outboxed fire that has no server view).
+#[cfg(test)]
 pub(crate) fn to_view(v: &models::OpenTicketView, queued_offline: bool) -> TicketView {
     to_view_with(v, queued_offline, &Default::default(), false)
 }
