@@ -493,7 +493,10 @@ void main() {
     await _toOwner(h);
     await _owner(h);
     await _create(h);
-    expect(find.text('Image uploads are disabled in the demo.'), findsOneWidget);
+    expect(
+      find.text('Image uploads are disabled in the demo.'),
+      findsOneWidget,
+    );
     expect(find.text('Organization created'), findsOneWidget);
     expect(find.text('New Organization'), findsNothing);
     expect(find.text('Drops Coffee'), findsOneWidget);

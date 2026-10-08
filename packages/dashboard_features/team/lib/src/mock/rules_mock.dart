@@ -85,10 +85,8 @@ const List<Map<String, Object?>> suggestedTiers = [
 const String _zeroUuid = '00000000-0000-0000-0000-000000000000';
 
 /// The business row of [orgId] (the core seed's, one per org), or null.
-MockRow? businessRulesRow(MockDb db, String? orgId) =>
-    db['attendance_settings'].firstWhere(
-      (r) => r['org_id'] == orgId && r['branch_id'] == null,
-    );
+MockRow? businessRulesRow(MockDb db, String? orgId) => db['attendance_settings']
+    .firstWhere((r) => r['org_id'] == orgId && r['branch_id'] == null);
 
 /// The override row of [branchId] in [orgId], or null.
 MockRow? branchRulesRow(MockDb db, String? orgId, String branchId) =>
@@ -97,8 +95,7 @@ MockRow? branchRulesRow(MockDb db, String? orgId, String branchId) =>
     );
 
 /// "22:00" → "22:00:00": the backend's `NaiveTime`.
-Object? _wireTime(Object? v) =>
-    v is String && v.length == 5 ? '$v:00' : v;
+Object? _wireTime(Object? v) => v is String && v.length == 5 ? '$v:00' : v;
 
 /// The rules [branchId] (null: the business) runs on in [orgId], as the
 /// backend's resolver reads them (`load_settings` + `suggested_tiers`).
@@ -116,7 +113,7 @@ Map<String, Object?> effectiveRules(
     'branch_id': branchId,
   };
   for (final f in _ruleFields) {
-    final own = f.branch ? b?[f.name] : null;
+    final own = f.branch ? (b?[f.name]) : null;
     out[f.name] = own ?? o?[f.name] ?? f.fallback;
   }
   out['night_start'] = _wireTime(out['night_start']);
@@ -134,10 +131,14 @@ Map<String, Object?> effectiveRules(
 
 /// `rules::validate_tiers`: the ladder the backend refuses at the door.
 String? tierRefusal(List<Object?> tiers) {
-  final sorted = [
-    for (final t in tiers)
-      if (t is Map) t,
-  ]..sort((a, b) => (a['from_minutes'] as num).compareTo(b['from_minutes'] as num));
+  final sorted =
+      [
+        for (final t in tiers)
+          if (t is Map) t,
+      ]..sort(
+        (a, b) =>
+            (a['from_minutes'] as num).compareTo(b['from_minutes'] as num),
+      );
   num? previousEnd;
   for (final t in sorted) {
     final from = t['from_minutes'] as num;
@@ -266,7 +267,6 @@ List<Object?> _validLadder(List<Object?> tiers) {
     if (previousEnd != null && from <= previousEnd) {
       rung['from_minutes'] = previousEnd + 1;
     }
-    rung['to_minutes'] ??= null;
     previousEnd = rung['to_minutes'] as num? ?? 2147483647;
     out.add(rung);
   }
@@ -292,17 +292,16 @@ void registerRulesMocks(MockServer server, MockDb db) {
     final scope = req.persona.branchIds;
     final rows =
         db['branches'].where(
-            (b) =>
-                b['org_id'] == orgId &&
-                b['deleted_at'] == null &&
-                (scope == null || scope.contains(b['id'])),
-          )
-          ..sort((a, b) {
-            final c = '${a['name']}'.toLowerCase().compareTo(
-              '${b['name']}'.toLowerCase(),
-            );
-            return c != 0 ? c : '${a['id']}'.compareTo('${b['id']}');
-          });
+          (b) =>
+              b['org_id'] == orgId &&
+              b['deleted_at'] == null &&
+              (scope == null || scope.contains(b['id'])),
+        )..sort((a, b) {
+          final c = '${a['name']}'.toLowerCase().compareTo(
+            '${b['name']}'.toLowerCase(),
+          );
+          return c != 0 ? c : '${a['id']}'.compareTo('${b['id']}');
+        });
     return MockResponse.ok([
       for (final b in rows)
         () {
@@ -350,9 +349,7 @@ void registerRulesMocks(MockServer server, MockDb db) {
     if (branchId != null) {
       for (final f in _ruleFields) {
         if (!f.branch && sent(f.name)) {
-          req.badRequest(
-            "${f.name} is the business's setting, not a branch's",
-          );
+          req.badRequest("${f.name} is the business's setting, not a branch's");
         }
       }
       for (final n in inherit) {
@@ -371,13 +368,11 @@ void registerRulesMocks(MockServer server, MockDb db) {
       final savesRules =
           sent('late_deduction_tiers') && sent('absence_deduction_days');
       var row = businessRulesRow(db, orgId);
-      if (row == null) {
-        row = db['attendance_settings'].insert({
-          'org_id': orgId,
-          for (final f in _ruleFields) f.name: f.fallback,
-          'rules_saved_at': null,
-        });
-      }
+      row ??= db['attendance_settings'].insert({
+        'org_id': orgId,
+        for (final f in _ruleFields) f.name: f.fallback,
+        'rules_saved_at': null,
+      });
       for (final f in _ruleFields) {
         if (sent(f.name)) row[f.name] = body[f.name];
       }

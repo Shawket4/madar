@@ -210,12 +210,13 @@ void registerCoreMocks(MockServer server, MockDb db) {
 
   server.on('GET', '/staff/work-shifts', (req) {
     req.requireCap('hr.schedule.read');
-    return MockResponse.ok(
-      db['work_shifts'].query(
+    return MockResponse.ok([
+      for (final r in db['work_shifts'].query(
         filters: {'org_id': req.orgId},
         sort: 'start_time',
-      ),
-    );
+      ))
+        _shiftAsRead(r),
+    ]);
   });
 
   server.on('GET', '/staff/attendance/settings', (req) {
@@ -254,3 +255,19 @@ UserPublic _user(MockDb db, Persona p) {
     isActive: true,
   );
 }
+
+/// A `work_shifts` row as the server reads it: the columns' defaults (the
+/// staff_schedules and shift_blocks migrations) where a bare insert left one
+/// out, and `crosses_midnight`, a generated column.
+MockRow _shiftAsRead(MockRow r) => {
+  'grace_minutes': 15,
+  'break_minutes': 0,
+  'paid_break': true,
+  'overtime_threshold_minutes': 15,
+  'overtime_multiplier': 1.5,
+  'checkin_window_minutes': 120,
+  'is_active': true,
+  'valid_days': const [0, 1, 2, 3, 4, 5, 6],
+  ...r,
+  'crosses_midnight': '${r['end_time']}'.compareTo('${r['start_time']}') <= 0,
+};

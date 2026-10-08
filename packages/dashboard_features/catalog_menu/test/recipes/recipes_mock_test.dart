@@ -30,32 +30,37 @@ String get _org => SeedIds.sabahOrg;
 
 void main() {
   group('POST /inventory/orgs/{org_id}/catalog', () {
-    test('creates the ingredient in the general category and lists it', () async {
-      final b = _boot();
-      final created = await b.api.inventory.createCatalogItem(
-        orgId: _org,
-        body: const CreateCatalogItemRequest(
-          name: '  Rose syrup ',
-          unit: 'ml',
-          costPerUnit: 9,
-          explicitNulls: {'category_id'},
-        ),
-      );
-      expect(created.name, 'Rose syrup');
-      expect(created.categorySlug, 'general');
-      expect(created.categoryName, 'General');
-      expect(created.costPerUnit, 9);
-      expect(created.isActive, isTrue);
-      expect(b.server.calls.last.status, 201);
-      final list = await b.api.inventory.listCatalog(orgId: _org);
-      expect(list.where((i) => i.id == created.id), hasLength(1));
-      final cats = await b.api.inventory.listIngredientCategories(orgId: _org);
-      final general = cats.firstWhere((c) => c.slug == 'general');
-      expect(
-        general.ingredientCount,
-        list.where((i) => i.categoryId == general.id).length,
-      );
-    });
+    test(
+      'creates the ingredient in the general category and lists it',
+      () async {
+        final b = _boot();
+        final created = await b.api.inventory.createCatalogItem(
+          orgId: _org,
+          body: const CreateCatalogItemRequest(
+            name: '  Rose syrup ',
+            unit: 'ml',
+            costPerUnit: 9,
+            explicitNulls: {'category_id'},
+          ),
+        );
+        expect(created.name, 'Rose syrup');
+        expect(created.categorySlug, 'general');
+        expect(created.categoryName, 'General');
+        expect(created.costPerUnit, 9);
+        expect(created.isActive, isTrue);
+        expect(b.server.calls.last.status, 201);
+        final list = await b.api.inventory.listCatalog(orgId: _org);
+        expect(list.where((i) => i.id == created.id), hasLength(1));
+        final cats = await b.api.inventory.listIngredientCategories(
+          orgId: _org,
+        );
+        final general = cats.firstWhere((c) => c.slug == 'general');
+        expect(
+          general.ingredientCount,
+          list.where((i) => i.categoryId == general.id).length,
+        );
+      },
+    );
 
     test('a chosen category and a null cost (unknown, never 0)', () async {
       final b = _boot();
@@ -84,24 +89,27 @@ void main() {
       var e = await post({'name': '   ', 'unit': 'g'});
       expect((e.status, e.message), (400, 'Bad request: name cannot be empty'));
       e = await post({'name': 'Rose', 'unit': 'cup'});
-      expect((
-        e.status,
-        e.message,
-      ), (400, 'Bad request: Unit must be one of: g, kg, ml, l, pcs'));
+      expect(
+        (e.status, e.message),
+        (400, 'Bad request: Unit must be one of: g, kg, ml, l, pcs'),
+      );
       e = await post({
         'name': 'Rose',
         'unit': 'g',
         'category_id': mockUuid('somebody-else'),
       });
-      expect((
-        e.status,
-        e.message,
-      ), (400, 'Bad request: Category does not belong to this organization'));
+      expect(
+        (e.status, e.message),
+        (400, 'Bad request: Category does not belong to this organization'),
+      );
       e = await post({'name': 'Oat milk', 'unit': 'ml'});
-      expect((
-        e.status,
-        e.message,
-      ), (409, 'Conflict: An ingredient with this name already exists in the catalog'));
+      expect(
+        (e.status, e.message),
+        (
+          409,
+          'Conflict: An ingredient with this name already exists in the catalog',
+        ),
+      );
     });
 
     for (final p in [Persona.manager, Persona.limited]) {

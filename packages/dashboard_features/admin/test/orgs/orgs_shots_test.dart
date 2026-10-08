@@ -30,10 +30,7 @@ String _name(DashSize s, String l, bool d) =>
 
 /// The open dialog's (or sheet's) own scroll view.
 Finder _surfaceScroll() => find
-    .descendant(
-      of: find.byType(DashSurface),
-      matching: find.byType(Scrollable),
-    )
+    .descendant(of: find.byType(DashSurface), matching: find.byType(Scrollable))
     .first;
 
 Future<void> _wizardNext(DashHarness h) =>
@@ -44,12 +41,7 @@ void main() {
     testWidgets('default: the Organizations list ${_name(size, lang, dark)}', (
       tester,
     ) async {
-      final h = await pumpOrgs(
-        tester,
-        size: size,
-        locale: lang,
-        dark: dark,
-      );
+      final h = await pumpOrgs(tester, size: size, locale: lang, dark: dark);
       expect(find.text('Layali Bistro'), findsOneWidget);
       expect(find.text('Sabah Coffee'), findsOneWidget);
       await h.shot('orgs/default');
@@ -108,12 +100,7 @@ void main() {
     });
 
     testWidgets('delete: the confirm $n', (tester) async {
-      final h = await pumpOrgs(
-        tester,
-        size: size,
-        locale: lang,
-        dark: dark,
-      );
+      final h = await pumpOrgs(tester, size: size, locale: lang, dark: dark);
       await h.tap(find.bySemanticsLabel(h.t('common.delete')).at(2));
       expect(find.byType(DashConfirmDialog), findsOneWidget);
       await h.shot('orgs/delete-confirm');

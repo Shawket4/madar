@@ -169,10 +169,7 @@ void main() {
         'tiktok': '',
       });
       expect(
-        socialLinksPatch(
-          {...empty, 'whatsapp': '  https://wa.me/20  '},
-          null,
-        ),
+        socialLinksPatch({...empty, 'whatsapp': '  https://wa.me/20  '}, null),
         {'whatsapp': 'https://wa.me/20'},
       );
     });
@@ -200,7 +197,10 @@ void main() {
   group('the words for a failure (getErrorMessage)', () {
     test('an uncoded 403 is "no permission", in both languages', () {
       final e = _err(403, 'Forbidden: Super admin access required');
-      expect(orgErrorWords(e, en), "You don't have permission to perform this action.");
+      expect(
+        orgErrorWords(e, en),
+        "You don't have permission to perform this action.",
+      );
       expect(orgErrorWords(e, ar), 'ليس لديك صلاحية لتنفيذ هذا الإجراء.');
     });
 
@@ -219,7 +219,10 @@ void main() {
     test('words the core already chose pass through', () {
       const e = ApiException(status: 409, message: 'هذا الإجراء يتعارض');
       expect(orgErrorWords(e, ar), 'هذا الإجراء يتعارض');
-      expect(orgErrorWords(StateError('x'), en), 'An unexpected error occurred.');
+      expect(
+        orgErrorWords(StateError('x'), en),
+        'An unexpected error occurred.',
+      );
     });
 
     test('ADM-ORG-040 where a provisioning conflict belongs', () {

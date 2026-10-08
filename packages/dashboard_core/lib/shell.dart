@@ -14,6 +14,7 @@ export 'src/shell/footer.dart';
 export 'src/shell/frame.dart';
 export 'src/shell/header.dart';
 export 'src/shell/pages.dart';
+export 'src/shell/prefetch.dart';
 export 'src/shell/router.dart';
 export 'src/shell/session_guard.dart';
 export 'src/shell/shell_nav.dart';

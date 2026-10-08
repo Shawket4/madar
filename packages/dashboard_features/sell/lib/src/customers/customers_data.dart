@@ -173,7 +173,12 @@ String loyaltyUnit(Translator t, String mode, [num? count]) => t(
 );
 
 /// "120 points" (`${balance} ${currencyLabel(mode, balance)}`).
-String loyaltyAmount(Translator t, String mode, int amount, {DashFormat? fmt}) =>
+String loyaltyAmount(
+  Translator t,
+  String mode,
+  int amount, {
+  DashFormat? fmt,
+}) =>
     '${fmt == null ? amount : fmt.fmtNumber(amount)} '
     '${loyaltyUnit(t, mode, amount)}';
 
@@ -195,9 +200,7 @@ class PersonRow {
   /// In the program's currency; null for a non-member or an unknown mode.
   int? get balance => !isMember || mode == null
       ? null
-      : ((mode == 'visits'
-                ? customer.visitsBalance
-                : customer.pointsBalance) ??
+      : ((mode == 'visits' ? customer.visitsBalance : customer.pointsBalance) ??
             0);
 }
 
@@ -402,6 +405,7 @@ typedef CustomersQuery = ({String q, bool? member, String? source, int limit});
 /// `GET /customers?q&member&source&limit&offset=0`.
 final customersListProvider = FutureProvider.autoDispose
     .family<List<Customer>, CustomersQuery>((ref, k) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/customers'));
       return ref
           .watch(apiProvider)
@@ -419,6 +423,7 @@ final customersListProvider = FutureProvider.autoDispose
 /// program in force (null branch = the organisation's).
 final loyaltySettingsProvider = FutureProvider.autoDispose
     .family<LoyaltySettings, String?>((ref, branchId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/loyalty/settings'));
       return ref
           .watch(apiProvider)
@@ -429,6 +434,7 @@ final loyaltySettingsProvider = FutureProvider.autoDispose
 /// `GET /customers/{id}` (`useGetCustomer`): a merged id resolves.
 final customerDetailProvider = FutureProvider.autoDispose
     .family<CustomerDetail, String>((ref, id) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/customers/$id'));
       return ref.watch(apiProvider).customers.getCustomer(id: id);
     });
@@ -440,6 +446,7 @@ typedef MemberQuery = ({String id, String? branchId});
 /// retry).
 final loyaltyMemberProvider = FutureProvider.autoDispose
     .family<MemberDetail, MemberQuery>((ref, k) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/loyalty/members/${k.id}'));
       return ref
           .watch(apiProvider)
@@ -450,6 +457,7 @@ final loyaltyMemberProvider = FutureProvider.autoDispose
 /// `GET /customers/{id}/addresses` (`useListCustomerAddresses`).
 final customerAddressesProvider = FutureProvider.autoDispose
     .family<List<CustomerAddress>, String>((ref, id) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/customers/$id/addresses'));
       return ref.watch(apiProvider).customers.listCustomerAddresses(id: id);
     });
@@ -461,6 +469,7 @@ typedef CustomerBookingsQuery = ({String id, int limit});
 /// (`useListCustomerBookings`).
 final customerBookingsProvider = FutureProvider.autoDispose
     .family<List<BookingView>, CustomerBookingsQuery>((ref, k) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/customers/${k.id}/bookings'));
       return ref
           .watch(apiProvider)

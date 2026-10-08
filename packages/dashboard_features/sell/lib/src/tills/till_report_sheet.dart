@@ -292,7 +292,8 @@ class _InfoCard extends ConsumerWidget {
             label: t('tills.closed'),
             value: fmt.fmtDateTime(till.closedAt),
           ),
-        if (device.isNotEmpty) ReportLine(label: t('tills.device'), value: device),
+        if (device.isNotEmpty)
+          ReportLine(label: t('tills.device'), value: device),
         if (range.first != null)
           ReportLine(
             label: t('tills.orderRange'),
@@ -358,7 +359,10 @@ class _SalesCard extends ConsumerWidget {
             value: fmt.fmtMoney(summary.totalDiscount),
           ),
         if (summary.totalTax != 0)
-          ReportLine(label: t('tills.tax'), value: fmt.fmtMoney(summary.totalTax)),
+          ReportLine(
+            label: t('tills.tax'),
+            value: fmt.fmtMoney(summary.totalTax),
+          ),
         if (summary.voidedOrders != 0)
           ReportLine(
             label: t('orders.voided'),
@@ -485,23 +489,27 @@ class ReconciliationTable extends ConsumerWidget {
     final c = context.madarColors;
     final head = DashType.tableHeader.copyWith(color: c.textSecondary);
     final figure = DashType.mono.copyWith(fontSize: 13, color: c.textPrimary);
-    Widget cell(Widget child, {bool end = false, bool first = false}) => Padding(
-      padding: EdgeInsetsDirectional.only(
-        start: first ? 0 : Space.md,
-        top: Space.xs + 2,
-        bottom: Space.xs + 2,
-      ),
-      child: Align(
-        alignment: end
-            ? AlignmentDirectional.topEnd
-            : AlignmentDirectional.topStart,
-        child: child,
-      ),
-    );
+    Widget cell(Widget child, {bool end = false, bool first = false}) =>
+        Padding(
+          padding: EdgeInsetsDirectional.only(
+            start: first ? 0 : Space.md,
+            top: Space.xs + 2,
+            bottom: Space.xs + 2,
+          ),
+          child: Align(
+            alignment: end
+                ? AlignmentDirectional.topEnd
+                : AlignmentDirectional.topStart,
+            child: child,
+          ),
+        );
     final rows = <TableRow>[
       TableRow(
         children: [
-          cell(Text(t('tills.reconciliation.method'), style: head), first: true),
+          cell(
+            Text(t('tills.reconciliation.method'), style: head),
+            first: true,
+          ),
           cell(Text(t('tills.reconciliation.system'), style: head), end: true),
           cell(
             Text(t('tills.reconciliation.declared'), style: head),
@@ -775,7 +783,9 @@ class TillSpotViews extends ConsumerWidget {
             style: DashType.body.copyWith(color: c.textSecondary),
           )
         else
-          DashListCard(children: [for (final v in views) _SpotViewRow(view: v)]),
+          DashListCard(
+            children: [for (final v in views) _SpotViewRow(view: v)],
+          ),
       ],
     );
   }
@@ -828,7 +838,10 @@ class _SpotViewRow extends ConsumerWidget {
             ),
           ),
           if (view.printed)
-            DashBadge(t('tills.spotViews.printed'), key: const ValueKey('spot-view-printed')),
+            DashBadge(
+              t('tills.spotViews.printed'),
+              key: const ValueKey('spot-view-printed'),
+            ),
         ],
       ),
     );
@@ -917,9 +930,7 @@ class TillDeductions extends ConsumerWidget {
                 meta: d.returned > 0
                     ? t(
                         'tills.deductions.returned',
-                        args: {
-                          'amount': deductionQty(fmt, d.returned, d.unit),
-                        },
+                        args: {'amount': deductionQty(fmt, d.returned, d.unit)},
                       )
                     : null,
                 value: deductionQty(fmt, d.used, d.unit),

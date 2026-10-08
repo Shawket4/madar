@@ -9,8 +9,7 @@
 /// the URL) and across scope changes.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart'
-    show PurchaseOrder, Supplier;
+import 'package:dashboard_api/dashboard_api.dart' show PurchaseOrder, Supplier;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';

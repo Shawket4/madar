@@ -38,6 +38,7 @@ class DashPressable extends StatefulWidget {
     this.tooltip,
     this.selected,
     this.checked,
+    this.expanded,
     this.isButton = true,
     this.focusNode,
     this.autofocus = false,
@@ -58,6 +59,10 @@ class DashPressable extends StatefulWidget {
   final String? tooltip;
   final bool? selected;
   final bool? checked;
+
+  /// A disclosure's header: announced as expanded or collapsed, on the
+  /// button's own node (a [Semantics] around it would land on another).
+  final bool? expanded;
   final bool isButton;
   final FocusNode? focusNode;
   final bool autofocus;
@@ -136,6 +141,7 @@ class _DashPressableState extends State<DashPressable> {
       enabled: widget.enabled,
       selected: widget.selected,
       checked: widget.checked,
+      expanded: widget.expanded,
       label: widget.semanticLabel,
       excludeSemantics: widget.excludeChildSemantics,
       onTap: _active ? _activate : null,

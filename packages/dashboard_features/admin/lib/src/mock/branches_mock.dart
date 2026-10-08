@@ -179,8 +179,7 @@ Map<String, Object?> _answer(MockDb db, Map<String, Object?> row) {
   final org = db['orgs'].find(row['org_id']! as String);
   return {
     ...row,
-    'timezone':
-        row['timezone'] ?? org?['timezone'] ?? MockClock.timezone,
+    'timezone': row['timezone'] ?? org?['timezone'] ?? MockClock.timezone,
     'org_logo_url': org?['logo_url'],
     'org_receipt_footer': org?['receipt_footer'],
   };
@@ -221,8 +220,7 @@ List<String> liveAtBranch(MockDb db, String id, DateTime now) {
 String joinWithAnd(List<String> items) => switch (items.length) {
   0 => '',
   1 => items.single,
-  _ =>
-    '${items.sublist(0, items.length - 1).join(', ')} and ${items.last}',
+  _ => '${items.sublist(0, items.length - 1).join(', ')} and ${items.last}',
 };
 
 /// `set_branch_code`: the name upper-cased and stripped to A-Z0-9, first six
@@ -251,7 +249,8 @@ final RegExp _ipv4 = RegExp(
 /// A Postgres `inet` cast: IPv4 (with an optional mask) or anything IPv6
 /// looking; else the database's own 400.
 void _checkInet(MockRequest req, String ip) {
-  final v6 = ip.contains(':') && RegExp(r'^[0-9A-Fa-f:.]+(/\d{1,3})?$').hasMatch(ip);
+  final v6 =
+      ip.contains(':') && RegExp(r'^[0-9A-Fa-f:.]+(/\d{1,3})?$').hasMatch(ip);
   if (_ipv4.hasMatch(ip) || v6) return;
   req.fail(
     MockResponse.error(

@@ -388,7 +388,10 @@ class BasiraMock {
       'kind': plan.kind,
       if (plan.kind == 'clarify')
         'question': plan.clarify
-      else ...{'text': plan.text, 'results': plan.blocks},
+      else ...{
+        'text': plan.text,
+        'results': plan.blocks,
+      },
       'conversation_id': c['id'],
       'provider': 'gemini',
       'timezone': MockClock.timezone,
@@ -512,14 +515,19 @@ class BasiraMock {
         true,
       ),
     ]);
-    conv('zamalek-prep', SeedIds.manager, [SeedIds.zamalek], [
-      (
-        'How long is prep taking at Zamalek?',
-        'en',
-        MockClock.fromCairo(2026, 10, 7, 14, 30),
-        true,
-      ),
-    ]);
+    conv(
+      'zamalek-prep',
+      SeedIds.manager,
+      [SeedIds.zamalek],
+      [
+        (
+          'How long is prep taking at Zamalek?',
+          'en',
+          MockClock.fromCairo(2026, 10, 7, 14, 30),
+          true,
+        ),
+      ],
+    );
     return (convs, turns);
   }
 
@@ -555,14 +563,29 @@ class BasiraMock {
     if (has(['trend', 'daily', 'per day', 'over time', 'اتجاه', 'يومي'])) {
       return _trend(t);
     }
-    if (has(['sold best', 'best sell', 'best-sell', 'top', 'popular', 'أكثر'])) {
+    if (has([
+      'sold best',
+      'best sell',
+      'best-sell',
+      'top',
+      'popular',
+      'أكثر',
+    ])) {
       return _topProducts(t);
     }
     if (has(['compare', 'branches', 'قارن', 'الفروع', 'بالفروع'])) {
       final b = _branchRevenue(t);
       return _Plan.answer(b.text, [b.block]);
     }
-    if (has(['revenue', 'sales', 'how much', 'today', 'إيراد', 'مبيعات', 'اليوم'])) {
+    if (has([
+      'revenue',
+      'sales',
+      'how much',
+      'today',
+      'إيراد',
+      'مبيعات',
+      'اليوم',
+    ])) {
       return _today(t);
     }
     return _Plan.clarify(
@@ -823,7 +846,9 @@ class BasiraMock {
     final top = rows.take(8).toList();
     final f = _fmt(t);
     final text = top.isEmpty
-        ? (ar ? 'لم يُسجَّل هدر في آخر 30 يومًا.' : 'No waste was logged in the last 30 days.')
+        ? (ar
+              ? 'لم يُسجَّل هدر في آخر 30 يومًا.'
+              : 'No waste was logged in the last 30 days.')
         : (ar
               ? 'بلغت تكلفة الهدر ${f.fmtMoney(total)} في آخر 30 يومًا. أكبر بند هو ${top.first['ingredient']} بتكلفة ${f.fmtMoney(top.first['waste_cost']! as int)}.'
               : 'Waste cost ${f.fmtMoney(total)} over the last 30 days. ${top.first['ingredient']} is the biggest line at ${f.fmtMoney(top.first['waste_cost']! as int)}.');
@@ -885,8 +910,11 @@ class BasiraMock {
     final ar = t.locale == 'ar';
     final byDay = <String, int>{};
     for (final o in _sold(scope.ids, p)) {
-      final day = MockClock.cairoDate(DateTime.parse(o['created_at']! as String));
-      byDay[day] = (byDay[day] ?? 0) + ((o['total_amount'] as num?)?.toInt() ?? 0);
+      final day = MockClock.cairoDate(
+        DateTime.parse(o['created_at']! as String),
+      );
+      byDay[day] =
+          (byDay[day] ?? 0) + ((o['total_amount'] as num?)?.toInt() ?? 0);
     }
     final rows = <Map<String, Object?>>[];
     var day = DateTime.parse(p.from);
@@ -903,7 +931,9 @@ class BasiraMock {
     final f = _fmt(t);
     String text;
     if (known.isEmpty) {
-      text = ar ? 'لا توجد مبيعات في آخر 30 يومًا.' : 'There were no sales in the last 30 days.';
+      text = ar
+          ? 'لا توجد مبيعات في آخر 30 يومًا.'
+          : 'There were no sales in the last 30 days.';
     } else {
       final sum = known.fold<int>(0, (s, r) => s + (r['revenue']! as int));
       final best = known.reduce(
@@ -959,7 +989,9 @@ class BasiraMock {
     final f = _fmt(t);
     final total = entries.fold<int>(0, (a, e) => a + e.value);
     final text = entries.isEmpty
-        ? (ar ? 'لا توجد مدفوعات في آخر 30 يومًا.' : 'No payments in the last 30 days.')
+        ? (ar
+              ? 'لا توجد مدفوعات في آخر 30 يومًا.'
+              : 'No payments in the last 30 days.')
         : (ar
               ? 'استحوذ ${label(entries.first.key)} على ${f.fmtShare(entries.first.value, total)} من الإيراد في آخر 30 يومًا.'
               : '${label(entries.first.key)} took ${f.fmtShare(entries.first.value, total)} of revenue over the last 30 days.');
@@ -1040,18 +1072,24 @@ class BasiraMock {
     final scope = _scope(t);
     final p = _Period.lastDays(t.now, 7);
     final ar = t.locale == 'ar';
-    final rows = [
-      for (final b in scope.ids)
-        {
-          'branch': _branchName(b, ar),
-          'avg_prep': _prepMinutes[b]!.$1,
-          'max_wait': _prepMinutes[b]!.$2,
-        },
-    ]..sort((a, b) => (b['avg_prep']! as double).compareTo(a['avg_prep']! as double));
+    final rows =
+        [
+          for (final b in scope.ids)
+            {
+              'branch': _branchName(b, ar),
+              'avg_prep': _prepMinutes[b]!.$1,
+              'max_wait': _prepMinutes[b]!.$2,
+            },
+        ]..sort(
+          (a, b) =>
+              (b['avg_prep']! as double).compareTo(a['avg_prep']! as double),
+        );
     final f = _fmt(t);
     final slow = rows.firstOrNull;
     final text = slow == null
-        ? (ar ? 'لا توجد تذاكر في آخر 7 أيام.' : 'No tickets in the last 7 days.')
+        ? (ar
+              ? 'لا توجد تذاكر في آخر 7 أيام.'
+              : 'No tickets in the last 7 days.')
         : (ar
               ? 'أبطأ فرع هو ${slow['branch']} بمتوسط ${f.fmtNumber((slow['avg_prep']! as double).round())} دقيقة من الطلب حتى التجهيز.'
               : '${slow['branch']} is slowest, averaging ${f.fmtNumber((slow['avg_prep']! as double).round())} minutes from order to ready.');
@@ -1096,7 +1134,9 @@ class BasiraMock {
     ];
     final f = _fmt(t);
     final text = refunded.isEmpty
-        ? (ar ? 'لم يُسترجع أي طلب في آخر 30 يومًا.' : 'No orders were refunded in the last 30 days.')
+        ? (ar
+              ? 'لم يُسترجع أي طلب في آخر 30 يومًا.'
+              : 'No orders were refunded in the last 30 days.')
         : (ar
               ? 'استُرجع ${f.fmtNumber(refunded.length)} طلبًا في آخر 30 يومًا.'
               : '${f.fmtNumber(refunded.length)} orders were refunded in the last 30 days.');
@@ -1342,7 +1382,10 @@ class BasiraMock {
 
 /// A stored query: what ran and the snapshot of what it returned
 /// (`handlers::snapshot_of`, 200 rows kept).
-Map<String, Object?> storedQuery(Map<String, Object?> block, String capturedAt) {
+Map<String, Object?> storedQuery(
+  Map<String, Object?> block,
+  String capturedAt,
+) {
   final rows = block['rows']! as List;
   return {
     'title': block['title'],
@@ -1457,7 +1500,11 @@ class _Period {
     final start = MockClock.startOfCairoDay(now);
     final w = MockClock.wall(start);
     return _Period(
-      MockClock.fromCairo(w.year, w.month, w.day - (days - 1)).toIso8601String(),
+      MockClock.fromCairo(
+        w.year,
+        w.month,
+        w.day - (days - 1),
+      ).toIso8601String(),
       now.toUtc().toIso8601String(),
     );
   }

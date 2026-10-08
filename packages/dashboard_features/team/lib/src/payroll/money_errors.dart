@@ -146,7 +146,9 @@ String dawamErrorMessage(
   final reasonKey = code == 'REASON_REQUIRED' && reasonFor != null
       ? 'REASON_REQUIRED_${reasonFor.name}'
       : code == 'PERIOD_CLOSED' && monthForm
-      ? (vars['paid'] == true ? 'PERIOD_CLOSED_paid_month' : 'PERIOD_CLOSED_month')
+      ? (vars['paid'] == true
+            ? 'PERIOD_CLOSED_paid_month'
+            : 'PERIOD_CLOSED_month')
       : null;
   final key =
       reasonKey ??

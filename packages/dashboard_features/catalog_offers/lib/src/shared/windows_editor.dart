@@ -341,9 +341,7 @@ class _WindowCard extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       t('combos.windows.windowN', args: {'n': index + 1}),
-                      style: DashType.bodyStrong.copyWith(
-                        color: c.textPrimary,
-                      ),
+                      style: DashType.bodyStrong.copyWith(color: c.textPrimary),
                     ),
                   ),
                   DashIconButton(

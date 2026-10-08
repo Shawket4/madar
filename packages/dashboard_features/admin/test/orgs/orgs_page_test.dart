@@ -40,8 +40,10 @@ Future<void> _scrollSidebarTo(DashHarness h, String label) =>
           .first,
     );
 
-Finder _inConfirm(String text) =>
-    find.descendant(of: find.byType(DashConfirmDialog), matching: find.text(text));
+Finder _inConfirm(String text) => find.descendant(
+  of: find.byType(DashConfirmDialog),
+  matching: find.text(text),
+);
 
 void main() {
   group('the list', () {
@@ -92,7 +94,10 @@ void main() {
     ) async {
       final h = await pumpOrgs(tester);
       expect(find.text('Organizations'), findsWidgets);
-      expect(find.text('Manage all coffee brands and franchises'), findsOneWidget);
+      expect(
+        find.text('Manage all coffee brands and franchises'),
+        findsOneWidget,
+      );
       expect(find.text('Export Excel'), findsOneWidget);
       expect(find.text('New'), findsOneWidget);
       expect(h.t('orgs.subtitle'), 'Manage all coffee brands and franchises');
@@ -408,7 +413,10 @@ void main() {
       await tester.pump();
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await h.settle();
-      expect(h.location.queryParameters['edit'], orgNamed(h.db!, 'Nakhla Bakery').id);
+      expect(
+        h.location.queryParameters['edit'],
+        orgNamed(h.db!, 'Nakhla Bakery').id,
+      );
     });
 
     testWidgets('ADM-ORG-019 Edit (pencil, "Edit") opens the editor', (
@@ -488,17 +496,29 @@ void main() {
       final sheet = spec.sheets.single;
       expect(sheet.name, 'Organizations');
       expect(sheet.title, 'Organizations');
-      expect([for (final c in sheet.columns) c.header], [
-        'Name',
-        'Slug',
-        'Currency',
-        'Tax rate (%)',
-        'Status',
-      ]);
+      expect(
+        [for (final c in sheet.columns) c.header],
+        ['Name', 'Slug', 'Currency', 'Tax rate (%)', 'Status'],
+      );
       expect([for (final c in sheet.columns) c.width], [28, 20, 12, 12, 12]);
-      expect(sheet.rows.first, ['Layali Bistro', 'layali-bistro', 'EGP', 14, 'Active']);
-      expect(sheet.rows[2], ['Qahwa Corner', 'qahwa-corner', 'EGP', 14, 'Inactive']);
-      expect(h.files.saved.single.filename, 'Madar-Organizations-2026-10-08.xlsx');
+      expect(sheet.rows.first, [
+        'Layali Bistro',
+        'layali-bistro',
+        'EGP',
+        14,
+        'Active',
+      ]);
+      expect(sheet.rows[2], [
+        'Qahwa Corner',
+        'qahwa-corner',
+        'EGP',
+        14,
+        'Inactive',
+      ]);
+      expect(
+        h.files.saved.single.filename,
+        'Madar-Organizations-2026-10-08.xlsx',
+      );
     });
 
     testWidgets('ADM-ORG-022 the header logo is the shop\'s own on the '
@@ -507,11 +527,7 @@ void main() {
       s.db['orgs'].update(SeedIds.sabahOrg, {
         'logo_url': 'https://cdn.madar.test/sabah/logo.png',
       });
-      final h = await pumpOrgs(
-        tester,
-        server: s.server,
-        db: s.db,
-      );
+      final h = await pumpOrgs(tester, server: s.server, db: s.db);
       await h.container
           .read(selectedOrgProvider.notifier)
           .select(SeedIds.sabahOrg);

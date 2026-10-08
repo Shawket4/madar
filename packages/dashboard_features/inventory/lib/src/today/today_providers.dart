@@ -56,8 +56,11 @@ final todayBoundsProvider = Provider.autoDispose<TodayBounds>((ref) {
 /// `GET /reports/branches/{branch_id}/inventory-valuation`.
 final todayBranchValuationProvider = FutureProvider.autoDispose
     .family<InventoryValuationReport, String>((ref, branchId) {
+      ref.webCache();
       ref.watch(
-        realtimeEpochProvider('/reports/branches/$branchId/inventory-valuation'),
+        realtimeEpochProvider(
+          '/reports/branches/$branchId/inventory-valuation',
+        ),
       );
       return ref
           .watch(apiProvider)
@@ -68,6 +71,7 @@ final todayBranchValuationProvider = FutureProvider.autoDispose
 /// `GET /reports/orgs/{org_id}/inventory-valuation` (all branches).
 final todayOrgValuationProvider = FutureProvider.autoDispose
     .family<InventoryValuationReport, String>((ref, orgId) {
+      ref.webCache();
       ref.watch(
         realtimeEpochProvider('/reports/orgs/$orgId/inventory-valuation'),
       );
@@ -77,6 +81,7 @@ final todayOrgValuationProvider = FutureProvider.autoDispose
 /// `GET /reports/branches/{branch_id}/low-stock`.
 final todayBranchLowStockProvider = FutureProvider.autoDispose
     .family<List<LowStockRow>, String>((ref, branchId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/reports/branches/$branchId/low-stock'));
       return ref.watch(apiProvider).reports.branchLowStock(branchId: branchId);
     });
@@ -84,6 +89,7 @@ final todayBranchLowStockProvider = FutureProvider.autoDispose
 /// `GET /reports/orgs/{org_id}/low-stock` (every branch of the org).
 final todayOrgLowStockProvider = FutureProvider.autoDispose
     .family<List<LowStockRow>, String>((ref, orgId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/reports/orgs/$orgId/low-stock'));
       return ref.watch(apiProvider).reports.orgLowStock(orgId: orgId);
     });
@@ -95,6 +101,7 @@ typedef TodayOrdersKey = ({String orgId, String expectedBefore});
 /// every branch's orders, the org's (INV-TOD-008).
 final todayOrdersProvider = FutureProvider.autoDispose
     .family<List<PurchaseOrder>, TodayOrdersKey>((ref, k) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/purchasing/orgs/${k.orgId}/orders'));
       return ref
           .watch(apiProvider)
@@ -109,6 +116,7 @@ final todayOrdersProvider = FutureProvider.autoDispose
 /// the 200 most recent).
 final todayWasteProvider = FutureProvider.autoDispose
     .family<List<StockMovement>, String>((ref, branchId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/inventory/branches/$branchId/waste'));
       return ref.watch(apiProvider).inventory.listWaste(branchId: branchId);
     });

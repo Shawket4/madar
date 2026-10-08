@@ -10,6 +10,7 @@
 ///
 ///   ```dart
 ///   final employeesProvider = FutureProvider.autoDispose((ref) {
+///     ref.webCache();
 ///     watchStaffPath(ref, '/staff/employees');
 ///     return ref.watch(apiProvider).staff.listEmployees();
 ///   });
@@ -28,6 +29,7 @@
 /// them invalidates them itself (Set-up's Refresh also covers `/branches`).
 library;
 
+import 'package:dashboard_core/dashboard_core.dart' show realtimeBusProvider;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -76,6 +78,9 @@ class StaffRevisionsNotifier extends Notifier<StaffRevisions> {
     state = segment
         ? StaffRevisions(plain: s.plain, segment: map)
         : StaffRevisions(plain: map, segment: s.segment);
+    // The Dawam reads dashboard_core shares (the set-up check's) listen on
+    // the bus, by plain prefix.
+    ref.read(realtimeBusProvider).invalidate([prefix]);
   }
 
   /// Every read whose path starts with [prefix] (`invalidatePrefix`).

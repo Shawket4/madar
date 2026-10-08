@@ -125,37 +125,38 @@ void main() {
     await h.shot('shared/windows-readonly');
   });
 
-  testWidgets('windowSummary reads a window in one line, as the deals list does', (
-    tester,
-  ) async {
-    final h = await DashHarness.pump(
-      tester,
-      areas: [_area()],
-      path: '/test/windows',
-    );
-    final t = h.container.read(tProvider);
-    expect(windowSummary(t, const SaleWindow()), 'Every day · All branches');
-    expect(
-      windowSummary(
-        t,
-        const SaleWindow(
-          weekdays: 62,
-          startsAt: '12:00:00',
-          endsAt: '16:00:00',
-          validFrom: '2026-10-01',
-          branchId: 'b-z',
+  testWidgets(
+    'windowSummary reads a window in one line, as the deals list does',
+    (tester) async {
+      final h = await DashHarness.pump(
+        tester,
+        areas: [_area()],
+        path: '/test/windows',
+      );
+      final t = h.container.read(tProvider);
+      expect(windowSummary(t, const SaleWindow()), 'Every day · All branches');
+      expect(
+        windowSummary(
+          t,
+          const SaleWindow(
+            weekdays: 62,
+            startsAt: '12:00:00',
+            endsAt: '16:00:00',
+            validFrom: '2026-10-01',
+            branchId: 'b-z',
+          ),
+          branchName: (id) => id == 'b-z' ? 'Zamalek' : null,
         ),
-        branchName: (id) => id == 'b-z' ? 'Zamalek' : null,
-      ),
-      'Mon, Tue, Wed, Thu, Fri · 12:00 to 16:00 · 2026-10-01 to … · Zamalek',
-    );
-    expect(
-      windowSummary(
-        t,
-        const SaleWindow(branchId: 'gone'),
-        branchName: (_) => null,
-      ),
-      'Every day · —',
-    );
-  });
+        'Mon, Tue, Wed, Thu, Fri · 12:00 to 16:00 · 2026-10-01 to … · Zamalek',
+      );
+      expect(
+        windowSummary(
+          t,
+          const SaleWindow(branchId: 'gone'),
+          branchName: (_) => null,
+        ),
+        'Every day · —',
+      );
+    },
+  );
 }

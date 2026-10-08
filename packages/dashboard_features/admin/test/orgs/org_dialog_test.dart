@@ -44,9 +44,8 @@ Future<void> _type(DashHarness h, String key, String text) =>
 
 Future<void> _save(DashHarness h) => h.tapKey(const ValueKey('org-save'));
 
-Finder _switch(String label) => find.byWidgetPredicate(
-  (w) => w is DashSwitch && w.semanticLabel == label,
-);
+Finder _switch(String label) =>
+    find.byWidgetPredicate((w) => w is DashSwitch && w.semanticLabel == label);
 
 bool _switchOn(WidgetTester tester, String label) =>
     tester.widget<DashSwitch>(_switch(label)).value;
@@ -131,7 +130,12 @@ void main() {
         "You can only change your own organisation's logo",
       ),
     );
-    final h = await _open(tester, AdminSeed.layaliOrg, server: s.server, db: s.db);
+    final h = await _open(
+      tester,
+      AdminSeed.layaliOrg,
+      server: s.server,
+      db: s.db,
+    );
     h.files.imageQueue.add(pngFile());
     await h.tapText('Choose Image');
     expect(
@@ -152,7 +156,12 @@ void main() {
     s.db['orgs'].update(AdminSeed.layaliOrg, {
       'logo_url': 'data:image/png;base64,${base64Png()}',
     });
-    final h = await _open(tester, AdminSeed.layaliOrg, server: s.server, db: s.db);
+    final h = await _open(
+      tester,
+      AdminSeed.layaliOrg,
+      server: s.server,
+      db: s.db,
+    );
     await h.container
         .read(selectedOrgProvider.notifier)
         .select(
@@ -237,7 +246,10 @@ void main() {
     tester,
   ) async {
     final h = await _open(tester, AdminSeed.layaliOrg);
-    expect(textHas('On, the price on the menu is what the customer pays'), findsOneWidget);
+    expect(
+      textHas('On, the price on the menu is what the customer pays'),
+      findsOneWidget,
+    );
     await h.tap(_switch('Menu prices include tax'));
     await _save(h);
     expect(_patch(h)['tax_inclusive'], isTrue);

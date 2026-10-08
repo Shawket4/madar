@@ -74,7 +74,13 @@ void registerBasesMocks(MockServer server, MockDb db) {
     final b = req.json;
     final name = b['name'] == null ? null : _cleanName(req, b['name']);
     if (name != null) {
-      _uniqueBaseName(req, db, row['org_id'] as String, name, except: row['id']);
+      _uniqueBaseName(
+        req,
+        db,
+        row['org_id'] as String,
+        name,
+        except: row['id'],
+      );
     }
     if (name != null) row['name'] = name;
     if (b['name_ar'] != null) row['name_ar'] = _cleanOpt(b['name_ar']);
@@ -107,7 +113,12 @@ void registerBasesMocks(MockServer server, MockDb db) {
   server.on('PUT', '/recipe-bases/{id}/lines', (req) {
     req.requireCap(_edit);
     final row = _base(req, db);
-    final lines = _baseLines(req, data, row['org_id'] as String, req.json['lines']);
+    final lines = _baseLines(
+      req,
+      data,
+      row['org_id'] as String,
+      req.json['lines'],
+    );
     row
       ..['lines'] = _storedBaseLines(db, row['id'] as String, lines)
       ..['updated_at'] = db.nowIso;
@@ -302,9 +313,7 @@ void registerBasesMocks(MockServer server, MockDb db) {
 /// `claims_org`: the session's org; a platform admin must have picked one.
 String _claimsOrg(MockRequest req) =>
     req.orgId ??
-    req.fail(
-      MockResponse.forbidden('A super admin must scope this to an org'),
-    );
+    req.fail(MockResponse.forbidden('A super admin must scope this to an org'));
 
 /// `clean_name`: trimmed, 1 to 120 characters, else 400.
 String _cleanName(MockRequest req, Object? raw) {
@@ -383,7 +392,8 @@ int _rebuildUsing(MockDb db, CatalogMenuData data, String baseId) {
 
 int _bumpRevision(MockDb db, String org) {
   final t = db[_revisions];
-  final row = t.find(org) ?? t.insert({'id': org, 'revision': 1}, timestamps: false);
+  final row =
+      t.find(org) ?? t.insert({'id': org, 'revision': 1}, timestamps: false);
   final next = ((row['revision'] as int?) ?? 1) + 1;
   row['revision'] = next;
   return next;
@@ -397,7 +407,9 @@ Map<String, Object?> _baseOut(MockDb db, CatalogMenuData data, MockRow b) {
   final live = [
     for (final s in db[MenuTables.sizes].rows)
       if (s['base_id'] == b['id'] &&
-          db[MenuTables.menuItems].find(s['menu_item_id'] as String)?['deleted_at'] ==
+          db[MenuTables.menuItems].find(
+                s['menu_item_id'] as String,
+              )?['deleted_at'] ==
               null)
         s,
   ];
@@ -443,7 +455,9 @@ List<Map<String, Object?>> _baseLines(
   String org,
   Object? raw,
 ) {
-  if (raw is! List) req.badRequest('Json deserialize error: missing field `lines`');
+  if (raw is! List) {
+    req.badRequest('Json deserialize error: missing field `lines`');
+  }
   final seen = <String>{};
   return [
     for (final (i, l) in raw.cast<Map<String, Object?>>().indexed)
@@ -473,7 +487,9 @@ List<Map<String, Object?>> _ruleLines(
   String org,
   Object? raw,
 ) {
-  if (raw is! List) req.badRequest('Json deserialize error: missing field `lines`');
+  if (raw is! List) {
+    req.badRequest('Json deserialize error: missing field `lines`');
+  }
   final seen = <String>{};
   return [
     for (final (i, l) in raw.cast<Map<String, Object?>>().indexed)
@@ -505,7 +521,9 @@ List<Map<String, Object?>> _ruleLines(
   }
   final ing = data.ingredient('${l['ingredient_id']}');
   if (ing == null || ing['org_id'] != org || ing['deleted_at'] != null) {
-    req.badRequest("Linked ingredient not found in this organization's catalog");
+    req.badRequest(
+      "Linked ingredient not found in this organization's catalog",
+    );
   }
   final from = '${l['unit']}';
   final to = ing['unit'] as String;
@@ -551,7 +569,9 @@ void _validateMatches(
   String? item,
 ) {
   if (cat != null && db[MenuTables.categories].find(cat)?['org_id'] != org) {
-    req.badRequest('match_category_id is not a menu category of this organization');
+    req.badRequest(
+      'match_category_id is not a menu category of this organization',
+    );
   }
   if (item != null) {
     final m = db[MenuTables.menuItems].find(item);
@@ -563,14 +583,21 @@ void _validateMatches(
 
 /// `PackagingRuleOut`: the lines named, by sort then name.
 Map<String, Object?> _ruleOut(CatalogMenuData data, MockRow r) {
-  final lines = [
-    for (final l in (r['lines'] as List).cast<Map<String, Object?>>())
-      {...l, 'ingredient_name': data.ingredientName(l['ingredient_id'] as String)},
-  ]
-    ..sort((a, b) {
-      final s = ((a['sort'] as int?) ?? 0) - ((b['sort'] as int?) ?? 0);
-      return s != 0 ? s : compareJson(a['ingredient_name'], b['ingredient_name']);
-    });
+  final lines =
+      [
+        for (final l in (r['lines'] as List).cast<Map<String, Object?>>())
+          {
+            ...l,
+            'ingredient_name': data.ingredientName(
+              l['ingredient_id'] as String,
+            ),
+          },
+      ]..sort((a, b) {
+        final s = ((a['sort'] as int?) ?? 0) - ((b['sort'] as int?) ?? 0);
+        return s != 0
+            ? s
+            : compareJson(a['ingredient_name'], b['ingredient_name']);
+      });
   return {
     'id': r['id'],
     'org_id': r['org_id'],

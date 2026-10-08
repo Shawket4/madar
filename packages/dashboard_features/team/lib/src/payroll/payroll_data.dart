@@ -26,6 +26,7 @@ final payrollCanReadProvider = Provider.autoDispose<bool>(
 final payrollCurrentProvider = FutureProvider.autoDispose<CurrentPayroll?>((
   ref,
 ) async {
+  ref.webCache();
   watchStaffPath(ref, '/staff/payroll/current');
   if (!ref.watch(payrollCanReadProvider)) return null;
   if (ref.watch(orgIdProvider) == null) return null;
@@ -42,6 +43,7 @@ final payrollPeopleProvider = setupActiveEmployeesProvider;
 /// Each item is a [ComputedPayslip] or a [Payslip].
 final payrollOlderSlipsProvider = FutureProvider.autoDispose
     .family<List<Object>, ({String id, bool draft})>((ref, key) async {
+      ref.webCache();
       final api = ref.watch(apiProvider).staff;
       if (key.draft) {
         watchStaffPath(ref, '/staff/payroll/periods/${key.id}/preview');
@@ -54,20 +56,24 @@ final payrollOlderSlipsProvider = FutureProvider.autoDispose
 /// A settled month's frozen payslips, for the History sheet.
 final payrollHistorySlipsProvider = FutureProvider.autoDispose
     .family<List<Payslip>, String>((ref, id) async {
+      ref.webCache();
       watchStaffPath(ref, '/staff/payroll/periods/$id/payslips');
       return ref.watch(apiProvider).staff.listPayslips(id: id);
     });
 
 /// `GET /staff/adjustments` (the Bonuses & deductions tab).
-final payrollAdjustmentsProvider =
-    FutureProvider.autoDispose<List<Adjustment>>((ref) async {
-      watchStaffPath(ref, '/staff/adjustments');
-      return ref.watch(apiProvider).staff.listAdjustments();
-    });
+final payrollAdjustmentsProvider = FutureProvider.autoDispose<List<Adjustment>>(
+  (ref) async {
+    ref.webCache();
+    watchStaffPath(ref, '/staff/adjustments');
+    return ref.watch(apiProvider).staff.listAdjustments();
+  },
+);
 
 /// `GET /staff/payroll/advances` (the Salary advances tab).
 final payrollAdvancesProvider = FutureProvider.autoDispose<List<SalaryAdvance>>(
   (ref) async {
+    ref.webCache();
     watchStaffPath(ref, '/staff/payroll/advances');
     return ref.watch(apiProvider).staff.listAdvances();
   },
@@ -77,6 +83,7 @@ final payrollAdvancesProvider = FutureProvider.autoDispose<List<SalaryAdvance>>(
 /// branch when none is picked (AV-9).
 final payrollExpensesProvider = FutureProvider.autoDispose
     .family<List<ExpenseAdvance>, String?>((ref, branchId) async {
+      ref.webCache();
       watchStaffPath(ref, '/staff/expense-advances');
       return ref
           .watch(apiProvider)

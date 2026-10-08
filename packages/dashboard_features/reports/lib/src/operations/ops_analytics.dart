@@ -81,7 +81,10 @@ class OpsTableCard extends StatelessWidget {
 
 /// Refetch a tab's reads quietly when they are older than the stale time
 /// (REP-OPS-062), once, when the tab is shown again.
-void _refreshIfStale(WidgetRef ref, List<(String, ProviderBase<Object?>)> reads) {
+void _refreshIfStale(
+  WidgetRef ref,
+  List<(String, ProviderBase<Object?>)> reads,
+) {
   final cache = ref.read(opsCacheProvider);
   for (final (key, p) in reads) {
     if (cache.isStale(key)) ref.invalidate(p);
@@ -112,8 +115,7 @@ class OpsItemsView extends ConsumerStatefulWidget {
   ConsumerState<OpsItemsView> createState() => _OpsItemsViewState();
 }
 
-class _OpsItemsViewState extends ConsumerState<OpsItemsView>
-    with _StaleOnShow {
+class _OpsItemsViewState extends ConsumerState<OpsItemsView> with _StaleOnShow {
   @override
   List<(String, ProviderBase<Object?>)> reads(Scope s) => [
     (itemsKey(s), opsItemsProvider(s)),
@@ -370,15 +372,13 @@ class _OpsWaitersViewState extends ConsumerState<OpsWaitersView>
     final q = ref.watch(opsWaitersProvider(scope));
     final report = q.value;
     final rows = report?.waiters ?? const <WaiterStats>[];
-    final top = ([...rows]..sort((a, b) => b.revenue.compareTo(a.revenue)))
-        .take(10)
-        .toList();
+    final top = ([
+      ...rows,
+    ]..sort((a, b) => b.revenue.compareTo(a.revenue))).take(10).toList();
     void retry() => ref.invalidate(opsWaitersProvider(scope));
     final strong = DashType.monoStrong.copyWith(color: c.textPrimary);
-    final coverage = !q.isLoading &&
-            !q.hasError &&
-            report != null &&
-            report.totalOrders > 0
+    final coverage =
+        !q.isLoading && !q.hasError && report != null && report.totalOrders > 0
         ? Text(
             t(
               'analytics.waiterCoverage',

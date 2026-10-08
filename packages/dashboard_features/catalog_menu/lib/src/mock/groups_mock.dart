@@ -495,7 +495,9 @@ class GroupsBackend {
       }
       final r = requested?.$1;
       if (r != null && magic(r)) {
-        _bad("'$r' swaps milk / coffee beans; pick that category as the swap target");
+        _bad(
+          "'$r' swaps milk / coffee beans; pick that category as the swap target",
+        );
       }
       if (requested != null && r != null) return r;
       if (magic(current) || current == null) return 'extra';
@@ -630,9 +632,7 @@ class GroupsBackend {
   void deleteGroup(MockRow g) {
     final gid = g['id'] as String;
     final attached = _links.rows.any((l) => l['group_id'] == gid);
-    final ordered = _options(
-      g,
-    ).any((o) => _orderedOptions.contains(o['id']));
+    final ordered = _options(g).any((o) => _orderedOptions.contains(o['id']));
     if (attached || ordered) {
       g['is_active'] = false;
     } else {
@@ -748,8 +748,7 @@ class GroupsBackend {
         _bad("Linked ingredient not found in this organization's catalog");
       }
       final base = ing['unit'] as String;
-      final q =
-          jsRound(_convert(qty.toDouble(), unit, base) * 1000) / 1000;
+      final q = jsRound(_convert(qty.toDouble(), unit, base) * 1000) / 1000;
       if (qty > 0 && q <= 0) {
         _bad(
           'quantity $qty $unit is too small for base unit $base (rounds to 0)',
@@ -769,7 +768,9 @@ class GroupsBackend {
       if (la == null && lb != null) return -1;
       if (la != null && lb == null) return 1;
       final c = compareJson(la, lb);
-      return c != 0 ? c : compareJson(a['ingredient_name'], b['ingredient_name']);
+      return c != 0
+          ? c
+          : compareJson(a['ingredient_name'], b['ingredient_name']);
     });
     o['recipe'] = lines;
     return [
@@ -854,11 +855,11 @@ class GroupsBackend {
     List<Map<String, Object?>> options,
     String slug,
   ) {
-    final active =
-        options.where((o) => o['is_active'] == true).toList()..sort((a, b) {
-          final c = ((a['sort'] as int?) ?? 0) - ((b['sort'] as int?) ?? 0);
-          return c != 0 ? c : compareJson(a['name'], b['name']);
-        });
+    final active = options.where((o) => o['is_active'] == true).toList()
+      ..sort((a, b) {
+        final c = ((a['sort'] as int?) ?? 0) - ((b['sort'] as int?) ?? 0);
+        return c != 0 ? c : compareJson(a['name'], b['name']);
+      });
     for (final size in _data.sizesOf(item['id'] as String)) {
       if (size['is_active'] != true) continue;
       for (final line in _data.linesOf(size['id'] as String)) {
@@ -953,9 +954,7 @@ class GroupsBackend {
               'base_id': s['base_id'],
               'cost_piastres': cost.cost,
               'cost_incomplete': cost.incomplete,
-              'recipe': [
-                for (final l in lines) _line(l, l['id'] as String),
-              ],
+              'recipe': [for (final l in lines) _line(l, l['id'] as String)],
             };
           }(),
       ],

@@ -100,7 +100,9 @@ class _SlotSection extends ConsumerWidget {
     final figure = DashType.mono.copyWith(color: c.textPrimary);
 
     Widget row(List<Widget> cells, {bool header = false}) => Container(
-      padding: const EdgeInsets.symmetric(vertical: Space.xs + DashMetrics.hair),
+      padding: const EdgeInsets.symmetric(
+        vertical: Space.xs + DashMetrics.hair,
+      ),
       decoration: header
           ? null
           : BoxDecoration(

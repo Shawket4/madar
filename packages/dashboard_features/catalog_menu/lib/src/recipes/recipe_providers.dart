@@ -13,6 +13,7 @@ import '../shared/menu_queries.dart';
 /// starts with `/recipes`).
 final addonIngredientsProvider = FutureProvider.autoDispose
     .family<List<AddonIngredient>, String>((ref, addonItemId) {
+      ref.webCache();
       watchMenuPath(ref, MenuPaths.addonIngredients(addonItemId));
       return ref
           .watch(apiProvider)

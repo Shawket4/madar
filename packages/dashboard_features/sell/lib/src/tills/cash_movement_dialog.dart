@@ -29,8 +29,7 @@ class CashMovementDialog extends ConsumerStatefulWidget {
   final String tillId;
 
   @override
-  ConsumerState<CashMovementDialog> createState() =>
-      _CashMovementDialogState();
+  ConsumerState<CashMovementDialog> createState() => _CashMovementDialogState();
 }
 
 class _CashMovementDialogState extends ConsumerState<CashMovementDialog> {

@@ -2,8 +2,7 @@
 /// (inactive ones too), searchable; ⋯ Edit / Delete per row. No row click.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart'
-    show Supplier;
+import 'package:dashboard_api/dashboard_api.dart' show Supplier;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -101,7 +100,10 @@ class SuppliersTab extends ConsumerWidget {
           label: t('common.status'),
           text: (s) => s.isActive ? t('common.active') : t('common.inactive'),
           cell: (context, s) => s.isActive
-              ? DashStatusPill(label: t('common.active'), tone: DashTone.success)
+              ? DashStatusPill(
+                  label: t('common.active'),
+                  tone: DashTone.success,
+                )
               : DashStatusPill(
                   label: t('common.inactive'),
                   icon: 'minus-circle',

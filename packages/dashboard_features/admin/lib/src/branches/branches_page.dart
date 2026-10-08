@@ -344,7 +344,9 @@ class _BranchesTable extends ConsumerWidget {
           text: (b) => b.printerBrand?.toJson() ?? '',
           cell: (context, b) {
             final brand = b.printerBrand;
-            if (brand == null) return Text(t('branches.noPrinter'), style: muted);
+            if (brand == null) {
+              return Text(t('branches.noPrinter'), style: muted);
+            }
             return Row(
               mainAxisSize: MainAxisSize.min,
               spacing: Space.xs + DashMetrics.hair,
@@ -440,15 +442,17 @@ class _NameCell extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   spacing: Space.xs,
                   children: [
-                    DashIcon('map-pin', size: IconSize.xs, color: c.textSecondary),
+                    DashIcon(
+                      'map-pin',
+                      size: IconSize.xs,
+                      color: c.textSecondary,
+                    ),
                     Flexible(
                       child: MadarClippedText(
                         address!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: DashType.small.copyWith(
-                          color: c.textSecondary,
-                        ),
+                        style: DashType.small.copyWith(color: c.textSecondary),
                       ),
                     ),
                   ],

@@ -51,11 +51,8 @@ class HomeSkeleton extends StatelessWidget {
   final double height;
 
   @override
-  Widget build(BuildContext context) => DashSkeleton(
-    width: double.infinity,
-    height: height,
-    radius: Radii.md,
-  );
+  Widget build(BuildContext context) =>
+      DashSkeleton(width: double.infinity, height: height, radius: Radii.md);
 }
 
 /// A text link (the web's `<Link>`): underlined on hover and focus, an
@@ -196,7 +193,10 @@ class HomeEqualRow extends MultiChildRenderObjectWidget {
   );
 
   @override
-  void updateRenderObject(BuildContext context, RenderHomeEqualRow renderObject) {
+  void updateRenderObject(
+    BuildContext context,
+    RenderHomeEqualRow renderObject,
+  ) {
     renderObject
       ..flex = flex
       ..gap = gap
@@ -259,7 +259,10 @@ class RenderHomeEqualRow extends RenderBox
     ];
     var tallest = 0.0;
     for (var i = 0; i < kids.length; i++) {
-      kids[i].layout(BoxConstraints.tightFor(width: widths[i]), parentUsesSize: true);
+      kids[i].layout(
+        BoxConstraints.tightFor(width: widths[i]),
+        parentUsesSize: true,
+      );
       if (kids[i].size.height > tallest) tallest = kids[i].size.height;
     }
     var x = 0.0;

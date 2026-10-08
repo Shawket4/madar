@@ -110,10 +110,7 @@ DayWindow dayWindow(BookingSettings? settings, String date) {
   final left = (start - window.open) / span * 100;
   final width = math.max((end - start) / span * 100, 1.5);
   final clampedLeft = math.max(0.0, math.min(left, 100.0));
-  return (
-    left: clampedLeft,
-    width: math.min(width, 100 - math.max(0.0, left)),
-  );
+  return (left: clampedLeft, width: math.min(width, 100 - math.max(0.0, left)));
 }
 
 /// The hour ticks across [window] (`hourTicks`): [label] of each whole hour
@@ -125,7 +122,10 @@ List<({String label, double left})> hourTicks(
   final out = <({String label, double left})>[];
   final span = window.close - window.open;
   for (var m = (window.open / 60).ceil() * 60; m <= window.close; m += 60) {
-    out.add((label: label((m ~/ 60) % 24), left: (m - window.open) / span * 100));
+    out.add((
+      label: label((m ~/ 60) % 24),
+      left: (m - window.open) / span * 100,
+    ));
   }
   return out;
 }
@@ -216,8 +216,7 @@ BookingGuestValues guestValuesOf(BookingView? b) => (
 );
 
 /// What goes on the wire (`guestPhoneToWire`): the canonical phone.
-String guestPhoneToWire(String typed) =>
-    canonicalPhone(typed) ?? typed.trim();
+String guestPhoneToWire(String typed) => canonicalPhone(typed) ?? typed.trim();
 
 /// The custom-time box's rule (`/^\d{1,2}:\d{2}$/`, ASCII digits only).
 final RegExp customTimePattern = RegExp(r'^[0-9]{1,2}:[0-9]{2}$');

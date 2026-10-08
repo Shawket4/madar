@@ -20,13 +20,11 @@ import 'devices_data.dart';
 
 /// Opens the dialog for [device]; [host] is the page, which shows the
 /// result's toast should the dialog already be gone when the answer lands.
-Future<void> showDeviceDialog(
-  BuildContext host,
-  Device device,
-) => showDashDialog<void>(
-  host,
-  builder: (_) => DeviceDialog(device: device, host: host),
-);
+Future<void> showDeviceDialog(BuildContext host, Device device) =>
+    showDashDialog<void>(
+      host,
+      builder: (_) => DeviceDialog(device: device, host: host),
+    );
 
 /// Shows what is typed in capitals, as the web's `uppercase` input does.
 class _Upper extends TextInputFormatter {

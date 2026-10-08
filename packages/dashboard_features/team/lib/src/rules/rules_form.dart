@@ -158,7 +158,8 @@ class DawamRules {
 
   /// `rulesFrom(settings)`.
   factory DawamRules.from(AttendanceSettings s) => DawamRules(
-    overtimeMode: const ['off', 'automatic', 'approval'].contains(s.overtimeMode)
+    overtimeMode:
+        const ['off', 'automatic', 'approval'].contains(s.overtimeMode)
         ? s.overtimeMode
         : 'off',
     otDay: s.overtimeDayMultiplier,
@@ -243,9 +244,7 @@ class DawamRules {
     genderMode: genderMode ?? this.genderMode,
     limitDay: limitDay == null ? this.limitDay : limitDay(),
     limitWeek: limitWeek == null ? this.limitWeek : limitWeek(),
-    limitPresence: limitPresence == null
-        ? this.limitPresence
-        : limitPresence(),
+    limitPresence: limitPresence == null ? this.limitPresence : limitPresence(),
     limitRest: limitRest == null ? this.limitRest : limitRest(),
     limitOtDay: limitOtDay == null ? this.limitOtDay : limitOtDay(),
     ordersPerStaff: ordersPerStaff == null
@@ -651,12 +650,7 @@ RuleTier nextTier(List<RuleTier> tiers) {
   final last = tiers.isEmpty ? null : tiers.last;
   final end = last?.to;
   final from = end != null && end.isFinite ? end + 1 : 1.0;
-  return RuleTier(
-    from: from,
-    to: from + 14,
-    kind: TierKind.minutes,
-    value: 15,
-  );
+  return RuleTier(from: from, to: from + 14, kind: TierKind.minutes, value: 15);
 }
 
 /// A figure as JavaScript prints it (`String(n)`: `7`, `0.25`, `NaN`).

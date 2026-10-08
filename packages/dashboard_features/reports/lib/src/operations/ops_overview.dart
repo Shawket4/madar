@@ -481,7 +481,9 @@ class _ExcludeListState extends ConsumerState<_ExcludeList> {
               ? Padding(
                   padding: const EdgeInsets.all(Space.lg),
                   child: Text(
-                    menu.isLoading ? t('common.loading') : t('common.noResults'),
+                    menu.isLoading
+                        ? t('common.loading')
+                        : t('common.noResults'),
                     textAlign: TextAlign.center,
                     style: DashType.body.copyWith(color: c.textSecondary),
                   ),

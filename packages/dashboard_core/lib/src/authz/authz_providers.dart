@@ -7,8 +7,10 @@ library;
 import 'dart:async';
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show ApiException, Branch, MyAuthz;
+    show ApiException, AttendanceSettings, Branch, Employee, MyAuthz, WorkShift;
+import 'package:dashboard_core/src/api_provider.dart';
 import 'package:dashboard_core/src/authz/authz.dart';
+import 'package:dashboard_core/src/data/query_cache.dart';
 import 'package:dashboard_core/src/data/models.dart';
 import 'package:dashboard_core/src/gateways/preferences.dart';
 import 'package:dashboard_core/src/generated/capabilities.dart';
@@ -273,19 +275,59 @@ final setupEnabledProvider = Provider<bool>((ref) {
   return can && dawam && ref.watch(orgIdProvider) != null;
 });
 
+// The three Dawam reads the checklist shares with Dawam's own pages: one
+// request each, as the web's one query key does. A staff write or Refresh
+// invalidates them on the realtime bus, by path prefix.
+
+/// `GET /staff/employees?employment_status=active`.
+final staffActiveEmployeesProvider = FutureProvider.autoDispose<List<Employee>>(
+  (ref) {
+    ref.webCache();
+    ref.watch(realtimeEpochProvider('/staff/employees'));
+    return ref
+        .watch(apiProvider)
+        .staff
+        .listEmployees(employmentStatus: 'active');
+  },
+);
+
+/// `GET /staff/work-shifts`.
+final staffWorkShiftsProvider = FutureProvider.autoDispose<List<WorkShift>>((
+  ref,
+) {
+  ref.webCache();
+  ref.watch(realtimeEpochProvider('/staff/work-shifts'));
+  return ref.watch(apiProvider).staff.listWorkShifts();
+});
+
+/// `GET /staff/attendance/settings` (the business's rules).
+final staffAttendanceSettingsProvider =
+    FutureProvider.autoDispose<AttendanceSettings>((ref) {
+      ref.webCache();
+      ref.watch(realtimeEpochProvider('/staff/attendance/settings'));
+      return ref.watch(apiProvider).staff.getAttendanceSettings();
+    });
+
 final _setupEmployeesProvider = FutureProvider<List<String>?>((ref) async {
   if (!ref.watch(setupEnabledProvider)) return null;
-  return ref.watch(coreApiProvider).listActiveEmployeeStatuses();
+  return [
+    for (final e in await ref.watch(staffActiveEmployeesProvider.future))
+      e.employmentStatus,
+  ];
 }, retry: (_, _) => null);
 
 final _setupShiftsProvider = FutureProvider<List<bool>?>((ref) async {
   if (!ref.watch(setupEnabledProvider)) return null;
-  return ref.watch(coreApiProvider).listWorkShiftActive();
+  return [
+    for (final s in await ref.watch(staffWorkShiftsProvider.future)) s.isActive,
+  ];
 }, retry: (_, _) => null);
 
 final _setupRulesProvider = FutureProvider<(DateTime?,)?>((ref) async {
   if (!ref.watch(setupEnabledProvider)) return null;
-  return (await ref.watch(coreApiProvider).getAttendanceRulesSavedAt(),);
+  return (
+    (await ref.watch(staffAttendanceSettingsProvider.future)).rulesSavedAt,
+  );
 }, retry: (_, _) => null);
 
 /// The live data behind the checklist.

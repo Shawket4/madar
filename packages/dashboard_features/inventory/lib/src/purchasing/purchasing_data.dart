@@ -22,7 +22,10 @@ typedef PurchaseOrdersKey = ({String branchId, String? status});
 /// `GET /purchasing/branches/{branch_id}/orders?status=` (newest first).
 final purchaseOrdersProvider = FutureProvider.autoDispose
     .family<List<PurchaseOrder>, PurchaseOrdersKey>((ref, k) {
-      ref.watch(realtimeEpochProvider('/purchasing/branches/${k.branchId}/orders'));
+      ref.webCache();
+      ref.watch(
+        realtimeEpochProvider('/purchasing/branches/${k.branchId}/orders'),
+      );
       return ref
           .watch(apiProvider)
           .purchasing
@@ -33,6 +36,7 @@ final purchaseOrdersProvider = FutureProvider.autoDispose
 /// per default supplier, in the server's order.
 final reorderSuggestionsProvider = FutureProvider.autoDispose
     .family<List<ReorderSuggestion>, String>((ref, branchId) {
+      ref.webCache();
       ref.watch(
         realtimeEpochProvider(
           '/purchasing/branches/$branchId/reorder-suggestions',
@@ -48,6 +52,7 @@ final reorderSuggestionsProvider = FutureProvider.autoDispose
 /// dialog, while it is open).
 final purchaseOrderProvider = FutureProvider.autoDispose
     .family<PurchaseOrderFull, String>((ref, id) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/purchasing/orders/$id'));
       return ref.watch(apiProvider).purchasing.getPurchaseOrder(id: id);
     });
@@ -56,6 +61,7 @@ final purchaseOrderProvider = FutureProvider.autoDispose
 /// first. The dialog refreshes it every time its history tab opens.
 final poReceiptsProvider = FutureProvider.autoDispose
     .family<List<GoodsReceipt>, String>((ref, id) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/purchasing/orders/$id/receipts'));
       return ref.watch(apiProvider).purchasing.listPoReceipts(id: id);
     });
@@ -93,8 +99,7 @@ String jsNumberString(num n) {
 }
 
 /// `piastres / 100` at exactly two decimals (`toFixed(2)`), for an input.
-String piastresToEgpFixed(num piastres) =>
-    (piastres / 100).toStringAsFixed(2);
+String piastresToEgpFixed(num piastres) => (piastres / 100).toStringAsFixed(2);
 
 /// The logo a generated spreadsheet wears (`useExportLogo`): the shop's own
 /// on the branding tier, else null (Madar's).

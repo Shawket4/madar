@@ -20,10 +20,7 @@ final setupActiveEmployeesProvider =
     FutureProvider.autoDispose<List<Employee>?>((ref) async {
       watchStaffPath(ref, '/staff/employees');
       if (ref.watch(orgIdProvider) == null) return null;
-      return ref
-          .watch(apiProvider)
-          .staff
-          .listEmployees(employmentStatus: 'active');
+      return ref.watch(staffActiveEmployeesProvider.future);
     });
 
 /// `GET /staff/work-shifts`.
@@ -32,7 +29,7 @@ final setupWorkShiftsProvider = FutureProvider.autoDispose<List<WorkShift>?>((
 ) async {
   watchStaffPath(ref, '/staff/work-shifts');
   if (ref.watch(orgIdProvider) == null) return null;
-  return ref.watch(apiProvider).staff.listWorkShifts();
+  return ref.watch(staffWorkShiftsProvider.future);
 });
 
 /// `GET /staff/attendance/settings` (the business's rules).
@@ -40,7 +37,7 @@ final setupAttendanceSettingsProvider =
     FutureProvider.autoDispose<AttendanceSettings?>((ref) async {
       watchStaffPath(ref, '/staff/attendance/settings');
       if (ref.watch(orgIdProvider) == null) return null;
-      return ref.watch(apiProvider).staff.getAttendanceSettings();
+      return ref.watch(staffAttendanceSettingsProvider.future);
     });
 
 /// The checklist's data, each field null until answered.
@@ -100,11 +97,20 @@ final teamSetupDataProvider = Provider.autoDispose<TeamSetupData>((ref) {
 /// (TEAM-SET-005 Retry).
 void retryTeamSetup(WidgetRef ref) {
   if (failedEmpty(ref.read(branchesProvider))) ref.invalidate(branchesProvider);
-  for (final p in [
-    setupActiveEmployeesProvider,
-    setupWorkShiftsProvider,
-    setupAttendanceSettingsProvider,
-  ]) {
-    if (failedEmpty(ref.read(p))) ref.invalidate(p);
+  // A failed page read waits on the shared one: that one asks again too.
+  if (failedEmpty(ref.read(setupActiveEmployeesProvider))) {
+    ref
+      ..invalidate(staffActiveEmployeesProvider)
+      ..invalidate(setupActiveEmployeesProvider);
+  }
+  if (failedEmpty(ref.read(setupWorkShiftsProvider))) {
+    ref
+      ..invalidate(staffWorkShiftsProvider)
+      ..invalidate(setupWorkShiftsProvider);
+  }
+  if (failedEmpty(ref.read(setupAttendanceSettingsProvider))) {
+    ref
+      ..invalidate(staffAttendanceSettingsProvider)
+      ..invalidate(setupAttendanceSettingsProvider);
   }
 }

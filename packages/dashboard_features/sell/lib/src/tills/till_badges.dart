@@ -119,9 +119,7 @@ class _FlagLink extends StatelessWidget {
             style: DashType.smallMedium.copyWith(
               color: s.highlighted ? c.textPrimary : c.textSecondary,
               decoration: TextDecoration.underline,
-              decorationColor: s.highlighted
-                  ? c.textPrimary
-                  : c.textSecondary,
+              decorationColor: s.highlighted ? c.textPrimary : c.textSecondary,
             ),
           ),
         ),

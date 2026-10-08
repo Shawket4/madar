@@ -7,6 +7,7 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_core/testing.dart';
+import 'package:dashboard_kit/dashboard_kit.dart' show DashOptionList;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -19,8 +20,15 @@ String? lastBranchHeader(DashHarness h) {
 
 Future<void> pickBranch(DashHarness h, String from, String to) async {
   await h.tapText(from);
-  await h.tap(find.text(to).last);
+  await h.tap(inMenu(to));
 }
+
+/// [text] in the open picker's options (the page under it names branches
+/// too).
+Finder inMenu(String text) => find.descendant(
+  of: find.byWidgetPredicate((w) => w is DashOptionList),
+  matching: find.text(text),
+);
 
 void main() {
   testWidgets('owner picks a branch: scope, header, realtime, remembered', (
@@ -31,7 +39,7 @@ void main() {
     expect(h.realtime.connections, isEmpty);
     await h.tapText('All branches');
     await h.shot('scope/branch-open');
-    await h.tap(find.text('Zamalek').last);
+    await h.tap(inMenu('Zamalek'));
     expect(h.container.read(scopeProvider).branchId, SeedIds.zamalek);
     expect(h.session.branchId, SeedIds.zamalek);
     expect(jsonDecode(h.prefs.values[ScopePrefKeys.branch]!), {
@@ -103,7 +111,7 @@ void main() {
     await h.tap(labelled('Switch language'));
     expect(h.container.read(localeProvider), 'ar');
     expect(h.prefs.values[languagePrefKey], 'ar');
-    expect(text('الطلبات'), findsOneWidget);
+    expect(navText('الطلبات'), findsOneWidget);
     expect(
       Directionality.of(tester.element(find.byType(DashSidebar))),
       TextDirection.rtl,

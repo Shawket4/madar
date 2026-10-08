@@ -118,7 +118,8 @@ class SetupRules {
       workingDays: s.workingDaysPerMonth,
       autoBuffer: s.autoCheckoutBufferMinutes,
       excusedPaid: s.excusedTimePaidDefault,
-      overtimeMode: const ['off', 'automatic', 'approval'].contains(s.overtimeMode)
+      overtimeMode:
+          const ['off', 'automatic', 'approval'].contains(s.overtimeMode)
           ? s.overtimeMode
           : 'off',
       otDay: s.overtimeDayMultiplier,
@@ -138,7 +139,9 @@ class SetupRules {
       limitRest: s.limitRestHours,
       limitOtDay: s.limitOvertimeDayHours,
       ordersPerStaff: s.ordersPerStaff,
-      coverPayMode: s.coverPayMode == 'full_block' ? 'full_block' : 'minute_rate',
+      coverPayMode: s.coverPayMode == 'full_block'
+          ? 'full_block'
+          : 'minute_rate',
     );
   }
 
@@ -221,8 +224,6 @@ int tierPiastres(SetupTier tier, PayExample ex) {
   }
   if (ex.shiftMinutes <= 0) return 0;
   return nonNeg(
-    _roundHalfAway(
-      ex.salary * tier.value / (ex.workingDays * ex.shiftMinutes),
-    ),
+    _roundHalfAway(ex.salary * tier.value / (ex.workingDays * ex.shiftMinutes)),
   );
 }

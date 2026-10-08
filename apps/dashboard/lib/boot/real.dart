@@ -68,6 +68,8 @@ Future<ProviderContainer> bootReal() async {
     refusalWords: refusalWords,
   );
   container = ProviderContainer(
+    // The web's retry policy (queryRetry): never a refusal, a 429 thrice.
+    retry: webRetry,
     overrides: [
       dashAreasProvider.overrideWithValue(dashboardAreas),
       stringsProvider.overrideWithValue(strings),

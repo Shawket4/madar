@@ -292,18 +292,22 @@ void registerDevicesMocks(MockServer server, MockDb db) {
     for (final c in clients().rows) {
       if (orgOf(c) != org) continue;
       if (branchId != null && c['branch_id'] != branchId) continue;
-      final stamp = legacyOnly ? at(c['last_legacy_at']) : at(c['last_seen_at']);
+      final stamp = legacyOnly
+          ? at(c['last_legacy_at'])
+          : at(c['last_seen_at']);
       if (stamp == null || stamp.isBefore(since)) continue;
       final b = c['branch_id'];
       final d = c['device_id'];
       final device = d is String ? devices().find(d) : null;
-      rows.add({
-        ...c,
-        'branch_name': b is String ? (db['branches'].find(b)?['name']) : null,
-        'device_code': device != null && device['org_id'] == org
-            ? device['code']
-            : null,
-      }..remove('org_id'));
+      rows.add(
+        {
+          ...c,
+          'branch_name': b is String ? (db['branches'].find(b)?['name']) : null,
+          'device_code': device != null && device['org_id'] == org
+              ? device['code']
+              : null,
+        }..remove('org_id'),
+      );
     }
     // ORDER BY last_legacy_at DESC NULLS LAST, last_seen_at DESC
     rows.sort((a, b) {

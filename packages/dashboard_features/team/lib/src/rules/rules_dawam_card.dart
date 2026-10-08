@@ -144,10 +144,8 @@ class DawamRulesCard extends StatelessWidget {
       );
     }
 
-    String rate(double? n) => t(
-      'dawam.rateExample',
-      args: {'n': n == null ? '—' : jsNum(n)},
-    );
+    String rate(double? n) =>
+        t('dawam.rateExample', args: {'n': n == null ? '—' : jsNum(n)});
 
     Widget segmented(
       String label,
@@ -257,7 +255,9 @@ class DawamRulesCard extends StatelessWidget {
             ),
             _CoverPayChoice(
               t: t,
-              value: branch && coverFollows ? coverBusiness : value.coverPayMode,
+              value: branch && coverFollows
+                  ? coverBusiness
+                  : value.coverPayMode,
               branch: branch,
               enabled: !readOnly,
               onChanged: (c) {
@@ -387,7 +387,11 @@ class _CoverPayChoice extends StatelessWidget {
                             minHeight: DashMetrics.target,
                           ),
                           padding: const EdgeInsets.all(Space.md),
-                          foregroundDecoration: dashFocusRing(context, s, radius),
+                          foregroundDecoration: dashFocusRing(
+                            context,
+                            s,
+                            radius,
+                          ),
                           decoration: BoxDecoration(
                             color: on
                                 ? c.accent.withValues(alpha: 0.05)

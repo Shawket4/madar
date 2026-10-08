@@ -250,8 +250,7 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
 
   bool get _dirty => recipeRowsDiffer(_rows, _baseline);
 
-  String get _baseSize =>
-      widget.sizes.isEmpty ? oneSize : widget.sizes.first;
+  String get _baseSize => widget.sizes.isEmpty ? oneSize : widget.sizes.first;
 
   void _addRow(String size) => _set([
     ..._rows,
@@ -288,13 +287,10 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
     if (onSave == null) return;
     final current = _rows;
     final cleaned = _clean(current);
-    final removed = removedRecipeRows(
-      [
-        for (final r in widget.initialRows)
-          (sizeLabel: r.sizeLabel, ingredientName: r.ingredientName),
-      ],
-      cleanRecipeRows(current),
-    );
+    final removed = removedRecipeRows([
+      for (final r in widget.initialRows)
+        (sizeLabel: r.sizeLabel, ingredientName: r.ingredientName),
+    ], cleanRecipeRows(current));
     setState(() => _saving = true);
     try {
       await onSave(cleaned, removed);

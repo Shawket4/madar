@@ -94,10 +94,7 @@ class OrgSwitchBox extends StatelessWidget {
             ],
           ),
           if (hint != null)
-            Text(
-              hint!,
-              style: DashType.small.copyWith(color: c.textSecondary),
-            ),
+            Text(hint!, style: DashType.small.copyWith(color: c.textSecondary)),
         ],
       ),
     );

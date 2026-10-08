@@ -28,10 +28,17 @@ AsyncValue<T?> watchWhen<T>(
 /// The page's own refusal (`<Restricted title who=reports.noAccess>`), once
 /// the person's permissions are known and lack [canSee] (REP-ALL-005).
 /// Null while the page may render.
-Widget? reportRestricted(WidgetRef ref, {required String title, required bool canSee}) {
+Widget? reportRestricted(
+  WidgetRef ref, {
+  required String title,
+  required bool canSee,
+}) {
   final ready = ref.watch(authzProvider.select((a) => a.ready));
   if (!ready || canSee) return null;
-  return Restricted(title: title, who: ref.watch(tProvider)('reports.noAccess'));
+  return Restricted(
+    title: title,
+    who: ref.watch(tProvider)('reports.noAccess'),
+  );
 }
 
 /// The logo a generated spreadsheet wears (`useExportLogo`): the shop's own

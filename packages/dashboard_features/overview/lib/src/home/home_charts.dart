@@ -2,8 +2,7 @@
 /// ledger legend) — `dashboard-page.tsx`'s two chart cards.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart'
-    show TimeseriesPoint;
+import 'package:dashboard_api/dashboard_api.dart' show TimeseriesPoint;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -42,7 +41,10 @@ class HomeRevenueTrendCard extends ConsumerWidget {
     } else if (points.isEmpty) {
       body = HomeStateBox(
         height: HomeMetrics.chart,
-        child: DashEmptyState(framed: false, title: t('dashboard.noSalesPeriod')),
+        child: DashEmptyState(
+          framed: false,
+          title: t('dashboard.noSalesPeriod'),
+        ),
       );
     } else {
       // The timeseries' naive wall-clock periods are shown as they are (the
@@ -101,13 +103,15 @@ class HomePaymentMixCard extends ConsumerWidget {
     } else if (payments.isEmpty) {
       body = HomeStateBox(
         height: HomeMetrics.chart,
-        child: DashEmptyState(framed: false, title: t('dashboard.noSalesPeriod')),
+        child: DashEmptyState(
+          framed: false,
+          title: t('dashboard.noSalesPeriod'),
+        ),
       );
     } else {
       final total = payments.fold(0, (s, p) => s + p.value);
-      String name(String method) => t.exists('payments.$method')
-          ? t('payments.$method')
-          : method;
+      String name(String method) =>
+          t.exists('payments.$method') ? t('payments.$method') : method;
       body = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.lg,
@@ -245,7 +249,12 @@ class _LegendLine extends StatelessWidget {
     }
     return Row(
       spacing: Space.sm,
-      children: [dot, Expanded(child: label), figure, pct],
+      children: [
+        dot,
+        Expanded(child: label),
+        figure,
+        pct,
+      ],
     );
   }
 }

@@ -432,7 +432,8 @@ void _paintText(
       ? anchor
       : Offset(
           anchor.dx - tp.width / 2,
-          anchor.dy - tp.computeDistanceToActualBaseline(TextBaseline.alphabetic),
+          anchor.dy -
+              tp.computeDistanceToActualBaseline(TextBaseline.alphabetic),
         );
   tp
     ..paint(canvas, offset)

@@ -15,14 +15,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// invalidation does.
 final adminBranchesProvider = FutureProvider.autoDispose
     .family<List<Branch>, String>((ref, orgId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/branches?org_id=$orgId'));
       return ref.watch(apiProvider).branches.listBranches(orgId: orgId);
     });
 
 /// `GET /timezones` (listTimezones) for the timezone select.
-final branchTimezonesProvider = FutureProvider.autoDispose<List<String>>(
-  (ref) => ref.watch(apiProvider).branches.listTimezones(),
-);
+final branchTimezonesProvider = FutureProvider.autoDispose<List<String>>((ref) {
+  ref.webCache();
+  return ref.watch(apiProvider).branches.listTimezones();
+});
 
 /// The web's `invalidateBranches()`: every read whose key starts with
 /// `/branches` — this page's list, the scope bar's branch picker, the

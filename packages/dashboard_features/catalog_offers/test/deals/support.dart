@@ -79,8 +79,7 @@ List<MockCall> callsTo(DashHarness h, String method, String template) =>
 
 /// Every text widget's string under [of].
 List<String> textsIn(Finder of) => [
-  for (final e in find
-      .descendant(of: of, matching: find.byType(Text))
-      .evaluate())
+  for (final e
+      in find.descendant(of: of, matching: find.byType(Text)).evaluate())
     (e.widget as Text).data ?? (e.widget as Text).textSpan?.toPlainText() ?? '',
 ];

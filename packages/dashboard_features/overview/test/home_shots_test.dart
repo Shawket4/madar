@@ -48,7 +48,10 @@ void main() {
     }
   }
 
-  for (final (size, lang) in [(DashSize.desktop, 'en'), (DashSize.phone, 'ar')]) {
+  for (final (size, lang) in [
+    (DashSize.desktop, 'en'),
+    (DashSize.phone, 'ar'),
+  ]) {
     final tag = '${size.name} $lang';
     testWidgets('a branch picked, $tag', (tester) async {
       final h = await pumpHome(

@@ -366,13 +366,10 @@ List<({String method, int amount, bool isCash})> _legs(MockRow o) {
 }
 
 List<MockRow> _movesOf(MockDb db, String tillId) =>
-    db[TillTables.movements]
-        .where((m) => m['till_id'] == tillId)
-        .toList()
+    db[TillTables.movements].where((m) => m['till_id'] == tillId).toList()
       ..sort(
-        (a, b) => (a['created_at']! as String).compareTo(
-          b['created_at']! as String,
-        ),
+        (a, b) =>
+            (a['created_at']! as String).compareTo(b['created_at']! as String),
       );
 
 /// The drawer: float + cash tenders of sold orders + cash movements.
@@ -401,11 +398,7 @@ String? _paymentMethodId(MockDb db, String name) =>
 
 /// What a close reconciles: the cash line (the expected drawer) first, then
 /// every non-cash method the till took, by name.
-List<CloseTillMethod> _closeMethods(
-  MockDb db,
-  MockRow till,
-  int expectedCash,
-) {
+List<CloseTillMethod> _closeMethods(MockDb db, MockRow till, int expectedCash) {
   final byMethod = <String, ({bool cash, int total, Set<String> orders})>{};
   for (final o in _ordersOf(db, till['id']! as String)) {
     if (!_sold(o)) continue;
@@ -481,10 +474,7 @@ List<TillReconciliationLine> _planLines(
     return null;
   }
 
-  TillReconciliationLine line(
-    CloseTillMethod m,
-    ReconciliationInput? input,
-  ) {
+  TillReconciliationLine line(CloseTillMethod m, ReconciliationInput? input) {
     final base = TillReconciliationLine(
       method: m.method,
       paymentMethodId: m.paymentMethodId,
@@ -576,11 +566,7 @@ String _rollup(Iterable<TillReconciliationLine> lines) {
   return unreviewed ? 'unreviewed' : 'clean';
 }
 
-void _storeLines(
-  MockDb db,
-  String tillId,
-  List<TillReconciliationLine> lines,
-) {
+void _storeLines(MockDb db, String tillId, List<TillReconciliationLine> lines) {
   final table = db[TillTables.reconciliations];
   for (final l in lines) {
     table.put({'id': '$tillId:${l.method}', 'till_id': tillId, ...l.toJson()});
@@ -747,10 +733,7 @@ List<_Use> _recipe(String item, bool iced) {
       ...milky(170),
       _use('pistachio', 'Pistachio paste', 'g', 20),
     ],
-    'frappe' => [
-      ...milky(150),
-      _use('caramel', 'Caramel syrup', 'ml', 25),
-    ],
+    'frappe' => [...milky(150), _use('caramel', 'Caramel syrup', 'ml', 25)],
     'v60' => [_use('single-origin', 'Single-origin beans', 'g', 15)],
     'turkish' => [_use('turkish', 'Turkish coffee', 'g', 10)],
     'cold_brew' => [_use('cold-brew', 'Cold brew concentrate', 'ml', 120)],
@@ -829,7 +812,9 @@ List<DeductionLogRow> _deductions(MockDb db, String tillId) {
                 u.qty,
               )
             : u;
-        uses.add(_use(swapped.key, swapped.name, swapped.unit, u.qty * line.quantity));
+        uses.add(
+          _use(swapped.key, swapped.name, swapped.unit, u.qty * line.quantity),
+        );
       }
       for (final a in line.addons) {
         for (final u in _addonUse(a.addonName)) {
@@ -1012,7 +997,8 @@ ShiftSummary _summary(MockDb db, MockRow till) {
     closedAt: till['closed_at'] == null
         ? null
         : DateTime.parse(till['closed_at']! as String),
-    openedWhileAnotherOpen: (till['opened_while_another_open'] as bool?) ?? false,
+    openedWhileAnotherOpen:
+        (till['opened_while_another_open'] as bool?) ?? false,
     reconciliationStatus: till['reconciliation_status'] as String?,
     openingCash: till['opening_cash']! as int,
     closingCashDeclared: till['closing_cash_declared'] as int?,
@@ -1071,8 +1057,7 @@ void registerTillsMocks(MockServer server, MockDb db) {
       tills.where((t) => t['teller_id'] == person && t['status'] == 'open'),
     );
     final here = open.where((t) => t['branch_id'] == branchId).firstOrNull;
-    final float =
-        db['branches'].find(branchId)?['standard_float'] as int?;
+    final float = db['branches'].find(branchId)?['standard_float'] as int?;
     final last = _lastCloseDeclared(db, branchId);
     return MockResponse.ok(
       TillPreFill(
@@ -1097,9 +1082,7 @@ void registerTillsMocks(MockServer server, MockDb db) {
     req.requireBranch(branchId);
     return MockResponse.ok(
       _newestFirst(
-        tills.where(
-          (t) => t['branch_id'] == branchId && t['status'] == 'open',
-        ),
+        tills.where((t) => t['branch_id'] == branchId && t['status'] == 'open'),
       ),
     );
   });
@@ -1296,7 +1279,10 @@ void registerTillsMocks(MockServer server, MockDb db) {
     final id = t['id']! as String;
     if (t['status'] != 'open') {
       return MockResponse.ok(
-        CloseTillResponse(till: Till.fromJson(t), reconciliation: _linesOf(db, id)),
+        CloseTillResponse(
+          till: Till.fromJson(t),
+          reconciliation: _linesOf(db, id),
+        ),
       );
     }
     final closedAt = body.closedAt ?? req.now;

@@ -23,55 +23,65 @@ import 'onboarding_config.dart';
 
 /// `GET /orgs/{id}/onboarding`.
 final onbStatusProvider = FutureProvider.autoDispose
-    .family<OnboardingStatus, String>(
-      (ref, orgId) => ref.watch(apiProvider).orgs.getOnboarding(id: orgId),
-    );
+    .family<OnboardingStatus, String>((ref, orgId) {
+      ref.webCache();
+      return ref.watch(apiProvider).orgs.getOnboarding(id: orgId);
+    });
 
 /// `GET /orgs/{id}`.
-final onbOrgProvider = FutureProvider.autoDispose.family<Org, String>(
-  (ref, orgId) => ref.watch(apiProvider).orgs.getOrg(id: orgId),
-);
+final onbOrgProvider = FutureProvider.autoDispose.family<Org, String>((
+  ref,
+  orgId,
+) {
+  ref.webCache();
+  return ref.watch(apiProvider).orgs.getOrg(id: orgId);
+});
 
 /// `GET /categories?org_id=`.
 final onbCategoriesProvider = FutureProvider.autoDispose
-    .family<List<Category>, String>(
-      (ref, orgId) => ref.watch(apiProvider).menu.listCategories(orgId: orgId),
-    );
+    .family<List<Category>, String>((ref, orgId) {
+      ref.webCache();
+      return ref.watch(apiProvider).menu.listCategories(orgId: orgId);
+    });
 
 /// `GET /menu-items?org_id=`.
 final onbMenuItemsProvider = FutureProvider.autoDispose
-    .family<List<MenuItem>, String>(
-      (ref, orgId) => ref.watch(apiProvider).menu.listMenuItems(orgId: orgId),
-    );
+    .family<List<MenuItem>, String>((ref, orgId) {
+      ref.webCache();
+      return ref.watch(apiProvider).menu.listMenuItems(orgId: orgId);
+    });
 
 /// `GET /addon-items?org_id=` (the item dialog's add-on picker).
 final onbAddonItemsProvider = FutureProvider.autoDispose
-    .family<List<AddonItem>, String>(
-      (ref, orgId) => ref.watch(apiProvider).menu.listAddonItems(orgId: orgId),
-    );
+    .family<List<AddonItem>, String>((ref, orgId) {
+      ref.webCache();
+      return ref.watch(apiProvider).menu.listAddonItems(orgId: orgId);
+    });
 
 /// `GET /modifier-groups?org_id=` (the add-on dialog's groups, the item
 /// dialog's attachments).
 final onbGroupsProvider = FutureProvider.autoDispose
-    .family<List<GroupOut>, String>(
-      (ref, orgId) => ref.watch(apiProvider).menu.listGroups(orgId: orgId),
-    );
+    .family<List<GroupOut>, String>((ref, orgId) {
+      ref.webCache();
+      return ref.watch(apiProvider).menu.listGroups(orgId: orgId);
+    });
 
 /// `GET /inventory/orgs/{org_id}/catalog` (the recipe builder).
 final onbCatalogProvider = FutureProvider.autoDispose
-    .family<List<OrgIngredient>, String>(
-      (ref, orgId) =>
-          ref.watch(apiProvider).inventory.listCatalog(orgId: orgId),
-    );
+    .family<List<OrgIngredient>, String>((ref, orgId) {
+      ref.webCache();
+      return ref.watch(apiProvider).inventory.listCatalog(orgId: orgId);
+    });
 
 /// `GET /inventory/orgs/{org_id}/categories` (the ingredient dialog).
 final onbIngredientCategoriesProvider = FutureProvider.autoDispose
-    .family<List<IngredientCategory>, String>(
-      (ref, orgId) => ref
+    .family<List<IngredientCategory>, String>((ref, orgId) {
+      ref.webCache();
+      return ref
           .watch(apiProvider)
           .inventory
-          .listIngredientCategories(orgId: orgId),
-    );
+          .listIngredientCategories(orgId: orgId);
+    });
 
 /// Asks the checklist again (closing a step's dialog, saving the café, a new
 /// logo).

@@ -184,8 +184,7 @@ class _BranchPinState extends ConsumerState<_BranchPin> {
 
   // Seeded once from the branch, as the web's `useState(saved)`.
   late LatLng? _pin = _saved;
-  late double? _radius =
-      (widget.branch.geoRadiusMeters ?? 0) > 0
+  late double? _radius = (widget.branch.geoRadiusMeters ?? 0) > 0
       ? widget.branch.geoRadiusMeters!.toDouble()
       : defaultPinRadius.toDouble();
   String _paste = '';
@@ -291,57 +290,53 @@ class _BranchPinState extends ConsumerState<_BranchPin> {
     final status = pinned
         ? t('dawam.pinnedSummary', args: {'radius': b.geoRadiusMeters})
         : t('dawam.notPinned');
-    final header = Semantics(
+    final header = DashPressable(
+      key: ValueKey('setup-pin-toggle-${b.id}'),
+      onTap: widget.onToggle,
       expanded: widget.open,
-      child: DashPressable(
-        key: ValueKey('setup-pin-toggle-${b.id}'),
-        onTap: widget.onToggle,
-        semanticLabel: '${b.name}, $status, $trailing',
-        excludeChildSemantics: true,
-        builder: (context, s) => Container(
-          constraints: const BoxConstraints(minHeight: DashMetrics.target),
-          padding: const EdgeInsets.all(Space.md),
-          foregroundDecoration: dashFocusRing(
-            context,
-            s,
-            BorderRadius.circular(Radii.xs),
-          ),
-          decoration: BoxDecoration(
-            color: s.highlighted ? c.hover.withValues(alpha: 0.5) : null,
-            borderRadius: BorderRadius.circular(Radii.xs),
-          ),
-          child: Row(
-            spacing: Space.md,
-            children: [
-              DashIcon(
-                pinned ? 'check-circle-2' : 'map-pin',
-                size: IconSize.lg,
-                color: pinned ? c.success : c.textSecondary,
+      semanticLabel: '${b.name}, $status, $trailing',
+      excludeChildSemantics: true,
+      builder: (context, s) => Container(
+        constraints: const BoxConstraints(minHeight: DashMetrics.target),
+        padding: const EdgeInsets.all(Space.md),
+        foregroundDecoration: dashFocusRing(
+          context,
+          s,
+          BorderRadius.circular(Radii.xs),
+        ),
+        decoration: BoxDecoration(
+          color: s.highlighted ? c.hover.withValues(alpha: 0.5) : null,
+          borderRadius: BorderRadius.circular(Radii.xs),
+        ),
+        child: Row(
+          spacing: Space.md,
+          children: [
+            DashIcon(
+              pinned ? 'check-circle-2' : 'map-pin',
+              size: IconSize.lg,
+              color: pinned ? c.success : c.textSecondary,
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    b.name,
+                    style: DashType.bodyMedium.copyWith(color: c.textPrimary),
+                  ),
+                  Text(
+                    status,
+                    style: DashType.small.copyWith(color: c.textSecondary),
+                  ),
+                ],
               ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      b.name,
-                      style: DashType.bodyMedium.copyWith(
-                        color: c.textPrimary,
-                      ),
-                    ),
-                    Text(
-                      status,
-                      style: DashType.small.copyWith(color: c.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                trailing,
-                style: DashType.body.copyWith(color: c.textSecondary),
-              ),
-            ],
-          ),
+            ),
+            Text(
+              trailing,
+              style: DashType.body.copyWith(color: c.textSecondary),
+            ),
+          ],
         ),
       ),
     );

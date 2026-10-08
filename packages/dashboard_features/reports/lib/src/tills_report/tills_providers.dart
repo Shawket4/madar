@@ -24,6 +24,7 @@ String tillSessionsPath(String branchId) => '/reports/branches/$branchId/tills';
 
 final tillSessionsProvider = FutureProvider.autoDispose
     .family<List<TillSessionRow>, TillSessionsKey>((ref, k) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider(tillSessionsPath(k.branchId)));
       return ref
           .watch(apiProvider)

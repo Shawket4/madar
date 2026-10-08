@@ -95,8 +95,7 @@ class _OrgDialogState extends ConsumerState<OrgDialog> {
     });
   }
 
-  bool get _platform =>
-      ref.read(currentSessionProvider)?.isPlatform ?? false;
+  bool get _platform => ref.read(currentSessionProvider)?.isPlatform ?? false;
 
   Future<void> _save() async {
     if (_busy) return;
@@ -213,8 +212,7 @@ class _OrgDialogState extends ConsumerState<OrgDialog> {
         _org;
     final zones = ref.watch(orgTimezonesProvider).value ?? const <String>[];
     final platform =
-        ref.watch(currentSessionProvider.select((s) => s?.isPlatform)) ??
-        false;
+        ref.watch(currentSessionProvider.select((s) => s?.isPlatform)) ?? false;
     final twoUp = MediaQuery.sizeOf(context).width >= DashBreakpoints.sm;
     final logo = live.logoUrl;
     final hasLogo = logo != null && logo.isNotEmpty;
@@ -413,7 +411,8 @@ class _OrgDialogState extends ConsumerState<OrgDialog> {
           OrgSocialLinksFields(
             values: _social,
             errors: {
-              for (final p in socialPlatforms) p.key: _errors['social.${p.key}'],
+              for (final p in socialPlatforms)
+                p.key: _errors['social.${p.key}'],
             },
             onChanged: (key, v) => _changed(() => _social[key] = v),
             onSubmitted: _save,

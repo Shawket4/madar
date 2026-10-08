@@ -183,11 +183,7 @@ void setStock(
   double? parMax,
 }) {
   final existing = stockRow(db, branchId, key);
-  final patch = {
-    'on_hand': onHand,
-    'par_min': ?parMin,
-    'par_max': ?parMax,
-  };
+  final patch = {'on_hand': onHand, 'par_min': ?parMin, 'par_max': ?parMax};
   if (existing != null) {
     db[InvTables.branchStock].update(existing['id']! as String, patch);
   } else {

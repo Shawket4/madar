@@ -47,7 +47,8 @@ DateTime _date(String iso) {
 
 String _two(int v) => v.toString().padLeft(2, '0');
 
-String _iso(DateTime d) => '${d.year.toString().padLeft(4, '0')}-'
+String _iso(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-'
     '${_two(d.month)}-${_two(d.day)}';
 
 /// Days from [today] to the month's last day, both counted; 0 once it has
@@ -447,7 +448,9 @@ List<PayLine> payslipLines(SlipRow p, DashFormat f) {
         key: carry ? 'carry' : 'd|$id',
         labelKey: carry ? 'dawam.lineCarry' : coded,
         vars: coded == null ? null : _map(l['reason_vars']),
-        label: carry ? 'Carried from the last payslip' : (_str(l['reason']) ?? ''),
+        label: carry
+            ? 'Carried from the last payslip'
+            : (_str(l['reason']) ?? ''),
         amount: -_int(l['piastres']),
         rule: !carry && !manual,
         manualKind: manual && id != null ? 'deduction' : null,

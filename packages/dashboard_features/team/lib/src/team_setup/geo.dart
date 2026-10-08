@@ -129,8 +129,9 @@ bool inEgypt(LatLng p) =>
 /// A link that opens the pin in Google Maps, so the owner can check it on a
 /// real map: `https://www.google.com/maps?q=lat,lng` with the figures as
 /// JavaScript prints them.
-Uri mapsLink(LatLng p) =>
-    Uri.parse('https://www.google.com/maps?q=${jsNumber(p.lat)},${jsNumber(p.lng)}');
+Uri mapsLink(LatLng p) => Uri.parse(
+  'https://www.google.com/maps?q=${jsNumber(p.lat)},${jsNumber(p.lng)}',
+);
 
 /// `30.04440, 31.23570` for reading (always Latin digits, LTR).
 String fmtLatLng(LatLng p) =>

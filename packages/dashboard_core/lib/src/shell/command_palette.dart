@@ -6,6 +6,7 @@ library;
 
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
 import 'package:dashboard_core/src/routes/nav.dart';
+import 'package:dashboard_core/src/shell/prefetch.dart';
 import 'package:dashboard_core/src/shell/shell_nav.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -176,10 +177,13 @@ class _PaletteState extends ConsumerState<DashCommandPalette> {
                   ),
                 ),
                 for (final item in g.$2)
-                  _PaletteRow(
-                    item: item,
-                    selected: index++ == _cursor,
-                    onTap: () => _open(item.to),
+                  PrefetchOnIntent(
+                    to: item.to,
+                    child: _PaletteRow(
+                      item: item,
+                      selected: index++ == _cursor,
+                      onTap: () => _open(item.to),
+                    ),
                   ),
               ],
             ],

@@ -55,9 +55,7 @@ void main() {
     await h.shot('legal/restricted');
   });
 
-  testWidgets('REP-LEG-002 the tab strip, in the web\'s order', (
-    tester,
-  ) async {
+  testWidgets('REP-LEG-002 the tab strip, in the web\'s order', (tester) async {
     final h = await pumpLegal(tester);
     expect(tabLabels(h), _labels(h, LegalTab.values));
     expect(tabLabels(h), [
@@ -190,7 +188,9 @@ void main() {
     h.container.invalidate(orgModulesQueryProvider);
     await h.settle();
     expect(tabText(h.t(LegalTab.attendanceCorrections.labelKey)), findsNothing);
-    expect(h.server.callsTo(taxRoute), hasLength(2));
+    // Back on Tax: its report is still fresh (< 30 s), shown from the cache
+    // without a second request, as the web's staleTime does.
+    expect(h.server.callsTo(taxRoute), hasLength(1));
     expect(find.text(h.t('analytics.tax.taxableSales')), findsOneWidget);
   });
 
@@ -208,7 +208,9 @@ void main() {
     final h = await pumpLegal(tester);
     expect(find.text('Legal'), findsWidgets);
     expect(find.text('Last 30 days'), findsWidgets);
-    await h.container.read(scopeProvider.notifier).setPreset(ScopePreset.last7Days);
+    await h.container
+        .read(scopeProvider.notifier)
+        .setPreset(ScopePreset.last7Days);
     await h.settle();
     expect(find.text('Last 7 days'), findsWidgets);
     // A new period asks again, with its own range.
@@ -254,8 +256,9 @@ void main() {
     expect(find.text('Tarek Saber'), findsNothing);
   });
 
-  testWidgets('REP-LEG-037 until the modules answer: no tabs, nothing asked',
-      (tester) async {
+  testWidgets('REP-LEG-037 until the modules answer: no tabs, nothing asked', (
+    tester,
+  ) async {
     final s = legalServer();
     final gate = s.server.hold('GET', '/orgs/{id}/modules');
     final h = await pumpLegal(tester, server: s.server, db: s.db);

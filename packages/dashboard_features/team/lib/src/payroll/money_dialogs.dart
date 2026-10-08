@@ -361,7 +361,8 @@ class _AdjustmentDialogState extends ConsumerState<AdjustmentDialog>
             label: t('dawam.amountEgp'),
             value: _amount == null ? null : egpToPiastres(_amount!),
             allowEmpty: true,
-            onChanged: (p) => setState(() => _amount = p == null ? null : p / 100),
+            onChanged: (p) =>
+                setState(() => _amount = p == null ? null : p / 100),
             validator: (p) =>
                 p == null || p <= 0 ? t('dawam.amountRequired') : null,
           ),
@@ -370,8 +371,7 @@ class _AdjustmentDialogState extends ConsumerState<AdjustmentDialog>
           value: _reason,
           onChanged: (v) => setState(() => _reason = v),
           description: t('dawam.reasonShown'),
-          validator: (v) =>
-              v.trim().isEmpty ? t('dawam.reasonRequired') : null,
+          validator: (v) => v.trim().isEmpty ? t('dawam.reasonRequired') : null,
         ),
         MoneyMonthField(
           label: _recurring
@@ -658,8 +658,7 @@ class _CorrectExpenseTagDialogState
           label: t('staff.reason'),
           value: _reason,
           onChanged: (v) => setState(() => _reason = v),
-          validator: (v) =>
-              v.trim().isEmpty ? t('dawam.reasonRequired') : null,
+          validator: (v) => v.trim().isEmpty ? t('dawam.reasonRequired') : null,
         ),
       ],
     );
@@ -1048,8 +1047,7 @@ class _OverrideDialogState extends ConsumerState<OverrideDialog>
           label: t('staff.reason'),
           value: _reason,
           onChanged: (v) => setState(() => _reason = v),
-          validator: (v) =>
-              v.trim().isEmpty ? t('dawam.reasonRequired') : null,
+          validator: (v) => v.trim().isEmpty ? t('dawam.reasonRequired') : null,
         ),
       ],
     );

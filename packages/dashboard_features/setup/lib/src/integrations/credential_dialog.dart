@@ -111,7 +111,8 @@ class _CredentialDialogState extends ConsumerState<CredentialDialog> {
       for (final b in ref.watch(branchesProvider).value ?? const <Branch>[])
         if (b.isActive) b,
     ];
-    final wide = DashSurfaceScope.maybeOf(context) != DashSurfaceMode.fullScreen;
+    final wide =
+        DashSurfaceScope.maybeOf(context) != DashSurfaceMode.fullScreen;
     return DashSurface(
       title: t('integrations.newTitle'),
       description: t('integrations.newHint'),

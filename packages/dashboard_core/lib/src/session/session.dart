@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dashboard_core/src/data/models.dart';
+import 'package:dashboard_core/src/data/query_cache.dart';
 import 'package:dashboard_core/src/gateways/preferences.dart';
 import 'package:dashboard_core/src/scope/scope.dart' show ScopePrefKeys;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -121,6 +122,8 @@ class SessionNotifier extends AsyncNotifier<SessionInfo?> {
     final prefs = ref.read(preferencesProvider);
     await prefs.setString(ScopePrefKeys.org, null);
     await prefs.setString(ScopePrefKeys.branch, null);
+    // Flush every cached read, as the web's `queryClient.clear()`.
+    ref.read(queryCacheProvider).clear();
     state = const AsyncData(null);
   }
 

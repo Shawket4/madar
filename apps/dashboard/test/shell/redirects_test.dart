@@ -156,7 +156,7 @@ void main() {
         expect(text('Not available on this account'), findsOneWidget);
         await pumpShell(tester, path: '/orgs', persona: Persona.platform);
         expect(text('Not available on this account'), findsNothing);
-        expect(text('This page is on its way'), findsOneWidget);
+        expect(text('Organizations'), findsWidgets);
       },
     );
 

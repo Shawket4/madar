@@ -24,7 +24,8 @@ const _dialogs = [
   (DashSize.phone, 'ar', false),
 ];
 
-String _name(DashSize s, String l, bool d) => '${s.name}-$l-${d ? 'dark' : 'light'}';
+String _name(DashSize s, String l, bool d) =>
+    '${s.name}-$l-${d ? 'dark' : 'light'}';
 
 final _zamalek = atBranch(SeedIds.zamalek);
 
@@ -102,9 +103,7 @@ void main() {
       await h.shot('devices/edit-invalid');
     });
 
-    testWidgets('the New code dialog and the issued code $tag', (
-      tester,
-    ) async {
+    testWidgets('the New code dialog and the issued code $tag', (tester) async {
       final h = await pumpDevices(
         tester,
         query: _zamalek,
@@ -137,12 +136,7 @@ void main() {
     });
 
     testWidgets('no branch picked $tag', (tester) async {
-      final h = await pumpDevices(
-        tester,
-        size: size,
-        locale: lang,
-        dark: dark,
-      );
+      final h = await pumpDevices(tester, size: size, locale: lang, dark: dark);
       expect(find.text(h.t('tills.pickBranch')), findsOneWidget);
       await h.shot('devices/pick-branch');
     });
@@ -161,9 +155,7 @@ void main() {
       );
       expect(find.text(h.t('devices.empty')), findsOneWidget);
       await h.shot('devices/empty');
-      await h.scrollUntilVisible(
-        find.text(h.t('devices.activation.empty')),
-      );
+      await h.scrollUntilVisible(find.text(h.t('devices.activation.empty')));
       await h.shot('devices/codes-empty');
     });
 

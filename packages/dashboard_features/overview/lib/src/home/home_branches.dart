@@ -40,7 +40,10 @@ class HomeBranchPerformanceCard extends ConsumerWidget {
         spacing: Space.xs,
         children: [
           for (final (i, b) in ranked.indexed)
-            HomeReveal(order: i, child: _BranchRow(rank: i + 1, branch: b)),
+            HomeReveal(
+              order: i,
+              child: _BranchRow(rank: i + 1, branch: b),
+            ),
         ],
       );
     }

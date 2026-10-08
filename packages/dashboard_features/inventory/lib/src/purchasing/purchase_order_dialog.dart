@@ -324,8 +324,7 @@ class _PurchaseOrderDialogState extends ConsumerState<PurchaseOrderDialog> {
                       ..ingredientId = id
                       ..purchaseUnit = _ingredient(id)?.unit ?? '';
                   }),
-                  onUnit: (u) =>
-                      _setLine(_lines[i], (l) => l.purchaseUnit = u),
+                  onUnit: (u) => _setLine(_lines[i], (l) => l.purchaseUnit = u),
                   onQty: (v) => _setLine(_lines[i], (l) => l.qty = v),
                   onTotal: (v) => _setLine(_lines[i], (l) {
                     l

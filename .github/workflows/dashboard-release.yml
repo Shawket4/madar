@@ -1,0 +1,425 @@
+name: Dashboard release
+
+# Madar Dashboard (apps/dashboard) on every platform it ships: Android, iOS,
+# macOS and Windows. Same shape as staff-release.yml, but every signing secret
+# is OPTIONAL: a missing one falls back to the unsigned / ad-hoc build with a
+# warning, never a failure, so the builds always come out.
+#
+# Runs on its own tag, or by hand from the Actions tab (workflow_dispatch needs
+# this file on the default branch; until it is merged, a tag is the way):
+#   git tag dash-v1.0.0 && git push origin dash-v1.0.0
+# A tag with a suffix (dash-v1.0.0-beta.1) publishes as a pre-release, and a
+# dashboard release never becomes the repo's "Latest" (that is the POS's).
+# The app talks to https://api.madar-pos.cloud (bootReal's default).
+#
+# Secrets (repo → Settings → Secrets and variables → Actions), all optional:
+#   Android, release key (else DEBUG-signed: installs fine, Play rejects it):
+#     DASH_KEYSTORE_BASE64      base64 -i upload.keystore | tr -d '\n'
+#     DASH_KEYSTORE_PASSWORD / DASH_KEY_PASSWORD / DASH_KEY_ALIAS
+#   iOS → TestFlight (else an UNSIGNED .ipa, to re-sign yourself), the POS's key:
+#     ASC_KEY_P8 / ASC_KEY_ID / ASC_ISSUER_ID / APPLE_TEAM_ID
+#     (the team needs an App Store Connect app for com.madar.madarDashboard)
+#   macOS, Developer ID + notarized (else AD-HOC: right-click → Open the first time):
+#     MACOS_DEVELOPER_ID_P12    "Developer ID Application" cert + key, .p12, base64
+#     MACOS_DEVELOPER_ID_PASSWORD
+#     + ASC_KEY_P8 / ASC_KEY_ID / ASC_ISSUER_ID (notarytool uses the same key)
+#   Windows, Authenticode (else UNSIGNED: SmartScreen warns on first launch):
+#     WINDOWS_CERT_PFX          code-signing cert, .pfx, base64
+#     WINDOWS_CERT_PASSWORD
+#   DIAWI_TOKEN                 optional OTA install link for the Android APK
+
+on:
+  push:
+    tags:
+      - "dash-v*.*.*"
+  workflow_dispatch:
+
+concurrency:
+  group: dashboard-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: "3.47.2"
+
+jobs:
+  build-android:
+    name: Build Android (APK + AAB)
+    runs-on: ubuntu-latest
+    outputs:
+      diawi_url: ${{ steps.diawi.outputs.diawi_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Rust (from rust-toolchain.toml)
+        working-directory: rust-core
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+          key: dash-android
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Release keystore (optional)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.DASH_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.DASH_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.DASH_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.DASH_KEY_ALIAS }}
+        working-directory: apps/dashboard
+        run: |
+          set -euo pipefail
+          for v in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_PASSWORD KEY_ALIAS; do
+            if [ -z "${!v:-}" ]; then
+              echo "::warning::DASH_$v not set: Android is DEBUG-signed (installs, but not Play-uploadable)."
+              exit 0
+            fi
+          done
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
+          keytool -list -keystore android/app/release.keystore \
+            -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null \
+            || { echo "::error::Cannot open DASH_KEYSTORE_BASE64 with DASH_KEYSTORE_PASSWORD / DASH_KEY_ALIAS."; exit 1; }
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=app/release.keystore
+          EOF
+
+      - name: Pub get
+        run: dart pub get
+
+      - name: Build APKs (one per ABI) + App Bundle
+        working-directory: apps/dashboard
+        run: |
+          flutter build apk --release --split-per-abi \
+            --target-platform android-arm64,android-arm \
+            --build-number=${{ github.run_number }}
+          flutter build appbundle --release --build-number=${{ github.run_number }}
+
+      - name: Upload APK to diawi (OTA install link)
+        id: diawi
+        continue-on-error: true
+        env:
+          DIAWI_TOKEN: ${{ secrets.DIAWI_TOKEN }}
+        working-directory: apps/dashboard
+        run: |
+          if [ -z "$DIAWI_TOKEN" ]; then echo "DIAWI_TOKEN not set, skipping."; exit 0; fi
+          job=$(curl -s https://upload.diawi.com/ -F token="$DIAWI_TOKEN" \
+            -F file=@build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
+            -F comment="Madar Dashboard $GITHUB_REF_NAME" | jq -r '.job // empty')
+          [ -n "$job" ] || { echo "diawi upload failed"; exit 1; }
+          for i in $(seq 1 60); do
+            sleep 5
+            resp=$(curl -s "https://upload.diawi.com/status?token=$DIAWI_TOKEN&job=$job")
+            case "$(echo "$resp" | jq -r '.status')" in
+              2000) link="https://i.diawi.com/$(echo "$resp" | jq -r '.hash')"
+                    echo "diawi_url=$link" >> "$GITHUB_OUTPUT"
+                    echo "## 📱 Android install link: $link" >> "$GITHUB_STEP_SUMMARY"
+                    exit 0 ;;
+              2001) ;;
+              *) echo "diawi error: $resp"; exit 1 ;;
+            esac
+          done
+          exit 1
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dashboard-android
+          path: |
+            apps/dashboard/build/app/outputs/flutter-apk/app-*-release.apk
+            apps/dashboard/build/app/outputs/bundle/release/app-release.aab
+
+      - name: Shred signing material
+        if: always()
+        working-directory: apps/dashboard
+        run: shred -u android/app/release.keystore android/key.properties 2>/dev/null || true
+
+  build-ios:
+    name: Build iOS (TestFlight, or unsigned .ipa)
+    runs-on: macos-26
+    env:
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Signing secrets?
+        id: asc
+        run: |
+          for v in ASC_KEY_P8 ASC_KEY_ID ASC_ISSUER_ID APPLE_TEAM_ID; do
+            if [ -z "${!v:-}" ]; then
+              echo "::warning::$v not set: iOS builds UNSIGNED (no TestFlight). iOS has no ad-hoc signing without a certificate."
+              echo "signed=false" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+          done
+          echo "$ASC_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          grep -q "BEGIN PRIVATE KEY" "$RUNNER_TEMP/AuthKey.p8" \
+            || { echo "::error::ASC_KEY_P8 did not decode to a .p8 key."; exit 1; }
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Rust (from rust-toolchain.toml)
+        working-directory: rust-core
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+          key: dash-ios
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Pub get
+        run: dart pub get
+
+      - name: Build unsigned .ipa
+        if: steps.asc.outputs.signed != 'true'
+        working-directory: apps/dashboard
+        run: |
+          flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R build/ios/iphoneos/Runner.app "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qr "$GITHUB_WORKSPACE/MadarDashboard-iOS-unsigned.ipa" Payload)
+
+      - name: Archive (signed) + upload to TestFlight
+        if: steps.asc.outputs.signed == 'true'
+        working-directory: apps/dashboard
+        run: |
+          set -euo pipefail
+          flutter build ios --release --config-only --build-number=${{ github.run_number }}
+          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8"
+                -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+          xcodebuild archive -workspace ios/Runner.xcworkspace -scheme Runner \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" "${AUTH[@]}" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" "${AUTH[@]}"
+          echo "## 🍎 iOS build ${{ github.run_number }} uploaded to TestFlight" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        if: steps.asc.outputs.signed != 'true'
+        with:
+          name: dashboard-ios
+          path: MadarDashboard-iOS-unsigned.ipa
+
+      - name: Shred key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"
+
+  build-macos:
+    name: Build macOS (Developer ID, or ad-hoc)
+    runs-on: macos-26
+    env:
+      P12: ${{ secrets.MACOS_DEVELOPER_ID_P12 }}
+      P12_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_PASSWORD }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust (from rust-toolchain.toml)
+        working-directory: rust-core
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+          key: dash-macos
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Pub get
+        run: dart pub get
+
+      # The project has no team and identity "-", so this build is ad-hoc signed.
+      - name: Build macOS
+        working-directory: apps/dashboard
+        run: flutter build macos --release --build-number=${{ github.run_number }}
+
+      - name: Developer ID sign + notarize (optional)
+        working-directory: apps/dashboard/build/macos/Build/Products/Release
+        run: |
+          set -euo pipefail
+          for v in P12 P12_PASSWORD ASC_KEY_P8 ASC_KEY_ID ASC_ISSUER_ID; do
+            if [ -z "${!v:-}" ]; then
+              echo "::warning::$v not set: macOS stays AD-HOC signed (Gatekeeper: right-click → Open the first time)."
+              exit 0
+            fi
+          done
+          KC="$RUNNER_TEMP/sign.keychain-db"
+          security create-keychain -p ci "$KC"
+          security set-keychain-settings "$KC"
+          security unlock-keychain -p ci "$KC"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci "$KC" > /dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          ID=$(security find-identity -v -p codesigning "$KC" | grep -o '"Developer ID Application[^"]*"' | head -1 | tr -d '"')
+          [ -n "$ID" ] || { echo "::error::No 'Developer ID Application' identity in MACOS_DEVELOPER_ID_P12."; exit 1; }
+          APP=$(ls -d *.app)
+          # Inside out: frameworks first, then the app with its entitlements.
+          find "$APP/Contents/Frameworks" -maxdepth 1 \( -name '*.framework' -o -name '*.dylib' \) \
+            -exec codesign --force --options runtime --timestamp -s "$ID" {} \;
+          codesign --force --options runtime --timestamp \
+            --entitlements "$GITHUB_WORKSPACE/apps/dashboard/macos/Runner/Release.entitlements" -s "$ID" "$APP"
+          codesign --verify --strict --verbose=2 "$APP"
+          echo "$ASC_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" --wait \
+            --key "$RUNNER_TEMP/AuthKey.p8" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID"
+          xcrun stapler staple "$APP"
+
+      - name: Zip macOS build
+        working-directory: apps/dashboard/build/macos/Build/Products/Release
+        run: ditto -c -k --keepParent *.app "$GITHUB_WORKSPACE/MadarDashboard-macOS.zip"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dashboard-macos
+          path: MadarDashboard-macOS.zip
+
+      - name: Shred signing material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/AuthKey.p8"
+          security delete-keychain "$RUNNER_TEMP/sign.keychain-db" 2>/dev/null || true
+
+  build-windows:
+    name: Build Windows (Authenticode, or unsigned)
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust (from rust-toolchain.toml)
+        working-directory: rust-core
+        run: rustup show active-toolchain; if ($LASTEXITCODE -ne 0) { rustup toolchain install }
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+          key: dash-windows
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Pub get
+        run: dart pub get
+
+      - name: Build Windows
+        working-directory: apps/dashboard
+        run: flutter build windows --release --build-number=${{ github.run_number }}
+
+      # ponytail: PFX-file signing; a cert kept on an HSM / Azure Trusted Signing needs its own step.
+      - name: Authenticode sign (optional)
+        working-directory: apps/dashboard/build/windows/x64/runner/Release
+        env:
+          PFX: ${{ secrets.WINDOWS_CERT_PFX }}
+          PFX_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        shell: pwsh
+        run: |
+          if (-not $env:PFX -or -not $env:PFX_PASSWORD) {
+            Write-Output "::warning::WINDOWS_CERT_PFX / WINDOWS_CERT_PASSWORD not set: Windows build is UNSIGNED (SmartScreen warns)."
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP 'cert.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX))
+          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe' | Sort-Object FullName | Select-Object -Last 1
+          $files = Get-ChildItem -Recurse -Include *.exe,*.dll | ForEach-Object FullName
+          & $signtool.FullName sign /f $pfx /p $env:PFX_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $files
+          $code = $LASTEXITCODE
+          Remove-Item $pfx -Force
+          exit $code
+
+      # The whole folder: the exe needs flutter_windows.dll, the plugin DLLs and data/.
+      - name: Zip Windows build
+        working-directory: apps/dashboard/build/windows/x64/runner/Release
+        run: Compress-Archive -Path * -DestinationPath "$env:GITHUB_WORKSPACE\MadarDashboard-Windows.zip"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dashboard-windows
+          path: MadarDashboard-Windows.zip
+
+  release:
+    name: Create GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-android, build-ios, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      # dash-v1.0.0-beta.1 is a pre-release; the "dash-" prefix is not a suffix.
+      - name: Pre-release?
+        id: meta
+        run: |
+          v="${GITHUB_REF_NAME#dash-v}"
+          if [[ "$v" == *-* ]]; then echo "pre=true" >> "$GITHUB_OUTPUT"; else echo "pre=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Compose release notes
+        env:
+          DIAWI_URL: ${{ needs.build-android.outputs.diawi_url }}
+        run: |
+          {
+            if [ -n "$DIAWI_URL" ]; then echo "## 📱 Android: **[install over the air]($DIAWI_URL)**"; echo; fi
+            echo "Signing depends on which secrets were set: see the warnings on the run's summary page."
+          } > notes.md
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          name: Madar Dashboard ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          prerelease: ${{ steps.meta.outputs.pre == 'true' }}
+          # The repo's "Latest" release is the POS's; a dashboard one never takes it.
+          make_latest: "false"
+          generate_release_notes: true
+          body_path: notes.md
+          files: artifacts/**/*

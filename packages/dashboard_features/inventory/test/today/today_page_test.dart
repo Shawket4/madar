@@ -86,7 +86,10 @@ void main() {
         h.server.callsTo(stockRoute).last.path,
         '/inventory/branches/$z/stock',
       );
-      expect(h.server.callsTo(stocktakesRoute).last.path, '/stocktakes/branches/$z');
+      expect(
+        h.server.callsTo(stocktakesRoute).last.path,
+        '/stocktakes/branches/$z',
+      );
       final waste = h.server.callsTo(wasteRoute).last;
       expect(waste.path, '/inventory/branches/$z/waste');
       expect(waste.query, isEmpty);
@@ -110,7 +113,10 @@ void main() {
         h.server.callsTo(orgValuation).last.path,
         '/reports/orgs/$org/inventory-valuation',
       );
-      expect(h.server.callsTo(orgLow).last.path, '/reports/orgs/$org/low-stock');
+      expect(
+        h.server.callsTo(orgLow).last.path,
+        '/reports/orgs/$org/low-stock',
+      );
       expect(h.server.callsTo(orgOrders), isNotEmpty);
       expect(h.server.callsTo(suppliersRoute), isNotEmpty);
       expect(h.server.callsTo(catalogRoute), isNotEmpty);
@@ -154,19 +160,20 @@ void main() {
   });
 
   group('first run', () {
-    testWidgets('INV-TOD-005 a branch never counted: the card, and its way in', (
-      tester,
-    ) async {
-      final h = await pumpToday(tester, branch: SeedIds.heliopolis);
-      expect(find.text('Start by counting this branch'), findsOneWidget);
-      expect(
-        textHas('Nothing has been counted here yet, so the numbers below'),
-        findsOneWidget,
-      );
-      tolerateSiblings(h);
-      await h.tap(byKey('today-first-count'));
-      expect(h.location.path, '/inventory/counts');
-    });
+    testWidgets(
+      'INV-TOD-005 a branch never counted: the card, and its way in',
+      (tester) async {
+        final h = await pumpToday(tester, branch: SeedIds.heliopolis);
+        expect(find.text('Start by counting this branch'), findsOneWidget);
+        expect(
+          textHas('Nothing has been counted here yet, so the numbers below'),
+          findsOneWidget,
+        );
+        tolerateSiblings(h);
+        await h.tap(byKey('today-first-count'));
+        expect(h.location.path, '/inventory/counts');
+      },
+    );
 
     testWidgets('INV-TOD-005 not for a counted branch, nor all branches', (
       tester,
@@ -423,7 +430,10 @@ void main() {
         ),
         matching: find.byType(DashStatValue),
       );
-      expect(find.descendant(of: value, matching: find.text(exact)), findsNothing);
+      expect(
+        find.descendant(of: value, matching: find.text(exact)),
+        findsNothing,
+      );
       await h.tap(
         find.descendant(of: value, matching: find.byType(DashPressable)),
       );
@@ -543,10 +553,14 @@ void main() {
         'Paper Cup 12oz',
         'Vanilla Syrup',
       ]);
-      expect(inside<DashDataTable<LowStockRow>>(find.text('Critical')),
-          findsNWidgets(2));
-      expect(inside<DashDataTable<LowStockRow>>(find.text('Low')),
-          findsNWidgets(3));
+      expect(
+        inside<DashDataTable<LowStockRow>>(find.text('Critical')),
+        findsNWidgets(2),
+      );
+      expect(
+        inside<DashDataTable<LowStockRow>>(find.text('Low')),
+        findsNWidgets(3),
+      );
       final critical = tester.widget<DashStatusPill>(
         find.ancestor(
           of: find.text('Critical').first,
@@ -575,8 +589,14 @@ void main() {
         db: s.db,
         branch: SeedIds.zamalek,
       );
-      expect(lowTable(tester).rows.map((r) => r.ingredientName), contains('Ice Cubes'));
-      expect(inside<DashDataTable<LowStockRow>>(find.text('—')), findsOneWidget);
+      expect(
+        lowTable(tester).rows.map((r) => r.ingredientName),
+        contains('Ice Cubes'),
+      );
+      expect(
+        inside<DashDataTable<LowStockRow>>(find.text('—')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('INV-TOD-012 12 rows a page, then a pager', (tester) async {
@@ -613,24 +633,25 @@ void main() {
       );
     });
 
-    testWidgets('INV-TOD-013 Create PO: the row\'s branch, supplier, ceil qty', (
-      tester,
-    ) async {
-      final h = await pumpToday(tester, branch: SeedIds.zamalek);
-      tolerateSiblings(h);
-      final oat = InvIds.ingredient('oat');
-      await h.tap(byKey('today-create-po-${SeedIds.zamalek}-$oat'));
-      final dialog = tester.widget<PurchaseOrderDialog>(
-        find.byType(PurchaseOrderDialog),
-      );
-      expect(dialog.branchId, SeedIds.zamalek);
-      expect(dialog.prefill!.supplierId, InvIds.supplier('metro'));
-      expect(dialog.prefill!.lines, hasLength(1));
-      expect(dialog.prefill!.lines.single.orgIngredientId, oat);
-      expect(dialog.prefill!.lines.single.quantity, 9350);
-      expect(dialog.prefill!.lines.single.purchaseUnit, isNull);
-      expect(find.text('New purchase order'), findsWidgets);
-    });
+    testWidgets(
+      'INV-TOD-013 Create PO: the row\'s branch, supplier, ceil qty',
+      (tester) async {
+        final h = await pumpToday(tester, branch: SeedIds.zamalek);
+        tolerateSiblings(h);
+        final oat = InvIds.ingredient('oat');
+        await h.tap(byKey('today-create-po-${SeedIds.zamalek}-$oat'));
+        final dialog = tester.widget<PurchaseOrderDialog>(
+          find.byType(PurchaseOrderDialog),
+        );
+        expect(dialog.branchId, SeedIds.zamalek);
+        expect(dialog.prefill!.supplierId, InvIds.supplier('metro'));
+        expect(dialog.prefill!.lines, hasLength(1));
+        expect(dialog.prefill!.lines.single.orgIngredientId, oat);
+        expect(dialog.prefill!.lines.single.quantity, 9350);
+        expect(dialog.prefill!.lines.single.purchaseUnit, isNull);
+        expect(find.text('New purchase order'), findsWidgets);
+      },
+    );
 
     testWidgets('INV-TOD-013 with all branches, the row\'s own branch', (
       tester,
@@ -688,8 +709,10 @@ void main() {
         branch: SeedIds.zamalek,
       );
       expect(lowTable(tester).loading, isTrue);
-      expect(inside<DashDataTable<LowStockRow>>(find.byType(DashSkeleton)),
-          findsWidgets);
+      expect(
+        inside<DashDataTable<LowStockRow>>(find.byType(DashSkeleton)),
+        findsWidgets,
+      );
       expect(find.text('Create PO'), findsNothing);
       gate.release();
       await h.settle();
@@ -717,8 +740,10 @@ void main() {
         matching: find.byType(DashErrorState),
       );
       expect(err, findsOneWidget);
-      expect(inside<DashDataTable<LowStockRow>>(find.text("Couldn't load this")),
-          findsOneWidget);
+      expect(
+        inside<DashDataTable<LowStockRow>>(find.text("Couldn't load this")),
+        findsOneWidget,
+      );
       expect(
         inside<DashDataTable<LowStockRow>>(find.text('Database unavailable')),
         findsOneWidget,
@@ -789,30 +814,33 @@ void main() {
       expect(header.trailing, isNull);
     });
 
-    testWidgets('INV-TOD-018 rows: reference or #id · supplier, date, Receive', (
-      tester,
-    ) async {
-      final h = await pumpToday(tester, branch: SeedIds.zamalek);
-      final rows = tester
-          .widgetList<DashListRow>(inside<TodayArrivingSection>(find.byType(DashListRow)))
-          .toList();
-      final id1044 = InvIds.purchaseOrder('po-1044');
-      expect(rows.map((r) => r.title), [
-        'PO-1041 · Delta Dairy',
-        '${ltr('#${id1044.substring(0, 8)}')} · Delta Dairy',
-        'PO-1042 · Nile Roasters',
-      ]);
-      expect(rows.map((r) => r.meta), [
-        ltr('07 Oct 2026'),
-        ltr('08 Oct 2026'),
-        ltr('08 Oct 2026'),
-      ]);
-      expect(rows.every((r) => r.icon == 'truck'), isTrue);
-      tolerateSiblings(h);
-      await h.tap(byKey('today-receive-$id1044'));
-      final dialog = tester.widget<ReceiveDialog>(find.byType(ReceiveDialog));
-      expect(dialog.purchaseOrderId, id1044);
-    });
+    testWidgets(
+      'INV-TOD-018 rows: reference or #id · supplier, date, Receive',
+      (tester) async {
+        final h = await pumpToday(tester, branch: SeedIds.zamalek);
+        final rows = tester
+            .widgetList<DashListRow>(
+              inside<TodayArrivingSection>(find.byType(DashListRow)),
+            )
+            .toList();
+        final id1044 = InvIds.purchaseOrder('po-1044');
+        expect(rows.map((r) => r.title), [
+          'PO-1041 · Delta Dairy',
+          '${ltr('#${id1044.substring(0, 8)}')} · Delta Dairy',
+          'PO-1042 · Nile Roasters',
+        ]);
+        expect(rows.map((r) => r.meta), [
+          ltr('07 Oct 2026'),
+          ltr('08 Oct 2026'),
+          ltr('08 Oct 2026'),
+        ]);
+        expect(rows.every((r) => r.icon == 'truck'), isTrue);
+        tolerateSiblings(h);
+        await h.tap(byKey('today-receive-$id1044'));
+        final dialog = tester.widget<ReceiveDialog>(find.byType(ReceiveDialog));
+        expect(dialog.purchaseOrderId, id1044);
+      },
+    );
 
     testWidgets('INV-TOD-018 only the first eight', (tester) async {
       final s = todayServer();
@@ -937,7 +965,9 @@ void main() {
     ) async {
       await pumpToday(tester, branch: SeedIds.zamalek);
       final rows = tester
-          .widgetList<DashListRow>(inside<TodayWasteSection>(find.byType(DashListRow)))
+          .widgetList<DashListRow>(
+            inside<TodayWasteSection>(find.byType(DashListRow)),
+          )
           .toList();
       expect(rows.map((r) => r.title), [
         'Full Cream Milk',
@@ -945,7 +975,12 @@ void main() {
         'Croissant Dough',
         'Full Cream Milk',
       ]);
-      expect(rows.map((r) => r.meta), ['Spoiled', 'Spoiled', 'Damaged', 'Expired']);
+      expect(rows.map((r) => r.meta), [
+        'Spoiled',
+        'Spoiled',
+        'Damaged',
+        'Expired',
+      ]);
       expect(rows.map((r) => r.value), ['440 ml', '36 g', '4 pcs', '500 ml']);
       expect(rows.every((r) => r.variant == DashListRowVariant.ledger), isTrue);
       expect(rows.every((r) => r.signIn == false && r.numericValue), isTrue);
@@ -1086,35 +1121,36 @@ void main() {
   });
 
   group('dialogs and refresh', () {
-    testWidgets('INV-TOD-028 after an order is placed, every figure refreshes', (
-      tester,
-    ) async {
-      final s = todayServer();
-      final h = await pumpToday(
-        tester,
-        server: s.server,
-        db: s.db,
-        branch: SeedIds.zamalek,
-      );
-      expect(kpi(tester, 'Deliveries').value, 3);
-      final lowCalls = h.server.callsTo(branchLow).length;
-      final valCalls = h.server.callsTo(branchValuation).length;
-      // What the purchase-order dialog leaves behind: a new order due today
-      // (placed), then `invalidateInventory`.
-      addOrder(
-        s.db,
-        key: 'placed',
-        branchId: SeedIds.zamalek,
-        status: 'ordered',
-        reference: 'PO-1045',
-      );
-      h.container.read(realtimeBusProvider).invalidate(inventoryPathFamilies);
-      await h.settle();
-      expect(kpi(tester, 'Deliveries').value, 4);
-      expect(textHas('PO-1045 · Metro Wholesale'), findsOneWidget);
-      expect(h.server.callsTo(branchLow).length, lowCalls + 1);
-      expect(h.server.callsTo(branchValuation).length, valCalls + 1);
-    });
+    testWidgets(
+      'INV-TOD-028 after an order is placed, every figure refreshes',
+      (tester) async {
+        final s = todayServer();
+        final h = await pumpToday(
+          tester,
+          server: s.server,
+          db: s.db,
+          branch: SeedIds.zamalek,
+        );
+        expect(kpi(tester, 'Deliveries').value, 3);
+        final lowCalls = h.server.callsTo(branchLow).length;
+        final valCalls = h.server.callsTo(branchValuation).length;
+        // What the purchase-order dialog leaves behind: a new order due today
+        // (placed), then `invalidateInventory`.
+        addOrder(
+          s.db,
+          key: 'placed',
+          branchId: SeedIds.zamalek,
+          status: 'ordered',
+          reference: 'PO-1045',
+        );
+        h.container.read(realtimeBusProvider).invalidate(inventoryPathFamilies);
+        await h.settle();
+        expect(kpi(tester, 'Deliveries').value, 4);
+        expect(textHas('PO-1045 · Metro Wholesale'), findsOneWidget);
+        expect(h.server.callsTo(branchLow).length, lowCalls + 1);
+        expect(h.server.callsTo(branchValuation).length, valCalls + 1);
+      },
+    );
 
     testWidgets('INV-TOD-028 closing clears the prefill', (tester) async {
       final h = await pumpToday(tester, branch: SeedIds.zamalek);
@@ -1146,7 +1182,9 @@ void main() {
       final po = InvIds.purchaseOrder('po-1042');
       await h.tap(byKey('today-receive-$po'));
       expect(
-        tester.widget<ReceiveDialog>(find.byType(ReceiveDialog)).purchaseOrderId,
+        tester
+            .widget<ReceiveDialog>(find.byType(ReceiveDialog))
+            .purchaseOrderId,
         po,
       );
       Navigator.of(
@@ -1200,7 +1238,10 @@ void main() {
     ) async {
       final h = await pumpToday(tester);
       final table = lowTable(tester);
-      expect(table.rows, hasLength(lowRowsOf(h.db!, SeedIds.sabahBranches).length));
+      expect(
+        table.rows,
+        hasLength(lowRowsOf(h.db!, SeedIds.sabahBranches).length),
+      );
       expect(table.rows.map((r) => r.branchName).toSet(), {
         'Maadi',
         'New Cairo',
@@ -1221,7 +1262,9 @@ void main() {
     ) async {
       await pumpToday(tester, branch: SeedIds.zamalek);
       final tops = {
-        for (final c in tester.widgetList<DashStatCard>(find.byType(DashStatCard)))
+        for (final c in tester.widgetList<DashStatCard>(
+          find.byType(DashStatCard),
+        ))
           tester.getTopLeft(find.byWidget(c)).dy,
       };
       expect(tops, hasLength(1));
@@ -1249,7 +1292,9 @@ void main() {
         branch: SeedIds.zamalek,
       );
       final tops = [
-        for (final c in tester.widgetList<DashStatCard>(find.byType(DashStatCard)))
+        for (final c in tester.widgetList<DashStatCard>(
+          find.byType(DashStatCard),
+        ))
           tester.getTopLeft(find.byWidget(c)).dy,
       ];
       expect(tops.toSet(), hasLength(2));
@@ -1258,7 +1303,10 @@ void main() {
       final w = tester.getTopLeft(find.byType(TodayWasteSection)).dy;
       expect(low < a && a < w, isTrue);
       // Rows are cards: no header row, Create PO on each card.
-      expect(inside<DashDataTable<LowStockRow>>(find.text('NAME')), findsNothing);
+      expect(
+        inside<DashDataTable<LowStockRow>>(find.text('NAME')),
+        findsNothing,
+      );
       expect(find.byType(DashCard), findsWidgets);
       tolerateSiblings(h);
       final oat = InvIds.ingredient('oat');
@@ -1269,15 +1317,14 @@ void main() {
     testWidgets('INV-TOD-032 phone first run: text over a full-width button', (
       tester,
     ) async {
-      await pumpToday(
-        tester,
-        size: DashSize.phone,
-        branch: SeedIds.heliopolis,
-      );
+      await pumpToday(tester, size: DashSize.phone, branch: SeedIds.heliopolis);
       final title = tester.getRect(find.text('Start by counting this branch'));
       final button = tester.getRect(byKey('today-first-count'));
       expect(button.top, greaterThan(title.bottom));
-      expect(tester.widget<DashButton>(byKey('today-first-count')).expand, isTrue);
+      expect(
+        tester.widget<DashButton>(byKey('today-first-count')).expand,
+        isTrue,
+      );
     });
 
     testWidgets('INV-TOD-033 the branch manager gets every action', (
@@ -1301,10 +1348,34 @@ void main() {
       tester,
     ) async {
       final s = todayServer();
-      addOrder(s.db, key: 'd', branchId: SeedIds.maadi, status: 'draft', reference: 'PO-D');
-      addOrder(s.db, key: 'r', branchId: SeedIds.maadi, status: 'received', reference: 'PO-R');
-      addOrder(s.db, key: 'c', branchId: SeedIds.maadi, status: 'cancelled', reference: 'PO-C');
-      addOrder(s.db, key: 'p', branchId: SeedIds.maadi, status: 'partially_received', reference: 'PO-P');
+      addOrder(
+        s.db,
+        key: 'd',
+        branchId: SeedIds.maadi,
+        status: 'draft',
+        reference: 'PO-D',
+      );
+      addOrder(
+        s.db,
+        key: 'r',
+        branchId: SeedIds.maadi,
+        status: 'received',
+        reference: 'PO-R',
+      );
+      addOrder(
+        s.db,
+        key: 'c',
+        branchId: SeedIds.maadi,
+        status: 'cancelled',
+        reference: 'PO-C',
+      );
+      addOrder(
+        s.db,
+        key: 'p',
+        branchId: SeedIds.maadi,
+        status: 'partially_received',
+        reference: 'PO-P',
+      );
       await pumpToday(tester, server: s.server, db: s.db);
       expect(kpi(tester, 'Deliveries').value, 4);
       expect(textHas('PO-D'), findsNothing);
@@ -1317,12 +1388,22 @@ void main() {
       tester,
     ) async {
       final s = todayServer();
-      setStock(s.db, SeedIds.maadi, 'oat', onHand: 500, parMin: 3600, parMax: 8100);
+      setStock(
+        s.db,
+        SeedIds.maadi,
+        'oat',
+        onHand: 500,
+        parMin: 3600,
+        parMax: 8100,
+      );
       final h = await pumpToday(tester, server: s.server, db: s.db);
       tolerateSiblings(h);
       final oat = InvIds.ingredient('oat');
       final keys = lowTable(tester).rows.map(lowStockRowKey).toList();
-      expect(keys, containsAll(['${SeedIds.maadi}-$oat', '${SeedIds.zamalek}-$oat']));
+      expect(
+        keys,
+        containsAll(['${SeedIds.maadi}-$oat', '${SeedIds.zamalek}-$oat']),
+      );
       expect(keys.toSet(), hasLength(keys.length));
       await h.tap(byKey('today-create-po-${SeedIds.maadi}-$oat'));
       final dialog = tester.widget<PurchaseOrderDialog>(
@@ -1372,7 +1453,12 @@ void main() {
       expect(kpi(tester, 'Deliveries').hint, 'arriving today');
       expect(kpi(tester, 'Counts due').value, 0);
       expect(kpi(tester, 'Counts due').valueText, isNull);
-      for (final label in ['Stock value', 'Low stock', 'Deliveries', 'Counts due']) {
+      for (final label in [
+        'Stock value',
+        'Low stock',
+        'Deliveries',
+        'Counts due',
+      ]) {
         expect(
           find.descendant(
             of: find.byWidgetPredicate(

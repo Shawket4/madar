@@ -36,7 +36,10 @@ class StaffDrinksSummaryStrip extends ConsumerWidget {
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
     if (loading) {
-      return const DashSkeleton(height: loadingHeight, key: Key('staff-summary-loading'));
+      return const DashSkeleton(
+        height: loadingHeight,
+        key: Key('staff-summary-loading'),
+      );
     }
     final s = summary;
     if (failed || s == null) {

@@ -47,9 +47,7 @@ class _TillSalesTabState extends ConsumerState<TillSalesTab> {
     final s = salesStats(rows);
     final ranked = rankBySales(rows);
     final top = ranked.first.netSales;
-    final shown = _showAll
-        ? ranked
-        : ranked.take(tillsTopSessions).toList();
+    final shown = _showAll ? ranked : ranked.take(tillsTopSessions).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -119,14 +117,8 @@ class _TillSalesTabState extends ConsumerState<TillSalesTab> {
                     alignment: AlignmentDirectional.centerStart,
                     child: DashButton(
                       label: _showAll
-                          ? t(
-                              'reports.tills.showTop',
-                              count: tillsTopSessions,
-                            )
-                          : t(
-                              'reports.tills.showAll',
-                              count: ranked.length,
-                            ),
+                          ? t('reports.tills.showTop', count: tillsTopSessions)
+                          : t('reports.tills.showAll', count: ranked.length),
                       variant: DashButtonVariant.ghost,
                       size: DashButtonSize.compact,
                       onPressed: () => setState(() => _showAll = !_showAll),

@@ -67,18 +67,17 @@ class _CustomersPageState extends ConsumerState<CustomersPage> {
     // (SELL-CUS-057). The route has no capability, so the shell's generic
     // gate does not answer first.
     if (access.ready && !access.canViewCustomers) {
-      return Restricted(title: t('nav.customers'), who: t('customers.noAccess'));
+      return Restricted(
+        title: t('nav.customers'),
+        who: t('customers.noAccess'),
+      );
     }
     return DashPageScaffold(
       title: t('customers.title'),
       subtitle: t('customers.subtitle'),
       actions: [
         if (access.canCreate)
-          DashButton(
-            label: t('customers.add'),
-            icon: 'plus',
-            onPressed: _add,
-          ),
+          DashButton(label: t('customers.add'), icon: 'plus', onPressed: _add),
       ],
       body: !access.ready
           ? const SizedBox.shrink()

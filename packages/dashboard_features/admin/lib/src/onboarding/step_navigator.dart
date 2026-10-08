@@ -129,8 +129,11 @@ class _StepButton extends ConsumerWidget {
         onTap: locked ? null : onTap,
         enabled: !locked,
         selected: active,
-        semanticLabel: [title, if (optional) t('onboarding.optional'), ?added]
-            .join(', '),
+        semanticLabel: [
+          title,
+          if (optional) t('onboarding.optional'),
+          ?added,
+        ].join(', '),
         excludeChildSemantics: true,
         pressScale: false,
         builder: (context, s) => Container(

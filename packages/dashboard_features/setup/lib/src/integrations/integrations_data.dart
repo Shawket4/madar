@@ -13,10 +13,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// The org's credentials, newest first (`GET /integrations/credentials`),
 /// keyed by the org in scope so a platform admin's org switch reloads.
 final integrationCredentialsProvider = FutureProvider.autoDispose
-    .family<List<CredentialSummary>, String>(
-      (ref, orgId) => ref.watch(apiProvider).integrations.listCredentials(),
-      retry: (_, _) => null,
-    );
+    .family<List<CredentialSummary>, String>((ref, orgId) {
+      ref.webCache();
+      return ref.watch(apiProvider).integrations.listCredentials();
+    }, retry: (_, _) => null);
 
 /// After a create, rotate or revoke: every credentials read loads again.
 void invalidateCredentials(WidgetRef ref) =>

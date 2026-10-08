@@ -22,7 +22,10 @@ import 'tills_data.dart';
 
 /// Shows the close dialog for [till]; then, when the close's answer carries
 /// one, the last-till warning.
-Future<void> showCloseTillDialog(BuildContext context, {required Till till}) async {
+Future<void> showCloseTillDialog(
+  BuildContext context, {
+  required Till till,
+}) async {
   final warning = await showDashDialog<LastTillWarning>(
     context,
     builder: (_) => CloseTillDialog(till: till),

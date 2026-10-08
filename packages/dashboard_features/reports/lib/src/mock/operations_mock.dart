@@ -165,13 +165,11 @@ final List<OpsTable> opsTables = [
 OpsTable? opsTableById(String id) =>
     opsTables.where((t) => t.id == id).firstOrNull;
 
-String _branchKeyOf(String branchId) => seedBranches
-    .firstWhere((b) => MockSeed.branchIdOf(b.key) == branchId)
-    .key;
+String _branchKeyOf(String branchId) =>
+    seedBranches.firstWhere((b) => MockSeed.branchIdOf(b.key) == branchId).key;
 
-String _branchName(String branchId) => seedBranches
-    .firstWhere((b) => MockSeed.branchIdOf(b.key) == branchId)
-    .name;
+String _branchName(String branchId) =>
+    seedBranches.firstWhere((b) => MockSeed.branchIdOf(b.key) == branchId).name;
 
 /// The plan as `/floor/tables` answers it ([FloorTable] JSON), retired
 /// tables left out.
@@ -217,9 +215,8 @@ List<MockRow> opsFloorRows(MockDb db, String branchId) {
     ];
   }
   rows.sort(
-    (a, b) => '${a['label']}'.toLowerCase().compareTo(
-      '${b['label']}'.toLowerCase(),
-    ),
+    (a, b) =>
+        '${a['label']}'.toLowerCase().compareTo('${b['label']}'.toLowerCase()),
   );
   return rows;
 }
@@ -431,8 +428,7 @@ class OpsTableFact {
 
   int get revenue => _int(order['total_amount']);
   DateTime get at => _at(order);
-  String get hour =>
-      '${MockClock.wall(at).hour.toString().padLeft(2, '0')}:00';
+  String get hour => '${MockClock.wall(at).hour.toString().padLeft(2, '0')}:00';
   String get localDate => MockClock.cairoDate(at);
 }
 
@@ -532,9 +528,13 @@ Object _runTablesWidget(
   if (dataset != 'tables') {
     return "Unknown dataset '$dataset'";
   }
-  final dims = [for (final d in (spec['dimensions'] as List?) ?? const []) '$d'];
+  final dims = [
+    for (final d in (spec['dimensions'] as List?) ?? const []) '$d',
+  ];
   final measures = [
-    for (final m in (spec['measures'] as List?) ?? const ['turns', 'covers', 'table_revenue'])
+    for (final m
+        in (spec['measures'] as List?) ??
+            const ['turns', 'covers', 'table_revenue'])
       '$m',
   ];
   if (dims.length > 2) return 'At most 2 dimensions per query';
@@ -562,9 +562,7 @@ Object _runTablesWidget(
     for (final e in groups.entries)
       {
         for (final (i, d) in dims.indexed) d: keys[e.key]![i],
-        ...{
-          for (final m in measures) m: opsTableMeasures(e.value)[m],
-        },
+        ...{for (final m in measures) m: opsTableMeasures(e.value)[m]},
       },
   ];
   final sort = spec['sort'];
@@ -689,14 +687,15 @@ BranchSalesReport opsBranchSales({
       );
     }
   }
-  ItemSales item(MapEntry<String, (String, Map<String, Object?>, int, int)> e) =>
-      ItemSales(
-        menuItemId: e.key,
-        itemName: e.value.$1,
-        itemNameTranslations: e.value.$2,
-        quantitySold: e.value.$3,
-        revenue: e.value.$4,
-      );
+  ItemSales item(
+    MapEntry<String, (String, Map<String, Object?>, int, int)> e,
+  ) => ItemSales(
+    menuItemId: e.key,
+    itemName: e.value.$1,
+    itemNameTranslations: e.value.$2,
+    quantitySold: e.value.$3,
+    revenue: e.value.$4,
+  );
   int rank(
     MapEntry<String, (String, Map<String, Object?>, int, int)> a,
     MapEntry<String, (String, Map<String, Object?>, int, int)> b,
@@ -710,7 +709,11 @@ BranchSalesReport opsBranchSales({
 
   final ranked = byItem.entries.toList()..sort(rank);
   // Categories by name, items inside by quantity.
-  final cats = <String, List<MapEntry<String, (String, Map<String, Object?>, int, int)>>>{};
+  final cats =
+      <
+        String,
+        List<MapEntry<String, (String, Map<String, Object?>, int, int)>>
+      >{};
   for (final e in ranked) {
     cats.putIfAbsent(_categoryKeyOf(e.key) ?? '', () => []).add(e);
   }
@@ -772,7 +775,11 @@ List<CombinedItemSalesRow> opsCombinedItems(List<MockRow> orders) {
       final id = l.menuItemId;
       if (id == null) continue;
       final p = by[id];
-      by[id] = (l.itemName, p?.$2 ?? l.nameTranslations, (p?.$3 ?? 0) + l.quantity);
+      by[id] = (
+        l.itemName,
+        p?.$2 ?? l.nameTranslations,
+        (p?.$3 ?? 0) + l.quantity,
+      );
     }
   }
   final rows = by.entries.toList()
@@ -847,7 +854,10 @@ List<TellerStats> opsTellerStats(List<MockRow> orders) {
     for (final e in by.entries)
       () {
         final sold = e.value.where(_sold).toList();
-        final revenue = sold.fold<int>(0, (s, o) => s + _int(o['total_amount']));
+        final revenue = sold.fold<int>(
+          0,
+          (s, o) => s + _int(o['total_amount']),
+        );
         return TellerStats(
           tellerId: e.key,
           tellerName: names[e.key]!,
@@ -882,7 +892,10 @@ WaiterStatsReport opsWaiterStats(List<MockRow> orders) {
     for (final (w, list) in by.values)
       () {
         final sold = list.where(_sold).toList();
-        final revenue = sold.fold<int>(0, (s, o) => s + _int(o['total_amount']));
+        final revenue = sold.fold<int>(
+          0,
+          (s, o) => s + _int(o['total_amount']),
+        );
         final items = sold.fold<int>(
           0,
           (s, o) => s + seed.linesOf(o).fold<int>(0, (a, l) => a + l.quantity),
@@ -1070,7 +1083,8 @@ void registerOperationsMocks(MockServer server, MockDb db) {
     server.on('GET', '/floor/tables/{id}/history', (req) {
       req.requireCap('tickets.read');
       final to = req.qDateTime('to') ?? req.now;
-      final from = req.qDateTime('from') ?? to.subtract(const Duration(days: 30));
+      final from =
+          req.qDateTime('from') ?? to.subtract(const Duration(days: 30));
       if (!from.isBefore(to)) req.badRequest('`from` must be before `to`');
       final id = req.param('id');
       final live = db.hasTable('floor_tables')
@@ -1096,7 +1110,8 @@ void registerOperationsMocks(MockServer server, MockDb db) {
         final closed = order == null
             ? null
             : (order['status'] == 'voided'
-                  ? DateTime.tryParse('${order['voided_at']}')?.toUtc() ?? _at(order)
+                  ? DateTime.tryParse('${order['voided_at']}')?.toUtc() ??
+                        _at(order)
                   : _at(order));
         sittings.add(
           TableSitting(
@@ -1105,7 +1120,10 @@ void registerOperationsMocks(MockServer server, MockDb db) {
             openedAt: s.seatedAt,
             seatedAt: s.seatedAt,
             closedAt: closed,
-            minutes: math.max(0, (closed ?? now).difference(s.seatedAt).inMinutes),
+            minutes: math.max(
+              0,
+              (closed ?? now).difference(s.seatedAt).inMinutes,
+            ),
             status: status,
             customerName: s.customerName,
             customerId: s.customerId,
@@ -1124,10 +1142,7 @@ void registerOperationsMocks(MockServer server, MockDb db) {
       ];
       final total = settled.fold<int>(0, (a, s) => a + s.totalAmount!);
       final minutes = settled.fold<int>(0, (a, s) => a + s.minutes);
-      final days = math.max(
-        to.difference(from).inMinutes / (24 * 60),
-        1 / 24,
-      );
+      final days = math.max(to.difference(from).inMinutes / (24 * 60), 1 / 24);
       return MockResponse.ok(
         TableHistory(
           tableId: id,
@@ -1169,7 +1184,9 @@ void registerOperationsMocks(MockServer server, MockDb db) {
   server.on('GET', '/reports/branches/{branchId}/items-combined', (req) {
     req.requireCap('orders.read');
     checkExportThrottle(req);
-    return MockResponse.ok(opsCombinedItems(scoped(req, req.param('branchId'))));
+    return MockResponse.ok(
+      opsCombinedItems(scoped(req, req.param('branchId'))),
+    );
   });
 
   // REP-OPS-048 — add-on sales.
@@ -1249,7 +1266,10 @@ void registerOperationsMocks(MockServer server, MockDb db) {
   if (!_handlesShape(server, 'GET', '/customers/{id}')) {
     server.on('GET', '/customers/{id}', (req) {
       req.requireCap('customers.view');
-      final c = db['customers'].get(req.param('id'), what: 'Customer not found');
+      final c = db['customers'].get(
+        req.param('id'),
+        what: 'Customer not found',
+      );
       final id = c['id'];
       final orders = [
         for (final o in db['orders'].rows.reversed)
@@ -1280,7 +1300,10 @@ void registerOperationsMocks(MockServer server, MockDb db) {
   if (!_handlesShape(server, 'GET', '/orders/{order_id}')) {
     server.on('GET', '/orders/{order_id}', (req) {
       req.requireCap('orders.read');
-      final o = db['orders'].get(req.param('order_id'), what: 'Order not found');
+      final o = db['orders'].get(
+        req.param('order_id'),
+        what: 'Order not found',
+      );
       req.requireBranch(o['branch_id']! as String);
       return MockResponse.ok({
         ...o,

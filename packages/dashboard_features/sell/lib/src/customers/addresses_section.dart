@@ -67,7 +67,11 @@ class _AddressRow extends ConsumerWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: DashMetrics.hair),
-            child: DashIcon('map-pin', size: IconSize.sm, color: c.textSecondary),
+            child: DashIcon(
+              'map-pin',
+              size: IconSize.sm,
+              color: c.textSecondary,
+            ),
           ),
           Expanded(
             child: Column(
@@ -82,9 +86,7 @@ class _AddressRow extends ConsumerWidget {
                     Text(
                       title,
                       textDirection: autoDirection(title),
-                      style: DashType.bodyMedium.copyWith(
-                        color: c.textPrimary,
-                      ),
+                      style: DashType.bodyMedium.copyWith(color: c.textPrimary),
                     ),
                     if (label.isNotEmpty)
                       Text(

@@ -111,9 +111,7 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
     ExportOutcome outcome;
     try {
       final brand = await ref.read(publicBrandProvider.future);
-      final logo = brand != null && brand.customBranding
-          ? brand.logoUrl
-          : null;
+      final logo = brand != null && brand.customBranding ? brand.logoUrl : null;
       outcome = await ref
           .read(exporterProvider)
           .exportToExcel(

@@ -16,10 +16,12 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import 'branches/branches_data.dart';
 import 'branches/branches_page.dart';
 import 'devices/devices_page.dart';
 import 'onboarding/onboarding_page.dart';
 import 'orgs/orgs_page.dart';
+import 'orgs/orgs_providers.dart';
 import 'review/review_page.dart';
 import 'roles/roles_page.dart';
 import 'users/users_page.dart';
@@ -47,12 +49,17 @@ const List<DashRoute> adminRoutes = [
     builder: _orgs,
     titleKey: 'nav.orgs',
     titleFallback: 'Organizations',
+    // The web only hides it from the nav; a deep link loads a page whose
+    // every call the server refuses. Restricted instead (shell contract).
+    platformOnly: true,
+    prefetch: _prefetchOrgs,
   ),
   DashRoute(
     path: BranchesPage.path,
     builder: _branches,
     titleKey: 'nav.branches',
     titleFallback: 'Branches',
+    prefetch: _prefetchBranches,
   ),
   DashRoute(
     path: DevicesPage.path,
@@ -86,3 +93,11 @@ const List<DashRoute> adminRoutes = [
     titleFallback: 'Let\'s open your café',
   ),
 ];
+
+/// The web's `prefetchRoute('/orgs')`.
+void _prefetchOrgs(DashPrefetcher warm, Scope s) => warm(orgsListProvider);
+
+/// The web's `prefetchRoute('/branches')`: the org's branches.
+void _prefetchBranches(DashPrefetcher warm, Scope s) {
+  if (s.orgId case final orgId?) warm(adminBranchesProvider(orgId));
+}

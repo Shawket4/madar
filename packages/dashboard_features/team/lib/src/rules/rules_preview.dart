@@ -67,9 +67,7 @@ num tierPiastres(RuleTier tier, PayExample ex) {
     return _docked(ex.salary * tier.value / ex.workingDays);
   }
   if (ex.shiftMinutes <= 0) return 0;
-  return _docked(
-    ex.salary * tier.value / (ex.workingDays * ex.shiftMinutes),
-  );
+  return _docked(ex.salary * tier.value / (ex.workingDays * ex.shiftMinutes));
 }
 
 /// [days] days of the example's pay: what an absence docks (`dayPiastres`).

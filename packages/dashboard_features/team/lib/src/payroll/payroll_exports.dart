@@ -59,16 +59,20 @@ ExcelConfig payListsConfig({
       total: true,
     ),
   ];
-  ExcelSheet<Object?> sheet(String name, String title, String method, String? account) =>
-      _erase(
-        ExcelSheet<SlipRow>(
-          name: name,
-          title: title,
-          rows: pick(method),
-          columns: cols(account),
-          totals: true,
-        ),
-      );
+  ExcelSheet<Object?> sheet(
+    String name,
+    String title,
+    String method,
+    String? account,
+  ) => _erase(
+    ExcelSheet<SlipRow>(
+      name: name,
+      title: title,
+      rows: pick(method),
+      columns: cols(account),
+      totals: true,
+    ),
+  );
   return ExcelConfig(
     filename: 'Madar-Payroll-Transfers',
     logoUrl: logoUrl,
@@ -275,18 +279,15 @@ Future<List<int>> payslipPdf(PayslipDoc doc) async {
     title: '${doc.title} · ${doc.person}',
     theme: pw.ThemeData.withFont(base: base, bold: bold),
   );
-  pw.Widget cell(
-    String text, {
-    bool end = false,
-    pw.TextStyle? style,
-  }) => pw.Padding(
-    padding: const pw.EdgeInsets.symmetric(vertical: 6),
-    child: pw.Text(
-      text,
-      textAlign: end ? pw.TextAlign.right : pw.TextAlign.left,
-      style: style,
-    ),
-  );
+  pw.Widget cell(String text, {bool end = false, pw.TextStyle? style}) =>
+      pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 6),
+        child: pw.Text(
+          text,
+          textAlign: end ? pw.TextAlign.right : pw.TextAlign.left,
+          style: style,
+        ),
+      );
   pdf.addPage(
     pw.Page(
       pageFormat: PdfPageFormat.a4,
@@ -300,10 +301,7 @@ Future<List<int>> payslipPdf(PayslipDoc doc) async {
             style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 4),
-          pw.Text(
-            doc.title,
-            style: pw.TextStyle(fontSize: 15, color: muted),
-          ),
+          pw.Text(doc.title, style: pw.TextStyle(fontSize: 15, color: muted)),
           pw.SizedBox(height: 20),
           pw.Table(
             columnWidths: const {
@@ -322,7 +320,10 @@ Future<List<int>> payslipPdf(PayslipDoc doc) async {
                         end: 16,
                         bottom: 4,
                       ),
-                      child: pw.Text(k, style: const pw.TextStyle(color: muted)),
+                      child: pw.Text(
+                        k,
+                        style: const pw.TextStyle(color: muted),
+                      ),
                     ),
                     pw.Text(v),
                   ],

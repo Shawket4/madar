@@ -97,6 +97,7 @@ typedef TillsListKey = ({
 /// branches selected).
 final tillsListProvider = FutureProvider.autoDispose
     .family<PaginatedTills, TillsListKey>((ref, k) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/tills/branches/${k.branchId}'));
       return ref
           .watch(apiProvider)
@@ -114,20 +115,24 @@ final tillsListProvider = FutureProvider.autoDispose
 /// T1 `GET /tills/branches/{branch_id}/current` — my till and the pre-fill.
 final tillPreFillProvider = FutureProvider.autoDispose
     .family<TillPreFill, String>((ref, branchId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/tills/branches/$branchId/current'));
       return ref.watch(apiProvider).tills.getCurrentTill(branchId: branchId);
     });
 
 /// T4 `GET /tills/branches/{branch_id}/open` — newest first.
-final openTillsProvider = FutureProvider.autoDispose
-    .family<List<Till>, String>((ref, branchId) {
-      ref.watch(realtimeEpochProvider('/tills/branches/$branchId/open'));
-      return ref.watch(apiProvider).tills.listOpenTills(branchId: branchId);
-    });
+final openTillsProvider = FutureProvider.autoDispose.family<List<Till>, String>(
+  (ref, branchId) {
+    ref.webCache();
+    ref.watch(realtimeEpochProvider('/tills/branches/$branchId/open'));
+    return ref.watch(apiProvider).tills.listOpenTills(branchId: branchId);
+  },
+);
 
 /// T5 `GET /tills/branches/{branch_id}/open-bills-notice`.
 final openBillsNoticeProvider = FutureProvider.autoDispose
     .family<OpenBillsNotice, String>((ref, branchId) {
+      ref.webCache();
       ref.watch(
         realtimeEpochProvider('/tills/branches/$branchId/open-bills-notice'),
       );
@@ -140,6 +145,7 @@ final openBillsNoticeProvider = FutureProvider.autoDispose
 /// T7 `GET /tills/{till_id}/report`.
 final tillReportProvider = FutureProvider.autoDispose
     .family<TillReportResponse, String>((ref, tillId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/tills/$tillId/report'));
       return ref.watch(apiProvider).tills.getTillReport(tillId: tillId);
     });
@@ -147,6 +153,7 @@ final tillReportProvider = FutureProvider.autoDispose
 /// T15 `GET /reports/tills/{till_id}/summary`.
 final tillSummaryProvider = FutureProvider.autoDispose
     .family<ShiftSummary, String>((ref, tillId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/reports/tills/$tillId/summary'));
       return ref.watch(apiProvider).reports.tillSummary(tillId: tillId);
     });
@@ -154,6 +161,7 @@ final tillSummaryProvider = FutureProvider.autoDispose
 /// T16 `GET /reports/tills/{till_id}/deductions`.
 final tillDeductionsProvider = FutureProvider.autoDispose
     .family<List<DeductionLogRow>, String>((ref, tillId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/reports/tills/$tillId/deductions'));
       return ref.watch(apiProvider).reports.tillDeductions(tillId: tillId);
     });
@@ -161,6 +169,7 @@ final tillDeductionsProvider = FutureProvider.autoDispose
 /// T17 `GET /tills/{till_id}/spot-views`.
 final tillSpotViewsProvider = FutureProvider.autoDispose
     .family<List<TillSpotView>, String>((ref, tillId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/tills/$tillId/spot-views'));
       return ref.watch(apiProvider).tills.listSpotViews(tillId: tillId);
     });
@@ -168,6 +177,7 @@ final tillSpotViewsProvider = FutureProvider.autoDispose
 /// T8 `GET /tills/{till_id}/close-preview`.
 final closePreviewProvider = FutureProvider.autoDispose
     .family<CloseTillPreview, String>((ref, tillId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/tills/$tillId/close-preview'));
       return ref.watch(apiProvider).tills.closePreview(tillId: tillId);
     });

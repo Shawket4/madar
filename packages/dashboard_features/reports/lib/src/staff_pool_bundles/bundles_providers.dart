@@ -9,7 +9,12 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// `{from, to, branch_id?, kind}`: the period as branch-local dates.
-typedef BundlesQuery = ({String from, String to, String? branchId, String kind});
+typedef BundlesQuery = ({
+  String from,
+  String to,
+  String? branchId,
+  String kind,
+});
 
 /// `{comboId, from, to, branch_id?}`.
 typedef ComboMixQuery = ({
@@ -22,6 +27,7 @@ typedef ComboMixQuery = ({
 /// `GET /reports/bundles` (bundlesReport).
 final bundlesReportProvider = FutureProvider.autoDispose
     .family<BundlesReport, BundlesQuery>((ref, q) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/reports/bundles'));
       return ref
           .watch(apiProvider)
@@ -37,6 +43,7 @@ final bundlesReportProvider = FutureProvider.autoDispose
 /// `GET /reports/bundles/combos/{id}/mix` (comboMix).
 final comboMixProvider = FutureProvider.autoDispose
     .family<ComboMix, ComboMixQuery>((ref, q) {
+      ref.webCache();
       ref.watch(
         realtimeEpochProvider('/reports/bundles/combos/${q.comboId}/mix'),
       );

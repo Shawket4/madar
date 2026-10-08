@@ -89,11 +89,7 @@ bool windowMatches(Map<String, Object?> w, DateTime wall) {
 
 /// Whether something with [windows] is on sale at [branchId] (null = the
 /// org) at [wall].
-bool windowsOpen(
-  List<Object?> windows,
-  String? branchId,
-  DateTime wall,
-) {
+bool windowsOpen(List<Object?> windows, String? branchId, DateTime wall) {
   final applicable = [
     for (final w in windows.whereType<Map<String, Object?>>())
       if (w['branch_id'] == null ||
@@ -382,9 +378,9 @@ bool comboAvailableNow(
       emptySlots: empty,
     );
   }
-  return !_maps(
-    s['slots'],
-  ).any((slot) => ((slot['min'] as num?) ?? 0) > 0 && empty.contains(slot['id']));
+  return !_maps(s['slots']).any(
+    (slot) => ((slot['min'] as num?) ?? 0) > 0 && empty.contains(slot['id']),
+  );
 }
 
 /// `GET /combos/{id}`'s `Combo` for the `menu_items` row [row].
@@ -433,10 +429,7 @@ Map<String, Object?> comboJson(
 }
 
 /// One row of `GET /combos` (`ComboSummary`) for the `menu_items` row [row].
-Map<String, Object?> comboSummaryJson(
-  MockDb db,
-  Map<String, Object?> row,
-) {
+Map<String, Object?> comboSummaryJson(MockDb db, Map<String, Object?> row) {
   final c = comboJson(db, row);
   final economics = c['economics']! as Map<String, Object?>;
   return {

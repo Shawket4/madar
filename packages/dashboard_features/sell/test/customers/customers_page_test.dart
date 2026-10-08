@@ -13,7 +13,13 @@ void main() {
     await h.shot('customers/sheet');
   });
   testWidgets('/customers phone ar', (tester) async {
-    final h = await pumpSell(tester, '/customers', size: DashSize.phone, locale: 'ar', dark: true);
+    final h = await pumpSell(
+      tester,
+      '/customers',
+      size: DashSize.phone,
+      locale: 'ar',
+      dark: true,
+    );
     await h.shot('customers/smoke');
     await h.tapText('Nada Kamal');
     await h.shot('customers/sheet');

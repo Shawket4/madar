@@ -203,18 +203,14 @@ class _SittingRow extends ConsumerWidget {
     final c = context.madarColors;
     final s = sitting;
     final name = s.customerName?.trim();
-    final who = (name != null && name.isNotEmpty)
-        ? name
-        : (s.ticketRef ?? '—');
+    final who = (name != null && name.isNotEmpty) ? name : (s.ticketRef ?? '—');
     final covers = s.guestCount ?? 0;
     final canOpen = ref.watch(
       authzProvider.select((a) => a.can(Cap.customersView)),
     );
     final customerId = s.customerId;
-    final Widget whoWidget = name != null &&
-            name.isNotEmpty &&
-            customerId != null &&
-            canOpen
+    final Widget whoWidget =
+        name != null && name.isNotEmpty && customerId != null && canOpen
         ? Align(
             alignment: AlignmentDirectional.centerStart,
             child: DashButton(
@@ -266,7 +262,10 @@ class _SittingRow extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 whoWidget,
-                Text(sub, style: DashType.small.copyWith(color: c.textSecondary)),
+                Text(
+                  sub,
+                  style: DashType.small.copyWith(color: c.textSecondary),
+                ),
               ],
             ),
           ),
@@ -280,13 +279,18 @@ class _SittingRow extends ConsumerWidget {
 // ── the read-only customer and order panels (REP-OPS-032) ────────────────
 
 final _customerProvider = FutureProvider.autoDispose
-    .family<CustomerDetail, String>(
-      (ref, id) => ref.watch(apiProvider).customers.getCustomer(id: id),
-    );
+    .family<CustomerDetail, String>((ref, id) {
+      ref.webCache();
+      return ref.watch(apiProvider).customers.getCustomer(id: id);
+    });
 
-final _orderProvider = FutureProvider.autoDispose.family<OrderFull, String>(
-  (ref, id) => ref.watch(apiProvider).orders.getOrder(orderId: id),
-);
+final _orderProvider = FutureProvider.autoDispose.family<OrderFull, String>((
+  ref,
+  id,
+) {
+  ref.webCache();
+  return ref.watch(apiProvider).orders.getOrder(orderId: id);
+});
 
 /// The customer a sitting belongs to, read-only (the web's
 /// `CustomerDetailSheet readOnly`): who they are, what they have spent and
@@ -378,8 +382,14 @@ class OpsCustomerSheet extends ConsumerWidget {
                 runSpacing: Space.sm,
                 children: [
                   for (final s in [
-                    stat(t('customers.orders'), fmtNum(f, customer.ordersCount)),
-                    stat(t('customers.totalSpent'), f.fmtMoney(customer.totalSpent)),
+                    stat(
+                      t('customers.orders'),
+                      fmtNum(f, customer.ordersCount),
+                    ),
+                    stat(
+                      t('customers.totalSpent'),
+                      f.fmtMoney(customer.totalSpent),
+                    ),
                     stat(
                       t('customers.lastVisit'),
                       customer.lastOrderAt == null
@@ -567,11 +577,7 @@ class OpsOrderSheet extends ConsumerWidget {
       );
     } else {
       Widget money(String label, num v, {bool strong = false}) =>
-          DashSummaryLine(
-            label: label,
-            value: f.fmtMoney(v),
-            emphasis: strong,
-          );
+          DashSummaryLine(label: label, value: f.fmtMoney(v), emphasis: strong);
       body = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.lg,

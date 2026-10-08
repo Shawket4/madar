@@ -112,9 +112,7 @@ abstract final class OffersSeed {
       'id': SeedIds.sabahOrg,
       'combo_min_margin': minMargin,
     }, timestamps: false);
-    db
-        .table(OffersTables.itemCosts)
-        .insertAll(_itemCosts(), timestamps: false);
+    db.table(OffersTables.itemCosts).insertAll(_itemCosts(), timestamps: false);
     final items = db.table(OffersTables.menuItems);
     final specs = db.table(OffersTables.comboSpecs);
     for (final c in _combos) {
@@ -122,9 +120,7 @@ abstract final class OffersSeed {
       specs.insert(c.specJson(), timestamps: false);
     }
     db.table(OffersTables.deals).insertAll(_deals(), timestamps: false);
-    db
-        .table(OffersTables.discounts)
-        .insertAll(_discounts(), timestamps: false);
+    db.table(OffersTables.discounts).insertAll(_discounts(), timestamps: false);
   }
 
   // ── Unit costs (piastres) ─────────────────────────────────────────────
@@ -268,14 +264,16 @@ abstract final class OffersSeed {
           min: 2,
           max: 2,
           defaultItem: 'cappuccino',
-          choices: [
-            _SeedChoice.category('hot'),
-            _SeedChoice.category('juice'),
-          ],
+          choices: [_SeedChoice.category('hot'), _SeedChoice.category('juice')],
         ),
       ],
       windows: [
-        _SeedWindow(weekdays: 96, from: '09:00', to: '13:00', branch: 'zamalek'),
+        _SeedWindow(
+          weekdays: 96,
+          from: '09:00',
+          to: '13:00',
+          branch: 'zamalek',
+        ),
       ],
     ),
     _SeedCombo(

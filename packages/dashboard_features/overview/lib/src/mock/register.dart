@@ -52,7 +52,10 @@ OnboardingStatus homeOnboarding(MockDb db, String orgId) {
   };
   final logo = org['logo_url'] != null ? 1 : 0;
   final branches = branchIds.length;
-  final methods = count('payment_methods', (r) => mine(r) && r['is_active'] != false);
+  final methods = count(
+    'payment_methods',
+    (r) => mine(r) && r['is_active'] != false,
+  );
   final categories = count('categories', mine);
   final items = count(
     'menu_items',
@@ -60,9 +63,14 @@ OnboardingStatus homeOnboarding(MockDb db, String orgId) {
   );
   final ingredients = count('ingredients', mine);
   final recipes = orgId == SeedIds.sabahOrg ? homeItemsWithRecipes() : 0;
-  final addons = count('addon_items', (r) => mine(r) && r['is_active'] != false);
+  final addons = count(
+    'addon_items',
+    (r) => mine(r) && r['is_active'] != false,
+  );
   final team = count('users', (r) => mine(r) && r['role'] != 'org_admin');
-  final orders = db['orders'].rows.where((o) => branchIds.contains(o['branch_id'])).length;
+  final orders = db['orders'].rows
+      .where((o) => branchIds.contains(o['branch_id']))
+      .length;
   OnboardingStep step(String key, int n, {bool required = false}) =>
       OnboardingStep(key: key, done: n > 0, count: n, required_: required);
   final steps = [

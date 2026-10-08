@@ -4,8 +4,7 @@
 /// order, Cancel order). A row opens the receive dialog.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart'
-    show PurchaseOrder;
+import 'package:dashboard_api/dashboard_api.dart' show PurchaseOrder;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -140,7 +139,11 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
   );
 
   /// The widest row's actions: its buttons' labels measured, plus the ⋯.
-  double _actionsWidth(BuildContext context, Translator t, List<PurchaseOrder> rows) {
+  double _actionsWidth(
+    BuildContext context,
+    Translator t,
+    List<PurchaseOrder> rows,
+  ) {
     final style = DashType.meta.copyWith(fontWeight: FontWeight.w500);
     final scaler = MediaQuery.textScalerOf(context);
     final dir = Directionality.of(context);
@@ -181,7 +184,8 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
     final rows = async.value ?? const <PurchaseOrder>[];
     final all = widget.allBranches;
 
-    Widget muted(String s) => Text(s, style: DashType.body.copyWith(color: c.textMuted));
+    Widget muted(String s) =>
+        Text(s, style: DashType.body.copyWith(color: c.textMuted));
 
     Widget refText(PurchaseOrder po, {TextStyle? style}) => MadarClippedText(
       poReference(id: po.id, reference: po.reference),
@@ -320,10 +324,15 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
               LabelValueGrid(
                 entries: [
                   if (all)
-                    (t('inventory.purchasing.branch'), Text(po.branchName ?? '—')),
+                    (
+                      t('inventory.purchasing.branch'),
+                      Text(po.branchName ?? '—'),
+                    ),
                   (
                     t('inventory.purchasing.supplier'),
-                    po.supplierName == null ? muted('—') : Text(po.supplierName!),
+                    po.supplierName == null
+                        ? muted('—')
+                        : Text(po.supplierName!),
                   ),
                   (
                     t('inventory.purchasing.status'),

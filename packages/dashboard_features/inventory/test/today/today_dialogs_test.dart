@@ -154,9 +154,7 @@ void main() {
         expect(s.db[InvTables.purchaseOrders].length, ordersBefore);
         // The line is still there to send again.
         expect(
-          tester
-              .widget<DashButton>(byKey('po-submit'))
-              .onPressed,
+          tester.widget<DashButton>(byKey('po-submit')).onPressed,
           isNotNull,
         );
       },
@@ -212,7 +210,8 @@ void main() {
         expect(post.path, '/purchasing/orders/$po/receive');
         expect(post.status, 200);
         final lines = [
-          for (final l in (post.body! as Map<String, Object?>)['lines']! as List)
+          for (final l
+              in (post.body! as Map<String, Object?>)['lines']! as List)
             l as Map<String, Object?>,
         ];
         final seeded = {
@@ -242,10 +241,7 @@ void main() {
         }
         // Two left on their way; PO-1042 is gone from the list.
         expect(kpi(tester, 'Deliveries').value, 2);
-        expect(
-          _inside<TodayArrivingSection>(textHas('PO-1042')),
-          findsNothing,
-        );
+        expect(_inside<TodayArrivingSection>(textHas('PO-1042')), findsNothing);
         // The beans are on the shelf: the stock value moved with them.
         final valueAfter = stockValue(s.db, [SeedIds.zamalek]).total;
         expect(valueAfter, greaterThan(valueBefore));

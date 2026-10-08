@@ -13,14 +13,10 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../branches/branch_dialog.dart';
 import '../users/user_dialog.dart';
-import 'dialogs/addon_dialog.dart';
-import 'dialogs/category_dialog.dart';
-import 'dialogs/ingredient_dialog.dart';
-import 'dialogs/menu_item_dialog.dart';
-import 'dialogs/payment_method_dialog.dart';
 import 'onboarding_config.dart';
 import 'onboarding_data.dart';
 import 'org_identity_step.dart';
@@ -173,21 +169,17 @@ class _StepBody extends ConsumerWidget {
       OnbStep.orgProfile => OnbOrgIdentityStep(orgId: orgId, onNext: onNext),
       OnbStep.branch => add((context) => showBranchDialog(context)),
       OnbStep.paymentMethods => add(
-        (context) => showOnbPaymentMethodDialog(context),
+        (context) => _openPage(context, '/settings/payment-methods'),
       ),
       OnbStep.ingredients => add(
-        (context) => showOnbIngredientDialog(context, orgId: orgId),
+        (context) => _openPage(context, '/inventory/ingredients'),
       ),
-      OnbStep.categories => add(
-        (context) => showOnbCategoryDialog(context, orgId: orgId),
-      ),
+      OnbStep.categories => add((context) => _openPage(context, '/menu/items')),
       OnbStep.menuItems => _MenuItemsBody(
         orgId: orgId,
         count: _count('menu_items'),
       ),
-      OnbStep.addons => add(
-        (context) => showOnbAddonDialog(context, orgId: orgId),
-      ),
+      OnbStep.addons => add((context) => _openPage(context, '/menu/items')),
       OnbStep.recipes => _RecipesBody(orgId: orgId),
       OnbStep.team => add((context) => showUserDialog(context)),
       OnbStep.goLive => _GoLiveBody(
@@ -271,9 +263,7 @@ class OnbDashedNote extends StatelessWidget {
           text,
           textAlign: warning ? TextAlign.start : TextAlign.center,
           style: DashType.body.copyWith(
-            color: warning
-                ? DashTone.warning.foreground(c)
-                : c.textSecondary,
+            color: warning ? DashTone.warning.foreground(c) : c.textSecondary,
           ),
         ),
       ),
@@ -369,11 +359,7 @@ class _MenuItemsBody extends ConsumerWidget {
             onPressed: categories.isEmpty
                 ? null
                 : () async {
-                    await showOnbMenuItemDialog(
-                      context,
-                      orgId: orgId,
-                      categories: categories,
-                    );
+                    await _openPage(context, '/menu/items');
                     refreshOnboarding(ref, orgId);
                   },
           ),
@@ -399,8 +385,6 @@ class _RecipesBody extends ConsumerWidget {
     final lang = ref.watch(localeProvider);
     final items =
         ref.watch(onbMenuItemsProvider(orgId)).value ?? const <MenuItem>[];
-    final categories =
-        ref.watch(onbCategoriesProvider(orgId)).value ?? const <Category>[];
     const k = 'onboarding.steps.recipes';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -444,9 +428,7 @@ class _RecipesBody extends ConsumerWidget {
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: DashType.body.copyWith(
-                              color: c.textPrimary,
-                            ),
+                            style: DashType.body.copyWith(color: c.textPrimary),
                           ),
                         ),
                         DashButton(
@@ -454,12 +436,7 @@ class _RecipesBody extends ConsumerWidget {
                           variant: DashButtonVariant.outline,
                           size: DashButtonSize.compact,
                           onPressed: () async {
-                            await showOnbMenuItemDialog(
-                              context,
-                              orgId: orgId,
-                              categories: categories,
-                              item: item,
-                            );
+                            await _openPage(context, '/menu/items');
                             refreshOnboarding(ref, orgId);
                           },
                         ),
@@ -584,3 +561,8 @@ class OnbDashedBorder extends CustomPainter {
   bool shouldRepaint(OnbDashedBorder old) =>
       old.color != color || old.radius != radius;
 }
+
+// ponytail: the web opens each editor inline (onboarding dialogs not ported
+// yet); this opens the page that owns it and refreshes the checklist on return.
+Future<Object?> _openPage(BuildContext context, String path) =>
+    context.push<Object?>(path);

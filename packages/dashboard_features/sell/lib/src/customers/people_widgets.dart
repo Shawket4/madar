@@ -111,9 +111,7 @@ class StatGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cols = MediaQuery.sizeOf(context).width >= DashBreakpoints.sm
-        ? 4
-        : 2;
+    final cols = MediaQuery.sizeOf(context).width >= DashBreakpoints.sm ? 4 : 2;
     final rows = <Widget>[];
     for (var i = 0; i < children.length; i += cols) {
       rows.add(
@@ -265,7 +263,11 @@ class _DashedBorder extends CustomPainter {
 /// A section that failed to load (`rounded-lg border p-3`): the reason and
 /// an outline Retry.
 class InlineFailure extends StatelessWidget {
-  const InlineFailure({required this.message, required this.onRetry, super.key});
+  const InlineFailure({
+    required this.message,
+    required this.onRetry,
+    super.key,
+  });
 
   final String message;
   final VoidCallback onRetry;

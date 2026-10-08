@@ -3,8 +3,7 @@
 /// `till-badges.tsx`).
 library;
 
-import 'package:dashboard_api/dashboard_api.dart'
-    show Till;
+import 'package:dashboard_api/dashboard_api.dart' show Till;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -89,7 +88,9 @@ class HomeOpenTillsCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final q = ref.watch(homeOpenTillsProvider(branchId));
     if (q.firstLoad) return const HomeSkeleton(height: HomeMetrics.tills);
-    return HomeOpenTillsList(tills: q.hasError ? const [] : (q.value ?? const []));
+    return HomeOpenTillsList(
+      tills: q.hasError ? const [] : (q.value ?? const []),
+    );
   }
 }
 
@@ -104,7 +105,10 @@ class HomeOpenTillsList extends ConsumerWidget {
     final fmt = ref.watch(formatProvider);
     final c = context.madarColors;
     return DashCard(
-      padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.sm),
+      padding: const EdgeInsets.symmetric(
+        horizontal: Space.lg,
+        vertical: Space.sm,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

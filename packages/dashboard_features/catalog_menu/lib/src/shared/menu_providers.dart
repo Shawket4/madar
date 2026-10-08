@@ -22,6 +22,7 @@ import 'menu_queries.dart';
 /// `GET /inventory/orgs/{orgId}/catalog`: the org's ingredients.
 final ingredientCatalogProvider = FutureProvider.autoDispose
     .family<List<OrgIngredient>, String>((ref, orgId) {
+      ref.webCache();
       watchMenuPath(ref, MenuPaths.ingredientCatalog(orgId));
       return ref.watch(apiProvider).inventory.listCatalog(orgId: orgId);
     });
@@ -29,6 +30,7 @@ final ingredientCatalogProvider = FutureProvider.autoDispose
 /// `GET /inventory/orgs/{orgId}/categories`: the ingredient categories.
 final ingredientCategoriesProvider = FutureProvider.autoDispose
     .family<List<IngredientCategory>, String>((ref, orgId) {
+      ref.webCache();
       watchMenuPath(ref, MenuPaths.ingredientCategories(orgId));
       return ref
           .watch(apiProvider)
@@ -39,6 +41,7 @@ final ingredientCategoriesProvider = FutureProvider.autoDispose
 /// `GET /categories?org_id`: the menu categories, in POS order.
 final menuCategoriesProvider = FutureProvider.autoDispose
     .family<List<Category>, String>((ref, orgId) {
+      ref.webCache();
       watchMenuPath(ref, MenuPaths.categories);
       return ref.watch(apiProvider).menu.listCategories(orgId: orgId);
     });
@@ -49,6 +52,7 @@ typedef GroupsQuery = ({String orgId, bool includeInactive});
 /// `GET /modifier-groups?org_id[&include_inactive=true]`.
 final modifierGroupsProvider = FutureProvider.autoDispose
     .family<List<GroupOut>, GroupsQuery>((ref, q) {
+      ref.webCache();
       watchMenuPath(ref, MenuPaths.modifierGroups);
       return ref
           .watch(apiProvider)
@@ -63,6 +67,7 @@ final modifierGroupsProvider = FutureProvider.autoDispose
 /// options; an add-on's id is its option's id).
 final addonItemsProvider = FutureProvider.autoDispose
     .family<List<AddonItem>, String>((ref, orgId) {
+      ref.webCache();
       watchMenuPath(ref, MenuPaths.addonItems);
       return ref.watch(apiProvider).menu.listAddonItems(orgId: orgId);
     });
@@ -71,6 +76,7 @@ final addonItemsProvider = FutureProvider.autoDispose
 /// switching orgs refetches).
 final recipeBasesProvider = FutureProvider.autoDispose
     .family<List<RecipeBaseOut>, String>((ref, orgId) {
+      ref.webCache();
       watchMenuPath(ref, MenuPaths.recipeBases);
       return ref.watch(apiProvider).menu.listBases();
     });

@@ -13,6 +13,7 @@ export 'src/authz/authz_providers.dart';
 export 'src/authz/gates.dart';
 export 'src/data/core_api.dart';
 export 'src/data/models.dart';
+export 'src/data/query_cache.dart';
 export 'src/format/format.dart';
 export 'src/format/tz.dart'
     show

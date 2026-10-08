@@ -66,20 +66,17 @@ void main() {
       row('Regular', 'Ice', '.'),
       row('Regular', 'Syrup', '12.5'),
     ]);
-    expect([for (final c in clean) (c.ingredientName, c.quantityUsed)], [
-      ('Beans', 18.0),
-      ('Syrup', 12.5),
-    ]);
+    expect(
+      [for (final c in clean) (c.ingredientName, c.quantityUsed)],
+      [('Beans', 18.0), ('Syrup', 12.5)],
+    );
   });
 
   test('the standalone save lists initial rows no longer kept', () {
-    final removed = removedRecipeRows(
-      [
-        (sizeLabel: 'one_size', ingredientName: 'Beans'),
-        (sizeLabel: 'one_size', ingredientName: 'Milk'),
-      ],
-      cleanRecipeRows([row('one_size', 'Beans', '20')]),
-    );
+    final removed = removedRecipeRows([
+      (sizeLabel: 'one_size', ingredientName: 'Beans'),
+      (sizeLabel: 'one_size', ingredientName: 'Milk'),
+    ], cleanRecipeRows([row('one_size', 'Beans', '20')]));
     expect(removed, [(sizeLabel: 'one_size', ingredientName: 'Milk')]);
   });
 
@@ -118,17 +115,20 @@ void main() {
     expect(recipeLineCost(95, ''), isNull);
   });
 
-  test('MENU-RCP-008 margin = (price − cost) / price; tones at 60 % / 30 %', () {
-    expect(recipeMargin(2466, 11500), closeTo(0.78557, 1e-5));
-    expect(recipeMargin(null, 11500), isNull);
-    expect(recipeMargin(2466, 0), isNull);
-    expect(recipeMargin(2466, null), isNull);
-    expect(recipeMarginTone(0.6), RecipeMarginTone.good);
-    expect(recipeMarginTone(0.5999), RecipeMarginTone.fair);
-    expect(recipeMarginTone(0.3), RecipeMarginTone.fair);
-    expect(recipeMarginTone(0.2999), RecipeMarginTone.low);
-    expect(recipeMarginTone(-0.5), RecipeMarginTone.low);
-  });
+  test(
+    'MENU-RCP-008 margin = (price − cost) / price; tones at 60 % / 30 %',
+    () {
+      expect(recipeMargin(2466, 11500), closeTo(0.78557, 1e-5));
+      expect(recipeMargin(null, 11500), isNull);
+      expect(recipeMargin(2466, 0), isNull);
+      expect(recipeMargin(2466, null), isNull);
+      expect(recipeMarginTone(0.6), RecipeMarginTone.good);
+      expect(recipeMarginTone(0.5999), RecipeMarginTone.fair);
+      expect(recipeMarginTone(0.3), RecipeMarginTone.fair);
+      expect(recipeMarginTone(0.2999), RecipeMarginTone.low);
+      expect(recipeMarginTone(-0.5), RecipeMarginTone.low);
+    },
+  );
 
   test('MENU-RCP-005 scaling: base rows × factor (3 dp); untouched = × 1; '
       'a cleared or zero factor keeps that size as it was', () {
@@ -184,10 +184,7 @@ void main() {
     expect(recipeRowsDiffer([a, b], [a, b]), isFalse);
     expect(recipeRowsDiffer([a, b], [b, a]), isTrue);
     expect(recipeRowsDiffer([a], [a, b]), isTrue);
-    expect(
-      recipeRowsDiffer([a.copyWith(quantity: '19')], [a]),
-      isTrue,
-    );
+    expect(recipeRowsDiffer([a.copyWith(quantity: '19')], [a]), isTrue);
     expect(recipeRowsDiffer([a.copyWith(id: 99)], [a]), isFalse);
   });
 

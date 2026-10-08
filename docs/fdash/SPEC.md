@@ -165,6 +165,16 @@ server.on('POST', '/orders/{id}/void', (req) { req.requireCap(Cap.ordersVoid); .
   invalidate exactly what the web's React Query invalidates. Loading → skeleton; empty → the web's
   empty state words; error → the web's error words + retry; failed mutation → toast with
   `ApiException.message`. A Save that silently does nothing is the worst outcome a form can have.
+- Caching (the web's React Query defaults, `src/data/api/query.ts`): every `autoDispose` read calls
+  `ref.webCache()` first (dashboard_core `data/query_cache.dart`): kept 5 min unwatched, refetched in
+  the background when a page opens on data older than 30 s, cleared on sign-out. The family argument
+  is the cache key, as the web's key is the request's params: pass the scope, period and filters the
+  request uses, never more (a key that changes every build refetches every build).
+- Prefetch (the web's `prefetchRoute`): a route whose web path has a `prefetchRoute` case sets
+  `prefetch:` in its `DashRoute`, warming the reads its page fires on mount with the page's exact
+  arguments (`warm(provider(arg))`). The sidebar and palette call it on hover or focus. Pinned by a
+  test that hovers the row and checks the page opens without a second request
+  (`dashboard_admin/test/shared/prefetch_test.dart` is the pattern).
 - Gating: hide or disable exactly what the web hides or disables (`<Restricted>`, `canAny`, module
   gate, platform-only, setup-only).
 - Live updates: where the web listens to branch realtime events, subscribe through dashboard_core's

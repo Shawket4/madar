@@ -1,13 +1,14 @@
 // `/reports/bundles` Bundles, driven through the real app shell (inventory
 // rows REP-BUN-001 to -019): the gate, the request, the KPI strip, the table,
 // the Combos / Deals switch, the Mix dialog and the export.
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_reports/src/mock/staff_pool_bundles_mock.dart';
+import 'package:dashboard_reports/src/staff_pool_bundles/bundles_mix_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,19 +42,20 @@ String num0(int n) => const DashFormat().fmtNumber(n);
 
 void main() {
   group('the gate', () {
-    testWidgets('REP-BUN-001 without reports.bundles: Restricted, nothing asked', (
-      tester,
-    ) async {
-      final h = await pumpReports(
-        tester,
-        path: bundlesPath,
-        persona: Persona.limited,
-      );
-      expect(find.text('Bundles'), findsWidgets);
-      expect(find.text('Not available on this account'), findsOneWidget);
-      expect(h.server.callsTo(bundlesTpl), isEmpty);
-      expect(find.text('Export Excel'), findsNothing);
-    });
+    testWidgets(
+      'REP-BUN-001 without reports.bundles: Restricted, nothing asked',
+      (tester) async {
+        final h = await pumpReports(
+          tester,
+          path: bundlesPath,
+          persona: Persona.limited,
+        );
+        expect(find.text('Bundles'), findsWidgets);
+        expect(find.text('Not available on this account'), findsOneWidget);
+        expect(h.server.callsTo(bundlesTpl), isEmpty);
+        expect(find.text('Export Excel'), findsNothing);
+      },
+    );
 
     testWidgets('REP-BUN-001 the page\'s own gate says who it is for', (
       tester,
@@ -82,8 +84,9 @@ void main() {
         path: bundlesPath,
         persona: Persona.manager,
       );
-      final q = lastQuery(h, bundlesTpl);
-      expect(q['branch_id'], [SeedIds.zamalek]);
+      // As on the web, the scope's branch is not forced into the params: the
+      // server narrows a manager to her branch (the header the core sends).
+      expect(h.server.callsTo(bundlesTpl), isNotEmpty);
       expect(find.text('Brunch for Two'), findsOneWidget);
     });
 
@@ -99,10 +102,7 @@ void main() {
       );
       await pumpReports(tester, path: bundlesPath, server: s.server, db: s.db);
       expect(find.text("Couldn't load this"), findsOneWidget);
-      expect(
-        textHas("You don't have permission to do this"),
-        findsOneWidget,
-      );
+      expect(textHas("You don't have permission to do this"), findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
     });
   });
@@ -234,11 +234,7 @@ void main() {
         tester,
         path: '$bundlesPath?branchId=${SeedIds.heliopolis}',
       );
-      final sales = salesOf(
-        h.db!,
-        'combo',
-        branches: [SeedIds.heliopolis],
-      );
+      final sales = salesOf(h.db!, 'combo', branches: [SeedIds.heliopolis]);
       expect(sales.any((s) => s['cost_missing'] == true), isFalse);
       final revenue = sum(sales, 'revenue');
       final cost = sum(sales, 'cost');
@@ -274,34 +270,40 @@ void main() {
   });
 
   group('the table', () {
-    testWidgets('REP-BUN-007 a combo\'s line: counts, money in pounds, margin', (
-      tester,
-    ) async {
-      final s = reportsServer();
-      s.server.on('GET', bundlesTpl, (req) => MockResponse.ok(_fixture()));
-      await pumpReports(tester, path: bundlesPath, server: s.server, db: s.db);
-      for (final header in [
-        'COMBO',
-        'SOLD',
-        'ORDERS',
-        'REVENUE',
-        'SEPARATELY',
-        'SAVING GIVEN',
-        'COST',
-        'MARGIN',
-      ]) {
-        expect(find.text(header), findsOneWidget, reason: header);
-      }
-      expect(find.text('Lunch deal'), findsOneWidget);
-      expect(figure('12'), findsOneWidget);
-      expect(figure('10'), findsOneWidget);
-      // Piastres became pounds: 180000 → EGP 1,800.00.
-      expect(figure('EGP 1,800.00'), findsOneWidget);
-      expect(figure('EGP 2,160.00'), findsOneWidget);
-      expect(figure('EGP 360.00'), findsOneWidget);
-      expect(figure('EGP 675.40'), findsOneWidget);
-      expect(figure('62.5%'), findsOneWidget);
-    });
+    testWidgets(
+      'REP-BUN-007 a combo\'s line: counts, money in pounds, margin',
+      (tester) async {
+        final s = reportsServer();
+        s.server.on('GET', bundlesTpl, (req) => MockResponse.ok(_fixture()));
+        await pumpReports(
+          tester,
+          path: bundlesPath,
+          server: s.server,
+          db: s.db,
+        );
+        for (final header in [
+          'COMBO',
+          'SOLD',
+          'ORDERS',
+          'REVENUE',
+          'SEPARATELY',
+          'SAVING GIVEN',
+          'COST',
+          'MARGIN',
+        ]) {
+          expect(find.text(header), findsOneWidget, reason: header);
+        }
+        expect(find.text('Lunch deal'), findsOneWidget);
+        expect(figure('12'), findsOneWidget);
+        expect(figure('10'), findsOneWidget);
+        // Piastres became pounds: 180000 → EGP 1,800.00.
+        expect(figure('EGP 1,800.00'), findsOneWidget);
+        expect(figure('EGP 2,160.00'), findsOneWidget);
+        expect(figure('EGP 360.00'), findsOneWidget);
+        expect(figure('EGP 675.40'), findsOneWidget);
+        expect(figure('62.5%'), findsOneWidget);
+      },
+    );
 
     testWidgets('REP-BUN-008 a partly unknown cost: a floor, no margin', (
       tester,
@@ -358,7 +360,10 @@ void main() {
       s.db[BundlesMock.salesTable].removeWhere((r) => true);
       await pumpReports(tester, path: bundlesPath, server: s.server, db: s.db);
       expect(find.text('No combos sold in this period'), findsOneWidget);
-      expect(find.text('Try a longer period or another branch.'), findsOneWidget);
+      expect(
+        find.text('Try a longer period or another branch.'),
+        findsOneWidget,
+      );
       expect(statCard(tester, 'Sold').value, 0);
       expect(statCard(tester, 'Margin').valueText, '—');
     });
@@ -532,11 +537,14 @@ void main() {
       final wrap = tester.getTopLeft(find.text('Chicken wrap'));
       // Sent wrap-first; shown burger-first (9 picks over 3).
       expect(burger.dy, lessThan(wrap.dy));
-      expect(figure('75%'), findsOneWidget);
-      expect(figure('25%'), findsOneWidget);
-      expect(figure('100%'), findsOneWidget);
-      expect(figure('EGP 45.00'), findsOneWidget);
-      expect(figure('—'), findsNWidgets(2));
+      // In the dialog (the report under it has figures of its own).
+      Finder inMix(Finder f) =>
+          find.descendant(of: find.byType(BundlesMixDialog), matching: f);
+      expect(inMix(figure('75%')), findsOneWidget);
+      expect(inMix(figure('25%')), findsOneWidget);
+      expect(inMix(figure('100%')), findsOneWidget);
+      expect(inMix(figure('EGP 45.00')), findsOneWidget);
+      expect(inMix(figure('—')), findsNWidgets(2));
     });
 
     testWidgets('REP-BUN-015 the seeded mix adds up to the combos sold', (
@@ -652,7 +660,13 @@ void main() {
       const title = 'What went into Coffee & Cookie';
       await h.tapText('Coffee & Cookie');
       expect(find.text(title), findsOneWidget);
-      await h.tapLabel('Close');
+      // The dialog's X (the barrier is labelled "Close" too).
+      await h.tap(
+        find.descendant(
+          of: find.byType(BundlesMixDialog),
+          matching: find.bySemanticsLabel('Close'),
+        ),
+      );
       expect(find.text(title), findsNothing);
 
       await h.tapText('Coffee & Cookie');
@@ -728,7 +742,16 @@ void main() {
         ],
       );
       // Money leaves in pounds; the margin a fraction, blank when unknown.
-      expect(sheet.rows[0], ['Lunch deal', 12, 10, 1800, 2160, 360, 675.4, 0.6248]);
+      expect(sheet.rows[0], [
+        'Lunch deal',
+        12,
+        10,
+        1800,
+        2160,
+        360,
+        675.4,
+        0.6248,
+      ]);
       expect(sheet.rows[1][7], isNull);
       // Orders overlap across rows: not totalled.
       final totals = sheet.totalsRow!;
@@ -819,9 +842,13 @@ void main() {
       tester,
     ) async {
       final h = await pumpReports(tester, path: bundlesPath);
+      // Held: the recorded export answers at once otherwise.
+      final written = Completer<void>();
+      h.exports.hold = written.future;
       await tester.tap(find.text('Export Excel'));
       await tester.pump();
       expect(find.text('Gathering data…'), findsOneWidget);
+      written.complete();
       await h.settle();
       expect(find.text('Gathering data…'), findsNothing);
       expect(textHas('Exported'), findsOneWidget);

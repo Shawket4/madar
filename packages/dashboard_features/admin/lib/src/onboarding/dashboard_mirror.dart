@@ -8,7 +8,6 @@ library;
 
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show FontFeature;
 
 import 'package:dashboard_api/dashboard_api.dart' show OnboardingStep;
 import 'package:dashboard_core/dashboard_core.dart';
@@ -95,7 +94,9 @@ class OnbDashboardMirror extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       MadarClippedText(
-                        name.isNotEmpty ? name : t('onboarding.mirror.yourCafe'),
+                        name.isNotEmpty
+                            ? name
+                            : t('onboarding.mirror.yourCafe'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: DashType.bodyStrong.copyWith(
@@ -295,9 +296,7 @@ class _OnbAnimatedCountState extends State<OnbAnimatedCount>
     super.initState();
     _ctrl.addListener(() {
       final p = Curves.easeOutCubic.transform(_ctrl.value);
-      setState(
-        () => _shown = (_from + (widget.value - _from) * p).round(),
-      );
+      setState(() => _shown = (_from + (widget.value - _from) * p).round());
     });
   }
 

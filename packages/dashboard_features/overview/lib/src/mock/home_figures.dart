@@ -19,7 +19,12 @@ const String nilBranchId = '00000000-0000-0000-0000-000000000000';
 
 /// The four delivery channels, in the backend's fixed order
 /// (`DELIVERY_CHANNELS`).
-const List<String> deliveryChannels = ['in_mall', 'outside', 'umbrella', 'pickup'];
+const List<String> deliveryChannels = [
+  'in_mall',
+  'outside',
+  'umbrella',
+  'pickup',
+];
 
 /// The backend's built-in margin target (`DEFAULT_TARGET_PCT`).
 const double defaultTargetPct = 60;
@@ -193,7 +198,8 @@ BranchSalesReport branchSalesReport({
   );
   final ranked = byItem.entries.toList()
     ..sort((a, b) => b.value.$3.compareTo(a.value.$3));
-  final categories = <String, List<MapEntry<String, (String, int, int, String?)>>>{};
+  final categories =
+      <String, List<MapEntry<String, (String, int, int, String?)>>>{};
   for (final e in ranked) {
     categories.putIfAbsent(e.value.$4 ?? '', () => []).add(e);
   }
@@ -290,10 +296,7 @@ List<TimeseriesPoint> salesTimeseries(
 }
 
 /// One comparison row per branch of the org (zero-sale branches included).
-BranchComparison branchComparisonRow(
-  MockRow branch,
-  List<MockRow> orders,
-) {
+BranchComparison branchComparisonRow(MockRow branch, List<MockRow> orders) {
   final t = SalesTotals(orders);
   return BranchComparison(
     branchId: branch['id']! as String,
@@ -423,7 +426,12 @@ Map<(String, String), _Agg> _salesAgg(List<MockRow> orders) {
 /// The ledger the margin watch reads (`build_ledger`): one row per item and
 /// size on the menu or sold in the window, the signals, the totals, ranked
 /// by known margin.
-({List<MarginLedgerRow> rows, LedgerTotals totals, int openSignals, int rowsCostUnknown})
+({
+  List<MarginLedgerRow> rows,
+  LedgerTotals totals,
+  int openSignals,
+  int rowsCostUnknown,
+})
 marginLedger({
   required List<MockRow> orders,
   required List<MockRow> prevOrders,
@@ -616,7 +624,11 @@ MarginWatch marginWatch({
 }
 
 /// The previous equal-length window (`build_ledger`): [from − (to − from), from].
-(DateTime, DateTime)? previousWindow(DateTime? from, DateTime? to, DateTime now) {
+(DateTime, DateTime)? previousWindow(
+  DateTime? from,
+  DateTime? to,
+  DateTime now,
+) {
   if (from == null) return null;
   final end = to ?? now;
   if (!end.isAfter(from)) return null;

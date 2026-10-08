@@ -28,7 +28,8 @@ String bookingErrorText(Object? error, Translator t) {
   final details = error.details;
   final envelope = details is Map ? details : null;
   final code =
-      error.code ?? (envelope?['code'] is String ? envelope!['code'] as String : null);
+      error.code ??
+      (envelope?['code'] is String ? envelope!['code'] as String : null);
   if (code != null && t.exists('errors.codes.$code')) {
     final vars = envelope?['vars'];
     return t(

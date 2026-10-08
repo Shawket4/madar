@@ -17,15 +17,13 @@ void main() {
   Map<String, Object?> row(String key) =>
       db.table(OffersTables.menuItems).get(OffersSeed.comboId(key));
 
-  Map<String, Object?> summary(String key) =>
-      comboSummaryJson(db, row(key));
+  Map<String, Object?> summary(String key) => comboSummaryJson(db, row(key));
 
   Map<String, Object?> economics(String key) =>
       comboJson(db, row(key))['economics']! as Map<String, Object?>;
 
   List<Object?> codes(String key) => [
-    for (final w in economics(key)['warnings']! as List)
-      (w as Map)['code'],
+    for (final w in economics(key)['warnings']! as List) (w as Map)['code'],
   ];
 
   test('loading twice adds nothing', () {
@@ -36,14 +34,17 @@ void main() {
   });
 
   test('combos are menu items of kind combo, listed by name', () {
-    expect([for (final r in comboRows(db, org)) r['name']], [
-      'Brunch for Two',
-      'Coffee & Cookie',
-      'Iced Afternoon',
-      "Kids' Cocoa & Cookie",
-      'Morning Croissant Combo',
-      'Ramadan Suhoor Box',
-    ]);
+    expect(
+      [for (final r in comboRows(db, org)) r['name']],
+      [
+        'Brunch for Two',
+        'Coffee & Cookie',
+        'Iced Afternoon',
+        "Kids' Cocoa & Cookie",
+        'Morning Croissant Combo',
+        'Ramadan Suhoor Box',
+      ],
+    );
   });
 
   test('Morning Croissant Combo: figures and the costliest-picks warning', () {
@@ -71,9 +72,7 @@ void main() {
   });
 
   test('the list summaries', () {
-    final s = {
-      for (final k in OffersSeed.comboKeys) k: summary(k),
-    };
+    final s = {for (final k in OffersSeed.comboKeys) k: summary(k)};
     expect(s['coffee-cookie']!['is_fixed'], isTrue);
     expect(s['kids-cocoa']!['is_fixed'], isTrue);
     expect(s['morning-croissant']!['is_fixed'], isFalse);
@@ -86,14 +85,17 @@ void main() {
     expect(s['suhoor-box']!['window_count'], 1);
     // Thursday 10:00 in Cairo: the afternoon and weekend windows are shut,
     // Ramadan's box is switched off, Brunch's only window is Zamalek's.
-    expect({for (final e in s.entries) e.key: e.value['available_now']}, {
-      'morning-croissant': true,
-      'coffee-cookie': true,
-      'brunch-for-two': true,
-      'iced-afternoon': false,
-      'suhoor-box': false,
-      'kids-cocoa': false,
-    });
+    expect(
+      {for (final e in s.entries) e.key: e.value['available_now']},
+      {
+        'morning-croissant': true,
+        'coffee-cookie': true,
+        'brunch-for-two': true,
+        'iced-afternoon': false,
+        'suhoor-box': false,
+        'kids-cocoa': false,
+      },
+    );
     expect(
       comboJson(
         db,
@@ -106,11 +108,15 @@ void main() {
 
   test('a choice switched off warns CHOICE_INACTIVE; a price at or over the '
       'list value warns NO_SAVING', () {
-    db.table(OffersTables.menuItems).get(OffersSeed.item('cookie'))['is_active'] =
+    db
+            .table(OffersTables.menuItems)
+            .get(OffersSeed.item('cookie'))['is_active'] =
         false;
     expect(codes('coffee-cookie'), contains('CHOICE_INACTIVE'));
     expect(codes('coffee-cookie'), contains('SLOT_EMPTY_NOW'));
-    db.table(OffersTables.menuItems).get(OffersSeed.item('cookie'))['is_active'] =
+    db
+            .table(OffersTables.menuItems)
+            .get(OffersSeed.item('cookie'))['is_active'] =
         true;
     row('coffee-cookie')['base_price'] = 14000;
     expect(codes('coffee-cookie'), ['NO_SAVING']);
@@ -165,14 +171,16 @@ void main() {
       );
     });
 
-    test('only all-branch windows and the branch\'s own apply; none = open',
-        () {
-      final zamalekOnly = [w(weekdays: 0, branch: 'z')];
-      expect(windowsOpen(zamalekOnly, null, thu), isTrue);
-      expect(windowsOpen(zamalekOnly, 'z', thu), isFalse);
-      expect(windowsOpen(zamalekOnly, 'other', thu), isTrue);
-      expect(windowsOpen(const [], 'z', thu), isTrue);
-    });
+    test(
+      'only all-branch windows and the branch\'s own apply; none = open',
+      () {
+        final zamalekOnly = [w(weekdays: 0, branch: 'z')];
+        expect(windowsOpen(zamalekOnly, null, thu), isTrue);
+        expect(windowsOpen(zamalekOnly, 'z', thu), isFalse);
+        expect(windowsOpen(zamalekOnly, 'other', thu), isTrue);
+        expect(windowsOpen(const [], 'z', thu), isTrue);
+      },
+    );
 
     test('unparseable input never matches', () {
       expect(windowMatches(w(from: '25:00', to: '03:00'), thu), isFalse);

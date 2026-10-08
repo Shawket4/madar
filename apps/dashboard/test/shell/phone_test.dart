@@ -1,6 +1,7 @@
 // The phone frame: the app bar, the bottom bar (Home, Orders, Reports, More,
 // as the person's permissions and modules allow) and the drawer.
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_core/shell.dart' show DashBottomBar;
 import 'package:dashboard_core/testing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,7 +62,7 @@ void main() {
   ) async {
     final db = MockDb.seeded();
     final server = MockServer(persona: Persona.limited, clock: db.clock);
-    registerCoreMocks(server, db);
+    registerAppMocks(server, db);
     server.on(
       'GET',
       '/authz/me',
@@ -87,7 +88,14 @@ void main() {
       shotArea: 'shell',
     );
     expect(labelled('Reports'), findsNothing);
-    expect(labelled('Orders'), findsNothing);
+    // In the bar (the home page has an Orders figure of its own).
+    expect(
+      find.descendant(
+        of: find.byType(DashBottomBar),
+        matching: labelled('Orders'),
+      ),
+      findsNothing,
+    );
     expect(labelled('Home'), findsWidgets);
     expect(labelled('More'), findsWidgets);
   });

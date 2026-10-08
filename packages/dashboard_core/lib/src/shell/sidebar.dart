@@ -9,6 +9,7 @@ import 'package:dashboard_core/src/i18n/i18n_providers.dart';
 import 'package:dashboard_core/src/routes/nav.dart';
 import 'package:dashboard_core/src/shell/brand_mark.dart';
 import 'package:dashboard_core/src/shell/footer.dart';
+import 'package:dashboard_core/src/shell/prefetch.dart';
 import 'package:dashboard_core/src/shell/shell_nav.dart';
 import 'package:dashboard_core/src/shell/shell_prefs.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -69,11 +70,14 @@ class _DashSidebarState extends ConsumerState<DashSidebar> {
   String? _revealed;
 
   void _reveal() {
-    if (_revealed == widget.path) return;
-    _revealed = widget.path;
+    final path = widget.path;
+    if (_revealed == path) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = _activeKey.currentContext;
-      if (!mounted || ctx == null) return;
+      // Not shown yet (the org's modules still loading hide a module row):
+      // the next build tries again.
+      if (!mounted || ctx == null || _revealed == path) return;
+      _revealed = path;
       Scrollable.ensureVisible(ctx, alignment: 0.5);
     });
   }
@@ -121,11 +125,16 @@ class _DashSidebarState extends ConsumerState<DashSidebar> {
               if (!rail) _SidebarBrand(onTap: () => _go('/')),
               if (rail) const SizedBox(height: Space.sm),
               Expanded(
-                child: ListView(
+                // Every row built (a few dozen): a lazy list never builds a
+                // row below the fold, so the active one could not be revealed.
+                child: SingleChildScrollView(
                   padding: const EdgeInsets.all(Space.sm),
-                  children: [
-                    for (final g in groups) ..._group(context, g, rail),
-                  ],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final g in groups) ..._group(context, g, rail),
+                    ],
+                  ),
                 ),
               ),
               if (widget.drawer) const _DrawerFoot(),
@@ -203,13 +212,16 @@ class _DashSidebarState extends ConsumerState<DashSidebar> {
     switch (e) {
       case NavLeaf(:final to):
         final active = navActive(to, widget.path);
-        return _NavRow(
-          key: active ? _activeKey : null,
-          icon: e.icon,
-          label: label,
-          rail: rail,
-          active: active,
-          onTap: () => _go(to),
+        return PrefetchOnIntent(
+          to: to,
+          child: _NavRow(
+            key: active ? _activeKey : null,
+            icon: e.icon,
+            label: label,
+            rail: rail,
+            active: active,
+            onTap: () => _go(to),
+          ),
         );
       case NavParent():
         final open = _parentOpen(e);
@@ -218,23 +230,26 @@ class _DashSidebarState extends ConsumerState<DashSidebar> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            _NavRow(
-              icon: e.icon,
-              label: label,
-              rail: rail,
-              active: widget.path.startsWith(e.basePath),
-              expanded: open,
-              trailing: rail ? null : _Chevron(open: open),
-              onTap: () {
-                if (rail) {
-                  // An icon on the folded rail cannot show its children:
-                  // unfold and open the group (the web's rail hides them).
-                  _open[e.labelKey] = true;
-                  ref.read(sidebarCollapsedProvider.notifier).set(false);
-                  return;
-                }
-                setState(() => _open[e.labelKey] = !open);
-              },
+            PrefetchOnIntent(
+              to: e.basePath,
+              child: _NavRow(
+                icon: e.icon,
+                label: label,
+                rail: rail,
+                active: widget.path.startsWith(e.basePath),
+                expanded: open,
+                trailing: rail ? null : _Chevron(open: open),
+                onTap: () {
+                  if (rail) {
+                    // An icon on the folded rail cannot show its children:
+                    // unfold and open the group (the web's rail hides them).
+                    _open[e.labelKey] = true;
+                    ref.read(sidebarCollapsedProvider.notifier).set(false);
+                    return;
+                  }
+                  setState(() => _open[e.labelKey] = !open);
+                },
+              ),
             ),
             if (open && !rail)
               Container(
@@ -253,15 +268,21 @@ class _DashSidebarState extends ConsumerState<DashSidebar> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (final child in children)
-                      _NavRow(
-                        key: navActive(child.to, widget.path)
-                            ? _activeKey
-                            : null,
-                        icon: child.icon,
-                        label: t(child.labelKey, defaultValue: child.fallback),
-                        rail: false,
-                        active: navActive(child.to, widget.path),
-                        onTap: () => _go(child.to),
+                      PrefetchOnIntent(
+                        to: child.to,
+                        child: _NavRow(
+                          key: navActive(child.to, widget.path)
+                              ? _activeKey
+                              : null,
+                          icon: child.icon,
+                          label: t(
+                            child.labelKey,
+                            defaultValue: child.fallback,
+                          ),
+                          rail: false,
+                          active: navActive(child.to, widget.path),
+                          onTap: () => _go(child.to),
+                        ),
                       ),
                   ],
                 ),
@@ -328,6 +349,7 @@ class _NavRow extends StatelessWidget {
       child: DashPressable(
         onTap: onTap,
         selected: active,
+        expanded: expanded,
         pressScale: false,
         semanticLabel: label,
         tooltip: rail ? label : null,

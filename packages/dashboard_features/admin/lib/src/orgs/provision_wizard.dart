@@ -150,7 +150,11 @@ class _ProvisionWizardState extends ConsumerState<ProvisionWizard> {
         mainAxisSize: MainAxisSize.min,
         spacing: Space.lg,
         children: [
-          _Progress(titles: titles, step: _step, label: t('orgs.wizard.progress')),
+          _Progress(
+            titles: titles,
+            step: _step,
+            label: t('orgs.wizard.progress'),
+          ),
           ...switch (_step) {
             0 => _business(context, t),
             1 => _branch(t),
@@ -275,8 +279,7 @@ class _ProvisionWizardState extends ConsumerState<ProvisionWizard> {
             templates: templates.value ?? const [],
             selected: _form.template,
             arabic: t.isRtl,
-            onPick: (key) =>
-                _changed('template', () => _form.template = key),
+            onPick: (key) => _changed('template', () => _form.template = key),
           ),
           if (templates.hasError && !templates.isLoading)
             Text(
@@ -493,14 +496,13 @@ class _Progress extends StatelessWidget {
                         titles[i],
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: (i == step
-                                ? DashType.smallMedium
-                                : DashType.small)
-                            .copyWith(
-                              color: i == step
-                                  ? c.textPrimary
-                                  : c.textSecondary,
-                            ),
+                        style:
+                            (i == step ? DashType.smallMedium : DashType.small)
+                                .copyWith(
+                                  color: i == step
+                                      ? c.textPrimary
+                                      : c.textSecondary,
+                                ),
                       ),
                     ),
                   ],

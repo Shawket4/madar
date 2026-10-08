@@ -68,7 +68,9 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
     );
     final q = watchWhen(ref, canSee, bundlesReportProvider(query));
     final logo = exportLogoUrl(ref);
-    final rows = q.hasError ? const <BundlesRow>[] : (q.value?.rows ?? const <BundlesRow>[]);
+    final rows = q.hasError
+        ? const <BundlesRow>[]
+        : (q.value?.rows ?? const <BundlesRow>[]);
     final totals = q.value?.totals;
     final loading = q.firstLoad;
     final lang = t.lang;
@@ -105,7 +107,10 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
               value: BundleKind.combo,
               label: t('reports.bundles.combos'),
             ),
-            DashOption(value: BundleKind.deal, label: t('reports.bundles.deals')),
+            DashOption(
+              value: BundleKind.deal,
+              label: t('reports.bundles.deals'),
+            ),
           ],
         ),
       ),

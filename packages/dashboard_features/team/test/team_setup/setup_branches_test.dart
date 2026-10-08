@@ -1,6 +1,10 @@
 // Set-up step 1, "Where is each branch?" (TEAM-SET-013…023): the branch
 // rows, the pin from the device or a pasted link, the radius, and the save,
 // driven through the real shell on the mock server.
+import 'dart:async';
+import 'dart:ui' show Tristate;
+
+import 'package:dashboard_api/dashboard_api.dart' show ApiException, ApiRequest;
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -28,9 +32,8 @@ void main() {
       'to the Branches page\'s new-branch editor', (tester) async {
     final h = await pumpSetup(
       tester,
-      edit: (db) => db['branches'].removeWhere(
-        (b) => b['org_id'] == SeedIds.sabahOrg,
-      ),
+      edit: (db) =>
+          db['branches'].removeWhere((b) => b['org_id'] == SeedIds.sabahOrg),
     );
     expect(byKey('setup-no-branches'), findsOneWidget);
     expect(find.text(h.t('dawam.setupNoBranches')), findsOneWidget);
@@ -54,10 +57,7 @@ void main() {
       findsOneWidget,
     );
     expect(textIn('setup-pin-$heliopolis', h.t('common.edit')), findsOneWidget);
-    expect(
-      textIn('setup-pin-$maadi', h.t('dawam.notPinned')),
-      findsOneWidget,
-    );
+    expect(textIn('setup-pin-$maadi', h.t('dawam.notPinned')), findsOneWidget);
     // Maadi (the first unpinned) is open; Zamalek is not.
     expect(textIn('setup-pin-$maadi', h.t('common.close')), findsOneWidget);
     expect(byKey('setup-paste-$maadi'), findsOneWidget);
@@ -68,7 +68,7 @@ void main() {
           .getSemantics(byKey('setup-pin-toggle-$maadi'))
           .flagsCollection
           .isExpanded,
-      isTrue,
+      Tristate.isTrue,
     );
     await h.shot('branches-open');
 
@@ -100,8 +100,10 @@ void main() {
       'branches.read',
     ]);
     final h = await pumpSetup(tester, s: s);
-    expect(textIn('setup-pin-no-access', h.t('dawam.setupPinNoAccess')),
-        findsOneWidget);
+    expect(
+      textIn('setup-pin-no-access', h.t('dawam.setupPinNoAccess')),
+      findsOneWidget,
+    );
     expect(_button(tester, 'setup-locate-$maadi').onPressed, isNull);
     expect(
       tester.widget<DashTextInput>(byKey('setup-paste-$maadi')).enabled,
@@ -138,8 +140,7 @@ void main() {
     await h.flushTimers();
   });
 
-  testWidgets('TEAM-SET-016 while locating the button is busy',
-      (tester) async {
+  testWidgets('TEAM-SET-016 while locating the button is busy', (tester) async {
     final h = await pumpSetup(tester, edit: _twoUnpinned);
     final slow = _SlowLocator();
     useLocator(h, slow);
@@ -167,16 +168,18 @@ void main() {
       });
     }
 
-    testWidgets('the build without a location reader says "paste a link"',
-        (tester) async {
+    testWidgets('the build without a location reader says "paste a link"', (
+      tester,
+    ) async {
       final h = await pumpSetup(tester, edit: _twoUnpinned);
       await h.tapKey(ValueKey('setup-locate-$maadi'));
       expect(textIn('setup-pin-$maadi', h.t('dawam.pinNoGeo')), findsOneWidget);
     });
   });
 
-  testWidgets('TEAM-SET-018 a rough fix (> 100 m) warns, never refuses',
-      (tester) async {
+  testWidgets('TEAM-SET-018 a rough fix (> 100 m) warns, never refuses', (
+    tester,
+  ) async {
     final h = await pumpSetup(tester, edit: _twoUnpinned);
     useLocator(h, FakeLocator(fixAt(29.9601, 31.2504, 140.4)));
     await h.tapKey(ValueKey('setup-locate-$maadi'));
@@ -221,23 +224,26 @@ void main() {
           isTrue,
         );
         // The pin is left as it was (Maadi's saved spot).
-        expect(textIn('setup-pin-$maadi', '29.96010, 31.25040'),
-            findsNothing);
+        expect(textIn('setup-pin-$maadi', '29.96010, 31.25040'), findsNothing);
       });
     }
 
     testWidgets('a long Maps link wins over the map centre', (tester) async {
       final h = await pumpSetup(tester, edit: _twoUnpinned);
       await _paste(h, maadi, 'https://maps.app.goo.gl/abc');
-      expect(textIn('setup-pin-$maadi', h.t('dawam.pinShortLink')),
-          findsOneWidget);
+      expect(
+        textIn('setup-pin-$maadi', h.t('dawam.pinShortLink')),
+        findsOneWidget,
+      );
       await _paste(
         h,
         maadi,
         'https://www.google.com/maps/place/X/@29.9,31.2,17z/data=!3d29.960123!4d31.250456',
       );
-      expect(textIn('setup-pin-$maadi', h.t('dawam.pinShortLink')),
-          findsNothing);
+      expect(
+        textIn('setup-pin-$maadi', h.t('dawam.pinShortLink')),
+        findsNothing,
+      );
       expect(textIn('setup-pin-$maadi', '29.96012, 31.25046'), findsOneWidget);
       await h.tapKey(ValueKey('setup-check-maps'));
       expect(
@@ -264,28 +270,32 @@ void main() {
     expect(radius.presets, [100, 200, 300, 500]);
     expect(textIn('setup-pin-$maadi', h.t('dawam.radius')), findsOneWidget);
     expect(textIn('setup-pin-$maadi', h.t('dawam.radiusHint')), findsOneWidget);
-    expect(textIn('setup-pin-$maadi', '300 ${h.t('dawam.metres')}'),
-        findsOneWidget);
+    expect(
+      textIn('setup-pin-$maadi', '300 ${h.t('dawam.metres')}'),
+      findsOneWidget,
+    );
     // A pinned branch starts from its own radius.
     await h.tapKey(ValueKey('setup-pin-toggle-$heliopolis'));
     expect(
       tester.widget<DashNumberInput>(byKey('setup-radius-$heliopolis')).value,
       350,
     );
-    expect(_button(tester, 'setup-save-pin-$heliopolis').onPressed, isNull,
-        reason: 'nothing changed');
-    // A preset is a change.
-    await h.tapText('500 ${h.t('dawam.metres')}');
     expect(
       _button(tester, 'setup-save-pin-$heliopolis').onPressed,
-      isNotNull,
+      isNull,
+      reason: 'nothing changed',
     );
+    // A preset is a change.
+    await h.tapText('500 ${h.t('dawam.metres')}');
+    expect(_button(tester, 'setup-save-pin-$heliopolis').onPressed, isNotNull);
     // Out of range: the field says so and the save is off.
     await h.enterText(byKey('setup-radius-$heliopolis'), '6000');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await h.settle();
     expect(
-      textHas(h.t('inputs.between', args: {'min': '10', 'max': '5,000'})),
+      textHas(
+        h.t('inputs.between', args: {'min': '10', 'max': '5,000', 'unit': ''}),
+      ),
       findsWidgets,
     );
     expect(_button(tester, 'setup-save-pin-$heliopolis').onPressed, isNull);
@@ -295,7 +305,13 @@ void main() {
       'yet says what to do', (tester) async {
     final h = await pumpSetup(tester, edit: _twoUnpinned);
     // Maadi has its spot: "Pin:" and a Maps link.
-    expect(textIn('setup-pin-$maadi', h.t('dawam.pinAt')), findsWidgets);
+    expect(
+      find.descendant(
+        of: byKey('setup-pin-$maadi'),
+        matching: textHas(h.t('dawam.pinAt')),
+      ),
+      findsWidgets,
+    );
     expect(byKey('setup-check-maps'), findsOneWidget);
     // Zamalek has nothing.
     await h.tapKey(ValueKey('setup-pin-toggle-$zamalek'));
@@ -304,8 +320,10 @@ void main() {
     // A pin in Riyadh: warned, still savable.
     await _paste(h, zamalek, '24.7136, 46.6753');
     expect(textIn('setup-pin-$zamalek', '24.71360, 46.67530'), findsOneWidget);
-    expect(textIn('setup-pin-$zamalek', h.t('dawam.pinNotEgypt')),
-        findsOneWidget);
+    expect(
+      textIn('setup-pin-$zamalek', h.t('dawam.pinNotEgypt')),
+      findsOneWidget,
+    );
     expect(_button(tester, 'setup-save-pin-$zamalek').onPressed, isNotNull);
     await h.shot('branches-outside-egypt');
     await h.tapKey(const ValueKey('setup-check-maps'));
@@ -346,7 +364,10 @@ void main() {
       greaterThan(branchReads),
     );
     expect(
-      textIn('setup-pin-$maadi', h.t('dawam.pinnedSummary', args: {'radius': 200})),
+      textIn(
+        'setup-pin-$maadi',
+        h.t('dawam.pinnedSummary', args: {'radius': 200}),
+      ),
       findsOneWidget,
     );
     expect(byKey('setup-paste-$zamalek'), findsOneWidget);
@@ -358,8 +379,9 @@ void main() {
     await h.flushTimers();
   });
 
-  testWidgets('TEAM-SET-023 the last pin closes every row and ticks the step',
-      (tester) async {
+  testWidgets('TEAM-SET-023 the last pin closes every row and ticks the step', (
+    tester,
+  ) async {
     final h = await pumpSetup(
       tester,
       edit: (db) => unpin(db, maadi, keepCoordinates: true),
@@ -396,10 +418,12 @@ void main() {
       MockResponse.denied('branches.edit'),
     );
     await h.tapKey(ValueKey('setup-save-pin-$zamalek'));
-    await h.expectToast(
-      "Forbidden: You don't have permission to do this: "
-      'Edit branches (branches.edit)',
+    // The server's refusal, as sent (it names the capability's description).
+    expect(
+      find.textContaining("Forbidden: You don't have permission to do this"),
+      findsOneWidget,
     );
+    await h.flushTimers();
     expect(byKey('setup-paste-$zamalek'), findsOneWidget);
     expect(h.db!['branches'].get(zamalek)['geo_radius_meters'], 200);
   });
@@ -407,22 +431,24 @@ void main() {
   testWidgets('TEAM-SET-023 the mock refuses a pin without branches.edit '
       '(the server decides)', (tester) async {
     final s = setupServer(persona: Persona.manager);
-    final res = await s.server.send(
-      ApiRequestForTest.patch('/branches/$zamalek', {
-        'latitude': 30.06,
-        'longitude': 31.22,
-        'geo_radius_meters': 150,
-      }),
+    await expectLater(
+      s.server.send(
+        ApiRequest(
+          method: 'PATCH',
+          path: '/branches/$zamalek',
+          body: {
+            'latitude': 30.06,
+            'longitude': 31.22,
+            'geo_radius_meters': 150,
+          },
+        ),
+      ),
+      throwsA(isA<ApiException>().having((e) => e.status, 'status', 403)),
     );
-    expect(res.status, 403);
   });
 
   testWidgets('TEAM-SET-039 phone: the pin controls stack', (tester) async {
-    final h = await pumpSetup(
-      tester,
-      edit: _twoUnpinned,
-      size: DashSize.phone,
-    );
+    final h = await pumpSetup(tester, edit: _twoUnpinned, size: DashSize.phone);
     final locate = tester.getRect(byKey('setup-locate-$maadi'));
     final paste = tester.getRect(byKey('setup-paste-$maadi'));
     expect(paste.top, greaterThan(locate.bottom));

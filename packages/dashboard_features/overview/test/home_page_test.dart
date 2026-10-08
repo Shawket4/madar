@@ -95,7 +95,12 @@ void main() {
       tester,
     ) async {
       final s = homeServer();
-      s.server.fail('GET', _modules, MockResponse.error(500, 'boom'), times: null);
+      s.server.fail(
+        'GET',
+        _modules,
+        MockResponse.error(500, 'boom'),
+        times: null,
+      );
       final h = await pumpHome(tester, server: s.server, db: s.db);
       expect(find.byType(HomePage), findsNothing);
       expect(find.text('Retry'), findsNothing);
@@ -217,7 +222,12 @@ void main() {
       await h.tapText('Maadi');
       await pick(h, 'All branches');
       expect(find.text('Open tills'), findsNothing);
-      expect(h.server.callsTo(_series).last.path, contains(nilBranchId));
+      // All branches again: its trend is still fresh (< 30 s), shown from the
+      // cache without a second request, as the web's staleTime does.
+      expect(
+        h.server.callsTo(_series).where((c) => c.path.contains(nilBranchId)),
+        hasLength(1),
+      );
       expect(kpi(tester, 'Revenue').value, totals(h, _sabah).revenue);
     });
 
@@ -303,7 +313,9 @@ void main() {
       tester,
     ) async {
       final s = homeServer();
-      s.db['branches'].update(SeedIds.zamalek, {'timezone': 'America/New_York'});
+      s.db['branches'].update(SeedIds.zamalek, {
+        'timezone': 'America/New_York',
+      });
       await pumpHome(
         tester,
         server: s.server,
@@ -317,7 +329,9 @@ void main() {
       tester,
     ) async {
       final s = homeServer();
-      s.db['branches'].update(SeedIds.zamalek, {'timezone': 'America/New_York'});
+      s.db['branches'].update(SeedIds.zamalek, {
+        'timezone': 'America/New_York',
+      });
       await pumpHome(
         tester,
         server: s.server,
@@ -369,7 +383,9 @@ void main() {
 
     testWidgets('OVW-HOME-027 hidden when every step is done', (tester) async {
       final s = homeServer();
-      s.db['orgs'].update(SeedIds.sabahOrg, {'logo_url': 'https://cdn.test/l.png'});
+      s.db['orgs'].update(SeedIds.sabahOrg, {
+        'logo_url': 'https://cdn.test/l.png',
+      });
       s.db['ingredients'].insert({'id': 'i1', 'org_id': SeedIds.sabahOrg});
       await pumpHome(tester, server: s.server, db: s.db);
       expect(find.text('Keep building'), findsNothing);
@@ -524,7 +540,12 @@ void main() {
       tester,
     ) async {
       final s = homeServer();
-      s.server.fail('GET', _sales, MockResponse.error(500, 'boom'), times: null);
+      s.server.fail(
+        'GET',
+        _sales,
+        MockResponse.error(500, 'boom'),
+        times: null,
+      );
       final h = await pumpHome(
         tester,
         server: s.server,
@@ -538,7 +559,12 @@ void main() {
       tester,
     ) async {
       final s = homeServer();
-      s.server.fail('GET', _cmp, MockResponse.denied('orders.read'), times: null);
+      s.server.fail(
+        'GET',
+        _cmp,
+        MockResponse.denied('orders.read'),
+        times: null,
+      );
       await pumpHome(tester, server: s.server, db: s.db);
       expect(kpi(tester, 'Revenue').value, 0);
       expect(kpi(tester, 'Orders').value, 0);
@@ -555,7 +581,10 @@ void main() {
         (t) => t['branch_id'] == SeedIds.maadi && t['status'] == 'open',
       );
       expect(find.text('Open tills'), findsOneWidget);
-      expect(find.textContaining(open['teller_name']! as String, findRichText: true), findsOneWidget);
+      expect(
+        find.textContaining(open['teller_name']! as String, findRichText: true),
+        findsOneWidget,
+      );
       expect(find.textContaining('T1', findRichText: true), findsWidgets);
       final age = h.container
           .read(formatProvider)
@@ -586,20 +615,26 @@ void main() {
       expect(h.location.path, '/tills');
     });
 
-    testWidgets('OVW-HOME-049/054 none open, or the read failed: "No open till"', (
-      tester,
-    ) async {
-      final s = homeServer();
-      s.server.fail('GET', _tills, MockResponse.denied('till.read'), times: null);
-      await pumpHome(
-        tester,
-        server: s.server,
-        db: s.db,
-        path: '/?branchId=${SeedIds.maadi}',
-      );
-      expect(find.text('No open till'), findsOneWidget);
-      expect(find.text('Retry'), findsNothing);
-    });
+    testWidgets(
+      'OVW-HOME-049/054 none open, or the read failed: "No open till"',
+      (tester) async {
+        final s = homeServer();
+        s.server.fail(
+          'GET',
+          _tills,
+          MockResponse.denied('till.read'),
+          times: null,
+        );
+        await pumpHome(
+          tester,
+          server: s.server,
+          db: s.db,
+          path: '/?branchId=${SeedIds.maadi}',
+        );
+        expect(find.text('No open till'), findsOneWidget);
+        expect(find.text('Retry'), findsNothing);
+      },
+    );
 
     testWidgets('OVW-HOME-051/052 verification and flag pills', (tester) async {
       final s = homeServer();

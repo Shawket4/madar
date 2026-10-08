@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// unpaginated (ADM-ORG-003). The web keeps no realtime subscription here;
 /// a `resync` (which invalidates everything) refetches it.
 final orgsListProvider = FutureProvider.autoDispose<List<Org>>((ref) {
+  ref.webCache();
   ref.watch(realtimeEpochProvider('/orgs'));
   return ref.watch(apiProvider).orgs.listOrgs();
 });
@@ -21,6 +22,7 @@ final orgsListProvider = FutureProvider.autoDispose<List<Org>>((ref) {
 final orgTemplatesProvider = FutureProvider.autoDispose<List<OrgTemplate>>((
   ref,
 ) {
+  ref.webCache();
   ref.watch(realtimeEpochProvider('/orgs/templates'));
   return ref.watch(apiProvider).orgs.listTemplates();
 });
@@ -28,6 +30,7 @@ final orgTemplatesProvider = FutureProvider.autoDispose<List<OrgTemplate>>((
 /// `GET /timezones` (listTimezones): the options of the timezone selects
 /// (ADM-ORG-032, ADM-ORG-049).
 final orgTimezonesProvider = FutureProvider.autoDispose<List<String>>((ref) {
+  ref.webCache();
   ref.watch(realtimeEpochProvider('/timezones'));
   return ref.watch(apiProvider).branches.listTimezones();
 });

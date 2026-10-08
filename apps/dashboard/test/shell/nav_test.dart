@@ -45,8 +45,8 @@ void main() {
     ) async {
       final h = await pumpShell(tester);
       expect(visibleLeaves(h), allLeaves.difference({'/orgs', '/staff/setup'}));
-      expect(text('Organizations'), findsNothing);
-      expect(text('Orders'), findsOneWidget);
+      expect(navText('Organizations'), findsNothing);
+      expect(navText('Orders'), findsOneWidget);
     });
 
     testWidgets(
@@ -115,7 +115,7 @@ void main() {
     ) async {
       final db = MockDb.seeded();
       final server = MockServer(clock: db.clock);
-      registerCoreMocks(server, db);
+      registerAppMocks(server, db);
       final gate = server.hold('GET', '/orgs/{id}/modules');
       final h = await DashHarness.pump(
         tester,
@@ -138,7 +138,7 @@ void main() {
       (tester) async {
         final db = MockDb.seeded();
         final server = MockServer(clock: db.clock);
-        registerCoreMocks(server, db);
+        registerAppMocks(server, db);
         server.on(
           'GET',
           '/staff/work-shifts',
@@ -202,8 +202,14 @@ void main() {
       final h = await pumpShell(tester);
       await h.tap(labelled('Toggle Sidebar'));
       expect(h.prefs.values[sidebarPrefKey], 'true');
-      expect(text('Orders'), findsNothing);
-      expect(labelled('Orders'), findsOneWidget);
+      expect(navText('Orders'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(DashSidebar),
+          matching: labelled('Orders'),
+        ),
+        findsOneWidget,
+      );
       await h.shot('frame/rail');
       await h.tap(labelled('Menu'));
       expect(h.container.read(sidebarCollapsedProvider), isFalse);
@@ -213,7 +219,7 @@ void main() {
     testWidgets('the rail is restored from preferences', (tester) async {
       final h = await pumpShell(tester, prefs: {sidebarPrefKey: 'true'});
       expect(h.container.read(sidebarCollapsedProvider), isTrue);
-      expect(text('Orders'), findsNothing);
+      expect(navText('Orders'), findsNothing);
     });
   });
 }

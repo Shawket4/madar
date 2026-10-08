@@ -222,9 +222,8 @@ class SellSeed {
   String get _today => MockClock.cairoDate(now);
 
   /// The branch key of a Sabah branch id (`heliopolis`, …).
-  static String branchKeyOf(String branchId) => _plans.keys.firstWhere(
-    (k) => MockSeed.branchIdOf(k) == branchId,
-  );
+  static String branchKeyOf(String branchId) =>
+      _plans.keys.firstWhere((k) => MockSeed.branchIdOf(k) == branchId);
 
   static DateTime _at(String date, int hour, int minute) {
     final p = date.split('-').map(int.parse).toList();
@@ -564,7 +563,8 @@ class SellSeed {
   // Open tickets.
 
   late final List<OpenTicketView> openTickets = [
-    for (final (i, (b, label, h, m, customer, guests, ready)) in _seated.indexed)
+    for (final (i, (b, label, h, m, customer, guests, ready))
+        in _seated.indexed)
       _ticket(i, b, label, h, m, customer, guests, ready),
   ];
 
@@ -583,9 +583,7 @@ class SellSeed {
     final id = SellIds.ticket(branchKey, label);
     final rng = MockRandom('sell-ticket:$branchKey:$label');
     final waiter = branchKey == 'zamalek';
-    final openedBy = waiter
-        ? 'laila'
-        : branchTellers[branchKey]!.first;
+    final openedBy = waiter ? 'laila' : branchTellers[branchKey]!.first;
     final items = <OpenTicketItemView>[];
     var subtotal = 0;
     final rounds = guests > 2 ? 2 : 1;
@@ -679,9 +677,7 @@ class SellSeed {
     final status = ticket != null || parked
         ? 'seated'
         : (dirty ? 'dirty' : 'free');
-    final seatedAt =
-        ticket?.openedAt ??
-        (parked ? _at(_today, 9, 20) : null);
+    final seatedAt = ticket?.openedAt ?? (parked ? _at(_today, 9, 20) : null);
     return FloorTable(
       id: id,
       orgId: SeedIds.sabahOrg,

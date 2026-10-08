@@ -61,7 +61,8 @@ void registerTeamSetupMocks(MockServer server, MockDb db) {
       }
     }
     final radius = body['geo_radius_meters'];
-    if (radius != null && (radius is! num || radius != radius.roundToDouble())) {
+    if (radius != null &&
+        (radius is! num || radius != radius.roundToDouble())) {
       req.badRequest(
         'Json deserialize error: invalid type: $radius, expected i32',
       );
@@ -98,8 +99,7 @@ void registerTeamSetupMocks(MockServer server, MockDb db) {
       if (body.containsKey(name)) patch[name] = body[name];
     }
     if (patch['geo_radius_meters'] is num) {
-      patch['geo_radius_meters'] = (patch['geo_radius_meters']! as num)
-          .toInt();
+      patch['geo_radius_meters'] = (patch['geo_radius_meters']! as num).toInt();
     }
     final updated = db['branches'].update(id, patch, what: 'Branch not found');
     return MockResponse.ok(updated);

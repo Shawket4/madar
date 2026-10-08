@@ -373,7 +373,10 @@ Map<String, Object?> _decisionOut(MockDb db, MockRow r, DateTime now) {
   final branches = branch == null
       ? _orgBranches(r['org_id']! as String)
       : [branch];
-  final sku = (_keyOfItem(r['menu_item_id']! as String), r['size_label']! as String);
+  final sku = (
+    _keyOfItem(r['menu_item_id']! as String),
+    r['size_label']! as String,
+  );
   final measurable = now.isAfter(at.add(const Duration(days: 1)));
   final end = at.add(const Duration(days: _baselineDays));
   return {
@@ -390,15 +393,12 @@ String _keyOfItem(String menuItemId) => _itemById[menuItemId]?.key ?? '';
 
 /// The decisions that keep a flag quiet at [branchScope] (`suppressions`):
 /// org-wide ones and the branch's own.
-Iterable<MockRow> _suppressions(
-  MockDb db,
-  String orgId,
-  String? branchScope,
-) => _decisions(db).where(
-  (d) =>
-      d['org_id'] == orgId &&
-      (d['branch_id'] == null || d['branch_id'] == branchScope),
-);
+Iterable<MockRow> _suppressions(MockDb db, String orgId, String? branchScope) =>
+    _decisions(db).where(
+      (d) =>
+          d['org_id'] == orgId &&
+          (d['branch_id'] == null || d['branch_id'] == branchScope),
+    );
 
 // ── the ledger ──────────────────────────────────────────────────────────
 
@@ -542,7 +542,9 @@ MarginLedgerReport finLedger(
           ..['suggested_price'] = suggested
           ..['last_worked'] = null;
       }
-      flags.add(Signal(kind: 'price_candidate', link: 'pricing', params: params));
+      flags.add(
+        Signal(kind: 'price_candidate', link: 'pricing', params: params),
+      );
     }
     if (r.onMenu && r.qty == 0 && from != null) {
       flags.add(
@@ -560,7 +562,9 @@ MarginLedgerReport finLedger(
     }
     final spike = _costSpikes[r.sku];
     if (spike != null && r.qty > 0) {
-      flags.add(Signal(kind: 'cost_spike', link: 'studio_recipe', params: spike));
+      flags.add(
+        Signal(kind: 'cost_spike', link: 'studio_recipe', params: spike),
+      );
     }
     r.flags = [
       for (final f in flags)
@@ -823,9 +827,11 @@ int _localDays(DateTime from, DateTime to) {
   final b = MockClock.wall(to);
   return math.max(
     1,
-    DateTime.utc(b.year, b.month, b.day)
-            .difference(DateTime.utc(a.year, a.month, a.day))
-            .inDays +
+    DateTime.utc(
+          b.year,
+          b.month,
+          b.day,
+        ).difference(DateTime.utc(a.year, a.month, a.day)).inDays +
         1,
   );
 }
@@ -1141,7 +1147,9 @@ void registerFinancialMocks(MockServer server, MockDb db) {
     final id = req.param('branch_id');
     final basis = req.q('cost_basis');
     if (basis != null && basis != 'snapshot' && basis != 'current') {
-      req.badRequest("cost_basis must be 'snapshot' or 'current', got '$basis'");
+      req.badRequest(
+        "cost_basis must be 'snapshot' or 'current', got '$basis'",
+      );
     }
     final branches = _branches(req, id);
     return MockResponse.ok(
@@ -1161,9 +1169,7 @@ void registerFinancialMocks(MockServer server, MockDb db) {
     req.requireCap('orders.read');
     final id = req.param('branch_id');
     _branches(req, id);
-    return MockResponse.ok(
-      finRepricing(db, req.orgId ?? SeedIds.sabahOrg, id),
-    );
+    return MockResponse.ok(finRepricing(db, req.orgId ?? SeedIds.sabahOrg, id));
   });
 
   server.on('GET', '/insights/decisions', (req) {
@@ -1215,9 +1221,7 @@ void registerFinancialMocks(MockServer server, MockDb db) {
     final item = _itemById[b.menuItemId];
     if (item == null) req.notFound('Menu item not found');
     final size = b.sizeLabel ?? 'one_size';
-    final branches = b.branchId == null
-        ? _orgBranches(orgId!)
-        : [b.branchId!];
+    final branches = b.branchId == null ? _orgBranches(orgId) : [b.branchId!];
     final now = req.now;
     final row = _decisions(db).insert({
       'org_id': orgId,
@@ -1248,7 +1252,7 @@ void registerFinancialMocks(MockServer server, MockDb db) {
       req.badRequest('Query deserialize error: missing field `org_id`');
     }
     req.requireSameOrg(orgId);
-    return MockResponse.ok(_targetsOf(db, orgId!));
+    return MockResponse.ok(_targetsOf(db, orgId));
   });
 
   server.on('PUT', '/insights/margin-target', (req) {
@@ -1268,7 +1272,7 @@ void registerFinancialMocks(MockServer server, MockDb db) {
       'branch_id': b.branchId,
       'target_pct': b.targetPct,
     });
-    return MockResponse.ok(_targetsOf(db, orgId!));
+    return MockResponse.ok(_targetsOf(db, orgId));
   });
 
   // ── sales ─────────────────────────────────────────────────────────

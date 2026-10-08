@@ -259,7 +259,10 @@ class TillHourChart extends ConsumerWidget {
                                   text: '● ',
                                   style: tipBody.copyWith(color: openedColor),
                                 ),
-                                TextSpan(text: '$openedLabel  ', style: tipBody),
+                                TextSpan(
+                                  text: '$openedLabel  ',
+                                  style: tipBody,
+                                ),
                                 TextSpan(
                                   text: f.fmtNumber(b.opened),
                                   style: tipValue,
@@ -269,7 +272,10 @@ class TillHourChart extends ConsumerWidget {
                                   text: '● ',
                                   style: tipBody.copyWith(color: closedColor),
                                 ),
-                                TextSpan(text: '$closedLabel  ', style: tipBody),
+                                TextSpan(
+                                  text: '$closedLabel  ',
+                                  style: tipBody,
+                                ),
                                 TextSpan(
                                   text: f.fmtNumber(b.closed),
                                   style: tipValue,

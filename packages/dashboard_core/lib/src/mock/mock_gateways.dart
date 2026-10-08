@@ -235,8 +235,13 @@ class RecordingExportGateway implements ExportGateway {
   /// Throw this from the next [buildXlsx] (an export failure).
   Object? failNext;
 
+  /// While set, a build waits for it: the export's loading state on screen.
+  Future<void>? hold;
+
   @override
   Future<List<int>> buildXlsx(WorkbookSpec spec) async {
+    final wait = hold;
+    if (wait != null) await wait;
     final f = failNext;
     if (f != null) {
       failNext = null;

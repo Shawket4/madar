@@ -4,6 +4,8 @@ library;
 
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/src/authz/authz_providers.dart';
+import 'package:dashboard_core/src/data/query_cache.dart';
+import 'package:dashboard_core/src/scope/scope.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
@@ -49,6 +51,10 @@ class DashRouteTab {
 }
 
 /// One page (or a nested detail route) in the shell.
+/// Warms the reads a page fires on mount, with the exact arguments it passes
+/// (the web's `prefetchRoute` case for its path), for [scope].
+typedef DashPrefetch = void Function(DashPrefetcher warm, Scope scope);
+
 class DashRoute {
   const DashRoute({
     required this.path,
@@ -62,6 +68,7 @@ class DashRoute {
     this.tabs = const [],
     this.children = const [],
     this.redirect,
+    this.prefetch,
   });
 
   /// go_router path. Top-level routes are absolute (`/orders`); children are
@@ -91,6 +98,9 @@ class DashRoute {
   final List<DashRouteTab> tabs;
   final List<DashRoute> children;
   final DashRedirect? redirect;
+
+  /// Called when the page's sidebar or palette row is pointed at or focused.
+  final DashPrefetch? prefetch;
 
   /// Whether this person may open the page (else the shell shows
   /// `Restricted`). Module checks are the `ModuleGate`'s.

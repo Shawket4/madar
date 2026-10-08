@@ -62,7 +62,10 @@ class OpsChartBody extends StatelessWidget {
     }
     Widget sized(Widget w) => height == null
         ? w
-        : SizedBox(height: height, child: Center(child: w));
+        : SizedBox(
+            height: height,
+            child: Center(child: w),
+          );
     if (failed) {
       return sized(DashErrorState(framed: false, onRetry: onRetry));
     }
@@ -320,13 +323,16 @@ class _OpsHBarChartState extends State<OpsHBarChart> {
                 onExit: (_) => setState(() => _active = null),
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: () => setState(() => _active = _active == i ? null : i),
+                  onTap: () =>
+                      setState(() => _active = _active == i ? null : i),
                   child: Semantics(
                     label: '${widget.labels[i]}: ${widget.tooltip(i)}',
                     excludeSemantics: true,
                     child: Container(
                       height: rowH,
-                      color: _active == i ? c.muted.withValues(alpha: 0.6) : null,
+                      color: _active == i
+                          ? c.muted.withValues(alpha: 0.6)
+                          : null,
                       child: Row(
                         children: [
                           SizedBox(
@@ -350,7 +356,9 @@ class _OpsHBarChartState extends State<OpsHBarChart> {
                             alignment: Alignment.centerLeft,
                             child: TweenAnimationBuilder<double>(
                               tween: Tween(begin: reduced ? w : 0, end: w),
-                              duration: reduced ? Duration.zero : DashMotion.slow,
+                              duration: reduced
+                                  ? Duration.zero
+                                  : DashMotion.slow,
                               curve: DashMotion.ease,
                               builder: (context, width, _) => Container(
                                 width: width,
@@ -480,7 +488,11 @@ class _VGrid extends CustomPainter {
     for (var k = 0; k <= 4; k++) {
       final x = size.width * k / 4;
       for (var y = 0.0; y < size.height; y += 6) {
-        canvas.drawLine(Offset(x, y), Offset(x, math.min(y + 3, size.height)), p);
+        canvas.drawLine(
+          Offset(x, y),
+          Offset(x, math.min(y + 3, size.height)),
+          p,
+        );
       }
     }
   }
@@ -502,7 +514,10 @@ class OpsEqualRow extends MultiChildRenderObjectWidget {
       RenderOpsEqualRow(gap: gap, textDirection: Directionality.of(context));
 
   @override
-  void updateRenderObject(BuildContext context, RenderOpsEqualRow renderObject) {
+  void updateRenderObject(
+    BuildContext context,
+    RenderOpsEqualRow renderObject,
+  ) {
     renderObject
       ..gap = gap
       ..textDirection = Directionality.of(context);

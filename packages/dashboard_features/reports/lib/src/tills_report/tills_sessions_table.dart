@@ -96,11 +96,8 @@ class TillSessionsTable extends ConsumerWidget {
         minWidth: 112,
         text: (r) => r.branchCode,
         // REP-TIL-013: a branch with no code.
-        cell: (context, r) => plain(
-          r,
-          'branch_code',
-          r.branchCode.isEmpty ? '—' : r.branchCode,
-        ),
+        cell: (context, r) =>
+            plain(r, 'branch_code', r.branchCode.isEmpty ? '—' : r.branchCode),
       ),
       DashColumn(
         id: 'teller_name',
@@ -114,11 +111,18 @@ class TillSessionsTable extends ConsumerWidget {
         label: t('reports.tills.openedAt'),
         minWidth: 160,
         text: (r) => isoString(r.openedAt),
-        cell: (context, r) =>
-            plain(r, 'opened_at', f.fmtDateTime(r.openedAt)),
+        cell: (context, r) => plain(r, 'opened_at', f.fmtDateTime(r.openedAt)),
       ),
-      money('opening_cash', t('reports.tills.openingAmount'), (r) => r.openingCash),
-      money('net_cash_payment', t('reports.tills.netCash'), (r) => r.netCashPayment),
+      money(
+        'opening_cash',
+        t('reports.tills.openingAmount'),
+        (r) => r.openingCash,
+      ),
+      money(
+        'net_cash_payment',
+        t('reports.tills.netCash'),
+        (r) => r.netCashPayment,
+      ),
       money('pay_ins', t('reports.tills.payIns'), (r) => r.payIns),
       money('pay_outs', t('reports.tills.payOuts'), (r) => r.payOuts),
       money('cash_drops', t('reports.tills.cashDrops'), (r) => r.cashDrops),
@@ -130,11 +134,8 @@ class TillSessionsTable extends ConsumerWidget {
         numeric: true,
         minWidth: 128,
         text: (r) => raw(r.cashAdjustments),
-        cell: (context, r) => figure(
-          r,
-          'cash_adjustments',
-          f.fmtMoneySigned(r.cashAdjustments),
-        ),
+        cell: (context, r) =>
+            figure(r, 'cash_adjustments', f.fmtMoneySigned(r.cashAdjustments)),
       ),
       money(
         'closing_cash_declared',

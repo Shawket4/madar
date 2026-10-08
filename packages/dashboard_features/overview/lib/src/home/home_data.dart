@@ -42,7 +42,8 @@ Map<String, int> sumMethodMaps(Iterable<Object?> maps) {
     if (m is! Map) continue;
     for (final e in m.entries) {
       final v = e.value;
-      out['${e.key}'] = (out['${e.key}'] ?? 0) + (v is num && v.isFinite ? v.round() : 0);
+      out['${e.key}'] =
+          (out['${e.key}'] ?? 0) + (v is num && v.isFinite ? v.round() : 0);
     }
   }
   return out;
@@ -65,9 +66,7 @@ List<HomeRankedBranch> rankBranches(List<BranchComparison> rows) {
   }
   final sorted = [...rows]
     ..sort((a, b) => b.totalRevenue.compareTo(a.totalRevenue));
-  return [
-    for (final b in sorted.take(6)) (row: b, pct: b.totalRevenue / top),
-  ];
+  return [for (final b in sorted.take(6)) (row: b, pct: b.totalRevenue / top)];
 }
 
 /// "Cairo time", or `<city> time` for another zone (`America/New_York` →
@@ -108,8 +107,7 @@ class HomeData {
 
   bool get branchPicked => scope.branchId != null;
 
-  List<BranchComparison> get branches =>
-      comparison.value?.branches ?? const [];
+  List<BranchComparison> get branches => comparison.value?.branches ?? const [];
 
   /// Branch sales when a branch is picked and they loaded; otherwise the
   /// comparison's sums (also when branch sales failed: the web's fallback).

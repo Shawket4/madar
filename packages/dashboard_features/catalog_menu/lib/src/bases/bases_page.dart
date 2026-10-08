@@ -72,9 +72,7 @@ class RecipeBasesPage extends ConsumerWidget {
                 onEdit: canEdit
                     ? () => showBaseEditor(context, orgId: orgId, base: b)
                     : null,
-                onDelete: canEdit
-                    ? () => _delete(context, ref, b)
-                    : null,
+                onDelete: canEdit ? () => _delete(context, ref, b) : null,
               ),
           ],
         );

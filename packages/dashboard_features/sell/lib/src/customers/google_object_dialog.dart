@@ -20,10 +20,10 @@ import 'customers_data.dart';
 /// `GET /loyalty/members/{id}/google-object`: a live read of Google, never
 /// cached (`staleTime: 0, gcTime: 0`).
 final googleObjectProvider = FutureProvider.autoDispose
-    .family<GoogleObjectDump, String>(
-      (ref, id) =>
-          ref.watch(apiProvider).loyalty.getLoyaltyGoogleObject(id: id),
-    );
+    .family<GoogleObjectDump, String>((ref, id) {
+      ref.webCache();
+      return ref.watch(apiProvider).loyalty.getLoyaltyGoogleObject(id: id);
+    });
 
 /// Opens the dialog for [memberId]; closing it drops the report.
 Future<void> showGoogleObjectDialog(
@@ -121,10 +121,8 @@ class _GoogleObjectDialogState extends ConsumerState<GoogleObjectDialog> {
       ),
     );
 
-    Widget errorLine(String text) => Text(
-      text,
-      style: DashType.body.copyWith(color: c.errorText),
-    );
+    Widget errorLine(String text) =>
+        Text(text, style: DashType.body.copyWith(color: c.errorText));
 
     final body = <Widget>[
       Row(
@@ -229,10 +227,7 @@ class _GoogleObjectDialogState extends ConsumerState<GoogleObjectDialog> {
     TextSpan(
       children: [
         TextSpan(text: '$label: '),
-        TextSpan(
-          text: '$n',
-          style: DashType.monoStrong.copyWith(fontSize: 14),
-        ),
+        TextSpan(text: '$n', style: DashType.monoStrong.copyWith(fontSize: 14)),
       ],
     ),
     style: DashType.body.copyWith(color: color),

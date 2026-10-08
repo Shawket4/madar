@@ -45,10 +45,7 @@ void main() {
       expect(t.status, 'seated');
       expect(t.branchId, k.branchId);
       expect(k.bill!.total, k.subtotal);
-      expect(
-        k.items.fold<int>(0, (s, i) => s + i.lineTotal),
-        k.subtotal,
-      );
+      expect(k.items.fold<int>(0, (s, i) => s + i.lineTotal), k.subtotal);
     }
     final ticketTables = {for (final k in seed.openTickets) k.tableId};
     final parked = seed.tables.where(
@@ -122,19 +119,15 @@ void main() {
   test('each branch has its sections, settings and an unassigned table', () {
     for (final b in SeedIds.sabahBranches) {
       expect(seed.sections.where((s) => s.branchId == b), isNotEmpty);
-      expect(
-        seed.bookingSettings.where((s) => s.branchId == b),
-        hasLength(1),
-      );
+      expect(seed.bookingSettings.where((s) => s.branchId == b), hasLength(1));
     }
     final zamalek = seed.bookingSettings.firstWhere(
       (s) => s.branchId == SeedIds.zamalek,
     );
     expect(zamalek.enabled, isFalse);
-    expect(
-      seed.tables.where((t) => t.sectionId == null).map((t) => t.label),
-      ['Bar 1'],
-    );
+    expect(seed.tables.where((t) => t.sectionId == null).map((t) => t.label), [
+      'Bar 1',
+    ]);
   });
 
   test('registering the area loads the seed once, as model JSON', () {

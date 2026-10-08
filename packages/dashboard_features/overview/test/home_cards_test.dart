@@ -1,7 +1,14 @@
 // The home's charts, rankings, margin watch and delivery section, driven
 // through the real app shell (inventory rows OVW-HOME-057 to -113).
 import 'package:dashboard_api/dashboard_api.dart'
-    show BranchComparison, DeliveryChannelSales, DeliverySalesReport, LedgerTotals, MarginLedgerRow, MarginWatch, Signal;
+    show
+        BranchComparison,
+        DeliveryChannelSales,
+        DeliverySalesReport,
+        LedgerTotals,
+        MarginLedgerRow,
+        MarginWatch,
+        Signal;
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
@@ -107,7 +114,10 @@ void main() {
       final s = homeServer();
       s.server.on('GET', _series, (req) => MockResponse.ok(const []));
       await pumpHome(tester, server: s.server, db: s.db);
-      expect(find.text('Sales for this period will appear here.'), findsOneWidget);
+      expect(
+        find.text('Sales for this period will appear here.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('OVW-HOME-065 a till event refetches it (branch picked)', (
@@ -211,7 +221,10 @@ void main() {
       expect(find.byType(DashDonutChart), findsNothing);
       // Trend and payment mix say it; branch performance still lists the
       // branches at zero.
-      expect(find.text('Sales for this period will appear here.'), findsNWidgets(2));
+      expect(
+        find.text('Sales for this period will appear here.'),
+        findsNWidgets(2),
+      );
       expect(find.text('Heliopolis'), findsOneWidget);
     });
 
@@ -219,7 +232,9 @@ void main() {
       tester,
     ) async {
       final s = homeServer();
-      final o = s.db['orders'].rows.lastWhere((o) => o['status'] == 'completed');
+      final o = s.db['orders'].rows.lastWhere(
+        (o) => o['status'] == 'completed',
+      );
       o['payment_legs'] = [
         {'method': 'instapay', 'amount': o['total_amount'], 'is_cash': false},
       ];
@@ -244,9 +259,7 @@ void main() {
       tester,
     ) async {
       final h = await pumpHome(tester);
-      final ranked = rankBranches(
-        [for (final id in _sabah) _row(h, id)],
-      );
+      final ranked = rankBranches([for (final id in _sabah) _row(h, id)]);
       final fmt = h.container.read(formatProvider);
       var y = -1.0;
       for (final r in ranked) {
@@ -255,7 +268,10 @@ void main() {
         y = tester.getTopLeft(name).dy;
         expect(find.text(fmt.fmtMoney(r.row.totalRevenue)), findsOneWidget);
         expect(
-          find.textContaining('${fmt.fmtNumber(r.row.totalOrders)}\u2069 orders', findRichText: true),
+          find.textContaining(
+            '${fmt.fmtNumber(r.row.totalOrders)}\u2069 orders',
+            findRichText: true,
+          ),
           findsOneWidget,
         );
         expect(
@@ -263,7 +279,9 @@ void main() {
           findsOneWidget,
         );
       }
-      final bars = tester.widgetList<DashProgressBar>(find.byType(DashProgressBar));
+      final bars = tester.widgetList<DashProgressBar>(
+        find.byType(DashProgressBar),
+      );
       expect(bars.first.value, 100);
     });
 
@@ -295,7 +313,10 @@ void main() {
         ),
       );
       expect(h.server.callsTo(_cmp).length, before + 1);
-      expect(find.bySemanticsLabel(RegExp('^Revenue share for ')), findsNWidgets(4));
+      expect(
+        find.bySemanticsLabel(RegExp('^Revenue share for ')),
+        findsNWidgets(4),
+      );
     });
 
     testWidgets('OVW-HOME-076 no branches: the sentence', (tester) async {
@@ -303,13 +324,14 @@ void main() {
       s.server.on(
         'GET',
         _cmp,
-        (req) => MockResponse.ok({
-          'org_id': SeedIds.sabahOrg,
-          'branches': const [],
-        }),
+        (req) =>
+            MockResponse.ok({'org_id': SeedIds.sabahOrg, 'branches': const []}),
       );
       await pumpHome(tester, server: s.server, db: s.db);
-      expect(find.text('Sales for this period will appear here.'), findsNWidgets(2));
+      expect(
+        find.text('Sales for this period will appear here.'),
+        findsNWidgets(2),
+      );
     });
 
     testWidgets('OVW-HOME-076/077 a branch with no sales: minimum bar', (
@@ -353,9 +375,15 @@ void main() {
       final t = h.container.read(tProvider);
       expect(find.text('Margin watch'), findsOneWidget);
       expect(find.text(fmt.fmtMoney(w.totals.marginKnown)), findsOneWidget);
-      expect(find.text(fmt.fmtPercent(w.totals.marginPct! / 100)), findsOneWidget);
+      expect(
+        find.text(fmt.fmtPercent(w.totals.marginPct! / 100)),
+        findsOneWidget,
+      );
       expect(find.text('${w.openSignals} open signals'), findsOneWidget);
-      expect(find.text('${w.rowsCostUnknown} items missing cost'), findsOneWidget);
+      expect(
+        find.text('${w.rowsCostUnknown} items missing cost'),
+        findsOneWidget,
+      );
       expect(find.text('Top earners'), findsOneWidget);
       expect(find.text('Needs attention'), findsOneWidget);
       for (final r in [...w.top, ...w.bottom]) {
@@ -365,7 +393,10 @@ void main() {
             : '${r.quantitySold} sold · ${fmt.fmtPercent(r.marginPct! / 100)}';
         expect(find.text(second), findsWidgets, reason: r.itemName);
         final size = r.sizeLabel == 'one_size' ? '' : ' · ${r.sizeLabel}';
-        expect(find.text('${r.itemName}$size', findRichText: true), findsWidgets);
+        expect(
+          find.text('${r.itemName}$size', findRichText: true),
+          findsWidgets,
+        );
       }
       // 30 days back from the seed start: no previous margin, no change.
       expect(find.bySemanticsLabel(RegExp('vs previous period')), findsNothing);
@@ -391,7 +422,9 @@ void main() {
       final delta = (t.marginKnown - t.prevMarginKnown) / t.prevMarginKnown;
       final fmt = h.container.read(formatProvider);
       expect(
-        find.bySemanticsLabel('${fmt.fmtPercent(delta.abs())} vs previous period'),
+        find.bySemanticsLabel(
+          '${fmt.fmtPercent(delta.abs())} vs previous period',
+        ),
         findsOneWidget,
       );
     });
@@ -511,13 +544,20 @@ void main() {
       final fmt = h.container.read(formatProvider);
       String r(String kind, Map<String, Object?> p) =>
           signalReason(t, fmt, Signal(kind: kind, link: '', params: p));
-      expect(r('below_cost', {'margin': -1250}), 'Sells below cost — margin −EGP 12.50');
+      expect(
+        r('below_cost', {'margin': -1250}),
+        'Sells below cost — margin −EGP 12.50',
+      );
       expect(
         r('below_target', {'margin_pct': 52.34, 'target_pct': 60}),
         'Margin 52.3% is under the 60% target',
       );
       expect(
-        r('below_target', {'margin_pct': 52, 'target_pct': 60, 'adaptive_bar': 2.5}),
+        r('below_target', {
+          'margin_pct': 52,
+          'target_pct': 60,
+          'adaptive_bar': 2.5,
+        }),
         'Margin 52% is under the 60% target (bar raised 2.5 pts — these are often dismissed)',
       );
       expect(
@@ -529,8 +569,13 @@ void main() {
         'Top seller under target — suggested price EGP 95.00',
       );
       expect(
-        r('price_candidate', {'caution': true, 'last_margin_per_day_delta': -3000}),
-        startsWith('Still under target, but the last price change cost EGP 30.00/day'),
+        r('price_candidate', {
+          'caution': true,
+          'last_margin_per_day_delta': -3000,
+        }),
+        startsWith(
+          'Still under target, but the last price change cost EGP 30.00/day',
+        ),
       );
       expect(
         r('price_candidate', {
@@ -681,7 +726,12 @@ void main() {
     ) async {
       final s = homeServer();
       for (final t in [_sales, _series, _cmp, _delivery, _watch]) {
-        s.server.fail('GET', t, MockResponse.denied('orders.read'), times: null);
+        s.server.fail(
+          'GET',
+          t,
+          MockResponse.denied('orders.read'),
+          times: null,
+        );
       }
       await pumpHome(tester, server: s.server, db: s.db);
       expect(kpi(tester, 'Revenue').value, 0);
@@ -735,14 +785,15 @@ void main() {
       expect(find.text('Revenue trend'), findsNothing);
       final reports = h.server.calls
           .skip(before)
-          .where((c) => c.path.startsWith('/reports') || c.path.startsWith('/insights'));
+          .where(
+            (c) =>
+                c.path.startsWith('/reports') || c.path.startsWith('/insights'),
+          );
       expect(reports, isEmpty);
     });
   });
 }
 
 /// One branch's comparison row over the default period.
-BranchComparison _row(DashHarness h, String id) => branchComparisonRow(
-  h.db!['branches'].get(id),
-  orders(h, [id]),
-);
+BranchComparison _row(DashHarness h, String id) =>
+    branchComparisonRow(h.db!['branches'].get(id), orders(h, [id]));

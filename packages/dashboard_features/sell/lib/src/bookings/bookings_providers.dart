@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// placeholder) and the settings dialog, as on the web.
 final bookingSettingsProvider = FutureProvider.autoDispose
     .family<BookingSettings, String>((ref, branchId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/bookings/settings'));
       return ref
           .watch(apiProvider)
@@ -25,6 +26,7 @@ final bookingSettingsProvider = FutureProvider.autoDispose
 /// tables, every one (the page keeps the active ones, sorted by label).
 final bookingFloorTablesProvider = FutureProvider.autoDispose
     .family<List<FloorTable>, String>((ref, branchId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/floor/tables'));
       return ref
           .watch(apiProvider)
@@ -36,6 +38,7 @@ final bookingFloorTablesProvider = FutureProvider.autoDispose
 /// dialog's preferred section.
 final bookingSectionsProvider = FutureProvider.autoDispose
     .family<List<FloorSection>, String>((ref, branchId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/floor/sections'));
       return ref
           .watch(apiProvider)
@@ -50,6 +53,7 @@ typedef BookingDayKey = ({String branchId, String date});
 /// status, in start order.
 final bookingDayProvider = FutureProvider.autoDispose
     .family<List<BookingView>, BookingDayKey>((ref, key) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/bookings'));
       return ref
           .watch(apiProvider)
@@ -70,6 +74,7 @@ typedef BookingAvailabilityKey = ({
 /// for a party, each with the server's table pick.
 final bookingAvailabilityProvider = FutureProvider.autoDispose
     .family<AvailabilityResponse, BookingAvailabilityKey>((ref, key) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/bookings/availability'));
       return ref
           .watch(apiProvider)
@@ -84,8 +89,7 @@ final bookingAvailabilityProvider = FutureProvider.autoDispose
     }, retry: (_, _) => null);
 
 /// The branch's active tables, by label (`tables` on the page).
-List<FloorTable> activeTablesByLabel(List<FloorTable>? all) =>
-    [
-      for (final t in all ?? const <FloorTable>[])
-        if (t.isActive) t,
-    ]..sort((a, b) => a.label.compareTo(b.label));
+List<FloorTable> activeTablesByLabel(List<FloorTable>? all) => [
+  for (final t in all ?? const <FloorTable>[])
+    if (t.isActive) t,
+]..sort((a, b) => a.label.compareTo(b.label));

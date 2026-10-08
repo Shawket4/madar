@@ -5,8 +5,7 @@
 /// ledger.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart'
-    show MarginLedgerRow, Signal;
+import 'package:dashboard_api/dashboard_api.dart' show MarginLedgerRow, Signal;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -50,13 +49,18 @@ String signalReason(Translator t, DashFormat fmt, Signal signal) {
     case 'cost_spike':
       return t(
         'insights.signals.reason.cost_spike',
-        args: {'ingredient': '${p['ingredient'] ?? ''}', 'pct': pct1(num_('pct'))},
+        args: {
+          'ingredient': '${p['ingredient'] ?? ''}',
+          'pct': pct1(num_('pct')),
+        },
       );
     case 'price_candidate':
       if (p['caution'] == true) {
         return t(
           'insights.signals.reason.price_candidate_caution',
-          args: {'delta': fmt.fmtMoney(num_('last_margin_per_day_delta').abs())},
+          args: {
+            'delta': fmt.fmtMoney(num_('last_margin_per_day_delta').abs()),
+          },
         );
       }
       if (p['elasticity'] is num) {
@@ -181,7 +185,10 @@ class HomeMarginWatchCard extends ConsumerWidget {
                   ),
                 if (data.rowsCostUnknown > 0)
                   Text(
-                    t('insights.watch.costUnknown', count: data.rowsCostUnknown),
+                    t(
+                      'insights.watch.costUnknown',
+                      count: data.rowsCostUnknown,
+                    ),
                     style: DashType.small.copyWith(color: c.textSecondary),
                   ),
               ],
@@ -208,7 +215,10 @@ class HomeMarginWatchCard extends ConsumerWidget {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 spacing: Space.lg,
-                children: [Expanded(child: top), Expanded(child: bottom)],
+                children: [
+                  Expanded(child: top),
+                  Expanded(child: bottom),
+                ],
               );
             },
           ),
@@ -283,7 +293,9 @@ class _WatchList extends ConsumerWidget {
                     ),
                   ),
                 ),
-                Expanded(child: _WatchRow(row: r, t: t, fmt: fmt)),
+                Expanded(
+                  child: _WatchRow(row: r, t: t, fmt: fmt),
+                ),
               ],
             ),
       ],
@@ -325,9 +337,7 @@ class _WatchRow extends StatelessWidget {
                   children: [
                     TextSpan(
                       text: r.itemName,
-                      style: DashType.bodyMedium.copyWith(
-                        color: c.textPrimary,
-                      ),
+                      style: DashType.bodyMedium.copyWith(color: c.textPrimary),
                     ),
                     if (r.sizeLabel != 'one_size')
                       TextSpan(

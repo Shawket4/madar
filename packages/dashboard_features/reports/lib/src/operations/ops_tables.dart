@@ -9,7 +9,11 @@
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show MetricsQueryResponse, WidgetOutcome, WidgetOutcomeError, WidgetOutcomeOk;
+    show
+        MetricsQueryResponse,
+        WidgetOutcome,
+        WidgetOutcomeError,
+        WidgetOutcomeOk;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -170,7 +174,8 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView> {
         ? null
         : OpsTableSummary(summaryRows.first);
     final allRows = [
-      for (final r in _rowsOf(data?.results['byTable'])) OpsTableRow.fromWire(r),
+      for (final r in _rowsOf(data?.results['byTable']))
+        OpsTableRow.fromWire(r),
     ];
     final sections = opsSectionsOf(allRows);
     // A section the new scope no longer has falls back to All sections, so

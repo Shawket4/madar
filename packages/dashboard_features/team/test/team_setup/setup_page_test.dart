@@ -3,7 +3,6 @@
 // TEAM-SET row (the row id is in the test name); the branch pins (step 1)
 // are in setup_branches_test.dart.
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/material.dart';
@@ -52,14 +51,19 @@ void main() {
       });
     }
 
-    testWidgets('an owner who gave the right away is refused; a non-owner '
-        'who holds it is not (a capability, not a role)', (tester) async {
-      var s = setupServer();
+    // A capability, not a role: one app per person (two in one test leave
+    // the first app's timers behind).
+    testWidgets('an owner who gave the right away is refused', (tester) async {
+      final s = setupServer();
       answerAuthz(s.server, const ['branches.read', 'hr.staff.read']);
-      var h = await pumpSetup(tester, s: s);
+      final h = await pumpSetup(tester, s: s);
       expect(find.text(h.t('dawam.setupNoAccess')), findsOneWidget);
+    });
 
-      s = setupServer(persona: Persona.manager);
+    testWidgets('a non-owner who holds the right is not refused', (
+      tester,
+    ) async {
+      final s = setupServer(persona: Persona.manager);
       answerAuthz(s.server, const [
         'hr.rules.edit',
         'hr.staff.read',
@@ -67,7 +71,7 @@ void main() {
         'branches.read',
       ], owner: false);
       // The mock server still answers as the manager, who may read these.
-      h = await pumpSetup(tester, persona: Persona.manager, s: s);
+      final h = await pumpSetup(tester, persona: Persona.manager, s: s);
       expect(find.text(h.t('dawam.setupNoAccess')), findsNothing);
       expect(byKey('setup-step-branches'), findsOneWidget);
     });
@@ -75,8 +79,9 @@ void main() {
 
   // ── Reads, header, loading, error ─────────────────────────────────────
 
-  testWidgets('TEAM-SET-002 asks the four answers once an org is in scope',
-      (tester) async {
+  testWidgets('TEAM-SET-002 asks the four answers once an org is in scope', (
+    tester,
+  ) async {
     final h = await pumpSetup(tester);
     for (final path in _reads) {
       expect(_calls(h, path), greaterThanOrEqualTo(1), reason: path);
@@ -87,8 +92,9 @@ void main() {
     expect(branches.last.query['org_id'], [SeedIds.sabahOrg]);
   });
 
-  testWidgets('TEAM-SET-002 asks nothing while no organization is in scope',
-      (tester) async {
+  testWidgets('TEAM-SET-002 asks nothing while no organization is in scope', (
+    tester,
+  ) async {
     final s = setupServer(persona: Persona.platform);
     final h = await pumpSetup(tester, persona: Persona.platform, s: s);
     h.allowUnmatched = true;
@@ -188,13 +194,14 @@ void main() {
         noActiveShifts(db);
       },
     );
-    String state(String step) => find
-        .descendant(
-          of: byKey('setup-step-$step'),
-          matching: find.text(h.t('dawam.setupDone')),
-        )
-        .evaluate()
-        .isEmpty
+    String state(String step) =>
+        find
+            .descendant(
+              of: byKey('setup-step-$step'),
+              matching: find.text(h.t('dawam.setupDone')),
+            )
+            .evaluate()
+            .isEmpty
         ? 'todo'
         : 'done';
     expect(state('branches'), 'todo');
@@ -240,10 +247,7 @@ void main() {
     );
     // The done step shows a tick, the others their number.
     expect(
-      find.descendant(
-        of: byKey('setup-step-shifts'),
-        matching: find.text('3'),
-      ),
+      find.descendant(of: byKey('setup-step-shifts'), matching: find.text('3')),
       findsNothing,
     );
     expect(textIn('setup-step-branches', '1'), findsOneWidget);
@@ -277,8 +281,9 @@ void main() {
     expect(label.top, greaterThan(circle.bottom - 1));
   });
 
-  testWidgets('TEAM-SET-009 all done: the status panel and its two links',
-      (tester) async {
+  testWidgets('TEAM-SET-009 all done: the status panel and its two links', (
+    tester,
+  ) async {
     final h = await pumpSetup(tester);
     expect(
       find.text(h.t('dawam.setupProgress', args: {'n': 4, 'total': 4})),
@@ -293,8 +298,9 @@ void main() {
     expect(h.location.path, '/staff/schedule');
   });
 
-  testWidgets('TEAM-SET-009 "See who\'s in" goes to the Team board',
-      (tester) async {
+  testWidgets('TEAM-SET-009 "See who\'s in" goes to the Team board', (
+    tester,
+  ) async {
     final h = await pumpSetup(tester);
     h.allowUnmatched = true;
     await h.tapKey(const ValueKey('setup-go-team'));
@@ -333,8 +339,9 @@ void main() {
     }
   });
 
-  testWidgets('TEAM-SET-011 Back: the previous step\'s name; none on step 1',
-      (tester) async {
+  testWidgets('TEAM-SET-011 Back: the previous step\'s name; none on step 1', (
+    tester,
+  ) async {
     final h = await pumpSetup(tester, edit: _oneOfFour);
     expect(byKey('setup-back'), findsNothing);
     await h.tapKey(const ValueKey('setup-step-shifts'));
@@ -345,8 +352,9 @@ void main() {
     expect(find.text(h.t('dawam.setupEmployeesV2')), findsOneWidget);
   });
 
-  testWidgets('TEAM-SET-011 Back\'s arrow is mirrored in Arabic',
-      (tester) async {
+  testWidgets('TEAM-SET-011 Back\'s arrow is mirrored in Arabic', (
+    tester,
+  ) async {
     final h = await pumpSetup(tester, edit: _oneOfFour, locale: 'ar');
     await h.tapKey(const ValueKey('setup-step-rules'));
     expect(_button(tester, 'setup-back').icon, 'arrow-right');
@@ -354,8 +362,9 @@ void main() {
   });
 
   testWidgets('TEAM-SET-012 Next: outline + "You can come back to this." on '
-      'a step not done, filled on a done one, none on the last',
-      (tester) async {
+      'a step not done, filled on a done one, none on the last', (
+    tester,
+  ) async {
     final h = await pumpSetup(tester, edit: _oneOfFour);
     // Step 1 is not done.
     expect(
@@ -389,8 +398,9 @@ void main() {
     await h.shot('people-empty');
   });
 
-  testWidgets('TEAM-SET-025 the count and the first 24 names, then "+N"',
-      (tester) async {
+  testWidgets('TEAM-SET-025 the count and the first 24 names, then "+N"', (
+    tester,
+  ) async {
     late int active;
     final h = await pumpSetup(
       tester,
@@ -472,8 +482,9 @@ void main() {
     expect(byKey('setup-no-salary'), findsNothing);
   });
 
-  testWidgets('TEAM-SET-027 without hr.staff.create: the words, no buttons',
-      (tester) async {
+  testWidgets('TEAM-SET-027 without hr.staff.create: the words, no buttons', (
+    tester,
+  ) async {
     final s = setupServer(edit: noActivePeople);
     answerAuthz(s.server, const [
       'hr.rules.edit',
@@ -491,8 +502,9 @@ void main() {
 
   // ── Step 3: shifts ───────────────────────────────────────────────────
 
-  testWidgets('TEAM-SET-028 no active shift: the empty state with New shift',
-      (tester) async {
+  testWidgets('TEAM-SET-028 no active shift: the empty state with New shift', (
+    tester,
+  ) async {
     final h = await pumpSetup(tester, edit: noActiveShifts);
     expect(byKey('setup-no-shifts'), findsOneWidget);
     expect(find.text(h.t('dawam.setupNoShifts')), findsOneWidget);
@@ -536,8 +548,8 @@ void main() {
     expect(find.text('Morning'), findsOneWidget);
     expect(find.text('Late night'), findsOneWidget);
     expect(find.text('Retired split'), findsNothing);
-    expect(textHas('7:00 AM – 3:00 PM'), findsOneWidget);
-    expect(textHas('10:00 PM – 6:30 AM'), findsOneWidget);
+    expect(textHas('07:00 AM – 03:00 PM'), findsOneWidget);
+    expect(textHas('10:00 PM – 06:30 AM'), findsOneWidget);
     expect(textHas('8 h'), findsWidgets);
     expect(textHas('8 h 30 min'), findsOneWidget);
     expect(find.text(h.t('inputs.endsNextDay')), findsOneWidget);
@@ -552,8 +564,9 @@ void main() {
     expect(h.location.path, '/staff/shifts');
   });
 
-  testWidgets('TEAM-SET-029 Arabic: the span and days in Arabic words',
-      (tester) async {
+  testWidgets('TEAM-SET-029 Arabic: the span and days in Arabic words', (
+    tester,
+  ) async {
     final h = await pumpSetup(tester, locale: 'ar');
     await h.tapKey(const ValueKey('setup-step-shifts'));
     expect(textHas('8 س'), findsWidgets);
@@ -594,10 +607,12 @@ void main() {
         findsOneWidget,
       );
     }
-    // Sabah: 15–30 min = 30 minutes of pay; 30–60 = 0.25 day; 60+ = 0.5 day,
-    // on EGP 12,000 over its 26 working days and a 480-minute shift.
+    // Sabah: 15–30 min = 30 minutes of pay; 31–60 = 0.25 day; 61+ = 0.5 day
+    // (the ladder as the server stores it: a rung starts a minute after the
+    // last ends, see rules_mock), on EGP 12,000 over its 26 working days and
+    // a 480-minute shift. Figures are direction-isolated, so "contains".
     expect(
-      find.text(h.t('staff.tierRange', args: {'from': 15, 'to': 30})),
+      textHas(h.t('staff.tierRange', args: {'from': 15, 'to': 30})),
       findsOneWidget,
     );
     expect(
@@ -607,7 +622,7 @@ void main() {
     expect(find.text('EGP 28.85'), findsOneWidget); // 1,200,000×30/(26×480)
     expect(find.text('EGP 115.38'), findsOneWidget); // 1,200,000×0.25/26
     expect(
-      find.text(h.t('staff.tierFromOnly', args: {'from': 60})),
+      textHas(h.t('staff.tierFromOnly', args: {'from': 61})),
       findsOneWidget,
     );
     expect(find.text('EGP 230.77'), findsOneWidget); // 1,200,000×0.5/26
@@ -616,13 +631,13 @@ void main() {
       findsOneWidget,
     );
     expect(find.text(h.t('dawam.setupOtOn')), findsOneWidget);
-    expect(
-      find.text(h.t('dawam.setupPayDay', args: {'n': 1})),
-      findsOneWidget,
-    );
+    expect(find.text(h.t('dawam.setupPayDay', args: {'n': 1})), findsOneWidget);
     expect(find.text(h.t('dawam.setupGrace')), findsOneWidget);
     expect(byKey('setup-save-rules'), findsNothing);
-    expect(_button(tester, 'setup-open-rules').label, h.t('dawam.setupOpenRules'));
+    expect(
+      _button(tester, 'setup-open-rules').label,
+      h.t('dawam.setupOpenRules'),
+    );
     expect(
       _button(tester, 'setup-open-rules').variant,
       DashButtonVariant.primary,
@@ -729,8 +744,9 @@ void main() {
     await h.flushTimers();
   });
 
-  testWidgets('TEAM-SET-034 a refused save says why and keeps the step',
-      (tester) async {
+  testWidgets('TEAM-SET-034 a refused save says why and keeps the step', (
+    tester,
+  ) async {
     final h = await pumpSetup(tester, edit: rulesNeverSaved);
     h.server.fail(
       'PUT',
@@ -778,8 +794,9 @@ void main() {
     }
   });
 
-  testWidgets('TEAM-SET-005 a 403 on a read speaks the server\'s refusal',
-      (tester) async {
+  testWidgets('TEAM-SET-005 a 403 on a read speaks the server\'s refusal', (
+    tester,
+  ) async {
     final s = setupServer();
     s.server.fail(
       'GET',

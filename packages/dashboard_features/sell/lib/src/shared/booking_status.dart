@@ -30,14 +30,16 @@ bool isActiveBooking(String status) =>
 
 /// The status word: `bookings.status.<status>`, else the raw value with its
 /// first "_" read as a space (the web's inline default).
-String bookingStatusLabel(Translator t, String status) => t(
-  'bookings.status.$status',
-  defaultValue: status.replaceFirst('_', ' '),
-);
+String bookingStatusLabel(Translator t, String status) =>
+    t('bookings.status.$status', defaultValue: status.replaceFirst('_', ' '));
 
 /// The toned status pill (`BookingStatusBadge`).
 class BookingStatusPill extends StatelessWidget {
-  const BookingStatusPill({required this.status, this.small = false, super.key});
+  const BookingStatusPill({
+    required this.status,
+    this.small = false,
+    super.key,
+  });
 
   final String status;
   final bool small;

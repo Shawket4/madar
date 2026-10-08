@@ -42,10 +42,7 @@ bool isHeldNow({
   required String? status,
   required DateTime? heldFrom,
   required DateTime now,
-}) =>
-    status == 'confirmed' &&
-    heldFrom != null &&
-    !heldFrom.isAfter(now);
+}) => status == 'confirmed' && heldFrom != null && !heldFrom.isAfter(now);
 
 // ── Grid, rotation, sizes ─────────────────────────────────────────────────
 
@@ -500,7 +497,7 @@ String uniqueLabel(String base, Set<String> taken, {DateTime? now}) {
   return '$stem ${(now ?? DateTime.now()).millisecondsSinceEpoch}';
 }
 
-/// "T<n+1>" from the highest numeric `T<n>` label, case-insensitive
+/// "`T<n+1>`" from the highest numeric `T<n>` label, case-insensitive
 /// (`suggestLabel`).
 String suggestLabel(Iterable<String> labels) {
   var max = 0;

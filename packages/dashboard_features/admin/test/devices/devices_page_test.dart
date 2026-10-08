@@ -2,11 +2,11 @@
 // the real app shell (inventory rows ADM-DEV-001..013, -020, -029).
 import 'package:dashboard_admin/src/area_seed.dart';
 import 'package:dashboard_admin/src/devices/devices_data.dart';
+import 'package:dashboard_admin/src/devices/devices_table.dart';
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
-import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -187,19 +187,31 @@ void main() {
         query: atBranch(SeedIds.heliopolis),
         backend: b,
       );
+      // In the devices table (the page's other sections repeat words).
+      Finder inTable(String text) => find.descendant(
+        of: find.byType(DevicesTable),
+        matching: find.text(text),
+      );
       // The table draws its headers in capitals.
       for (final header in ['Code', 'Name', 'Type', 'App', 'Status']) {
-        expect(find.text(header.toUpperCase()), findsOneWidget, reason: header);
+        expect(
+          find.descendant(
+            of: find.byType(DevicesTable),
+            matching: find.text(header.toUpperCase()),
+          ),
+          findsOneWidget,
+          reason: header,
+        );
       }
-      expect(find.text('Kitchen screen'), findsNWidgets(2));
-      expect(find.text('POS'), findsNWidgets(2));
-      expect(find.text('printer'), findsOneWidget);
-      expect(find.text('linux · 0.4.2'), findsOneWidget);
-      expect(find.text('android · 0.12.4'), findsOneWidget);
-      expect(find.text('android'), findsOneWidget);
+      expect(inTable('Kitchen screen'), findsNWidgets(2));
+      expect(inTable('POS'), findsNWidgets(2));
+      expect(inTable('printer'), findsOneWidget);
+      expect(inTable('linux · 0.4.2'), findsOneWidget);
+      expect(inTable('android · 0.12.4'), findsOneWidget);
+      expect(inTable('android'), findsOneWidget);
       // P1: no name and no app.
-      expect(find.text('—'), findsNWidgets(2));
-      expect(find.text('Drive window'), findsOneWidget);
+      expect(inTable('—'), findsNWidgets(2));
+      expect(inTable('Drive window'), findsOneWidget);
     });
 
     testWidgets('ADM-DEV-007 Status: Retired / Active; Last seen as a '
@@ -300,7 +312,9 @@ void main() {
       await h.tap(find.text('Old counter iPad'));
       expect(find.text('Edit device'), findsOneWidget);
       expect(
-        find.text("The code prefixes this device's order numbers, e.g. 36B-12."),
+        find.text(
+          "The code prefixes this device's order numbers, e.g. 36B-12.",
+        ),
         findsOneWidget,
       );
       final code = tester.widget<DashTextField>(field('device-code'));
@@ -406,7 +420,9 @@ void main() {
       );
       expect(find.text('Edit device'), findsOneWidget);
       expect(
-        tester.widget<DashButton>(find.byKey(const ValueKey('device-save'))).loading,
+        tester
+            .widget<DashButton>(find.byKey(const ValueKey('device-save')))
+            .loading,
         isFalse,
       );
       await h.flushTimers();
@@ -492,9 +508,11 @@ void main() {
 
       await open();
       await h.tap(
-        find.byWidgetPredicate(
-          (w) => w is DashIconButton && w.semanticLabel == 'Close',
-        ).hitTestable(),
+        find
+            .byWidgetPredicate(
+              (w) => w is DashIconButton && w.semanticLabel == 'Close',
+            )
+            .hitTestable(),
       );
       expect(find.text('Edit device'), findsNothing);
 

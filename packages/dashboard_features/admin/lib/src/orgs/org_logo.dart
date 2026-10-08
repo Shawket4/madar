@@ -69,7 +69,9 @@ class OrgLogoTile extends StatelessWidget {
       ),
     );
     final url = logoUrl?.trim();
-    if (url == null || url.isEmpty) return ExcludeSemantics(child: initials(context));
+    if (url == null || url.isEmpty) {
+      return ExcludeSemantics(child: initials(context));
+    }
     return ExcludeSemantics(
       child: ClipRRect(
         borderRadius: BorderRadius.circular(Radii.xs),

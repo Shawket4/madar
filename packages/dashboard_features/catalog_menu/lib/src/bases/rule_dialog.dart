@@ -63,8 +63,7 @@ List<DashOption<String>> ruleItemOptions(WidgetRef ref, String? orgId) =>
     ? const []
     : [
         for (final m
-            in ref.watch(packagingItemOptionsProvider(orgId)).value ??
-                const [])
+            in ref.watch(packagingItemOptionsProvider(orgId)).value ?? const [])
           DashOption<String>(value: m.id, label: m.name),
       ];
 

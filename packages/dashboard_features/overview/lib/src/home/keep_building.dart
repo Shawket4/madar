@@ -65,7 +65,11 @@ class HomeKeepBuildingCard extends ConsumerWidget {
                     color: c.brand.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(Radii.md),
                   ),
-                  child: DashIcon('sparkles', size: IconSize.lg, color: c.brand),
+                  child: DashIcon(
+                    'sparkles',
+                    size: IconSize.lg,
+                    color: c.brand,
+                  ),
                 ),
                 Expanded(
                   child: Column(

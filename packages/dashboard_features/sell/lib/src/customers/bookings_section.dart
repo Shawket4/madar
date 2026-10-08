@@ -106,9 +106,7 @@ class _BookingsSectionState extends ConsumerState<BookingsSection> {
                       spacing: Space.md,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.only(
-                            top: DashMetrics.hair,
-                          ),
+                          padding: const EdgeInsets.only(top: DashMetrics.hair),
                           child: DashIcon(
                             'calendar-clock',
                             size: IconSize.sm,
@@ -139,9 +137,7 @@ class _BookingsSectionState extends ConsumerState<BookingsSection> {
                                     TextSpan(
                                       text: t(
                                         'customers.bookings.party',
-                                        args: {
-                                          'n': fmt.fmtNumber(b.partySize),
-                                        },
+                                        args: {'n': fmt.fmtNumber(b.partySize)},
                                       ),
                                     ),
                                     const TextSpan(text: ' · '),
@@ -168,8 +164,7 @@ class _BookingsSectionState extends ConsumerState<BookingsSection> {
               variant: DashButtonVariant.outline,
               size: DashButtonSize.compact,
               loading: q.isLoading,
-              onPressed: () =>
-                  setState(() => _limit += customerBookingsPage),
+              onPressed: () => setState(() => _limit += customerBookingsPage),
             ),
         ],
       );

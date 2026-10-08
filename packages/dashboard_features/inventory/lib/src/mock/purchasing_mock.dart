@@ -158,7 +158,9 @@ void registerPurchasingMocks(MockServer server, MockDb db) {
     // transaction rolls back on the first refusal).
     final newLines = <MockRow>[];
     for (final raw in input) {
-      final l = raw is Map ? raw.cast<String, Object?>() : const <String, Object?>{};
+      final l = raw is Map
+          ? raw.cast<String, Object?>()
+          : const <String, Object?>{};
       final qty = (l['quantity_ordered'] as num?)?.toDouble() ?? 0;
       if (qty <= 0) req.badRequest('quantity_ordered must be greater than 0');
       final lineCost = (l['line_cost'] as num?)?.toInt();
@@ -203,7 +205,9 @@ void registerPurchasingMocks(MockServer server, MockDb db) {
           final pack = packUnit != null && packUnit.isNotEmpty
               ? ' or the configured pack "$packUnit"'
               : '';
-          req.badRequest('Purchase unit must be one of g, kg, ml, l, pcs$pack.');
+          req.badRequest(
+            'Purchase unit must be one of g, kg, ml, l, pcs$pack.',
+          );
         }
         if (_family(pu) != _family(base)) {
           req.badRequest(
@@ -289,7 +293,9 @@ void registerPurchasingMocks(MockServer server, MockDb db) {
     // Check every line first (the transaction would roll back).
     final work = <(MockRow line, double qty, double cost)>[];
     for (final raw in input) {
-      final r = raw is Map ? raw.cast<String, Object?>() : const <String, Object?>{};
+      final r = raw is Map
+          ? raw.cast<String, Object?>()
+          : const <String, Object?>{};
       final qty = (r['quantity_received'] as num?)?.toDouble() ?? 0;
       if (qty <= 0) continue;
       final line = lines.firstWhere(
@@ -318,9 +324,7 @@ void registerPurchasingMocks(MockServer server, MockDb db) {
         if (unitCost < 0) req.badRequest('unit_cost cannot be negative');
         cost = unitCost * qty;
       } else {
-        cost = ordered > 0
-            ? (line['line_cost']! as num) * qty / ordered
-            : 0.0;
+        cost = ordered > 0 ? (line['line_cost']! as num) * qty / ordered : 0.0;
       }
       work.add((line, qty, cost));
     }
@@ -344,8 +348,10 @@ void registerPurchasingMocks(MockServer server, MockDb db) {
           (ing?['cost_per_unit'] as num?)?.toDouble();
       final newCost = prior <= 0 || priorCost == null
           ? costPerStock
-          : _dp6((prior * priorCost + stockQty * costPerStock) /
-                (prior + stockQty));
+          : _dp6(
+              (prior * priorCost + stockQty * costPerStock) /
+                  (prior + stockQty),
+            );
       final onHand = prior + stockQty;
       if (bs == null) {
         bs = db[InvTables.branchStock].insert({
@@ -465,7 +471,11 @@ void registerPurchasingMocks(MockServer server, MockDb db) {
     for (final ing in db[InvTables.ingredients].query(
       filters: {'org_id': b['org_id']},
     )) {
-      final bs = InvViews.stockRecord(db, b['id']! as String, ing['id']! as String);
+      final bs = InvViews.stockRecord(
+        db,
+        b['id']! as String,
+        ing['id']! as String,
+      );
       if (bs == null) continue;
       final parMin = (bs['par_min'] as num?)?.toDouble() ?? 0;
       final onHand = (bs['on_hand'] as num?)?.toDouble() ?? 0;
@@ -486,7 +496,9 @@ void registerPurchasingMocks(MockServer server, MockDb db) {
     // of one supplier form a group.
     rows.sort((a, b) {
       final c = compareJson(a['supplier_id'], b['supplier_id']);
-      return c != 0 ? c : compareJson(a['ingredient_name'], b['ingredient_name']);
+      return c != 0
+          ? c
+          : compareJson(a['ingredient_name'], b['ingredient_name']);
     });
     final groups = <MockRow>[];
     for (final r in rows) {

@@ -14,6 +14,7 @@ import '../shared/menu_queries.dart';
 /// per group, inactive items included).
 final groupUsageProvider = FutureProvider.autoDispose
     .family<List<GroupUsageItem>, String>((ref, gid) {
+      ref.webCache();
       watchMenuPath(ref, MenuPaths.groupUsage(gid));
       return ref.watch(apiProvider).menu.getGroupUsage(gid: gid);
     });
@@ -21,6 +22,7 @@ final groupUsageProvider = FutureProvider.autoDispose
 /// `GET /menu-items/{id}` (`getMenuItem`).
 final groupMenuItemProvider = FutureProvider.autoDispose
     .family<MenuItemFull, String>((ref, id) {
+      ref.webCache();
       watchMenuPath(ref, MenuPaths.menuItem(id));
       return ref.watch(apiProvider).menu.getMenuItem(id: id);
     });
@@ -28,6 +30,7 @@ final groupMenuItemProvider = FutureProvider.autoDispose
 /// `GET /menu-items?org_id`: every item of the org (the usage dialog).
 final groupOrgItemsProvider = FutureProvider.autoDispose
     .family<List<MenuItem>, String>((ref, orgId) {
+      ref.webCache();
       watchMenuPath(ref, MenuPaths.menuItems);
       return ref.watch(apiProvider).menu.listMenuItems(orgId: orgId);
     });

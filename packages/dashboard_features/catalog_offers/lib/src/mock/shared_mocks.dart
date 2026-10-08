@@ -34,9 +34,7 @@ void registerOffersSharedMocks(MockServer server, MockDb db) {
               r['deleted_at'] == null &&
               (categoryId == null || r['category_id'] == categoryId),
         );
-    rows.sort(
-      (a, b) => (a['name']! as String).compareTo(b['name']! as String),
-    );
+    rows.sort((a, b) => (a['name']! as String).compareTo(b['name']! as String));
     return MockResponse.ok([
       for (final r in rows) full ? menuItemFullJson(db, r) : r,
     ]);

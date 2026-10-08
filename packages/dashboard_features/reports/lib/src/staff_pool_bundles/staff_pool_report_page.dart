@@ -64,7 +64,11 @@ class StaffPoolReportPage extends ConsumerWidget {
         description: t('staffPool.pickBranchBody'),
       );
     } else {
-      final drinksQuery = (branchId: branchId, from: fromDate, to: businessDate);
+      final drinksQuery = (
+        branchId: branchId,
+        from: fromDate,
+        to: businessDate,
+      );
       final todayQuery = (branchId: branchId, businessDate: businessDate);
       // All three are asked at once; the drinks do not wait for the pool.
       final today = watchWhen(ref, canSee, staffPoolTodayProvider(todayQuery));
@@ -309,7 +313,9 @@ class _StatGrid extends StatelessWidget {
                       ? BoxDecoration(
                           borderRadius: BorderRadius.circular(Radii.card),
                           border: Border.all(
-                            color: c.danger.withValues(alpha: Opacities.disabled),
+                            color: c.danger.withValues(
+                              alpha: Opacities.disabled,
+                            ),
                             width: DashMetrics.hair,
                           ),
                         )

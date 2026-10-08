@@ -311,7 +311,8 @@ List<MockRow> _ledger(MockDb db) {
     }
   }
   final branchNames = {
-    for (final b in db['branches'].rows) b['id']! as String: b['name'] as String?,
+    for (final b in db['branches'].rows)
+      b['id']! as String: b['name'] as String?,
   };
   const cost = 6;
   final out = <MockRow>[];
@@ -648,12 +649,11 @@ class _Handlers {
     final branches = {
       for (final b in db['branches'].rows) b['id']! as String: b['name'],
     };
-    final orders =
-        db['orders'].where((o) => o['customer_id'] == id)..sort(
-          (a, b) => (b['created_at']! as String).compareTo(
-            a['created_at']! as String,
-          ),
-        );
+    final orders = db['orders'].where((o) => o['customer_id'] == id)
+      ..sort(
+        (a, b) =>
+            (b['created_at']! as String).compareTo(a['created_at']! as String),
+      );
     final merged = [
       for (final m in db[CustomerTables.merged].rows)
         if (m['merged_into'] == id) m,
@@ -730,7 +730,8 @@ class _Handlers {
     final name = _cleanName(req, body['name']);
     final phone = _cleanPhone(body['phone']);
     final notes = _cleanNotes(body['notes']);
-    final source = body['source'] as String? ?? (branchId == null ? 'dashboard' : 'pos');
+    final source =
+        body['source'] as String? ?? (branchId == null ? 'dashboard' : 'pos');
     final askedId = body['id'] as String?;
     if (askedId != null && _live(askedId) != null) {
       return MockResponse.ok(_detail(askedId));
@@ -844,7 +845,8 @@ class _Handlers {
           }, timestamps: false);
         }
       }
-      b['visits_balance'] = ((b['visits_balance'] as num?)?.toInt() ?? 0) + moved;
+      b['visits_balance'] =
+          ((b['visits_balance'] as num?)?.toInt() ?? 0) + moved;
       db[CustomerTables.members].update(fromId, {
         'left_at': now.toIso8601String(),
       });
@@ -925,9 +927,13 @@ class _Handlers {
     final chain = _chain(id);
     final limit = (req.qInt('limit') ?? 50).clamp(1, 200);
     final offset = (req.qInt('offset') ?? 0).clamp(0, 1 << 30);
-    final rows = db[SellTables.bookings].where(
-      (b) => chain.contains(b['customer_id']),
-    )..sort((a, b) => (b['starts_at']! as String).compareTo(a['starts_at']! as String));
+    final rows =
+        db[SellTables.bookings].where(
+          (b) => chain.contains(b['customer_id']),
+        )..sort(
+          (a, b) =>
+              (b['starts_at']! as String).compareTo(a['starts_at']! as String),
+        );
     return MockResponse.ok(rows.skip(offset).take(limit).toList());
   }
 
@@ -1017,7 +1023,11 @@ class _Handlers {
   }
 
   /// The member [id] (a live customer holding a card), else 404.
-  MockRow _memberRow(MockRequest req, String id, {String what = 'Member not found'}) {
+  MockRow _memberRow(
+    MockRequest req,
+    String id, {
+    String what = 'Member not found',
+  }) {
     final c = _live(id);
     if (c == null || c['is_member'] != true) req.notFound(what);
     return c;
@@ -1076,13 +1086,17 @@ class _Handlers {
     }
     req.requireBranch(branchId);
     final c = _memberRow(req, customerId, what: 'No member for that card');
-    if (points == 0) req.badRequest('An adjustment of zero points changes nothing');
+    if (points == 0) {
+      req.badRequest('An adjustment of zero points changes nothing');
+    }
     final s = _settingsRow(org, branchId);
     final mode = s['mode'] == 'visits' ? 'visits' : 'points';
     final field = mode == 'visits' ? 'visits_balance' : 'points_balance';
     final have = (c[field] as num?)?.toInt() ?? 0;
     if (have + points < 0) {
-      req.badRequest('${c['name']} has $have; that adjustment would go negative');
+      req.badRequest(
+        '${c['name']} has $have; that adjustment would go negative',
+      );
     }
     final ledger = db[CustomerTables.ledger]..rows;
     final branch = db['branches'].find(branchId);

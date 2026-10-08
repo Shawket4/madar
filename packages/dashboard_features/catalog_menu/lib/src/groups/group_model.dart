@@ -132,7 +132,9 @@ String effectToLegacyType(
   String name, [
   Iterable<String> taken = const [],
 ]) {
-  if (effect == GroupEffect.swaps) return swapTypes[swapTarget ?? SwapTarget.milk]!;
+  if (effect == GroupEffect.swaps) {
+    return swapTypes[swapTarget ?? SwapTarget.milk]!;
+  }
   final slug = name
       .trim()
       .toLowerCase()
@@ -280,9 +282,8 @@ String recipeSig(List<OptionWireLine> lines) => jsonEncode([
     [l.ingredientId, _num(l.quantity), l.unit, l.sizeLabel],
 ]);
 
-Object _num(double q) => q.isFinite && q == q.truncateToDouble()
-    ? q.toInt()
-    : (q.isNaN ? 'NaN' : q);
+Object _num(double q) =>
+    q.isFinite && q == q.truncateToDouble() ? q.toInt() : (q.isNaN ? 'NaN' : q);
 
 /// The key of the duplicate check: (ingredient, size label or "every size").
 String lineKey(String ingredientId, String? sizeLabel) =>

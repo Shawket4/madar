@@ -19,7 +19,9 @@ Future<Object?> _get(
   String path, {
   Map<String, String> headers = const {},
 }) async {
-  final r = await s.send(ApiRequest(method: 'GET', path: path, headers: headers));
+  final r = await s.send(
+    ApiRequest(method: 'GET', path: path, headers: headers),
+  );
   return MockResponse(r.status, bodyBytes: r.bodyBytes).json;
 }
 
@@ -86,7 +88,10 @@ void main() {
     test('a branch-scoped person is refused another branch', () async {
       final s = todayServer(persona: Persona.manager);
       await expectLater(
-        _get(s.server, '/reports/branches/${SeedIds.maadi}/inventory-valuation'),
+        _get(
+          s.server,
+          '/reports/branches/${SeedIds.maadi}/inventory-valuation',
+        ),
         _refused(403, 'Forbidden: Not assigned to this branch'),
       );
     });
@@ -211,14 +216,17 @@ void main() {
   group('the day', () {
     test('INV-TOD-004 today in Cairo and in another zone', () {
       final now = MockClock.defaultNow;
-      expect(TodayBounds.at('Africa/Cairo', now), const TodayBounds(
-        startOfToday,
-        endOfToday,
-      ));
-      expect(TodayBounds.at('Asia/Dubai', now), const TodayBounds(
-        '2026-10-07T20:00:00.000Z',
-        '2026-10-08T19:59:59.999Z',
-      ));
+      expect(
+        TodayBounds.at('Africa/Cairo', now),
+        const TodayBounds(startOfToday, endOfToday),
+      );
+      expect(
+        TodayBounds.at('Asia/Dubai', now),
+        const TodayBounds(
+          '2026-10-07T20:00:00.000Z',
+          '2026-10-08T19:59:59.999Z',
+        ),
+      );
       // 23:30 UTC on the 8th is already the 9th in Cairo.
       expect(
         TodayBounds.at('Africa/Cairo', DateTime.utc(2026, 10, 8, 23, 30)),

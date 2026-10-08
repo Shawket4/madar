@@ -98,7 +98,10 @@ class _SetupBodyState extends ConsumerState<_SetupBody> {
       t('dawam.setupEmployeesV2'),
       t('dawam.setupEmployeesHint'),
     ),
-    SetupStep.shifts => (t('dawam.setupShiftsV2'), t('dawam.setupShiftsHintV2')),
+    SetupStep.shifts => (
+      t('dawam.setupShiftsV2'),
+      t('dawam.setupShiftsHintV2'),
+    ),
     SetupStep.rules => (t('dawam.setupRulesV2'), t('dawam.setupRulesHint')),
   };
 
@@ -265,10 +268,7 @@ class _SetupBodyState extends ConsumerState<_SetupBody> {
                   ),
                 DashButton(
                   key: const ValueKey('setup-next'),
-                  label: t(
-                    'dawam.setupNext',
-                    args: {'step': _short(t, next)},
-                  ),
+                  label: t('dawam.setupNext', args: {'step': _short(t, next)}),
                   trailingIcon: DashIcon.arrowForward(context),
                   variant: p.done[step]!
                       ? DashButtonVariant.primary
@@ -331,7 +331,10 @@ class _SetupBodyState extends ConsumerState<_SetupBody> {
                 ],
               ),
             ),
-            KeyedSubtree(key: ValueKey('setup-body-${step.name}'), child: stepBody),
+            KeyedSubtree(
+              key: ValueKey('setup-body-${step.name}'),
+              child: stepBody,
+            ),
             footer,
           ],
         ),
@@ -389,9 +392,7 @@ class _Stepper extends ConsumerWidget {
           spacing: wide ? Space.sm : Space.xs + DashMetrics.hair,
           children: [
             for (var n = 0; n < steps.length; n++)
-              Expanded(
-                child: _stepButton(context, t, c, steps[n], n, wide),
-              ),
+              Expanded(child: _stepButton(context, t, c, steps[n], n, wide)),
           ],
         ),
       ),

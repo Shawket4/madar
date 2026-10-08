@@ -89,7 +89,8 @@ class StaffDrinkOrderSheet extends ConsumerWidget {
               ),
       );
     }
-    final ref0 = order.orderRef ?? '#${order.displayNumber ?? order.orderNumber}';
+    final ref0 =
+        order.orderRef ?? '#${order.displayNumber ?? order.orderNumber}';
     return DashSurface(
       title: ref0,
       description: f.fmtDateTimeFull(order.createdAt.toIso8601String()),
@@ -121,7 +122,8 @@ class _OrderBody extends ConsumerWidget {
     final items = order.items;
     final staffComp = items.fold<int>(
       0,
-      (s, it) => s + ((it.staffCompMinor ?? 0) < 0 ? 0 : (it.staffCompMinor ?? 0)),
+      (s, it) =>
+          s + ((it.staffCompMinor ?? 0) < 0 ? 0 : (it.staffCompMinor ?? 0)),
     );
     final knownCogs = items.fold<int>(0, (s, it) => s + (it.lineCost ?? 0));
     final anyMissing = items.any((it) => it.costMissing || it.lineCost == null);
@@ -163,8 +165,7 @@ class _OrderBody extends ConsumerWidget {
             f.fmtDateTimeFull(order.createdAt.toIso8601String()),
           ),
           _Row(t('tills.teller'), order.tellerName),
-          if (order.startedByName != null &&
-              order.startedBy != order.tellerId)
+          if (order.startedByName != null && order.startedBy != order.tellerId)
             _Row(t('orders.startedBy'), order.startedByName!),
           if (order.waiterName != null)
             _Row(t('tills.waiter'), order.waiterName!),
@@ -261,7 +262,7 @@ class _OrderBody extends ConsumerWidget {
                   Text(
                     '${t('orders.grossProfit')}: '
                     '${dashFigure('${anyMissing ? '≤ ' : ''}${f.fmtMoney(profit)}'
-                        '${profitPct != null ? ' (${f.fmtPercent(profitPct)})' : ''}')}',
+                    '${profitPct != null ? ' (${f.fmtPercent(profitPct)})' : ''}')}',
                     style: DashType.small.copyWith(color: c.textSecondary),
                   ),
                 ],
@@ -294,7 +295,9 @@ class _Line extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(vertical: Space.sm),
       decoration: last
           ? null
-          : BoxDecoration(border: Border(bottom: BorderSide(color: c.hairline))),
+          : BoxDecoration(
+              border: Border(bottom: BorderSide(color: c.hairline)),
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.xs,
@@ -314,15 +317,22 @@ class _Line extends ConsumerWidget {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
-                          translatedName(it.itemName, it.nameTranslations, t.lang),
+                          translatedName(
+                            it.itemName,
+                            it.nameTranslations,
+                            t.lang,
+                          ),
                           style: DashType.bodyStrong.copyWith(
                             color: c.textPrimary,
                           ),
                         ),
                         if (size != null && size != _oneSize)
-                          Text('($size)', style: DashType.body.copyWith(
-                            color: c.textSecondary,
-                          )),
+                          Text(
+                            '($size)',
+                            style: DashType.body.copyWith(
+                              color: c.textSecondary,
+                            ),
+                          ),
                         if (staff != null)
                           DashStatusPill(
                             label: t('orders.staffDrink'),
@@ -354,7 +364,8 @@ class _Line extends ConsumerWidget {
                               )
                             else if (a.lineTotal > 0)
                               TextSpan(
-                                text: ' (${dashFigure(f.fmtMoney(a.lineTotal))})',
+                                text:
+                                    ' (${dashFigure(f.fmtMoney(a.lineTotal))})',
                                 style: TextStyle(color: c.textSecondary),
                               ),
                           ],

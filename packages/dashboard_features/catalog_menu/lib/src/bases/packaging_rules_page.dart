@@ -124,15 +124,11 @@ class _PackagingRulesPageState extends ConsumerState<PackagingRulesPage> {
                 active: r.isActive,
                 inactiveLabel: t('common.inactive'),
                 truncateSubtitle: true,
-                subtitle: _ruleLine(
-                  t,
-                  r,
-                  [
-                    labelOf(itemOptions, r.matchItemId),
-                    labelOf(categoryOptions, r.matchCategoryId),
-                    r.matchSizeLabel,
-                  ],
-                ),
+                subtitle: _ruleLine(t, r, [
+                  labelOf(itemOptions, r.matchItemId),
+                  labelOf(categoryOptions, r.matchCategoryId),
+                  r.matchSizeLabel,
+                ]),
                 editLabel: t('common.edit'),
                 deleteLabel: t('common.delete'),
                 onEdit: canEdit ? () => openDialog(r) : null,

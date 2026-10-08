@@ -32,6 +32,7 @@ String legalPath(LegalTab tab, String orgId) =>
 /// `GET /reports/orgs/{orgId}/tax` (orgTaxReport).
 final legalTaxProvider = FutureProvider.autoDispose
     .family<TaxReport, LegalQuery>((ref, q) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider(legalPath(LegalTab.tax, q.orgId)));
       return ref
           .watch(apiProvider)
@@ -46,6 +47,7 @@ final legalTaxProvider = FutureProvider.autoDispose
 /// One audit tab's report (every tab but Tax).
 final legalAuditProvider = FutureProvider.autoDispose
     .family<AuditReport, (LegalTab, LegalQuery)>((ref, key) {
+      ref.webCache();
       final (tab, q) = key;
       ref.watch(realtimeEpochProvider(legalPath(tab, q.orgId)));
       final api = ref.watch(apiProvider).reports;

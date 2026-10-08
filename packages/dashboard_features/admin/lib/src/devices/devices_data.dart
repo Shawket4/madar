@@ -79,6 +79,7 @@ String groupActivationCode(String code) =>
 /// `GET /devices?branch_id=` (useDevices) — only with a branch picked.
 final devicesListProvider = FutureProvider.autoDispose
     .family<List<Device>, String>((ref, branchId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider(DevicesPaths.devices));
       return ref.watch(apiProvider).devices.listDevices(branchId: branchId);
     });
@@ -87,6 +88,7 @@ final devicesListProvider = FutureProvider.autoDispose
 /// for someone with `branches.edit`.
 final activationCodesProvider = FutureProvider.autoDispose
     .family<List<ActivationCode>, String>((ref, branchId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider(DevicesPaths.codes));
       return ref.watch(apiProvider).devices.listCodes(branchId: branchId);
     });
@@ -99,6 +101,7 @@ typedef ClientVersionsKey = ({String? branchId, bool legacyOnly, int days});
 /// `legacy_only` and `days`; `branch_id` only with a branch picked.
 final clientVersionsProvider = FutureProvider.autoDispose
     .family<List<ClientSeen>, ClientVersionsKey>((ref, k) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider(DevicesPaths.clients));
       return ref
           .watch(apiProvider)
@@ -119,10 +122,8 @@ class DevicesInvalidate {
 
   /// `usePatchDevice`: `/devices*` (codes and client versions included) and
   /// `/tills*`.
-  void deviceSaved() => _bus.invalidate(const [
-    DevicesPaths.devices,
-    DevicesPaths.tills,
-  ]);
+  void deviceSaved() =>
+      _bus.invalidate(const [DevicesPaths.devices, DevicesPaths.tills]);
 
   /// `useIssueActivationCode` / `useRevokeActivationCode`.
   void codesChanged() => _bus.invalidate(const [DevicesPaths.codes]);

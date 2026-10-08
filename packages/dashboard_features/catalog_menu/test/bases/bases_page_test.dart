@@ -48,19 +48,30 @@ Future<void> openNew(DashHarness h) => h.tapText(h.t('modeling.bases.new'));
 /// Picks [name] in the "+ ingredient" combobox.
 Future<void> addIngredient(DashHarness h, String name) async {
   await h.tap(find.text(h.t('modeling.grid.addIngredient')).last);
-  await h.tap(find.text(name).hitTestable().last);
+  await pickOption(h, name);
+}
+
+/// Picks [name] in the open option list, searched for first (the list is
+/// longer than its popover; a person types). The option row comes after the
+/// search box, which now holds [name] too.
+Future<void> pickOption(DashHarness h, String name) async {
+  final list = find.byWidgetPredicate((w) => w is DashOptionList);
+  await h.enterText(
+    find.descendant(of: list, matching: find.byType(EditableText)),
+    name,
+  );
+  await h.tap(find.descendant(of: list, matching: find.text(name)).last);
 }
 
 /// The "Base saved · N sizes updated" words.
-String savedText(DashHarness h, int n) =>
-    h.t('modeling.bases.saved', count: n);
+String savedText(DashHarness h, int n) => h.t('modeling.bases.saved', count: n);
 
 void main() {
   group('MENU-BAS-001..008 the list', () {
     testWidgets('MENU-BAS-001 header: title, subtitle and "New base"', (
       tester,
     ) async {
-      final h = await pumpMenu(tester);
+      await pumpMenu(tester);
       expect(find.text('Recipe bases'), findsWidgets);
       expect(
         find.text(
@@ -144,15 +155,10 @@ void main() {
       expect(sizesUsing(db, icedBase), 4);
       final espressoSizes = sizesUsing(db, espressoBase);
       expect(
-        find.text(
-          'Affects 14 items / $espressoSizes sizes · 3 lines',
-        ),
+        find.text('Affects 14 items / $espressoSizes sizes · 3 lines'),
         findsOneWidget,
       );
-      expect(
-        find.text('Affects 2 items / 4 sizes · 2 lines'),
-        findsOneWidget,
-      );
+      expect(find.text('Affects 2 items / 4 sizes · 2 lines'), findsOneWidget);
       expect(find.text('Affects 0 items / 0 sizes · 1 line'), findsOneWidget);
       expect(
         find.descendant(
@@ -262,7 +268,9 @@ void main() {
       await h.tap(labelIn(rowOf(icedBase), 'Delete'));
       expect(find.text('Delete "Iced build"?'), findsOneWidget);
       expect(
-        find.text('Sizes using this base lose its lines. Their own lines stay.'),
+        find.text(
+          'Sizes using this base lose its lines. Their own lines stay.',
+        ),
         findsOneWidget,
       );
       // Not destructive-styled: no warning disc.
@@ -384,8 +392,10 @@ void main() {
       await h.enterText(find.bySemanticsLabel('Name'), 'Changed');
       await h.tapText('Cancel');
       await openEditor(h, icedBase);
-      expect(editable(tester, find.bySemanticsLabel('Name')).controller.text,
-          'Iced build');
+      expect(
+        editable(tester, find.bySemanticsLabel('Name')).controller.text,
+        'Iced build',
+      );
       expect(
         editable(tester, find.bySemanticsLabel('Name (ع)')).controller.text,
         'تجهيز المشروبات المثلجة',
@@ -405,7 +415,8 @@ void main() {
       // Re-checked on every change after the first Save.
       await h.enterText(find.bySemanticsLabel('Name'), 'Chai base');
       expect(find.text('This field is required'), findsNothing);
-      expect(find.bySemanticsLabel('Name (ع)'), findsOneWidget);
+      // The field's visible label and its input both carry the words.
+      expect(find.bySemanticsLabel('Name (ع)'), findsWidgets);
     });
 
     testWidgets('MENU-BAS-012 the Active switch is sent', (tester) async {
@@ -438,15 +449,17 @@ void main() {
         expect(find.text(col), findsOneWidget);
       }
       expect(
-        editable(tester, cell(h, 'House espresso blend', 'All sizes'))
-            .controller
-            .text,
+        editable(
+          tester,
+          cell(h, 'House espresso blend', 'All sizes'),
+        ).controller.text,
         '18',
       );
       expect(
-        editable(tester, cell(h, 'House espresso blend', 'Double'))
-            .controller
-            .text,
+        editable(
+          tester,
+          cell(h, 'House espresso blend', 'Double'),
+        ).controller.text,
         '36',
       );
       // × on the size columns only.
@@ -459,9 +472,10 @@ void main() {
       await openEditor(h, espressoBase);
       await h.enterText(cell(h, 'House espresso blend', 'Large'), '2a7,5.1');
       expect(
-        editable(tester, cell(h, 'House espresso blend', 'Large'))
-            .controller
-            .text,
+        editable(
+          tester,
+          cell(h, 'House espresso blend', 'Large'),
+        ).controller.text,
         '27.51',
       );
     });
@@ -481,7 +495,7 @@ void main() {
       );
       expect(find.text('Vanilla powder'), findsNothing);
       await h.shot('bases/editor-picker');
-      await h.tap(find.text('Ice').hitTestable().last);
+      await pickOption(h, 'Ice');
       expect(cell(h, 'Ice', 'All sizes'), findsOneWidget);
       expect(editable(tester, cell(h, 'Ice', 'Large')).controller.text, '');
       await h.tap(find.bySemanticsLabel('Remove ingredient').last);
@@ -510,9 +524,10 @@ void main() {
       expect(find.text('Cup'), findsOneWidget);
       expect(editable(tester, box).controller.text, '');
       expect(
-        editable(tester, cell(h, 'House espresso blend', 'Cup'))
-            .controller
-            .text,
+        editable(
+          tester,
+          cell(h, 'House espresso blend', 'Cup'),
+        ).controller.text,
         '',
       );
       // Enter in the box adds too.
@@ -561,10 +576,14 @@ void main() {
       expect(find.text('Used by'), findsOneWidget);
       expect(textHas('Americano'), findsNothing);
       await h.tapText('Used by');
-      expect(find.text('Americano · Regular', findRichText: true),
-          findsOneWidget);
-      expect(find.text('Espresso · Double', findRichText: true),
-          findsOneWidget);
+      expect(
+        find.text('Americano · Regular', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Espresso · Double', findRichText: true),
+        findsOneWidget,
+      );
       // A one-price item names no size (no "one_size").
       expect(find.text('Cortado', findRichText: true), findsOneWidget);
       expect(textHas('one_size'), findsNothing);
@@ -633,7 +652,8 @@ void main() {
         'Conflict: A recipe base with this name already exists',
       );
       expect(find.text('New base'), findsWidgets);
-      expect(find.bySemanticsLabel('Name'), findsOneWidget);
+      // Still open (its label and input both carry "Name").
+      expect(find.bySemanticsLabel('Name'), findsWidgets);
     });
 
     testWidgets('MENU-BAS-016 edit: PATCH only the changed fields, PUT only '
@@ -683,9 +703,7 @@ void main() {
       final latteLarge = MenuSeedIds.size('latte', 'Large');
       expect(
         db[MenuTables.recipeLines]
-            .where(
-              (l) => l['size_id'] == latteLarge && l['source'] == 'base',
-            )
+            .where((l) => l['size_id'] == latteLarge && l['source'] == 'base')
             .single['quantity'],
         '30',
       );
@@ -769,9 +787,7 @@ void main() {
       expect(find.text('Edit base'), findsNothing);
     });
 
-    testWidgets('MENU-BAS-017 Cancel closes without a request', (
-      tester,
-    ) async {
+    testWidgets('MENU-BAS-017 Cancel closes without a request', (tester) async {
       final h = await pumpMenu(tester);
       await openEditor(h, icedBase);
       await h.enterText(find.bySemanticsLabel('Name'), 'Other');
@@ -848,9 +864,7 @@ void main() {
   });
 
   group('phone', () {
-    testWidgets('the editor is a full-screen form; Save works', (
-      tester,
-    ) async {
+    testWidgets('the editor is a full-screen form; Save works', (tester) async {
       final h = await pumpMenu(tester, size: DashSize.phone, locale: 'ar');
       await openEditor(h, icedBase);
       expect(find.text(h.t('modeling.bases.edit')), findsOneWidget);

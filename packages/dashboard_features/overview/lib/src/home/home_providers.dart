@@ -13,7 +13,14 @@
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show BranchSalesReport, DeliverySalesReport, MarginWatch, OnboardingStatus, OrgComparisonReport, Till, TimeseriesPoint;
+    show
+        BranchSalesReport,
+        DeliverySalesReport,
+        MarginWatch,
+        OnboardingStatus,
+        OrgComparisonReport,
+        Till,
+        TimeseriesPoint;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
@@ -23,6 +30,7 @@ DateTime _instant(String iso) => DateTime.parse(iso);
 /// E1 `GET /reports/branches/{branchId}/sales` — only with a branch picked.
 final homeBranchSalesProvider = FutureProvider.autoDispose
     .family<BranchSalesReport, Scope>((ref, s) {
+      ref.webCache();
       final id = s.branchId!;
       ref.watch(realtimeEpochProvider('/reports/branches/$id/sales'));
       return ref
@@ -39,6 +47,7 @@ final homeBranchSalesProvider = FutureProvider.autoDispose
 /// today / yesterday, else daily.
 final homeTimeseriesProvider = FutureProvider.autoDispose
     .family<List<TimeseriesPoint>, Scope>((ref, s) {
+      ref.webCache();
       ref.watch(
         realtimeEpochProvider(
           '/reports/branches/${s.scopeBranchId}/sales/timeseries',
@@ -58,6 +67,7 @@ final homeTimeseriesProvider = FutureProvider.autoDispose
 /// E3 `GET /reports/orgs/{orgId}/comparison` — every branch of the org.
 final homeComparisonProvider = FutureProvider.autoDispose
     .family<OrgComparisonReport, Scope>((ref, s) {
+      ref.webCache();
       final org = s.orgId!;
       ref.watch(realtimeEpochProvider('/reports/orgs/$org/comparison'));
       return ref
@@ -73,6 +83,7 @@ final homeComparisonProvider = FutureProvider.autoDispose
 /// E4 `GET /reports/branches/{scopeBranchId}/delivery-sales`.
 final homeDeliveryProvider = FutureProvider.autoDispose
     .family<DeliverySalesReport, Scope>((ref, s) {
+      ref.webCache();
       ref.watch(
         realtimeEpochProvider(
           '/reports/branches/${s.scopeBranchId}/delivery-sales',
@@ -92,6 +103,7 @@ final homeDeliveryProvider = FutureProvider.autoDispose
 /// `cost_basis`: the server's snapshot).
 final homeMarginWatchProvider = FutureProvider.autoDispose
     .family<MarginWatch, Scope>((ref, s) {
+      ref.webCache();
       ref.watch(
         realtimeEpochProvider(
           '/insights/branches/${s.scopeBranchId}/margin-watch',
@@ -110,6 +122,7 @@ final homeMarginWatchProvider = FutureProvider.autoDispose
 /// E6 `GET /tills/branches/{branchId}/open` (`useOpenTills`) — newest first.
 final homeOpenTillsProvider = FutureProvider.autoDispose
     .family<List<Till>, String>((ref, branchId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/tills/branches/$branchId/open'));
       return ref.watch(apiProvider).tills.listOpenTills(branchId: branchId);
     });
@@ -117,6 +130,7 @@ final homeOpenTillsProvider = FutureProvider.autoDispose
 /// E7 `GET /orgs/{orgId}/onboarding` — for the Keep-building card.
 final homeOnboardingProvider = FutureProvider.autoDispose
     .family<OnboardingStatus, String>((ref, orgId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/orgs/$orgId/onboarding'));
       return ref.watch(apiProvider).orgs.getOnboarding(id: orgId);
     });

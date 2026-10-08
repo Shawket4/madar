@@ -160,7 +160,12 @@ void main() {
       MockResponse.denied('purchasing.orders.read'),
       times: null,
     );
-    await pumpToday(tester, server: s.server, db: s.db, branch: SeedIds.zamalek);
+    await pumpToday(
+      tester,
+      server: s.server,
+      db: s.db,
+      branch: SeedIds.zamalek,
+    );
     expect(
       inside<TodayArrivingSection>(find.text("Couldn't load deliveries")),
       findsOneWidget,
@@ -180,7 +185,12 @@ void main() {
       MockResponse.denied('inventory.waste.read'),
       times: null,
     );
-    await pumpToday(tester, server: s.server, db: s.db, branch: SeedIds.zamalek);
+    await pumpToday(
+      tester,
+      server: s.server,
+      db: s.db,
+      branch: SeedIds.zamalek,
+    );
     expect(
       inside<TodayWasteSection>(find.text("Couldn't load today's waste")),
       findsOneWidget,
@@ -209,10 +219,14 @@ void main() {
       branch: SeedIds.zamalek,
       locale: 'ar',
     );
-    expect(inside<DashDataTable<LowStockRow>>(find.text('تعذّر التحميل')),
-        findsOneWidget);
-    expect(inside<DashDataTable<LowStockRow>>(find.text('إعادة المحاولة')),
-        findsOneWidget);
+    expect(
+      inside<DashDataTable<LowStockRow>>(find.text('تعذّر التحميل')),
+      findsOneWidget,
+    );
+    expect(
+      inside<DashDataTable<LowStockRow>>(find.text('إعادة المحاولة')),
+      findsOneWidget,
+    );
     expect(kpi(tester, 'مخزون منخفض').value, 0);
   });
 }

@@ -134,9 +134,7 @@ void registerOrgsMocks(MockServer server, MockDb db) {
       }
       final problem = slugProblem(slug);
       if (problem != null) req.badRequest(problem);
-      final taken = orgs.rows.any(
-        (o) => o['slug'] == slug && o['id'] != id,
-      );
+      final taken = orgs.rows.any((o) => o['slug'] == slug && o['id'] != id);
       if (taken) req.conflict("Slug '$slug' is already taken");
     }
 

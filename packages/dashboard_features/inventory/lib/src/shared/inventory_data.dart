@@ -32,6 +32,7 @@ void invalidateInventoryFrom(Ref ref) =>
 /// `GET /inventory/orgs/{org_id}/catalog` (listCatalog), by name.
 final inventoryCatalogProvider = FutureProvider.autoDispose
     .family<List<OrgIngredient>, String>((ref, orgId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/inventory/orgs/$orgId/catalog'));
       return ref.watch(apiProvider).inventory.listCatalog(orgId: orgId);
     });
@@ -39,6 +40,7 @@ final inventoryCatalogProvider = FutureProvider.autoDispose
 /// `GET /inventory/orgs/{org_id}/categories` (listIngredientCategories).
 final ingredientCategoriesProvider = FutureProvider.autoDispose
     .family<List<IngredientCategory>, String>((ref, orgId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/inventory/orgs/$orgId/categories'));
       return ref
           .watch(apiProvider)
@@ -49,6 +51,7 @@ final ingredientCategoriesProvider = FutureProvider.autoDispose
 /// `GET /purchasing/orgs/{org_id}/suppliers` (listSuppliers), by name.
 final inventorySuppliersProvider = FutureProvider.autoDispose
     .family<List<Supplier>, String>((ref, orgId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/purchasing/orgs/$orgId/suppliers'));
       return ref.watch(apiProvider).purchasing.listSuppliers(orgId: orgId);
     });
@@ -57,6 +60,7 @@ final inventorySuppliersProvider = FutureProvider.autoDispose
 /// catalog as one branch sees it.
 final branchStockProvider = FutureProvider.autoDispose
     .family<List<BranchStockRow>, String>((ref, branchId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/inventory/branches/$branchId/stock'));
       return ref
           .watch(apiProvider)
@@ -68,6 +72,7 @@ final branchStockProvider = FutureProvider.autoDispose
 /// [Scope.scopeBranchId] (the all-branches sentinel rolls the org up).
 final stocktakesProvider = FutureProvider.autoDispose
     .family<List<Stocktake>, String>((ref, branchId) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/stocktakes/branches/$branchId'));
       return ref
           .watch(apiProvider)

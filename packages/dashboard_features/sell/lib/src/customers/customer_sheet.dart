@@ -366,7 +366,10 @@ class _CustomerStats extends ConsumerWidget {
     final c = customer;
     return StatGrid(
       children: [
-        StatBox(label: t('customers.orders'), value: fmt.fmtNumber(c.ordersCount)),
+        StatBox(
+          label: t('customers.orders'),
+          value: fmt.fmtNumber(c.ordersCount),
+        ),
         StatBox(
           label: t('customers.totalSpent'),
           value: fmt.fmtMoney(c.totalSpent),
@@ -426,18 +429,13 @@ class _Identity extends ConsumerWidget {
             children: [
               row(
                 t('customers.phone'),
-                phone == null || phone.isEmpty
-                    ? unknown()
-                    : PhoneText(phone),
+                phone == null || phone.isEmpty ? unknown() : PhoneText(phone),
               ),
-              row(
-                t('customers.language'),
-                switch (cu.locale) {
-                  'ar' => value(t('customers.languageAr')),
-                  'en' => value(t('customers.languageEn')),
-                  _ => unknown(),
-                },
-              ),
+              row(t('customers.language'), switch (cu.locale) {
+                'ar' => value(t('customers.languageAr')),
+                'en' => value(t('customers.languageEn')),
+                _ => unknown(),
+              }),
               row(
                 t('customers.birthday'),
                 birthday == null ? unknown() : value(birthday),
@@ -483,10 +481,7 @@ class _Identity extends ConsumerWidget {
             ),
           if (detail.mergedFrom.isNotEmpty)
             Text(
-              t(
-                'customers.mergedFrom',
-                args: {'n': detail.mergedFrom.length},
-              ),
+              t('customers.mergedFrom', args: {'n': detail.mergedFrom.length}),
               style: DashType.small.copyWith(color: c.textSecondary),
             ),
         ],
@@ -540,7 +535,10 @@ class _RecentOrders extends ConsumerWidget {
                           onTap: () => onOpenOrder(o.id),
                         ),
                       ),
-                      Text(dashFigure(fmt.fmtMoney(o.totalAmount)), style: money),
+                      Text(
+                        dashFigure(fmt.fmtMoney(o.totalAmount)),
+                        style: money,
+                      ),
                     ],
                   ),
                   Text(
@@ -609,8 +607,16 @@ class _RecentOrders extends ConsumerWidget {
                       cell(head(t('customers.order')), header: true),
                       cell(head(t('customers.branch')), header: true),
                       cell(head(t('common.status')), header: true),
-                      cell(head(t('common.total'), end: true), header: true, end: true),
-                      cell(head(t('common.date'), end: true), header: true, end: true),
+                      cell(
+                        head(t('common.total'), end: true),
+                        header: true,
+                        end: true,
+                      ),
+                      cell(
+                        head(t('common.date'), end: true),
+                        header: true,
+                        end: true,
+                      ),
                     ],
                   ),
                   for (final o in orders)
@@ -628,7 +634,10 @@ class _RecentOrders extends ConsumerWidget {
                         cell(Text(o.branchName ?? '—', style: body)),
                         cell(Text(status(o), style: body)),
                         cell(
-                          Text(dashFigure(fmt.fmtMoney(o.totalAmount)), style: money),
+                          Text(
+                            dashFigure(fmt.fmtMoney(o.totalAmount)),
+                            style: money,
+                          ),
                           end: true,
                         ),
                         cell(

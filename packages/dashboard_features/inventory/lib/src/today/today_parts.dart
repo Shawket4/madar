@@ -223,10 +223,7 @@ class TodayKpiStrip extends ConsumerWidget {
             loading: data.valuation.firstLoad,
             hint: v == null
                 ? null
-                : t(
-                    'inventory.today.unknownCost',
-                    count: v.unknownCostCount,
-                  ),
+                : t('inventory.today.unknownCost', count: v.unknownCostCount),
           ),
           DashLedgerItem(
             key: 'low',
@@ -395,11 +392,8 @@ class TodayLowStockSection extends ConsumerWidget {
               label: t('inventory.today.onHand'),
               numeric: true,
               text: (r) => qtyWithUnit(f, r.onHand, r.unit),
-              cell: (context, r) => OnHand(
-                qty: r.onHand,
-                unit: r.unit,
-                style: DashType.mono,
-              ),
+              cell: (context, r) =>
+                  OnHand(qty: r.onHand, unit: r.unit, style: DashType.mono),
             ),
             DashColumn<LowStockRow>(
               id: 'par',

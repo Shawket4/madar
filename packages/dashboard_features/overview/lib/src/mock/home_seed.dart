@@ -106,6 +106,5 @@ Map<String, Object?> homeItemNames(String itemId) {
 }
 
 /// How many active menu items have a recipe (the onboarding `recipes` step).
-int homeItemsWithRecipes() => seedMenu
-    .where((m) => !homeItemsWithoutRecipe.contains(m.key))
-    .length;
+int homeItemsWithRecipes() =>
+    seedMenu.where((m) => !homeItemsWithoutRecipe.contains(m.key)).length;

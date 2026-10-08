@@ -40,8 +40,5 @@ Future<DashHarness> pumpSell(
   dark: dark,
   server: server,
   db: db,
-  prefs: {
-    if (branchId != null) ...branchPrefs(branchId),
-    ...?prefs,
-  },
+  prefs: {if (branchId != null) ...branchPrefs(branchId), ...?prefs},
 );

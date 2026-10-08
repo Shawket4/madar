@@ -280,9 +280,7 @@ class _CustomersListState extends ConsumerState<CustomersList> {
           ),
         ),
       );
-      final rows = [
-        for (final p in people) PersonRow(customer: p, mode: mode),
-      ];
+      final rows = [for (final p in people) PersonRow(customer: p, mode: mode)];
       String yesNo(bool v) => v ? t('common.yes') : t('common.no');
       final columns = <ExcelColumn<PersonRow>>[
         ExcelColumn(

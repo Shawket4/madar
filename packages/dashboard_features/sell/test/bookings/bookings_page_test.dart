@@ -14,11 +14,7 @@ void main() {
   });
 
   testWidgets('/bookings opens for one branch', (tester) async {
-    final h = await pumpSell(
-      tester,
-      '/bookings',
-      branchId: SeedIds.heliopolis,
-    );
+    final h = await pumpSell(tester, '/bookings', branchId: SeedIds.heliopolis);
     expect(find.text(h.t('bookings.description')), findsOneWidget);
     await h.shot('bookings/smoke');
   });

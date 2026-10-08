@@ -17,6 +17,7 @@ typedef DrinksQuery = ({String branchId, String from, String to});
 /// `GET /staff-pool/today` (getStaffPoolToday).
 final staffPoolTodayProvider = FutureProvider.autoDispose
     .family<StaffPoolToday, PoolDayQuery>((ref, q) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/staff-pool/today'));
       return ref
           .watch(apiProvider)
@@ -30,6 +31,7 @@ final staffPoolTodayProvider = FutureProvider.autoDispose
 /// `GET /staff-pool/drinks` (listStaffDrinks), newest first.
 final staffDrinksProvider = FutureProvider.autoDispose
     .family<List<StaffDrink>, DrinksQuery>((ref, q) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/staff-pool/drinks'));
       return ref
           .watch(apiProvider)
@@ -41,6 +43,7 @@ final staffDrinksProvider = FutureProvider.autoDispose
 /// as the list, so the strip and the rows describe the same drinks.
 final staffDrinksSummaryProvider = FutureProvider.autoDispose
     .family<StaffDrinksSummary, DrinksQuery>((ref, q) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/staff-pool/drinks/summary'));
       return ref
           .watch(apiProvider)
@@ -51,6 +54,7 @@ final staffDrinksSummaryProvider = FutureProvider.autoDispose
 /// `GET /orders/{order_id}` (getOrder): the sale a drink was rung on.
 final staffDrinkOrderProvider = FutureProvider.autoDispose
     .family<OrderFull, String>((ref, id) {
+      ref.webCache();
       ref.watch(realtimeEpochProvider('/orders/$id'));
       return ref.watch(apiProvider).orders.getOrder(orderId: id);
     });

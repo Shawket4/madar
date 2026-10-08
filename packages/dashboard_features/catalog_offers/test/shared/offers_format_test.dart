@@ -74,27 +74,36 @@ void main() {
       });
     });
 
-    test('the rules: a day, both times or neither, distinct, dates ordered', () {
-      final w = WindowDraft.empty();
-      expect(validateWindow(w.copyWith(weekdays: 0)).weekdays,
-          'combos.errors.noDays');
-      expect(validateWindow(w.copyWith(startsAt: '09:00')).endsAt,
-          'combos.errors.hoursPair');
-      expect(
-        validateWindow(w.copyWith(startsAt: '09:00', endsAt: '09:00')).endsAt,
-        'combos.errors.hoursSame',
-      );
-      expect(
-        validateWindow(
-          w.copyWith(validFrom: '2026-10-09', validTo: '2026-10-08'),
-        ).validTo,
-        'combos.errors.datesOrder',
-      );
-      expect(
-        validateWindow(w.copyWith(startsAt: '22:00', endsAt: '03:00')).isEmpty,
-        isTrue,
-      );
-    });
+    test(
+      'the rules: a day, both times or neither, distinct, dates ordered',
+      () {
+        final w = WindowDraft.empty();
+        expect(
+          validateWindow(w.copyWith(weekdays: 0)).weekdays,
+          'combos.errors.noDays',
+        );
+        expect(
+          validateWindow(w.copyWith(startsAt: '09:00')).endsAt,
+          'combos.errors.hoursPair',
+        );
+        expect(
+          validateWindow(w.copyWith(startsAt: '09:00', endsAt: '09:00')).endsAt,
+          'combos.errors.hoursSame',
+        );
+        expect(
+          validateWindow(
+            w.copyWith(validFrom: '2026-10-09', validTo: '2026-10-08'),
+          ).validTo,
+          'combos.errors.datesOrder',
+        );
+        expect(
+          validateWindow(
+            w.copyWith(startsAt: '22:00', endsAt: '03:00'),
+          ).isEmpty,
+          isTrue,
+        );
+      },
+    );
 
     test('wire round trip keeps the values; seconds are dropped', () {
       final w = WindowDraft.fromWire(

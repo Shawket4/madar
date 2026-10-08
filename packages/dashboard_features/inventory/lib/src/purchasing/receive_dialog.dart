@@ -9,7 +9,12 @@ library;
 import 'dart:convert';
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show GoodsReceipt, PurchaseOrderFull, PurchaseOrderLine, ReceiveLineInput, ReceivePurchaseOrderRequest;
+    show
+        GoodsReceipt,
+        PurchaseOrderFull,
+        PurchaseOrderLine,
+        ReceiveLineInput,
+        ReceivePurchaseOrderRequest;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -60,34 +65,30 @@ class _ReceiveDialogState extends ConsumerState<ReceiveDialog> {
   @override
   void initState() {
     super.initState();
-    ref.listenManual(
-      purchaseOrderProvider(widget.purchaseOrderId),
-      (_, next) {
-        final po = next.value;
-        if (po == null) return;
-        final sig = jsonEncode(po.toJson());
-        if (sig == _initFrom) return;
-        _initFrom = sig;
-        final init = <String, String>{
-          for (final l in po.lines)
-            l.id: l.quantityOrdered - l.quantityReceived > 0
-                ? jsNumberString(l.quantityOrdered - l.quantityReceived)
-                : '',
-        };
-        void apply() {
-          _receiving = init;
-          _totals = {};
-          _tab = _Tab.receive;
-        }
+    ref.listenManual(purchaseOrderProvider(widget.purchaseOrderId), (_, next) {
+      final po = next.value;
+      if (po == null) return;
+      final sig = jsonEncode(po.toJson());
+      if (sig == _initFrom) return;
+      _initFrom = sig;
+      final init = <String, String>{
+        for (final l in po.lines)
+          l.id: l.quantityOrdered - l.quantityReceived > 0
+              ? jsNumberString(l.quantityOrdered - l.quantityReceived)
+              : '',
+      };
+      void apply() {
+        _receiving = init;
+        _totals = {};
+        _tab = _Tab.receive;
+      }
 
-        if (mounted && context.mounted) {
-          setState(apply);
-        } else {
-          apply();
-        }
-      },
-      fireImmediately: true,
-    );
+      if (mounted && context.mounted) {
+        setState(apply);
+      } else {
+        apply();
+      }
+    }, fireImmediately: true);
   }
 
   bool _pastReceiving(PurchaseOrderFull? po) =>
@@ -188,9 +189,8 @@ class _ReceiveDialogState extends ConsumerState<ReceiveDialog> {
               locked: past,
               onReceiving: (id, v) => setState(() => _receiving[id] = v),
               onTotal: (id, v) => setState(() => _totals[id] = v),
-              onRetry: () => ref.invalidate(
-                purchaseOrderProvider(widget.purchaseOrderId),
-              ),
+              onRetry: () =>
+                  ref.invalidate(purchaseOrderProvider(widget.purchaseOrderId)),
             )
           else
             _History(purchaseOrderId: widget.purchaseOrderId),
@@ -318,7 +318,9 @@ class _ReceiveLines extends ConsumerWidget {
                     entries: [
                       (
                         t('inventory.purchasing.qtyOrdered'),
-                        figure('${f.fmtNumber(l.quantityOrdered)} ${l.purchaseUnit}'),
+                        figure(
+                          '${f.fmtNumber(l.quantityOrdered)} ${l.purchaseUnit}',
+                        ),
                       ),
                       (
                         t('inventory.purchasing.alreadyReceived'),
@@ -441,7 +443,10 @@ class _ReceiveLines extends ConsumerWidget {
                   ),
                   width: fig,
                 ),
-                cell(figure(f.fmtNumber(po.lines[i].quantityReceived)), width: fig),
+                cell(
+                  figure(f.fmtNumber(po.lines[i].quantityReceived)),
+                  width: fig,
+                ),
                 cell(
                   figure(
                     f.fmtNumber(
@@ -615,9 +620,7 @@ class _History extends ConsumerWidget {
                           r.receivedByName ?? r.receivedBy,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: DashType.body.copyWith(
-                            color: c.textSecondary,
-                          ),
+                          style: DashType.body.copyWith(color: c.textSecondary),
                         ),
                       ),
                     ],

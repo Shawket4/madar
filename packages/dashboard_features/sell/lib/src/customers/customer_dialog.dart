@@ -67,8 +67,8 @@ class _CustomerDialogState extends ConsumerState<CustomerDialog> {
     return t('customers.errors.phoneInvalid', args: {'max': customerNameMax});
   }
 
-  String? _notesError(String v, Translator t) => v.trim().length >
-          customerNotesMax
+  String? _notesError(String v, Translator t) =>
+      v.trim().length > customerNotesMax
       ? t('customers.errors.notesLong', args: {'max': customerNotesMax})
       : null;
 

@@ -47,19 +47,4 @@ class CoreApi {
   /// `GET /orgs/{id}/onboarding`: `completed`.
   Future<bool> getOnboardingCompleted(String orgId) async =>
       (await api.orgs.getOnboarding(id: orgId)).completed;
-
-  /// `GET /staff/employees?employment_status=active`: each one's status.
-  Future<List<String>> listActiveEmployeeStatuses() async => [
-    for (final e in await api.staff.listEmployees(employmentStatus: 'active'))
-      e.employmentStatus,
-  ];
-
-  /// `GET /staff/work-shifts`: each shift's `is_active`.
-  Future<List<bool>> listWorkShiftActive() async => [
-    for (final s in await api.staff.listWorkShifts()) s.isActive,
-  ];
-
-  /// `GET /staff/attendance/settings`: `rules_saved_at`.
-  Future<DateTime?> getAttendanceRulesSavedAt() async =>
-      (await api.staff.getAttendanceSettings()).rulesSavedAt;
 }

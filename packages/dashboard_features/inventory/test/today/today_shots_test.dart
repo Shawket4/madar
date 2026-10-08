@@ -41,12 +41,7 @@ void main() {
     for (final (lang, dark) in _modes) {
       final tag = '${size.name} $lang ${dark ? 'dark' : 'light'}';
       testWidgets('all branches, $tag', (tester) async {
-        final h = await pumpToday(
-          tester,
-          size: size,
-          locale: lang,
-          dark: dark,
-        );
+        final h = await pumpToday(tester, size: size, locale: lang, dark: dark);
         await shootPage(h, 'default');
       });
 

@@ -180,7 +180,10 @@ class ModelingAlert extends StatelessWidget {
               title,
               style: DashType.bodyMedium.copyWith(color: c.textPrimary),
             ),
-            Text(description, style: DashType.body.copyWith(color: c.textPrimary)),
+            Text(
+              description,
+              style: DashType.body.copyWith(color: c.textPrimary),
+            ),
           ],
         ),
       ),

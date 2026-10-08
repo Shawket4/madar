@@ -20,6 +20,7 @@ import '../shared/menu_queries.dart';
 /// `GET /recipe-bases/{id}/usage`: the item sizes following one base.
 final baseUsageProvider = FutureProvider.autoDispose
     .family<RecipeBaseUsage, String>((ref, baseId) {
+      ref.webCache();
       watchMenuPath(ref, MenuPaths.baseUsage(baseId));
       return ref.watch(apiProvider).menu.getBaseUsage(id: baseId);
     });
@@ -28,6 +29,7 @@ final baseUsageProvider = FutureProvider.autoDispose
 /// so switching orgs refetches).
 final packagingRulesProvider = FutureProvider.autoDispose
     .family<List<PackagingRuleOut>, String>((ref, orgId) {
+      ref.webCache();
       watchMenuPath(ref, MenuPaths.packagingRules);
       return ref.watch(apiProvider).menu.listRules();
     });
@@ -36,6 +38,7 @@ final packagingRulesProvider = FutureProvider.autoDispose
 /// the rule rows' item names and the rule dialog's item picker.
 final packagingItemOptionsProvider = FutureProvider.autoDispose
     .family<List<MenuItemWithCosts>, String>((ref, orgId) async {
+      ref.webCache();
       watchMenuPath(ref, MenuPaths.costingCatalog);
       final page = await ref
           .watch(apiProvider)

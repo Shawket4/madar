@@ -54,8 +54,7 @@ class _AdjustDialogState extends ConsumerState<AdjustDialog> {
 
   /// Whether the branch choice shows: decided once, from the initial values
   /// (`branches.length > 1 || !getValues("branch_id")`).
-  late final bool _showBranch =
-      widget.branches.length > 1 || _branchId.isEmpty;
+  late final bool _showBranch = widget.branches.length > 1 || _branchId.isEmpty;
   String _direction = 'add';
   String _amount = '';
   String _reason = '';

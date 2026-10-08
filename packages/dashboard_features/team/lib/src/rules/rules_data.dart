@@ -20,6 +20,7 @@ import '../shared/staff_query.dart';
 final rulesBranchesProvider = FutureProvider.autoDispose<List<BranchRules>>((
   ref,
 ) {
+  ref.webCache();
   watchStaffPath(ref, '/staff/attendance/settings/branches');
   return ref.watch(apiProvider).staff.listBranchRules();
 });
@@ -27,6 +28,7 @@ final rulesBranchesProvider = FutureProvider.autoDispose<List<BranchRules>>((
 /// `GET /staff/attendance/settings[?branch_id]`: null is the business.
 final rulesSettingsProvider = FutureProvider.autoDispose
     .family<AttendanceSettings, String?>((ref, branchId) {
+      ref.webCache();
       watchStaffPath(ref, '/staff/attendance/settings');
       return ref
           .watch(apiProvider)

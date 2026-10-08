@@ -91,7 +91,8 @@ class DevicesTable extends ConsumerWidget {
       onRowTap: onEdit,
       hideViewOptions: true,
       pageSize: 20,
-      rowSemanticLabel: (d) => d.label == null ? d.code : '${d.code} ${d.label}',
+      rowSemanticLabel: (d) =>
+          d.label == null ? d.code : '${d.code} ${d.label}',
       rowActions: (context, d) => AdminRowAction(
         icon: 'pencil',
         label: t('common.edit'),
@@ -162,9 +163,8 @@ class DevicesTable extends ConsumerWidget {
         DashColumn<Device>(
           id: 'state',
           label: t('common.status'),
-          text: (d) => d.retiredAt != null
-              ? t('devices.retired')
-              : t('devices.active'),
+          text: (d) =>
+              d.retiredAt != null ? t('devices.retired') : t('devices.active'),
           cell: (context, d) => Align(
             alignment: AlignmentDirectional.centerStart,
             child: d.retiredAt != null

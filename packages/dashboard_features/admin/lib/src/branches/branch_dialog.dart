@@ -116,8 +116,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
     _standardFloat = float == null ? null : float / 100;
   }
 
-  bool get _platform =>
-      ref.read(currentSessionProvider)?.isPlatform ?? false;
+  bool get _platform => ref.read(currentSessionProvider)?.isPlatform ?? false;
 
   // ── validation (the web's zod schema, in the kit's words) ──────────────
 
@@ -351,8 +350,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
     final platform =
-        ref.watch(currentSessionProvider.select((s) => s?.isPlatform)) ??
-        false;
+        ref.watch(currentSessionProvider.select((s) => s?.isPlatform)) ?? false;
     final zones = ref.watch(branchTimezonesProvider).value ?? const <String>[];
     final wide =
         DashSurfaceScope.maybeOf(context) != DashSurfaceMode.fullScreen;

@@ -49,10 +49,7 @@ void main() {
     );
     expect(all.branchName, 'All branches');
     expect(all.totalRevenue, revenue);
-    expect(
-      all.totalOrders,
-      cmp.branches.fold(0, (s, b) => s + b.totalOrders),
-    );
+    expect(all.totalOrders, cmp.branches.fold(0, (s, b) => s + b.totalOrders));
     // The payment buckets are goods only and add up to revenue.
     final methods = (all.revenueByMethod! as Map).values.cast<int>();
     expect(methods.fold(0, (s, v) => s + v), revenue);
@@ -78,22 +75,25 @@ void main() {
     expect(delivery.totalRevenue, greaterThan(0));
   });
 
-  test('comparison: every branch of the org, ranked, for anyone in it', () async {
-    server.persona = Persona.manager;
-    final cmp = await api.reports.orgBranchComparison(
-      orgId: SeedIds.sabahOrg,
-      from: from,
-      to: to,
-    );
-    expect(cmp.branches.map((b) => b.branchName), hasLength(4));
-    final revs = cmp.branches.map((b) => b.totalRevenue).toList();
-    expect(revs, [...revs]..sort((a, b) => b.compareTo(a)));
-    // Another org is refused.
-    final e = await refusal(
-      () => api.reports.orgBranchComparison(orgId: SeedIds.nakhlaOrg),
-    );
-    expect((e as ApiException).status, 403);
-  });
+  test(
+    'comparison: every branch of the org, ranked, for anyone in it',
+    () async {
+      server.persona = Persona.manager;
+      final cmp = await api.reports.orgBranchComparison(
+        orgId: SeedIds.sabahOrg,
+        from: from,
+        to: to,
+      );
+      expect(cmp.branches.map((b) => b.branchName), hasLength(4));
+      final revs = cmp.branches.map((b) => b.totalRevenue).toList();
+      expect(revs, [...revs]..sort((a, b) => b.compareTo(a)));
+      // Another org is refused.
+      final e = await refusal(
+        () => api.reports.orgBranchComparison(orgId: SeedIds.nakhlaOrg),
+      );
+      expect((e as ApiException).status, 403);
+    },
+  );
 
   test('all branches rolls up only the caller\'s branches', () async {
     server.persona = Persona.manager;
@@ -114,38 +114,47 @@ void main() {
     final e = await refusal(
       () => api.reports.branchSales(branchId: SeedIds.maadi),
     );
-    expect((e as ApiException).message, contains('Not assigned to this branch'));
+    expect(
+      (e as ApiException).message,
+      contains('Not assigned to this branch'),
+    );
   });
 
-  test('a platform admin with no org in scope is refused all branches', () async {
-    server.persona = Persona.platform;
-    final e = await refusal(
-      () => api.reports.branchSales(branchId: nilBranchId),
-    );
-    expect((e as ApiException).status, 403);
-    server.platformOrgId = SeedIds.sabahOrg;
-    final ok = await api.reports.branchSales(
-      branchId: nilBranchId,
-      from: from,
-      to: to,
-    );
-    expect(ok.totalOrders, greaterThan(0));
-  });
+  test(
+    'a platform admin with no org in scope is refused all branches',
+    () async {
+      server.persona = Persona.platform;
+      final e = await refusal(
+        () => api.reports.branchSales(branchId: nilBranchId),
+      );
+      expect((e as ApiException).status, 403);
+      server.platformOrgId = SeedIds.sabahOrg;
+      final ok = await api.reports.branchSales(
+        branchId: nilBranchId,
+        from: from,
+        to: to,
+      );
+      expect(ok.totalOrders, greaterThan(0));
+    },
+  );
 
-  test('timeseries: naive wall-clock periods, only those with orders', () async {
-    final today = await api.reports.branchSalesTimeseries(
-      branchId: SeedIds.zamalek,
-      from: DateTime.parse('2026-10-07T21:00:00.000Z'),
-      to: DateTime.parse('2026-10-08T20:59:59.999Z'),
-      granularity: 'hourly',
-    );
-    expect(today, isNotEmpty);
-    for (final p in today) {
-      expect(p.period, matches(RegExp(r'^2026-10-08T\d\d:00:00$')));
-    }
-    // Nothing after the seed's "now" (10:00 Cairo).
-    expect(today.last.period.compareTo('2026-10-08T10:00:00'), lessThan(0));
-  });
+  test(
+    'timeseries: naive wall-clock periods, only those with orders',
+    () async {
+      final today = await api.reports.branchSalesTimeseries(
+        branchId: SeedIds.zamalek,
+        from: DateTime.parse('2026-10-07T21:00:00.000Z'),
+        to: DateTime.parse('2026-10-08T20:59:59.999Z'),
+        granularity: 'hourly',
+      );
+      expect(today, isNotEmpty);
+      for (final p in today) {
+        expect(p.period, matches(RegExp(r'^2026-10-08T\d\d:00:00$')));
+      }
+      // Nothing after the seed's "now" (10:00 Cairo).
+      expect(today.last.period.compareTo('2026-10-08T10:00:00'), lessThan(0));
+    },
+  );
 
   test('delivery: the four channels, zero-filled, in order', () async {
     final d = await api.reports.branchDeliverySales(

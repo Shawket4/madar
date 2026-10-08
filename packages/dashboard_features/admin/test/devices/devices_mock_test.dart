@@ -75,29 +75,36 @@ void main() {
   group('PATCH /devices/{id}', () {
     final t1 = AdminSeed.deviceId('zamalek', 'T1');
 
-    test('saves the code (trimmed, uppercased), the label and retired', () async {
-      final b = DevicesBackend();
-      final d = await b.api.devices.updateDevice(
-        id: t1,
-        body: const UpdateDeviceRequest(code: ' t5 ', label: '  Bar  ', retired: true),
-      );
-      expect(d.code, 'T5');
-      expect(d.label, 'Bar');
-      expect(d.retiredAt, b.db.clock.now);
-      final cleared = await b.api.devices.updateDevice(
-        id: t1,
-        body: const UpdateDeviceRequest(
-          code: 'T5',
-          retired: false,
-          explicitNulls: {'label'},
-        ),
-      );
-      expect(cleared.label, isNull);
-      expect(cleared.retiredAt, isNull);
-      // A later list shows it.
-      final list = await b.api.devices.listDevices(branchId: zamalek);
-      expect(list.map((d) => d.code), contains('T5'));
-    });
+    test(
+      'saves the code (trimmed, uppercased), the label and retired',
+      () async {
+        final b = DevicesBackend();
+        final d = await b.api.devices.updateDevice(
+          id: t1,
+          body: const UpdateDeviceRequest(
+            code: ' t5 ',
+            label: '  Bar  ',
+            retired: true,
+          ),
+        );
+        expect(d.code, 'T5');
+        expect(d.label, 'Bar');
+        expect(d.retiredAt, b.db.clock.now);
+        final cleared = await b.api.devices.updateDevice(
+          id: t1,
+          body: const UpdateDeviceRequest(
+            code: 'T5',
+            retired: false,
+            explicitNulls: {'label'},
+          ),
+        );
+        expect(cleared.label, isNull);
+        expect(cleared.retiredAt, isNull);
+        // A later list shows it.
+        final list = await b.api.devices.listDevices(branchId: zamalek);
+        expect(list.map((d) => d.code), contains('T5'));
+      },
+    );
 
     test('refuses a bad code (400) and a taken one (409)', () async {
       final b = DevicesBackend();
@@ -151,18 +158,14 @@ void main() {
     test('newest first, the state from the stamps', () async {
       final b = DevicesBackend();
       final list = await b.api.devices.listCodes(branchId: zamalek);
-      expect([for (final c in list) c.code], [
-        '40721958',
-        '77219034',
-        '55102846',
-        '18364052',
-      ]);
-      expect([for (final c in list) c.state.value], [
-        'free',
-        'expired',
-        'revoked',
-        'used',
-      ]);
+      expect(
+        [for (final c in list) c.code],
+        ['40721958', '77219034', '55102846', '18364052'],
+      );
+      expect(
+        [for (final c in list) c.state.value],
+        ['free', 'expired', 'revoked', 'used'],
+      );
       // A day later the free one has expired.
       b.db.clock.advance(const Duration(days: 1));
       final later = await b.api.devices.listCodes(branchId: zamalek);

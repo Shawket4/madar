@@ -32,7 +32,9 @@ class DevicesPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final branchId = ref.watch(currentScopeProvider.select((s) => s.branchId));
-    final search = DevicesSearch.parse(GoRouterState.of(context).uri.queryParameters);
+    final search = DevicesSearch.parse(
+      GoRouterState.of(context).uri.queryParameters,
+    );
     final view = search.effectiveView;
 
     // `usePageSearch().update`: merge into the current query (scope params
@@ -46,8 +48,7 @@ class DevicesPage extends ConsumerWidget {
         branchId: branchId,
         days: search.effectiveDays,
         legacyOnly: search.legacyOnly,
-        onDays: (d) =>
-            update({'days': d == defaultClientWindow ? null : '$d'}),
+        onDays: (d) => update({'days': d == defaultClientWindow ? null : '$d'}),
         onLegacyOnly: (on) => update({'all': on ? null : 'true'}),
       );
     } else if (branchId == null) {
@@ -89,9 +90,8 @@ class DevicesPage extends ConsumerWidget {
               label: t('devices.clients.title'),
             ),
           ],
-          onChanged: (v) => update({
-            'view': v == DevicesView.devices ? null : 'clients',
-          }),
+          onChanged: (v) =>
+              update({'view': v == DevicesView.devices ? null : 'clients'}),
         ),
       ),
       body: body,

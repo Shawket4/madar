@@ -1,7 +1,7 @@
 name: madar_dashboard
 description: "Madar management dashboard — native Flutter app, a thin Riverpod UI over the shared madar-core (via the dashboard FRB bindings)."
 publish_to: 'none'
-version: 1.0.0+1
+version: 0.1.0+1
 resolution: workspace
 
 environment:

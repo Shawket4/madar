@@ -483,7 +483,9 @@ class _SetupRulesStepState extends ConsumerState<SetupRulesStep> {
                     color: c.muted.withValues(alpha: 0.6),
                     child: Row(
                       children: [
-                        Expanded(child: cell(t('dawam.setupLateBy'), style: head)),
+                        Expanded(
+                          child: cell(t('dawam.setupLateBy'), style: head),
+                        ),
                         Expanded(child: cell(t('staff.deduct'), style: head)),
                         Expanded(
                           child: cell(
@@ -548,7 +550,9 @@ class _SetupRulesStepState extends ConsumerState<SetupRulesStep> {
 
     final facts = [
       t('dawam.setupAbsence', args: {'n': values.absenceDaysText}),
-      values.overtimeMode == 'off' ? t('dawam.setupOtOff') : t('dawam.setupOtOn'),
+      values.overtimeMode == 'off'
+          ? t('dawam.setupOtOff')
+          : t('dawam.setupOtOn'),
       t('dawam.setupPayDay', args: {'n': values.periodStartDay}),
       t('dawam.setupGrace'),
     ];
@@ -580,7 +584,9 @@ class _SetupRulesStepState extends ConsumerState<SetupRulesStep> {
       spacing: Space.lg,
       children: [
         Text(
-          saved ? t('dawam.setupRulesAreSaved') : t('dawam.setupRulesSuggested'),
+          saved
+              ? t('dawam.setupRulesAreSaved')
+              : t('dawam.setupRulesSuggested'),
           style: DashType.body.copyWith(color: c.textPrimary),
         ),
         table,
@@ -620,16 +626,13 @@ class _SetupRulesStepState extends ConsumerState<SetupRulesStep> {
           args: {'from': tier.fromMinutes, 'to': tier.toMinutes},
         );
 
-  String _cost(Translator t, DashFormat f, SetupTier tier) =>
-      switch (tier.kind) {
-        'minutes' => t(
-          'staff.tierCostMinutes',
-          args: {'n': jsNumber(tier.value)},
-        ),
-        'day_fraction' => t(
-          'staff.tierCostDay',
-          args: {'n': jsNumber(tier.value)},
-        ),
-        _ => f.fmtMoney(tier.value),
-      };
+  String _cost(
+    Translator t,
+    DashFormat f,
+    SetupTier tier,
+  ) => switch (tier.kind) {
+    'minutes' => t('staff.tierCostMinutes', args: {'n': jsNumber(tier.value)}),
+    'day_fraction' => t('staff.tierCostDay', args: {'n': jsNumber(tier.value)}),
+    _ => f.fmtMoney(tier.value),
+  };
 }
