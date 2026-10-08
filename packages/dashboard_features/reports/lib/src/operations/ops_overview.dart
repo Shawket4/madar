@@ -258,11 +258,11 @@ class _OpsOverviewViewState extends ConsumerState<OpsOverviewView> {
         emptyTitle: noData,
         onRetry: retry,
         chart: (_) => loading
-            ? const Column(
+            ? Column(
                 spacing: Space.sm,
                 children: [
                   for (var i = 0; i < 5; i++)
-                    DashSkeleton(height: Space.xxl + Space.xs),
+                    const DashSkeleton(height: Space.xxl + Space.xs),
                 ],
               )
             : Column(

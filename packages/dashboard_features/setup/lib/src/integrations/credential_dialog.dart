@@ -4,7 +4,7 @@
 /// handoff; nothing here ever shows it.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart';
+import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';

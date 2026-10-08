@@ -313,14 +313,15 @@ class BasiraMock {
   }
 
   Stream<String> _live(BasiraLiveStream live) {
-    live._c
-      ..onListen = () => live._listened = true
-      ..onCancel = () {
-        if (!live._c.isClosed) {
-          live._cancelled = true;
-          cancelled++;
-        }
-      };
+    live._c.onListen = () {
+      live._listened = true;
+    };
+    live._c.onCancel = () {
+      if (!live._c.isClosed) {
+        live._cancelled = true;
+        cancelled++;
+      }
+    };
     return live._c.stream;
   }
 
@@ -1332,7 +1333,7 @@ class BasiraMock {
       _lines[orderId] ??= [
         for (final l in MockSeed.instance.orderItems(orderId))
           (
-            _itemsById[l.menuItemId]?.key ?? l.menuItemId,
+            _itemsById[l.menuItemId]?.key ?? l.menuItemId ?? '',
             l.quantity,
             l.lineTotal,
           ),

@@ -9,7 +9,7 @@
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show CustomerDetail, CustomerOrder, OrderFull, TableHistory, TableSitting;
+    show CustomerDetail, CustomerOrder, OrderFull, TableSitting;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/report_shared.dart';
+import 'ops_charts.dart';
 import 'ops_data.dart';
 import 'ops_support.dart';
 import 'ops_tables.dart';

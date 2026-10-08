@@ -20,6 +20,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 /// The web's `h-72` plot.
 const double opsChartHeight = 288;
@@ -498,23 +499,23 @@ class OpsEqualRow extends MultiChildRenderObjectWidget {
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
-      _RenderEqualRow(gap: gap, textDirection: Directionality.of(context));
+      RenderOpsEqualRow(gap: gap, textDirection: Directionality.of(context));
 
   @override
-  void updateRenderObject(BuildContext context, _RenderEqualRow renderObject) {
+  void updateRenderObject(BuildContext context, RenderOpsEqualRow renderObject) {
     renderObject
       ..gap = gap
       ..textDirection = Directionality.of(context);
   }
 }
 
-class _EqualRowParentData extends ContainerBoxParentData<RenderBox> {}
+class OpsEqualRowParentData extends ContainerBoxParentData<RenderBox> {}
 
-class _RenderEqualRow extends RenderBox
+class RenderOpsEqualRow extends RenderBox
     with
-        ContainerRenderObjectMixin<RenderBox, _EqualRowParentData>,
-        RenderBoxContainerDefaultsMixin<RenderBox, _EqualRowParentData> {
-  _RenderEqualRow({required double gap, required TextDirection textDirection})
+        ContainerRenderObjectMixin<RenderBox, OpsEqualRowParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, OpsEqualRowParentData> {
+  RenderOpsEqualRow({required double gap, required TextDirection textDirection})
     : _gap = gap,
       _textDirection = textDirection;
 
@@ -532,8 +533,8 @@ class _RenderEqualRow extends RenderBox
 
   @override
   void setupParentData(RenderBox child) {
-    if (child.parentData is! _EqualRowParentData) {
-      child.parentData = _EqualRowParentData();
+    if (child.parentData is! OpsEqualRowParentData) {
+      child.parentData = OpsEqualRowParentData();
     }
   }
 
@@ -560,7 +561,7 @@ class _RenderEqualRow extends RenderBox
     for (final k in kids) {
       k.layout(BoxConstraints.tight(Size(w, tallest)), parentUsesSize: true);
       final dx = _textDirection == TextDirection.rtl ? width - x - w : x;
-      (k.parentData! as _EqualRowParentData).offset = Offset(dx, 0);
+      (k.parentData! as OpsEqualRowParentData).offset = Offset(dx, 0);
       x += w + _gap;
     }
     size = constraints.constrain(Size(width, tallest));

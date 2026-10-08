@@ -2,7 +2,6 @@
 // ?edit=<id>, prefilled from the row, the logo uploaded at once, one PATCH
 // on Save — driven through the real shell on the mock server.
 import 'package:dashboard_admin/src/area_seed.dart';
-import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
@@ -468,7 +467,13 @@ void main() {
     expect(h.location.queryParameters.containsKey('edit'), isFalse);
 
     await h.tapText('Layali Bistro');
-    await h.tapLabel('Close');
+    // The dialog's ✕ (the barrier behind it is labelled "Close" too).
+    await h.tap(
+      find.descendant(
+        of: find.byType(DashSurface),
+        matching: find.bySemanticsLabel('Close'),
+      ),
+    );
     expect(find.text('Edit Organization'), findsNothing);
     expect(h.location.queryParameters.containsKey('edit'), isFalse);
   });

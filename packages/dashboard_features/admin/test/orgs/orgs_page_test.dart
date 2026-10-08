@@ -27,6 +27,19 @@ DashButton _button(WidgetTester tester, String label) => tester.widget(
 Finder _inSidebar(String s) =>
     find.descendant(of: find.byType(DashSidebar), matching: find.text(s));
 
+/// Scrolls the sidebar (it builds lazily) until [label] shows.
+Future<void> _scrollSidebarTo(DashHarness h, String label) =>
+    h.scrollUntilVisible(
+      _inSidebar(label),
+      delta: 120,
+      scrollable: find
+          .descendant(
+            of: find.byType(DashSidebar),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+
 Finder _inConfirm(String text) =>
     find.descendant(of: find.byType(DashConfirmDialog), matching: find.text(text));
 
@@ -35,6 +48,7 @@ void main() {
     testWidgets('ADM-ORG-001 the sidebar and the palette offer Organizations '
         'to a platform admin', (tester) async {
       final h = await pumpOrgs(tester);
+      await _scrollSidebarTo(h, 'Organizations');
       expect(_inSidebar('Organizations'), findsOneWidget);
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
       await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
@@ -55,6 +69,8 @@ void main() {
       tester,
     ) async {
       final h = await pumpOrgs(tester, persona: Persona.owner);
+      // Branches follows Organizations in the Admin group.
+      await _scrollSidebarTo(h, 'Branches');
       expect(_inSidebar('Branches'), findsOneWidget);
       expect(_inSidebar('Organizations'), findsNothing);
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
@@ -135,10 +151,14 @@ void main() {
       });
       await pumpOrgs(tester, server: s.server, db: s.db);
       expect(
-        find.descendant(of: find.byType(DashBadge), matching: find.text('USD')),
+        find.descendant(of: find.byType(DashBadge), matching: textHas('USD')),
         findsOneWidget,
       );
-      expect(find.text('EGP'), findsNWidgets(3));
+      // Mono badges isolate their text (LTR inside Arabic).
+      expect(
+        find.descendant(of: find.byType(DashBadge), matching: textHas('EGP')),
+        findsNWidgets(3),
+      );
       expect(textHas('14.5%'), findsOneWidget);
       expect(textHas('14%'), findsNWidgets(3));
       // Sabah is on the branding tier; the others are not.
@@ -173,7 +193,10 @@ void main() {
       s.db['orgs'].update(AdminSeed.qahwaOrg, {'currency_code': 'SAR'});
       final h = await pumpOrgs(tester, server: s.server, db: s.db);
       final search = find.byType(DashSearchInput);
-      expect(find.text('Search'), findsOneWidget);
+      expect(
+        find.descendant(of: search, matching: find.text('Search')),
+        findsOneWidget,
+      );
 
       await h.enterText(search, 'nakhla');
       expect(find.text('Nakhla Bakery'), findsOneWidget);

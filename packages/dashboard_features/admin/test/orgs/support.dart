@@ -3,7 +3,9 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:dashboard_admin/dashboard_admin.dart';
+import 'package:dashboard_admin/src/mock/register.dart';
+import 'package:dashboard_admin/src/orgs/orgs_page.dart';
+import 'package:go_router/go_router.dart';
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
@@ -24,7 +26,7 @@ Future<DashHarness> pumpOrgs(
   MockDb? db,
 }) => DashHarness.pump(
   tester,
-  areas: const [adminArea],
+  areas: const [_orgsOnlyArea],
   path: path,
   persona: persona,
   size: size,
@@ -81,3 +83,26 @@ Map<String, Object?> lastBody(
 
 /// Text widgets whose text contains [s] (spans included).
 Finder textHas(String s) => find.textContaining(s, findRichText: true);
+
+// TEMPORARY (while another unit's files do not compile): the admin area with
+// only the /orgs route. Restore `adminArea` before finishing.
+Widget _orgs(BuildContext context, GoRouterState state) => const OrgsPage();
+
+const DashArea _orgsOnlyArea = DashArea(
+  key: 'admin',
+  routes: [
+    DashRoute(
+      path: OrgsPage.path,
+      builder: _orgs,
+      titleKey: 'nav.orgs',
+      titleFallback: 'Organizations',
+    ),
+  ],
+  registerMocks: registerAdminMocks,
+  i18nSupplements: [
+    'packages/dashboard_admin/assets/i18n/en.json',
+    'packages/dashboard_admin/assets/i18n/ar.json',
+    'packages/dashboard_admin/assets/i18n/orgs.en.json',
+    'packages/dashboard_admin/assets/i18n/orgs.ar.json',
+  ],
+);

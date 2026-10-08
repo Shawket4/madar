@@ -541,15 +541,16 @@ class _TemplateCards extends StatelessWidget {
         _ => null,
       };
       final name = arabic ? tpl.nameAr : tpl.nameEn;
-      return Semantics(
-        inMutuallyExclusiveGroup: true,
-        child: DashPressable(
-          key: ValueKey('wizard-template-${tpl.key}'),
-          onTap: () => onPick(tpl.key),
-          checked: on,
-          semanticLabel: name,
-          pressScale: false,
-          builder: (context, s) => Container(
+      // The card's own words are its label (name, then the hint); the
+      // radio-group flag sits on the same node as the checked state.
+      return DashPressable(
+        key: ValueKey('wizard-template-${tpl.key}'),
+        onTap: () => onPick(tpl.key),
+        checked: on,
+        pressScale: false,
+        builder: (context, s) => Semantics(
+          inMutuallyExclusiveGroup: true,
+          child: Container(
             constraints: const BoxConstraints(minHeight: DashMetrics.target),
             padding: const EdgeInsets.all(Space.md),
             decoration: BoxDecoration(

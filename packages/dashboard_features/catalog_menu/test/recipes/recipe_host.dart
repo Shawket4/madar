@@ -7,16 +7,19 @@
 import 'dart:async';
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show AddonIngredient, ApiException;
+    show AddonIngredient, OptionRecipeLineInput;
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_catalog_menu/dashboard_catalog_menu.dart';
 import 'package:dashboard_catalog_menu/src/area_seed.dart';
+import 'package:dashboard_catalog_menu/src/recipes/recipe_providers.dart';
 import 'package:dashboard_catalog_menu/src/shared/menu_providers.dart';
+import 'package:dashboard_catalog_menu/src/shared/menu_queries.dart';
 import 'package:dashboard_catalog_menu/src/shared/menu_text.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -59,12 +62,25 @@ final DashArea recipeHostArea = DashArea(
   i18nSupplements: catalogMenuArea.i18nSupplements,
 );
 
+/// A seeded server with the core's and the menu area's handlers, for a test
+/// that changes the data or the answers before the page opens.
+({MockServer server, MockDb db}) recipeServer({
+  Persona persona = Persona.owner,
+}) {
+  final db = MockDb.seeded();
+  final server = MockServer(persona: persona, clock: db.clock);
+  registerCoreMocks(server, db);
+  registerCatalogMenuMocks(server, db);
+  return (server: server, db: db);
+}
+
 Future<DashHarness> pumpRecipeHost(
   WidgetTester tester, {
   Persona persona = Persona.owner,
   DashSize size = DashSize.desktop,
   String locale = 'en',
   bool dark = false,
+  ({MockServer server, MockDb db})? seeded,
 }) => DashHarness.pump(
   tester,
   areas: [recipeHostArea],
@@ -73,6 +89,8 @@ Future<DashHarness> pumpRecipeHost(
   size: size,
   locale: locale,
   dark: dark,
+  server: seeded?.server,
+  db: seeded?.db,
 );
 
 /// Opens [builder]'s surface as the hosts do (`sm:max-w-2xl`; full screen on
@@ -93,27 +111,20 @@ String get sabahOrg => SeedIds.sabahOrg;
 /// The seeded Extras group's options (add-ons).
 String extrasOption(String key) => MenuSeedIds.option('extras', key);
 
-/// `GET /recipes/addons/{id}` as the add-on recipe dialog reads it.
-final addonLinesProvider = FutureProvider.autoDispose
-    .family<List<AddonIngredient>, String>(
-      (ref, id) =>
-          ref.watch(apiProvider).recipes.listAddonIngredients(addonItemId: id),
-    );
-
-/// What the standalone host's Save received.
+/// What the standalone host's Save was handed, and a way to hold it.
 class SaveLog {
   final List<(List<CleanRow>, List<RemovedRow>)> calls = [];
 
-  /// When set, the next save waits for it.
+  /// When set, the save waits for it before writing.
   Completer<void>? hold;
-
-  /// When set, the next save fails with it (the host toasts and rethrows).
-  ApiException? failWith;
 }
 
-/// The add-on recipe dialog's wiring: the add-on's lines and the catalog
-/// load, then one `one_size` column, margin against the default price,
-/// "New ingredient" on, its own Save.
+/// The add-on recipe dialog's wiring (`addon-recipe-dialog.tsx`): the
+/// add-on's lines (a spinner while they load) and the catalog, one
+/// `one_size` column, margin against the default price, "New ingredient"
+/// on, its own Save: `PUT /modifier-options/{oid}/recipe` with the lines
+/// linked to a catalog ingredient → invalidate the catalog → "Recipe saved"
+/// → close; a failure toasts the server's words and stays dirty.
 class AddonRecipeHost extends ConsumerWidget {
   const AddonRecipeHost({
     required this.addonId,
@@ -124,25 +135,29 @@ class AddonRecipeHost extends ConsumerWidget {
     super.key,
   });
 
-  /// The web's dialog closes after a save; off, the builder stays to show
-  /// its new baseline.
-  final bool closeOnSave;
   final String addonId;
   final String addonName;
   final int? defaultPrice;
   final SaveLog log;
+
+  /// The web's dialog closes after a save; off, the builder stays open to
+  /// show its new baseline.
+  final bool closeOnSave;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final catalog =
         ref.watch(ingredientCatalogProvider(sabahOrg)).value ?? const [];
-    final lines = ref.watch(addonLinesProvider(addonId));
+    final lines = ref.watch(addonIngredientsProvider(addonId));
     return DashSurface(
       title: t('menu.addonRecipe.title'),
       description: '$addonName — ${t('menu.addonRecipe.desc')}',
-      body: lines.isLoading
-          ? const Center(child: MadarSpinner())
+      body: lines.isLoading && !lines.hasValue
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: Space.xxl),
+              child: Center(child: MadarSpinner()),
+            )
           : RecipeBuilder(
               orgId: sabahOrg,
               sizes: const [oneSize],
@@ -162,16 +177,32 @@ class AddonRecipeHost extends ConsumerWidget {
                 log.calls.add((rows, removed));
                 final hold = log.hold;
                 if (hold != null) await hold.future;
-                final fail = log.failWith;
-                if (fail != null) {
+                try {
+                  await ref
+                      .read(apiProvider)
+                      .menu
+                      .putOptionRecipe(
+                        oid: addonId,
+                        body: [
+                          for (final r in rows)
+                            if (r.orgIngredientId != null)
+                              OptionRecipeLineInput(
+                                ingredientId: r.orgIngredientId!,
+                                quantity: r.quantityUsed,
+                                unit: r.ingredientUnit,
+                              ),
+                        ],
+                      );
+                  ref.menuInvalidate.catalog();
                   if (context.mounted) {
-                    DashToast.error(context, fail.message);
+                    DashToast.success(context, t('recipes.builder.saved'));
+                    if (closeOnSave) Navigator.of(context).pop();
                   }
-                  throw fail;
-                }
-                if (context.mounted) {
-                  DashToast.success(context, t('recipes.builder.saved'));
-                  if (closeOnSave) Navigator.of(context).pop();
+                } on Object catch (e) {
+                  if (context.mounted) {
+                    DashToast.error(context, errorMessage(e, t));
+                  }
+                  rethrow;
                 }
               },
             ),
@@ -239,7 +270,7 @@ class ItemRecipeHost extends ConsumerWidget {
               ),
             ],
           ),
-          ValueListenableBuilder(
+          ValueListenableBuilder<List<RecipeRowInit>>(
             valueListenable: initialRows,
             builder: (context, rows, _) => RecipeBuilder(
               orgId: sabahOrg,
@@ -265,8 +296,8 @@ class ItemRecipeHost extends ConsumerWidget {
   }
 }
 
-/// A Caffè Latte's recipe as the item dialog seeds it (base espresso + its
-/// own milk), Regular and Large.
+/// A Caffè Latte's recipe as the item dialog seeds it (the house blend and
+/// full cream milk), Regular and Large.
 List<RecipeRowInit> latteRows() => [
   RecipeRowInit(
     sizeLabel: 'Regular',
@@ -322,7 +353,8 @@ Future<SaveLog> openExtraShot(
   return l;
 }
 
-/// Opens the item host with the latte (or [rows]) and returns its log.
+/// Opens the item host with the latte (or [rows]) and returns its log and
+/// the rows it seeds from (set them to re-seed).
 Future<(RowsLog, ValueNotifier<List<RecipeRowInit>>)> openLatte(
   DashHarness h, {
   List<String> sizes = const ['Regular', 'Large'],
@@ -353,10 +385,30 @@ Finder qtyBox(DashHarness h, String ingredient, String size) =>
       ),
     );
 
+/// The text in the quantity box [box].
+String qtyText(WidgetTester tester, Finder box) => tester
+    .widget<EditableText>(
+      find.descendant(
+        of: box,
+        matching: find.byType(EditableText),
+        matchRoot: true,
+      ),
+    )
+    .controller
+    .text;
+
 /// The ingredient picker showing [label] (a picked ingredient, or the
 /// placeholder).
 Finder ingredientPicker(DashHarness h, String label) =>
     find.bySemanticsLabel('${h.t('recipes.ingredient')}: $label');
 
-/// The section of [size] (its card).
+/// The section of the [index]th size (its card).
 Finder sizeSection(int index) => find.byKey(ValueKey('recipe-size-$index'));
+
+/// [finder] inside the [index]th size section.
+Finder inSection(int index, Finder finder) =>
+    find.descendant(of: sizeSection(index), matching: finder);
+
+/// The seeded ingredient [key]'s row in the mock db.
+MockRow? ingredientRow(MockDb db, String key) =>
+    db[MenuTables.ingredients].find(MenuSeedIds.ingredient(key));

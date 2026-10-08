@@ -13,10 +13,10 @@ import 'package:flutter_test/flutter_test.dart';
 const String setupPath = '/staff/setup';
 
 /// Sabah's branches by name (GET /branches sorts by name).
-const String heliopolis = SeedIds.heliopolis;
-const String maadi = SeedIds.maadi;
-const String newCairo = SeedIds.newCairo;
-const String zamalek = SeedIds.zamalek;
+final String heliopolis = SeedIds.heliopolis;
+final String maadi = SeedIds.maadi;
+final String newCairo = SeedIds.newCairo;
+final String zamalek = SeedIds.zamalek;
 
 /// A seeded server with the core's and the team area's handlers.
 ({MockServer server, MockDb db}) setupServer({

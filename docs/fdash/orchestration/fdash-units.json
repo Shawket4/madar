@@ -1,0 +1,472 @@
+{
+ "sell": {
+  "concurrency": 5,
+  "units": [
+   {
+    "key": "orders",
+    "title": "Orders: list, filters, detail sheet, void, export, delivery block (SELL-ORD rows + the SELL-ALL area-wide rows)",
+    "paths": [
+     "/orders"
+    ]
+   },
+   {
+    "key": "floor",
+    "title": "Floor-plan editor (SELL-FLR rows)",
+    "paths": [
+     "/floor"
+    ],
+    "scope": "physical geometry is never mirrored in RTL; share the POS table glyph constants"
+   },
+   {
+    "key": "bookings",
+    "title": "Bookings: timeline, list, create/edit, settings dialog (SELL-BKG rows)",
+    "paths": [
+     "/bookings"
+    ]
+   },
+   {
+    "key": "tills",
+    "title": "Tills: open now, history, till detail/report, open/close, open-tills card data (SELL-TIL rows)",
+    "paths": [
+     "/tills"
+    ]
+   },
+   {
+    "key": "customers",
+    "title": "Customers: list, detail sheet, merge, addresses, export (SELL-CUS rows)",
+    "paths": [
+     "/customers"
+    ]
+   }
+  ],
+  "area": "sell"
+ },
+ "catalog_menu": {
+  "concurrency": 6,
+  "units": [
+   {
+    "key": "items",
+    "title": "Menu items list with the categories and add-ons tabs, item/category/add-on dialogs, paste rows, export (MENU-ITEMS rows + MENU-AREA rows)",
+    "paths": [
+     "/menu/items"
+    ]
+   },
+   {
+    "key": "studio",
+    "title": "Item detail page and the menu studio (MENU-STUDIO rows)",
+    "paths": [
+     "/menu/items/:itemId"
+    ]
+   },
+   {
+    "key": "recipes",
+    "title": "Recipe builder and create-ingredient dialog, shared by the studio, item dialogs and onboarding (MENU-RCP rows); build it in lib/src/recipes and export it from the package",
+    "paths": [
+     "/menu/items/:itemId"
+    ]
+   },
+   {
+    "key": "groups",
+    "title": "Choice groups (MENU-GRP rows)",
+    "paths": [
+     "/menu/groups"
+    ]
+   },
+   {
+    "key": "pricing",
+    "title": "Pricing and availability (MENU-PRC rows)",
+    "paths": [
+     "/menu/pricing"
+    ]
+   },
+   {
+    "key": "bases",
+    "title": "Recipe bases and packaging (MENU-BAS and MENU-PKG rows)",
+    "paths": [
+     "/menu/bases",
+     "/menu/packaging"
+    ]
+   }
+  ],
+  "area": "catalog_menu"
+ },
+ "catalog_offers": {
+  "concurrency": 4,
+  "units": [
+   {
+    "key": "combo_editor",
+    "title": "Combo editor page (OFFR-CED rows)",
+    "paths": [
+     "/menu/combos/:comboId"
+    ]
+   },
+   {
+    "key": "combos",
+    "title": "Combos list (OFFR-CMB rows + OFFR-ALL area-wide rows)",
+    "paths": [
+     "/menu/combos"
+    ]
+   },
+   {
+    "key": "deals",
+    "title": "Deals (OFFR-DEA rows)",
+    "paths": [
+     "/menu/deals"
+    ]
+   },
+   {
+    "key": "discounts",
+    "title": "Discounts (OFFR-DSC rows)",
+    "paths": [
+     "/discounts"
+    ]
+   }
+  ],
+  "area": "catalog_offers"
+ },
+ "reports": {
+  "concurrency": 6,
+  "units": [
+   {
+    "key": "financial",
+    "title": "Financial report (REP-FIN rows)",
+    "paths": [
+     "/reports/financial"
+    ]
+   },
+   {
+    "key": "operations",
+    "title": "Operations report with its profitability and tables tabs (REP-OPS rows + REP-ALL area-wide rows)",
+    "paths": [
+     "/reports/operations"
+    ]
+   },
+   {
+    "key": "legal",
+    "title": "Legal report (REP-LEG rows)",
+    "paths": [
+     "/reports/legal"
+    ]
+   },
+   {
+    "key": "basira",
+    "title": "Basira AI analytics: chat with streamed answers, history, pinned answers, result blocks (REP-BAS rows)",
+    "paths": [
+     "/basira"
+    ]
+   },
+   {
+    "key": "tills_report",
+    "title": "Tills report (REP-TIL rows)",
+    "paths": [
+     "/reports/tills"
+    ]
+   },
+   {
+    "key": "staff_pool_bundles",
+    "title": "Staff drinks report and bundles report (REP-SPL and REP-BUN rows)",
+    "paths": [
+     "/reports/staff-pool",
+     "/reports/bundles"
+    ]
+   },
+   {
+    "key": "loyalty_inventory_staff",
+    "title": "Loyalty, inventory and staff discipline reports (REP-LOY, REP-INV, REP-STF rows)",
+    "paths": [
+     "/reports/loyalty",
+     "/reports/inventory",
+     "/reports/staff"
+    ]
+   }
+  ],
+  "area": "reports"
+ },
+ "inventory": {
+  "concurrency": 6,
+  "units": [
+   {
+    "key": "purchasing",
+    "title": "Purchasing: suppliers, purchase orders, receiving (INV-PUR rows)",
+    "paths": [
+     "/inventory/purchasing"
+    ]
+   },
+   {
+    "key": "counts",
+    "title": "Stock counts (INV-CNT rows)",
+    "paths": [
+     "/inventory/counts"
+    ]
+   },
+   {
+    "key": "ingredients",
+    "title": "Ingredients (INV-ING rows + INV-ALL area-wide rows)",
+    "paths": [
+     "/inventory/ingredients"
+    ]
+   },
+   {
+    "key": "today",
+    "title": "Inventory today (INV-TOD rows)",
+    "paths": [
+     "/inventory/today"
+    ]
+   },
+   {
+    "key": "waste",
+    "title": "Waste (INV-WST rows)",
+    "paths": [
+     "/inventory/waste"
+    ]
+   },
+   {
+    "key": "transfers",
+    "title": "Transfers (INV-TRF rows)",
+    "paths": [
+     "/inventory/transfers"
+    ]
+   },
+   {
+    "key": "inv_settings",
+    "title": "Inventory settings (INV-SET rows)",
+    "paths": [
+     "/inventory/settings"
+    ]
+   }
+  ],
+  "area": "inventory"
+ },
+ "team": {
+  "concurrency": 6,
+  "units": [
+   {
+    "key": "schedule",
+    "title": "Schedule (TEAM-SCH rows)",
+    "paths": [
+     "/staff/schedule"
+    ]
+   },
+   {
+    "key": "employees",
+    "title": "Employees incl. Excel import (TEAM-EMP rows + TEAM-ALL area-wide rows)",
+    "paths": [
+     "/staff/employees"
+    ]
+   },
+   {
+    "key": "team_setup",
+    "title": "Team setup (TEAM-SET rows)",
+    "paths": [
+     "/staff/setup"
+    ]
+   },
+   {
+    "key": "attendance",
+    "title": "Attendance (TEAM-ATT rows)",
+    "paths": [
+     "/staff/attendance"
+    ]
+   },
+   {
+    "key": "payroll",
+    "title": "Payroll incl. money sheets (TEAM-PAY and TEAM-MNY rows)",
+    "paths": [
+     "/staff/payroll"
+    ]
+   },
+   {
+    "key": "rules",
+    "title": "Rules (TEAM-RUL rows)",
+    "paths": [
+     "/staff/rules"
+    ]
+   },
+   {
+    "key": "requests",
+    "title": "Requests (TEAM-REQ rows)",
+    "paths": [
+     "/staff/requests"
+    ]
+   },
+   {
+    "key": "shifts",
+    "title": "Work shifts (TEAM-SHF rows)",
+    "paths": [
+     "/staff/shifts"
+    ]
+   },
+   {
+    "key": "team_board",
+    "title": "Team (TEAM-TEM rows)",
+    "paths": [
+     "/staff/team"
+    ]
+   },
+   {
+    "key": "approvals",
+    "title": "Approvals (TEAM-APR rows)",
+    "paths": [
+     "/staff/approvals"
+    ]
+   },
+   {
+    "key": "team_reports",
+    "title": "Team reports (TEAM-RPT rows)",
+    "paths": [
+     "/staff/reports"
+    ]
+   }
+  ],
+  "area": "team"
+ },
+ "setup": {
+  "concurrency": 6,
+  "units": [
+   {
+    "key": "loyalty",
+    "title": "Loyalty settings and members admin (SET-LOY rows)",
+    "paths": [
+     "/settings/loyalty"
+    ]
+   },
+   {
+    "key": "payment_methods",
+    "title": "Payment methods (SET-PAY rows)",
+    "paths": [
+     "/settings/payment-methods"
+    ]
+   },
+   {
+    "key": "integrations",
+    "title": "Integrations incl. the handoff file (SET-INT rows)",
+    "paths": [
+     "/settings/integrations"
+    ]
+   },
+   {
+    "key": "qr",
+    "title": "QR codes and print cards (SET-QR rows)",
+    "paths": [
+     "/settings/qr"
+    ]
+   },
+   {
+    "key": "links",
+    "title": "Links page editor (SET-LNK rows)",
+    "paths": [
+     "/settings/links"
+    ]
+   },
+   {
+    "key": "kitchen",
+    "title": "Kitchen stations and kitchen routing (SET-KST and SET-KRT rows)",
+    "paths": [
+     "/settings/kitchen-stations",
+     "/settings/kitchen-routing"
+    ]
+   },
+   {
+    "key": "staff_pool",
+    "title": "Staff drinks settings (SET-SPL rows)",
+    "paths": [
+     "/settings/staff-pool"
+    ]
+   },
+   {
+    "key": "delivery",
+    "title": "Delivery settings and delivery zones (SET-DLV and SET-DZN rows)",
+    "paths": [
+     "/settings/delivery",
+     "/settings/delivery-zones"
+    ]
+   },
+   {
+    "key": "brand_appearance",
+    "title": "Brand and appearance (SET-BRD and SET-APP rows) + the settings sub-nav shell (SET-SHL rows)",
+    "paths": [
+     "/settings/brand",
+     "/settings"
+    ]
+   },
+   {
+    "key": "booking_settings",
+    "title": "Bookings settings (SET-BKG rows)",
+    "paths": [
+     "/settings/bookings"
+    ]
+   },
+   {
+    "key": "combo_settings",
+    "title": "Combo settings (SET-CMB rows)",
+    "paths": [
+     "/settings/combos"
+    ]
+   },
+   {
+    "key": "whatsapp",
+    "title": "WhatsApp pairing, platform admins only (SET-WA rows)",
+    "paths": [
+     "/settings/whatsapp"
+    ]
+   }
+  ],
+  "area": "setup"
+ },
+ "admin": {
+  "concurrency": 6,
+  "units": [
+   {
+    "key": "orgs",
+    "title": "Organisations and provisioning wizard, platform admins (ADM-ORG rows)",
+    "paths": [
+     "/orgs"
+    ]
+   },
+   {
+    "key": "users",
+    "title": "Users (ADM-USR rows)",
+    "paths": [
+     "/access/users"
+    ]
+   },
+   {
+    "key": "branches",
+    "title": "Branches (ADM-BRA rows)",
+    "paths": [
+     "/branches"
+    ]
+   },
+   {
+    "key": "onboarding",
+    "title": "Onboarding wizard (ADM-ONB rows)",
+    "paths": [
+     "/onboarding"
+    ]
+   },
+   {
+    "key": "devices",
+    "title": "Devices and activation codes (ADM-DEV rows)",
+    "paths": [
+     "/devices"
+    ]
+   },
+   {
+    "key": "roles",
+    "title": "Roles and permissions (ADM-ROL rows)",
+    "paths": [
+     "/access/roles"
+    ]
+   },
+   {
+    "key": "review",
+    "title": "Review of flagged actions (ADM-REV rows)",
+    "paths": [
+     "/access/review"
+    ]
+   }
+  ],
+  "note": "The ADM-APP-* rows (sign-in, pickers, user menu, command palette, ask-a-manager, module gate, legacy redirects, live updates) belong to the app shell, owned by the foundation in dashboard_core/shell and apps/dashboard. They are OUT of scope for this area: do not implement them here.",
+  "area": "admin"
+ }
+}

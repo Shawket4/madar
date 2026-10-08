@@ -180,7 +180,7 @@ class PayslipDocLine {
   final String amount;
   final bool waived;
 
-  /// "Waived" / "Waived: <why>" on a waived line.
+  /// "Waived" / "Waived: why" on a waived line.
   final String? note;
 }
 
@@ -412,6 +412,6 @@ Future<List<int>> payslipPdf(PayslipDoc doc) async {
 String payslipFileName(PayslipDoc doc, PayrollPeriod? period) {
   final who = doc.person.trim().replaceAll(RegExp(r'[\s/\\:*?"<>|]+'), '-');
   final when = period?.startDate;
-  return ['payslip', ?when, who].join('-').toLowerCase().replaceAll('--', '-') +
-      '.pdf';
+  final stem = ['payslip', ?when, who].join('-').toLowerCase();
+  return '${stem.replaceAll('--', '-')}.pdf';
 }

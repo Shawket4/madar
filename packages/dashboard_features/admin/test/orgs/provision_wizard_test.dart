@@ -1,8 +1,6 @@
 // The provision wizard (ADM-ORG-025..040, 057, 059): three steps, each
 // checked on Next, one POST /orgs/provision, the logo after, conflicts sent
 // back to their field — driven through the real shell on the mock server.
-import 'dart:typed_data';
-
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
@@ -176,7 +174,7 @@ void main() {
       tester.getSemantics(
         find.byKey(const ValueKey('wizard-template-restaurant')),
       ),
-      containsSemantics(isChecked: true, isInMutuallyExclusiveGroup: true),
+      isSemantics(isChecked: true, isInMutuallyExclusiveGroup: true),
     );
     await _next(h);
     expect(find.text('Choose a template'), findsNothing);
@@ -272,7 +270,7 @@ void main() {
     expect(find.text('Modules'), findsOneWidget);
     expect(
       tester.getSemantics(find.byKey(const ValueKey('org-module-pos'))),
-      containsSemantics(label: 'Madar POS', isChecked: true),
+      isSemantics(label: 'Madar POS', isChecked: true),
     );
     await _business(h);
     await h.tapKey(const ValueKey('org-module-pos'));
