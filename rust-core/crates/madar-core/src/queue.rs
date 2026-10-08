@@ -343,6 +343,7 @@ impl MadarCore {
     /// plus the counter cart in hand, with names and totals, for the warning a
     /// till close shows first. Local only.
     pub fn close_preflight(&self) -> ClosePreflightView {
+        self.heal_queue();
         let locale = self.current_locale();
         let (me, _) = self.me();
         let this_order = crate::i18n::tr(&locale, "drafts.this_order");
@@ -1057,5 +1058,152 @@ mod tests {
         // The host's own call afterwards is a harmless no-op.
         core.complete_draft(id.clone(), None).unwrap();
         assert_eq!(status_of(&core, &id), "completed");
+    }
+
+    #[tokio::test]
+    async fn a_stale_host_meta_cannot_unhook_a_resumed_order_from_its_sale() {
+        let core = crate::testkit::offline_core("http://127.0.0.1:1", "").await;
+        core.store
+            .kv_put(
+                crate::menu::K_PAYMENT_METHODS,
+                r#"[{"id":"00000000-0000-0000-0000-0000000000e1","name":"Cash","is_cash":true,"is_active":true,"created_at":"2026-01-01T00:00:00Z"}]"#,
+            )
+            .unwrap();
+        core.cart_add(None, "c".into(), "Cookie".into(), 300).unwrap();
+        core.hold_cart(None, "Regular".into(), None, None).unwrap();
+        let id = core.list_drafts().unwrap()[0].id.clone();
+        core.switch_to_draft(None, id.clone(), None, None).unwrap();
+        // The host's copy of the meta predates the resume (its reload was
+        // skipped by a concurrent write) and it writes it back whole.
+        let stale = cart::CartMeta {
+            draft_id: None,
+            ..core.cart_meta(None).unwrap()
+        };
+        core.cart_set_meta(None, stale).unwrap();
+        assert_eq!(
+            core.cart_meta(None).unwrap().draft_id.as_deref(),
+            Some(id.as_str()),
+            "the link is the core's"
+        );
+        core.open_till(0, None).await.unwrap();
+
+        core.checkout(
+            None,
+            crate::checkout::CheckoutInput {
+                payment_method_id: "00000000-0000-0000-0000-0000000000e1".into(),
+                amount_tendered_minor: 10_000,
+                tip_minor: 0,
+                tip_payment_method_id: None,
+                customer_name: None,
+                notes: None,
+                splits: vec![],
+                loyalty_customer_id: None,
+                dine_in: false,
+                customer_id: None,
+                loyalty_redemptions: vec![],
+            },
+        )
+        .await
+        .unwrap();
+
+        // Completed by the sale itself, so no crash before the host's
+        // `complete_draft` can strand it — and the boot repair, which hands
+        // stranded claims back, can never offer a sold order again.
+        assert_eq!(status_of(&core, &id), "completed");
+        let in_hand = cart::drafts_in_hand(&core.store).unwrap();
+        let r = held::repair_mirror(&core.store, &core.lan_device_id(), &in_hand, "t9").unwrap();
+        assert_eq!(r, held::MirrorRepair::default());
+        assert!(strip(&core).is_empty());
+        // The host's own call afterwards is a harmless no-op.
+        core.complete_draft(id.clone(), None).unwrap();
+        assert_eq!(status_of(&core, &id), "completed");
+    }
+
+    /// What the till host does once the last line is gone (`cart_provider.dart`
+    /// `_apply`): it forgets the order's identity, `draftId` included.
+    fn host_forgets_the_emptied_cart(core: &MadarCore) {
+        let meta = cart::CartMeta {
+            name: String::new(),
+            draft_id: None,
+            started_at: None,
+            ..core.cart_meta(None).unwrap()
+        };
+        core.cart_set_meta(None, meta).unwrap();
+    }
+
+    #[test]
+    fn swiping_away_a_resumed_orders_last_line_puts_it_back_on_the_strip() {
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let id = park(&core, "Window");
+        core.switch_to_draft(None, id.clone(), None, None).unwrap();
+        for l in core.cart_lines(None).unwrap() {
+            core.cart_remove(None, l.key).unwrap();
+        }
+        host_forgets_the_emptied_cart(&core);
+
+        assert_eq!(
+            status_of(&core, &id),
+            "held",
+            "emptying is never a discard: the claim goes back"
+        );
+        assert_eq!(
+            strip(&core),
+            vec!["Window".to_string()],
+            "the order is visible again"
+        );
+        assert_eq!(
+            core.close_preflight().held_count,
+            1,
+            "and the close counts what the strip shows"
+        );
+        // The parked order holds the lines; an Undo would ring them a second time.
+        assert!(
+            core.cart_restore_removed(None).unwrap().is_empty(),
+            "nothing to undo into a second copy"
+        );
+    }
+
+    #[test]
+    fn zeroing_a_resumed_orders_last_line_puts_it_back_on_the_strip() {
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let id = park(&core, "Bar");
+        core.switch_to_draft(None, id.clone(), None, None).unwrap();
+        for l in core.cart_lines(None).unwrap() {
+            core.cart_set_qty(None, l.key, 0).unwrap();
+        }
+
+        assert_eq!(status_of(&core, &id), "held");
+        assert_eq!(strip(&core), vec!["Bar".to_string()]);
+        assert!(
+            core.cart_meta(None).unwrap().draft_id.is_none(),
+            "the empty cart no longer names it"
+        );
+    }
+
+    #[test]
+    fn the_strip_and_the_close_never_disagree_about_a_claim_with_no_lines() {
+        // A device already in the field: an order resumed here whose cart was
+        // emptied by a build without the fix, the meta forgotten or not.
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let a = park(&core, "Forgotten");
+        core.switch_to_draft(None, a.clone(), None, None).unwrap();
+        cart::clear(&core.store, None).unwrap(); // lines and meta gone, claim kept
+        let b = park(&core, "Still named");
+        core.switch_to_draft(None, b.clone(), None, None).unwrap();
+        cart::set_cart_payload(&core.store, None, &serde_json::json!([])).unwrap(); // lines gone, meta kept
+
+        let mut names = strip(&core);
+        names.sort();
+        assert_eq!(
+            names,
+            vec!["Forgotten".to_string(), "Still named".to_string()],
+            "no restart needed"
+        );
+        assert_eq!(core.close_preflight().held_count, 2);
+        assert_eq!(status_of(&core, &a), "held");
+        assert_eq!(status_of(&core, &b), "held");
     }
 }

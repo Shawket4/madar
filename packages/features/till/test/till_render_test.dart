@@ -1351,6 +1351,60 @@ void main() {
     expect(bridge.closes, hasLength(1));
     expect(bridge.leftHeldOpen, [true]);
   });
+
+  // The field report: seven held orders on a landscape iPad 9th gen pushed
+  // "Close anyway" off the sheet and the till could not be closed. The list
+  // scrolls; the buttons stay reachable however many there are.
+  testWidgets('close_till_with_many_held_orders_keeps_close_anyway_reachable', (
+    tester,
+  ) async {
+    const n = 12;
+    final bridge = _FakeBridge(
+      methods: [_methods.first],
+      preflight: ClosePreflightView(
+        heldCount: n,
+        heldTotalMinor: n * 13000,
+        held: [
+          for (var i = 0; i < n; i++)
+            HeldLeftOpenView(
+              id: 'h-$i',
+              label: 'Order $i',
+              startedByName: 'Sayed',
+              itemCount: 1,
+              totalMinor: 13000,
+              inHand: false,
+            ),
+        ],
+        title: _en['till.held_open_title']!.replaceAll('{count}', '$n'),
+        body: _en['till.held_open_body']!,
+      ),
+    );
+    await _shoot(
+      tester,
+      screen: const CloseTillScreen(),
+      bridge: bridge,
+      size: const Size(1080, 810),
+      theme: MadarTheme.light(),
+      name: 'flow-close-held-many',
+    );
+    await tester.enterText(find.byType(TextField).first, '2380');
+    await tester.pump(const Duration(milliseconds: 100));
+    await tapButton(tester, _en['till.close_title']!);
+    expect(tester.takeException(), isNull, reason: 'no overflow');
+    await _capture(tester, 'flow-close-held-many-sheet');
+
+    // The last order is there, by scrolling the list.
+    await tester.dragUntilVisible(
+      find.text('Order ${n - 1}'),
+      find.byKey(const ValueKey('held-close-list')),
+      const Offset(0, -200),
+    );
+    expect(find.text('Order ${n - 1}'), findsOneWidget);
+
+    await tapButton(tester, _en['till.held_open_continue']!);
+    expect(bridge.closes, hasLength(1));
+    expect(bridge.leftHeldOpen, [true]);
+  });
 }
 
 Future<void> _capture(WidgetTester tester, String name) async {

@@ -477,12 +477,25 @@ pub(crate) fn draft_in_hand(store: &Store, ctx: Ctx<'_>) -> Option<String> {
     meta(store, ctx).ok()?.draft_id.filter(|d| !d.is_empty())
 }
 
-/// Every held order some context's cart was resumed from.
+/// Every held order a cart is holding right now: resumed into a context whose
+/// cart still has lines. An EMPTY cart holds nothing, whatever its meta still
+/// names — counting it kept a claim whose cart was gone alive for ever (hidden
+/// from the strip, counted by every till close).
 pub(crate) fn drafts_in_hand(store: &Store) -> CoreResult<Vec<String>> {
     Ok(contexts(store)?
         .iter()
+        .filter(|c| {
+            lines(store, c.as_deref())
+                .map(|l| !l.is_empty())
+                .unwrap_or(false)
+        })
         .filter_map(|c| draft_in_hand(store, c.as_deref()))
         .collect())
+}
+
+/// Forget the swipe-delete stash (see `restore_last_removed`).
+pub(crate) fn forget_last_removed(store: &Store, ctx: Ctx<'_>) -> CoreResult<()> {
+    store.kv_put(&ctx_key(ctx, K_LAST_REMOVED)?, "[]")
 }
 
 /// Empty EVERY context's cart and meta (sign-out, shift close).

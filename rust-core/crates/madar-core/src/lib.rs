@@ -4748,6 +4748,7 @@ impl MadarCore {
         qty: i64,
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
         let lines = cart::set_qty(&self.store, table_id.as_deref(), &item_id, qty)?;
+        self.let_go_if_emptied(table_id.as_deref(), &lines)?;
         self.lines_with_staff_marks_settled(table_id.as_deref(), lines)
     }
     /// Remove a line entirely (stashed for undo — see `cart_restore_removed`).
@@ -4757,7 +4758,41 @@ impl MadarCore {
         item_id: String,
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
         let lines = cart::remove(&self.store, table_id.as_deref(), &item_id)?;
+        self.let_go_if_emptied(table_id.as_deref(), &lines)?;
         self.lines_with_deals_settled(table_id.as_deref(), lines)
+    }
+
+    /// A cart resumed from a held order just lost its last line: that is
+    /// emptying it (queue rule 9), so the order goes back on the strip as it
+    /// was parked and the cart stops naming it. The Undo stash goes too: the
+    /// parked order holds those lines, and restoring them into a fresh cart
+    /// would be a second copy of the same order.
+    fn let_go_if_emptied(
+        &self,
+        ctx: cart::Ctx<'_>,
+        lines: &[cart::CartLineView],
+    ) -> Result<(), CoreError> {
+        if !lines.is_empty() || cart::draft_in_hand(&self.store, ctx).is_none() {
+            return Ok(());
+        }
+        self.release_draft_in(ctx);
+        let mut meta = cart::meta(&self.store, ctx)?;
+        meta.draft_id = None;
+        cart::set_meta(&self.store, ctx, &meta)?;
+        cart::forget_last_removed(&self.store, ctx)?;
+        Ok(())
+    }
+
+    /// Bring the held queue back in line with the carts, the same repair a boot
+    /// runs (`held::repair_mirror`): a claim no cart with lines holds goes back
+    /// on the strip. The strip and the close warning both run it first, so they
+    /// can never disagree, and a device that never restarts still heals.
+    fn heal_queue(&self) {
+        let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
+        if let Ok(in_hand) = cart::drafts_in_hand(&self.store) {
+            let now = self.corrected_now().to_rfc3339();
+            let _ = held::repair_mirror(&self.store, &self.lan_device_id(), &in_hand, &now);
+        }
     }
     /// Undo the last `cart_remove` — re-inserts the swiped-away line. No-op if
     /// nothing was removed (or it was already restored / the cart was cleared).
@@ -4784,12 +4819,27 @@ impl MadarCore {
         cart::meta(&self.store, table_id.as_deref())
     }
     /// Replace one context's cart meta (cleared again when that cart is spent).
+    ///
+    /// Everything but `draft_id`: which held order a cart came from is the
+    /// core's to say (resuming sets it, parking, selling, firing and emptying
+    /// end it). The host writes its whole copy of the meta, and a stale copy
+    /// used to carry `draft_id: null` over a resumed cart — the sale then
+    /// never completed its held order, which stayed claimed, hidden from the
+    /// strip and counted by every till close. An empty cart's link is let go
+    /// here as at any other emptying.
     pub fn cart_set_meta(
         &self,
         table_id: Option<String>,
-        meta: cart::CartMeta,
+        mut meta: cart::CartMeta,
     ) -> Result<(), CoreError> {
-        cart::set_meta(&self.store, table_id.as_deref(), &meta)
+        let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
+        let ctx = table_id.as_deref();
+        meta.draft_id = cart::draft_in_hand(&self.store, ctx);
+        if meta.draft_id.is_some() && cart::lines(&self.store, ctx)?.is_empty() {
+            self.release_draft_in(ctx);
+            meta.draft_id = None;
+        }
+        cart::set_meta(&self.store, ctx, &meta)
     }
     /// Every table context that currently holds unsent lines.
     pub fn cart_table_contexts(&self) -> Result<Vec<String>, CoreError> {
@@ -5057,6 +5107,7 @@ impl MadarCore {
     /// never here. Also lifts any pre-upgrade drafts into the model (once).
     pub fn list_drafts(&self) -> Result<Vec<cart::DraftView>, CoreError> {
         self.migrate_legacy_drafts();
+        self.heal_queue();
         let me = self.current_session().map(|s| s.user_id).unwrap_or_default();
         held::drafts(&self.store, &self.lan_device_id(), &me)
     }

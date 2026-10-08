@@ -55,6 +55,37 @@ class HeldOrdersCloseWarning extends ConsumerWidget {
     final currency = bridge.currentSession()?.currencyCode ?? '';
     String money(int minor) =>
         bridge.formatMoney(minor: minor, currency: currency, signed: false);
+    Widget row(HeldLeftOpenView h) => Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              MadarClippedText(
+                h.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: MadarType.body.copyWith(color: colors.textPrimary),
+              ),
+              if (h.startedByName case final name?)
+                Text(
+                  bridge
+                      .tr(key: 'drafts.started_by')
+                      .replaceAll('{name}', name),
+                  style: MadarType.bodySm.copyWith(color: colors.textMuted),
+                ),
+            ],
+          ),
+        ),
+        Text(
+          money(h.totalMinor),
+          style: MadarType.body.copyWith(color: colors.textPrimary),
+        ),
+      ],
+    );
+    // The title and the two buttons stay put; only the orders scroll. With
+    // seven of them on an iPad the list pushed "Close anyway" off the sheet,
+    // and the till could not be closed at all.
     return Padding(
       padding: const EdgeInsetsDirectional.all(Space.xl),
       child: Column(
@@ -70,39 +101,16 @@ class HeldOrdersCloseWarning extends ConsumerWidget {
             preflight.body,
             style: MadarType.body.copyWith(color: colors.textSecondary),
           ),
-          for (final h in preflight.held)
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      MadarClippedText(
-                        h.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: MadarType.body.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      if (h.startedByName case final name?)
-                        Text(
-                          bridge
-                              .tr(key: 'drafts.started_by')
-                              .replaceAll('{name}', name),
-                          style: MadarType.bodySm.copyWith(
-                            color: colors.textMuted,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                Text(
-                  money(h.totalMinor),
-                  style: MadarType.body.copyWith(color: colors.textPrimary),
-                ),
-              ],
+          Flexible(
+            child: SingleChildScrollView(
+              key: const ValueKey('held-close-list'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: Space.md,
+                children: [for (final h in preflight.held) row(h)],
+              ),
             ),
+          ),
           const MadarHairline(),
           Row(
             children: [
