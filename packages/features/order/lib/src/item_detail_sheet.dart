@@ -321,7 +321,10 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
   ) {
     for (final g in args.groups) {
       final id = g.defaultOptionId;
-      if (id == null || single.containsKey(g.groupId)) continue;
+      // A required group is the teller's to answer, never pre-picked
+      // (owner, 2026-10-08).
+      if (id == null || g.isRequired || g.minSelections > 0) continue;
+      if (single.containsKey(g.groupId)) continue;
       if (g.options.any((o) => o.id == id)) single[g.groupId] = id;
     }
   }
@@ -347,7 +350,9 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
             )
             .firstOrNull;
     if (core != null) {
-      single[core.groupId] = milk;
+      if (!core.isRequired && core.minSelections <= 0) {
+        single[core.groupId] = milk;
+      }
       return;
     }
     if (args.groups.isNotEmpty) {
@@ -358,6 +363,7 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
     final slot = args.item.addonSlots
         .where((s) => s.addonType == 'milk_type')
         .firstOrNull;
+    if (slot?.isRequired ?? false) return;
     single[slot?.id ?? 'type:milk_type'] = milk;
   }
 
@@ -366,13 +372,14 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
     final single = <String, String>{};
     final multi = <String, Map<String, int>>{};
     var optionals = const <String>{};
-    var size = baseSizeLabel(item);
+    // Several sizes: none until the teller picks one (owner, 2026-10-08).
+    var size = sizeMustBePicked(item) ? null : baseSizeLabel(item);
     var qty = 1;
     final editLine = args.editLine;
     final pick = args.pick;
     if (pick != null && pick.addons.isNotEmpty) {
       // A combo pick already customised: reopen on what it holds.
-      size = pick.sizeLabel ?? size;
+      size = pick.sizeLabel ?? baseSizeLabel(item);
       for (final a in pick.addons) {
         _placeAddon(args, single, multi, a.addonItemId, a.qty);
       }
@@ -384,13 +391,13 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
         qty: 1,
       );
     }
-    if (pick != null) size = pick.sizeLabel ?? size;
+    if (pick != null) size = pick.sizeLabel ?? baseSizeLabel(item);
     if (editLine == null) {
       _seedSwapDefaults(args, single);
     }
     if (editLine != null) {
       // Edit mode: reconstruct the selection from the existing line.
-      size = editLine.sizeLabel ?? size;
+      size = editLine.sizeLabel ?? baseSizeLabel(item);
       for (final a in editLine.addons) {
         _placeAddon(args, single, multi, a.addonItemId, a.qty);
       }
@@ -528,7 +535,9 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
     }
     _seedSwapDefaults(arg, single);
     state = state.copyWith(
-      size: last.sizeLabel ?? baseSizeLabel(arg.item),
+      size:
+          last.sizeLabel ??
+          (sizeMustBePicked(arg.item) ? null : baseSizeLabel(arg.item)),
       single: single,
       multi: multi,
       optionals: last.optionalFieldIds.toSet(),
@@ -1033,10 +1042,26 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
       0;
 
   // ── commit ───────────────────────────────────────────────────────────────
+  /// An item sold in several sizes with none picked yet (a combo pick's size
+  /// is the slot's, so never open there).
+  bool _sizeOpen(ItemConfigState config) =>
+      widget.pick == null && config.size == null && sizeMustBePicked(_item);
+
   /// Enforce the item's group constraints (min/required — max is blocked at
   /// tap time) via the core. Returns true when the selection is valid; else
   /// toasts the first violated group and blocks the commit.
   Future<bool> _selectionValid(ItemConfigState config) async {
+    if (_sizeOpen(config)) {
+      final tr = ref.read(bridgeProvider).tr;
+      ref
+          .read(orderProvider.notifier)
+          .showToast(
+            '${tr(key: 'order.size')}: ${tr(key: 'order.required')}',
+            tone: ChipTone.warning,
+            icon: 'hand.raised',
+          );
+      return false;
+    }
     final violations = await ref
         .read(orderProvider.notifier)
         .validateItemSelections(
@@ -1280,12 +1305,15 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     final headerTotal = price?.unitTotalMinor ?? _item.basePriceMinor;
 
     final firstUnsatisfied = _unanswered(groups, config).firstOrNull;
-    final canAdd = firstUnsatisfied == null;
+    final sizeOpen = _sizeOpen(config);
+    final canAdd = !sizeOpen && firstUnsatisfied == null;
     _shown = groups;
     _open = firstUnsatisfied;
     final guided = _guided;
 
-    final footerLabel = !canAdd
+    final footerLabel = sizeOpen
+        ? '${bridge.tr(key: 'order.select_prefix')} ${bridge.tr(key: 'order.size')}'
+        : firstUnsatisfied != null
         ? '${bridge.tr(key: 'order.select_prefix')} ${firstUnsatisfied.title}'
         : widget.editLine == null
         ? bridge.tr(key: 'order.add_to_cart')

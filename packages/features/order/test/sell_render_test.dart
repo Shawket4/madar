@@ -80,6 +80,7 @@ void main() {
   group("a selected line's buttons: one row, or two on purpose", _lineRowsMain);
   group('hold hints', _holdHintsMain);
   group('the cart column layout', _cartLayoutMain);
+  group('an item in several sizes', _sizesMain);
 
   group('assigning a held order to a table', () {
     Future<void> assignVia(WidgetTester tester, String chip) async {
@@ -1833,5 +1834,62 @@ void _oneTapComboMain() {
         );
       },
     );
+  }
+}
+
+/// Owner, 2026-10-08: an item sold in several sizes never lands at a default
+/// one. A tile tap opens its sheet with no size chosen, and Add waits for the
+/// teller's pick, in either layout.
+void _sizesMain() {
+  for (final layout in SellLayout.values) {
+    testWidgets('a tap opens the sheet with no size; Add waits '
+        '(${layout.name})', (tester) async {
+      final bridge = _FakeBridge();
+      await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+        layout: layout,
+      );
+      if (layout == SellLayout.fast) {
+        await tester.tap(find.byKey(const ValueKey('category-box-hot')));
+        await _settle(tester);
+      }
+      final before = bridge.carts[null]!.length;
+      await tester.tap(
+        find.descendant(
+          of: find.byType(MenuGrid),
+          matching: find.text('Mocha'),
+        ),
+      );
+      await _settle(tester);
+
+      final sheet = find.byType(ItemDetailSheet);
+      expect(sheet, findsOneWidget, reason: 'never a one-tap add');
+      Finder inFooter(String text) => find.descendant(
+        of: find.byType(ItemSheetFooter),
+        matching: find.text(text),
+      );
+      final add = inFooter(coreWord('order.add_to_cart'));
+      expect(add, findsNothing);
+      expect(
+        inFooter(
+          '${coreWord('order.select_prefix')} ${coreWord('order.size')}',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.descendant(of: sheet, matching: find.text('Small')).first,
+      );
+      await _settle(tester);
+      expect(add, findsOneWidget);
+      await tester.tap(add);
+      await _settle(tester);
+      expect(bridge.carts[null]!.skip(before).single.itemId, 'mocha');
+      expect(bridge.addedSizes, ['Small']);
+      expect(tester.takeException(), isNull);
+    });
   }
 }

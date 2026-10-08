@@ -331,7 +331,11 @@ void main() {
         );
         expect(tester.takeException(), isNull);
 
-        // It quotes the sheet's current config, and follows a change.
+        // It quotes the sheet's current config, and follows a change. The
+        // latte sells in two sizes, so none is chosen until the teller picks.
+        expect(fake.mealAsks.last.$1, isNull);
+        await tester.tap(find.text('Regular'));
+        await tester.pumpAndSettle();
         expect(fake.mealAsks.last.$1, 'Regular');
         await tester.tap(find.text('Large'));
         await tester.pumpAndSettle();
@@ -384,6 +388,10 @@ void main() {
     await _mount(tester, fake, size: _ipad);
     expect(find.byKey(const ValueKey('item-last-config')), findsNothing);
     expect(find.byKey(const ValueKey('make-it-a-meal')), findsNothing);
+    // Two sizes and none chosen yet: Add waits for the teller's pick.
+    expect(_add, findsNothing);
+    await tester.tap(find.text('Regular'));
+    await tester.pumpAndSettle();
     expect(_add, findsOneWidget);
   });
 

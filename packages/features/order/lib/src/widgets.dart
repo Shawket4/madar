@@ -23,6 +23,11 @@ String? baseSizeLabel(MenuItemView item) =>
     (item.sizes.where((s) => s.isActive).firstOrNull ?? item.sizes.firstOrNull)
         ?.label;
 
+/// Whether the teller must pick the size: the item sells in more than one
+/// active size. A single size is simply used (owner, 2026-10-08).
+bool sizeMustBePicked(MenuItemView item) =>
+    item.sizes.where((s) => s.isActive).length > 1;
+
 /// Up to two initials from the item name (the natives' monogram rule).
 String monogram(String name) {
   final words = name
