@@ -1485,4 +1485,44 @@ mod tests {
         assert_eq!(strip(&core), vec!["Unpaid".to_string()]);
         assert_eq!(core.close_preflight().held_count, 1);
     }
+
+    /// The host passes the booking, the party's name and the covers from its
+    /// copy of the meta, which can be stale or not loaded yet. Left out, they
+    /// come from the meta the core keeps with the cart: a fire without the
+    /// booking never linked or seated it (the table kept showing reserved).
+    #[tokio::test]
+    async fn a_fire_takes_what_the_host_left_out_from_the_carts_own_meta() {
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let table = "00000000-0000-0000-0000-0000000000d9";
+        let booking = "00000000-0000-0000-0000-0000000000b9";
+        put_line(&core, Some(table), "Mezze");
+        let meta = cart::CartMeta {
+            booking_id: Some(booking.into()),
+            guest_name: Some("Nour".into()),
+            covers: Some(4),
+            ..core.cart_meta(Some(table.into())).unwrap()
+        };
+        core.cart_set_meta(Some(table.into()), meta).unwrap();
+
+        core.fire_ticket(Some(table.into()), None, None, None, None, None)
+            .await
+            .unwrap();
+
+        let fire = core
+            .store
+            .pending()
+            .unwrap()
+            .into_iter()
+            .find(|o| o.op_type == "open_ticket")
+            .expect("the fire is queued");
+        let v: serde_json::Value = serde_json::from_str(&fire.payload).unwrap();
+        let text = v.to_string();
+        assert!(text.contains(booking), "the booking rides the fire: {text}");
+        assert!(text.contains("\"guest_count\":4"), "the covers: {text}");
+        assert!(
+            text.contains("\"customer_name\":\"Nour\""),
+            "the party's name: {text}"
+        );
+    }
 }

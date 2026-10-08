@@ -206,6 +206,48 @@ ProviderContainer _container(_Fake bridge) {
 }
 
 void main() {
+  // The cart's meta as this screen holds it can be stale (a reload raced, a
+  // sign-in kept the old carts) or never loaded. A meta edit applies to what
+  // the CORE holds, so it can never erase the customer, the booking or the
+  // order's start the copy does not know about.
+  test(
+    'a meta edit keeps what the core holds that the copy does not',
+    () async {
+      final bridge = _Fake();
+      final c = _container(bridge);
+      final cart = c.read(cartProvider(null).notifier);
+      await cart.load();
+      bridge.meta = const CartMeta(
+        name: '',
+        customerId: 'c-9',
+        bookingId: 'b-1',
+        startedAt: '2026-10-08T09:00:00Z',
+      );
+
+      await cart.updateMeta((m) => cartMetaWith(m, name: 'Omar'));
+
+      expect(bridge.meta.name, 'Omar');
+      expect(bridge.meta.customerId, 'c-9', reason: 'the customer stays');
+      expect(bridge.meta.bookingId, 'b-1', reason: 'the booking stays');
+      expect(bridge.meta.startedAt, '2026-10-08T09:00:00Z');
+    },
+  );
+
+  test('two meta edits at once both land', () async {
+    final bridge = _Fake();
+    final c = _container(bridge);
+    final cart = c.read(cartProvider(null).notifier);
+    await cart.load();
+
+    await Future.wait([
+      cart.updateMeta((m) => cartMetaWith(m, name: 'Omar')),
+      cart.updateMeta((m) => cartMetaWith(m, customerId: 'c-9')),
+    ]);
+
+    expect(bridge.meta.name, 'Omar');
+    expect(bridge.meta.customerId, 'c-9');
+  });
+
   test('a double tap on Park parks the order once', () async {
     final bridge = _Fake();
     final c = _container(bridge);

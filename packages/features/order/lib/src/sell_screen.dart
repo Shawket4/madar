@@ -494,16 +494,24 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     // Captured BEFORE the drawer: settling clears the cart (and with it the
     // draft identity) — this is the parked order the sale completes.
     final settledDraftId = cart.draftId;
+    // The customer as the core keeps it with the cart: this screen's copy of
+    // the meta can be stale or not loaded yet, and a sale opened without the
+    // customer earns them no points.
+    var customerId = cart.meta.customerId;
+    try {
+      customerId = (await ref.read(bridgeProvider).cartMeta(tableId: _tableId))
+          .customerId;
+    } on Object {
+      // Keep the copy's.
+    }
+    if (!mounted) return;
     final inPanel = _fast;
     if (inPanel) setState(() => _chargingInPanel = true);
     final ChargeOutcome? outcome;
     try {
       outcome = await showCharge(
         _sheetContext,
-        ChargeTarget.cart(
-          tableId: _tableId,
-          customerId: ref.read(cartProvider(_tableId)).meta.customerId,
-        ),
+        ChargeTarget.cart(tableId: _tableId, customerId: customerId),
         // "Not printed — no printer ›" on the Done card lands on the printer
         // sheet, not on a dead end.
         onPrinterSettings: () => unawaited(showPrinterSheet(context)),

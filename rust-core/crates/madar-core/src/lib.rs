@@ -8640,13 +8640,27 @@ impl MadarCore {
         let table_uuid = table_id
             .as_deref()
             .and_then(|s| uuid::Uuid::parse_str(s).ok());
+        // What the caller passes wins; what it left out comes from the cart's
+        // own meta, kept here in the core. The host passes these from its copy
+        // of the meta, which can be stale or never loaded: a fire without the
+        // booking never linked or seated it (the table kept showing reserved),
+        // one without the customer earned no points.
+        let meta = cart::meta(&self.store, table_id.as_deref())?;
+        let booking_id = booking_id
+            .filter(|b| !b.trim().is_empty())
+            .or(meta.booking_id.clone());
+        let customer_name = customer_name
+            .filter(|n| !n.trim().is_empty())
+            .or(Some(meta.name.clone()).filter(|n| !n.trim().is_empty()))
+            .or(meta.guest_name.clone().filter(|n| !n.trim().is_empty()));
+        let guest_count = guest_count.or(meta.covers);
         let booking_uuid = booking_id
             .as_deref()
             .and_then(|s| uuid::Uuid::parse_str(s).ok());
         // The caller's pick, else the one kept with the cart.
         let customer_id = customer_id
             .filter(|c| !c.trim().is_empty())
-            .or(cart::meta(&self.store, table_id.as_deref())?.customer_id);
+            .or(meta.customer_id.clone());
         let customer_uuid = customer_id
             .as_deref()
             .filter(|_| self.can("customers.attach".into()))

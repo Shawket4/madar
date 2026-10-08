@@ -301,13 +301,30 @@ class CartNotifier extends Notifier<CartState> {
     await load();
   }
 
-  /// Replace this cart's meta — here and in the core.
-  Future<void> updateMeta(CartMeta Function(CartMeta) change) async {
-    _writes += 1;
-    final next = change(state.meta);
-    state = state.copyWith(meta: next);
-    await _order._quiet(() => _bridge.cartSetMeta(tableId: arg, meta: next));
+  /// Change this cart's meta — here and in the core.
+  ///
+  /// [change] is applied to the core's CURRENT meta, not this notifier's
+  /// copy: the copy can be stale (a reload raced, a sign-in kept the old
+  /// carts) or never loaded, and writing it back whole erased what the core
+  /// held — the customer (no points on the sale), the booking (never seated),
+  /// the order's name and real start time. Edits run one at a time so two
+  /// of them never read the same meta and drop each other.
+  Future<void> updateMeta(CartMeta Function(CartMeta) change) {
+    final run = _metaEdits.then((_) async {
+      _writes += 1;
+      final current =
+          await _order._quiet(() => _bridge.cartMeta(tableId: arg)) ??
+          state.meta;
+      final next = change(current);
+      if (ref.mounted) state = state.copyWith(meta: next);
+      await _order._quiet(() => _bridge.cartSetMeta(tableId: arg, meta: next));
+    });
+    _metaEdits = run.catchError((Object _) {});
+    return run;
   }
+
+  /// The tail of the queued [updateMeta] edits.
+  Future<void> _metaEdits = Future.value();
 
   /// Run a mutation that returns the new lines, then re-read the totals. The
   /// order's identity is stamped on its first line and forgotten once the
@@ -357,7 +374,11 @@ class CartNotifier extends Notifier<CartState> {
           ),
         );
       } else if (lines.isNotEmpty && meta.startedAt == null) {
-        await updateMeta((m) => cartMetaWith(m, startedAt: nowIso()));
+        // Only if the core has no start either: a stale copy saying "none"
+        // must not restart an order that has been running for an hour.
+        await updateMeta(
+          (m) => m.startedAt == null ? cartMetaWith(m, startedAt: nowIso()) : m,
+        );
       }
     } on MadarError catch (e) {
       _order._fail(e);
