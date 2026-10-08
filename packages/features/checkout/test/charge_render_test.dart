@@ -1181,6 +1181,50 @@ void main() {
     await _capture(tester, 'charge-cart-split-tablet');
   });
 
+  // The field report: split payment "renders bad" on an iPad 9th gen.
+  for (final (label, size) in const [
+    ('ipad9', Size(1080, 810)),
+    ('ipad9p', Size(810, 1080)),
+  ]) {
+    for (final rtl in const [false, true]) {
+      testWidgets('split payment on the $label${rtl ? ' in Arabic' : ''}', (
+        tester,
+      ) async {
+        await _mount(
+          tester,
+          size: size,
+          bridge: _FakeBridge(rtl: rtl),
+          rtl: rtl,
+          hostTitle: 'Sell',
+        );
+        final host = tester.element(find.byType(_Host));
+        unawaited(
+          showCharge(host, const ChargeTarget.cart(), presentDoneCard: false),
+        );
+        await _settle(tester);
+        await tester.tap(
+          find.text(rtl ? _ar['order.split_payment']! : 'Split'),
+        );
+        await _settle(tester);
+        _session0(tester)
+          ..setSplitAmount('cash', 10000)
+          ..setSplitAmount('card', 7500);
+        await _settle(tester);
+        expect(tester.takeException(), isNull, reason: 'no overflow');
+        // Room for a four-figure amount: the portrait column squeezed the
+        // field to "EGP 0.…".
+        for (final f in tester.widgetList(find.byType(MadarAmountField))) {
+          expect(
+            tester.getSize(find.byWidget(f)).width,
+            greaterThanOrEqualTo(200),
+            reason: 'amount field wide enough on the $label',
+          );
+        }
+        await _capture(tester, 'charge-split-$label${rtl ? '-ar' : ''}');
+      });
+    }
+  }
+
   testWidgets('a bill on a phone, in Arabic, mirrored', (tester) async {
     await _mount(
       tester,

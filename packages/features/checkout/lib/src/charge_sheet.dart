@@ -1550,6 +1550,10 @@ MadarGlyph paymentGlyph(String icon) => switch (icon.toLowerCase()) {
 // ── Split ────────────────────────────────────────────────────────────────
 
 /// Per-method amount entry + a live remaining indicator (must reach 0).
+/// The narrowest split column that keeps a method's name, its amount field
+/// and "Rest here" on one line with room for a four-figure amount.
+const double kSplitRowOneLineMinWidth = 460;
+
 class _SplitAllocator extends StatelessWidget {
   const _SplitAllocator({
     required this.state,
@@ -1577,33 +1581,51 @@ class _SplitAllocator extends StatelessWidget {
       spacing: Space.sm,
       children: [
         for (final m in s.paymentMethods)
-          Row(
-            spacing: Space.md,
-            children: [
-              SizedBox(
-                width: 96,
-                child: MadarClippedText(
-                  m.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MadarType.title.copyWith(color: colors.textPrimary),
-                ),
-              ),
-              Expanded(
+          LayoutBuilder(
+            builder: (context, box) {
+              final name = MadarClippedText(
+                m.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: MadarType.title.copyWith(color: colors.textPrimary),
+              );
+              final field = Expanded(
                 child: MadarAmountField(
                   amountMinor: s.splitAmounts[m.id] ?? 0,
                   onAmountMinor: (minor) => onAmount(m.id, minor),
                   currencyCode: s.currency,
                 ),
-              ),
-              MadarButton(
+              );
+              final rest = MadarButton(
                 label: restLabel,
                 variant: MadarButtonVariant.secondary,
                 size: MadarButtonSize.compact,
                 enabled: s.splitRemaining > 0,
                 onTap: () => onRest(m.id),
-              ),
-            ],
+              );
+              // Name, field and "Rest here" on one line need room for a
+              // four-figure amount in the field. A narrower column (an iPad
+              // 9th gen in portrait) puts the name above, so the field is
+              // never squeezed to "EGP 0.…".
+              if (box.maxWidth >= kSplitRowOneLineMinWidth) {
+                return Row(
+                  spacing: Space.md,
+                  children: [
+                    SizedBox(width: 96, child: name),
+                    field,
+                    rest,
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: Space.xs,
+                children: [
+                  name,
+                  Row(spacing: Space.md, children: [field, rest]),
+                ],
+              );
+            },
           ),
         Container(
           height: Metrics.chipHeight,
