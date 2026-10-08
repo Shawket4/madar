@@ -644,6 +644,24 @@ pub(crate) fn repair_mirror(
     Ok(out)
 }
 
+/// The orders only a till close can see: claimed by this device (so the
+/// strip hides them as "the cart in hand") while no cart with lines holds
+/// them. A resumed order lives in a cart; one whose cart went away without
+/// parking, selling or firing it (the stale-meta and emptied-cart bugs) is
+/// on no screen at all, yet every close counts it.
+pub(crate) fn stranded(
+    store: &Store,
+    my_device: &str,
+    in_hand: &[String],
+) -> CoreResult<Vec<HeldWire>> {
+    Ok(load_held(store)?
+        .into_iter()
+        .filter(|h| h.status == "resumed")
+        .filter(|h| h.claimed_by_device.as_deref() == Some(my_device))
+        .filter(|h| !in_hand.iter().any(|d| d == &h.id))
+        .collect())
+}
+
 /// Tombstone locally (`discarded` / `completed`), hand the table on, and
 /// cancel the party's waiting transfer, mirroring the server walk.
 pub(crate) fn terminate_local(

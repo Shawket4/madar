@@ -916,13 +916,13 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("madar-held-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("core.db").to_string_lossy().to_string();
-        let me;
+        let (me, orphan);
         {
             let core = device_at(&path);
             sign_in(&core, ALI, "Ali", &[]);
             me = core.lan_device_id();
             let own = park(&core, "Own");
-            let orphan = park(&core, "Orphan");
+            orphan = park(&core, "Orphan");
             let in_hand = park(&core, "In hand");
             core.switch_to_draft(None, in_hand, None, None).unwrap();
             let mut list = held::load_held(&core.store).unwrap();
@@ -958,12 +958,23 @@ mod tests {
         names.sort();
         assert_eq!(
             names,
-            vec!["Orphan".to_string(), "Own".to_string(), "Pre-sync draft".to_string()],
-            "other tills' copies gone; the orphan back; the one in hand still in hand"
+            vec!["Own".to_string(), "Pre-sync draft".to_string()],
+            "other tills' copies gone; the orphan (close-only) cleared; the one in hand still in hand"
         );
-        assert!(core.list_drafts().unwrap().iter().all(|d| !d.locked_by_other), "no chip locked for ever");
-        assert_eq!(core.close_preflight().held_count, 4, "the strip's three plus the one in hand");
+        assert!(
+            core.list_drafts()
+                .unwrap()
+                .iter()
+                .all(|d| !d.locked_by_other),
+            "no chip locked for ever"
+        );
+        assert_eq!(
+            core.close_preflight().held_count,
+            3,
+            "the strip's two plus the one in hand"
+        );
         assert_eq!(core.cart_lines(None).unwrap()[0].name, "In hand");
+        assert_eq!(status_of(&core, &orphan), "discarded");
         // A second boot changes nothing.
         let before = core.store.kv_get(held::K_HELD_MIRROR).unwrap();
         drop(core);
@@ -1183,8 +1194,8 @@ mod tests {
     }
 
     #[test]
-    fn the_strip_and_the_close_never_disagree_about_a_claim_with_no_lines() {
-        // A device already in the field: an order resumed here whose cart was
+    fn orders_only_the_close_could_see_are_cleared_without_a_restart() {
+        // A device already in the field: orders resumed here whose carts were
         // emptied by a build without the fix, the meta forgotten or not.
         let core = device();
         sign_in(&core, ALI, "Ali", &[]);
@@ -1194,16 +1205,196 @@ mod tests {
         let b = park(&core, "Still named");
         core.switch_to_draft(None, b.clone(), None, None).unwrap();
         cart::set_cart_payload(&core.store, None, &serde_json::json!([])).unwrap(); // lines gone, meta kept
+        let kept = park(&core, "Parked");
 
-        let mut names = strip(&core);
-        names.sort();
+        assert_eq!(strip(&core), vec!["Parked".to_string()]);
         assert_eq!(
-            names,
-            vec!["Forgotten".to_string(), "Still named".to_string()],
-            "no restart needed"
+            core.close_preflight().held_count,
+            1,
+            "the close shows what the strip shows"
         );
-        assert_eq!(core.close_preflight().held_count, 2);
-        assert_eq!(status_of(&core, &a), "held");
-        assert_eq!(status_of(&core, &b), "held");
+        assert_eq!(status_of(&core, &a), "discarded");
+        assert_eq!(status_of(&core, &b), "discarded");
+        assert_eq!(status_of(&core, &kept), "held");
+    }
+
+    // ── Orders a build with the bugs stranded, cleared by the next build ──
+
+    const LATTE: &str = "00000000-0000-0000-0000-00000000f001";
+    const CAKE: &str = "00000000-0000-0000-0000-00000000f002";
+    const CASH: &str = "00000000-0000-0000-0000-0000000000e1";
+
+    async fn till_core(path: &str) -> Arc<MadarCore> {
+        let core = crate::testkit::offline_core("http://127.0.0.1:1", path).await;
+        core.store
+            .kv_put(
+                crate::menu::K_PAYMENT_METHODS,
+                &format!(
+                    r#"[{{"id":"{CASH}","name":"Cash","is_cash":true,"is_active":true,"created_at":"2026-01-01T00:00:00Z"}}]"#
+                ),
+            )
+            .unwrap();
+        core.open_till(0, None).await.unwrap();
+        core
+    }
+
+    fn park_items(core: &MadarCore, name: &str, items: &[(&str, &str, i64)]) -> String {
+        for (id, label, price) in items {
+            core.cart_add(None, (*id).into(), (*label).into(), *price)
+                .unwrap();
+        }
+        core.hold_cart(None, name.into(), None, None).unwrap();
+        held::load_held(&core.store)
+            .unwrap()
+            .into_iter()
+            .find(|h| h.name == name)
+            .unwrap()
+            .id
+    }
+
+    fn cash(tendered: i64) -> crate::checkout::CheckoutInput {
+        crate::checkout::CheckoutInput {
+            payment_method_id: CASH.into(),
+            amount_tendered_minor: tendered,
+            tip_minor: 0,
+            tip_payment_method_id: None,
+            customer_name: None,
+            notes: None,
+            splits: vec![],
+            loyalty_customer_id: None,
+            dine_in: false,
+            customer_id: None,
+            loyalty_redemptions: vec![],
+        }
+    }
+
+    /// What the old host did to a resumed cart: wrote its stale meta, with no
+    /// draft id, straight over the core's (`cart_set_meta` guards this now).
+    fn old_host_unhooks(core: &MadarCore) {
+        let meta = cart::CartMeta {
+            draft_id: None,
+            ..core.cart_meta(None).unwrap()
+        };
+        cart::set_meta(&core.store, None, &meta).unwrap();
+    }
+
+    fn releases(core: &MadarCore) -> Vec<String> {
+        core.store
+            .pending()
+            .unwrap()
+            .into_iter()
+            .filter(|o| o.op_type == "release_table")
+            .map(|o| o.payload)
+            .collect()
+    }
+
+    /// The field report, end to end: a device running an older build holds
+    /// orders only the till close can see (claimed here, in no cart) — one
+    /// SOLD after the host unhooked it, one emptied away off its table — next
+    /// to a parked order and one in hand. Installing the new build (its first
+    /// boot) clears the two the close alone showed and touches nothing else.
+    #[tokio::test]
+    async fn a_new_build_clears_the_orders_only_the_close_could_see() {
+        let dir = std::env::temp_dir().join(format!("madar-stranded-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("core.db").to_string_lossy().to_string();
+        let table = "00000000-0000-0000-0000-0000000000d7";
+        let (waiting, dropped, sold, in_hand);
+        {
+            let core = till_core(&path).await;
+            waiting = park_items(&core, "Waiting", &[(LATTE, "Latte", 6500)]);
+            // Emptied away: resumed onto its table, then that cart went
+            // without the claim.
+            dropped = park_items(&core, "Dropped", &[(CAKE, "Cake", 9000)]);
+            let mut list = held::load_held(&core.store).unwrap();
+            list.iter_mut().find(|h| h.id == dropped).unwrap().table_id = Some(table.into());
+            core.store
+                .kv_put(held::K_HELD_MIRROR, &serde_json::to_string(&list).unwrap())
+                .unwrap();
+            core.switch_to_draft(None, dropped.clone(), None, None)
+                .unwrap();
+            cart::clear(&core.store, Some(table)).unwrap();
+            // Sold: resumed, unhooked by the host, a cake added, charged.
+            sold = park_items(
+                &core,
+                "Sold",
+                &[(LATTE, "Latte", 6500), (LATTE, "Latte", 6500)],
+            );
+            core.switch_to_draft(None, sold.clone(), None, None)
+                .unwrap();
+            old_host_unhooks(&core);
+            core.cart_add(None, CAKE.into(), "Cake".into(), 9000)
+                .unwrap();
+            core.checkout(None, cash(50_000)).await.unwrap();
+            assert_eq!(
+                status_of(&core, &sold),
+                "resumed",
+                "the old build's ghost: sold, still claimed"
+            );
+            // In hand, legitimately.
+            in_hand = park_items(&core, "In hand", &[(CAKE, "Cake", 9000)]);
+            core.switch_to_draft(None, in_hand.clone(), None, None)
+                .unwrap();
+        }
+
+        let core = open_at(&path); // the new build's first boot
+        assert_eq!(status_of(&core, &sold), "discarded", "close-only: cleared");
+        assert_eq!(
+            status_of(&core, &dropped),
+            "discarded",
+            "close-only: cleared"
+        );
+        assert_eq!(
+            status_of(&core, &waiting),
+            "held",
+            "a parked order is untouched"
+        );
+        assert_eq!(
+            status_of(&core, &in_hand),
+            "resumed",
+            "the cart in hand is untouched"
+        );
+        assert_eq!(
+            core.cart_lines(None).unwrap().len(),
+            1,
+            "and so are its lines"
+        );
+        assert_eq!(strip(&core), vec!["Waiting".to_string()]);
+        let p = core.close_preflight();
+        assert_eq!(
+            p.held_count, 2,
+            "Waiting and the cart in hand, nothing else: {:?}",
+            p.held
+        );
+        assert!(p.held.iter().all(|h| h.id != sold && h.id != dropped));
+        assert_eq!(
+            releases(&core).len(),
+            1,
+            "the dropped order's table goes back"
+        );
+        assert!(releases(&core)[0].contains(table) && releases(&core)[0].contains("\"bus\":false"));
+        let log: Vec<serde_json::Value> = serde_json::from_str(&core.held_cleanup_log()).unwrap();
+        let mut cleared: Vec<&str> = log.iter().filter_map(|e| e["held_id"].as_str()).collect();
+        cleared.sort();
+        let mut want = vec![sold.as_str(), dropped.as_str()];
+        want.sort();
+        assert_eq!(cleared, want);
+        assert!(log
+            .iter()
+            .all(|e| e["total_minor"].as_i64().unwrap_or(0) > 0));
+
+        // A second boot changes nothing.
+        let before = core.store.kv_get(held::K_HELD_MIRROR).unwrap();
+        drop(core);
+        let core = open_at(&path);
+        assert_eq!(core.store.kv_get(held::K_HELD_MIRROR).unwrap(), before);
+        assert_eq!(
+            serde_json::from_str::<Vec<serde_json::Value>>(&core.held_cleanup_log())
+                .unwrap()
+                .len(),
+            2
+        );
+        drop(core);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

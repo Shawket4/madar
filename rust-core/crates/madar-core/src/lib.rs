@@ -285,6 +285,9 @@ fn activation_code_invalid() -> CoreError {
     }
 }
 
+/// What `heal_queue` cleared, for support (`held_cleanup_log`).
+const K_HELD_CLEANUP_LOG: &str = "held:cleanup_log";
+
 /// Unix seconds until which the server refuses PINs on this tablet (§3.4).
 const K_PIN_BLOCKED_UNTIL: &str = "auth:pin_blocked_until";
 
@@ -504,14 +507,6 @@ impl MadarCore {
                 id
             }
         };
-        // The held queue is this device's own: drop the copies of other tills'
-        // orders that pre-refactor builds pulled in, and hand back any claim
-        // whose cart is gone (see `held::repair_mirror`). Local, idempotent,
-        // and before anything reads the strip or a close preflight.
-        if let Ok(in_hand) = cart::drafts_in_hand(&store) {
-            let now = (chrono::Utc::now() + chrono::Duration::seconds(skew)).to_rfc3339();
-            let _ = held::repair_mirror(&store, &device_id, &in_hand, &now);
-        }
         let api = net::ApiClient::with_device(
             config.base_url.clone(),
             clock_skew_secs.clone(),
@@ -560,6 +555,11 @@ impl MadarCore {
             branch_fills: branch_reads::FillState::default(),
         });
         core.schedule_integrity_check();
+        // The held queue is this device's own: drop the copies of other tills'
+        // orders that pre-refactor builds pulled in and settle every claim
+        // whose cart is gone (see `heal_queue`). Local, idempotent, and before
+        // anything reads the strip or a close preflight.
+        core.heal_queue();
         Ok(core)
     }
 
@@ -4783,16 +4783,67 @@ impl MadarCore {
         Ok(())
     }
 
-    /// Bring the held queue back in line with the carts, the same repair a boot
-    /// runs (`held::repair_mirror`): a claim no cart with lines holds goes back
-    /// on the strip. The strip and the close warning both run it first, so they
-    /// can never disagree, and a device that never restarts still heals.
+    /// Bring the held queue back in line with the carts. Boot, the strip and
+    /// the close warning all run it first, so the strip and the close can never
+    /// disagree, a device that never restarts still heals, and a device
+    /// upgraded from a build with the bugs cleans itself up on its first start.
+    ///
+    /// An order only the close can see (`held::stranded`: claimed here, held
+    /// by no cart with lines) is cleared: it came out of a cart that was sold,
+    /// emptied or unhooked without the order being settled, so showing it
+    /// again would only invite ringing it twice. Its table, if any, goes back
+    /// to the room. Each one is logged for support (`held_cleanup_log`).
     fn heal_queue(&self) {
         let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
-        if let Ok(in_hand) = cart::drafts_in_hand(&self.store) {
-            let now = self.corrected_now().to_rfc3339();
-            let _ = held::repair_mirror(&self.store, &self.lan_device_id(), &in_hand, &now);
+        let Ok(in_hand) = cart::drafts_in_hand(&self.store) else {
+            return;
+        };
+        let device = self.lan_device_id();
+        let now = self.corrected_now().to_rfc3339();
+        for h in held::stranded(&self.store, &device, &in_hand).unwrap_or_default() {
+            if held::terminate_local(&self.store, &h.id, "discarded", Some(&device), &now).is_err()
+            {
+                continue;
+            }
+            let _ =
+                self.sync_hold_occupancy(h.table_id.clone().filter(|t| !t.is_empty()), None, false);
+            self.log_held_cleanup(&h, &now);
         }
+        let _ = held::repair_mirror(&self.store, &device, &in_hand, &now);
+    }
+
+    /// One line per order the repair cleared, newest last, kept for support
+    /// (`held_cleanup_log`): which order, who started it, its total, when it
+    /// was parked and when it was last resumed.
+    fn log_held_cleanup(&self, h: &held::HeldWire, now: &str) {
+        let mut log: Vec<serde_json::Value> = self
+            .store
+            .kv_get(K_HELD_CLEANUP_LOG)
+            .ok()
+            .flatten()
+            .and_then(|j| serde_json::from_str(&j).ok())
+            .unwrap_or_default();
+        let (_, total) = cart::payload_counts(&h.cart);
+        log.push(serde_json::json!({
+            "held_id": h.id, "cleared_at": now,
+            "started_by": h.created_by_name, "total_minor": total,
+            "parked_at": h.created_at, "resumed_at": h.updated_at,
+        }));
+        let keep = log.len().saturating_sub(200);
+        let _ = self.store.kv_put(
+            K_HELD_CLEANUP_LOG,
+            &serde_json::to_string(&log[keep..]).unwrap_or_default(),
+        );
+    }
+
+    /// What the held-queue repair cleared on this device (see `heal_queue`),
+    /// as JSON lines for the diagnostics screen and support.
+    pub fn held_cleanup_log(&self) -> String {
+        self.store
+            .kv_get(K_HELD_CLEANUP_LOG)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "[]".into())
     }
     /// Undo the last `cart_remove` — re-inserts the swiped-away line. No-op if
     /// nothing was removed (or it was already restored / the cart was cleared).
