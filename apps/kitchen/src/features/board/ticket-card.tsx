@@ -9,7 +9,7 @@ import { useColors } from "@/theme/use-theme";
 import { Button } from "@/components/ui/button";
 import { Txt } from "@/components/ui/text";
 import { StatusPill } from "@/components/app/status-pill";
-import { formatClock, useLocalName } from "@/lib/hooks";
+import { formatClock } from "@/lib/hooks";
 import { ageMs, ageTone, formatAge, type AgeTone } from "./logic";
 
 export const SOURCE_ICON: Record<SourceType, LucideIcon> = { dine_in: Utensils, takeaway: ShoppingBag, online: Globe };
@@ -25,7 +25,7 @@ function headerLook(c: Palette, tone: AgeTone): { bg: string; fg: string; sub: s
 }
 
 export function sourceLabel(t: TFunction, p: { sourceType: SourceType; tableLabel?: string }): string {
-  if (p.sourceType === "dine_in") return t("source.table", { table: p.tableLabel ?? "—" });
+  if (p.sourceType === "dine_in") return p.tableLabel ? t("source.table", { table: p.tableLabel }) : t("source.dineIn");
   return t(`source.${p.sourceType}`);
 }
 
@@ -73,7 +73,7 @@ export function TicketCard({ part, now, width, sectionName, onLine, onBumpAll }:
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <SourceIcon size={16} color={h.fg} />
           <Txt size={15} weight="semibold" color={h.fg}>{sourceLabel(t, part)}</Txt>
-          <Txt size={14} color={h.sub} numberOfLines={1} style={{ flexShrink: 1 }}>· {part.waiter} · {formatClock(part.createdAt)}</Txt>
+          <Txt size={14} color={h.sub} numberOfLines={1} style={{ flexShrink: 1 }}>{part.waiter ? `· ${part.waiter} ` : ""}· {formatClock(part.createdAt)}</Txt>
         </View>
       </View>
 
@@ -113,7 +113,6 @@ export function TicketCard({ part, now, width, sectionName, onLine, onBumpAll }:
 function LineRow({ line: l, first, onPress }: { line: KitchenLine; first: boolean; onPress: () => void }) {
   const { t } = useTranslation();
   const c = useColors();
-  const name = useLocalName();
   const off = l.bumped || l.voided;
   return (
     <Pressable
@@ -145,10 +144,11 @@ function LineRow({ line: l, first, onPress }: { line: KitchenLine; first: boolea
       <View style={{ flex: 1, gap: 2 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <Txt size={kitchen.itemName} weight="semibold" muted={off} strike={off}>
-            {name(l)}{l.sizeLabel ? ` · ${l.sizeLabel}` : ""}
+            {l.name}{l.sizeLabel ? ` · ${l.sizeLabel}` : ""}
           </Txt>
           {l.voided ? <StatusPill tone="danger" size="sm">{t("board.void")}</StatusPill> : null}
         </View>
+        {l.comboName ? <Txt size={13} weight="semibold" muted>{l.comboName}</Txt> : null}
         {l.modifiers.length ? <Txt size={15} muted strike={off}>{l.modifiers.join(" · ")}</Txt> : null}
         {l.notes ? <Txt size={15} weight="semibold" color={mix(c.warning, c.foreground, 0.55)} strike={off}>{l.notes}</Txt> : null}
       </View>

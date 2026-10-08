@@ -2,9 +2,10 @@ import type { ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import { ChefHat, Lock, Router, Settings, UserRound, Wifi, WifiOff } from "lucide-react-native";
+import { ChefHat, LogOut, Router, Settings, Wifi, WifiOff } from "lucide-react-native";
 
 import { useKitchen } from "@/data/store";
+import { useNet } from "@/lib/net";
 import { radius, space } from "@/theme/tokens";
 import { useColors } from "@/theme/use-theme";
 import { Button } from "@/components/ui/button";
@@ -18,8 +19,9 @@ export function TopBar({ title, subtitle, count, actions }: { title: string; sub
   const { t } = useTranslation();
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const net = useKitchen((s) => s.net);
-  const user = useKitchen((s) => s.user);
+  const net = useNet();
+  const userName = useKitchen((s) => s.device.userName);
+  const signOut = useKitchen((s) => s.signOut);
   const setK = useKitchen((s) => s.set);
 
   const netLook = {
@@ -54,15 +56,13 @@ export function TopBar({ title, subtitle, count, actions }: { title: string; sub
         </View>
         {actions}
         <Pressable
-          onPress={() => setK("pinFor", "switch")}
+          onPress={signOut}
           accessibilityRole="button"
           accessibilityLabel={t("auth.switch")}
           style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, height: 44, paddingHorizontal: 12, borderRadius: radius.md, backgroundColor: pressed ? c.chromeAccent : c.chromeRaised })}
         >
-          {user ? <UserRound size={18} color={c.chromeForeground} /> : <Lock size={18} color={c.chromeMuted} />}
-          <Txt size={15} weight="medium" color={user ? c.chromeForeground : c.chromeMuted} numberOfLines={1}>
-            {user ? user.name.split(" ")[0] : t("auth.nobody")}
-          </Txt>
+          <Txt size={15} weight="medium" color={c.chromeForeground} numberOfLines={1}>{userName?.split(" ")[0] ?? ""}</Txt>
+          <LogOut size={18} color={c.chromeMuted} />
         </Pressable>
         <Button variant="chrome" size="icon" icon={Settings} label={t("settings.title")} onPress={() => setK("settingsOpen", true)} />
       </View>

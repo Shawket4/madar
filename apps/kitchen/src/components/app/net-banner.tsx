@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Router, WifiOff } from "lucide-react-native";
 
 import { useKitchen } from "@/data/store";
+import { useNet } from "@/lib/net";
 import { space } from "@/theme/tokens";
 import { useColors } from "@/theme/use-theme";
 import { Txt } from "@/components/ui/text";
@@ -12,9 +13,17 @@ import { toneColors } from "./status-pill";
 export function NetBanner() {
   const { t } = useTranslation();
   const c = useColors();
-  const net = useKitchen((s) => s.net);
-  const pending = useKitchen((s) => s.pending);
-  if (net === "online") return null;
+  const net = useNet();
+  const pending = useKitchen((s) => s.device.pending);
+  if (net === "online" && !pending) return null;
+  if (net === "online") {
+    // Back online with writes still draining: say so quietly.
+    return (
+      <View style={{ paddingHorizontal: space.xl, paddingVertical: 6, backgroundColor: c.muted, borderBottomWidth: 1, borderBottomColor: c.border }}>
+        <Txt size={13} muted>{t("net.pending", { count: pending })}</Txt>
+      </View>
+    );
+  }
   const tone = toneColors(c, net === "lan" ? "info" : "warning");
   const Icon = net === "lan" ? Router : WifiOff;
   return (

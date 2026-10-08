@@ -1,113 +1,197 @@
 import { create } from "zustand";
 
 import type { ColorScheme } from "@/theme/tokens";
-import * as mock from "./mock";
-import type { DeviceConfig, KitchenPart, NetState, Order, Staff } from "./types";
-import { isComplete } from "@/features/board/logic";
+import { backend, KitchenFailure } from "./backend";
+import type { Branch, DeviceMode, DeviceState, KitchenLine, KitchenPart, Section, Ticket } from "./types";
+import { toParts } from "@/features/board/logic";
 
 /*
- * The device's state. In mock mode (APP-11) this IS the data; once the core is
- * wired, tickets come from the binding (React Query over core reads) and the
- * actions become core calls — the screens keep the same hooks.
+ * The device's state. The truth lives behind `backend()` — madar-core on a
+ * device, the mock on web — and this store holds the last read of it plus the
+ * screen state. Every write goes to the backend (outbox first in the core) and
+ * the board re-reads; a refused write is said out loud, never swallowed.
  */
 
 export type Lang = "ar" | "en";
 
 interface KitchenState {
-  device: DeviceConfig | null;
-  user: Staff | null;
-  orders: Order[];
+  device: DeviceState;
+  sections: Section[];
+  tickets: Ticket[];
   parts: KitchenPart[];
-  net: NetState;
-  /** Bumps waiting to sync (KB-7). */
-  pending: number;
+  /** When this device finished a part, so it lingers green for a moment. */
+  finishedAt: Record<string, number>;
+  /** Expo hand-offs (EX-4). Device-local: the server has no hand-off yet. */
+  handedOff: Record<string, true>;
+  connected: boolean;
+  /** The last refused or failed action, shown in a banner until dismissed. */
+  error: string | null;
   theme: ColorScheme;
   lang: Lang;
   chime: boolean;
-  /** Overlays */
-  pinFor: null | "bump" | "switch" | "manager";
   settingsOpen: boolean;
   recallOpen: boolean;
-  /** Runs after a successful PIN, so a bump asked for while signed out still happens (DV-5). */
-  afterPin: null | (() => void);
 
-  configure(d: DeviceConfig): void;
-  resetDevice(): void;
-  signIn(u: Staff): void;
-  /** Runs `fn` as the signed-in person, asking for a PIN first if nobody is. */
-  guard(fn: () => void): void;
+  boot(): Promise<void>;
+  refresh(): Promise<void>;
+  managerLogin(email: string, password: string): Promise<Branch[]>;
+  chooseBranch(b: Branch): void;
+  signIn(name: string, pin: string): Promise<void>;
   signOut(): void;
-  toggleLine(partId: string, lineId: string): void;
-  bumpPart(partId: string): void;
-  recall(partId: string): void;
+  chooseSections(mode: DeviceMode, ids: string[]): void;
+  changeSections(): void;
+  resetDevice(): void;
+  toggleLine(part: KitchenPart, line: KitchenLine): Promise<void>;
+  bumpPart(part: KitchenPart): Promise<void>;
+  recall(part: KitchenPart): Promise<void>;
   handOff(orderId: string): void;
-  setNet(n: NetState): void;
-  set<K extends "theme" | "lang" | "chime" | "pinFor" | "afterPin" | "settingsOpen" | "recallOpen">(k: K, v: KitchenState[K]): void;
-  sendTestOrder(): void;
-  resetMock(): void;
+  set<K extends "theme" | "lang" | "chime" | "settingsOpen" | "recallOpen" | "error">(k: K, v: KitchenState[K]): void;
 }
 
-const now = () => new Date().toISOString();
+const say = (e: unknown) => (e instanceof KitchenFailure || e instanceof Error ? e.message : String(e));
 
 export const useKitchen = create<KitchenState>((set, get) => {
-  /** A write: applies locally, counts as pending while not online (outbox first, AT-2). */
-  const write = (fn: (parts: KitchenPart[]) => KitchenPart[]) =>
-    set((s) => ({ parts: fn(s.parts), pending: s.net === "online" ? s.pending : s.pending + 1 }));
+  const readState = () => set({ device: backend().state() });
 
-  const patch = (partId: string, f: (p: KitchenPart) => KitchenPart) =>
-    write((ps) => ps.map((p) => (p.id === partId ? f(p) : p)));
+  const defaultSection = () => get().sections.find((s) => s.isDefault)?.id ?? get().sections[0]?.id;
+
+  /** Re-split the last tickets (after sections load, or an optimistic change). */
+  const reparts = (tickets: Ticket[]) => set({ tickets, parts: toParts(tickets, defaultSection()) });
+
+  const loadSections = async () => {
+    try {
+      set({ sections: await backend().stations() });
+      reparts(get().tickets);
+    } catch (e) {
+      set({ error: say(e) });
+    }
+  };
+
+  const startLive = async () => {
+    await loadSections();
+    try {
+      await backend().startRealtime({
+        onChange: () => void get().refresh(),
+        onConnection: (connected) => set({ connected }),
+        onPing: () => {}, // KB-5: no chime asset yet
+      });
+    } catch {
+      // Offline at boot: the poll still reads local rows, and the core reconnects.
+    }
+    void backend().syncNow().catch(() => {});
+    await get().refresh();
+  };
+
+  /** Optimistic line change, then the core; a refusal re-reads and says why. */
+  const writeLines = async (lineIds: string[], bumped: boolean, partId?: string) => {
+    const ids = new Set(lineIds);
+    reparts(get().tickets.map((t) => ({ ...t, items: t.items.map((l) => (ids.has(l.id) ? { ...l, bumped } : l)) })));
+    if (partId && bumped && get().parts.find((p) => p.id === partId)?.done) {
+      set((s) => ({ finishedAt: { ...s.finishedAt, [partId]: Date.now() } }));
+    }
+    try {
+      for (const id of lineIds) await (bumped ? backend().bump(id) : backend().unbump(id));
+    } catch (e) {
+      set({ error: say(e) });
+    }
+    await get().refresh();
+  };
 
   return {
-    device: null,
-    user: null,
-    ...mock.seed(),
-    net: "online",
-    pending: 0,
+    device: { route: "setup", mode: "sections", sectionIds: [], pending: 0 },
+    sections: [],
+    tickets: [],
+    parts: [],
+    finishedAt: {},
+    handedOff: {},
+    connected: true,
+    error: null,
     theme: "dark",
     lang: "ar",
     chime: true,
-    pinFor: null,
     settingsOpen: false,
     recallOpen: false,
-    afterPin: null,
 
-    configure: (device) => set({ device, user: null, pinFor: null }),
-    resetDevice: () => set({ device: null, user: null, settingsOpen: false }),
-    signIn: (user) => {
-      const after = get().afterPin;
-      set({ user, pinFor: null, afterPin: null });
-      after?.();
+    async boot() {
+      backend().setLocale(get().lang);
+      readState();
+      const { route } = get().device;
+      if (route === "board") await startLive();
+      else if (route === "sections") await loadSections();
     },
-    guard: (fn) => (get().user ? fn() : set({ pinFor: "bump", afterPin: fn })),
-    signOut: () => set({ user: null, settingsOpen: false }),
 
-    toggleLine: (partId, lineId) =>
-      patch(partId, (p) => {
-        const items = p.items.map((l) => (l.id === lineId && !l.voided ? { ...l, bumped: !l.bumped } : l));
-        const next = { ...p, items };
-        const done = isComplete(next);
-        return { ...next, bumpedAt: done ? now() : null, bumpedBy: done ? get().user?.id ?? null : null };
-      }),
-    bumpPart: (partId) =>
-      patch(partId, (p) => ({
-        ...p,
-        items: p.items.map((l) => (l.voided ? l : { ...l, bumped: true })),
-        bumpedAt: now(),
-        bumpedBy: get().user?.id ?? null,
-      })),
-    recall: (partId) =>
-      patch(partId, (p) => ({ ...p, items: p.items.map((l) => ({ ...l, bumped: false })), bumpedAt: null, bumpedBy: null })),
-    handOff: (orderId) =>
-      set((s) => ({ orders: s.orders.map((o) => (o.id === orderId ? { ...o, handedOffAt: now() } : o)) })),
-
-    // Back online: the outbox drains (mocked as instant).
-    setNet: (net) => set((s) => ({ net, pending: net === "online" ? 0 : s.pending })),
-    set: (k, v) => set({ [k]: v } as Partial<KitchenState>),
-
-    sendTestOrder: () => {
-      const { order, parts } = mock.randomOrder();
-      set((s) => ({ orders: [...s.orders, order], parts: [...s.parts, ...parts] }));
+    async refresh() {
+      readState();
+      if (get().device.route !== "board") return;
+      try {
+        reparts(await backend().tickets());
+      } catch (e) {
+        set({ error: say(e) });
+      }
     },
-    resetMock: () => set({ ...mock.seed(), pending: 0, settingsOpen: false }),
+
+    managerLogin: (email, password) => backend().managerLogin(email, password),
+
+    chooseBranch(b) {
+      backend().chooseBranch(b);
+      readState();
+    },
+
+    async signIn(name, pin) {
+      await backend().signIn(name, pin);
+      set({ error: null });
+      await get().boot();
+    },
+
+    signOut() {
+      backend().stopRealtime();
+      backend().signOut();
+      set({ settingsOpen: false, tickets: [], parts: [] });
+      readState();
+    },
+
+    chooseSections(mode, ids) {
+      const def = defaultSection();
+      // The core keeps one station; for expo that is the default section.
+      backend().setSections(mode, mode === "expo" ? (def ? [def] : []) : ids);
+      void get().boot();
+    },
+
+    changeSections() {
+      backend().stopRealtime();
+      backend().clearSections();
+      set({ settingsOpen: false });
+      void get().boot();
+    },
+
+    resetDevice() {
+      try {
+        backend().resetDevice();
+        set({ settingsOpen: false, tickets: [], parts: [], sections: [] });
+        readState();
+      } catch (e) {
+        set({ error: say(e), settingsOpen: false });
+      }
+    },
+
+    toggleLine: (part, line) => writeLines([line.id], !line.bumped, part.id),
+
+    bumpPart: (part) =>
+      writeLines(part.items.filter((l) => !l.bumped && !l.voided).map((l) => l.id), true, part.id),
+
+    recall: (part) => writeLines(part.items.filter((l) => l.bumped).map((l) => l.id), false),
+
+    handOff: (orderId) => set((s) => ({ handedOff: { ...s.handedOff, [orderId]: true } })),
+
+    set: (k, v) => {
+      set({ [k]: v } as Partial<KitchenState>);
+      if (k === "lang") {
+        backend().setLocale(v as string);
+        if (get().device.route === "board" || get().device.route === "sections") {
+          void loadSections();
+          void get().refresh();
+        }
+      }
+    },
   };
 });

@@ -2,7 +2,7 @@
 
 2026-09-24 · draft for the owner
 
-v2, 2026-10-08: the UI stack moves from Flutter to **React Native** on the shared Rust core, styled and structured after the React dashboard (`MadarDashboard`). The design ships first on mock data for review, before any backend wiring. Changed rows: PS-1, PS-4, new PS-8, APP-1 to APP-4, APP-9 to APP-11, AT-6, AT-7, the compatibility table and the decision log.
+v2, 2026-10-08: the UI stack moves from Flutter to **React Native** on the shared Rust core, styled and structured after the React dashboard (`MadarDashboard`). The design ships first on mock data for review, before any backend wiring. Changed rows: PS-1, PS-4, new PS-8, DV-5, APP-1 to APP-4, APP-9 to APP-11, AT-6, AT-7, the compatibility table and the decision log.
 
 ## How to read this spec
 
@@ -126,7 +126,7 @@ The branch's internet is not trusted. On the local network the POS, the kitchen 
 | DV-2 | Kitchen staff sign in on the device with their Madar staff PIN at the start of a shift and sign out at the end. Several people can share a device, switching by PIN. | Locked |
 | DV-3 | Every bump, recall and hand-off records who did it, on which device, and when. | Proposed |
 | DV-4 | Kitchen staff are ordinary Madar users with a kitchen role, the same people as in Dawam. Signing in on the kitchen device doesn't clock them in; Dawam stays the clock. | Proposed |
-| DV-5 | The device keeps showing tickets while nobody is signed in, but bumping needs a signed-in person. | Open |
+| DV-5 | The board needs a signed-in person: the core reads and syncs the kitchen feed under a staff session, so with nobody signed in the device shows the PIN screen, not tickets. | Proposed |
 | DV-6 | The kitchen app's capabilities come from Madar's authz crate (the existing kitchen permissions plus any new ones). The server checks them; the app only hides what the server would refuse. | Proposed |
 
 ## App and design
@@ -192,7 +192,7 @@ What already exists, and what has to change so the kitchen app, the POS app and 
 ## Open questions
 
 1. PR-2: with several printers in one section, does each chit print on all of them, or are they shared out?
-2. DV-5: can a device with nobody signed in still bump?
+2. DV-5: should a device with nobody signed in still show tickets? Today the core needs a session to read the feed (DV-5 is drafted that way).
 3. APP-5: the accent color and icon (after the logo work).
 4. EX-3: is 60 seconds the right wait before a ready alert goes to every till?
 5. KB-3: are 5 and 10 minutes right, and should they be per section (a grill is slower than drinks)?
@@ -225,3 +225,4 @@ Answers given on 8 Oct 2026.
 | UI stack | React Native on the shared Rust core, replacing Flutter for this app; Slint stays dropped |
 | Design | Patterns, tokens and type from the React dashboard |
 | Build order | Design on mock data first, reviewed by the owner, then the real backend |
+| Wiring | Done the same day: `rust-core/crates/madar-kitchen-ffi` (uniffi) → `apps/kitchen/modules/madar-kitchen-core` (ubrn turbo module). Verified on an iPad simulator against a local backend: manager setup, staff PIN, live board, bump, realtime |

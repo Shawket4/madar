@@ -9,6 +9,8 @@
 # `madar-frb-dashboard` is the SEPARATE flutter_rust_bridge wrapper the management
 # dashboard app links against — its own bindings binary exposing only the
 # admin/analytics surface (security + binary size), also delegating to madar-core.
+# `madar-kitchen-ffi` is the uniffi wrapper Madar Kitchen (apps/kitchen, React
+# Native) links through a ubrn turbo module: the kitchen surface only.
 [workspace]
 resolver = "2"
 members = [
@@ -17,6 +19,7 @@ members = [
     "crates/madar-frb",
     "crates/madar-frb-dashboard",
     "crates/madar-frb-staff",
+    "crates/madar-kitchen-ffi",
 ]
 
 [workspace.package]

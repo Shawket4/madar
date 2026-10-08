@@ -1,17 +1,16 @@
 /*
- * Board rules, pure. The real ones live in madar-core `kds.rs` (APP-2); these
- * mirror them for the mock so the design behaves, and go once the binding lands.
+ * Board rules, pure. Bump, outbox and the feed live in madar-core; what's here
+ * is how one device draws that feed — split by section (OF-1), aged (KB-3),
+ * counted (KB-6). Moves into the core with the multi-section binding (APP-2).
  */
-import type { KitchenLine, KitchenPart } from "../../data/types.ts";
+import type { KitchenLine, KitchenPart, SourceType, Ticket } from "../../data/types.ts";
 
 export type AgeTone = "fresh" | "amber" | "red" | "done";
 
 /** Per branch (KB-3); per section is an open question. */
 export const AMBER_MIN = 5;
 export const RED_MIN = 10;
-/** Bumped parts can be recalled for this long (KB-4). */
-export const RECALL_MIN = 10;
-/** A finished card stays on the board, green, this long before it leaves. */
+/** A card the cook just finished stays on the board, green, this long. */
 export const DONE_LINGER_MS = 2500;
 
 export function ageMs(createdAt: string, now: number): number {
@@ -28,58 +27,101 @@ export function formatAge(ms: number): string {
 }
 
 export function ageTone(part: KitchenPart, now: number): AgeTone {
-  if (part.bumpedAt) return "done";
+  if (part.done) return "done";
   const min = ageMs(part.createdAt, now) / 60_000;
   return min >= RED_MIN ? "red" : min >= AMBER_MIN ? "amber" : "fresh";
+}
+
+/** A waiter's bill is dine-in (with or without a table yet); a counter order is takeaway. */
+export function sourceOf(t: Pick<Ticket, "sourceType" | "tableLabel">): SourceType {
+  if (t.sourceType === "online") return "online";
+  return t.sourceType === "open_ticket" || t.tableLabel ? "dine_in" : "takeaway";
+}
+
+/** The number a cook calls out: the ref's last segment ("T-DOWNTO-261008-0042" → "42"). */
+export function shortRef(ref: string | undefined, id: string): string {
+  if (!ref) return id.slice(-4).toUpperCase();
+  const tail = ref.split("-").pop() ?? ref;
+  return /^\d+$/.test(tail) ? String(Number(tail)) : tail;
 }
 
 const live = (l: KitchenLine) => !l.voided;
 
 /** Every line that still counts is bumped. */
-export function isComplete(part: KitchenPart): boolean {
-  const lines = part.items.filter(live);
+export function isComplete(items: KitchenLine[]): boolean {
+  const lines = items.filter(live);
   return lines.length > 0 && lines.every((l) => l.bumped);
 }
 
-/** What the board shows: open parts, plus ones just finished (green) for a moment. Oldest first (KB-2). */
-export function boardParts(parts: KitchenPart[], sectionIds: string[], now: number): KitchenPart[] {
+/**
+ * The feed → one part per (ticket, section). A line with no station goes to the
+ * branch's default section (KS-4). Voided tickets never show.
+ */
+export function toParts(tickets: Ticket[], defaultSectionId: string | undefined): KitchenPart[] {
+  const out: KitchenPart[] = [];
+  for (const t of tickets) {
+    if (t.status === "voided") continue;
+    const bySection = new Map<string, KitchenLine[]>();
+    for (const l of t.items) {
+      const sid = l.stationId ?? defaultSectionId ?? "";
+      const list = bySection.get(sid) ?? [];
+      list.push({ ...l, voided: false });
+      bySection.set(sid, list);
+    }
+    for (const [sectionId, items] of bySection) {
+      out.push({
+        id: `${t.id}:${sectionId}`,
+        orderId: t.id,
+        kitchenRef: shortRef(t.kitchenRef, t.id),
+        sectionId,
+        sourceType: sourceOf(t),
+        tableLabel: t.tableLabel,
+        roundNumber: t.roundNumber,
+        createdAt: t.createdAt,
+        items,
+        done: isComplete(items),
+      });
+    }
+  }
+  return out;
+}
+
+/** The board: open parts for these sections, plus ones just finished here, oldest first (KB-2). */
+export function boardParts(parts: KitchenPart[], sectionIds: string[], now: number, finishedAt: Record<string, number>): KitchenPart[] {
   return parts
     .filter((p) => sectionIds.includes(p.sectionId))
-    .filter((p) => !p.bumpedAt || now - Date.parse(p.bumpedAt) < DONE_LINGER_MS)
+    .filter((p) => !p.done || now - (finishedAt[p.id] ?? 0) < DONE_LINGER_MS)
     .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
 }
 
-export function recallable(parts: KitchenPart[], sectionIds: string[], now: number): KitchenPart[] {
+/** KB-4: finished parts still on an open ticket, newest first — the ones a cook can bring back. */
+export function recallable(parts: KitchenPart[], sectionIds: string[]): KitchenPart[] {
   return parts
-    .filter((p) => sectionIds.includes(p.sectionId) && p.bumpedAt)
-    .filter((p) => now - Date.parse(p.bumpedAt!) < RECALL_MIN * 60_000)
-    .sort((a, b) => Date.parse(b.bumpedAt!) - Date.parse(a.bumpedAt!));
+    .filter((p) => sectionIds.includes(p.sectionId) && p.done)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 }
 
 /** All-day strip (KB-6): waiting quantity per item, most first. */
-export function allDay(parts: KitchenPart[]): { name: string; nameAr: string; qty: number }[] {
-  const m = new Map<string, { name: string; nameAr: string; qty: number }>();
+export function allDay(parts: KitchenPart[]): { name: string; qty: number }[] {
+  const m = new Map<string, number>();
   for (const p of parts) {
-    if (p.bumpedAt) continue;
     for (const l of p.items) {
       if (l.bumped || l.voided) continue;
-      const e = m.get(l.name) ?? { name: l.name, nameAr: l.nameAr, qty: 0 };
-      e.qty += l.qty;
-      m.set(l.name, e);
+      m.set(l.name, (m.get(l.name) ?? 0) + l.qty);
     }
   }
-  return [...m.values()].sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name));
+  return [...m].map(([name, qty]) => ({ name, qty })).sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name));
 }
 
 export type PartStatus = "waiting" | "cooking" | "done";
 
 /** Expo (EX-1): a section's part is waiting (nothing bumped), cooking (some) or done. */
 export function partStatus(part: KitchenPart): PartStatus {
-  if (part.bumpedAt || isComplete(part)) return "done";
+  if (part.done) return "done";
   return part.items.some((l) => l.bumped && !l.voided) ? "cooking" : "waiting";
 }
 
 /** EX-2: ready when every part of the order is done. */
 export function orderReady(parts: KitchenPart[]): boolean {
-  return parts.length > 0 && parts.every((p) => partStatus(p) === "done");
+  return parts.length > 0 && parts.every((p) => p.done);
 }
