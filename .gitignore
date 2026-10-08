@@ -65,3 +65,4 @@ openpgp-revocs.d/
 
 # Screenshots written by the dashboard test harness (FDASH_SHOTS)
 .shots/
+.locks/
