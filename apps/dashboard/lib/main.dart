@@ -1,28 +1,34 @@
-import 'package:design_system/design_system.dart';
 import 'dart:ui' show PlatformDispatcher;
 
+import 'package:dashboard_core/shell.dart';
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'app/boot.dart';
-import 'app/providers.dart';
-import 'app/router.dart';
+import 'boot/mock.dart';
+import 'boot/real.dart';
+
+/// `--dart-define=MADAR_MOCK=1` runs the whole app on the mock backend.
+const String _mockFlag = String.fromEnvironment('MADAR_MOCK');
+bool get mockMode => _mockFlag == '1' || _mockFlag == 'true';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    // Boot the core BEFORE runApp, then install it (+ strings) as ROOT-scope
-    // overrides so every provider — including the root-mounted router/session —
-    // resolves them. (A nested-scope override would be invisible to those.)
-    final boot = await bootDashboard();
+    // Boot BEFORE runApp so the container (and the restored session) is in
+    // place when the router first decides where to go.
+    final container = mockMode ? await bootMock() : await bootReal();
     runApp(
-      ProviderScope(
-        overrides: [
-          coreProvider.overrideWithValue(boot.core),
-          stringsProvider.overrideWithValue(boot.strings),
-        ],
-        child: const _App(),
+      UncontrolledProviderScope(
+        container: container,
+        child: const DashApp(
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+        ),
       ),
     );
   } on Object catch (e) {
@@ -30,35 +36,9 @@ Future<void> main() async {
   }
 }
 
-/// The ready app: theme + locale/direction + router, all driven by providers.
-class _App extends ConsumerWidget {
-  const _App();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(routerProvider);
-    final dark = ref.watch(darkModeProvider);
-    final locale = ref.watch(localeProvider);
-    final t = ref.watch(tProvider);
-    return MaterialApp.router(
-      title: t('app.title'),
-      debugShowCheckedModeBanner: false,
-      theme: MadarTheme.light(),
-      darkTheme: MadarTheme.dark(),
-      themeMode: dark ? ThemeMode.dark : ThemeMode.light,
-      locale: Locale(locale),
-      supportedLocales: const [Locale('en'), Locale('ar')],
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      routerConfig: router,
-    );
-  }
-}
-
-/// Shown only if boot itself fails (store open / FFI load) — rare, and local.
+/// Shown only if boot itself fails (the store, the native library) — rare,
+/// and local. The tables may not have loaded, so its one word is bilingual on
+/// the device's language.
 class _BootErrorApp extends StatelessWidget {
   const _BootErrorApp({required this.message});
 
@@ -74,13 +54,11 @@ class _BootErrorApp extends StatelessWidget {
         body: ErrorState(
           message: message,
           retryLabel: _arabic ? 'إعادة المحاولة' : 'Retry',
-          onRetry: () {},
+          onRetry: main,
         ),
       ),
     );
   }
 }
 
-/// "Retry" / the boot message frame before the core's strings exist —
-/// bilingual on the device locale, never a raw key.
 bool get _arabic => PlatformDispatcher.instance.locale.languageCode == 'ar';

@@ -165,6 +165,29 @@ impl ApiClient {
         self.http.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
+    /// The request client (20 s total timeout, the install's identity headers),
+    /// for the dashboard's generic pass-through (`crate::api_raw`).
+    pub(crate) fn request_client(&self) -> reqwest::Client {
+        self.http()
+    }
+
+    /// The streaming client (no total timeout, 60 s read timeout), for the
+    /// dashboard's generic event streams (`crate::api_raw`).
+    pub(crate) fn stream_client(&self) -> reqwest::Client {
+        self.stream_http.read().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// [`Self::observe_clock`] for a response the pass-through received, so its
+    /// `Date` keeps the shared clock skew fresh like every other call.
+    pub(crate) fn observe_response(&self, resp: &reqwest::Response) {
+        self.observe_clock(resp);
+    }
+
+    /// Whether a staff token is about to run out and is refreshed before a call.
+    pub(crate) fn staff_refresh_due(&self) -> bool {
+        self.staff_token_due()
+    }
+
     /// Rebuild both clients under a new `X-Madar-Device` id (the reconfigure
     /// wipe mints a fresh install identity). A realtime stream already open keeps
     /// the old client until it is re-subscribed — the wipe stops it first.

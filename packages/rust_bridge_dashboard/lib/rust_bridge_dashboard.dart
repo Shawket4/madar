@@ -11,4 +11,6 @@ export 'src/failure.dart';
 export 'src/generated/api/bridge.dart';
 export 'src/generated/api/error.dart';
 export 'src/generated/api/reports.dart';
+export 'src/generated/api/transport.dart';
 export 'src/generated/api/types.dart';
+export 'src/generated/api/xlsx.dart';

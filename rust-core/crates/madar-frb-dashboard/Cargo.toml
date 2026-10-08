@@ -22,6 +22,18 @@ madar-core = { path = "../madar-core" }
 # Exact pin: the cargo crate, Dart package, and codegen CLI must share one version.
 flutter_rust_bridge = "=2.13.0"
 thiserror = "2"
+# The api_stream cancel handle (a oneshot per open stream).
+tokio = { version = "1", features = ["sync"] }
+# Spreadsheet export / import (`xlsx_write` / `xlsx_read`), dashboard only — the
+# POS binary never links them. Both pure Rust, no default features.
+rust_xlsxwriter = "0.99"
+calamine = { version = "0.36", features = ["chrono"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+# Reads the written workbook's XML in the xlsx tests (rust_xlsxwriter's own zip).
+zip = { version = "8", default-features = false, features = ["deflate"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

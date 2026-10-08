@@ -9,7 +9,9 @@
 import 'api/bridge.dart';
 import 'api/error.dart';
 import 'api/reports.dart';
+import 'api/transport.dart';
 import 'api/types.dart';
+import 'api/xlsx.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -27,6 +29,9 @@ abstract class DashboardBridgeApiImplPlatform
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_MadarBridgePtr => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge;
+
+  @protected
+  AnyhowException dco_decode_AnyhowException(dynamic raw);
 
   @protected
   MadarBridge
@@ -47,16 +52,48 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  RustStreamSink<ApiStreamItem> dco_decode_StreamSink_api_stream_item_Sse(
+    dynamic raw,
+  );
+
+  @protected
   String dco_decode_String(dynamic raw);
 
   @protected
   ActiveScopeView dco_decode_active_scope_view(dynamic raw);
 
   @protected
+  ApiCall dco_decode_api_call(dynamic raw);
+
+  @protected
+  ApiFailure dco_decode_api_failure(dynamic raw);
+
+  @protected
+  ApiFailureKind dco_decode_api_failure_kind(dynamic raw);
+
+  @protected
+  ApiFile dco_decode_api_file(dynamic raw);
+
+  @protected
+  ApiPair dco_decode_api_pair(dynamic raw);
+
+  @protected
+  ApiReply dco_decode_api_reply(dynamic raw);
+
+  @protected
+  ApiStreamItem dco_decode_api_stream_item(dynamic raw);
+
+  @protected
   bool dco_decode_bool(dynamic raw);
 
   @protected
   ActiveScopeView dco_decode_box_autoadd_active_scope_view(dynamic raw);
+
+  @protected
+  ApiCall dco_decode_box_autoadd_api_call(dynamic raw);
+
+  @protected
+  ApiFailure dco_decode_box_autoadd_api_failure(dynamic raw);
 
   @protected
   MadarConfig dco_decode_box_autoadd_madar_config(dynamic raw);
@@ -93,7 +130,16 @@ abstract class DashboardBridgeApiImplPlatform
   double dco_decode_f_64(dynamic raw);
 
   @protected
+  int dco_decode_i_32(dynamic raw);
+
+  @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
+  List<ApiFile> dco_decode_list_api_file(dynamic raw);
+
+  @protected
+  List<ApiPair> dco_decode_list_api_pair(dynamic raw);
 
   @protected
   List<BranchView> dco_decode_list_branch_view(dynamic raw);
@@ -123,6 +169,9 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
@@ -138,7 +187,13 @@ abstract class DashboardBridgeApiImplPlatform
   ActiveScopeView? dco_decode_opt_box_autoadd_active_scope_view(dynamic raw);
 
   @protected
+  ApiFailure? dco_decode_opt_box_autoadd_api_failure(dynamic raw);
+
+  @protected
   SessionSnapshot? dco_decode_opt_box_autoadd_session_snapshot(dynamic raw);
+
+  @protected
+  Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
 
   @protected
   SessionSnapshot dco_decode_session_snapshot(dynamic raw);
@@ -159,6 +214,9 @@ abstract class DashboardBridgeApiImplPlatform
   BigInt dco_decode_usize(dynamic raw);
 
   @protected
+  AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
+
+  @protected
   MadarBridge
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
     SseDeserializer deserializer,
@@ -177,10 +235,36 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  RustStreamSink<ApiStreamItem> sse_decode_StreamSink_api_stream_item_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
   ActiveScopeView sse_decode_active_scope_view(SseDeserializer deserializer);
+
+  @protected
+  ApiCall sse_decode_api_call(SseDeserializer deserializer);
+
+  @protected
+  ApiFailure sse_decode_api_failure(SseDeserializer deserializer);
+
+  @protected
+  ApiFailureKind sse_decode_api_failure_kind(SseDeserializer deserializer);
+
+  @protected
+  ApiFile sse_decode_api_file(SseDeserializer deserializer);
+
+  @protected
+  ApiPair sse_decode_api_pair(SseDeserializer deserializer);
+
+  @protected
+  ApiReply sse_decode_api_reply(SseDeserializer deserializer);
+
+  @protected
+  ApiStreamItem sse_decode_api_stream_item(SseDeserializer deserializer);
 
   @protected
   bool sse_decode_bool(SseDeserializer deserializer);
@@ -189,6 +273,12 @@ abstract class DashboardBridgeApiImplPlatform
   ActiveScopeView sse_decode_box_autoadd_active_scope_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  ApiCall sse_decode_box_autoadd_api_call(SseDeserializer deserializer);
+
+  @protected
+  ApiFailure sse_decode_box_autoadd_api_failure(SseDeserializer deserializer);
 
   @protected
   MadarConfig sse_decode_box_autoadd_madar_config(SseDeserializer deserializer);
@@ -235,7 +325,16 @@ abstract class DashboardBridgeApiImplPlatform
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
+  int sse_decode_i_32(SseDeserializer deserializer);
+
+  @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  List<ApiFile> sse_decode_list_api_file(SseDeserializer deserializer);
+
+  @protected
+  List<ApiPair> sse_decode_list_api_pair(SseDeserializer deserializer);
 
   @protected
   List<BranchView> sse_decode_list_branch_view(SseDeserializer deserializer);
@@ -265,6 +364,9 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
@@ -282,9 +384,17 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  ApiFailure? sse_decode_opt_box_autoadd_api_failure(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   SessionSnapshot? sse_decode_opt_box_autoadd_session_snapshot(
     SseDeserializer deserializer,
   );
+
+  @protected
+  Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
   SessionSnapshot sse_decode_session_snapshot(SseDeserializer deserializer);
@@ -305,7 +415,10 @@ abstract class DashboardBridgeApiImplPlatform
   BigInt sse_decode_usize(SseDeserializer deserializer);
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer);
+  void sse_encode_AnyhowException(
+    AnyhowException self,
+    SseSerializer serializer,
+  );
 
   @protected
   void
@@ -329,6 +442,12 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_StreamSink_api_stream_item_Sse(
+    RustStreamSink<ApiStreamItem> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
@@ -338,11 +457,44 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_api_call(ApiCall self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_api_failure(ApiFailure self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_api_failure_kind(
+    ApiFailureKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_api_file(ApiFile self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_api_pair(ApiPair self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_api_reply(ApiReply self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_api_stream_item(ApiStreamItem self, SseSerializer serializer);
+
+  @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_active_scope_view(
     ActiveScopeView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_api_call(ApiCall self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_api_failure(
+    ApiFailure self,
     SseSerializer serializer,
   );
 
@@ -401,7 +553,16 @@ abstract class DashboardBridgeApiImplPlatform
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
+  void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_api_file(List<ApiFile> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_api_pair(List<ApiPair> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_branch_view(
@@ -440,6 +601,9 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
     SseSerializer serializer,
@@ -461,8 +625,20 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_api_failure(
+    ApiFailure? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_session_snapshot(
     SessionSnapshot? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_list_prim_u_8_strict(
+    Uint8List? self,
     SseSerializer serializer,
   );
 
@@ -486,9 +662,6 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer);
 }
 
 // Section: wire_class

@@ -78,7 +78,8 @@ class ApiException implements Exception {
   final Object? details;
 
   @override
-  String toString() => 'ApiException($status${code == null ? '' : ' $code'}): $message';
+  String toString() =>
+      'ApiException($status${code == null ? '' : ' $code'}): $message';
 }
 
 abstract interface class ApiTransport {

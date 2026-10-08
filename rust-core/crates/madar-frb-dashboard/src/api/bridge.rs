@@ -6,7 +6,8 @@
 //! Rules (docs/reference/frbDesign.md): methods take `&self` ONLY (the core is
 //! interior-mutable); anything that may spawn/network stays `async`;
 //! `#[frb(sync)]` is reserved for cheap in-memory reads used during builds.
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use flutter_rust_bridge::frb;
 use madar_core::MadarCore;
@@ -31,6 +32,9 @@ pub struct MadarBridge {
     // pub(crate): the domain files (reports.rs, …) add their own
     // `impl MadarBridge` blocks and delegate through this same handle.
     pub(crate) inner: Arc<MadarCore>,
+    /// The open `api_stream`s by the host's name for each: dropping or firing
+    /// a sender ends that stream (`api_stream_cancel`).
+    pub(crate) streams: Mutex<HashMap<String, tokio::sync::oneshot::Sender<()>>>,
 }
 
 impl MadarBridge {
@@ -39,6 +43,7 @@ impl MadarBridge {
     pub fn new(config: MadarConfig) -> Result<MadarBridge, MadarError> {
         Ok(MadarBridge {
             inner: MadarCore::new(config).map_err(MadarError::from)?,
+            streams: Mutex::new(HashMap::new()),
         })
     }
 

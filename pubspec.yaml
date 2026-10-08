@@ -76,3 +76,6 @@ melos:
     bridge_staff:
       run: tool/gen-bindings-staff.sh
       description: Regenerate FRB bindings from madar-frb-staff (employee staff app).
+    gen_dashboard_api:
+      run: python3 tool/gen_dashboard_api.py
+      description: Regenerate packages/dashboard_api's Dart client, models and test fixtures from its spec/openapi.json.

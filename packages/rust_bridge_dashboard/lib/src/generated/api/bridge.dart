@@ -7,6 +7,7 @@ import '../frb_generated.dart';
 import 'error.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'reports.dart';
+import 'transport.dart';
 import 'types.dart';
 
 /// FFI contract version this wrapper was written against. Dart asserts equality.
@@ -21,6 +22,24 @@ String coreVersion() =>
 abstract class MadarBridge implements RustOpaqueInterface {
   /// The current explicit scope override (may be empty / partial).
   ActiveScopeView? activeScope();
+
+  /// One API call on the core's client. A non-2xx answer (or no answer) is
+  /// an [`ApiFailure`] worded in the active language.
+  Future<ApiReply> apiRequest({required ApiCall call});
+
+  /// Open a server-sent-event stream: an `opened` item arrives once the
+  /// server accepted it, then each frame; a failure (refused at open, or the
+  /// connection lost) arrives as a last item with `failure`, then the stream
+  /// closes. It also closes when
+  /// the server ends it, or when the host calls [`Self::api_stream_cancel`]
+  /// with the same `stream_id` (the host's own unique name for it).
+  Stream<ApiStreamItem> apiStream({
+    required ApiCall call,
+    required String streamId,
+  });
+
+  /// Stop the stream opened under `stream_id` (idempotent).
+  void apiStreamCancel({required String streamId});
 
   SessionSnapshot? currentSession();
 

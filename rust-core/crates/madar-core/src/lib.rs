@@ -75,6 +75,9 @@ pub mod loyalty;
 pub mod menu;
 /// HTTP layer — drives the generated `madar-api` reqwest client (PLAN §R4 net/).
 pub mod net;
+/// The management dashboard's generic API pass-through (any method/path, raw
+/// bytes back, refusals worded EN/AR) and its event streams. Dashboard-only.
+pub mod api_raw;
 /// Crash + background-error reporting (Sentry) with a disk-backed offline
 /// transport. Errors raised inside the core's 8 background tasks never cross the
 /// FFI, so this is the ONLY way they become visible. No DSN configured => fully

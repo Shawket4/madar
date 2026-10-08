@@ -217,7 +217,7 @@ The inventories record web behaviour that is plainly a bug (a double minus sign,
 in-app navigation, a "Saving…" that never clears, raw transport errors shown to people, English
 names inside the Arabic UI, a check that silently blocks Save). Do NOT copy a bug. Implement what the
 web evidently intends, pin the correct behaviour with a test, and add one line per difference to
-`docs/fdash/divergences/<area>.md` (row id, what the web does, what Flutter does, why). Quirks that
+`docs/fdash/divergences/<area>-<unit>.md` (your own file; row id, what the web does, what Flutter does, why). Quirks that
 are a product choice rather than a defect are ported as they are. When unsure which it is, port the
 web's behaviour and log it as a question in the same file.
 
