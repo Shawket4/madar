@@ -1,0 +1,7 @@
+{
+  "basira.requestFailed": "Request failed ({{status}})",
+  "basira.provenanceBy": "by {{dims}}",
+  "basira.minutesShort": "{{m}}m",
+  "basira.hoursShort": "{{h}}h",
+  "basira.hoursMinutesShort": "{{h}}h {{m}}m"
+}

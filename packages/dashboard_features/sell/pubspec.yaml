@@ -35,3 +35,8 @@ dev_dependencies:
 flutter:
   assets:
     - assets/i18n/
+    - assets/i18n/orders/
+    - assets/i18n/floor/
+    - assets/i18n/bookings/
+    - assets/i18n/tills/
+    - assets/i18n/customers/

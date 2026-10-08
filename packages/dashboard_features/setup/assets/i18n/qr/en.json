@@ -1,0 +1,13 @@
+{
+  "qr.opts.hint": "Applies to every code on this page.",
+  "qr.copyFailed": "Could not copy the link",
+  "qr.copied": "Copied",
+  "qr.copyLink": "Copy link",
+  "qr.orgBooking.title": "All-branches bookings",
+  "qr.orgBooking.description": "Guests pick a branch, then a time. Needs at least one branch with bookings switched on.",
+  "qr.branchBooking.title": "Branch bookings",
+  "qr.branchBooking.description": "Straight to this branch's free times — for the table tent or the door. Bookings must be switched on for the branch.",
+  "qr.needsAllBranches": "Switch the scope bar to All branches to make this code.",
+  "qr.needsBranch": "Select a branch in the scope bar to make this code.",
+  "qr.inMall.unitNumber": "Unit number"
+}

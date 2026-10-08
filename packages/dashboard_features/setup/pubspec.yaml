@@ -35,3 +35,15 @@ dev_dependencies:
 flutter:
   assets:
     - assets/i18n/
+    - assets/i18n/booking_settings/
+    - assets/i18n/brand_appearance/
+    - assets/i18n/combo_settings/
+    - assets/i18n/delivery/
+    - assets/i18n/integrations/
+    - assets/i18n/kitchen/
+    - assets/i18n/links/
+    - assets/i18n/loyalty/
+    - assets/i18n/payment_methods/
+    - assets/i18n/qr/
+    - assets/i18n/staff_pool/
+    - assets/i18n/whatsapp/

@@ -16,7 +16,23 @@ const DashArea adminArea = DashArea(
   routes: adminRoutes,
   registerMocks: registerAdminMocks,
   i18nSupplements: [
+    // Shared by the area's units (lib/src/shared).
     'packages/dashboard_admin/assets/i18n/en.json',
     'packages/dashboard_admin/assets/i18n/ar.json',
+    // One pair per unit, so builders never share a file.
+    'packages/dashboard_admin/assets/i18n/orgs.en.json',
+    'packages/dashboard_admin/assets/i18n/orgs.ar.json',
+    'packages/dashboard_admin/assets/i18n/users.en.json',
+    'packages/dashboard_admin/assets/i18n/users.ar.json',
+    'packages/dashboard_admin/assets/i18n/branches.en.json',
+    'packages/dashboard_admin/assets/i18n/branches.ar.json',
+    'packages/dashboard_admin/assets/i18n/onboarding.en.json',
+    'packages/dashboard_admin/assets/i18n/onboarding.ar.json',
+    'packages/dashboard_admin/assets/i18n/devices.en.json',
+    'packages/dashboard_admin/assets/i18n/devices.ar.json',
+    'packages/dashboard_admin/assets/i18n/roles.en.json',
+    'packages/dashboard_admin/assets/i18n/roles.ar.json',
+    'packages/dashboard_admin/assets/i18n/review.en.json',
+    'packages/dashboard_admin/assets/i18n/review.ar.json',
   ],
 );

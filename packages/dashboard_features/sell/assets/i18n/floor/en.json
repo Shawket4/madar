@@ -1,0 +1,5 @@
+{
+  "floor": {
+    "errSeats": "Seats must be a whole number from 0 to 99"
+  }
+}

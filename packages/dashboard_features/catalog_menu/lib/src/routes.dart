@@ -1,54 +1,89 @@
-/// The menu catalogue area's pages (`/menu/items`, `/menu/groups`,
-/// `/menu/pricing`, `/menu/bases`, `/menu/packaging`) with the web's
-/// capabilities (any-of, from the generated nav and settings nav) and module. A
-/// route without a builder shows the shell's placeholder until its page lands.
+/// The menu catalogue area's pages (`/menu/items`, `/menu/items/:itemId`,
+/// `/menu/groups`, `/menu/pricing`, `/menu/bases`, `/menu/packaging`), module
+/// `pos`.
+///
+/// No page carries capabilities: the web's route files have no guard and no
+/// page of this area renders `<Restricted>` (MENU-AREA-008), so a person who
+/// types the address sees the page and the server refuses what they may not
+/// read or write. The sidebar and the command palette keep the nav's caps
+/// (`menu.items.read`; Pricing `menu.items.edit`) from the generated nav.
+///
+/// The studio is its own top-level route, as the web un-nests it
+/// (`items_.$itemId`): the items page is not built under it.
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:flutter/widgets.dart';
+import 'package:go_router/go_router.dart';
+
+import 'bases/bases_page.dart';
+import 'bases/packaging_rules_page.dart';
+import 'groups/groups_page.dart';
+import 'items/items_page.dart';
+import 'pricing/pricing_page.dart';
+import 'studio/menu_studio_page.dart';
+
+Widget _items(BuildContext context, GoRouterState state) =>
+    const MenuItemsPage();
+
+Widget _studio(BuildContext context, GoRouterState state) => MenuStudioPage(
+  itemId: state.pathParameters['itemId']!,
+  tab: state.uri.queryParameters['tab'],
+);
+
+Widget _groups(BuildContext context, GoRouterState state) =>
+    GroupsPage(edit: state.uri.queryParameters['edit']);
+
+Widget _pricing(BuildContext context, GoRouterState state) =>
+    const PricingAvailabilityPage();
+
+Widget _bases(BuildContext context, GoRouterState state) =>
+    const RecipeBasesPage();
+
+Widget _packaging(BuildContext context, GoRouterState state) =>
+    const PackagingRulesPage();
 
 const List<DashRoute> catalogMenuRoutes = [
   DashRoute(
     path: '/menu/items',
-    titleKey: 'nav.items',
-    titleFallback: 'Items',
-    caps: [Cap.menuItemsRead],
+    builder: _items,
+    titleKey: 'nav.menu',
+    titleFallback: 'Menu',
     module: OrgModule.pos,
-    children: [
-      DashRoute(
-        path: ':itemId',
-        titleKey: 'nav.items',
-        titleFallback: 'Items',
-        caps: [Cap.menuItemsRead],
-        module: OrgModule.pos,
-      ),
-    ],
+  ),
+  DashRoute(
+    path: '/menu/items/:itemId',
+    builder: _studio,
+    titleKey: 'menu.studio.itemTitle',
+    titleFallback: 'Menu item',
+    module: OrgModule.pos,
   ),
   DashRoute(
     path: '/menu/groups',
-    titleKey: 'nav.choiceGroups',
+    builder: _groups,
+    titleKey: 'menu.groups.title',
     titleFallback: 'Choice groups',
-    caps: [Cap.menuItemsRead],
     module: OrgModule.pos,
   ),
   DashRoute(
     path: '/menu/pricing',
-    titleKey: 'nav.pricingAvailability',
+    builder: _pricing,
+    titleKey: 'menu.pricing.title',
     titleFallback: 'Pricing & availability',
-    caps: [Cap.menuItemsEdit],
     module: OrgModule.pos,
   ),
   DashRoute(
     path: '/menu/bases',
-    titleKey: 'nav.recipeBases',
+    builder: _bases,
+    titleKey: 'modeling.bases.title',
     titleFallback: 'Recipe bases',
-    caps: [Cap.menuItemsRead],
     module: OrgModule.pos,
   ),
   DashRoute(
     path: '/menu/packaging',
-    titleKey: 'nav.packagingRules',
+    builder: _packaging,
+    titleKey: 'modeling.packaging.title',
     titleFallback: 'Packaging rules',
-    caps: [Cap.menuItemsRead],
     module: OrgModule.pos,
   ),
 ];

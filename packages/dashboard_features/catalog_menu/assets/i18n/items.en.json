@@ -1,0 +1,5 @@
+{
+  "menu.addonsHint": "Which addons customers can pick for this item",
+  "menu.addonsEmpty": "No addons selected — the full org catalog applies.",
+  "menu.noAddonsMatch": "No addons match"
+}

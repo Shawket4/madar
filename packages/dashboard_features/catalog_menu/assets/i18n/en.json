@@ -1,1 +1,9 @@
-{}
+{
+  "menu.addonsEmpty": "No addons selected — the full org catalog applies.",
+  "menu.addonsHint": "Which addons customers can pick for this item",
+  "menu.noAddonsMatch": "No addons match",
+  "menu.studio.steps.noteAr": "Note (Arabic)",
+  "menu.studio.steps.noteEn": "Note (English)",
+  "menu.studio.steps.notePlaceholder": "For this drink — e.g. 40ml condensed milk",
+  "menu.studio.steps.notePlaceholderAr": "ملاحظة لهذا المشروب"
+}

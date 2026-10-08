@@ -1,0 +1,11 @@
+{
+  "basira.turnCount_zero": "لا أسئلة",
+  "basira.turnCount_two": "سؤالان",
+  "basira.turnCount_few": "{{count}} أسئلة",
+  "basira.turnCount_many": "{{count}} سؤالًا",
+  "basira.requestFailed": "تعذّر الطلب ({{status}})",
+  "basira.provenanceBy": "حسب {{dims}}",
+  "basira.minutesShort": "{{m}} د",
+  "basira.hoursShort": "{{h}} س",
+  "basira.hoursMinutesShort": "{{h}} س {{m}} د"
+}

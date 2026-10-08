@@ -1,1 +1,9 @@
-{}
+{
+  "menu.addonsEmpty": "لم تُختر أي إضافات — تُطبَّق كل إضافات المؤسسة.",
+  "menu.addonsHint": "الإضافات التي يمكن للعميل اختيارها لهذا الصنف",
+  "menu.noAddonsMatch": "لا توجد إضافات مطابقة",
+  "menu.studio.steps.noteAr": "ملاحظة (بالعربية)",
+  "menu.studio.steps.noteEn": "ملاحظة (بالإنجليزية)",
+  "menu.studio.steps.notePlaceholder": "لهذا المشروب — مثلًا 40 مل حليب مكثف",
+  "menu.studio.steps.notePlaceholderAr": "ملاحظة لهذا المشروب"
+}
