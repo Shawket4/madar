@@ -1205,6 +1205,11 @@ mod tests {
         let b = park(&core, "Still named");
         core.switch_to_draft(None, b.clone(), None, None).unwrap();
         cart::set_cart_payload(&core.store, None, &serde_json::json!([])).unwrap(); // lines gone, meta kept
+        assert!(strip(&core).is_empty(), "both cleared");
+        assert!(
+            core.cart_meta(None).unwrap().draft_id.is_none(),
+            "the empty cart names neither"
+        );
         let kept = park(&core, "Parked");
 
         assert_eq!(strip(&core), vec!["Parked".to_string()]);
@@ -1396,5 +1401,88 @@ mod tests {
         );
         drop(core);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ── The host's copy of a cart never decides which held order it is ──
+
+    fn lines_of(core: &MadarCore, id: &str) -> Vec<String> {
+        let h = held::get(&core.store, id).unwrap().unwrap();
+        h.cart["lines"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|l| l["name"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    /// A stale host copy naming an order still parked on the strip used to
+    /// write the cart over it: that order's lines were gone for good.
+    #[test]
+    fn parking_with_a_stale_draft_id_never_overwrites_a_parked_order() {
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let parked = park(&core, "Parked");
+        put_line(&core, None, "New");
+
+        core.hold_cart(None, "New".into(), Some(parked.clone()), None)
+            .unwrap();
+
+        assert_eq!(
+            lines_of(&core, &parked),
+            vec!["Parked".to_string()],
+            "untouched"
+        );
+        let mut names = strip(&core);
+        names.sort();
+        assert_eq!(
+            names,
+            vec!["New".to_string(), "Parked".to_string()],
+            "the new cart is its own order"
+        );
+    }
+
+    /// Tapping a chip while the host still thinks the cart in hand is another
+    /// order: the cart in hand is parked as what it really is.
+    #[test]
+    fn switching_with_a_stale_park_input_parks_the_cart_as_what_it_is() {
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let w = park(&core, "W");
+        let x = park(&core, "X");
+        let y = park(&core, "Y");
+        core.switch_to_draft(None, w.clone(), None, None).unwrap();
+
+        let stale = cart::HeldParkInput {
+            name: "Y".into(),
+            draft_id: Some(y.clone()),
+            started_at: None,
+        };
+        core.switch_to_draft(None, x.clone(), Some(stale), None)
+            .unwrap();
+
+        assert_eq!(status_of(&core, &w), "held", "W parked back as W");
+        assert_eq!(lines_of(&core, &w), vec!["W".to_string()]);
+        assert_eq!(lines_of(&core, &y), vec!["Y".to_string()], "Y untouched");
+        assert_eq!(status_of(&core, &x), "resumed");
+        assert_eq!(core.cart_lines(None).unwrap()[0].name, "X");
+    }
+
+    /// The host's `complete_draft` after a charge names the order from its own
+    /// copy. Given an order still parked, it used to close it unpaid.
+    #[test]
+    fn completing_an_order_that_is_not_open_here_does_nothing() {
+        let core = device();
+        sign_in(&core, ALI, "Ali", &[]);
+        let parked = park(&core, "Unpaid");
+
+        core.complete_draft(parked.clone(), None).unwrap();
+
+        assert_eq!(
+            status_of(&core, &parked),
+            "held",
+            "still parked, still on the strip"
+        );
+        assert_eq!(strip(&core), vec!["Unpaid".to_string()]);
+        assert_eq!(core.close_preflight().held_count, 1);
     }
 }

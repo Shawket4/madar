@@ -4800,6 +4800,22 @@ impl MadarCore {
         };
         let device = self.lan_device_id();
         let now = self.corrected_now().to_rfc3339();
+        // An empty cart holds no order, so it names none either: a name left
+        // behind (an older build emptied it) would make the next order rung
+        // into it park, sell or fire as that old one.
+        for ctx in cart::contexts(&self.store).unwrap_or_default() {
+            let ctx = ctx.as_deref();
+            if cart::draft_in_hand(&self.store, ctx).is_some()
+                && cart::lines(&self.store, ctx)
+                    .map(|l| l.is_empty())
+                    .unwrap_or(false)
+            {
+                if let Ok(mut meta) = cart::meta(&self.store, ctx) {
+                    meta.draft_id = None;
+                    let _ = cart::set_meta(&self.store, ctx, &meta);
+                }
+            }
+        }
         for h in held::stranded(&self.store, &device, &in_hand).unwrap_or_default() {
             if held::terminate_local(&self.store, &h.id, "discarded", Some(&device), &now).is_err()
             {
@@ -5045,8 +5061,10 @@ impl MadarCore {
         let mut table_taken = false;
         let from = from_table_id.filter(|s| !s.is_empty());
         if let Some(park) = park_in_hand {
-            // A re-tap on the chip already in hand is not a second park.
-            let same = park.draft_id.as_deref() == Some(id.as_str());
+            // A re-tap on the chip already in hand is not a second park (the
+            // core's record of the cart, not the host's copy).
+            let same =
+                cart::draft_in_hand(&self.store, from.as_deref()).as_deref() == Some(id.as_str());
             if !same && !cart::lines(&self.store, from.as_deref())?.is_empty() {
                 table_taken |= self.hold_cart_on_table_locked(
                     from.as_deref(),
@@ -5060,7 +5078,7 @@ impl MadarCore {
         let target_table = draft.table_id.clone().filter(|s| !s.is_empty());
         let target = target_table.as_deref();
         if let Some(park) = park_at_target {
-            let same = park.draft_id.as_deref() == Some(id.as_str());
+            let same = cart::draft_in_hand(&self.store, target).as_deref() == Some(id.as_str());
             if !same && !cart::lines(&self.store, target)?.is_empty() {
                 table_taken |= self.hold_cart_on_table_locked(
                     target,
@@ -5121,13 +5139,25 @@ impl MadarCore {
                 detail: "cart is empty".into(),
             });
         }
-        let id = draft_id
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-        let created = started_at
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| self.corrected_now().to_rfc3339());
+        // Which held order this cart IS comes from the core's own record of
+        // the resume, never the host's copy: a stale copy named a different
+        // order still parked on the strip, and `park_local` wrote this cart
+        // over it (its lines lost). A cart resumed from nothing parks new.
+        let _ = draft_id;
+        let core_meta = cart::meta(&self.store, ctx).unwrap_or_default();
         let device = self.lan_device_id();
+        let id = cart::draft_in_hand(&self.store, ctx)
+            .filter(|d| {
+                held::get(&self.store, d).ok().flatten().is_some_and(|h| {
+                    h.status == "resumed" && h.claimed_by_device.as_deref() == Some(device.as_str())
+                })
+            })
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let created = core_meta
+            .started_at
+            .filter(|s| !s.is_empty())
+            .or_else(|| started_at.filter(|s| !s.is_empty()))
+            .unwrap_or_else(|| self.corrected_now().to_rfc3339());
         let was_on = self.draft_table(&id);
         let (entry, conflict) = held::park_local(
             &self.store,
@@ -5234,7 +5264,20 @@ impl MadarCore {
     /// Mark a restored draft COMPLETED after its cart checked out (the host
     /// calls this right after a successful ring-up of a resumed draft). Frees
     /// the table; the queued op drains AFTER the order create (FIFO).
+    ///
+    /// Only an order this till has OPEN (resumed here) can be completed: the
+    /// sale itself completes the one it was rung from, and the host's call
+    /// afterwards names the order from its own copy, which can be stale. Given
+    /// an order still parked on the strip it would have closed it unpaid —
+    /// gone from the strip and from the close warning — so that is a no-op.
     pub fn complete_draft(&self, id: String, _order_id: Option<String>) -> Result<(), CoreError> {
+        let open_here = held::get(&self.store, &id)?.is_some_and(|h| {
+            h.status == "resumed"
+                && h.claimed_by_device.as_deref() == Some(self.lan_device_id().as_str())
+        });
+        if !open_here {
+            return Ok(());
+        }
         let now = self.corrected_now().to_rfc3339();
         let was_on = self.draft_table(&id);
         // The order is device-local (see `hold_cart_on_table`); its table is
@@ -10730,9 +10773,11 @@ mod lifecycle_tests {
             .unwrap();
         let id = core.list_drafts().unwrap().first().unwrap().id.clone();
 
-        // Move it, then check it out.
+        // Move it, then check it out (resumed first: only an order open on
+        // this till is completed).
         core.assign_draft_table(id.clone(), Some(t2.clone()))
             .unwrap();
+        core.switch_to_draft(None, id.clone(), None, None).unwrap();
         core.complete_draft(id.clone(), None).unwrap();
 
         let ops: Vec<(String, String)> = core.store.pending().unwrap()[before..]

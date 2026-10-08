@@ -192,6 +192,10 @@ class CartNotifier extends Notifier<CartState> {
   /// land over it (the first read races the first tap on a fresh cart).
   int _writes = 0;
 
+  /// Back-to-back re-reads `load` made because a write raced it (bounded:
+  /// the writes themselves re-read what they changed).
+  int _reloads = 0;
+
   /// Re-read lines, totals and meta from the core.
   Future<void> load() async {
     final seen = _writes;
@@ -207,7 +211,16 @@ class CartNotifier extends Notifier<CartState> {
     if (!ref.mounted) return;
     final meta = await order._quiet(() => bridge.cartMeta(tableId: arg));
     if (!ref.mounted) return;
-    if (seen != _writes) return;
+    // A write landed while this read was in flight, so what it read may
+    // predate it. Read again rather than dropping the reload: a dropped one
+    // left this copy of the meta stale, and the next whole-meta write sent
+    // the stale copy back to the core (a resumed order lost its link to its
+    // cart and was never completed by its sale).
+    if (seen != _writes) {
+      if (_reloads++ < 3) await load();
+      return;
+    }
+    _reloads = 0;
     final deals = _readDeals(bridge);
     state = state.copyWith(
       lines: lines ?? state.lines,
