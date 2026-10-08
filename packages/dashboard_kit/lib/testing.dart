@@ -87,14 +87,23 @@ String? get dashShotsDir {
 }
 
 /// Writes a PNG of the whole view — every route, dialog and toast — to
-/// [path] (folders created), at the view's pixel ratio. Runs the encoding
-/// inside `tester.runAsync`.
+/// [path] (folders created). Runs the encoding inside `tester.runAsync`.
+///
+/// The image is written at the view's LOGICAL size (1440×900 for desktop),
+/// times `FDASH_SHOT_SCALE` (default 1): agents read these PNGs, and
+/// full-resolution images made their requests big enough to time out.
 Future<void> captureShot(WidgetTester tester, String path) async {
   final view = tester.binding.renderViews.first;
   final layer = view.debugLayer! as OffsetLayer;
-  final physical = view.size * tester.view.devicePixelRatio;
+  final dpr = tester.view.devicePixelRatio;
+  final physical = view.size * dpr;
+  final scale =
+      double.tryParse(Platform.environment['FDASH_SHOT_SCALE'] ?? '') ?? 1.0;
   await tester.runAsync(() async {
-    final image = await layer.toImage(Offset.zero & physical);
+    final image = await layer.toImage(
+      Offset.zero & physical,
+      pixelRatio: scale / dpr,
+    );
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     image.dispose();
     final file = File(path)..parent.createSync(recursive: true);
