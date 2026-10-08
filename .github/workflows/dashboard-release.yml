@@ -16,9 +16,13 @@ name: Dashboard release
 #   Android, release key (else DEBUG-signed: installs fine, Play rejects it):
 #     DASH_KEYSTORE_BASE64      base64 -i upload.keystore | tr -d '\n'
 #     DASH_KEYSTORE_PASSWORD / DASH_KEY_PASSWORD / DASH_KEY_ALIAS
-#   iOS → TestFlight (else an UNSIGNED .ipa, to re-sign yourself), the POS's key:
-#     ASC_KEY_P8 / ASC_KEY_ID / ASC_ISSUER_ID / APPLE_TEAM_ID
-#     (the team needs an App Store Connect app for com.madar.madarDashboard)
+#   iOS → TestFlight (else an UNSIGNED .ipa, to re-sign yourself): the POS's
+#     App Store Connect key (ASC_KEY_P8 / ASC_KEY_ID / ASC_ISSUER_ID) plus
+#     DASH_APPLE_TEAM_ID, the dashboard's own opt-in: set it only once App Store
+#     Connect has an app for com.madar.madarDashboard. Every signed run mints an
+#     Apple Development certificate in that team (the POS's CI trap), so it
+#     stays off until there is somewhere to upload to. A refused upload still
+#     ships the unsigned .ipa.
 #   macOS, Developer ID + notarized (else AD-HOC: right-click → Open the first time):
 #     MACOS_DEVELOPER_ID_P12    "Developer ID Application" cert + key, .p12, base64
 #     MACOS_DEVELOPER_ID_PASSWORD
@@ -155,7 +159,7 @@ jobs:
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_TEAM_ID: ${{ secrets.DASH_APPLE_TEAM_ID }}
     steps:
       - uses: actions/checkout@v7
 
@@ -164,7 +168,7 @@ jobs:
         run: |
           for v in ASC_KEY_P8 ASC_KEY_ID ASC_ISSUER_ID APPLE_TEAM_ID; do
             if [ -z "${!v:-}" ]; then
-              echo "::warning::$v not set: iOS builds UNSIGNED (no TestFlight). iOS has no ad-hoc signing without a certificate."
+              echo "::warning::${v/APPLE_TEAM_ID/DASH_APPLE_TEAM_ID} not set: iOS builds UNSIGNED (no TestFlight). iOS has no ad-hoc signing without a certificate."
               echo "signed=false" >> "$GITHUB_OUTPUT"; exit 0
             fi
           done
@@ -193,17 +197,10 @@ jobs:
       - name: Pub get
         run: dart pub get
 
-      - name: Build unsigned .ipa
-        if: steps.asc.outputs.signed != 'true'
-        working-directory: apps/dashboard
-        run: |
-          flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
-          mkdir -p "$RUNNER_TEMP/ipa/Payload"
-          cp -R build/ios/iphoneos/Runner.app "$RUNNER_TEMP/ipa/Payload/"
-          (cd "$RUNNER_TEMP/ipa" && zip -qr "$GITHUB_WORKSPACE/MadarDashboard-iOS-unsigned.ipa" Payload)
-
       - name: Archive (signed) + upload to TestFlight
+        id: upload
         if: steps.asc.outputs.signed == 'true'
+        continue-on-error: true
         working-directory: apps/dashboard
         run: |
           set -euo pipefail
@@ -229,8 +226,17 @@ jobs:
             -exportPath "$RUNNER_TEMP/export" "${AUTH[@]}"
           echo "## 🍎 iOS build ${{ github.run_number }} uploaded to TestFlight" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Build unsigned .ipa
+        if: steps.asc.outputs.signed != 'true' || steps.upload.outcome == 'failure'
+        working-directory: apps/dashboard
+        run: |
+          flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R build/ios/iphoneos/Runner.app "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qr "$GITHUB_WORKSPACE/MadarDashboard-iOS-unsigned.ipa" Payload)
+
       - uses: actions/upload-artifact@v7
-        if: steps.asc.outputs.signed != 'true'
+        if: steps.asc.outputs.signed != 'true' || steps.upload.outcome == 'failure'
         with:
           name: dashboard-ios
           path: MadarDashboard-iOS-unsigned.ipa
