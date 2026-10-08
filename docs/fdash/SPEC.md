@@ -195,17 +195,31 @@ Arabic / Mono). LOOK at your screenshots (Read the PNGs): overflow stripes, clip
 mirrored geometry, wrong direction, raw keys, English in Arabic, empty boxes, misaligned columns,
 unreadable contrast are defects.
 
-Commands (from the package directory):
+Commands — ALWAYS through `tool/fdash_test.py` (from the worktree root). It caps concurrent
+flutter runs machine-wide and locks per package, so dozens of agents can work at once; a wait
+message means it is queueing, not stuck:
 
 ```bash
-FLUTTER_ALREADY_LOCKED=true flutter test --no-pub test/<your_file>_test.dart
-FDASH_SHOTS=/Users/shawket/Desktop/Madar/wt-fdash-pos/.shots FLUTTER_ALREADY_LOCKED=true flutter test --no-pub test/<your_file>_test.dart
-FLUTTER_ALREADY_LOCKED=true flutter analyze lib test
+python3 tool/fdash_test.py packages/dashboard_features/<area> test/<your_file>_test.dart
+FDASH_SHOTS=/Users/shawket/Desktop/Madar/wt-fdash-pos/.shots python3 tool/fdash_test.py packages/dashboard_features/<area> test/<your_file>_test.dart
+python3 tool/fdash_test.py --analyze packages/dashboard_features/<area> lib test
 ```
+
+Run only your own test files; never the whole package unless your role is the area's final check.
 
 A page is done when: every D-row has a passing driven test; refusal, empty, loading and error tests
 pass; the screenshot matrix is clean; `flutter analyze` on the package is clean; no unmatched mock
 routes; no hard-coded strings.
+
+### 6.3 Web bugs: port the intent, log the difference
+
+The inventories record web behaviour that is plainly a bug (a double minus sign, a save lost on
+in-app navigation, a "Saving…" that never clears, raw transport errors shown to people, English
+names inside the Arabic UI, a check that silently blocks Save). Do NOT copy a bug. Implement what the
+web evidently intends, pin the correct behaviour with a test, and add one line per difference to
+`docs/fdash/divergences/<area>.md` (row id, what the web does, what Flutter does, why). Quirks that
+are a product choice rather than a defect are ported as they are. When unsure which it is, port the
+web's behaviour and log it as a question in the same file.
 
 ## 7. Where to read the web
 
