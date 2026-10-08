@@ -13,6 +13,18 @@ workspace:
   - packages/design_system
   - packages/rust_bridge
   - packages/rust_bridge_dashboard
+  - packages/dashboard_api
+  - packages/dashboard_kit
+  - packages/dashboard_core
+  - packages/dashboard_features/overview
+  - packages/dashboard_features/sell
+  - packages/dashboard_features/catalog_menu
+  - packages/dashboard_features/catalog_offers
+  - packages/dashboard_features/reports
+  - packages/dashboard_features/inventory
+  - packages/dashboard_features/team
+  - packages/dashboard_features/setup
+  - packages/dashboard_features/admin
   - packages/rust_bridge_staff
   - packages/staff_core
   - packages/features/dawam_auth

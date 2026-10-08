@@ -62,3 +62,6 @@ openpgp-revocs.d/
 
 # Kotlin build cache.
 **/.kotlin/
+
+# Screenshots written by the dashboard test harness (FDASH_SHOTS)
+.shots/

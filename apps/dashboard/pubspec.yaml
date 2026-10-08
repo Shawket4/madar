@@ -19,6 +19,18 @@ dependencies:
   # bluetooth/printer deps) — the dashboard defines its own lean providers.
   rust_bridge_dashboard: ^0.1.0
   design_system: ^0.1.0
+  dashboard_api: ^0.1.0
+  dashboard_kit: ^0.1.0
+  dashboard_core: ^0.1.0
+  dashboard_overview: ^0.1.0
+  dashboard_sell: ^0.1.0
+  dashboard_catalog_menu: ^0.1.0
+  dashboard_catalog_offers: ^0.1.0
+  dashboard_reports: ^0.1.0
+  dashboard_inventory: ^0.1.0
+  dashboard_team: ^0.1.0
+  dashboard_setup: ^0.1.0
+  dashboard_admin: ^0.1.0
 
   # State (house pattern: hand-written Notifier/AsyncNotifier).
   flutter_riverpod: ^3.3.2
@@ -27,6 +39,11 @@ dependencies:
   intl: ^0.20.2
   path_provider: ^2.1.0
   table_calendar: ^3.2.0
+  file_picker: ^13.1.0
+  file_selector: ^1.1.0
+  share_plus: ^13.3.1
+  image_picker: ^1.2.4
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:

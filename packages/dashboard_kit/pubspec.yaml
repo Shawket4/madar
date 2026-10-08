@@ -1,0 +1,25 @@
+name: dashboard_kit
+description: "Dashboard UI kit on top of design_system: data table, filter bar, side panel, form fields, page scaffold, charts."
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+  flutter: ">=3.41.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  design_system: ^0.1.0
+  intl: ^0.20.2
+  collection: ^1.19.0
+  fl_chart: ^1.2.0
+  two_dimensional_scrollables: ^0.5.4
+  table_calendar: ^3.2.0
+  flutter_svg: ^2.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
