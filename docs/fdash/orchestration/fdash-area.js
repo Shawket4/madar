@@ -61,7 +61,7 @@ const unitOwns = (u) => `${PKG}/lib/src/${u.key}/**, ${PKG}/test/${u.key}/**, ${
 // 1. Scaffold
 phase('Scaffold')
 const unitList = A.units.map(u => `- ${u.key}: ${u.title} — paths ${u.paths.join(', ')}${u.scope ? ' — scope: ' + u.scope : ''}`).join('\n')
-const scaffold = await agent(pre('area scaffolder: prepare the area so page builders can work in parallel without touching the same files',
+const scaffold = A.skipScaffold ? { done: true, summary: 'The area was scaffolded in an earlier session and committed: unit folders, mock files, supplements and routes already exist. Continue from the files on disk.', openIssues: [] } : await agent(pre('area scaffolder: prepare the area so page builders can work in parallel without touching the same files',
   `${PKG}/** for now (the builders take over their unit folders after you)`) + `
 Units that builders will implement in parallel next:
 ${unitList}

@@ -113,8 +113,9 @@ Make the foundation whole and green:
 3. Check the pieces fit: the app's mock mode composes all 9 areas and the core handlers; the harness boots the shell for every area stub path for every persona without unmatched routes; DashKitLocalizations is filled from Strings; the generated nav, the area stubs and SPEC section 3 agree on every path.
 Report precisely what you ran and the results.`
 
+const FINISH = args && args.finishOnly
 phase('Build')
-const built = await parallel([
+const built = FINISH ? [null, null, null, null] : await parallel([
   () => agent(API, { label: 'api', phase: 'Build', schema: RESULT }),
   () => agent(BRIDGE, { label: 'bridge', phase: 'Build', schema: RESULT }),
   () => agent(KIT, { label: 'kit', phase: 'Build', schema: RESULT }),
@@ -122,11 +123,11 @@ const built = await parallel([
 ])
 const [api, bridge, kit, core] = built
 const notes = (r, n) => `${n}: ${r ? r.summary + (r.openIssues && r.openIssues.length ? ' | open: ' + r.openIssues.join('; ') : '') + (r.needsFromOthers && r.needsFromOthers.length ? ' | needs: ' + r.needsFromOthers.join('; ') : '') : 'FAILED / no result'}`
-const buildNotes = [notes(api, 'api'), notes(bridge, 'bridge'), notes(kit, 'kit'), notes(core, 'core')].join('\n')
+const buildNotes = FINISH ? 'api, bridge, kit, core and shell were built in an earlier session and are committed (see git log). The home page (overview area) is partly built on disk; PATTERNS.md does not exist yet.' : [notes(api, 'api'), notes(bridge, 'bridge'), notes(kit, 'kit'), notes(core, 'core')].join('\n')
 log('Build done')
 
 phase('Shell')
-const shell = await agent(SHELL + `\nWhat the other agents reported:\n${buildNotes}`, { label: 'shell', phase: 'Shell', schema: RESULT })
+const shell = FINISH ? null : await agent(SHELL + `\nWhat the other agents reported:\n${buildNotes}`, { label: 'shell', phase: 'Shell', schema: RESULT })
 
 phase('Exemplar')
 const exemplar = await agent(EXEMPLAR + `\nThis may be a restart: files may already hold work from an earlier, interrupted attempt at this same assignment. Read what is there first, keep what is right, and continue; do not start over. Read at most ~10 screenshot PNGs per pass; large batches of images make requests time out.\n\nReports so far:\n${buildNotes}\n${notes(shell, 'shell')}`, { label: 'exemplar:home', phase: 'Exemplar', schema: RESULT })
