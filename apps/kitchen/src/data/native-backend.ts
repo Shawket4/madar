@@ -70,5 +70,13 @@ export function nativeBackend(): Backend {
     },
     stopRealtime: () => core.stopRealtime(),
     setLocale: (locale) => core.setLocale(locale),
+    lanStart: () => call(() => core.lanStart()),
+    lanStop: () => core.lanStop(),
+    lanStatus: () => {
+      const s = core.lanStatus();
+      return { running: s.running, peerCount: s.peerCount, lastError: s.lastError };
+    },
+    lanAdvert: () => core.lanAdvert(),
+    lanNotePeer: (p) => core.lanNotePeer(p.deviceId, p.branchId, p.host, p.port, p.role, p.stationId, p.deviceCode),
   };
 }

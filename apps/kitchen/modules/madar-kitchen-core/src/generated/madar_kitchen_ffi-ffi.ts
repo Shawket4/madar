@@ -76,6 +76,11 @@ interface NativeModuleInterface {
     ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_bump(uniffiSelf: bigint, itemId: Uint8Array): bigint;
     ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_choose_branch(uniffiSelf: bigint, id: Uint8Array, name: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_clear_sections(uniffiSelf: bigint, uniffi_out_err: UniffiRustCallStatus): void;
+    ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_advert(uniffiSelf: bigint, uniffi_out_err: UniffiRustCallStatus): Uint8Array;
+    ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_note_peer(uniffiSelf: bigint, deviceId: Uint8Array, branchId: Uint8Array, host: Uint8Array, port: number, role: Uint8Array, stationId: Uint8Array, deviceCode: Uint8Array, uniffi_out_err: UniffiRustCallStatus): number;
+    ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_start(uniffiSelf: bigint): bigint;
+    ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_status(uniffiSelf: bigint, uniffi_out_err: UniffiRustCallStatus): Uint8Array;
+    ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_stop(uniffiSelf: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_manager_login(uniffiSelf: bigint, email: Uint8Array, password: Uint8Array): bigint;
     ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_reset_device(uniffiSelf: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_locale(uniffiSelf: bigint, locale: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
@@ -97,6 +102,11 @@ interface NativeModuleInterface {
     ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_bump(): number;
     ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_choose_branch(): number;
     ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections(): number;
+    ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_advert(): number;
+    ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_note_peer(): number;
+    ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start(): number;
+    ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_status(): number;
+    ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_stop(): number;
     ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_manager_login(): number;
     ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_reset_device(): number;
     ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_locale(): number;

@@ -1,7 +1,6 @@
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_auth/feature_auth.dart';
-import 'package:feature_kds/feature_kds.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -110,8 +109,7 @@ class _RouteHostState extends ConsumerState<_RouteHost> {
   }
 
   /// The route → surface mapping. Screens are paramless per the contract —
-  /// they reach the core through `bridgeProvider` themselves (the KDS
-  /// keeps its station binding, pure data).
+  /// they reach the core through `bridgeProvider` themselves.
   /// A kitchen-screen-only person (by capability). Re-read when the person
   /// changes.
   bool _kitchenOnly(WidgetRef ref) {
@@ -122,11 +120,12 @@ class _RouteHostState extends ConsumerState<_RouteHost> {
 
   Widget _screenFor(WidgetRef ref, AppRoute route) {
     return switch (route) {
-      // A signed-in kitchen device parked on DeviceSetup needs its station
-      // bound; everyone else gets the login screen, which embeds the
-      // manager device-setup form when the device is unbound.
+      // A kitchen account parked on DeviceSetup (no station bound) gets the
+      // same notice as one routed to the kitchen display; everyone else gets
+      // the login screen, which embeds the manager device-setup form when
+      // the device is unbound.
       AppRoute_DeviceSetup() =>
-        _kitchenOnly(ref) ? const StationPickerScreen() : const LoginScreen(),
+        _kitchenOnly(ref) ? const KitchenAccountScreen() : const LoginScreen(),
       AppRoute_Login() => const LoginScreen(),
       // Signed in: the person's shell decides the tabs from the role. A
       // teller with no till is not walled off — the shell opens on Till,
@@ -134,9 +133,9 @@ class _RouteHostState extends ConsumerState<_RouteHost> {
       AppRoute_OpenTill() ||
       AppRoute_Order() ||
       AppRoute_WaiterTickets() => const RoleShell(),
-      AppRoute_KitchenDisplay(:final stationId) => KitchenDisplayScreen(
-        stationId: stationId,
-      ),
+      // The kitchen display is its own app now (Madar Kitchen): a kitchen
+      // account on the POS is told so and offered a way out.
+      AppRoute_KitchenDisplay() => const KitchenAccountScreen(),
     };
   }
 }

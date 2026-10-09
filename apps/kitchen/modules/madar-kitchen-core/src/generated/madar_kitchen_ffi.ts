@@ -6,7 +6,7 @@
 import nativeModule from "./madar_kitchen_ffi-ffi";
 import { type UniffiRustFutureContinuationCallback, type UniffiForeignFutureDroppedCallback, type UniffiForeignFutureDroppedCallbackStruct, type UniffiVTableCallbackInterfaceMadarKitchenFfiKitchenListener,
 } from "./madar_kitchen_ffi-ffi";
-import { type FfiConverter, type UniffiByteArray, type UniffiGcObject, type UniffiHandle, type UniffiObjectFactory, type UniffiReferenceHolder, type UniffiRustCallStatus, AbstractFfiConverterByteArray, Cursor, FfiConverterArray, FfiConverterBool, FfiConverterInt32, FfiConverterObject, FfiConverterObjectWithCallbacks, FfiConverterOptional, FfiConverterUInt32, FfiConverterUInt8, RustBuffer, UniffiAbstractObject, UniffiError, UniffiInternalError, UniffiResult, UniffiRustCaller, destructorGuardSymbol, pointerLiteralSymbol, uniffiCreateFfiConverterString, uniffiCreateRecord, uniffiRustCallAsync, uniffiTraitInterfaceCall, uniffiTypeNameSymbol, variantOrdinalSymbol,
+import { type FfiConverter, type UniffiByteArray, type UniffiGcObject, type UniffiHandle, type UniffiObjectFactory, type UniffiReferenceHolder, type UniffiRustCallStatus, AbstractFfiConverterByteArray, Cursor, FfiConverterArray, FfiConverterBool, FfiConverterInt32, FfiConverterObject, FfiConverterObjectWithCallbacks, FfiConverterOptional, FfiConverterUInt16, FfiConverterUInt32, FfiConverterUInt8, RustBuffer, UniffiAbstractObject, UniffiError, UniffiInternalError, UniffiResult, UniffiRustCaller, destructorGuardSymbol, pointerLiteralSymbol, uniffiCreateFfiConverterString, uniffiCreateRecord, uniffiRustCallAsync, uniffiTraitInterfaceCall, uniffiTypeNameSymbol, variantOrdinalSymbol,
 } from "@ubjs/core";
 const uniffiCaller = new UniffiRustCaller(() => ({ code: 0 }));
 
@@ -185,6 +185,115 @@ const FfiConverterTypeKitchenState = (() => {
              FfiConverterOptionalString.allocationSize(value.userName) +
              FfiConverterOptionalString.allocationSize(value.userRole) +
              FfiConverterUInt32.allocationSize(value.pending);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+export type LanAdvert = {
+    deviceId: string,
+    branchId: string,
+    role: string,
+    stationId?: string,
+    deviceCode?: string,
+    tcpPort: number
+}
+
+/**
+ * Generated factory for {@link LanAdvert} record objects.
+ */
+export const LanAdvert = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<LanAdvert, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<LanAdvert>,
+    });
+})();
+
+const FfiConverterTypeLanAdvert = (() => {
+    type TypeName = LanAdvert;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                deviceId: FfiConverterString.readFromCursor(c), 
+                branchId: FfiConverterString.readFromCursor(c), 
+                role: FfiConverterString.readFromCursor(c), 
+                stationId: FfiConverterOptionalString.readFromCursor(c), 
+                deviceCode: FfiConverterOptionalString.readFromCursor(c), 
+                tcpPort: FfiConverterUInt16.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterString.writeIntoCursor(value.deviceId, c);
+            FfiConverterString.writeIntoCursor(value.branchId, c);
+            FfiConverterString.writeIntoCursor(value.role, c);
+            FfiConverterOptionalString.writeIntoCursor(value.stationId, c);
+            FfiConverterOptionalString.writeIntoCursor(value.deviceCode, c);
+            FfiConverterUInt16.writeIntoCursor(value.tcpPort, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.deviceId) +
+             FfiConverterString.allocationSize(value.branchId) +
+             FfiConverterString.allocationSize(value.role) +
+             FfiConverterOptionalString.allocationSize(value.stationId) +
+             FfiConverterOptionalString.allocationSize(value.deviceCode) +
+             FfiConverterUInt16.allocationSize(value.tcpPort);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+export type LanStatus = {
+    running: boolean,
+    /**
+     * Live discovered peers + manual hubs.
+     */
+    peerCount: number,
+    lastError?: string
+}
+
+/**
+ * Generated factory for {@link LanStatus} record objects.
+ */
+export const LanStatus = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<LanStatus, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<LanStatus>,
+    });
+})();
+
+const FfiConverterTypeLanStatus = (() => {
+    type TypeName = LanStatus;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                running: FfiConverterBool.readFromCursor(c), 
+                peerCount: FfiConverterUInt32.readFromCursor(c), 
+                lastError: FfiConverterOptionalString.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterBool.writeIntoCursor(value.running, c);
+            FfiConverterUInt32.writeIntoCursor(value.peerCount, c);
+            FfiConverterOptionalString.writeIntoCursor(value.lastError, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterBool.allocationSize(value.running) +
+             FfiConverterUInt32.allocationSize(value.peerCount) +
+             FfiConverterOptionalString.allocationSize(value.lastError);
             
         }
     };
@@ -740,6 +849,24 @@ export interface KitchenCoreLike {
  */
     clearSections() /*throws*/: void;
 /**
+ * What to advertise over the system's Bonjour (`_madar._tcp`); `None`
+ * while the relay is down. iOS blocks the core's own multicast discovery
+ * without a restricted entitlement, so the host advertises and browses.
+ */
+    lanAdvert(): LanAdvert | undefined;
+/**
+ * A peer the host's Bonjour resolved. The core filters by branch and
+ * skips this device; re-note live peers every few seconds (12 s TTL).
+ */
+    lanNotePeer(deviceId: string, branchId: string, host: string, port: number, role: string, stationId: string | undefined, deviceCode: string | undefined): boolean;
+/**
+ * Start the relay for the signed-in branch. Idempotent; needs a session
+ * and the branch's LAN key, which an online sign-in caches.
+ */
+    lanStart(asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<void>;
+    lanStatus(): LanStatus;
+    lanStop(): void;
+/**
  * Device setup, step 1 (DV-1): a manager's email sign-in, then the org's branches.
  */
     managerLogin(email: string, password: string, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<Array<Branch>>;
@@ -871,6 +998,105 @@ export class KitchenCore extends UniffiAbstractObject implements KitchenCoreLike
     clearSections(): void /*throws*/ {uniffiCaller.rustCallWithError(
             /*liftError:*/ FfiConverterTypeKitchenError.lift.bind(FfiConverterTypeKitchenError),
             /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_clear_sections(
+                uniffiTypeKitchenCoreObjectFactory.clonePointer(this),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    }
+    
+/**
+ * What to advertise over the system's Bonjour (`_madar._tcp`); `None`
+ * while the relay is down. iOS blocks the core's own multicast discovery
+ * without a restricted entitlement, so the host advertises and browses.
+ */
+    lanAdvert(): LanAdvert | undefined {
+    const __rb: Uint8Array = uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_advert(
+                uniffiTypeKitchenCoreObjectFactory.clonePointer(this),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    try {
+        return FfiConverterOptionalTypeLanAdvert.lift(__rb);
+    } finally {
+        nativeModule().rustbuffer_free(__rb);
+    }
+    }
+    
+/**
+ * A peer the host's Bonjour resolved. The core filters by branch and
+ * skips this device; re-note live peers every few seconds (12 s TTL).
+ */
+    lanNotePeer(deviceId: string, branchId: string, host: string, port: number, role: string, stationId: string | undefined, deviceCode: string | undefined): boolean {
+    return FfiConverterBool.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_note_peer(
+                uniffiTypeKitchenCoreObjectFactory.clonePointer(this),
+        FfiConverterString.lower(deviceId, nativeModule().rustbuffer_alloc),
+        FfiConverterString.lower(branchId, nativeModule().rustbuffer_alloc),
+        FfiConverterString.lower(host, nativeModule().rustbuffer_alloc),
+        FfiConverterUInt16.lower(port, nativeModule().rustbuffer_alloc),
+        FfiConverterString.lower(role, nativeModule().rustbuffer_alloc),
+        FfiConverterOptionalString.lower(stationId, nativeModule().rustbuffer_alloc),
+        FfiConverterOptionalString.lower(deviceCode, nativeModule().rustbuffer_alloc),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    ));
+    }
+    
+/**
+ * Start the relay for the signed-in branch. Idempotent; needs a session
+ * and the branch's LAN key, which an online sign-in caches.
+ */
+    async lanStart(asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_start(
+                    uniffiTypeKitchenCoreObjectFactory.clonePointer(this)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeKitchenError.lift.bind(FfiConverterTypeKitchenError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    lanStatus(): LanStatus {
+    const __rb: Uint8Array = uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_status(
+                uniffiTypeKitchenCoreObjectFactory.clonePointer(this),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    try {
+        return FfiConverterTypeLanStatus.lift(__rb);
+    } finally {
+        nativeModule().rustbuffer_free(__rb);
+    }
+    }
+    
+    lanStop(): void {uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_stop(
                 uniffiTypeKitchenCoreObjectFactory.clonePointer(this),
                 callStatus);
             },
@@ -1285,6 +1511,9 @@ const FfiConverterSequenceString = new FfiConverterArray(FfiConverterString);
 // FfiConverter for Array<Line>
 const FfiConverterSequenceTypeLine = new FfiConverterArray(FfiConverterTypeLine);
 
+// FfiConverter for LanAdvert | undefined
+const FfiConverterOptionalTypeLanAdvert = new FfiConverterOptional(FfiConverterTypeLanAdvert);
+
 // FfiConverter for Array<Branch>
 const FfiConverterSequenceTypeBranch = new FfiConverterArray(FfiConverterTypeBranch);
 
@@ -1324,6 +1553,21 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections() !== 387) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections");
+    }
+    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_advert() !== 26821) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_advert");
+    }
+    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_note_peer() !== 14297) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_note_peer");
+    }
+    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start() !== 34820) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start");
+    }
+    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_status() !== 27207) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_status");
+    }
+    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_stop() !== 44942) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_stop");
     }
     if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_manager_login() !== 27944) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_manager_login");
@@ -1385,6 +1629,8 @@ export default Object.freeze({
     FfiConverterTypeKitchenError,
     FfiConverterTypeKitchenListener,
     FfiConverterTypeKitchenState,
+    FfiConverterTypeLanAdvert,
+    FfiConverterTypeLanStatus,
     FfiConverterTypeLine,
     FfiConverterTypeStation,
     FfiConverterTypeTicket,

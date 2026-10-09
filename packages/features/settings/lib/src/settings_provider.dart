@@ -1,8 +1,7 @@
 /// Settings state — the Riverpod spine behind the settings screen: the device
 /// config mirror (custody lives in the CORE; this only mirrors), printer
-/// brand + test-print lifecycle, till/station binding, the LAN hub, and the
-/// diagnostics feed. Route-moving actions (station bind) refresh the shell;
-/// reconfigure/sign-out return success so the screen pops before the shell
+/// brand + test-print lifecycle, till binding, the LAN hub, and the
+/// diagnostics feed. Reconfigure/sign-out return success so the screen pops before the shell
 /// re-reads.
 library;
 
@@ -48,7 +47,6 @@ class SettingsState {
   const SettingsState({
     required this.config,
     required this.brand,
-    this.stations = const [],
     this.diagnostics = const [],
     this.pending = 0,
     this.printState = PrintState.idle,
@@ -67,9 +65,6 @@ class SettingsState {
 
   // Whether a till is open (the sign-out guard, the account card) is the
   // shell's — `shellProvider.till`, the one owner — never loaded here.
-
-  /// Bindable kitchen stations (KDS devices).
-  final List<KdsStationView> stations;
 
   /// Recent warning/error log feed.
   final List<DiagLogView> diagnostics;
@@ -106,7 +101,6 @@ class SettingsState {
   SettingsState copyWith({
     DeviceConfigView? config,
     PrinterBrand? brand,
-    List<KdsStationView>? stations,
     List<DiagLogView>? diagnostics,
     int? pending,
     PrintState? printState,
@@ -119,7 +113,6 @@ class SettingsState {
     return SettingsState(
       config: config ?? this.config,
       brand: brand ?? this.brand,
-      stations: stations ?? this.stations,
       diagnostics: diagnostics ?? this.diagnostics,
       pending: pending ?? this.pending,
       printState: printState ?? this.printState,
@@ -138,8 +131,6 @@ class SettingsState {
 /// only renders [SettingsState] and forwards taps/keystrokes.
 class SettingsNotifier extends Notifier<SettingsState> {
   MadarBridge get _bridge => ref.read(bridgeProvider);
-
-  bool get _isKitchenDevice => isKitchenOnly((c) => _bridge.can(cap: c));
 
   @override
   SettingsState build() {
@@ -166,9 +157,6 @@ class SettingsNotifier extends Notifier<SettingsState> {
   /// error banner or print status).
   Future<void> load() async {
     final config = _bridge.deviceConfig();
-    final stations = _isKitchenDevice
-        ? await _quiet(_bridge.kdsListStations) ?? const <KdsStationView>[]
-        : const <KdsStationView>[];
     final pending = await _quiet(_bridge.pendingOutboxCount) ?? 0;
     final diagnostics =
         await _quiet(_bridge.recentLogs) ?? const <DiagLogView>[];
@@ -178,7 +166,6 @@ class SettingsNotifier extends Notifier<SettingsState> {
     state = SettingsState(
       config: config,
       brand: _brandOf(config.printerBrand),
-      stations: stations,
       diagnostics: diagnostics,
       pending: pending,
       floorAuthored: floor == null || floor.tables.isNotEmpty,
@@ -281,14 +268,6 @@ class SettingsNotifier extends Notifier<SettingsState> {
       () => _bridge.setDeviceLanHub(hub: trimmed.isEmpty ? null : trimmed),
     );
     state = state.copyWith(config: _bridge.deviceConfig());
-  }
-
-  /// Bind this device's kitchen station (KDS devices). The station rides
-  /// the route (`kitchenDisplay(stationId)`), so refresh the shell.
-  Future<void> bindStation(String stationId) async {
-    await _write(() => _bridge.setDeviceStation(stationId: stationId));
-    state = state.copyWith(config: _bridge.deviceConfig());
-    ref.read(shellProvider.notifier).refresh();
   }
 
   /// Render a tiny TEST receipt in the core and stream it to the
