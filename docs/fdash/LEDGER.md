@@ -196,3 +196,4 @@ DONE sell/customers (all 8 fixed; 183 tests; floor+bookings 272 pass; shared/she
 DONE catalog_menu/pricing (all 9 fixed; 102 tests; reads via menuStudioProvider/branchAddonOverridesProvider/menuCatalogProvider; fixed shared/unsaved_bar.dart scroll jump) → COMMIT WITH catalog_menu AREA
 OWNER Q (set): add geolocator to apps/dashboard for "Use my location" (asked 2026-10-09, unanswered)
 USAGE LIMIT reached 2026-10-09 while ~12 agents still ran (studio, financial, basira, loyalty_inventory_staff, purchasing, counts, attendance; operations fixer). Check their files and tests on restart.
+BUILT reports/basira (33/33, 110 tests; builder abf733af42d792efe) → VERIFY QUEUED. No webCache by design (web keeps Basira out of its query cache). OWNER Q: Basira heatmap mirrors in Arabic (as web); keep it LTR like the charts? KIT (+bas): start-side slide-over, round icon button, LTR charts with gaps, outline badge, DashSkeleton without a width draws nothing.

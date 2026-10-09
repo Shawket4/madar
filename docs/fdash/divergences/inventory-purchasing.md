@@ -1,0 +1,20 @@
+# Inventory ▸ Purchasing: divergences from the web
+
+Web: `src/features/inventory/{purchasing-page,purchase-order-dialog,receive-dialog,supplier-dialog}.tsx`
+(v1.4.18). Flutter: `packages/dashboard_features/inventory/lib/src/purchasing/`. Tests named
+`(divergence)` pin each fix.
+
+| Row | Web | Flutter | Why |
+|---|---|---|---|
+| INV-PUR-072 | Reorder tab open, then the scope switches to All branches: the tab turns disabled but stays selected; its read is disabled (not loading), so the panel says "No items to reorder / All stocked items are above their reorder point."; no header button; Export exports suppliers. | The page shows the Purchase orders tab (its header button disabled, Export exports the orders). The Reorder choice is kept: picking a branch again returns to it. The status filter is kept too. | Bug: the web states that nothing needs reordering when nothing was checked. |
+| INV-PUR-046 | With no line receiving more than 0, the Receive button stays enabled and does nothing when pressed (no request, no message). | The button is disabled until a line has a positive quantity. | A button that silently does nothing (SPEC 6.1). |
+| INV-PUR-048 | A failed receipts read is shown as "No deliveries recorded yet.". | The read's error words and Retry. | Bug: the empty state hides a failure. |
+| INV-PUR-048 | Each opening of Delivery history fetches the receipts and shows the skeleton until they answer. | Each opening refetches too, but the cards already read stay on screen while it runs (the skeleton shows only on the first load), as every cached read in the app does. | SPEC 6.1 caching. |
+| INV-PUR-051 | The order read has no loading or error UI: the receive table is empty until it answers and stays empty if it fails. | Skeleton rows while it loads (Receive disabled); on failure the error words and Retry. | Bug: a blank table hides a failure. |
+| INV-PUR-035 / -036 / -044 | `<input type="number" min="0">`: a minus sign or an exponent can be typed (the line is then ignored, or the server refuses it). | The PO and receive number inputs take digits (Latin or Arabic-Indic) and the decimal sign only. | No negative quantity or total is meaningful in these inputs. |
+| INV-PUR-052 | The edit form is filled once when it opens, from the row clicked. | It follows a background refresh of that supplier (e.g. the 30 s stale refetch or a `resync`) until the person types, then keeps what was typed. | SPEC 6.1: a form copied once from stale data would save the old values over newer ones. |
+| INV-PUR-061 | Phone cards show the actions cell in the label/value grid under the raw label "actions". | ⋯ sits at the card's top end, Place order / Receive at the card's foot; no label. | The inventory row asks for a proper label or none. |
+| INV-PUR-003 | `prefetchRoute('/inventory/purchasing')` warms the orders only with a branch picked. | The orders are also warmed with All branches, with the all-branches id the page reads. | The page's exact first read either way; the web's case misses the All branches key. |
+| INV-PUR-070 | A past expected date gives the date trigger a warning border and a warning calendar glyph, besides the warning line. | The kit's `DashDateField` shows the warning line only. | Kit gap (reported); not forked locally. |
+| INV-ALL-006 | No route guard: `/inventory/purchasing` without either read capability renders the page and its reads 403 into their error states. | The shell's route gate shows `Restricted` and reads nothing. A 403 the server sends anyway still shows its words (pinned, INV-PUR-062). | Shell-wide rule (same as Ingredients, Today); question for the owner. |
+| INV-PUR-056 | (question) Clearing Contact name, Email or Phone in Edit sends `null`, which the server's PATCH ignores (`COALESCE`), so the old value stays while "Changes saved" shows. | Ported as is (the mock keeps the value too; pinned in the dialog test). | Server contract: a PATCH cannot clear these fields. Question for the owner. |
