@@ -66,7 +66,8 @@ bool? requestMonthClosed(MockDb db, Object? org, String from, String to) {
   bool? paid;
   for (final p in db[TeamTables.payrollPeriods].rows) {
     final s = p['status'];
-    if (p['org_id'] != org || !const {'generated', 'paid', 'closed'}.contains(s)) {
+    if (p['org_id'] != org ||
+        !const {'generated', 'paid', 'closed'}.contains(s)) {
       continue;
     }
     if ((p['start_date']! as String).compareTo(to) > 0) continue;
@@ -109,8 +110,7 @@ bool _outranks(MockRequest req, MockRow employee) =>
     req.persona.isOwner && employee['role'] != 'org_admin';
 
 bool _isOwn(MockRequest req, MockRow? employee) =>
-    employee?['user_id'] != null &&
-    employee!['user_id'] == req.persona.userId;
+    employee?['user_id'] != null && employee!['user_id'] == req.persona.userId;
 
 /// Who did it, by name: their employee's, else their account's.
 String? _nameOf(MockDb db, String user) =>
@@ -137,7 +137,12 @@ MockRow requestForCaller(MockRequest req, MockDb db, MockRow r) {
     'is_own': own,
     'can_decide': r['can_decide'] ?? (may && pending),
     'month_closed':
-        requestMonthClosed(db, r['org_id'], on, r['end_date'] as String? ?? on) !=
+        requestMonthClosed(
+          db,
+          r['org_id'],
+          on,
+          r['end_date'] as String? ?? on,
+        ) !=
         null,
     'to_owner': r['to_owner'] ?? (pending && decider),
   };
@@ -153,8 +158,12 @@ MockRow requestForCaller(MockRequest req, MockDb db, MockRow r) {
   final on = b['on_date']! as String;
   final end = b['end_date'] as String? ?? on;
   if (b['work_shift_id'] != null &&
-      !const {'late_arrival', 'early_departure', 'excuse', 'correction'}
-          .contains(kind)) {
+      !const {
+        'late_arrival',
+        'early_departure',
+        'excuse',
+        'correction',
+      }.contains(kind)) {
     bad(
       'SHIFT_NOT_FOR_KIND',
       'Only a late arrival, early departure, excuse or correction names a shift',
@@ -167,16 +176,26 @@ MockRow requestForCaller(MockRequest req, MockDb db, MockRow r) {
       }
       final half = b['is_half_day'] == true;
       if (half && end != on) {
-        bad('HALF_DAY_ONE_DATE', 'A half day must start and end on the same date');
+        bad(
+          'HALF_DAY_ONE_DATE',
+          'A half day must start and end on the same date',
+        );
       }
       final which = b['leave_half'];
       if (!half && which != null) {
         bad('HALF_ONLY_FOR_HALF_DAY', 'Only a half day says which half');
       }
       if (half && which != null && which != 'first' && which != 'second') {
-        bad('HALF_DAY_WHICH_HALF', 'A half day is the first or the second half');
+        bad(
+          'HALF_DAY_WHICH_HALF',
+          'A half day is the first or the second half',
+        );
       }
-      return (end: end, half: half ? (which as String? ?? 'first') : null, title: null);
+      return (
+        end: end,
+        half: half ? (which as String? ?? 'first') : null,
+        title: null,
+      );
     case 'late_arrival':
       if (b['to_time'] == null) {
         bad(
@@ -193,13 +212,18 @@ MockRow requestForCaller(MockRequest req, MockDb db, MockRow r) {
       }
     case 'excuse':
       if (b['from_time'] == null || b['to_time'] == null) {
-        bad('EXCUSE_TIMES_REQUIRED', 'A permission needs a start and an end time');
+        bad(
+          'EXCUSE_TIMES_REQUIRED',
+          'A permission needs a start and an end time',
+        );
       }
       final from = _hhmm(b['from_time']);
       final to = _hhmm(b['to_time']);
-      if (from == to) bad('WINDOW_EMPTY', 'The window must end after it starts');
+      if (from == to)
+        bad('WINDOW_EMPTY', 'The window must end after it starts');
       // Ending at or before it starts on the clock = past midnight.
-      if (to.compareTo(from) < 0) return (end: _nextDay(on), half: null, title: null);
+      if (to.compareTo(from) < 0)
+        return (end: _nextDay(on), half: null, title: null);
     case 'mission':
       final title = _clean(b['title']) ?? _clean(b['reason']);
       if (title == null) {
@@ -256,7 +280,12 @@ void registerRequestsMocks(MockServer server, MockDb db) {
     final status = req.q('status');
     final kind = req.q('kind');
     if (status != null &&
-        !const {'pending', 'approved', 'rejected', 'cancelled'}.contains(status)) {
+        !const {
+          'pending',
+          'approved',
+          'rejected',
+          'cancelled',
+        }.contains(status)) {
       _coded(
         req,
         400,
@@ -293,13 +322,16 @@ void registerRequestsMocks(MockServer server, MockDb db) {
           },
         )..sort((a, b) {
           // Pending first, then the latest day, then the newest.
-          final p = (b['status'] == 'pending' ? 1 : 0) -
+          final p =
+              (b['status'] == 'pending' ? 1 : 0) -
               (a['status'] == 'pending' ? 1 : 0);
           if (p != 0) return p;
           final d = compareJson(b['on_date'], a['on_date']);
           return d != 0 ? d : compareJson(b['created_at'], a['created_at']);
         });
-    return MockResponse.ok([for (final r in rows) requestForCaller(req, db, r)]);
+    return MockResponse.ok([
+      for (final r in rows) requestForCaller(req, db, r),
+    ]);
   });
 
   // ── create_request_admin ──────────────────────────────────────────────
@@ -319,7 +351,8 @@ void registerRequestsMocks(MockServer server, MockDb db) {
     }
     final kind = b['kind'] as String? ?? '';
     final on = b['on_date'] as String?;
-    if (on == null) req.badRequest('Json deserialize error: missing field `on_date`');
+    if (on == null)
+      req.badRequest('Json deserialize error: missing field `on_date`');
     // Approved as it is filed: the filer's own, with the right (RQ-5).
     final selfApproves =
         _isOwn(req, e) && req.persona.can('hr.requests.self_approve');
@@ -403,7 +436,9 @@ void registerRequestsMocks(MockServer server, MockDb db) {
     // Only cancelling one's own needs no right; anything else is refused
     // before the request is looked up.
     if (decision != 'cancelled') req.requireCap('hr.leave.edit');
-    if (decision != 'approved' && decision != 'rejected' && decision != 'cancelled') {
+    if (decision != 'approved' &&
+        decision != 'rejected' &&
+        decision != 'cancelled') {
       _coded(
         req,
         400,

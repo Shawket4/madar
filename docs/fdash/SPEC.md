@@ -77,7 +77,7 @@ final page = await api.orders.listOrders(branchId: id, from: from, to: to, page:
 ```
 
 - `dashboard_api` is GENERATED from `packages/dashboard_api/spec/openapi.json` (MadarRust `main`,
-  629 operations, 783 schemas) by `tool/gen_dashboard_api.*` (melos script `gen_dashboard_api`).
+  637 operations, 795 schemas) by `tool/gen_dashboard_api.*` (melos script `gen_dashboard_api`).
   Method names = the operationId in lowerCamelCase (the same names the web's Orval hooks use, minus
   `use`). Models are immutable classes with `fromJson`/`toJson`; enums keep unknown values; nullability
   follows `required` + `nullable`. Generated code lives under `lib/src/generated/` and is never edited

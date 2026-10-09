@@ -298,3 +298,8 @@ VERIFIED setup/kitchen + delivery: AT PARITY (minors → pending/setup-kitchen-d
 PEER madar-92 (PR-review/merge session, overnight): merged MadarRust warehouses 87340e2 + MadarDashboard 8d5bb0fd/af50aa63 + madar-shared v0.6.0; plans to move shared web+Flutter rules into madar-shared AFTER our branch lands. Replied: no merge/push to madar main without the owner's word; merge-ready ETA ~5–6 h; sent the hand-ported rule file list; asked them to message after each MadarDashboard/MadarRust merge.
 SECOND ABSORB launched a6744363a7e5b3767 (web af50aa63, API 87340e2: warehouses, transfers as documents, builder fixes; local MadarDashboard ff'd to af50aa63). inventory/transfers was BUILT (29/29, 86 tests) against the OLD model → REBUILD after the absorb rewrites INV-TRF.
 BUILT inventory/inv_settings (26/26, 73 incl. prefetch tests) → VERIFY QUEUED.
+VERIFIED team/shifts AT PARITY (minors) + schedule NOT (major: local refresh_listener toasts during retries → remove it) → pending/team-shifts-schedule.md
+PEER madar-92: next web merge = one batch (MadarDashboard only): TS copies of madar-shared rules pinned to vectors + small refactors (transferStep, checkReceiveLine in inventory/lib.ts); no behaviour/API/i18n change; will message the hash. Nothing else queued tonight. Abstraction to madar-shared waits for our branch on main + owner OK.
+DONE setup/kitchen + delivery (minors fixed; 230 tests). KIT: DashNumberField.onSubmitted.
+BUILT team/requests (34/34; requests+approvals 141 pass) → VERIFY QUEUED. KIT: DashDateField popover overflows with 220–360 px below (flip or cap height).
+DONE inventory/waste (fixed; 88 tests)

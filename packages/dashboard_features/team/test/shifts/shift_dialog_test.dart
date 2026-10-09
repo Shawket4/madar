@@ -6,6 +6,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/src/shifts/shift_dialog.dart';
 import 'package:dashboard_team/src/shifts/shift_inputs.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'shifts_support.dart';
@@ -143,6 +144,27 @@ void main() {
     await h.tap(inSurface(find.text('Heliopolis')));
     expect(find.text('Every branch'), findsNothing);
     await h.tap(find.text('Heliopolis').hitTestable().last);
+    await typeName(h, 'Brunch');
+    await h.tap(save());
+    expect(lastBody(h, 'POST')['branch_id'], SeedIds.heliopolis);
+    await h.flushTimers();
+  });
+
+  testWidgets('TEAM-SHF-014/022 opened before the branches load: the first '
+      'branch default lands with them', (tester) async {
+    final s = shiftsServer();
+    answerAuthz(
+      s.server,
+      const ['hr.schedule.read', 'hr.schedule.edit', 'hr.schedule.create'],
+      everywhere: const ['hr.schedule.read'],
+    );
+    final gate = s.server.hold('GET', '/branches');
+    final h = await pumpShifts(tester, s: s);
+    await openNew(h);
+    expect(surfaceText('Heliopolis'), findsNothing);
+    gate.release();
+    await h.settle();
+    expect(surfaceText('Heliopolis'), findsOneWidget);
     await typeName(h, 'Brunch');
     await h.tap(save());
     expect(lastBody(h, 'POST')['branch_id'], SeedIds.heliopolis);
@@ -522,8 +544,9 @@ void main() {
     );
   });
 
-  testWidgets('TEAM-SHF-024 Save shows its spinner while busy; a manager '
-      'saving a business-wide block is refused in words', (tester) async {
+  testWidgets('TEAM-SHF-024 Save shows its spinner while busy', (
+    tester,
+  ) async {
     final s = shiftsServer();
     final gate = s.server.hold('POST', shiftsT);
     final h = await pumpShifts(tester, s: s);
@@ -534,6 +557,26 @@ void main() {
     gate.release();
     await h.settle();
     await h.expectToast('Work shift saved');
+  });
+
+  testWidgets('TEAM-SHF-024 closed with Escape mid-save: the list still '
+      're-reads when the save lands', (tester) async {
+    final s = shiftsServer();
+    final gate = s.server.hold('POST', shiftsT);
+    final h = await pumpShifts(tester, s: s);
+    await openNew(h);
+    await typeName(h, 'Dawn');
+    await h.tap(save());
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await h.settle();
+    expect(find.byType(WorkShiftDialog), findsNothing);
+    int reads() => h.server.callsTo(shiftsT, method: 'GET').length;
+    final before = reads();
+    gate.release();
+    await h.settle();
+    expect(reads(), greaterThan(before));
+    expect(inPage(find.text('Dawn')), findsWidgets);
+    await h.flushTimers();
   });
 
   testWidgets('TEAM-SHF-024 a refusal from the server for the whole '

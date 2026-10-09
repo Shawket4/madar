@@ -8,7 +8,8 @@
 library;
 
 import 'package:collection/collection.dart';
-import 'package:dashboard_api/dashboard_api.dart' show CreateTransferRequest;
+import 'package:dashboard_api/dashboard_api.dart'
+    show CreateTransferRequest, TransferLineInput;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -60,8 +61,12 @@ class _TransferDialogState extends ConsumerState<TransferDialog> {
         body: CreateTransferRequest(
           sourceBranchId: _sourceId!,
           destinationBranchId: _destId!,
-          orgIngredientId: _ingredientId!,
-          quantity: quantity,
+          lines: [
+            TransferLineInput(
+              orgIngredientId: _ingredientId!,
+              quantity: quantity,
+            ),
+          ],
           note: note.isEmpty ? null : note,
           explicitNulls: note.isEmpty ? const {'note'} : const {},
         ),

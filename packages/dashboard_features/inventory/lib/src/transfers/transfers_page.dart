@@ -8,7 +8,7 @@
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show StockTransfer, UpdateTransferRequest;
+    show CloseTransferRequest, StockTransfer, UpdateTransferRequest;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -140,7 +140,10 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     // Captured now: the list refreshes even if the page closes mid-call.
     final bus = ref.read(realtimeBusProvider);
     try {
-      await api.deleteTransfer(id: tr.id);
+      await api.cancelStockTransfer(
+        id: tr.id,
+        body: const CloseTransferRequest(),
+      );
     } on Object catch (e) {
       if (mounted) DashToast.error(context, errorMessage(e, t));
       return;

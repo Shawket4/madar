@@ -521,6 +521,7 @@ class _RulesBodyState extends ConsumerState<_RulesBody> {
             DawamRulesCard(
               value: v.dawam,
               t: t,
+              f: f,
               canGender: canGender,
               readOnly: readOnly,
               branch: branchId != null,

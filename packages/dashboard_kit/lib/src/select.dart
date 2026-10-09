@@ -18,9 +18,14 @@ class DashOption<T> {
     this.keywords,
     this.icon,
     this.enabled = true,
+    this.group,
   });
   final T value;
   final String label;
+
+  /// A heading shown above the first option of a run of options with this
+  /// group (the web's `SelectGroup` + `SelectLabel`); null = no heading.
+  final String? group;
 
   /// A quiet word on the end side (a role, a branch).
   final String? hint;
@@ -215,16 +220,46 @@ class _DashOptionListState<T> extends State<DashOptionList<T>> {
             shrinkWrap: widget.shrinkWrap,
             padding: const EdgeInsets.all(Space.xs),
             itemCount: list.length,
-            itemBuilder: (context, i) => _OptionRow<T>(
-              option: list[i],
-              selected: widget.isSelected(list[i].value),
-              active: i == _active,
-              multi: widget.multi,
-              onTap: () => widget.onPick(list[i].value),
-              onIntent: widget.onIntent == null
-                  ? null
-                  : () => widget.onIntent!(list[i].value),
-            ),
+            itemBuilder: (context, i) {
+              final group = list[i].group;
+              final row = _OptionRow<T>(
+                option: list[i],
+                selected: widget.isSelected(list[i].value),
+                active: i == _active,
+                multi: widget.multi,
+                onTap: () => widget.onPick(list[i].value),
+                onIntent: widget.onIntent == null
+                    ? null
+                    : () => widget.onIntent!(list[i].value),
+              );
+              if (group == null || (i > 0 && list[i - 1].group == group)) {
+                return row;
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsetsDirectional.fromSTEB(
+                      Space.sm,
+                      Space.sm,
+                      Space.sm,
+                      Space.xs,
+                    ),
+                    child: Semantics(
+                      header: true,
+                      child: Text(
+                        group,
+                        style: DashType.small.copyWith(
+                          color: c.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  row,
+                ],
+              );
+            },
           );
     return Focus(
       onKeyEvent: _key,

@@ -74,3 +74,14 @@ class _ExportTransport implements ApiTransport {
   @override
   Stream<String> stream(ApiRequest request) => inner.stream(_with(request));
 }
+
+/// ponytail: stop-gap so the old one-line transfers unit compiles against the
+/// document API (af50aa63: `lines`, `created`); the INV-TRF rebuild removes it.
+extension OldTransferView on StockTransfer {
+  StockTransferLine? get _first => lines.isEmpty ? null : lines.first;
+  String get ingredientName => _first?.ingredientName ?? '';
+  double get quantity => _first?.qtySent ?? 0;
+  String get unit => _first?.unit ?? '';
+  DateTime get initiatedAt => created.at;
+  String get initiatedByName => created.byName;
+}

@@ -15,10 +15,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/attendance_errors.dart';
+import '../shared/refresh_toast.dart';
 import '../shared/staff_query.dart';
 import '../shared/week.dart';
 import 'schedule_data.dart';
-import 'refresh_listener.dart';
 import 'schedule_providers.dart';
 
 /// The hour column (`w-16`).
@@ -102,16 +102,12 @@ class _CoverageCardState extends ConsumerState<CoverageCard> {
   }
 
   @override
-  Widget build(BuildContext context) => ScheduleRefreshListener<CoverageView>(
-    read: scheduleCoverageProvider(widget.branchId),
-    child: _body(context),
-  );
-
-  Widget _body(BuildContext context) {
+  Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
     final provider = scheduleCoverageProvider(widget.branchId);
     final q = ref.watch(provider);
+    listenStaffRefreshFailure(ref, context, provider);
     final view = q.value;
     // Seeded from the server until edited; a refresh that lands re-seeds
     // an untouched grid.

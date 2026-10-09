@@ -22,7 +22,11 @@ import '../shared/qr_preview_dialog.dart';
 /// A code image on white (the light paper's surface in both themes: a code
 /// on a dark card does not scan), square, scaled to its box.
 class QrImage extends StatelessWidget {
-  const QrImage({required this.dataUrl, required this.semanticLabel, super.key});
+  const QrImage({
+    required this.dataUrl,
+    required this.semanticLabel,
+    super.key,
+  });
 
   final String dataUrl;
   final String semanticLabel;
@@ -228,20 +232,24 @@ class _QrResultCardState extends ConsumerState<QrResultCard> {
           code,
           link,
           SizedBox(width: double.infinity, child: landing),
-          if (stacked)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: Space.sm,
-              children: [copy, download],
-            )
-          else
-            Row(
-              spacing: Space.sm,
-              children: [
-                Expanded(child: copy),
-                Expanded(child: download),
-              ],
-            ),
+          // Stacked on a phone, and in the 256-wide card beside the form
+          // where two would cut "Download" short.
+          LayoutBuilder(
+            builder: (context, box) =>
+                stacked || box.maxWidth < QrResultCard.codeWidth + Space.xxl
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: Space.sm,
+                    children: [copy, download],
+                  )
+                : Row(
+                    spacing: Space.sm,
+                    children: [
+                      Expanded(child: copy),
+                      Expanded(child: download),
+                    ],
+                  ),
+          ),
         ],
       ),
     );

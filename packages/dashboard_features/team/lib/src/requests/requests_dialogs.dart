@@ -140,12 +140,11 @@ class _CancelRequestDialogState extends ConsumerState<CancelRequestDialog> {
 // ── file one (requests-inbox.tsx `NewRequestDialog`) ───────────────────────
 
 /// File a request on someone's behalf: the phone-call path.
-Future<void> showNewRequestDialog(BuildContext context) =>
-    showDashDialog<void>(
-      context,
-      width: RequestsMetrics.dialog,
-      builder: (_) => const NewRequestDialog(),
-    );
+Future<void> showNewRequestDialog(BuildContext context) => showDashDialog<void>(
+  context,
+  width: RequestsMetrics.dialog,
+  builder: (_) => const NewRequestDialog(),
+);
 
 class NewRequestDialog extends ConsumerStatefulWidget {
   const NewRequestDialog({super.key});
@@ -233,14 +232,18 @@ class _NewRequestDialogState extends ConsumerState<NewRequestDialog> {
         : const <String, String>{};
     final kind = _v.kind;
     final today = DateTime.parse(teamTodayIsoOf(ref));
-    Widget time(String label, String value, String field, void Function(String) set) =>
-        DashTimeFormField(
-          label: label,
-          value: value,
-          clearable: true,
-          errorText: errors[field],
-          onChanged: (x) => setState(() => set(DashTime.toHHMM(x))),
-        );
+    Widget time(
+      String label,
+      String value,
+      String field,
+      void Function(String) set,
+    ) => DashTimeFormField(
+      label: label,
+      value: value,
+      clearable: true,
+      errorText: errors[field],
+      onChanged: (x) => setState(() => set(DashTime.toHHMM(x))),
+    );
     final cells = <Widget>[
       DashDateFormField(
         label: _v.isSpan ? t('staff.from') : t('staff.date'),
@@ -264,7 +267,9 @@ class _NewRequestDialogState extends ConsumerState<NewRequestDialog> {
         ),
       if (_v.needsFrom)
         time(
-          kind == 'early_departure' ? t('staff.leavingAt') : t('staff.windowFrom'),
+          kind == 'early_departure'
+              ? t('staff.leavingAt')
+              : t('staff.windowFrom'),
           _v.fromTime,
           'from_time',
           (x) => _v.fromTime = x,
@@ -324,7 +329,10 @@ class _NewRequestDialogState extends ConsumerState<NewRequestDialog> {
                       semanticLabel: t('staff.halfDayToggle'),
                       options: [
                         DashOption(value: 'first', label: t('staff.firstHalf')),
-                        DashOption(value: 'second', label: t('staff.secondHalf')),
+                        DashOption(
+                          value: 'second',
+                          label: t('staff.secondHalf'),
+                        ),
                       ],
                       value: _v.leaveHalf,
                       onChanged: (h) => setState(() => _v.leaveHalf = h),

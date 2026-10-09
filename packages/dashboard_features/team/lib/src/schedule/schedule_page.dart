@@ -23,6 +23,7 @@ import 'package:go_router/go_router.dart';
 import '../shared/attendance_errors.dart';
 import '../shared/page_gate.dart';
 import '../shared/refresh_button.dart';
+import '../shared/refresh_toast.dart';
 import '../shared/rules_banner.dart';
 import '../shared/staff_query.dart';
 import '../shared/team_format.dart';
@@ -31,7 +32,6 @@ import 'coverage_card.dart';
 import 'day_editor.dart';
 import 'fairness_card.dart';
 import 'preferences_dialog.dart';
-import 'refresh_listener.dart';
 import 'schedule_data.dart';
 import 'schedule_grid.dart';
 import 'schedule_providers.dart';
@@ -148,6 +148,9 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
   void _warmBranch(String branch) {
     _warmWeek(branch, _week);
     ref.warm(scheduleRosterProvider(_upcomingKey(branch)));
+    if (_showCoverage && ref.read(authzProvider).can(Cap.hrScheduleEdit)) {
+      ref.warm(scheduleCoverageProvider(branch));
+    }
   }
 
   String _err(Object? e) =>
@@ -309,6 +312,26 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
         ? null
         : ref.watch(scheduleSuggestionsProvider(sgKey));
     if (rosterQ.hasValue) _loadedAt ??= ref.read(clockProvider)();
+    // Failed refreshes toast (TEAM-ALL-022).
+    if (weekKey != null) {
+      final roster = scheduleRosterProvider(weekKey);
+      listenStaffRefreshFailure(ref, context, roster);
+      ref.listen(roster, (_, next) {
+        if (next.hasValue && !next.isLoading) {
+          _loadedAt = ref.read(clockProvider)();
+        }
+      });
+    }
+    if (upKey != null) {
+      listenStaffRefreshFailure(ref, context, scheduleRosterProvider(upKey));
+    }
+    if (sgKey != null) {
+      listenStaffRefreshFailure(
+        ref,
+        context,
+        scheduleSuggestionsProvider(sgKey),
+      );
+    }
 
     final view = rosterQ.value;
     final published = view?.publishedWeeks.contains(_week) ?? false;
@@ -322,6 +345,13 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
           if (weekKey != null) rosterQ,
           ?upcomingQ,
           ?suggestionsQ,
+          // The cards' reads, while they show (the web's isFetching is global).
+          if (canEdit && _showCoverage && branch != null)
+            ref.watch(scheduleCoverageProvider(branch)),
+          if (canSettings) ...[
+            ref.watch(scheduleFairnessProvider(monthOf(_week))),
+            ref.watch(scheduleFairnessAuditsProvider),
+          ],
         ]),
       ),
       if (canEdit)
@@ -506,18 +536,6 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
             ),
           if (canSettings) FairnessCard(month: monthOf(_week)),
         ],
-    );
-    // Failed refreshes toast (TEAM-ALL-022); each read subscribed once.
-    body = ScheduleRefreshListener<RosterView>(
-      read: weekKey == null ? null : scheduleRosterProvider(weekKey),
-      onAnswer: () => _loadedAt = ref.read(clockProvider)(),
-      child: ScheduleRefreshListener<RosterView>(
-        read: upKey == null ? null : scheduleRosterProvider(upKey),
-        child: ScheduleRefreshListener<List<Suggestion>>(
-          read: sgKey == null ? null : scheduleSuggestionsProvider(sgKey),
-          child: body,
-        ),
-      ),
     );
     return DashPageScaffold(
       title: t('dawam.schedule'),

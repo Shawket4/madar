@@ -118,7 +118,10 @@ class _RequestsInboxPageState extends ConsumerState<RequestsInboxPage> {
     final staff = ref.read(staffRevisionsProvider.notifier);
     return showRejectReasonDialog(
       context,
-      title: t('staff.rejectRequestTitle', args: {'name': r.employeeName ?? ''}),
+      title: t(
+        'staff.rejectRequestTitle',
+        args: {'name': r.employeeName ?? ''},
+      ),
       description: t('staff.rejectRequestHint'),
       optional: true,
       onReject: (reason) async {
@@ -256,7 +259,12 @@ class _RequestsInboxPageState extends ConsumerState<RequestsInboxPage> {
           DashSegmentedControl<String>(
             semanticLabel: t('common.status'),
             options: [
-              for (final s in const ['pending', 'approved', 'rejected', 'cancelled'])
+              for (final s in const [
+                'pending',
+                'approved',
+                'rejected',
+                'cancelled',
+              ])
                 DashOption(value: s, label: t('staff.req_$s')),
               DashOption(value: _all, label: t('dawam.all')),
             ],
@@ -400,11 +408,11 @@ class RequestRow extends ConsumerWidget {
     final meta = joinSaid([
       describeWindow(r, t, f),
       // A mission's title says what it is (M43).
-      r.title,
-      r.reason,
+      isolate(r.title),
+      isolate(r.reason),
       if (r.decidedByName != null && r.status != 'pending')
-        t('staff.decidedBy', args: {'name': r.decidedByName}),
-      r.decisionNote,
+        t('staff.decidedBy', args: {'name': isolate(r.decidedByName)}),
+      isolate(r.decisionNote),
       cancelWords(r, names, t),
     ], ' · ');
     final statusKey = 'staff.req_${r.status}';

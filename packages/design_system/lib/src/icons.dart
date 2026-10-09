@@ -377,6 +377,7 @@ const Map<String, IconData> madarIconCatalog = <String, IconData>{
   'users-round': LucideIcons.usersRound,
   'utensils': LucideIcons.utensils,
   'utensils-crossed': LucideIcons.utensilsCrossed,
+  'warehouse': LucideIcons.warehouse,
   'wrench': LucideIcons.wrench,
   'x': LucideIcons.x,
   'x-circle': LucideIcons.xCircle,

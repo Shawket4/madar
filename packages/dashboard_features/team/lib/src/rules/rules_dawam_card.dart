@@ -92,6 +92,7 @@ class DawamRulesCard extends StatelessWidget {
     required this.value,
     required this.onChanged,
     required this.t,
+    required this.f,
     this.canGender = false,
     this.readOnly = false,
     this.branch = false,
@@ -103,6 +104,7 @@ class DawamRulesCard extends StatelessWidget {
   final DawamRules value;
   final ValueChanged<DawamRules> onChanged;
   final Translator t;
+  final DashFormat f;
   final bool canGender;
   final bool readOnly;
   final bool branch;
@@ -116,7 +118,6 @@ class DawamRulesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final f = context.dashFormats;
     final wide = rulesSm(context);
 
     Widget num(String k, String label, [String? hint]) {
@@ -172,7 +173,7 @@ class DawamRulesCard extends StatelessWidget {
     );
 
     final nightHint =
-        '${rate(value.otNight)} · ${f.time(value.nightStart)} – ${f.time(value.nightEnd)}';
+        '${rate(value.otNight)} · ${f.fmtWireTime(value.nightStart)} – ${f.fmtWireTime(value.nightEnd)}';
 
     return RulesCardFrame(
       children: [

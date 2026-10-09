@@ -16,7 +16,7 @@ library;
 
 import 'dart:async';
 
-import 'package:dashboard_api/dashboard_api.dart' show Branch, Org;
+import 'package:dashboard_api/dashboard_api.dart' show Branch, BranchKind, Org;
 import 'package:dashboard_core/src/authz/authz_providers.dart';
 import 'package:dashboard_core/src/format/format.dart';
 import 'package:dashboard_core/src/format/tz.dart';
@@ -26,6 +26,8 @@ import 'package:dashboard_core/src/i18n/i18n_providers.dart';
 import 'package:dashboard_core/src/providers.dart';
 import 'package:dashboard_core/src/scope/period.dart';
 import 'package:dashboard_core/src/session/session.dart';
+import 'package:dashboard_core/src/shell/router.dart'
+    show dashInitialLocationProvider;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// The backend's "every branch in my org" id for the
@@ -121,10 +123,40 @@ final branchesProvider = FutureProvider<List<Branch>?>((ref) async {
   return ref.watch(coreApiProvider).listBranches(orgId);
 }, retry: (_, _) => null);
 
-/// The active ones, as the branch picker lists them.
+/// A warehouse only holds stock: pages about selling never offer one as a
+/// branch (`lib/selling.ts` `isSelling`).
+bool isSelling(Branch b) => b.kind != BranchKind.warehouse;
+
+/// The path of the page the shell shows; the frame sets it after each
+/// navigation (the web's `useLocation().pathname` in the scope bar).
+class ShellPathNotifier extends Notifier<String> {
+  @override
+  String build() => Uri.parse(ref.read(dashInitialLocationProvider)).path;
+
+  // ignore: use_setters_to_change_properties
+  void show(String path) => state = path;
+}
+
+final shellPathProvider = NotifierProvider<ShellPathNotifier, String>(
+  ShellPathNotifier.new,
+);
+
+/// Whether a warehouse may be the scope: on Inventory pages alone.
+final warehouseScopeProvider = Provider<bool>(
+  (ref) => ref.watch(shellPathProvider.select(_onInventory)),
+);
+
+bool _onInventory(String path) =>
+    path == '/inventory' || path.startsWith('/inventory/');
+
+/// The active ones, as the branch picker lists them: warehouses only on
+/// Inventory pages (`scope-bar.tsx`), selling branches everywhere else.
 final activeBranchesProvider = Provider<List<Branch>?>((ref) {
   final all = ref.watch(branchesProvider).value;
-  return all?.where((b) => b.isActive).toList();
+  final withWarehouses = ref.watch(warehouseScopeProvider);
+  return all
+      ?.where((b) => b.isActive && (withWarehouses || isSelling(b)))
+      .toList();
 });
 
 /// The current org, when this person may read it (`org.settings.read`).
@@ -197,6 +229,7 @@ class ScopeNotifier extends Notifier<ScopeState> {
     if (branchId != null &&
         known != null &&
         !known.any((b) => b.id == branchId)) {
+      _parkedWarehouse = _activeWarehouse(branchId) ? branchId : null;
       branchId = null;
       unawaited(
         _prefs.setJson(ScopePrefKeys.branch, {'org': orgId, 'branch': null}),
@@ -215,11 +248,29 @@ class ScopeNotifier extends Notifier<ScopeState> {
     );
   }
 
+  /// A warehouse picked on Inventory, set aside (not forgotten) while other
+  /// pages list selling branches; back on Inventory it is the scope again
+  /// unless a branch was picked meanwhile (`scope-bar.tsx`).
+  String? _parkedWarehouse;
+
+  bool _activeWarehouse(String id) => (ref.read(branchesProvider).value ?? [])
+      .any((b) => b.id == id && b.isActive && !isSelling(b));
+
   /// Self-heal: a branch that is not an active branch of this org goes.
   void _heal(List<Branch>? active) {
     final id = state.branchId;
-    if (id == null || active == null) return;
-    if (!active.any((b) => b.id == id)) unawaited(setBranch(null));
+    if (active == null) return;
+    if (id != null && !active.any((b) => b.id == id)) {
+      final park = _activeWarehouse(id) ? id : null;
+      unawaited(_set(null));
+      _parkedWarehouse = park;
+    } else if (id == null &&
+        _parkedWarehouse != null &&
+        ref.read(warehouseScopeProvider)) {
+      final parked = _parkedWarehouse!;
+      _parkedWarehouse = null;
+      if (active.any((b) => b.id == parked)) unawaited(_set(parked));
+    }
   }
 
   void _syncHeaders(String? orgId, String? branchId) {
@@ -237,8 +288,14 @@ class ScopeNotifier extends Notifier<ScopeState> {
     );
   }
 
-  /// Picks a branch; null = all branches.
-  Future<void> setBranch(String? branchId) async {
+  /// Picks a branch; null = all branches. Picking a branch forgets a parked
+  /// warehouse.
+  Future<void> setBranch(String? branchId) {
+    if (branchId != null) _parkedWarehouse = null;
+    return _set(branchId);
+  }
+
+  Future<void> _set(String? branchId) async {
     final orgId = ref.read(orgIdProvider);
     _syncHeaders(orgId, branchId);
     state = state.copyWith(branchId: () => branchId);

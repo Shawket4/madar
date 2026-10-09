@@ -3,7 +3,6 @@
 // makes, so the press asks nothing more.
 import 'package:dashboard_core/testing.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/widgets.dart' show Offset;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'requests_support.dart';

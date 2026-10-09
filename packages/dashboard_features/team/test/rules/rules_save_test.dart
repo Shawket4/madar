@@ -29,6 +29,8 @@ void answerAuthz(MockServer server, List<String> caps) {
       'owner': false,
       'platform': false,
       'role_kinds': req.persona.roleKinds,
+      'epoch': 1,
+      'spec_version': 2,
     });
   });
 }
@@ -76,13 +78,14 @@ void main() {
       'a night time on the 12-hour clock', (tester) async {
     final h = await pumpRules(tester);
     await typeIn(h, RulesKeys.tierAmount(0), '20');
-    await tapKey(h, RulesKeys.addTier);
-    await save(h);
-    expect(find.text('3 rungs → 4 rungs'), findsOneWidget);
-    await h.tap(find.text('Cancel').last);
-    await tapKey(h, RulesKeys.tierRemove(3));
     await save(h);
     expect(find.text('3 rungs → 3 rungs (edited)'), findsOneWidget);
+    await h.tap(find.text('Cancel').last);
+    await tapKey(h, RulesKeys.tierRemove(2));
+    await typeIn(h, RulesDawamKeys.nightStart, '23:00');
+    await save(h);
+    expect(find.text('3 rungs → 2 rungs'), findsOneWidget);
+    expect(find.text('10:00 PM → 11:00 PM'), findsOneWidget);
     await h.tap(find.text('Cancel').last);
   });
 
@@ -158,8 +161,9 @@ void main() {
     await pickIn(h, RulesKeys.scope, 'Maadi');
     expect(find.text(h.t('dawam.coverPayBusiness')), findsOneWidget);
     await tapKey(h, RulesDawamKeys.cover('minute_rate'));
+    // The same value it runs on: nothing to list, so nothing to confirm.
     await save(h);
-    await h.tap(find.text('Save the changes'));
+    expect(find.text('Save the changes'), findsNothing);
     expect(puts(h).last, {
       'cover_pay_mode': 'minute_rate',
       'branch_id': SeedIds.maadi,

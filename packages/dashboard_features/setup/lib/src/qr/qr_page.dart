@@ -325,7 +325,7 @@ class _OptionsBar extends ConsumerWidget {
                   value: dpi,
                   onChanged: onDpi,
                   semanticLabel: t('qr.opts.dpiLabel'),
-                  width: Space.xxl * 3,
+                  width: Space.xxl * 2.5, // the web's w-20
                   expand: false,
                 ),
               ],
@@ -364,34 +364,33 @@ class _KindCard extends ConsumerWidget {
   final VoidCallback onIntent;
   final Widget? form;
 
-  static (String, String, String) words(QrKind k, Translator t) =>
-      switch (k) {
-        QrKind.orgOrder => (
-          'building-2',
-          t('qr.org.title'),
-          t('qr.org.description'),
-        ),
-        QrKind.orgBooking => (
-          'calendar-check',
-          t('qr.orgBooking.title'),
-          t('qr.orgBooking.description'),
-        ),
-        QrKind.branchOrder => (
-          'store',
-          t('qr.standard.title'),
-          t('qr.standard.description'),
-        ),
-        QrKind.branchBooking => (
-          'calendar-check',
-          t('qr.branchBooking.title'),
-          t('qr.branchBooking.description'),
-        ),
-        QrKind.branchOrderInMall => (
-          'utensils-crossed',
-          t('qr.inMall.title'),
-          t('qr.inMall.description'),
-        ),
-      };
+  static (String, String, String) words(QrKind k, Translator t) => switch (k) {
+    QrKind.orgOrder => (
+      'building-2',
+      t('qr.org.title'),
+      t('qr.org.description'),
+    ),
+    QrKind.orgBooking => (
+      'calendar-check',
+      t('qr.orgBooking.title'),
+      t('qr.orgBooking.description'),
+    ),
+    QrKind.branchOrder => (
+      'store',
+      t('qr.standard.title'),
+      t('qr.standard.description'),
+    ),
+    QrKind.branchBooking => (
+      'calendar-check',
+      t('qr.branchBooking.title'),
+      t('qr.branchBooking.description'),
+    ),
+    QrKind.branchOrderInMall => (
+      'utensils-crossed',
+      t('qr.inMall.title'),
+      t('qr.inMall.description'),
+    ),
+  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

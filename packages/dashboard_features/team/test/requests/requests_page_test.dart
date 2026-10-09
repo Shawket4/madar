@@ -35,7 +35,9 @@ Finder _listed(String option) => find
     .last;
 
 List<StaffRequest> _shown(WidgetTester tester) => [
-  for (final r in tester.widgetList<RequestRow>(inPage(find.byType(RequestRow))))
+  for (final r in tester.widgetList<RequestRow>(
+    inPage(find.byType(RequestRow)),
+  ))
     r.request,
 ];
 
@@ -188,7 +190,10 @@ void main() {
     expect(inRow(_youssef, find.text('Youssef Samir')), findsOneWidget);
     expect(inRow(_youssef, find.text('Late arrival')), findsOneWidget);
     expect(
-      inRow(_youssef, find.byWidgetPredicate((w) => w is DashIcon && w.name == 'timer')),
+      inRow(
+        _youssef,
+        find.byWidgetPredicate((w) => w is DashIcon && w.name == 'timer'),
+      ),
       findsOneWidget,
     );
     final pill = tester.widget<DashStatusPill>(
@@ -196,7 +201,12 @@ void main() {
     );
     expect((pill.label, pill.tone), ('Pending', DashTone.warning));
     expect(
-      inRow(_salma, find.byWidgetPredicate((w) => w is DashIcon && w.name == 'calendar-off')),
+      inRow(
+        _salma,
+        find.byWidgetPredicate(
+          (w) => w is DashIcon && w.name == 'calendar-off',
+        ),
+      ),
       findsOneWidget,
     );
     await h.tap(pageText(h.t('dawam.all')));
@@ -205,7 +215,9 @@ void main() {
       ('Football match', 'Rejected', DashTone.danger),
       ('Moving flats', 'Cancelled', DashTone.neutral),
     ]) {
-      final p = tester.widget<DashStatusPill>(inRow(text, find.byType(DashStatusPill)));
+      final p = tester.widget<DashStatusPill>(
+        inRow(text, find.byType(DashStatusPill)),
+      );
       expect((p.label, p.tone), (label, tone), reason: text);
     }
   });
@@ -215,25 +227,45 @@ void main() {
     final h = await pumpRequests(
       tester,
       edit: (db) => db[TeamTables.requests].insertAll([
-        requestRow(id: 'rq-cx', employeeKey: 'laila', kind: 'leave',
-            onDate: day(9), status: 'cancelled', reason: 'Trip off',
-            decidedByName: 'Nour El-Sayed', decisionNote: 'Enjoy',
-            cancelledBy: SeedIds.user('laila'), cancelNote: 'Plans changed'),
-        requestRow(id: 'rq-cy', employeeKey: 'ali', kind: 'leave',
-            onDate: day(10), status: 'cancelled', reason: 'Visit gone',
-            cancelledBy: SeedIds.user('nobody'), cancelNote: 'No longer needed'),
+        requestRow(
+          id: 'rq-cx',
+          employeeKey: 'laila',
+          kind: 'leave',
+          onDate: day(9),
+          status: 'cancelled',
+          reason: 'Trip off',
+          decidedByName: 'Nour El-Sayed',
+          decisionNote: 'Enjoy',
+          cancelledBy: SeedIds.user('laila'),
+          cancelNote: 'Plans changed',
+        ),
+        requestRow(
+          id: 'rq-cy',
+          employeeKey: 'ali',
+          kind: 'leave',
+          onDate: day(10),
+          status: 'cancelled',
+          reason: 'Visit gone',
+          cancelledBy: SeedIds.user('nobody'),
+          cancelNote: 'No longer needed',
+        ),
       ]),
     );
     await h.tap(pageText(h.t('dawam.all')));
     final f = h.container.read(formatProvider);
     String metaOf(String text) => tester
         .widgetList<Text>(inRow(text, find.byType(Text)))
-        .map((w) => w.data ?? '')
+        .map((w) => (w.data ?? '').replaceAll(RegExp('[\u2068\u2069]'), ''))
         .firstWhere((s) => s.contains(text));
-    expect(metaOf('Family visit in Tanta'), contains('Decided by Nour El-Sayed'));
+    expect(
+      metaOf('Family visit in Tanta'),
+      contains('Decided by Nour El-Sayed'),
+    );
     expect(
       metaOf('Football match'),
-      endsWith('Decided by Nour El-Sayed · Two of us are already off that afternoon.'),
+      endsWith(
+        'Decided by Nour El-Sayed · Two of us are already off that afternoon.',
+      ),
     );
     // The server names the canceller; else the employee linked to them.
     expect(metaOf('Moving flats'), endsWith('Cancelled by Ziad Amr'));
@@ -242,10 +274,16 @@ void main() {
       '${f.fmtDate(day(9))} · Trip off · Decided by Nour El-Sayed · Enjoy · '
       'Cancelled by Laila Ehab: Plans changed',
     );
-    expect(metaOf('Visit gone'), endsWith('Visit gone · Cancelled: No longer needed'));
+    expect(
+      metaOf('Visit gone'),
+      endsWith('Visit gone · Cancelled: No longer needed'),
+    );
     // A mission's title says what it is.
     await h.tap(pageText('Pending'));
-    expect(metaOf('Choosing next month'), contains('Supplier visit · Choosing'));
+    expect(
+      metaOf('Choosing next month'),
+      contains('Supplier visit · Choosing'),
+    );
   });
 
   testWidgets('TEAM-REQ-012 badges: unpaid, the half of a half day, yours, '
@@ -254,29 +292,85 @@ void main() {
       tester,
       persona: Persona.manager,
       edit: (db) => db[TeamTables.requests].insertAll([
-        requestRow(id: 'rq-u', employeeKey: 'laila', kind: 'excuse', onDate: day(2),
-            fromTime: '12:00:00', toTime: '13:00:00', reason: 'Unpaid hour',
-            isPaid: false),
-        requestRow(id: 'rq-h1', employeeKey: 'laila', kind: 'leave', onDate: day(3),
-            isHalfDay: true, leaveHalf: 'first', reason: 'Morning off'),
-        requestRow(id: 'rq-h2', employeeKey: 'adham', kind: 'leave', onDate: day(3),
-            isHalfDay: true, leaveHalf: 'second', reason: 'Afternoon off'),
-        requestRow(id: 'rq-h0', employeeKey: 'mariam', kind: 'leave', onDate: day(3),
-            isHalfDay: true, reason: 'Some half'),
-        requestRow(id: 'rq-own', employeeKey: 'karim', kind: 'late_arrival',
-            onDate: day(1), toTime: '10:00:00', reason: 'Bank first'),
-        requestRow(id: 'rq-old', employeeKey: 'laila', kind: 'late_arrival',
-            onDate: '2026-09-20', toTime: '10:00:00', reason: 'Old late note'),
+        requestRow(
+          id: 'rq-u',
+          employeeKey: 'laila',
+          kind: 'excuse',
+          onDate: day(2),
+          fromTime: '12:00:00',
+          toTime: '13:00:00',
+          reason: 'Unpaid hour',
+          isPaid: false,
+        ),
+        requestRow(
+          id: 'rq-h1',
+          employeeKey: 'laila',
+          kind: 'leave',
+          onDate: day(3),
+          isHalfDay: true,
+          leaveHalf: 'first',
+          reason: 'Morning off',
+        ),
+        requestRow(
+          id: 'rq-h2',
+          employeeKey: 'adham',
+          kind: 'leave',
+          onDate: day(3),
+          isHalfDay: true,
+          leaveHalf: 'second',
+          reason: 'Afternoon off',
+        ),
+        requestRow(
+          id: 'rq-h0',
+          employeeKey: 'mariam',
+          kind: 'leave',
+          onDate: day(3),
+          isHalfDay: true,
+          reason: 'Some half',
+        ),
+        requestRow(
+          id: 'rq-own',
+          employeeKey: 'karim',
+          kind: 'late_arrival',
+          onDate: day(1),
+          toTime: '10:00:00',
+          reason: 'Bank first',
+        ),
+        requestRow(
+          id: 'rq-old',
+          employeeKey: 'laila',
+          kind: 'late_arrival',
+          onDate: '2026-09-20',
+          toTime: '10:00:00',
+          reason: 'Old late note',
+        ),
       ]),
     );
     expect(inRow('Unpaid hour', find.text('unpaid')), findsOneWidget);
-    expect(inRow('Morning off', find.text(h.t('staff.halfFirst'))), findsOneWidget);
-    expect(inRow('Afternoon off', find.text(h.t('staff.halfSecond'))), findsOneWidget);
-    expect(inRow('Some half', find.text(h.t('staff.halfDayUnsaid'))), findsOneWidget);
-    expect(inRow('Bank first', find.text(h.t('staff.yourRequest'))), findsOneWidget);
-    expect(inRow('Bank first', find.text(h.t('staff.toOwner'))), findsOneWidget);
-    expect(inRow('Old late note', find.text(h.t('staff.monthClosedRejectOnly'))),
-        findsOneWidget);
+    expect(
+      inRow('Morning off', find.text(h.t('staff.halfFirst'))),
+      findsOneWidget,
+    );
+    expect(
+      inRow('Afternoon off', find.text(h.t('staff.halfSecond'))),
+      findsOneWidget,
+    );
+    expect(
+      inRow('Some half', find.text(h.t('staff.halfDayUnsaid'))),
+      findsOneWidget,
+    );
+    expect(
+      inRow('Bank first', find.text(h.t('staff.yourRequest'))),
+      findsOneWidget,
+    );
+    expect(
+      inRow('Bank first', find.text(h.t('staff.toOwner'))),
+      findsOneWidget,
+    );
+    expect(
+      inRow('Old late note', find.text(h.t('staff.monthClosedRejectOnly'))),
+      findsOneWidget,
+    );
     expect(inRow(_youssef, find.text(h.t('staff.yourRequest'))), findsNothing);
   });
 
@@ -285,24 +379,54 @@ void main() {
     final h = await pumpRequests(
       tester,
       edit: (db) => db[TeamTables.requests].insertAll([
-        requestRow(id: 'rq-e', employeeKey: 'laila', kind: 'early_departure',
-            onDate: day(2), fromTime: '16:30:00', reason: 'Leaving early'),
-        requestRow(id: 'rq-c', employeeKey: 'ali', kind: 'correction', onDate: day(-1),
-            fromTime: '09:00:00', toTime: '17:45:00', reason: 'Forgot to punch',
-            recordCheckInAt: DateTime.utc(2026, 10, 7, 6, 12),
-            recordCheckOutAt: DateTime.utc(2026, 10, 7, 14, 45)),
-        requestRow(id: 'rq-hd', employeeKey: 'adham', kind: 'leave', onDate: day(4),
-            isHalfDay: true, leaveHalf: 'first', reason: 'Half off'),
+        requestRow(
+          id: 'rq-e',
+          employeeKey: 'laila',
+          kind: 'early_departure',
+          onDate: day(2),
+          fromTime: '16:30:00',
+          reason: 'Leaving early',
+        ),
+        requestRow(
+          id: 'rq-c',
+          employeeKey: 'ali',
+          kind: 'correction',
+          onDate: day(-1),
+          fromTime: '09:00:00',
+          toTime: '17:45:00',
+          reason: 'Forgot to punch',
+          recordCheckInAt: DateTime.utc(2026, 10, 7, 6, 12),
+          recordCheckOutAt: DateTime.utc(2026, 10, 7, 14, 45),
+        ),
+        requestRow(
+          id: 'rq-hd',
+          employeeKey: 'adham',
+          kind: 'leave',
+          onDate: day(4),
+          isHalfDay: true,
+          leaveHalf: 'first',
+          reason: 'Half off',
+        ),
       ]),
     );
-    expect(pageHas('${h.t('staff.windowLate', args: {'date': _d(h, day(1)), 'time': '08:30 AM'})} · '),
-        findsOneWidget);
+    expect(
+      pageHas(
+        '${h.t('staff.windowLate', args: {'date': _d(h, day(1)), 'time': '08:30 AM'})} · ',
+      ),
+      findsOneWidget,
+    );
     expect(pageHas('· leaving at 04:30 PM ·'), findsOneWidget);
     expect(pageHas('· 12:00 PM–01:00 PM ·'), findsOneWidget);
     // 09:12 → 09:00 changes; 17:45 is already the punch: said once.
-    expect(pageHas('· in 09:12 AM → 09:00 AM · out 05:45 PM ·'), findsOneWidget);
+    expect(
+      pageHas('· in 09:12 AM → 09:00 AM · out 05:45 PM ·'),
+      findsOneWidget,
+    );
     expect(pageHas('${_d(h, day(4))} · half day'), findsOneWidget);
-    expect(pageHas('${_d(h, '2026-10-12')} → ${_d(h, '2026-10-13')}'), findsOneWidget);
+    expect(
+      pageHas('${_d(h, '2026-10-12')} → ${_d(h, '2026-10-13')}'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('TEAM-REQ-014 a decision only where the server allows it; '
@@ -311,11 +435,23 @@ void main() {
       tester,
       persona: Persona.manager,
       edit: (db) => db[TeamTables.requests].insertAll([
-        requestRow(id: 'rq-no', employeeKey: 'laila', kind: 'late_arrival',
-            onDate: day(1), toTime: '10:00:00', reason: 'Not mine to decide',
-            canDecide: false),
-        requestRow(id: 'rq-own', employeeKey: 'karim', kind: 'late_arrival',
-            onDate: day(2), toTime: '10:00:00', reason: 'My own request'),
+        requestRow(
+          id: 'rq-no',
+          employeeKey: 'laila',
+          kind: 'late_arrival',
+          onDate: day(1),
+          toTime: '10:00:00',
+          reason: 'Not mine to decide',
+          canDecide: false,
+        ),
+        requestRow(
+          id: 'rq-own',
+          employeeKey: 'karim',
+          kind: 'late_arrival',
+          onDate: day(2),
+          toTime: '10:00:00',
+          reason: 'My own request',
+        ),
       ]),
     );
     for (final text in ['Not mine to decide', 'My own request']) {
@@ -332,18 +468,41 @@ void main() {
   ) async {
     final h = await pumpRequests(
       tester,
-      edit: (db) => db[TeamTables.requests].insert(requestRow(id: 'rq-old',
-          employeeKey: 'laila', kind: 'late_arrival', onDate: '2026-09-20',
-          toTime: '10:00:00', reason: 'Old late note')),
+      edit: (db) => db[TeamTables.requests].insert(
+        requestRow(
+          id: 'rq-old',
+          employeeKey: 'laila',
+          kind: 'late_arrival',
+          onDate: '2026-09-20',
+          toTime: '10:00:00',
+          reason: 'Old late note',
+        ),
+      ),
     );
-    expect(inRow(_youssef, find.text(h.t('dawamOps.meansLate', args: {'time': '08:30 AM'}))),
-        findsOneWidget);
-    expect(inRow(_salma, find.text(h.t('dawamOps.meansLeave'))), findsOneWidget);
-    expect(inRow(_farida, find.text(h.t('dawamOps.meansExcuse'))), findsOneWidget);
-    expect(inRow('Choosing next month', find.text(h.t('dawamOps.meansMission'))),
-        findsOneWidget);
+    expect(
+      inRow(
+        _youssef,
+        find.text(h.t('dawamOps.meansLate', args: {'time': '08:30 AM'})),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      inRow(_salma, find.text(h.t('dawamOps.meansLeave'))),
+      findsOneWidget,
+    );
+    expect(
+      inRow(_farida, find.text(h.t('dawamOps.meansExcuse'))),
+      findsOneWidget,
+    );
+    expect(
+      inRow('Choosing next month', find.text(h.t('dawamOps.meansMission'))),
+      findsOneWidget,
+    );
     // A closed month offers Reject only, so approving is not explained.
-    expect(inRow('Old late note', find.textContaining('Approving:')), findsNothing);
+    expect(
+      inRow('Old late note', find.textContaining('Approving:')),
+      findsNothing,
+    );
   });
 
   // ── decisions ───────────────────────────────────────────────────────────
@@ -395,9 +554,16 @@ void main() {
       'departure asks the pay question first', (tester) async {
     final h = await pumpRequests(
       tester,
-      edit: (db) => db[TeamTables.requests].insert(requestRow(id: 'rq-e',
-          employeeKey: 'laila', kind: 'early_departure', onDate: day(2),
-          fromTime: '16:30:00', reason: 'Leaving early')),
+      edit: (db) => db[TeamTables.requests].insert(
+        requestRow(
+          id: 'rq-e',
+          employeeKey: 'laila',
+          kind: 'early_departure',
+          onDate: day(2),
+          fromTime: '16:30:00',
+          reason: 'Leaving early',
+        ),
+      ),
     );
     for (final text in [_salma, _farida, 'Leaving early']) {
       await h.tap(approveIn(text));
@@ -412,8 +578,12 @@ void main() {
       'as the note (empty → null)', (tester) async {
     final h = await pumpRequests(tester);
     await h.tap(rejectIn(_youssef));
-    expect(surfaceText(h.t('staff.rejectRequestTitle', args: {'name': 'Youssef Samir'})),
-        findsOneWidget);
+    expect(
+      surfaceText(
+        h.t('staff.rejectRequestTitle', args: {'name': 'Youssef Samir'}),
+      ),
+      findsOneWidget,
+    );
     expect(surfaceText(h.t('staff.rejectRequestHint')), findsOneWidget);
     await h.tap(inSurface(find.text('Reject')).last);
     expect(lastBody(h, decideT), {'status': 'rejected', 'note': null});
@@ -421,9 +591,15 @@ void main() {
     expect(find.byType(RejectReasonDialog), findsNothing);
 
     await h.tap(rejectIn(_farida));
-    await h.enterText(inSurface(find.byType(EditableText)), 'Too busy that day');
+    await h.enterText(
+      inSurface(find.byType(EditableText)),
+      'Too busy that day',
+    );
     await h.tap(inSurface(find.text('Reject')).last);
-    expect(lastBody(h, decideT), {'status': 'rejected', 'note': 'Too busy that day'});
+    expect(lastBody(h, decideT), {
+      'status': 'rejected',
+      'note': 'Too busy that day',
+    });
     await h.flushTimers();
   });
 
@@ -446,17 +622,33 @@ void main() {
     final h = await pumpRequests(
       tester,
       edit: (db) => db[TeamTables.requests].insertAll([
-        requestRow(id: 'rq-m1', employeeKey: 'laila', kind: 'mission',
-            onDate: day(-2), title: 'Roastery visit', reason: 'Tasting day',
-            workedDates: [day(-2)]),
-        requestRow(id: 'rq-m2', employeeKey: 'ali', kind: 'mission',
-            onDate: day(3), title: 'Expo', reason: 'Cairo coffee expo',
-            workedDates: const []),
+        requestRow(
+          id: 'rq-m1',
+          employeeKey: 'laila',
+          kind: 'mission',
+          onDate: day(-2),
+          title: 'Roastery visit',
+          reason: 'Tasting day',
+          workedDates: [day(-2)],
+        ),
+        requestRow(
+          id: 'rq-m2',
+          employeeKey: 'ali',
+          kind: 'mission',
+          onDate: day(3),
+          title: 'Expo',
+          reason: 'Cairo coffee expo',
+          workedDates: const [],
+        ),
       ]),
     );
     await h.tap(approveIn('Tasting day'));
     expect(
-      inConfirm(find.text(h.t('staff.missionOverPunchesTitle', args: {'name': 'Laila Ehab'}))),
+      inConfirm(
+        find.text(
+          h.t('staff.missionOverPunchesTitle', args: {'name': 'Laila Ehab'}),
+        ),
+      ),
       findsOneWidget,
     );
     expect(inConfirm(find.textContaining(_d(h, day(-2)))), findsOneWidget);
@@ -500,12 +692,24 @@ void main() {
     final h = await pumpRequests(
       tester,
       edit: (db) => db[TeamTables.requests].insertAll([
-        requestRow(id: 'rq-ac', employeeKey: 'ali', kind: 'correction',
-            onDate: day(-1), fromTime: '09:00:00', status: 'approved',
-            reason: 'Punch fixed'),
-        requestRow(id: 'rq-aold', employeeKey: 'ali', kind: 'late_arrival',
-            onDate: '2026-09-15', toTime: '10:00:00', status: 'approved',
-            reason: 'Old approved'),
+        requestRow(
+          id: 'rq-ac',
+          employeeKey: 'ali',
+          kind: 'correction',
+          onDate: day(-1),
+          fromTime: '09:00:00',
+          status: 'approved',
+          reason: 'Punch fixed',
+        ),
+        requestRow(
+          id: 'rq-aold',
+          employeeKey: 'ali',
+          kind: 'late_arrival',
+          onDate: '2026-09-15',
+          toTime: '10:00:00',
+          status: 'approved',
+          reason: 'Old approved',
+        ),
       ]),
     );
     expect(cancelIn(_youssef), findsOneWidget);
@@ -525,8 +729,12 @@ void main() {
     s.server.fail(
       'PATCH',
       decideT,
-      MockResponse.error(409, "That month's payroll is approved", code: 'PERIOD_CLOSED',
-          vars: {'date': day(1), 'paid': false}),
+      MockResponse.error(
+        409,
+        "That month's payroll is approved",
+        code: 'PERIOD_CLOSED',
+        vars: {'date': day(1), 'paid': false},
+      ),
     );
     await h.tap(approveIn(_youssef));
     expect(find.text(h.t('errors.codes.PERIOD_CLOSED')), findsWidgets);
@@ -624,8 +832,12 @@ void main() {
       'once', (tester) async {
     final s = requestsServer();
     final h = await pumpRequests(tester, s: s);
-    s.server.fail('GET', listT, MockResponse.error(429, 'Too many requests'),
-        times: null);
+    s.server.fail(
+      'GET',
+      listT,
+      MockResponse.error(429, 'Too many requests'),
+      times: null,
+    );
     await h.tap(inPage(find.bySemanticsLabel('Refresh')));
     expect(rowOf(_youssef), findsOneWidget);
     expect(pageText(h.t('staff.requestsLoadError')), findsNothing);
@@ -703,4 +915,5 @@ void main() {
   });
 }
 
-String _d(DashHarness h, String iso) => h.container.read(formatProvider).fmtDate(iso);
+String _d(DashHarness h, String iso) =>
+    h.container.read(formatProvider).fmtDate(iso);

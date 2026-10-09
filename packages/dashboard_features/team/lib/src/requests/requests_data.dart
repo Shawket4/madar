@@ -34,6 +34,10 @@ String joinSaid(Iterable<String?> parts, String sep) => [
     if (p != null && p.isNotEmpty) p,
 ].join(sep);
 
+/// Typed words (a name, a reason) in a first-strong isolate, so an English
+/// line beside an Arabic date reads whole; null when there are none.
+String? isolate(String? s) => s == null || s.isEmpty ? null : '\u2068$s\u2069';
+
 /// Who cancelled it and why (`cancelWords`): the server's name for the
 /// canceller, else the employee linked to their account; "Cancelled" when
 /// nobody can be named. Null for anything not cancelled.
@@ -42,11 +46,11 @@ String? cancelWords(StaffRequest r, Map<String, String> names, Translator t) {
   final by = r.cancelledBy;
   final who = r.cancelledByName ?? (by == null ? null : names[by]);
   final head = who != null
-      ? t('staff.cancelledBy', args: {'name': who})
+      ? t('staff.cancelledBy', args: {'name': isolate(who)})
       : by != null
       ? t('staff.req_cancelled')
       : null;
-  final s = joinSaid([head, r.cancelNote], ': ');
+  final s = joinSaid([head, isolate(r.cancelNote)], ': ');
   return s.isEmpty ? null : s;
 }
 
@@ -110,6 +114,12 @@ CreateStaffRequest newRequestBody(NewRequestForm v) {
     isPaid: v.kind == 'leave' && v.pay.isNotEmpty ? v.pay == 'paid' : null,
     title: v.kind == 'mission' && title.isNotEmpty ? title : null,
     reason: reason.isEmpty ? null : reason,
-    explicitNulls: const {'end_date', 'from_time', 'to_time', 'title', 'reason'},
+    explicitNulls: const {
+      'end_date',
+      'from_time',
+      'to_time',
+      'title',
+      'reason',
+    },
   );
 }

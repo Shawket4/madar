@@ -55,7 +55,9 @@ Future<DashHarness> pumpQr(
     server: b.server,
     db: b.db,
     prefs: persona == Persona.platform && pickOrg
-        ? {ScopePrefKeys.org: jsonEncode({'id': SeedIds.sabahOrg})}
+        ? {
+            ScopePrefKeys.org: jsonEncode({'id': SeedIds.sabahOrg}),
+          }
         : null,
   );
 }
@@ -67,8 +69,7 @@ Future<void> pickBranch(DashHarness h, String? branchId) async {
 }
 
 /// [f] inside the page (not the shell's sidebar or rail, not a dialog).
-Finder inQr(Finder f) =>
-    find.descendant(of: find.byType(QrPage), matching: f);
+Finder inQr(Finder f) => find.descendant(of: find.byType(QrPage), matching: f);
 
 /// [f] inside [kind]'s card.
 Finder inKind(QrKind kind, Finder f) => find.descendant(
@@ -81,7 +82,8 @@ Finder inTables(Finder f) =>
     find.descendant(of: find.byKey(const ValueKey('qr-tables')), matching: f);
 
 /// [kind]'s Generate button.
-Finder generateOf(QrKind kind) => find.byKey(ValueKey('qr-generate-${kind.name}'));
+Finder generateOf(QrKind kind) =>
+    find.byKey(ValueKey('qr-generate-${kind.name}'));
 
 /// [kind]'s result card.
 Finder resultOf(QrKind kind) => find.byKey(ValueKey('qr-result-${kind.name}'));

@@ -110,3 +110,26 @@ List<Map<String, Object?>> puts(DashHarness h) => [
 /// The GETs of the settings read (both scopes).
 int settingsGets(DashHarness h) =>
     h.server.callsTo(settingsT, method: 'GET').length;
+
+/// Shoots the page top to bottom: `rules/<name>-1`, `-2`, …
+Future<void> shootPage(DashHarness h, String name) async {
+  final scroll = find
+      .descendant(of: page, matching: find.byType(Scrollable))
+      .evaluate()
+      .map((e) => (e as StatefulElement).state as ScrollableState)
+      .firstWhere((s) => s.position.axis == Axis.vertical);
+  final position = scroll.position;
+  var i = 1;
+  var y = 0.0;
+  while (true) {
+    position.jumpTo(y);
+    await h.settle(rounds: 2);
+    await h.shot('rules/$name-$i');
+    if (y >= position.maxScrollExtent) break;
+    y = (y + position.viewportDimension * 0.85).clamp(
+      0,
+      position.maxScrollExtent,
+    );
+    i++;
+  }
+}

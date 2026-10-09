@@ -109,10 +109,8 @@ class _QrTableCodesState extends ConsumerState<QrTableCodes> {
     final q = branchId == null ? null : ref.watch(qrTablesProvider(branchId));
     final width = MediaQuery.sizeOf(context).width;
 
-    Widget quiet(String text) => Text(
-      text,
-      style: DashType.body.copyWith(color: c.textSecondary),
-    );
+    Widget quiet(String text) =>
+        Text(text, style: DashType.body.copyWith(color: c.textSecondary));
 
     final Widget content;
     if (q == null) {
@@ -319,7 +317,9 @@ Future<Uint8List> qrTableSheetPdf(
   bool rtl = false,
 }) async {
   final bold = await _font('IBMPlexSansArabic-Bold');
-  final doc = pw.Document(theme: pw.ThemeData.withFont(base: bold, bold: bold));
+  final doc = pw.Document(
+    theme: pw.ThemeData.withFont(base: bold, bold: bold),
+  );
   const columns = 3;
   pw.Widget tile(QrTableCode code) {
     final (table, qr) = code;

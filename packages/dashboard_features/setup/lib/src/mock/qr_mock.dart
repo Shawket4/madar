@@ -176,8 +176,9 @@ class _Qr {
     req.requireCap('branches.read');
     final id = _branch(req);
     // `ORDER BY label`: text order (T1, T10, T11, T12, T2, …).
-    final rows = _tables.where((r) => r['branch_id'] == id)
-      ..sort((a, b) => (a['label']! as String).compareTo(b['label']! as String));
+    final rows = _tables.where(
+      (r) => r['branch_id'] == id,
+    )..sort((a, b) => (a['label']! as String).compareTo(b['label']! as String));
     return MockResponse.ok([
       for (final r in rows)
         {

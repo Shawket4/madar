@@ -1,6 +1,6 @@
 /// The Settings shell (`features/settings/settings-shell.tsx`, SET-SHL-001
 /// to 007): one page title ("Settings"), the list of panes at the start —
-/// a rail from 1024 wide, a picker above the pane below that — and the pane
+/// a sticky rail from 1024 wide, a picker above the pane below that — and the pane
 /// itself at reading width, embedded (its title renders as a pane heading).
 ///
 /// Every `/settings/*` route wraps its pane in this shell (`routes.dart`).
@@ -9,6 +9,8 @@
 /// hides until the modules are known), then platform-only, then any-of
 /// capabilities; a group with nothing visible is not drawn.
 library;
+
+import 'dart:math' as math;
 
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
@@ -70,20 +72,13 @@ class SettingsShell extends ConsumerWidget {
     return DashPageScaffold(
       title: t('nav.settings'),
       body: viewport >= DashBreakpoints.lg
-          ? Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: railWidth,
-                  child: _SettingsRail(
-                    key: const ValueKey('settings-rail'),
-                    groups: groups,
-                    path: path,
-                  ),
-                ),
-                const SizedBox(width: Space.xxl),
-                Expanded(child: pane),
-              ],
+          ? _RailBeside(
+              rail: _SettingsRail(
+                key: const ValueKey('settings-rail'),
+                groups: groups,
+                path: path,
+              ),
+              pane: pane,
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -115,6 +110,78 @@ class SettingsShell extends ConsumerWidget {
                 pane,
               ],
             ),
+    );
+  }
+}
+
+/// The rail and the pane side by side, the rail sticky (`lg:sticky
+/// lg:top-4`): while the page scrolls past it, it stays [Space.lg] under the
+/// top, never past the end of the pane.
+class _RailBeside extends StatefulWidget {
+  const _RailBeside({required this.rail, required this.pane});
+
+  final Widget rail;
+  final Widget pane;
+
+  @override
+  State<_RailBeside> createState() => _RailBesideState();
+}
+
+class _RailBesideState extends State<_RailBeside> {
+  final _rail = GlobalKey();
+  ScrollableState? _scrollable;
+  double _shift = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final s = Scrollable.maybeOf(context);
+    if (s != _scrollable) {
+      _scrollable?.position.removeListener(_follow);
+      _scrollable = s?..position.addListener(_follow);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollable?.position.removeListener(_follow);
+    super.dispose();
+  }
+
+  void _follow() {
+    final row = context.findRenderObject() as RenderBox?;
+    final rail = _rail.currentContext?.findRenderObject() as RenderBox?;
+    final view = _scrollable?.context.findRenderObject() as RenderBox?;
+    if (row == null || rail == null || view == null) return;
+    if (!row.hasSize || !rail.hasSize || !row.attached || !view.attached) {
+      return;
+    }
+    final top = row.localToGlobal(Offset.zero, ancestor: view).dy;
+    final room = math.max(0.0, row.size.height - rail.size.height);
+    final next = (Space.lg - top).clamp(0.0, room);
+    if (next != _shift) setState(() => _shift = next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // The pane's height changes as it loads: follow after each layout.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _follow();
+    });
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Transform.translate(
+          offset: Offset(0, _shift),
+          child: SizedBox(
+            key: _rail,
+            width: SettingsShell.railWidth,
+            child: widget.rail,
+          ),
+        ),
+        const SizedBox(width: Space.xxl),
+        Expanded(child: widget.pane),
+      ],
     );
   }
 }

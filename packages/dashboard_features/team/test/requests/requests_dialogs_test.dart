@@ -89,14 +89,23 @@ void main() {
     await h.tap(approveIn(_salma));
     expect(surfaceText('Approve request'), findsOneWidget);
     expect(
-      surfaceText('Salma Nabil · ${_d(h, '2026-10-12')} → ${_d(h, '2026-10-13')}'),
+      surfaceText(
+        'Salma Nabil · ${_d(h, '2026-10-12')} → ${_d(h, '2026-10-13')}',
+      ),
       findsOneWidget,
     );
     expect(surfaceText(h.t('staff.paidLeaveSwitch')), findsOneWidget);
     expect(surfaceText(h.t('staff.paidLeaveHint')), findsOneWidget);
-    expect(tester.widget<DashSwitch>(inSurface(find.byType(DashSwitch))).value, isTrue);
+    expect(
+      tester.widget<DashSwitch>(inSurface(find.byType(DashSwitch))).value,
+      isTrue,
+    );
     await h.tap(inSurface(find.widgetWithText(DashButton, 'Approve')));
-    expect(lastBody(h, decideT), {'status': 'approved', 'is_paid': true, 'note': null});
+    expect(lastBody(h, decideT), {
+      'status': 'approved',
+      'is_paid': true,
+      'note': null,
+    });
     await h.expectToast(h.t('staff.decisionSaved'));
     expect(find.byType(ApproveWithPayDialog), findsNothing);
     expect(pageHas(_salma), findsNothing);
@@ -106,16 +115,27 @@ void main() {
       'no pay unless the switch is touched', (tester) async {
     final h = await pumpRequests(
       tester,
-      edit: (db) => db[TeamTables.requests].insert(requestRow(id: 'rq-x',
-          employeeKey: 'laila', kind: 'excuse', onDate: day(2),
-          fromTime: '12:00:00', toTime: '13:00:00', reason: 'Bank errand',
-          paidDefault: false)),
+      edit: (db) => db[TeamTables.requests].insert(
+        requestRow(
+          id: 'rq-x',
+          employeeKey: 'laila',
+          kind: 'excuse',
+          onDate: day(2),
+          fromTime: '12:00:00',
+          toTime: '13:00:00',
+          reason: 'Bank errand',
+          paidDefault: false,
+        ),
+      ),
     );
     await h.tap(approveIn('Bank errand'));
     expect(surfaceText(h.t('staff.paidTime')), findsOneWidget);
     expect(surfaceText(h.t('staff.paidTimeHint')), findsOneWidget);
     expect(surfaceText(h.t('staff.ruleSaysUnpaid')), findsOneWidget);
-    expect(tester.widget<DashSwitch>(inSurface(find.byType(DashSwitch))).value, isFalse);
+    expect(
+      tester.widget<DashSwitch>(inSurface(find.byType(DashSwitch))).value,
+      isFalse,
+    );
     await h.tap(inSurface(find.widgetWithText(DashButton, 'Approve')));
     expect(lastBody(h, decideT), {'status': 'approved', 'note': null});
     await h.flushTimers();
@@ -138,14 +158,26 @@ void main() {
   ) async {
     final h = await pumpRequests(
       tester,
-      edit: (db) => db[TeamTables.requests].insert(requestRow(id: 'rq-w',
-          employeeKey: 'laila', kind: 'leave', onDate: day(-2), endDate: day(-1),
-          reason: 'Was sick', workedDates: [day(-2)])),
+      edit: (db) => db[TeamTables.requests].insert(
+        requestRow(
+          id: 'rq-w',
+          employeeKey: 'laila',
+          kind: 'leave',
+          onDate: day(-2),
+          endDate: day(-1),
+          reason: 'Was sick',
+          workedDates: [day(-2)],
+        ),
+      ),
     );
     await h.tap(approveIn('Was sick'));
     expect(
-      surfaceText(h.t('staff.leaveOverPunches',
-          args: {'name': 'Laila Ehab', 'dates': _d(h, day(-2))})),
+      surfaceText(
+        h.t(
+          'staff.leaveOverPunches',
+          args: {'name': 'Laila Ehab', 'dates': _d(h, day(-2))},
+        ),
+      ),
       findsOneWidget,
     );
   });
@@ -171,11 +203,15 @@ void main() {
     final h = await pumpRequests(tester);
     await h.tap(cancelIn(_youssef));
     expect(surfaceText(h.t('staff.cancelRequestTitle')), findsOneWidget);
-    expect(surfaceText('Youssef Samir · ${h.t('staff.windowLate', args: {
-      'date': _d(h, day(1)),
-      'time': '08:30 AM',
-    })}'), findsOneWidget);
-    final confirm = inSurface(find.widgetWithText(DashButton, 'Cancel request'));
+    expect(
+      surfaceText(
+        'Youssef Samir · ${h.t('staff.windowLate', args: {'date': _d(h, day(1)), 'time': '08:30 AM'})}',
+      ),
+      findsOneWidget,
+    );
+    final confirm = inSurface(
+      find.widgetWithText(DashButton, 'Cancel request'),
+    );
     await h.tap(confirm);
     expect(surfaceText(h.t('staff.cancelNoteRequired')), findsOneWidget);
     expect(patches(h), 0);
@@ -183,7 +219,10 @@ void main() {
     expect(surfaceText(h.t('staff.noteTooLong')), findsOneWidget);
     await h.enterText(_box('Why'), '  Shop closed that day  ');
     await h.tap(confirm);
-    expect(lastBody(h, decideT), {'status': 'cancelled', 'note': 'Shop closed that day'});
+    expect(lastBody(h, decideT), {
+      'status': 'cancelled',
+      'note': 'Shop closed that day',
+    });
     await h.expectToast(h.t('staff.requestCancelled'));
     expect(find.byType(CancelRequestDialog), findsNothing);
   });
@@ -193,9 +232,16 @@ void main() {
     final h = await pumpRequests(
       tester,
       persona: Persona.manager,
-      edit: (db) => db[TeamTables.requests].insert(requestRow(id: 'rq-own',
-          employeeKey: 'karim', kind: 'late_arrival', onDate: day(2),
-          toTime: '10:00:00', reason: 'Bank first')),
+      edit: (db) => db[TeamTables.requests].insert(
+        requestRow(
+          id: 'rq-own',
+          employeeKey: 'karim',
+          kind: 'late_arrival',
+          onDate: day(2),
+          toTime: '10:00:00',
+          reason: 'Bank first',
+        ),
+      ),
     );
     await h.tap(cancelIn('Bank first'));
     await h.tap(inSurface(find.widgetWithText(DashButton, 'Back')));
@@ -211,13 +257,23 @@ void main() {
     final s = requestsServer();
     final h = await pumpRequests(tester, s: s);
     await h.tap(pageText('Approved'));
-    s.server.fail('PATCH', decideT, MockResponse.error(400,
+    s.server.fail(
+      'PATCH',
+      decideT,
+      MockResponse.error(
+        400,
         'Say why this approved request is cancelled',
-        code: 'CANCEL_REASON_REQUIRED', vars: {'status': 'approved'}));
+        code: 'CANCEL_REASON_REQUIRED',
+        vars: {'status': 'approved'},
+      ),
+    );
     await h.tap(cancelIn('Family visit in Tanta'));
     await h.enterText(_box('Why'), 'Changed');
     await h.tap(inSurface(find.widgetWithText(DashButton, 'Cancel request')));
-    expect(find.text(h.t('errors.codes.CANCEL_REASON_REQUIRED_approved')), findsWidgets);
+    expect(
+      find.text(h.t('errors.codes.CANCEL_REASON_REQUIRED_approved')),
+      findsWidgets,
+    );
     expect(find.byType(CancelRequestDialog), findsOneWidget);
     await h.flushTimers();
   });
@@ -232,20 +288,30 @@ void main() {
     expect(surfaceText('New request'), findsOneWidget);
     expect(surfaceText(h.t('staff.newRequestHint')), findsOneWidget);
     expect(
-      h.server.callsTo(employeesT).any(
-        (c) => c.query['employment_status']?.single == 'active',
-      ),
+      h.server
+          .callsTo(employeesT)
+          .any((c) => c.query['employment_status']?.single == 'active'),
       isTrue,
     );
     expect(surfaceText('Late arrival'), findsOneWidget);
     expect(surfaceText('Arriving by'), findsOneWidget);
-    expect(tester.widget<DashTimeField>(inSurface(find.byType(DashTimeField))).value,
-        '14:00');
-    expect(tester.widget<DashDateField>(inSurface(find.byType(DashDateField))).value,
-        DateTime.parse(day()));
+    expect(
+      tester.widget<DashTimeField>(inSurface(find.byType(DashTimeField))).value,
+      '14:00',
+    );
+    expect(
+      tester.widget<DashDateField>(inSurface(find.byType(DashDateField))).value,
+      DateTime.parse(day()),
+    );
     expect(tester.widget<DashButton>(_save()).onPressed, isNull);
     await h.tap(surfaceText('Late arrival'));
-    for (final k in ['Leave', 'Late arrival', 'Early departure', 'Permission', 'Mission']) {
+    for (final k in [
+      'Leave',
+      'Late arrival',
+      'Early departure',
+      'Permission',
+      'Mission',
+    ]) {
       expect(_listed(k), findsOneWidget, reason: k);
     }
     expect(
@@ -317,8 +383,10 @@ void main() {
     await h.enterText(_box('Reason'), 'At the roastery');
     await h.tap(_save());
     final body = lastBody(h, listT, 'POST');
-    expect((body['title'], body['reason'], body['end_date']),
-        (null, 'At the roastery', day()));
+    expect(
+      (body['title'], body['reason'], body['end_date']),
+      (null, 'At the roastery', day()),
+    );
     await h.expectToast(h.t('staff.requestFiled'));
   });
 
@@ -333,8 +401,9 @@ void main() {
     await _pick(h, 'Late arrival', 'Leave');
     expect(surfaceText('From'), findsOneWidget);
     expect(surfaceText('To'), findsOneWidget);
-    DateTime? end() =>
-        tester.widget<DashDateField>(inSurface(find.byType(DashDateField)).at(1)).value;
+    DateTime? end() => tester
+        .widget<DashDateField>(inSurface(find.byType(DashDateField)).at(1))
+        .value;
     await _pickDay(h, 0, '12');
     expect(end(), DateTime(2026, 10, 12));
     await _pickDay(h, 1, '14');
@@ -406,9 +475,11 @@ void main() {
     tester,
   ) async {
     final s = requestsServer();
-    final refusal = MockResponse.error(409,
-        'You already have a request like this for that time.',
-        code: 'OVERLAPPING_REQUEST');
+    final refusal = MockResponse.error(
+      409,
+      'You already have a request like this for that time.',
+      code: 'OVERLAPPING_REQUEST',
+    );
     s.server.fail('POST', listT, refusal);
     final h = await _openNew(tester, s: s);
     await _pick(h, 'Pick an employee', 'Laila Ehab');

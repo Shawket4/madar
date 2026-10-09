@@ -84,14 +84,19 @@ class _WorkShiftDialogState extends ConsumerState<WorkShiftDialog> {
     _shift = s;
     _v = ShiftValues.of(s);
     // Without the right everywhere a new block starts at a branch.
+    final branches = _branches(ref.read(branchesProvider));
     if (!widget.wholeBusiness &&
         _v.branchId == wholeBusiness &&
-        widget.branches.isNotEmpty) {
-      _v.branchId = widget.branches.first.id;
+        branches.isNotEmpty) {
+      _v.branchId = branches.first.id;
     }
     _dayTimesOpen = _v.hasDayTimes;
     _moreOpen = _v.hasOptionalRates;
   }
+
+  /// The live branch list; [WorkShiftDialog.branches] until it loads.
+  List<Branch> _branches(AsyncValue<List<Branch>?> live) =>
+      live.value ?? widget.branches;
 
   void _edit(VoidCallback change) => setState(() {
     change();
@@ -145,6 +150,12 @@ class _WorkShiftDialogState extends ConsumerState<WorkShiftDialog> {
     final lang = ref.watch(localeProvider);
     final c = context.madarColors;
     final editing = widget.shift;
+    final branches = _branches(ref.watch(branchesProvider));
+    // The web re-seeds when the branch count changes (its reset effect keyed
+    // on branches.length); here only while the form is untouched.
+    ref.listen(branchesProvider.select((b) => b.value?.length), (_, _) {
+      if (!_dirty && !_busy) setState(() => _seed(_shift));
+    });
     if (editing != null) {
       // A refresh that lands before the person edits re-seeds the form, so
       // a copy taken once never saves stale values over newer ones.
@@ -333,7 +344,7 @@ class _WorkShiftDialogState extends ConsumerState<WorkShiftDialog> {
           options: [
             if (widget.wholeBusiness || _v.branchId == wholeBusiness)
               DashOption(value: wholeBusiness, label: t('staff.wholeBusiness')),
-            for (final b in widget.branches)
+            for (final b in branches)
               DashOption(value: b.id, label: b.name),
           ],
           onChanged: (v) => _edit(() => _v.branchId = v),

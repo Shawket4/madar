@@ -5,7 +5,7 @@
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show FairnessAudit, FairnessView;
+    show FairnessAudit;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -13,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/attendance_errors.dart';
-import 'refresh_listener.dart';
+import '../shared/refresh_toast.dart';
 import 'schedule_providers.dart';
 
 /// The table skeleton (`h-24`).
@@ -32,6 +32,8 @@ class FairnessCard extends ConsumerWidget {
     final c = context.madarColors;
     final q = ref.watch(scheduleFairnessProvider(month));
     final auditsQ = ref.watch(scheduleFairnessAuditsProvider);
+    listenStaffRefreshFailure(ref, context, scheduleFairnessProvider(month));
+    listenStaffRefreshFailure(ref, context, scheduleFairnessAuditsProvider);
     final v = q.value;
     final muted = DashType.body.copyWith(color: c.textSecondary);
     final error = DashType.body.copyWith(color: c.errorText);
@@ -239,7 +241,7 @@ class FairnessCard extends ConsumerWidget {
       );
     }
 
-    final card = DashCard(
+    return DashCard(
       key: const Key('fairness-card'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -276,13 +278,6 @@ class FairnessCard extends ConsumerWidget {
             children: [sectionTitle(t('dawam.audits')), auditBody],
           ),
         ],
-      ),
-    );
-    return ScheduleRefreshListener<FairnessView>(
-      read: scheduleFairnessProvider(month),
-      child: ScheduleRefreshListener<List<FairnessAudit>>(
-        read: scheduleFairnessAuditsProvider,
-        child: card,
       ),
     );
   }

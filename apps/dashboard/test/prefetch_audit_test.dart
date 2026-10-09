@@ -95,7 +95,7 @@ const Map<String, (String, String)> inPageLinks = {
 /// In-page links whose unit does not warm on intent yet (shown in the table,
 /// not failed): the Settings list (setup `settings_shell.dart`). Drop an entry
 /// once its unit wires `ref.prefetchRoute`.
-const Set<String> awaitingUnitWiring = {'/settings/payment-methods'};
+const Set<String> awaitingUnitWiring = {};
 
 /// One page's audit line.
 class AuditRow {

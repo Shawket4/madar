@@ -32,43 +32,35 @@ typedef QrPlace = ({String placeName, String floor, String unitNumber});
 
 /// One single code's request: the kind, the org or branch id, the render
 /// options (`card`, `dpi`) and, for the in-mall kind, the place.
-typedef QrKey = ({
-  QrKind kind,
-  String id,
-  bool card,
-  int dpi,
-  QrPlace? place,
-});
+typedef QrKey = ({QrKind kind, String id, bool card, int dpi, QrPlace? place});
 
 /// `GET /orgs/{id}/qr`, `/orgs/{id}/booking-qr`, `/branches/{id}/qr`
 /// (with the place for the in-mall kind) or `/branches/{id}/booking-qr`.
-final qrCodeProvider = FutureProvider.autoDispose
-    .family<QrResponse, QrKey>((ref, k) {
-      ref.webCache();
-      final qr = ref.watch(apiProvider).qr;
-      return switch (k.kind) {
-        QrKind.orgOrder => qr.orgQr(id: k.id, card: k.card, dpi: k.dpi),
-        QrKind.orgBooking => qr.orgBookingQr(
-          id: k.id,
-          card: k.card,
-          dpi: k.dpi,
-        ),
-        QrKind.branchOrder => qr.branchQr(id: k.id, card: k.card, dpi: k.dpi),
-        QrKind.branchBooking => qr.branchBookingQr(
-          id: k.id,
-          card: k.card,
-          dpi: k.dpi,
-        ),
-        QrKind.branchOrderInMall => qr.branchQr(
-          id: k.id,
-          card: k.card,
-          dpi: k.dpi,
-          placeName: k.place!.placeName,
-          floor: k.place!.floor,
-          unitNumber: k.place!.unitNumber,
-        ),
-      };
-    }, retry: (_, _) => null);
+final qrCodeProvider = FutureProvider.autoDispose.family<QrResponse, QrKey>((
+  ref,
+  k,
+) {
+  ref.webCache();
+  final qr = ref.watch(apiProvider).qr;
+  return switch (k.kind) {
+    QrKind.orgOrder => qr.orgQr(id: k.id, card: k.card, dpi: k.dpi),
+    QrKind.orgBooking => qr.orgBookingQr(id: k.id, card: k.card, dpi: k.dpi),
+    QrKind.branchOrder => qr.branchQr(id: k.id, card: k.card, dpi: k.dpi),
+    QrKind.branchBooking => qr.branchBookingQr(
+      id: k.id,
+      card: k.card,
+      dpi: k.dpi,
+    ),
+    QrKind.branchOrderInMall => qr.branchQr(
+      id: k.id,
+      card: k.card,
+      dpi: k.dpi,
+      placeName: k.place!.placeName,
+      floor: k.place!.floor,
+      unitNumber: k.place!.unitNumber,
+    ),
+  };
+}, retry: (_, _) => null);
 
 /// `GET /branches/{id}/tables` (`useListTables`, enabled with a branch).
 final qrTablesProvider = FutureProvider.autoDispose
@@ -100,9 +92,11 @@ Future<List<(BranchTable, QrResponse)>> readTableCodes(
 ) async {
   final out = <(BranchTable, QrResponse)>[];
   for (final row in rows) {
-    final read = qrTableCodeProvider(
-      (branchId: branchId, tableId: row.id, caption: row.label),
-    );
+    final read = qrTableCodeProvider((
+      branchId: branchId,
+      tableId: row.id,
+      caption: row.label,
+    ));
     try {
       out.add((row, await container.read(read.future)));
     } on Object {
