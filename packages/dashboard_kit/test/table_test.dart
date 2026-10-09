@@ -1,6 +1,7 @@
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_kit/testing.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Order {
@@ -285,6 +286,68 @@ void main() {
     expect(find.text('No results found'), findsNothing);
     await tester.tap(find.text('Retry'));
     expect(retried, 1);
+  });
+
+  testWidgets('a manual Retry keeps the error on screen and spins its button', (
+    tester,
+  ) async {
+    Widget table({required bool retrying}) => Scaffold(
+      body: DashDataTable<_Order>(
+        columns: _cols(),
+        rows: const [],
+        rowKey: (o) => o.id,
+        // The page refetches: loading AND retrying.
+        loading: retrying,
+        retrying: retrying,
+        errorMessage: 'Network down',
+        onRetry: () {},
+      ),
+    );
+    await pumpDashApp(tester, table(retrying: true));
+    expect(find.text('Network down'), findsOneWidget, reason: 'no skeleton');
+    expect(find.text('NAME'), findsNothing);
+    final retry = find.ancestor(
+      of: find.text('Retry'),
+      matching: find.byType(DashButton),
+    );
+    expect(tester.widget<DashButton>(retry).loading, isTrue);
+    expect(
+      find.descendant(
+        of: retry,
+        matching: find.byType(CircularProgressIndicator),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(dashTestApp(child: table(retrying: false)));
+    expect(tester.widget<DashButton>(retry).loading, isFalse);
+  });
+
+  testWidgets('free text reads in its own direction inside an Arabic table', (
+    tester,
+  ) async {
+    await pumpDashApp(
+      tester,
+      Scaffold(
+        body: DashDataTable<String>(
+          columns: [
+            DashColumn<String>(id: 'name', label: 'المورد', text: (s) => s),
+          ],
+          rows: const ['.Delta Dairy Co', 'ألبان الدلتا', '1042'],
+          rowKey: (s) => s,
+        ),
+      ),
+      lang: 'ar',
+    );
+    TextDirection? dirOf(String s) =>
+        tester.renderObject<RenderParagraph>(find.text(s)).textDirection;
+    expect(dirOf('.Delta Dairy Co'), TextDirection.ltr);
+    expect(dirOf('ألبان الدلتا'), TextDirection.rtl);
+    expect(dirOf('1042'), TextDirection.rtl, reason: 'no letter: the line');
+    // Still at the column's start: the right edge in Arabic.
+    final latin = tester.getRect(find.text('.Delta Dairy Co'));
+    final arabic = tester.getRect(find.text('ألبان الدلتا'));
+    expect(latin.right, moreOrLessEquals(arabic.right, epsilon: 1));
   });
 
   testWidgets('an empty list draws the empty state', (tester) async {

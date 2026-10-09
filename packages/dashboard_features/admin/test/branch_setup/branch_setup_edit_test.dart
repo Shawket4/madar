@@ -65,19 +65,27 @@ void main() {
     expect(byKey('bb-save'), findsNothing);
     expect(pageText('Locked'), findsOneWidget);
     expect(find.byKey(const ValueKey('bb-toolbar')), findsNothing);
-    expect(find.byWidgetPredicate((w) => '${w.key}'.contains('bb-port-')), findsNothing);
+    expect(
+      find.byWidgetPredicate((w) => '${w.key}'.contains('bb-port-')),
+      findsNothing,
+    );
     expect(canvasOf(tester).editable, isFalse);
     // Selecting still works; the inspector's fields are off, no Remove.
     await h.tap(cardTitled('Counter 1'));
     expect(canvasOf(tester).selection, hasLength(1));
-    final name = tester.widget<DashTextInput>(inInspector(find.byType(DashTextInput)).first);
+    final name = tester.widget<DashTextInput>(
+      inInspector(find.byType(DashTextInput)).first,
+    );
     expect(name.enabled, isFalse);
     expect(byKey('bb-remove'), findsNothing);
 
     await h.tap(byKey('bb-lock'));
     expect(pageText('Editing'), findsOneWidget);
     expect(byKey('bb-toolbar'), findsOneWidget);
-    expect(find.byWidgetPredicate((w) => '${w.key}'.contains('bb-port-')), findsWidgets);
+    expect(
+      find.byWidgetPredicate((w) => '${w.key}'.contains('bb-port-')),
+      findsWidgets,
+    );
     expect(byKey('bb-remove'), findsOneWidget);
     await chord(tester, LogicalKeyboardKey.keyE);
     await h.settle();
@@ -198,7 +206,11 @@ void main() {
     tester,
   ) async {
     final b = PlanBackend();
-    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b);
+    final h = await pumpBuilder(
+      tester,
+      branchId: SeedIds.heliopolis,
+      backend: b,
+    );
     await h.tap(byKey('bb-lock'));
     await h.tap(cardTitled('Counter 1'));
     await rename(h, 'Front till');
@@ -250,7 +262,11 @@ void main() {
   testWidgets('ADM-BSU-022/087 a clean draft follows a newer plan; its undo '
       'steps are dropped', (tester) async {
     final b = PlanBackend();
-    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b);
+    final h = await pumpBuilder(
+      tester,
+      branchId: SeedIds.heliopolis,
+      backend: b,
+    );
     await h.tap(byKey('bb-lock'));
     await h.tap(cardTitled('Counter 1'));
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
@@ -475,10 +491,7 @@ void main() {
     await h.tap(byKey('bb-undo'));
     expect(pageText('How is this branch set up?'), findsOneWidget);
     await h.tap(byKey('bb-setup-sections'));
-    expect(
-      [for (final s in planOf(tester).sections) s.name],
-      ['Hot', 'Cold'],
-    );
+    expect([for (final s in planOf(tester).sections) s.name], ['Hot', 'Cold']);
     expect(
       [
         for (final d in planOf(tester).devices)

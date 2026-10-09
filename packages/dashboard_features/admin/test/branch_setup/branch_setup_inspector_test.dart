@@ -149,13 +149,18 @@ void main() {
       findsOneWidget,
     );
     expect(
-      ins('Kitchen printer is not linked to a section, so nothing prints on it.'),
+      ins(
+        'Kitchen printer is not linked to a section, so nothing prints on it.',
+      ),
       findsOneWidget,
     );
     // Blocking ones come first.
     final firstText = tester
         .widget<Text>(
-          find.descendant(of: byKey('bb-problem-0'), matching: find.byType(Text)),
+          find.descendant(
+            of: byKey('bb-problem-0'),
+            matching: find.byType(Text),
+          ),
         )
         .data;
     expect(firstText, contains('has no screen or printer'));
@@ -236,7 +241,10 @@ void main() {
     await h.tap(top('Counter 1 · in Counter 1').last);
     expect(named('Counter 1').deviceId, isNull);
     expect(named('Counter 2').deviceId, AdminSeed.deviceId('zamalek', 'T1'));
-    expect(pieceOf(tester, cardTitled('Counter 1')).presence!.label, 'Not set up');
+    expect(
+      pieceOf(tester, cardTitled('Counter 1')).presence!.label,
+      'Not set up',
+    );
     await h.tap(byKey('bb-undo'));
     expect(named('Counter 1').deviceId, AdminSeed.deviceId('zamalek', 'T1'));
   });
@@ -264,10 +272,14 @@ void main() {
     await h.tap(cardTitled('Kitchen screen'));
     expect(ins('Sections shown here'.toUpperCase()), findsOneWidget);
     await h.tap(ins('Kitchen'));
-    expect(planOf(tester).section(_kitchen)!.screenIds, [BranchPlanSeed.screen]);
+    expect(planOf(tester).section(_kitchen)!.screenIds, [
+      BranchPlanSeed.screen,
+    ]);
     await h.tap(ins('Bar'));
     expect(
-      planOf(tester).section(BranchPlanSeed.stationId('heliopolis', 'bar'))!.screenIds,
+      planOf(
+        tester,
+      ).section(BranchPlanSeed.stationId('heliopolis', 'bar'))!.screenIds,
       isEmpty,
     );
   });
@@ -286,11 +298,17 @@ void main() {
     tester,
   ) async {
     final b = PlanBackend();
-    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b);
+    final h = await pumpBuilder(
+      tester,
+      branchId: SeedIds.heliopolis,
+      backend: b,
+    );
     final seen = watchInvalidations(h);
     await h.tap(cardTitled('Kitchen screen'));
     await reach(h, byKey('bb-get-code'));
-    final call = h.server.callsTo(BranchPlanRoutes.codes, method: 'POST').single;
+    final call = h.server
+        .callsTo(BranchPlanRoutes.codes, method: 'POST')
+        .single;
     expect(call.body, {
       'branch_id': SeedIds.heliopolis,
       'slot_id': BranchPlanSeed.screen,
@@ -319,7 +337,11 @@ void main() {
   testWidgets('ADM-BSU-059/086 a refused setup code toasts; the slot a save '
       'removed is 404', (tester) async {
     final b = PlanBackend();
-    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b);
+    final h = await pumpBuilder(
+      tester,
+      branchId: SeedIds.heliopolis,
+      backend: b,
+    );
     await h.tap(cardTitled('Counter 1'));
     final denied = MockResponse.denied('branches.edit');
     b.server.fail('POST', BranchPlanRoutes.codes, denied);
@@ -354,7 +376,11 @@ void main() {
   testWidgets('ADM-BSU-060 a tablet entering a slot\'s code fills the slot; '
       'the card says so only once the plan is read again', (tester) async {
     final b = PlanBackend();
-    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b);
+    final h = await pumpBuilder(
+      tester,
+      branchId: SeedIds.heliopolis,
+      backend: b,
+    );
     await unlock(h);
     await h.tap(cardTitled('Counter 1'));
     await reach(h, byKey('bb-device-select'));
@@ -368,7 +394,10 @@ void main() {
     final code = b.codes.rows.last['code']! as String;
     activateSlotCode(b.db, code, AdminSeed.deviceId('heliopolis', 'T1'));
     await h.settle();
-    expect(pieceOf(tester, cardTitled('Counter 1')).presence!.label, 'Not set up');
+    expect(
+      pieceOf(tester, cardTitled('Counter 1')).presence!.label,
+      'Not set up',
+    );
     h.container.invalidate(branchPlanProvider(SeedIds.heliopolis));
     await h.settle();
     expect(
@@ -407,7 +436,10 @@ void main() {
     await h.tap(byKey('bb-brand'));
     await h.tap(top('Other').last);
     expect(bar().brand, isNull);
-    await reach(h, find.descendant(of: byKey('bb-paper'), matching: find.text('58 mm')));
+    await reach(
+      h,
+      find.descendant(of: byKey('bb-paper'), matching: find.text('58 mm')),
+    );
     expect(bar().paperMm, 58);
   });
 
@@ -426,12 +458,16 @@ void main() {
     expect(ins('Prints receipts for'.toUpperCase()), findsOneWidget);
     await reach(h, ins('Floor tablet'));
     expect(
-      planOf(tester).devices.firstWhere((d) => d.name == 'Floor tablet').receiptPrinterId,
+      planOf(
+        tester,
+      ).devices.firstWhere((d) => d.name == 'Floor tablet').receiptPrinterId,
       isNull,
     );
     await reach(h, ins('Floor tablet'));
     expect(
-      planOf(tester).devices.firstWhere((d) => d.name == 'Floor tablet').receiptPrinterId,
+      planOf(
+        tester,
+      ).devices.firstWhere((d) => d.name == 'Floor tablet').receiptPrinterId,
       isNotNull,
     );
   });
@@ -477,7 +513,9 @@ void main() {
     await reach(h, byKey('bb-select-all'));
     expect(planOf(tester).section(_kitchen)!.categoryIds, hasLength(7));
     expect(
-      planOf(tester).section(BranchPlanSeed.stationId('heliopolis', 'bar'))!.categoryIds,
+      planOf(
+        tester,
+      ).section(BranchPlanSeed.stationId('heliopolis', 'bar'))!.categoryIds,
       isEmpty,
     );
     expect(ins('7 of 7'), findsOneWidget);
@@ -493,7 +531,11 @@ void main() {
     final b = PlanBackend();
     b.db['categories'].removeWhere((c) => true);
     b.table(BranchPlanTables.categoryRoutes).removeWhere((r) => true);
-    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b);
+    final h = await pumpBuilder(
+      tester,
+      branchId: SeedIds.heliopolis,
+      backend: b,
+    );
     await h.tap(cardTitled('Kitchen'));
     expect(ins('The menu has no categories yet.'), findsOneWidget);
   });

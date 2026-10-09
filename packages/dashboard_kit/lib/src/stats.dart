@@ -287,8 +287,13 @@ class DashStatCard extends StatelessWidget {
   final bool loading;
   final bool dense;
 
-  /// A small control in the header row.
+  /// A small control at the header row's end (a 44 pt glyph button). It
+  /// floats in the card's top-end corner, its target reaching into the
+  /// padding, so it neither makes the card taller nor takes the label's room.
   final Widget? action;
+
+  /// The header row's room for [action]: the web's 24 px icon button.
+  static const double actionSlot = Space.xl;
   final VoidCallback? onTap;
 
   /// About to be pressed: warm the read [onTap] makes ([DashIntent]).
@@ -318,12 +323,15 @@ class DashStatCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           spacing: gap,
           children: [
+            // Bars up to the web's w-20 / w-24, narrower in a narrow card
+            // (three across on a phone).
             SizedBox(
               height: Space.card,
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                spacing: Space.sm,
                 children: [
-                  const DashSkeleton(width: 80),
-                  const Spacer(),
+                  const Flexible(child: DashSkeleton(width: 80)),
                   if (icon != null)
                     const DashSkeleton(width: Space.lg, height: Space.lg),
                 ],
@@ -391,7 +399,7 @@ class DashStatCard extends StatelessWidget {
                   ),
                 ),
               ),
-              ?action,
+              if (action != null) const SizedBox(width: actionSlot),
             ],
           ),
         ),
@@ -453,12 +461,28 @@ class DashStatCard extends StatelessWidget {
           ),
       ],
     );
-    return DashCard(
+    final card = DashCard(
       padding: pad,
       onTap: onTap,
       onIntent: onIntent,
       semanticLabel: label,
       child: body,
+    );
+    if (action == null) return card;
+    // A target-sized box centred on the slot at the header row's end.
+    const t = DashMetrics.target;
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        card,
+        PositionedDirectional(
+          top: pad.top + Space.card / 2 - t / 2,
+          end: pad.right + actionSlot / 2 - t / 2,
+          width: t,
+          height: t,
+          child: Center(child: action),
+        ),
+      ],
     );
   }
 }
@@ -497,16 +521,17 @@ class DashLedgerItem {
 
 /// A row of KPIs (the web's `LedgerStrip`): a responsive grid of
 /// [DashStatCard]s — two up on a phone, then by count (4 → 2·4, 5 → 3·5,
-/// 6 → 3·6) — every card in a row the same height. Dense from five items.
+/// 6 → 3·6) at the WINDOW's sm / lg widths, as the web's media queries —
+/// every card in a row the same height. Dense from five items.
 class DashLedgerStrip extends StatelessWidget {
   const DashLedgerStrip({required this.items, this.dense, super.key});
   final List<DashLedgerItem> items;
   final bool? dense;
 
-  int _columns(double width) {
+  int _columns(double window) {
     final n = items.length;
-    if (width < DashBreakpoints.sm) return math.min(2, n);
-    final lg = width >= DashBreakpoints.lg - Space.xxl * 4;
+    if (window < DashBreakpoints.sm) return math.min(2, n);
+    final lg = window >= DashBreakpoints.lg;
     return switch (n) {
       1 => 1,
       2 => 2,
@@ -521,52 +546,50 @@ class DashLedgerStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDense = dense ?? items.length >= 5;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final cols = _columns(constraints.maxWidth);
-        final gap = constraints.maxWidth >= DashBreakpoints.sm
-            ? Space.lg
-            : Space.md;
-        final rows = <Widget>[];
-        for (var i = 0; i < items.length; i += cols) {
-          final slice = items.sublist(i, math.min(i + cols, items.length));
-          final footer = slice.any((it) => it.trend != null || it.hint != null);
-          rows.add(
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: gap,
-              children: [
-                for (final it in slice)
-                  Expanded(
-                    child: DashStatCard(
-                      key: ValueKey(it.key),
-                      label: it.label,
-                      value: it.value,
-                      valueText: it.valueText,
-                      valueWidget: it.valueWidget,
-                      format: it.format,
-                      icon: it.icon,
-                      tone: it.tone,
-                      trend: it.trend,
-                      hint: it.hint,
-                      loading: it.loading,
-                      action: it.action,
-                      dense: isDense,
-                      reserveFooter: footer,
-                    ),
+    final window = MediaQuery.sizeOf(context).width;
+    final cols = _columns(window);
+    final gap = window >= DashBreakpoints.sm ? Space.lg : Space.md;
+    final rows = <Widget>[];
+    for (var i = 0; i < items.length; i += cols) {
+      final slice = items.sublist(i, math.min(i + cols, items.length));
+      final footer = slice.any((it) => it.trend != null || it.hint != null);
+      rows.add(
+        // Stretched to the row's tallest card (the web's grid cells).
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: gap,
+            children: [
+              for (final it in slice)
+                Expanded(
+                  child: DashStatCard(
+                    key: ValueKey(it.key),
+                    label: it.label,
+                    value: it.value,
+                    valueText: it.valueText,
+                    valueWidget: it.valueWidget,
+                    format: it.format,
+                    icon: it.icon,
+                    tone: it.tone,
+                    trend: it.trend,
+                    hint: it.hint,
+                    loading: it.loading,
+                    action: it.action,
+                    dense: isDense,
+                    reserveFooter: footer,
                   ),
-                for (var k = slice.length; k < cols; k++)
-                  const Expanded(child: SizedBox.shrink()),
-              ],
-            ),
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: gap,
-          children: rows,
-        );
-      },
+                ),
+              for (var k = slice.length; k < cols; k++)
+                const Expanded(child: SizedBox.shrink()),
+            ],
+          ),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: gap,
+      children: rows,
     );
   }
 }

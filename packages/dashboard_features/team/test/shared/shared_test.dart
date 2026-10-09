@@ -61,8 +61,14 @@ void main() {
     });
 
     test('fmtMinutes keeps the minus inside the Arabic isolate', () {
-      expect(fmtMinutes(const DashFormat(lang: 'ar'), 445), '\u20677 س 25 د\u2069');
-      expect(fmtMinutes(const DashFormat(lang: 'ar'), -42), '\u2067−42 د\u2069');
+      expect(
+        fmtMinutes(const DashFormat(lang: 'ar'), 445),
+        '\u20677 س 25 د\u2069',
+      );
+      expect(
+        fmtMinutes(const DashFormat(lang: 'ar'), -42),
+        '\u2067−42 د\u2069',
+      );
       expect(fmtMinutes(const DashFormat(), -42), '−42m');
     });
 

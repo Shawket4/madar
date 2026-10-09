@@ -24,9 +24,9 @@ class HomeKpis {
   final int voided;
   final int tips;
 
-  /// `orders ? Math.round(revenue / orders) : 0`, in the browser (not the
-  /// server's `avg_order_value`).
-  int get avgTicket => orders == 0 ? 0 : (revenue / orders).round();
+  /// `averageTicket(revenue, orders)`, in the browser (not the server's
+  /// `avg_order_value`).
+  int get avgTicket => averageTicket(revenue, orders);
 }
 
 /// One payment method's slice: its key and its money.

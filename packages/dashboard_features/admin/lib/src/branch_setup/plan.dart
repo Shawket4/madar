@@ -406,7 +406,10 @@ List<PieceBox> boxesOf(BuilderPlan plan) => [
 ];
 
 /// Moves pieces by key; unknown keys are ignored.
-BuilderPlan movePieces(BuilderPlan plan, Map<String, ({double x, double y})> m) {
+BuilderPlan movePieces(
+  BuilderPlan plan,
+  Map<String, ({double x, double y})> m,
+) {
   ({double x, double y})? at(PieceKind k, String id) => m[pieceKey(k, id)];
   return plan.copyWith(
     devices: [
@@ -519,7 +522,8 @@ bool _front(String kind) => kind == 'pos' || kind == 'waiter';
 LinkKind? linkKindFor(BuilderPlan plan, PieceRef from, PieceRef to) {
   switch (from.kind) {
     case PieceKind.section:
-      if (to.kind == PieceKind.device && plan.device(to.id)?.kind == 'kitchen') {
+      if (to.kind == PieceKind.device &&
+          plan.device(to.id)?.kind == 'kitchen') {
         return LinkKind.shows;
       }
       if (to.kind == PieceKind.printer &&
@@ -585,7 +589,8 @@ BuilderPlan addLink(BuilderPlan plan, PieceRef from, PieceRef to) {
           : s,
     ),
     LinkKind.receipt => plan.mapDevices(
-      (d) => d.id == deviceId ? d.copyWith(receiptPrinterId: () => printerId) : d,
+      (d) =>
+          d.id == deviceId ? d.copyWith(receiptPrinterId: () => printerId) : d,
     ),
     LinkKind.host => plan.mapPrinters(
       (p) => p.id == printerId ? p.copyWith(hostDeviceId: () => deviceId) : p,
@@ -658,8 +663,11 @@ BuilderPlan removePieces(BuilderPlan plan, Set<String> keys) {
 
 /// Gives a category to one section, taking it from any other ([sectionId]
 /// null: to none).
-BuilderPlan routeCategory(BuilderPlan plan, String categoryId, String? sectionId) =>
-    routeCategories(plan, [categoryId], sectionId);
+BuilderPlan routeCategory(
+  BuilderPlan plan,
+  String categoryId,
+  String? sectionId,
+) => routeCategories(plan, [categoryId], sectionId);
 
 /// Gives many categories to one section at once (one undo step), or takes
 /// them from it with null.

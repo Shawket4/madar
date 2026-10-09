@@ -27,14 +27,19 @@ void main() {
     testWidgets(
       'shots: the page (${v.size.name} ${v.locale} ${v.dark ? 'dark' : 'light'})',
       (tester) async {
+        final s = branchesServer();
+        addLocation(s.db);
         final h = await pumpBranches(
           tester,
           size: v.size,
           locale: v.locale,
           dark: v.dark,
+          server: s.server,
+          db: s.db,
         );
         expect(find.text(h.t('branches.title')), findsWidgets);
         expect(find.text('Heliopolis'), findsWidgets);
+        expect(find.text('Obour Warehouse'), findsWidgets);
         await h.shot('branches/default');
       },
     );
@@ -55,21 +60,86 @@ void main() {
       await h.shot('branches/new-dialog');
     });
 
-    testWidgets('shots: the edit dialog as a platform admin ($tag)', (
+    testWidgets('shots: a platform admin with no shop picked ($tag)', (
       tester,
     ) async {
       final h = await pumpBranches(
         tester,
-        path: '/branches?edit=${SeedIds.zamalek}',
         persona: Persona.platform,
         size: v.size,
         locale: v.locale,
         dark: v.dark,
       );
-      // A platform admin picks the shop first.
-      h.allowUnmatched = false;
       expect(find.text(h.t('branches.pickOrg')), findsWidgets);
       await h.shot('branches/platform-pick-org');
+    });
+
+    testWidgets('shots: the new-warehouse dialog ($tag)', (tester) async {
+      final h = await pumpBranches(
+        tester,
+        path: '/branches?edit=new-warehouse',
+        size: v.size,
+        locale: v.locale,
+        dark: v.dark,
+      );
+      expect(find.text(h.t('branches.newWarehouseTitle')), findsWidgets);
+      await h.shot('branches/new-warehouse-dialog');
+    });
+
+    testWidgets('shots: an edit turning a branch into a warehouse ($tag)', (
+      tester,
+    ) async {
+      final h = await pumpBranches(
+        tester,
+        path: '/branches?edit=${SeedIds.zamalek}',
+        size: v.size,
+        locale: v.locale,
+        dark: v.dark,
+      );
+      await h.tap(
+        find.descendant(
+          of: field('branch-kind'),
+          matching: find.text(h.t('branches.kindWarehouse')),
+        ),
+      );
+      expect(find.text(h.t('branches.toWarehouseHint')), findsOneWidget);
+      await h.shot('branches/to-warehouse');
+    });
+
+    testWidgets('shots: loading ($tag)', (tester) async {
+      final s = branchesServer();
+      final gate = s.server.hold('GET', listRoute);
+      final h = await pumpBranches(
+        tester,
+        size: v.size,
+        locale: v.locale,
+        dark: v.dark,
+        server: s.server,
+        db: s.db,
+      );
+      await h.shot('branches/loading');
+      gate.release();
+      await h.settle();
+    });
+
+    testWidgets('shots: the error ($tag)', (tester) async {
+      final s = branchesServer();
+      s.server.fail(
+        'GET',
+        listRoute,
+        MockResponse.error(500, 'boom'),
+        times: null,
+      );
+      final h = await pumpBranches(
+        tester,
+        size: v.size,
+        locale: v.locale,
+        dark: v.dark,
+        server: s.server,
+        db: s.db,
+      );
+      expect(find.text(h.t('common.retry')), findsWidgets);
+      await h.shot('branches/error');
     });
 
     testWidgets('shots: the edit dialog ($tag)', (tester) async {

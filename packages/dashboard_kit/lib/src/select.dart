@@ -48,6 +48,7 @@ class DashSelectTrigger extends StatelessWidget {
   const DashSelectTrigger({
     required this.label,
     required this.onTap,
+    this.onIntent,
     this.placeholder = false,
     this.invalid = false,
     this.enabled = true,
@@ -63,6 +64,9 @@ class DashSelectTrigger extends StatelessWidget {
 
   final String label;
   final VoidCallback onTap;
+
+  /// About to be pressed ([DashIntent]): warm the read the press leads to.
+  final VoidCallback? onIntent;
 
   /// The label is a placeholder (muted).
   final bool placeholder;
@@ -85,6 +89,7 @@ class DashSelectTrigger extends StatelessWidget {
     final c = context.madarColors;
     return DashPressable(
       onTap: enabled ? onTap : null,
+      onIntent: onIntent,
       enabled: enabled,
       pressScale: false,
       semanticLabel: semanticLabel == null ? label : '$semanticLabel: $label',

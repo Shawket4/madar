@@ -61,16 +61,25 @@ void main() {
     expect(p.problem, isNull);
     // Bluetooth, no host: just the word.
     await h.tap(inInspector(find.text('Bluetooth')));
-    expect(pieceOf(tester, cardTitled('Receipt printer')).detail, 'Bluetooth · Counter 1');
+    expect(
+      pieceOf(tester, cardTitled('Receipt printer')).detail,
+      'Bluetooth · Counter 1',
+    );
     // Network with no IP.
     await h.tap(inInspector(find.text('Network')));
-    expect(pieceOf(tester, cardTitled('Receipt printer')).detail, '192.168.1.40');
+    expect(
+      pieceOf(tester, cardTitled('Receipt printer')).detail,
+      '192.168.1.40',
+    );
     // A blank name: "Unnamed", blocking.
     await h.tap(cardTitled('Bar printer'));
     await h.enterText(inInspector(find.byType(EditableText)).first, '');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await h.settle();
-    expect(pieceOf(tester, cardTitled('Unnamed')).problem, PieceProblem.blocking);
+    expect(
+      pieceOf(tester, cardTitled('Unnamed')).problem,
+      PieceProblem.blocking,
+    );
     // A warning only: the kitchen screen showing no section.
     await h.tap(cardTitled('Bar'));
     await h.tap(inInspector(find.text('Kitchen screen')));
@@ -81,7 +90,9 @@ void main() {
   });
 
   testWidgets('ADM-BSU-035 device cards: the kind or the sections shown, and '
-      'presence in words; an empty slot is dashed "Not set up"', (tester) async {
+      'presence in words; an empty slot is dashed "Not set up"', (
+    tester,
+  ) async {
     final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis);
     expect(pieceOf(tester, cardTitled('Counter 1')).subtitle, 'POS');
     expect(pieceOf(tester, cardTitled('Counter 1')).placeholder, isFalse);
@@ -96,7 +107,10 @@ void main() {
     // The screen shows two sections: their names joined.
     await h.tap(cardTitled('Kitchen'));
     await h.tap(inInspector(find.text('Kitchen screen')));
-    expect(pieceOf(tester, cardTitled('Kitchen screen')).subtitle, 'Bar · Kitchen');
+    expect(
+      pieceOf(tester, cardTitled('Kitchen screen')).subtitle,
+      'Bar · Kitchen',
+    );
   });
 
   testWidgets('ADM-BSU-034 the canvas is never mirrored in Arabic', (
@@ -112,15 +126,12 @@ void main() {
       'counts', (tester) async {
     await pumpBuilder(tester, branchId: SeedIds.heliopolis);
     final links = linksOf(planOf(tester));
-    expect(
-      [for (final l in links) l.kind]..sort((a, b) => a.index - b.index),
-      [
-        LinkKind.shows,
-        LinkKind.prints,
-        LinkKind.prints,
-        LinkKind.receipt,
-      ],
-    );
+    expect([for (final l in links) l.kind]..sort((a, b) => a.index - b.index), [
+      LinkKind.shows,
+      LinkKind.prints,
+      LinkKind.prints,
+      LinkKind.receipt,
+    ]);
     for (final w in ['Shows on', 'Prints on', 'Receipts', 'Plugged into']) {
       expect(pageText(w), findsOneWidget, reason: w);
     }
@@ -130,35 +141,36 @@ void main() {
     expect(linkStyle(LinkKind.shows).dash, isNull);
   });
 
-  testWidgets('ADM-BSU-039 selecting: a tap selects only that card, Shift adds '
-      'and removes, empty canvas clears (Shift keeps), Escape clears', (
-    tester,
-  ) async {
-    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis);
-    final till = pieceKey(PieceKind.device, BranchPlanSeed.counter);
-    final screen = pieceKey(PieceKind.device, BranchPlanSeed.screen);
-    await h.tap(cardTitled('Counter 1'));
-    expect(canvasOf(tester).selection, {till});
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-    await h.tap(cardTitled('Kitchen screen'));
-    expect(canvasOf(tester).selection, {till, screen});
-    expect(inInspector(find.text('2 pieces')), findsOneWidget);
-    await h.tap(cardTitled('Counter 1'));
-    expect(canvasOf(tester).selection, {screen});
-    // Shift on empty canvas keeps the selection.
-    final empty = screenOf(tester, const Offset(200, -200));
-    await tester.tapAt(empty);
-    await h.settle();
-    expect(canvasOf(tester).selection, {screen});
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
-    await tester.tapAt(empty);
-    await h.settle();
-    expect(canvasOf(tester).selection, isEmpty);
-    await h.tap(cardTitled('Bar'));
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await h.settle();
-    expect(canvasOf(tester).selection, isEmpty);
-  });
+  testWidgets(
+    'ADM-BSU-039 (divergence) selecting: a tap selects only that card, Shift adds '
+    'and removes, empty canvas clears (Shift keeps), Escape clears',
+    (tester) async {
+      final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis);
+      final till = pieceKey(PieceKind.device, BranchPlanSeed.counter);
+      final screen = pieceKey(PieceKind.device, BranchPlanSeed.screen);
+      await h.tap(cardTitled('Counter 1'));
+      expect(canvasOf(tester).selection, {till});
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await h.tap(cardTitled('Kitchen screen'));
+      expect(canvasOf(tester).selection, {till, screen});
+      expect(inInspector(find.text('2 pieces')), findsOneWidget);
+      await h.tap(cardTitled('Counter 1'));
+      expect(canvasOf(tester).selection, {screen});
+      // Shift on empty canvas keeps the selection.
+      final empty = screenOf(tester, const Offset(200, -200));
+      await tester.tapAt(empty);
+      await h.settle();
+      expect(canvasOf(tester).selection, {screen});
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.tapAt(empty);
+      await h.settle();
+      expect(canvasOf(tester).selection, isEmpty);
+      await h.tap(cardTitled('Bar'));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await h.settle();
+      expect(canvasOf(tester).selection, isEmpty);
+    },
+  );
 
   testWidgets('ADM-BSU-039 Tab reaches the cards and focusing one selects it', (
     tester,
@@ -223,7 +235,10 @@ void main() {
       'it, onto one that can\'t (toast), onto nothing', (tester) async {
     final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis);
     await unlock(h);
-    final kitchen = pieceKey(PieceKind.section, BranchPlanSeed.stationId('heliopolis', 'kitchen'));
+    final kitchen = pieceKey(
+      PieceKind.section,
+      BranchPlanSeed.stationId('heliopolis', 'kitchen'),
+    );
     Future<void> drawFrom(String key, Offset to) async {
       final start = tester.getCenter(byKey('bb-port-$key'));
       final g = await tester.startGesture(start);
@@ -238,7 +253,9 @@ void main() {
     // Kitchen section → the kitchen screen: "shows".
     await drawFrom(kitchen, tester.getCenter(cardTitled('Kitchen screen')));
     expect(
-      planOf(tester).section(BranchPlanSeed.stationId('heliopolis', 'kitchen'))!.screenIds,
+      planOf(
+        tester,
+      ).section(BranchPlanSeed.stationId('heliopolis', 'kitchen'))!.screenIds,
       [BranchPlanSeed.screen],
     );
     // Kitchen section → the till: refused with a toast, nothing changes.
@@ -263,13 +280,21 @@ void main() {
   testWidgets('ADM-BSU-043 a line: hover names it; a press selects it with '
       'its pill; ✕ or Delete removes it', (tester) async {
     final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis);
-    final shows = linksOf(planOf(tester)).firstWhere((l) => l.kind == LinkKind.shows);
+    final shows = linksOf(
+      planOf(tester),
+    ).firstWhere((l) => l.kind == LinkKind.shows);
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: Offset.zero);
     addTearDown(mouse.removePointer);
     await mouse.moveTo(lineMid(tester, shows));
     await h.settle();
-    expect(find.descendant(of: find.byType(BuilderCanvas), matching: find.text('Shows on')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(BuilderCanvas),
+        matching: find.text('Shows on'),
+      ),
+      findsOneWidget,
+    );
     await mouse.moveTo(Offset.zero);
     await h.settle();
 
@@ -279,19 +304,31 @@ void main() {
     expect(canvasOf(tester).selectedLink, shows);
     expect(canvasOf(tester).selection, isEmpty);
     expect(byKey('bb-link-pill'), findsOneWidget);
-    expect(find.bySemanticsLabel('Remove this line'), findsNothing, reason: 'locked');
+    expect(
+      find.bySemanticsLabel('Remove this line'),
+      findsNothing,
+      reason: 'locked',
+    );
     await unlock(h);
     await h.tap(find.bySemanticsLabel('Remove this line'));
-    expect(linksOf(planOf(tester)).where((l) => l.kind == LinkKind.shows), isEmpty);
+    expect(
+      linksOf(planOf(tester)).where((l) => l.kind == LinkKind.shows),
+      isEmpty,
+    );
     expect(canvasOf(tester).selectedLink, isNull);
     // Delete removes a selected line before any piece.
-    final receipt = linksOf(planOf(tester)).firstWhere((l) => l.kind == LinkKind.receipt);
+    final receipt = linksOf(
+      planOf(tester),
+    ).firstWhere((l) => l.kind == LinkKind.receipt);
     await tester.tapAt(lineMid(tester, receipt));
     await h.settle();
     expect(canvasOf(tester).selectedLink, receipt);
     await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
     await h.settle();
-    expect(linksOf(planOf(tester)).where((l) => l.kind == LinkKind.receipt), isEmpty);
+    expect(
+      linksOf(planOf(tester)).where((l) => l.kind == LinkKind.receipt),
+      isEmpty,
+    );
     expect(planOf(tester).devices, hasLength(2));
   });
 
@@ -305,7 +342,11 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
     await tester.sendKeyEvent(LogicalKeyboardKey.equal);
     await h.settle();
-    expect(planOf(tester).sections, hasLength(2), reason: 'Backspace edits text');
+    expect(
+      planOf(tester).sections,
+      hasLength(2),
+      reason: 'Backspace edits text',
+    );
     expect(cardTitled('Bar'), findsOneWidget);
     expect(canvasOf(tester).selection, hasLength(1));
   });

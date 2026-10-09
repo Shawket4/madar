@@ -192,6 +192,15 @@ String transferStepCap(String status, TransferAction a) =>
     ? Cap.inventoryTransfersDelete
     : Cap.inventoryTransfersCreate;
 
+/// One cell of the table (pinned by the shared `inventory_vectors.json`):
+/// who acts (true = the source) and the capability, or null when closed.
+({bool source, String cap})? transferStep(String status, TransferAction a) {
+  final source = _steps[status]?[a];
+  return source == null
+      ? null
+      : (source: source, cap: transferStepCap(status, a));
+}
+
 /// The steps open to someone working at [mine] who holds the step's
 /// capability AT the acting side (`can(cap, at)`), where the server checks.
 Set<TransferAction> transferActions(
@@ -216,6 +225,28 @@ Set<TransferAction> transferActions(
 int milli(num q) {
   final m = (q.abs() * 1000).round();
   return q < 0 ? -m : m;
+}
+
+/// One received line as the server judges it
+/// (`madar_inventory::transfer::check_receive_line`, pinned by the shared
+/// `inventory_vectors.json`): in whole thousandths, more than was sent needs
+/// a note; [difference] = received − sent. [refused] is `negative` or
+/// `over_needs_note`, else null.
+({String? arrival, double? difference, String? refused}) checkReceiveLine(
+  num sent,
+  num got,
+  String? note,
+) {
+  final s = milli(sent), g = milli(got);
+  if (g < 0) return (arrival: null, difference: null, refused: 'negative');
+  if (g > s && (note ?? '').trim().isEmpty) {
+    return (arrival: null, difference: null, refused: 'over_needs_note');
+  }
+  return (
+    arrival: g == s ? 'exact' : (g < s ? 'short' : 'over'),
+    difference: (g - s) / 1000,
+    refused: null,
+  );
 }
 
 /// `TRANSFER_TONES` (an unknown status is neutral).

@@ -182,7 +182,8 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
 
     final records = recordsQ.value ?? const <AttendanceRecord>[];
     final day = settingsQ.value?.periodStartDay;
-    final periodStartDay = day != null && day >= 1 && day <= 28 ? day : 1;
+    // As the server (pay::period_window): a start day past 28 is the 28th.
+    final periodStartDay = (day ?? 1).clamp(1, 28);
     // Each punch reads on its own branch's clock, also under All branches.
     final zones = {
       for (final b in branches) b.id: b.timezone.isEmpty ? null : b.timezone,

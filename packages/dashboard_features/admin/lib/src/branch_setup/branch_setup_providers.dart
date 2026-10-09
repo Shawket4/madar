@@ -48,10 +48,7 @@ final planVersionsProvider = FutureProvider.autoDispose
     .family<List<PlanVersionView>, String>((ref, branchId) {
       ref.webCache();
       ref.watch(realtimeEpochProvider(BranchPlanPaths.versions));
-      return ref
-          .watch(apiProvider)
-          .branchPlan
-          .listVersions(branchId: branchId);
+      return ref.watch(apiProvider).branchPlan.listVersions(branchId: branchId);
     });
 
 /// A device reports in at most every 5 minutes; twice that is still online.

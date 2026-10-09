@@ -151,7 +151,10 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
   final ValueNotifier<bool> _saving = ValueNotifier(false);
   final DashPopoverController _historyMenu = DashPopoverController();
   final DashPopoverController _addMenu = DashPopoverController();
-  final FocusNode _pageFocus = FocusNode(debugLabel: 'branch-builder', skipTraversal: true);
+  final FocusNode _pageFocus = FocusNode(
+    debugLabel: 'branch-builder',
+    skipTraversal: true,
+  );
   bool _editable = false;
   Set<String> _selection = const {};
   PlanLink? _selectedLink;
@@ -209,7 +212,8 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
     final x = snapTo(r.left + r.width / 2 - kNodeW / 2, true);
     var y = snapTo(r.top + r.height / 2 - h / 2, true);
     bool overlaps(double yy) => boxes.any(
-      (b) => x < b.x + b.w && x + kNodeW > b.x && yy < b.y + b.h && yy + h > b.y,
+      (b) =>
+          x < b.x + b.w && x + kNodeW > b.x && yy < b.y + b.h && yy + h > b.y,
     );
     for (var i = 0; i < 40 && overlaps(y); i++) {
       y += 20;
@@ -547,12 +551,15 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
     final plan = localizeServerNames(
       fromWire(view.plan),
       t('builder.kind.receiptPrinter'),
-      (section) => t('builder.names.sectionPrinter', args: {'section': section}),
+      (section) =>
+          t('builder.names.sectionPrinter', args: {'section': section}),
     );
     // A slot still naming a device retired since shows "Not set up"; it is
     // let go here too, or every save would be refused (web bug ADM-BSU-084).
     final live = {for (final d in view.devices) d.id};
-    if (plan.devices.every((d) => d.deviceId == null || live.contains(d.deviceId))) {
+    if (plan.devices.every(
+      (d) => d.deviceId == null || live.contains(d.deviceId),
+    )) {
       return plan;
     }
     return plan.mapDevices(
@@ -573,7 +580,8 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
       for (final d in view?.devices ?? const <PlanRegisteredDevice>[]) d.id: d,
     };
     final openItems = {
-      for (final c in view?.openItems ?? const <SectionCount>[]) c.sectionId: c.count,
+      for (final c in view?.openItems ?? const <SectionCount>[])
+        c.sectionId: c.count,
     };
     final boxes = {for (final b in boxesOf(plan)) b.key: b};
     PieceProblem? problemOf(String key) {
@@ -707,7 +715,10 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
       if (q.awaitingFirst) {
         main = const Padding(
           padding: EdgeInsets.all(Space.md),
-          child: DashSkeleton(key: ValueKey('bb-skeleton'), height: double.infinity),
+          child: DashSkeleton(
+            key: ValueKey('bb-skeleton'),
+            height: double.infinity,
+          ),
         );
       } else if (q.failedFirst) {
         main = Center(
@@ -931,30 +942,30 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
       autofocus: true,
       onKeyEvent: _onKey,
       child: DashPageScaffold(
-      title: t('builder.title'),
-      subtitle: t('builder.subtitle'),
-      actions: [actions],
-      fillBody: docked,
-      width: DashPageWidth.full,
-      body: docked
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: Space.lg,
-              children: [
-                ?banner,
-                Expanded(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: height * 0.6),
-                    child: card,
+        title: t('builder.title'),
+        subtitle: t('builder.subtitle'),
+        actions: [actions],
+        fillBody: docked,
+        width: DashPageWidth.full,
+        body: docked
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: Space.lg,
+                children: [
+                  ?banner,
+                  Expanded(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: height * 0.6),
+                      child: card,
+                    ),
                   ),
-                ),
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: Space.lg,
-              children: [?banner, card],
-            ),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: Space.lg,
+                children: [?banner, card],
+              ),
       ),
     );
   }
@@ -1142,7 +1153,11 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
                 children: [
                   _MenuLabel(t('builder.frontOfHouse')),
                   for (final k in const ['pos', 'waiter'])
-                    item(deviceIcon[k]!, deviceKindLabel(t, k), () => _addDevice(k, t)),
+                    item(
+                      deviceIcon[k]!,
+                      deviceKindLabel(t, k),
+                      () => _addDevice(k, t),
+                    ),
                   item(
                     printerIcon['receipt']!,
                     printerRoleLabel(t, 'receipt'),
@@ -1150,7 +1165,11 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
                   ),
                   Divider(height: Space.sm + 1, color: c.border),
                   _MenuLabel(t('builder.kitchenSide')),
-                  item(sectionIcon, t('builder.kind.section'), () => _addSection(t)),
+                  item(
+                    sectionIcon,
+                    t('builder.kind.section'),
+                    () => _addSection(t),
+                  ),
                   item(
                     deviceIcon['kitchen']!,
                     deviceKindLabel(t, 'kitchen'),

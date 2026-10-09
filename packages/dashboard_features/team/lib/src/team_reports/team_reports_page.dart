@@ -121,7 +121,8 @@ class _ReportsBodyState extends ConsumerState<_ReportsBody> {
     final settingsQ = ref.watch(staffAttendanceSettingsProvider);
     listenStaffRefreshFailure(ref, context, staffAttendanceSettingsProvider);
     final day = settingsQ.value?.periodStartDay;
-    final periodStartDay = day != null && day >= 1 && day <= 28 ? day : 1;
+    // As the server (pay::period_window): a start day past 28 is the 28th.
+    final periodStartDay = (day ?? 1).clamp(1, 28);
     final today = dashParseYmd(teamTodayIsoOf(ref))!;
     final range =
         _range ??

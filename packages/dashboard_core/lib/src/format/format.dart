@@ -54,6 +54,12 @@ int egpToPiastres(num egp) => _jsRound(egp * 100);
 
 int _jsRound(num v) => (v + 0.5).floor();
 
+/// The average bill (`averageTicket`, madar-money `metrics::average_ticket`,
+/// pinned by pos_metrics_vectors.json): sales over orders rounded half up, in
+/// integers; 0 when there is nothing to divide by.
+int averageTicket(int sales, int orders) =>
+    orders > 0 ? ((2 * sales + orders) / (2 * orders)).floor() : 0;
+
 /// `initials("Ahmad Ghazal")` -> `AG`.
 String initials([String name = '']) => name
     .trim()
@@ -371,7 +377,10 @@ class DashFormat {
 }
 
 /// UTC ISO instant for the start (or last ms) of a calendar day in [zone]
-/// (`dayBoundaryISO`). [month0] is 0-based.
+/// (`dayBoundaryISO`). [month0] is 0-based. madar-time `day_bounds`, pinned by
+/// day_bounds_vectors.json: the end is the next local midnight minus 1 ms, not
+/// wall-clock 23:59:59.999 (Cairo and Beirut fall back at midnight, so that
+/// time happens twice and the first one drops the day's last hour).
 String dayBoundaryISO(
   String zone,
   int year,
@@ -380,7 +389,12 @@ String dayBoundaryISO(
   bool endOfDay = false,
 }) => isoString(
   endOfDay
-      ? wallClock(zone, year, month0, day, 23, 59, 59, 999)
+      ? wallClock(
+          zone,
+          year,
+          month0,
+          day + 1,
+        ).subtract(const Duration(milliseconds: 1))
       : wallClock(zone, year, month0, day),
 );
 

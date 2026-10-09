@@ -58,37 +58,40 @@ const String inventoryAllBranchesId = allBranchesId;
 
 enum MeasureFamily { weight, volume, count }
 
-MeasureFamily unitFamily(String unit) => switch (unit) {
-  'g' || 'kg' => MeasureFamily.weight,
-  'ml' || 'l' => MeasureFamily.volume,
-  _ => MeasureFamily.count,
-};
+/// madar-units' `unit_spec` (pinned by the shared `unit_vectors.json`): a
+/// unit's family and its factor to the family's smallest unit, case and
+/// surrounding spaces ignored; null for a unit the backend doesn't know.
+(MeasureFamily, num)? _unitSpec(String unit) =>
+    switch (unit.trim().toLowerCase()) {
+      'g' => (MeasureFamily.weight, 1),
+      'kg' => (MeasureFamily.weight, 1000),
+      'ml' => (MeasureFamily.volume, 1),
+      'l' => (MeasureFamily.volume, 1000),
+      'pcs' => (MeasureFamily.count, 1),
+      _ => null,
+    };
 
-/// The units an ingredient of [unit] may be bought or re-measured in.
+/// Null for a unit the backend doesn't know.
+MeasureFamily? unitFamily(String unit) => _unitSpec(unit)?.$1;
+
+/// The units an ingredient of [unit] may be bought or re-measured in (an
+/// unknown unit only in itself).
 List<String> unitsForFamily(String unit) => switch (unitFamily(unit)) {
   MeasureFamily.weight => const ['g', 'kg'],
   MeasureFamily.volume => const ['ml', 'l'],
   MeasureFamily.count => const ['pcs'],
+  null => [unit],
 };
 
 // ── Purchase costs: the invoice total is the truth ─────────────────────────
 
-const Map<String, num> _unitScale = {
-  'g': 1,
-  'kg': 1000,
-  'ml': 1,
-  'l': 1000,
-  'pcs': 1,
-};
-
-/// Base stock units in one purchase unit (a kg of a gram item → 1000). A
-/// named pack, an unknown unit or another measure reads as 1.
-num stockUnitsPer(String purchaseUnit, String stockUnit) {
-  final p = _unitScale[purchaseUnit];
-  final s = _unitScale[stockUnit];
-  if (p == null || s == null) return 1;
-  if (unitFamily(purchaseUnit) != unitFamily(stockUnit)) return 1;
-  return p / s;
+/// Base stock units in one purchase unit (a kg of a gram item → 1000); null
+/// where the backend refuses to convert: an unknown unit, or across families.
+num? stockUnitsPer(String purchaseUnit, String stockUnit) {
+  final from = _unitSpec(purchaseUnit), to = _unitSpec(stockUnit);
+  return from != null && to != null && from.$1 == to.$1
+      ? from.$2 / to.$2
+      : null;
 }
 
 /// A line's unit cost DERIVED from its total, in piastres per purchase unit,
@@ -99,17 +102,19 @@ double? unitCostFromTotal(num linePiastres, num qty) =>
     : null;
 
 /// The catalog's estimate of a line's total in whole piastres; null when the
-/// catalog has no cost or the quantity is not positive.
+/// catalog has no cost, the quantity is not positive, or the units don't
+/// convert (no figure rather than a wrong one).
 int? estimateLineTotal(
   num? catalogCostPerStockUnit,
   num qty,
   String purchaseUnit,
   String stockUnit,
-) => catalogCostPerStockUnit != null && qty.isFinite && qty > 0
-    ? jsRound(
-        catalogCostPerStockUnit * qty * stockUnitsPer(purchaseUnit, stockUnit),
-      )
-    : null;
+) {
+  final per = stockUnitsPer(purchaseUnit, stockUnit);
+  return catalogCostPerStockUnit != null && per != null && qty.isFinite && qty > 0
+      ? jsRound(catalogCostPerStockUnit * qty * per)
+      : null;
+}
 
 /// Fraction digits a unit cost is shown with (EGP), always all of them.
 const int unitCostDigits = 6;

@@ -164,13 +164,15 @@ String _iso(DateTime d) =>
 int _dayDiff(String a, String b) => _utc(b).difference(_utc(a)).inDays;
 
 /// The pay period holding [date], for periods opening on [startDay]
-/// (`periodOf`: the 26th means 26th–25th).
+/// (`periodOf`: the 26th means 26th–25th). madar-dawam `pay::period_window`,
+/// pinned by dawam_vectors.json: [startDay] clamps to 1–28.
 ({String start, String end, int days}) periodOf(String date, int startDay) {
+  final s = startDay.clamp(1, 28);
   final d = _utc(date);
   // The 1-based month the period opens in (DateTime.utc normalises 0, -1).
-  final month = d.day >= startDay ? d.month : d.month - 1;
-  final start = _iso(DateTime.utc(d.year, month, startDay));
-  final end = _iso(DateTime.utc(d.year, month + 1, startDay - 1));
+  final month = d.day >= s ? d.month : d.month - 1;
+  final start = _iso(DateTime.utc(d.year, month, s));
+  final end = _iso(DateTime.utc(d.year, month + 1, s - 1));
   return (start: start, end: end, days: _dayDiff(start, end) + 1);
 }
 

@@ -226,9 +226,10 @@ MockRow? stockRow(MockDb db, String branchId, String key) =>
 double onHand(MockDb db, String branchId, String key) =>
     (stockRow(db, branchId, key)?['on_hand'] as num?)?.toDouble() ?? 0;
 
-/// Answers `/authz/me?branch_id=<branchId>` without [missing] (every other
-/// location keeps the persona's capabilities).
-void holdAt(MockServer server, String branchId, Set<String> missing) {
+/// Answers `/authz/me?branch_id=<branchId>` (null: the org-wide
+/// `/authz/me`) without [missing]; every other answer keeps the persona's
+/// capabilities.
+void holdAt(MockServer server, String? branchId, Set<String> missing) {
   server.on('GET', authzRoute, (req) {
     final p = req.persona;
     final at = req.q('branch_id');

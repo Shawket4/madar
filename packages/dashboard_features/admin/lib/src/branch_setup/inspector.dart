@@ -102,24 +102,33 @@ class BuilderInspector extends StatelessWidget {
       final ref = PieceRef.parse(keys.single);
       panel = switch (ref.kind) {
         PieceKind.device => switch (p.plan.device(ref.id)) {
-          final d? => _DeviceInspector(p, d, key: ValueKey('bb-device-${d.id}')),
+          final d? => _DeviceInspector(
+            p,
+            d,
+            key: ValueKey('bb-device-${d.id}'),
+          ),
           null => const SizedBox.shrink(),
         },
         PieceKind.printer => switch (p.plan.printer(ref.id)) {
-          final x? => _PrinterInspector(p, x, key: ValueKey('bb-printer-${x.id}')),
+          final x? => _PrinterInspector(
+            p,
+            x,
+            key: ValueKey('bb-printer-${x.id}'),
+          ),
           null => const SizedBox.shrink(),
         },
         PieceKind.section => switch (p.plan.section(ref.id)) {
-          final s? => _SectionInspector(p, s, key: ValueKey('bb-section-${s.id}')),
+          final s? => _SectionInspector(
+            p,
+            s,
+            key: ValueKey('bb-section-${s.id}'),
+          ),
           null => const SizedBox.shrink(),
         },
       };
     }
     return InspectorScope(
-      child: Padding(
-        padding: const EdgeInsets.all(Space.lg),
-        child: panel,
-      ),
+      child: Padding(padding: const EdgeInsets.all(Space.lg), child: panel),
     );
   }
 }
@@ -152,7 +161,10 @@ class _Heading extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 2,
       children: [
-        Text(kind, style: DashType.smallMedium.copyWith(color: c.textSecondary)),
+        Text(
+          kind,
+          style: DashType.smallMedium.copyWith(color: c.textSecondary),
+        ),
         Semantics(
           header: true,
           child: MadarClippedText(
@@ -370,7 +382,10 @@ class _Empty extends StatelessWidget {
           horizontal: Space.md,
           vertical: Space.sm + 2,
         ),
-        child: Text(text, style: DashType.small.copyWith(color: c.textSecondary)),
+        child: Text(
+          text,
+          style: DashType.small.copyWith(color: c.textSecondary),
+        ),
       ),
     );
   }
@@ -553,13 +568,12 @@ class _BranchSummary extends ConsumerWidget {
                       color: c.muted,
                       borderRadius: BorderRadius.circular(Radii.pill),
                     ),
-                    child: Text(
-                      switch (p.categories.firstWhereOrNull((x) => x.id == id)) {
-                        final cat? => categoryName(cat, lang),
-                        null => '',
-                      },
-                      style: DashType.small.copyWith(color: c.textPrimary),
-                    ),
+                    child: Text(switch (p.categories.firstWhereOrNull(
+                      (x) => x.id == id,
+                    )) {
+                      final cat? => categoryName(cat, lang),
+                      null => '',
+                    }, style: DashType.small.copyWith(color: c.textPrimary)),
                   ),
               ],
             ),
@@ -619,7 +633,10 @@ class _ProblemRow extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: Text(text, style: DashType.body.copyWith(color: c.textPrimary)),
+              child: Text(
+                text,
+                style: DashType.body.copyWith(color: c.textPrimary),
+              ),
             ),
           ],
         ),
@@ -693,7 +710,10 @@ class _DeviceInspector extends ConsumerWidget {
       Presence.online => t('builder.onlineAs', args: {'code': code}),
       Presence.offline => t(
         'builder.lastSeen',
-        args: {'code': code, 'when': fmt.fmtStamp(seen?.lastSeenAt.toIso8601String(), p.now)},
+        args: {
+          'code': code,
+          'when': fmt.fmtStamp(seen?.lastSeenAt.toIso8601String(), p.now),
+        },
       ),
     };
     void setDevice(BuilderDevice Function(BuilderDevice) f) =>
@@ -1033,7 +1053,8 @@ class _PrinterInspector extends ConsumerWidget {
                       DashOption(value: d.id, label: d.name),
                   ],
                   onChanged: (v) => set(
-                    (y) => y.copyWith(hostDeviceId: () => v == _none ? null : v),
+                    (y) =>
+                        y.copyWith(hostDeviceId: () => v == _none ? null : v),
                   ),
                 ),
               ],
@@ -1061,8 +1082,9 @@ class _PrinterInspector extends ConsumerWidget {
                     const DashOption(value: 'epson', label: 'Epson'),
                     const DashOption(value: 'star', label: 'Star'),
                   ],
-                  onChanged: (v) =>
-                      set((y) => y.copyWith(brand: () => v == _none ? null : v)),
+                  onChanged: (v) => set(
+                    (y) => y.copyWith(brand: () => v == _none ? null : v),
+                  ),
                 ),
               ],
             ),
@@ -1081,7 +1103,10 @@ class _PrinterInspector extends ConsumerWidget {
                   semanticLabel: t('builder.paper'),
                   options: [
                     for (final n in const [58, 80])
-                      DashOption(value: n, label: t('builder.mm', args: {'n': n})),
+                      DashOption(
+                        value: n,
+                        label: t('builder.mm', args: {'n': n}),
+                      ),
                   ],
                   onChanged: (n) => set((y) => y.copyWith(paperMm: n)),
                 ),
@@ -1209,7 +1234,8 @@ class _SectionInspector extends ConsumerWidget {
         value: s.name,
         enabled: p.editable,
         onCommit: (name) => p.change(
-          (x) => x.mapSections((y) => y.id == s.id ? y.copyWith(name: name) : y),
+          (x) =>
+              x.mapSections((y) => y.id == s.id ? y.copyWith(name: name) : y),
         ),
       ),
       if (cooking > 0)
@@ -1364,9 +1390,13 @@ class _SectionInspector extends ConsumerWidget {
                         checked: s.categoryIds.contains(cat.id),
                         enabled: p.editable,
                         label: categoryName(cat, lang),
-                        hint: !s.categoryIds.contains(cat.id) &&
+                        hint:
+                            !s.categoryIds.contains(cat.id) &&
                                 owner[cat.id] != null
-                            ? t('builder.inSection', args: {'name': owner[cat.id]})
+                            ? t(
+                                'builder.inSection',
+                                args: {'name': owner[cat.id]},
+                              )
                             : null,
                         onChanged: (on) => p.change(
                           (x) => routeCategory(x, cat.id, on ? s.id : null),

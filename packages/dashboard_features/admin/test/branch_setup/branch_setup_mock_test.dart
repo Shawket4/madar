@@ -79,8 +79,9 @@ void main() {
     expect([for (final c in view.openItems) c.count], [2]);
     // The croissant routed to the kitchen; the cookie's Pastry is closed.
     expect(
-      {for (final c in view.itemOverrides) c.sectionId: c.count}[BranchPlanSeed
-          .stationId('zamalek', 'kitchen')],
+      {
+        for (final c in view.itemOverrides) c.sectionId: c.count,
+      }[BranchPlanSeed.stationId('zamalek', 'kitchen')],
       1,
     );
     expect(view.categories, hasLength(7));
@@ -106,7 +107,8 @@ void main() {
     expect(plan.section(_bar)!.printerIds, [BranchPlanSeed.barPrinter]);
     // The kitchen-stations page moved the bar's printer; the branch dialog
     // the receipt printer.
-    b.table(BranchPlanTables.stations).find(_bar)!['printer_ip'] = '192.168.1.70';
+    b.table(BranchPlanTables.stations).find(_bar)!['printer_ip'] =
+        '192.168.1.70';
     b.db['branches'].find(SeedIds.heliopolis)!['printer_ip'] = '192.168.1.99';
     plan = fromWire(
       (await b.api.branchPlan.getPlan(branchId: SeedIds.heliopolis)).plan,
@@ -115,7 +117,9 @@ void main() {
     expect(first.ip, '192.168.1.70');
     expect(first.name, 'Bar printer');
     expect(plan.section(_bar)!.printerIds, hasLength(2));
-    final receipt = plan.printer(plan.device(BranchPlanSeed.counter)!.receiptPrinterId)!;
+    final receipt = plan.printer(
+      plan.device(BranchPlanSeed.counter)!.receiptPrinterId,
+    )!;
     expect(receipt.ip, '192.168.1.99');
     expect(receipt.name, 'Receipt printer');
     // A printer cleared there is not mirrored.
@@ -144,7 +148,10 @@ void main() {
         slotId: BranchPlanSeed.screen,
       ),
     );
-    expect(b.codes.rows.where((c) => c['slot_id'] == BranchPlanSeed.screen), hasLength(1));
+    expect(
+      b.codes.rows.where((c) => c['slot_id'] == BranchPlanSeed.screen),
+      hasLength(1),
+    );
     final view = await b.api.branchPlan.getPlan(branchId: SeedIds.heliopolis);
     var plan = removePieces(fromWire(view.plan), {
       pieceKey(PieceKind.device, BranchPlanSeed.screen),
@@ -173,26 +180,38 @@ void main() {
     expect(branch['till_prints_kitchen'], isFalse);
     expect(branch['hardware_plan_version'], 3);
     expect(
-      b.table(BranchPlanTables.modes).firstWhere(
-        (r) => r['branch_id'] == SeedIds.heliopolis,
-      )!['mode'],
+      b
+          .table(BranchPlanTables.modes)
+          .firstWhere((r) => r['branch_id'] == SeedIds.heliopolis)!['mode'],
       'till',
     );
     final kitchen = b.table(BranchPlanTables.stations).find(_kitchen)!;
     expect(
-      (kitchen['printer_ip'], kitchen['printer_port'], kitchen['printer_brand']),
+      (
+        kitchen['printer_ip'],
+        kitchen['printer_port'],
+        kitchen['printer_brand'],
+      ),
       ('192.168.1.61', 9200, 'epson'),
     );
     // The removed slot took its code with it.
-    expect(b.codes.rows.where((c) => c['slot_id'] == BranchPlanSeed.screen), isEmpty);
+    expect(
+      b.codes.rows.where((c) => c['slot_id'] == BranchPlanSeed.screen),
+      isEmpty,
+    );
     expect(b.table(BranchPlanTables.slots).find(BranchPlanSeed.screen), isNull);
-    final versions = await b.api.branchPlan.listVersions(branchId: SeedIds.heliopolis);
+    final versions = await b.api.branchPlan.listVersions(
+      branchId: SeedIds.heliopolis,
+    );
     expect(versions.first.version, 3);
     expect(versions.first.plan.devices, hasLength(1));
     // Read back: the same plan.
     final again = await b.api.branchPlan.getPlan(branchId: SeedIds.heliopolis);
     expect(samePlan(fromWire(again.plan), fromWire(out.plan)), isTrue);
-    expect(fromWire(again.plan).printer(BranchPlanSeed.receipt)!.ip, '192.168.1.50');
+    expect(
+      fromWire(again.plan).printer(BranchPlanSeed.receipt)!.ip,
+      '192.168.1.50',
+    );
   });
 
   test('ADM-BSU-079 a dropped station is soft-deleted with its item routes; '
@@ -223,20 +242,23 @@ void main() {
       PieceRef(PieceKind.device, plan.devices.first.id),
     );
     await b.api.branchPlan.savePlan(body: save(SeedIds.zamalek, 0, plan));
-    final bar = b.table(BranchPlanTables.stations).find(
-      BranchPlanSeed.stationId('zamalek', 'bar'),
-    )!;
+    final bar = b
+        .table(BranchPlanTables.stations)
+        .find(BranchPlanSeed.stationId('zamalek', 'bar'))!;
     expect(bar['deleted_at'], isNotNull);
     expect(bar['is_default'], isFalse);
-    final juice = b.table(BranchPlanTables.stations).find(
-      '0b6f3a3e-6c43-4e56-9a0f-7b1d6a5a2e10',
-    )!;
-    expect((juice['name'], juice['is_active'], juice['sort_order']), ('Juice bar', true, 1));
+    final juice = b
+        .table(BranchPlanTables.stations)
+        .find('0b6f3a3e-6c43-4e56-9a0f-7b1d6a5a2e10')!;
+    expect(
+      (juice['name'], juice['is_active'], juice['sort_order']),
+      ('Juice bar', true, 1),
+    );
     // The inactive pastry station is left alone, its item route too.
     expect(
-      b.table(BranchPlanTables.stations).find(
-        BranchPlanSeed.stationId('zamalek', 'pastry'),
-      )!['deleted_at'],
+      b
+          .table(BranchPlanTables.stations)
+          .find(BranchPlanSeed.stationId('zamalek', 'pastry'))!['deleted_at'],
       isNull,
     );
     expect(b.table(BranchPlanTables.itemRoutes).rows, hasLength(2));
@@ -271,10 +293,15 @@ void main() {
     );
     expect(e.status, 400);
     expect(e.message, contains("Two sections are called 'Bar'"));
-    expect(e.message, contains("'Receipt printer' must use 58 or 80 mm paper; "));
+    expect(
+      e.message,
+      contains("'Receipt printer' must use 58 or 80 mm paper; "),
+    );
     expect(e.message, contains("has a port outside 1-65535"));
     // A category deleted since.
-    b.db['categories'].removeWhere((c) => c['id'] == MockSeed.categoryId('hot'));
+    b.db['categories'].removeWhere(
+      (c) => c['id'] == MockSeed.categoryId('hot'),
+    );
     e = await refused(
       b.api.branchPlan.savePlan(body: save(SeedIds.heliopolis, 2, plan)),
     );
@@ -331,21 +358,25 @@ void main() {
         slotId: BranchPlanSeed.screen,
       ),
     );
-    expect(code.kind?.value, 'kds');
+    expect(code.kind.value, 'kds');
     expect(code.label, 'Kitchen screen');
     expect(code.slotId, BranchPlanSeed.screen);
     // A code with no slot answers as the Devices page's.
     final plain = await b.api.devices.createCode(
       body: CreateActivationCodeRequest(branchId: SeedIds.heliopolis),
     );
-    expect((plain.kind?.value, plain.label, plain.slotId), ('pos', null, null));
+    expect((plain.kind.value, plain.label, plain.slotId), ('pos', null, null));
     final k2 = AdminSeed.deviceId('heliopolis', 'T1');
     activateSlotCode(b.db, code.code, k2);
     final view = await b.api.branchPlan.getPlan(branchId: SeedIds.heliopolis);
     expect(view.version, 2);
     final plan = fromWire(view.plan);
     expect(plan.device(BranchPlanSeed.screen)!.deviceId, k2);
-    expect(plan.device(BranchPlanSeed.counter)!.deviceId, isNull, reason: 'left');
+    expect(
+      plan.device(BranchPlanSeed.counter)!.deviceId,
+      isNull,
+      reason: 'left',
+    );
     final e = await refused(
       b.api.devices.createCode(
         body: CreateActivationCodeRequest(

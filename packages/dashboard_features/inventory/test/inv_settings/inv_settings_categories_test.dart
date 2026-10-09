@@ -154,12 +154,18 @@ void main() {
     testWidgets('INV-SET-010 the word "Packaging" (the web\'s <label>) '
         'toggles the switch too', (tester) async {
       final h = await pumpSettings(tester);
-      await h.tap(inRow('milk', find.text('Packaging')));
+      Finder word(String slug) =>
+          inRow(slug, byKey('inv-category-packaging-label-${cat(slug)}'));
+      expect(
+        find.descendant(of: word('milk'), matching: find.text('Packaging')),
+        findsOneWidget,
+      );
+      await h.tap(word('milk'));
       final patch = h.server.callsTo(categoryRoute, method: 'PATCH').single;
       expect(patch.path, '/inventory/orgs/$org/categories/${cat('milk')}');
       expect(patch.body, {'is_packaging': true});
       expect(tester.widget<DashSwitch>(_switch('milk')).value, isTrue);
-      await h.tap(inRow('packaging', find.text('Packaging')));
+      await h.tap(word('packaging'));
       expect(
         h.server.callsTo(categoryRoute, method: 'PATCH').last.body,
         {'is_packaging': false},

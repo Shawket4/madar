@@ -133,6 +133,9 @@ class _LinksEditorState extends ConsumerState<LinksEditor> {
   late bool _showBranches;
   late Map<String, String> _social;
   bool _edited = false;
+
+  /// Counts edits, so a save clears [_edited] only if none came during it.
+  int _edits = 0;
   bool _busy = false;
   bool _qrBusy = false;
 
@@ -174,6 +177,7 @@ class _LinksEditorState extends ConsumerState<LinksEditor> {
 
   void _edit(VoidCallback change) => setState(() {
     _edited = true;
+    _edits++;
     change();
   });
 
@@ -215,6 +219,7 @@ class _LinksEditorState extends ConsumerState<LinksEditor> {
       social: _social,
       savedSocial: widget.saved.socialLinks,
     );
+    final edits = _edits;
     setState(() => _busy = true);
     try {
       await api.putLinksPage(id: orgId, body: body);
@@ -230,7 +235,8 @@ class _LinksEditorState extends ConsumerState<LinksEditor> {
     if (!mounted) return;
     setState(() {
       _busy = false;
-      _edited = false;
+      // An edit typed while the save was out stays a draft (LNK-026).
+      if (_edits == edits) _edited = false;
       _previewKey++;
     });
     DashToast.success(context, t('links.editor.saved'));

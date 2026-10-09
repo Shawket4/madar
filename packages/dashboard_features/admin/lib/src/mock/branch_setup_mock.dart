@@ -250,16 +250,43 @@ abstract final class BranchPlanSeed {
       },
     ],
     'printers': [
-      _printer(receipt, 'receipt', 'Receipt printer', branchPrinterIp, 'epson', 0, 180),
-      _printer(barPrinter, 'kitchen', 'Bar printer', '192.168.1.60', 'epson', 680, 120),
-      _printer(kitchenPrinter, 'kitchen', 'Kitchen printer', '192.168.1.61', 'star', 680, 240),
+      _printer(
+        receipt,
+        'receipt',
+        'Receipt printer',
+        branchPrinterIp,
+        'epson',
+        0,
+        180,
+      ),
+      _printer(
+        barPrinter,
+        'kitchen',
+        'Bar printer',
+        '192.168.1.60',
+        'epson',
+        680,
+        120,
+      ),
+      _printer(
+        kitchenPrinter,
+        'kitchen',
+        'Kitchen printer',
+        '192.168.1.61',
+        'star',
+        680,
+        240,
+      ),
     ],
     'sections': [
       {
         'id': stationId('heliopolis', 'bar'),
         'name': 'Bar',
         'is_default': true,
-        'category_ids': [MockSeed.categoryId('hot'), MockSeed.categoryId('iced')],
+        'category_ids': [
+          MockSeed.categoryId('hot'),
+          MockSeed.categoryId('iced'),
+        ],
         'screen_ids': [screen],
         'printer_ids': [barPrinter],
         'x': 340.0,
@@ -337,7 +364,11 @@ void registerBranchSetupMocks(MockServer server, MockDb db) {
     BranchPlanTables.categoryRoutes,
     () => BranchPlanSeed.categoryRoutes,
   );
-  _seedIfAbsent(db, BranchPlanTables.itemRoutes, () => BranchPlanSeed.itemRoutes);
+  _seedIfAbsent(
+    db,
+    BranchPlanTables.itemRoutes,
+    () => BranchPlanSeed.itemRoutes,
+  );
   _seedIfAbsent(db, BranchPlanTables.modes, () => BranchPlanSeed.modes);
   _seedIfAbsent(
     db,
@@ -421,9 +452,9 @@ void registerBranchSetupMocks(MockServer server, MockDb db) {
     final problems = serverCheck(plan);
     if (problems.isNotEmpty) req.badRequest(problems.join('; '));
 
-    final stations = t(BranchPlanTables.stations).where(
-      (s) => s['branch_id'] == branchId && s['deleted_at'] == null,
-    );
+    final stations = t(
+      BranchPlanTables.stations,
+    ).where((s) => s['branch_id'] == branchId && s['deleted_at'] == null);
     final planSections = {for (final s in plan.sections) s.id};
     if (plan.sections.any((s) => !stations.any((r) => r['id'] == s.id))) {
       req.requireCap('kitchen.stations.create');
@@ -551,9 +582,9 @@ void registerBranchSetupMocks(MockServer server, MockDb db) {
     final slotId = body.slotId;
     MockRow? slot;
     if (slotId != null) {
-      slot = t(BranchPlanTables.slots).firstWhere(
-        (s) => s['id'] == slotId && s['branch_id'] == body.branchId,
-      );
+      slot = t(
+        BranchPlanTables.slots,
+      ).firstWhere((s) => s['id'] == slotId && s['branch_id'] == body.branchId);
       if (slot == null) req.notFound(BranchPlanRefusals.slotGone);
     }
     final kind = slot != null
@@ -704,7 +735,9 @@ List<MockRow> _liveStations(MockDb db, String branchId) =>
       );
       return o != 0
           ? o
-          : '${a['name']}'.toLowerCase().compareTo('${b['name']}'.toLowerCase());
+          : '${a['name']}'.toLowerCase().compareTo(
+              '${b['name']}'.toLowerCase(),
+            );
     });
 
 List<MockRow> _categories(MockDb db, String orgId) =>
@@ -720,19 +753,22 @@ List<MockRow> _categories(MockDb db, String orgId) =>
         if (dbo == null) return -1;
         return da.compareTo(dbo);
       }
-      return '${a['name']}'.toLowerCase().compareTo('${b['name']}'.toLowerCase());
+      return '${a['name']}'.toLowerCase().compareTo(
+        '${b['name']}'.toLowerCase(),
+      );
     });
 
 /// Category ids per station, in the menu's order.
 Map<Object?, List<String>> _routes(MockDb db, String branchId, String orgId) {
   final order = [for (final c in _categories(db, orgId)) c['id']];
-  final rows = db[BranchPlanTables.categoryRoutes].where(
-    (r) => r['branch_id'] == branchId && order.contains(r['category_id']),
-  )..sort(
-      (a, b) => order
-          .indexOf(a['category_id'])
-          .compareTo(order.indexOf(b['category_id'])),
-    );
+  final rows =
+      db[BranchPlanTables.categoryRoutes].where(
+        (r) => r['branch_id'] == branchId && order.contains(r['category_id']),
+      )..sort(
+        (a, b) => order
+            .indexOf(a['category_id'])
+            .compareTo(order.indexOf(b['category_id'])),
+      );
   final out = <Object?, List<String>>{};
   for (final r in rows) {
     (out[r['station_id']] ??= []).add(r['category_id']! as String);
@@ -904,7 +940,9 @@ BuilderPlan _assemble(MockDb db, String branchId, MockRow b) {
 }
 
 bool _samePrinter(BuilderPrinter p, String ip, int? port) =>
-    p.network && p.ip?.trim() == ip.trim() && (p.port ?? 9100) == (port ?? 9100);
+    p.network &&
+    p.ip?.trim() == ip.trim() &&
+    (p.port ?? 9100) == (port ?? 9100);
 
 /// A saved branch: its tables, with printers changed elsewhere put back.
 BuilderPlan _loadSaved(MockDb db, String branchId, MockRow b) {
@@ -928,18 +966,20 @@ BuilderPlan _loadSaved(MockDb db, String branchId, MockRow b) {
         y: (s['canvas_y']! as num).toDouble(),
       ),
   ];
-  final printers = [
-    for (final p in printerRows) BuilderPrinter.fromJson(p),
-  ];
+  final printers = [for (final p in printerRows) BuilderPrinter.fromJson(p)];
   final stations = _liveStations(db, branchId);
   final cats = _routes(db, branchId, b['org_id']! as String);
   final slotIds = [for (final s in slots) s['id']];
   final printerIds = [for (final p in printerRows) p['id']];
-  List<String> linked(String table, String key, Object? station, List<Object?> order) =>
-      [
-        for (final r in db[table].where((r) => r['station_id'] == station))
-          r[key]! as String,
-      ]..sort((a, c) => order.indexOf(a).compareTo(order.indexOf(c)));
+  List<String> linked(
+    String table,
+    String key,
+    Object? station,
+    List<Object?> order,
+  ) => [
+    for (final r in db[table].where((r) => r['station_id'] == station))
+      r[key]! as String,
+  ]..sort((a, c) => order.indexOf(a).compareTo(order.indexOf(c)));
   final sections = [
     for (final (i, s) in stations.indexed)
       BuilderSection(
@@ -947,7 +987,12 @@ BuilderPlan _loadSaved(MockDb db, String branchId, MockRow b) {
         name: s['name']! as String,
         isDefault: s['is_default'] == true,
         categoryIds: cats[s['id']] ?? const [],
-        screenIds: linked(BranchPlanTables.screens, 'slot_id', s['id'], slotIds),
+        screenIds: linked(
+          BranchPlanTables.screens,
+          'slot_id',
+          s['id'],
+          slotIds,
+        ),
         printerIds: linked(
           BranchPlanTables.stationPrinters,
           'printer_id',
@@ -971,12 +1016,17 @@ BuilderPlan _loadSaved(MockDb db, String branchId, MockRow b) {
         .whereType<BuilderPrinter>()
         .where((p) => p.network)
         .firstOrNull;
-    if (first != null && _samePrinter(first, ip, port) && first.brand == brand) {
+    if (first != null &&
+        _samePrinter(first, ip, port) &&
+        first.brand == brand) {
       continue;
     }
     var id = printers
         .where(
-          (p) => p.role == 'kitchen' && _samePrinter(p, ip, port) && p.brand == brand,
+          (p) =>
+              p.role == 'kitchen' &&
+              _samePrinter(p, ip, port) &&
+              p.brand == brand,
         )
         .firstOrNull
         ?.id;
@@ -1007,7 +1057,10 @@ BuilderPlan _loadSaved(MockDb db, String branchId, MockRow b) {
     final at = devices.indexWhere(
       (d) =>
           d.kind == 'pos' &&
-          (printers.where((p) => p.id == d.receiptPrinterId).firstOrNull?.network ??
+          (printers
+                  .where((p) => p.id == d.receiptPrinterId)
+                  .firstOrNull
+                  ?.network ??
               false),
     );
     if (at >= 0) {
@@ -1155,7 +1208,9 @@ void _writeSections(
     for (final s in stations.rows)
       if (s['branch_id'] == branchId) s['id'],
   };
-  db[BranchPlanTables.screens].removeWhere((r) => ids.contains(r['station_id']));
+  db[BranchPlanTables.screens].removeWhere(
+    (r) => ids.contains(r['station_id']),
+  );
   db[BranchPlanTables.stationPrinters].removeWhere(
     (r) => ids.contains(r['station_id']),
   );
@@ -1291,7 +1346,9 @@ List<String> serverCheck(BuilderPlan plan) {
       }
     }
     for (final c in s.categoryIds) {
-      if (!routed.add(c)) add("A category is in two sections (again in '$name')");
+      if (!routed.add(c)) {
+        add("A category is in two sections (again in '$name')");
+      }
     }
   }
   if (plan.sections.isNotEmpty &&

@@ -57,9 +57,10 @@ class PricingTarget {
     required this.targetType,
     required this.targetId,
     required this.catalogPrice,
+    int? inherited,
     required this.branch,
     required this.byChannel,
-  });
+  }) : inherited = inherited ?? catalogPrice;
 
   /// `menu_item_size` or `modifier_option`.
   final String targetType;
@@ -67,6 +68,11 @@ class PricingTarget {
 
   /// The catalog price in piastres (the size's price / the add-on's default).
   final int catalogPrice;
+
+  /// What its cells inherit with no override here: a size's [unitPrice] (an
+  /// inactive size falls back to the item's lowest, as on the till); else
+  /// [catalogPrice].
+  final int inherited;
 
   /// The `branch`-scope override.
   final RawOverride branch;
@@ -76,10 +82,40 @@ class PricingTarget {
 
   ResolvedCell resolve(PricingCol col) => resolveCell(
     col,
-    catalogPrice,
+    inherited,
     branch,
     col.channel == null ? emptyRaw : (byChannel[col.channel] ?? emptyRaw),
   );
+}
+
+/// A size as `madar_catalog::price::unit_price` reads it (`PricedSize`).
+typedef PricedSize = ({
+  String label,
+  int? price,
+  bool isActive,
+  int? branchPrice,
+});
+
+/// `unitPrice` (unit-price.ts, pinned by catalog_vectors.json): what one unit
+/// costs at [label] as the server and the till price it: the branch's price
+/// for the size, else its catalogue price while it is active, else the item's
+/// branch price, else the item's lowest active catalogue price. Null when no
+/// active size has a price.
+int? unitPrice(
+  List<PricedSize> sizes,
+  String? label, [
+  int? itemBranchPrice,
+]) {
+  final active = [
+    for (final s in sizes)
+      if (s.isActive && s.price != null) s.price!,
+  ];
+  if (active.isEmpty) return null;
+  final fallback = itemBranchPrice ?? active.reduce((a, b) => a < b ? a : b);
+  if (label == null) return fallback;
+  return sizes.where((s) => s.label == label).firstOrNull?.branchPrice ??
+      sizes.where((s) => s.label == label && s.isActive).firstOrNull?.price ??
+      fallback;
 }
 
 /// One editable cell resolved (`ResolvedCell`).
@@ -281,6 +317,10 @@ List<(SizeOut, PricingTarget)> sizeTargets(
       if (pricingChannels.contains(ch.channel))
         ch.channel: {for (final r in ch.sizes) r.sizeId: r},
   };
+  final priced = [
+    for (final s in sizes)
+      (label: s.label, price: s.price, isActive: s.isActive, branchPrice: null),
+  ];
   return [
     for (final size in sizes)
       (
@@ -289,6 +329,7 @@ List<(SizeOut, PricingTarget)> sizeTargets(
           targetType: 'menu_item_size',
           targetId: size.id,
           catalogPrice: size.price,
+          inherited: unitPrice(priced, size.label) ?? size.price,
           branch: (
             price: branchBySize[size.id]?.price,
             isAvailable: branchBySize[size.id]?.isAvailable,

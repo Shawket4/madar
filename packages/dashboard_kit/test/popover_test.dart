@@ -9,9 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// [child] with its top edge at [top] (a field low in the window).
 Widget _at(double top, Widget child, {double left = 600}) => Scaffold(
   body: Stack(
-    children: [
-      Positioned(top: top, left: left, width: 240, child: child),
-    ],
+    children: [Positioned(top: top, left: left, width: 240, child: child)],
   ),
 );
 
@@ -129,7 +127,8 @@ void main() {
           DashPopover(
             width: 200,
             align: DashPopoverAlign.center,
-            anchor: (context, c) => DashButton(label: 'Cell', onPressed: c.open),
+            anchor: (context, c) =>
+                DashButton(label: 'Cell', onPressed: c.open),
             content: (context, c) =>
                 const SizedBox(key: ValueKey('content'), height: 60),
           ),

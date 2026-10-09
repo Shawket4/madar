@@ -16,11 +16,13 @@ class MealItem {
   final String? categoryId;
   final List<({String label, int price})> sizes;
 
+  /// `unit_price` over the sizes it sells: a size it no longer sells costs
+  /// its lowest.
   int? priceOf(String? label) {
     for (final s in sizes) {
       if (s.label == label) return s.price;
     }
-    return null;
+    return sizes.firstOrNull?.price;
   }
 }
 
@@ -72,7 +74,7 @@ String? _includedLabel(ComboChoice c, MealItem? it) =>
 
 /// What one pick of [it] through [c] at [sizeLabel] adds on top of the combo
 /// price.
-int _pickExtra(ComboChoice c, MealItem? it, String? sizeLabel) {
+int pickExtra(ComboChoice c, MealItem? it, String? sizeLabel) {
   final inc = _includedLabel(c, it);
   var sizeExtra = 0;
   if (sizeLabel != null && inc != null && sizeLabel != inc) {
@@ -101,7 +103,7 @@ int _defaultExtra(ComboSlot slot, MealItem? Function(String id) lookup) {
   final c = it != null
       ? choiceFor(slot, it.id, it.categoryId)
       : slot.choices.firstOrNull;
-  return c == null ? 0 : _pickExtra(c, it, slot.defaultSizeLabel);
+  return c == null ? 0 : pickExtra(c, it, slot.defaultSizeLabel);
 }
 
 /// The "+X": the combo with this item in [slotId] and the defaults
@@ -118,7 +120,7 @@ int? mealDelta(
   if (slot == null || own == null) return null;
   final alone = item.priceOf(_includedLabel(own, item));
   if (alone == null) return null;
-  var total = combo.price + _pickExtra(own, item, null);
+  var total = combo.price + pickExtra(own, item, null);
   for (final s in combo.slots) {
     final picks = s.id == slotId ? (s.min - 1 < 0 ? 0 : s.min - 1) : s.min;
     if (picks > 0) total += picks * _defaultExtra(s, lookup);

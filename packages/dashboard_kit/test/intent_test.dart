@@ -215,4 +215,105 @@ void main() {
     await rest('Details');
     expect(warmed, ['tab:b', 'seg:y', 'menu']);
   });
+
+  testWidgets('batch 1 hooks: load more, back, add, date, quick range, '
+      'select field option', (tester) async {
+    final warmed = <String>[];
+    await pumpDashApp(
+      tester,
+      Scaffold(
+        body: DashPageScaffold(
+          title: 'Requests',
+          onBack: () {},
+          onBackIntent: () => warmed.add('back'),
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DashDataTable<String>(
+                columns: [
+                  DashColumn<String>(id: 'n', label: 'Name', text: (s) => s),
+                ],
+                rows: const ['Alpha'],
+                rowKey: (s) => s,
+                loadMore: DashLoadMore(
+                  hasMore: true,
+                  onLoadMore: () {},
+                  onIntent: () => warmed.add('more'),
+                ),
+              ),
+              DashEditableCardGrid<String>(
+                rows: const [],
+                rowKey: (r) => r,
+                titleField: DashEditableField(
+                  key: 'name',
+                  label: 'Name',
+                  getValue: (r) => r,
+                ),
+                fields: const [],
+                onCommit: (row, patch) async {},
+                onAdd: () {},
+                addLabel: 'Add item',
+                onAddIntent: () => warmed.add('add'),
+              ),
+              SizedBox(
+                width: 300,
+                child: DashDateField(
+                  value: DateTime(2026, 10, 9),
+                  semanticLabel: 'Day',
+                  onChanged: (_) {},
+                  onIntent: () => warmed.add('date'),
+                ),
+              ),
+              SizedBox(
+                width: 500,
+                child: DashDateRangeField(
+                  from: null,
+                  to: null,
+                  today: DateTime(2026, 10, 9),
+                  onChanged: (_, _) {},
+                  onQuickIntent: (from, to) =>
+                      warmed.add('quick:${from.month}/${from.day}'),
+                ),
+              ),
+              SizedBox(
+                width: 300,
+                child: DashSelectField<String>(
+                  label: 'Branch',
+                  options: const [
+                    DashOption(value: 'z', label: 'Zamalek'),
+                    DashOption(value: 'm', label: 'Maadi'),
+                  ],
+                  value: 'z',
+                  onChanged: (_) {},
+                  onOptionIntent: (v) => warmed.add('option:$v'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    final mouse = await _mouse(tester);
+    Future<void> rest(Finder f) async {
+      await mouse.moveTo(tester.getCenter(f));
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+
+    await rest(find.bySemanticsLabel('Back'));
+    await rest(find.text('Load more'));
+    await rest(find.text('Add item'));
+    await rest(find.bySemanticsLabel(RegExp('^Day')));
+    await rest(find.text('This month'));
+    await tester.tap(find.bySemanticsLabel(RegExp('^Branch')));
+    await tester.pumpAndSettle();
+    await rest(find.text('Maadi'));
+    expect(warmed, [
+      'back',
+      'more',
+      'add',
+      'date',
+      'quick:10/1',
+      'option:m',
+    ]);
+  });
 }

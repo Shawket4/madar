@@ -1,6 +1,5 @@
 // The plan's pure rules (the web's `plan.test.ts`), plus the draft.
-import 'package:dashboard_admin/src/branch_setup/inspector.dart'
-    show parsePort;
+import 'package:dashboard_admin/src/branch_setup/inspector.dart' show parsePort;
 import 'package:dashboard_admin/src/branch_setup/plan.dart';
 import 'package:dashboard_admin/src/branch_setup/plan_draft.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -65,9 +64,7 @@ void main() {
       expect(setupOf(sections), Setup.sections);
       final one = planForSetup(Setup.tillScreen, names, const [], seq());
       // One section with a screen and a printer reads as sections.
-      final both = one.mapSections(
-        (s) => s.copyWith(printerIds: ['p']),
-      );
+      final both = one.mapSections((s) => s.copyWith(printerIds: ['p']));
       expect(setupOf(both), Setup.sections);
     });
   });
@@ -81,7 +78,10 @@ void main() {
 
     test('ADM-BSU-042 only connects pieces that make sense together', () {
       expect(linkKindFor(plan, sec(hot.id), dev(till.id)), isNull);
-      expect(linkKindFor(plan, dev(till.id), prn(receipt.id)), LinkKind.receipt);
+      expect(
+        linkKindFor(plan, dev(till.id), prn(receipt.id)),
+        LinkKind.receipt,
+      );
       expect(linkKindFor(plan, dev(screen.id), sec(hot.id)), LinkKind.shows);
       // A USB receipt printer dragged onto a POS is "plugged into".
       expect(linkKindFor(plan, prn(receipt.id), dev(till.id)), LinkKind.host);
@@ -118,7 +118,10 @@ void main() {
       var next = addLink(withPrinter, sec(hot.id), prn('kp'));
       next = addLink(next, prn('kp'), sec(hot.id));
       expect(next.sections.first.printerIds, ['kp']);
-      expect(linksOf(next).where((l) => l.kind == LinkKind.prints), hasLength(1));
+      expect(
+        linksOf(next).where((l) => l.kind == LinkKind.prints),
+        hasLength(1),
+      );
       next = addLink(next, dev(till.id), prn('rp2'));
       expect(next.device(till.id)!.receiptPrinterId, 'rp2');
     });
@@ -144,9 +147,9 @@ void main() {
         const [],
         seq(),
       ).mapSections((s) => s.copyWith(screenIds: const []));
-      final p = checkPlan(plan).firstWhere(
-        (p) => p.code == ProblemCode.sectionNoOutput,
-      );
+      final p = checkPlan(
+        plan,
+      ).firstWhere((p) => p.code == ProblemCode.sectionNoOutput);
       expect(p.blocking, isTrue);
     });
 
@@ -273,10 +276,11 @@ void main() {
       (p) => p.role == 'receipt' ? p.copyWith(name: 'Front desk') : p,
     );
     expect(
-      localizeServerNames(typed, 'x', (s) => s)
-          .printers
-          .firstWhere((p) => p.role == 'receipt')
-          .name,
+      localizeServerNames(
+        typed,
+        'x',
+        (s) => s,
+      ).printers.firstWhere((p) => p.role == 'receipt').name,
       'Front desk',
     );
   });
@@ -286,7 +290,11 @@ void main() {
     final plan = planForSetup(Setup.tillPrinter, names, const [], seq())
         .mapPrinters(
           (p) => p.role == 'kitchen'
-              ? p.copyWith(name: ' KP ', ip: () => ' 10.0.0.9 ', port: () => null)
+              ? p.copyWith(
+                  name: ' KP ',
+                  ip: () => ' 10.0.0.9 ',
+                  port: () => null,
+                )
               : p.copyWith(ip: () => '1.2.3.4', port: () => 9100),
         );
     final wire = toWire(plan).toJson();

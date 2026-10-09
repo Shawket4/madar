@@ -48,12 +48,18 @@ final staffPoolWarmProvider = FutureProvider.autoDispose
       if (!authz.can(Cap.orgSettingsRead) && !authz.can(Cap.orgSettingsEdit)) {
         return;
       }
-      final s = await ref.watch(
-        staffPoolSettingsProvider(key.branchId).future,
-      );
-      final org = key.orgId;
-      if (org != null && (s.eligibleItemIds?.isNotEmpty ?? false)) {
-        await ref.watch(staffPoolMenuProvider(org).future);
+      // Nothing listens to a warm: held alive until both reads are asked.
+      final link = ref.keepAlive();
+      try {
+        final s = await ref.watch(
+          staffPoolSettingsProvider(key.branchId).future,
+        );
+        final org = key.orgId;
+        if (org != null && (s.eligibleItemIds?.isNotEmpty ?? false)) {
+          await ref.watch(staffPoolMenuProvider(org).future);
+        }
+      } finally {
+        link.close();
       }
     });
 

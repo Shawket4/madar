@@ -343,11 +343,16 @@ class DashNumberInput extends StatefulWidget {
     this.enabled = true,
     this.center = false,
     this.semanticLabel,
+    this.onSubmitted,
     super.key,
   });
 
   final double? value;
   final ValueChanged<double?> onChanged;
+
+  /// Enter: the typed number is settled (as [onChanged] gets it), then this
+  /// runs with it — a form's submit.
+  final ValueChanged<double?>? onSubmitted;
   final double min;
   final double? max;
   final double step;
@@ -530,7 +535,10 @@ class _DashNumberInputState extends State<DashNumberInput> {
         _draft = v;
         _problem = null;
       }),
-      onSubmitted: (_) => _settle(),
+      onSubmitted: (_) {
+        _settle();
+        widget.onSubmitted?.call(_emitted);
+      },
       onKeyEvent: (node, e) {
         if (e is! KeyDownEvent && e is! KeyRepeatEvent) {
           return KeyEventResult.ignored;
@@ -641,6 +649,7 @@ class DashNumberField extends StatelessWidget {
     this.emptyLabel,
     this.unitWord,
     this.enabled = true,
+    this.onSubmitted,
     super.key,
   });
 
@@ -661,6 +670,9 @@ class DashNumberField extends StatelessWidget {
   final String? emptyLabel;
   final String? unitWord;
   final bool enabled;
+
+  /// Enter submits ([DashNumberInput.onSubmitted]).
+  final ValueChanged<double?>? onSubmitted;
 
   @override
   Widget build(BuildContext context) => DashFormField<double?>(
@@ -685,6 +697,7 @@ class DashNumberField extends StatelessWidget {
       invalid: invalid,
       enabled: enabled,
       semanticLabel: label,
+      onSubmitted: onSubmitted,
     ),
   );
 }
@@ -826,12 +839,16 @@ class DashSelectField<T> extends StatelessWidget {
     this.emptyText,
     this.enabled = true,
     this.requiredMark = false,
+    this.onOptionIntent,
     super.key,
   });
 
   final List<DashOption<T>> options;
   final T? value;
   final ValueChanged<T> onChanged;
+
+  /// An option is about to be picked ([DashSelect.onOptionIntent]).
+  final ValueChanged<T>? onOptionIntent;
   final String? label;
   final String? placeholder;
   final String? description;
@@ -864,6 +881,7 @@ class DashSelectField<T> extends StatelessWidget {
       emptyText: emptyText,
       invalid: invalid,
       enabled: enabled,
+      onOptionIntent: onOptionIntent,
     ),
   );
 }

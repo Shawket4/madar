@@ -185,6 +185,7 @@ class DashPageScaffold extends StatelessWidget {
     this.subtitleWidget,
     this.actions = const [],
     this.onBack,
+    this.onBackIntent,
     this.tabs,
     this.filters,
     this.phoneBody,
@@ -206,6 +207,10 @@ class DashPageScaffold extends StatelessWidget {
 
   /// A pushed page's back button.
   final VoidCallback? onBack;
+
+  /// Back is about to be pressed ([DashIntent]): warm the page it returns to
+  /// (`ref.prefetchRoute`).
+  final VoidCallback? onBackIntent;
 
   /// A [DashSectionTabs] or [DashPageTabs] strip under the title.
   final Widget? tabs;
@@ -247,6 +252,7 @@ class DashPageScaffold extends StatelessWidget {
           subtitleWidget: subtitleWidget,
           actions: actions,
           onBack: onBack,
+          onBackIntent: onBackIntent,
           tabs: tabs,
           filters: filters,
           // A page that owns its height has nothing to pull.
@@ -325,6 +331,7 @@ class DashPageHeader extends StatelessWidget {
     this.subtitleWidget,
     this.actions = const [],
     this.onBack,
+    this.onBackIntent,
     this.tabs,
     this.filters,
     this.refreshAction = true,
@@ -336,6 +343,9 @@ class DashPageHeader extends StatelessWidget {
   final Widget? subtitleWidget;
   final List<Widget> actions;
   final VoidCallback? onBack;
+
+  /// Back is about to be pressed: warm the page it returns to.
+  final VoidCallback? onBackIntent;
   final Widget? tabs;
   final Widget? filters;
 
@@ -446,6 +456,7 @@ class DashPageHeader extends StatelessWidget {
                 variant: DashButtonVariant.outline,
                 iconSize: IconSize.lg,
                 onPressed: onBack,
+                onIntent: onBackIntent,
               ),
             ),
           );

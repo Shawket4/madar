@@ -6,7 +6,8 @@
 /// - [publicLinksProvider]: `GET /public/orgs/links?org_id=` (the preview,
 ///   the web's `staleTime: 60_000`).
 ///
-/// A save invalidates the first and the last ([linksSavedPaths]).
+/// A save invalidates the first and the last, and the Brand page's org read
+/// ([linksSavedPaths]).
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
@@ -14,14 +15,18 @@ import 'package:dashboard_api/dashboard_api.dart'
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../brand_appearance/brand_data.dart' show orgBrandKey;
+
 String linksPagePath(String orgId) => '/orgs/$orgId/links-page';
 const String publicLinksPath = '/public/orgs/links';
 
 /// What the web's save invalidates: `getGetLinksPageQueryKey(orgId)` and
-/// `getPublicOrgLinksQueryKey({org_id})`.
+/// `getPublicOrgLinksQueryKey({org_id})`; plus the Brand page's org read
+/// (divergence: the save also writes the org's social links, LNK-021).
 List<String> linksSavedPaths(String orgId) => [
   linksPagePath(orgId),
   publicLinksPath,
+  orgBrandKey,
 ];
 
 final linksPageProvider = FutureProvider.autoDispose

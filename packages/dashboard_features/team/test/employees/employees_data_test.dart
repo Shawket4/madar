@@ -1,7 +1,8 @@
 // The Employees unit's browser-side rules as pure functions, against the
-// web's own cases (`lib/phone_vectors.json`, `dawam/people.test.ts`,
-// `dawam/salary-calc.test.ts`).
+// web's own cases (madar-shared's phone vectors via `sharedVectors`,
+// `dawam/people.test.ts`, `dawam/salary-calc.test.ts`).
 import 'package:dashboard_api/dashboard_api.dart' show Employee;
+import 'package:dashboard_core/testing.dart' show sharedVectors;
 import 'package:dashboard_team/src/employees/employees_data.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -27,43 +28,12 @@ Employee _employee({int? salary, required bool set}) => Employee(
 
 void main() {
   group('canonicalPhone (the shared phone vectors)', () {
-    const valid = [
-      ('01001234567', '201001234567'),
-      ('0100 123 4567', '201001234567'),
-      ('0100-123-4567', '201001234567'),
-      ('+201001234567', '201001234567'),
-      ('+20 100 123 4567', '201001234567'),
-      ('201001234567', '201001234567'),
-      ('00201001234567', '201001234567'),
-      ('1001234567', '201001234567'),
-      ('(010) 0123-4567', '201001234567'),
-      ('٠١٠٠١٢٣٤٥٦٧', '201001234567'),
-      ('۰۱۰۰۱۲۳۴۵۶۷', '201001234567'),
-      ('+2٠١٠٠١٢٣٤٥٦٧', '201001234567'),
-      ('01112345678', '201112345678'),
-      ('01212345678', '201212345678'),
-      ('01512345678', '201512345678'),
-      ('0221234567', '20221234567'),
-      ('+966512345678', '966512345678'),
-      ('00966512345678', '966512345678'),
-      ('+14155552671', '14155552671'),
-      ('+447911123456', '447911123456'),
-      ('0132345678', '20132345678'),
+    final vectors = sharedVectors('phone')! as Map;
+    final valid = [
+      for (final v in (vectors['valid']! as List).cast<List<Object?>>())
+        (v[0]! as String, v[1]! as String),
     ];
-    const invalid = [
-      '',
-      '   ',
-      'abc',
-      '12345',
-      '010012345',
-      '+20',
-      '0000000000000000000',
-      '01001234567890123456789012345678901234567890',
-      '0100123456',
-      '010012345678',
-      '+20100123456',
-      '1001234',
-    ];
+    final invalid = (vectors['invalid']! as List).cast<String>();
     for (final (raw, want) in valid) {
       test('"$raw" → $want', () => expect(canonicalPhone(raw), want));
     }

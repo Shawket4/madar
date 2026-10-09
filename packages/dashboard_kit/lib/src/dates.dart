@@ -271,6 +271,7 @@ class DashDateField extends StatefulWidget {
     this.warningText,
     this.invalid = false,
     this.enabled = true,
+    this.onIntent,
     super.key,
   });
 
@@ -278,6 +279,10 @@ class DashDateField extends StatefulWidget {
   final ValueChanged<DateTime> onChanged;
   final String? placeholder;
   final String? semanticLabel;
+
+  /// The field is about to be pressed ([DashIntent]): warm the read a new
+  /// day makes (the list for the day shown, a neighbour). Never a write.
+  final VoidCallback? onIntent;
 
   /// The business's today (its timezone); defaults to the device's.
   final DateTime? today;
@@ -374,6 +379,7 @@ class _DashDateFieldState extends State<DashDateField> {
       invalid: widget.invalid,
       enabled: widget.enabled,
       semanticLabel: widget.semanticLabel,
+      onIntent: widget.onIntent,
       onTap: () {
         _month = widget.value ?? _today;
         onTap();
@@ -735,12 +741,17 @@ class DashDateRangeField extends StatelessWidget {
     this.errorText,
     this.fromLabel,
     this.toLabel,
+    this.onQuickIntent,
     super.key,
   });
 
   final DateTime? from;
   final DateTime? to;
   final void Function(DateTime? from, DateTime? to) onChanged;
+
+  /// A quick-range pill is about to be pressed ([DashIntent]): warm the
+  /// read for that range.
+  final void Function(DateTime from, DateTime to)? onQuickIntent;
   final List<DashQuickRange> quick;
   final int periodStartDay;
   final DateTime? today;
@@ -838,6 +849,9 @@ class DashDateRangeField extends StatelessWidget {
                         selected: on,
                         enabled: enabled,
                         onTap: () => onChanged(r.from, r.to),
+                        onIntent: onQuickIntent == null
+                            ? null
+                            : () => onQuickIntent!(r.from, r.to),
                       );
                     },
                   ),
@@ -865,6 +879,7 @@ class DashChoiceChip extends StatelessWidget {
     required this.onTap,
     this.enabled = true,
     this.icon,
+    this.onIntent,
     super.key,
   });
 
@@ -874,11 +889,15 @@ class DashChoiceChip extends StatelessWidget {
   final bool enabled;
   final String? icon;
 
+  /// About to be pressed ([DashIntent]): warm the read [onTap] makes.
+  final VoidCallback? onIntent;
+
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
     return DashPressable(
       onTap: enabled ? onTap : null,
+      onIntent: onIntent,
       enabled: enabled,
       selected: selected,
       checked: selected,

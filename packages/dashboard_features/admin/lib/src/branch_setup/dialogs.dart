@@ -202,7 +202,10 @@ class ReviewDialog extends ConsumerWidget {
       children: [
         SizedBox(
           width: 88,
-          child: Text(label, style: DashType.body.copyWith(color: c.textSecondary)),
+          child: Text(
+            label,
+            style: DashType.body.copyWith(color: c.textSecondary),
+          ),
         ),
         Expanded(child: value),
       ],
@@ -297,7 +300,11 @@ class ReviewDialog extends ConsumerWidget {
                     children: [
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
-                        child: MadarIcon('triangle-alert', size: 16, tint: c.danger),
+                        child: MadarIcon(
+                          'triangle-alert',
+                          size: 16,
+                          tint: c.danger,
+                        ),
                       ),
                       Expanded(
                         child: Text(

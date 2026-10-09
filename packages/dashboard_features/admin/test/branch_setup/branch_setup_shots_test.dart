@@ -92,7 +92,9 @@ void main() {
         dark: dark,
       );
       await h.tap(find.byKey(const ValueKey('bb-lock')));
-      await h.tap(cardTitled(lang == 'ar' ? 'طابعة الإيصالات' : 'Receipt printer'));
+      await h.tap(
+        cardTitled(lang == 'ar' ? 'طابعة الإيصالات' : 'Receipt printer'),
+      );
       await _scrollTo(h, find.byKey(const ValueKey('bb-paper')));
       await h.shot('branch-setup/printer');
     });

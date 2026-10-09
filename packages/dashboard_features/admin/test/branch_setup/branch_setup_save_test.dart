@@ -22,10 +22,8 @@ Finder byKey(String k) => find.byKey(ValueKey(k));
 
 Finder ins(String text) => inInspector(find.text(text));
 
-Finder review(String text) => find.descendant(
-  of: find.byType(DashSurface),
-  matching: find.text(text),
-);
+Finder review(String text) =>
+    find.descendant(of: find.byType(DashSurface), matching: find.text(text));
 
 Future<void> unlock(DashHarness h) => h.tap(byKey('bb-lock'));
 
@@ -53,11 +51,16 @@ void main() {
     expect(calls, hasLength(1));
     expect(calls.single.query['branch_id'], [SeedIds.heliopolis]);
     expect(
-      top('Load an earlier plan into the editor. Nothing changes until you save it.'),
+      top(
+        'Load an earlier plan into the editor. Nothing changes until you save it.',
+      ),
       findsOneWidget,
     );
     final rows = [
-      for (final e in find.byWidgetPredicate((w) => '${w.key}'.contains('bb-version-')).evaluate())
+      for (final e
+          in find
+              .byWidgetPredicate((w) => '${w.key}'.contains('bb-version-'))
+              .evaluate())
         '${e.widget.key}',
     ];
     expect(rows, ["[<'bb-version-2'>]", "[<'bb-version-1'>]"]);
@@ -67,7 +70,10 @@ void main() {
       findsNWidgets(2),
     );
     final current = tester.widget<DashPressable>(
-      find.descendant(of: byKey('bb-version-2'), matching: find.byType(DashPressable)),
+      find.descendant(
+        of: byKey('bb-version-2'),
+        matching: find.byType(DashPressable),
+      ),
     );
     expect(current.enabled, isFalse);
   });
@@ -76,7 +82,11 @@ void main() {
       'read shows the hint alone', (tester) async {
     final b = PlanBackend();
     final gate = b.server.hold('GET', BranchPlanRoutes.versions);
-    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b);
+    final h = await pumpBuilder(
+      tester,
+      branchId: SeedIds.heliopolis,
+      backend: b,
+    );
     await h.tap(byKey('bb-history'));
     expect(top('Loading…'), findsOneWidget);
     gate.release();
@@ -92,19 +102,32 @@ void main() {
       MockResponse.error(500, 'boom'),
       times: null,
     );
-    final h2 = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b2);
+    final h2 = await pumpBuilder(
+      tester,
+      branchId: SeedIds.heliopolis,
+      backend: b2,
+    );
     await h2.tap(byKey('bb-history'));
     expect(
-      top('Load an earlier plan into the editor. Nothing changes until you save it.'),
+      top(
+        'Load an earlier plan into the editor. Nothing changes until you save it.',
+      ),
       findsOneWidget,
     );
-    expect(find.byWidgetPredicate((w) => '${w.key}'.contains('bb-version-')), findsNothing);
+    expect(
+      find.byWidgetPredicate((w) => '${w.key}'.contains('bb-version-')),
+      findsNothing,
+    );
   });
 
   testWidgets('ADM-BSU-025 loading a version: one undo step, unlocked, saved '
       'as a new version over the current one', (tester) async {
     final b = PlanBackend();
-    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b);
+    final h = await pumpBuilder(
+      tester,
+      branchId: SeedIds.heliopolis,
+      backend: b,
+    );
     await h.tap(byKey('bb-history'));
     await h.tap(byKey('bb-version-1'));
     expect(canvasOf(tester).editable, isTrue);
@@ -118,16 +141,26 @@ void main() {
     final put = lastSave(h.server);
     expect(put['expected_version'], 2);
     await h.expectToast('Branch plan saved');
-    expect(b.db['branches'].find(SeedIds.heliopolis)!['hardware_plan_version'], 3);
+    expect(
+      b.db['branches'].find(SeedIds.heliopolis)!['hardware_plan_version'],
+      3,
+    );
   });
 
   testWidgets('ADM-BSU-025 a version names a retired device and a deleted '
       'category: both let go', (tester) async {
     final b = PlanBackend();
-    b.db[AdminTables.devices].find(AdminSeed.deviceId('heliopolis', 'T1'))!['retired_at'] =
-        '2026-10-01T08:00:00Z';
-    b.db['categories'].removeWhere((c) => c['id'] == MockSeed.categoryId('iced'));
-    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b);
+    b.db[AdminTables.devices].find(
+      AdminSeed.deviceId('heliopolis', 'T1'),
+    )!['retired_at'] = '2026-10-01T08:00:00Z';
+    b.db['categories'].removeWhere(
+      (c) => c['id'] == MockSeed.categoryId('iced'),
+    );
+    final h = await pumpBuilder(
+      tester,
+      branchId: SeedIds.heliopolis,
+      backend: b,
+    );
     await h.tap(byKey('bb-history'));
     await h.tap(byKey('bb-version-1'));
     final plan = planOf(tester);
@@ -141,7 +174,9 @@ void main() {
     await removeAndReview(h, 'Counter 2');
     expect(review('Save the branch plan?'), findsOneWidget);
     expect(
-      review("This becomes the branch's plan. Devices and printers follow it from now on."),
+      review(
+        "This becomes the branch's plan. Devices and printers follow it from now on.",
+      ),
       findsOneWidget,
     );
     expect(review('Removed'), findsOneWidget);
@@ -150,7 +185,10 @@ void main() {
     // sections without a screen: the till.
     expect(review('Kitchen'), findsOneWidget);
     expect(review('Kitchen screens'), findsOneWidget);
-    expect(review('The POS handles the kitchen and prints its chits'), findsOneWidget);
+    expect(
+      review('The POS handles the kitchen and prints its chits'),
+      findsOneWidget,
+    );
     expect(review('Only positions on the canvas changed.'), findsNothing);
   });
 
@@ -192,7 +230,10 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(tester.widget<DashButton>(byKey('bb-review-save')).onPressed, isNull);
+    expect(
+      tester.widget<DashButton>(byKey('bb-review-save')).onPressed,
+      isNull,
+    );
   });
 
   testWidgets('ADM-BSU-077/078 Save: the PUT, the spinner, then the toast, the '
@@ -204,7 +245,10 @@ void main() {
     final seen = watchInvalidations(h);
     await unlock(h);
     await h.tap(cardTitled('Counter 2'));
-    final name = find.descendant(of: byKey('bb-name'), matching: find.byType(EditableText));
+    final name = find.descendant(
+      of: byKey('bb-name'),
+      matching: find.byType(EditableText),
+    );
     await h.enterText(name, '  Drive-through  ');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await h.settle();
@@ -212,7 +256,10 @@ void main() {
     final gate = b.server.hold('PUT', BranchPlanRoutes.plan);
     await h.tap(byKey('bb-review-save'));
     expect(tester.widget<DashButton>(byKey('bb-review-save')).loading, isTrue);
-    expect(tester.widget<DashButton>(byKey('bb-review-cancel')).onPressed, isNull);
+    expect(
+      tester.widget<DashButton>(byKey('bb-review-cancel')).onPressed,
+      isNull,
+    );
     gate.release();
     await h.settle();
     final put = lastSave(h.server);
@@ -229,7 +276,10 @@ void main() {
     expect(byKey('bb-unsaved'), findsNothing);
     expect(tester.widget<DashIconButton>(byKey('bb-undo')).onPressed, isNull);
     expect(seen, contains(equals(['/branch-plan/versions', '/kitchen'])));
-    expect(h.server.callsTo(BranchPlanRoutes.plan, method: 'GET'), hasLength(1));
+    expect(
+      h.server.callsTo(BranchPlanRoutes.plan, method: 'GET'),
+      hasLength(1),
+    );
     // The slots now exist: codes can be issued.
     await h.tap(cardTitled('Drive-through'));
     expect(byKey('bb-get-code'), findsOneWidget);
@@ -272,7 +322,11 @@ void main() {
     tester,
   ) async {
     final b = PlanBackend();
-    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b);
+    final h = await pumpBuilder(
+      tester,
+      branchId: SeedIds.heliopolis,
+      backend: b,
+    );
     await removeAndReview(h, 'Kitchen screen');
     // Someone saved in between (no event reached this page).
     b.db['branches'].find(SeedIds.heliopolis)!['hardware_plan_version'] = 3;
@@ -286,7 +340,10 @@ void main() {
     );
     expect(cardTitled('Kitchen screen'), findsNothing, reason: 'draft kept');
     await h.tap(find.text('Load their version'));
-    expect(h.server.callsTo(BranchPlanRoutes.plan, method: 'GET'), hasLength(2));
+    expect(
+      h.server.callsTo(BranchPlanRoutes.plan, method: 'GET'),
+      hasLength(2),
+    );
     expect(cardTitled('Kitchen screen'), findsOneWidget);
     expect(byKey('bb-unsaved'), findsNothing);
     await h.flushTimers();
@@ -295,7 +352,11 @@ void main() {
   testWidgets('ADM-BSU-082 SECTION_HAS_OPEN_TICKETS: the coded words, the '
       'dialog stays', (tester) async {
     final b = PlanBackend();
-    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b);
+    final h = await pumpBuilder(
+      tester,
+      branchId: SeedIds.heliopolis,
+      backend: b,
+    );
     await removeAndReview(h, 'Kitchen');
     // Cooking started after the plan was read.
     b.table(BranchPlanTables.ticketItems).insert({
@@ -329,7 +390,9 @@ void main() {
       await h.settle();
       await h.tap(byKey('bb-save'));
       // The category was deleted after the plan was read.
-      b.db['categories'].removeWhere((c) => c['id'] == MockSeed.categoryId('hot'));
+      b.db['categories'].removeWhere(
+        (c) => c['id'] == MockSeed.categoryId('hot'),
+      );
       await h.tap(byKey('bb-review-save'));
       await h.expectToast(
         lang == 'en'
@@ -343,10 +406,18 @@ void main() {
   testWidgets('ADM-BSU-084 (divergence) a slot naming a retired device is let '
       'go as read, so the save goes through', (tester) async {
     final b = PlanBackend();
-    b.db[AdminTables.devices].find(AdminSeed.deviceId('heliopolis', 'T1'))!['retired_at'] =
-        '2026-10-01T08:00:00Z';
-    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b);
-    expect(pieceOf(tester, cardTitled('Counter 1')).presence!.label, 'Not set up');
+    b.db[AdminTables.devices].find(
+      AdminSeed.deviceId('heliopolis', 'T1'),
+    )!['retired_at'] = '2026-10-01T08:00:00Z';
+    final h = await pumpBuilder(
+      tester,
+      branchId: SeedIds.heliopolis,
+      backend: b,
+    );
+    expect(
+      pieceOf(tester, cardTitled('Counter 1')).presence!.label,
+      'Not set up',
+    );
     expect(byKey('bb-unsaved'), findsNothing);
     await removeAndReview(h, 'Kitchen screen');
     await h.tap(byKey('bb-review-save'));
@@ -365,7 +436,10 @@ void main() {
     await h.settle();
     await reach(h, byKey('bb-item-routing'));
     expect(find.text('Leave without saving?'), findsOneWidget);
-    expect(find.text("Your changes to this branch's plan will be lost."), findsOneWidget);
+    expect(
+      find.text("Your changes to this branch's plan will be lost."),
+      findsOneWidget,
+    );
     await h.tap(top('Cancel'));
     expect(h.location.path, '/branch-setup');
     expect(byKey('bb-unsaved'), findsOneWidget);
@@ -374,37 +448,40 @@ void main() {
     expect(h.location.path, '/settings/kitchen-routing');
   });
 
-  testWidgets('ADM-BSU-010/011/085 a branch switch: a clean editor starts '
-      'fresh; a dirty one asks, and Cancel puts the scope back', (
-    tester,
-  ) async {
-    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis);
-    await unlock(h);
-    await h.tap(cardTitled('Counter 1'));
-    final scope = h.container.read(scopeProvider.notifier);
-    // Clean: straight over, Locked again, nothing selected.
-    await scope.setBranch(SeedIds.maadi);
-    await h.settle();
-    expect(find.text('Leave without saving?'), findsNothing);
-    expect(canvasOf(tester).editable, isFalse);
-    expect(canvasOf(tester).selection, isEmpty);
-    expect(h.server.callsTo(BranchPlanRoutes.plan).last.query['branch_id'], [SeedIds.maadi]);
-    // Dirty: asked.
-    await unlock(h);
-    await h.tap(cardTitled('Counter 1'));
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-    await h.settle();
-    await scope.setBranch(SeedIds.zamalek);
-    await h.settle();
-    expect(find.text('Leave without saving?'), findsOneWidget);
-    await h.tap(top('Cancel'));
-    expect(h.container.read(currentScopeProvider).branchId, SeedIds.maadi);
-    expect(byKey('bb-unsaved'), findsOneWidget);
-    await scope.setBranch(SeedIds.zamalek);
-    await h.settle();
-    await h.tap(top('Leave'));
-    expect(h.container.read(currentScopeProvider).branchId, SeedIds.zamalek);
-    expect(byKey('bb-unsaved'), findsNothing);
-    expect(cardTitled('Terrace tablet'), findsOneWidget);
-  });
+  testWidgets(
+    'ADM-BSU-010/011/085 (divergence) a branch switch: a clean editor starts '
+    'fresh; a dirty one asks, and Cancel puts the scope back',
+    (tester) async {
+      final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis);
+      await unlock(h);
+      await h.tap(cardTitled('Counter 1'));
+      final scope = h.container.read(scopeProvider.notifier);
+      // Clean: straight over, Locked again, nothing selected.
+      await scope.setBranch(SeedIds.maadi);
+      await h.settle();
+      expect(find.text('Leave without saving?'), findsNothing);
+      expect(canvasOf(tester).editable, isFalse);
+      expect(canvasOf(tester).selection, isEmpty);
+      expect(h.server.callsTo(BranchPlanRoutes.plan).last.query['branch_id'], [
+        SeedIds.maadi,
+      ]);
+      // Dirty: asked.
+      await unlock(h);
+      await h.tap(cardTitled('Counter 1'));
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await h.settle();
+      await scope.setBranch(SeedIds.zamalek);
+      await h.settle();
+      expect(find.text('Leave without saving?'), findsOneWidget);
+      await h.tap(top('Cancel'));
+      expect(h.container.read(currentScopeProvider).branchId, SeedIds.maadi);
+      expect(byKey('bb-unsaved'), findsOneWidget);
+      await scope.setBranch(SeedIds.zamalek);
+      await h.settle();
+      await h.tap(top('Leave'));
+      expect(h.container.read(currentScopeProvider).branchId, SeedIds.zamalek);
+      expect(byKey('bb-unsaved'), findsNothing);
+      expect(cardTitled('Terrace tablet'), findsOneWidget);
+    },
+  );
 }

@@ -61,7 +61,11 @@ void main() {
   testWidgets('ADM-BSU-086 a save the server refuses for the right: the '
       'toast, the dialog stays', (tester) async {
     final b = PlanBackend();
-    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b);
+    final h = await pumpBuilder(
+      tester,
+      branchId: SeedIds.heliopolis,
+      backend: b,
+    );
     await h.tap(byKey('bb-lock'));
     await h.tap(cardTitled('Kitchen screen'));
     await tester.ensureVisible(byKey('bb-remove'));
@@ -78,7 +82,8 @@ void main() {
   testWidgets('ADM-BSU-087 branch.plan_changed reads the plan (and the open '
       'History) again; kitchen.* events leave the plan alone', (tester) async {
     final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis);
-    int reads() => h.server.callsTo(BranchPlanRoutes.plan, method: 'GET').length;
+    int reads() =>
+        h.server.callsTo(BranchPlanRoutes.plan, method: 'GET').length;
     expect(reads(), 1);
     h.realtime.current!.emit('kitchen.ticket_bumped', data: '{}');
     await h.settle();
@@ -126,7 +131,9 @@ void main() {
     await h.settle();
     expect(
       tester.getRect(byKey('bb-inspector')).top,
-      greaterThanOrEqualTo(tester.getRect(find.byType(BuilderCanvas)).bottom - 1),
+      greaterThanOrEqualTo(
+        tester.getRect(find.byType(BuilderCanvas)).bottom - 1,
+      ),
     );
     await tester.ensureVisible(find.byType(BuilderCanvas));
     await h.settle();

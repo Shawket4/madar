@@ -158,8 +158,8 @@ void main() {
       expect(stockUnitsPer('kg', 'g'), 1000);
       expect(stockUnitsPer('g', 'g'), 1);
       expect(stockUnitsPer('l', 'ml'), 1000);
-      expect(stockUnitsPer('case', 'pcs'), 1);
-      expect(stockUnitsPer('kg', 'ml'), 1);
+      expect(stockUnitsPer('case', 'pcs'), isNull);
+      expect(stockUnitsPer('kg', 'ml'), isNull);
     });
 
     test('line estimate from the catalog cost per stock unit', () {
@@ -167,6 +167,7 @@ void main() {
       expect(estimateLineTotal(4.568, 12, 'kg', 'g'), 54816);
       expect(estimateLineTotal(null, 12, 'kg', 'g'), isNull);
       expect(estimateLineTotal(4.568, 0, 'g', 'g'), isNull);
+      expect(estimateLineTotal(4.568, 12, 'kg', 'ml'), isNull);
     });
   });
 

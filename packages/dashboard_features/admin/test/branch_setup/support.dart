@@ -113,22 +113,22 @@ Finder top(String text) => find.text(text).hitTestable();
 Finder card(String key) => find.byKey(ValueKey('bb-card-$key'));
 
 /// The card whose title is [title].
-Finder cardTitled(String title) => find.byWidgetPredicate(
-  (w) => w is BuilderCard && w.piece.title == title,
-);
+Finder cardTitled(String title) =>
+    find.byWidgetPredicate((w) => w is BuilderCard && w.piece.title == title);
 
 /// The card's [PieceView].
 PieceView pieceOf(WidgetTester tester, Finder cardFinder) =>
     tester.widget<BuilderCard>(cardFinder).piece;
 
 /// The inspector.
-Finder inInspector(Finder f) =>
-    find.descendant(of: find.byKey(const ValueKey('bb-inspector')), matching: f);
+Finder inInspector(Finder f) => find.descendant(
+  of: find.byKey(const ValueKey('bb-inspector')),
+  matching: f,
+);
 
 /// The last PUT body.
 Map<String, Object?> lastSave(MockServer s) =>
-    (s.callsTo(BranchPlanRoutes.plan, method: 'PUT').last.body!
-            as Map)
+    (s.callsTo(BranchPlanRoutes.plan, method: 'PUT').last.body! as Map)
         .cast<String, Object?>();
 
 /// The words the page shows for a refusal: the transport's message

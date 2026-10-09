@@ -122,6 +122,19 @@ void main() {
     expect(body['geo_radius_meters'], 200);
   });
 
+  testWidgets('ADM-BRA-022/026 (divergence) emptying a stored phone or '
+      'address clears it', (tester) async {
+    final s = branchesServer();
+    final h = await _edit(tester, SeedIds.zamalek, s: s);
+    await _type(h, 'branch-phone', '');
+    await _type(h, 'branch-address', '');
+    await _submit(h);
+    await h.expectToast('Branch updated');
+    expect(_patch(h)['phone'], '');
+    expect(_patch(h)['address'], '');
+    expect(branchRow(s.db, SeedIds.zamalek)['address'], '');
+  });
+
   testWidgets('ADM-BRA-023 another timezone from the searchable list', (
     tester,
   ) async {
@@ -241,6 +254,21 @@ void main() {
       expect(body[k], isNull, reason: k);
     }
     await h.flushTimers();
+  });
+
+  testWidgets('ADM-BRA-034 (divergence) a platform admin\'s override on a new '
+      'branch rides the follow-up PATCH (the POST takes no rates)', (
+    tester,
+  ) async {
+    final h = await _asPlatform(tester, '$branchesPath?edit=new');
+    await _type(h, 'branch-name', 'Sheikh Zayed');
+    await h.tap(_switch('This branch taxes differently'));
+    await _type(h, 'branch-tax-rate', '5');
+    await _submit(h);
+    await h.expectToast('Branch created');
+    expect(_post(h).containsKey('tax_rate'), isFalse);
+    expect(_patch(h)['tax_rate'], closeTo(0.05, 1e-9));
+    expect(_patch(h)['old_bill_hours'], 3);
   });
 
   testWidgets('ADM-BRA-030/031 an owner never sees the override; the stored '

@@ -5,12 +5,15 @@
 
 Copies MadarDashboard/src/lib/*_vectors.json and their *_vectors.source.json (the
 madar-shared tag and hash each copy is pinned to) into
-packages/dashboard_core/test/vectors/, byte for byte, and drops copies the web no
-longer has. Dart tests read them with `sharedVectors(name)` from
-package:dashboard_core/testing.dart. Standard library only; prints what changed.
+packages/dashboard_core/test/vectors/, byte for byte, drops copies the web no longer
+has, and checks each copy's sha256 against its .source.json (exit 1 on a mismatch).
+Dart tests read them with `sharedVectors(name)` from package:dashboard_core/testing.dart.
+Standard library only; prints what changed.
 """
 import filecmp
 import glob
+import hashlib
+import json
 import os
 import shutil
 import sys
@@ -41,8 +44,17 @@ def main(argv):
         if os.path.basename(dst) not in names:
             os.remove(dst)
             print(f"removed {os.path.basename(dst)}")
+    # Each copy must be the bytes its .source.json records for the madar-shared tag.
+    bad = 0
+    for meta in sorted(glob.glob(os.path.join(DEST, "*_vectors.source.json"))):
+        copy = meta.replace(".source.json", ".json")
+        want = json.load(open(meta))["sha256"]
+        got = hashlib.sha256(open(copy, "rb").read()).hexdigest()
+        if got != want:
+            bad += 1
+            print(f"HASH MISMATCH {os.path.basename(copy)}: {got} != {want}", file=sys.stderr)
     print(f"[sync_web_vectors] {len(names)} files in sync with {src_dir}")
-    return 0
+    return 1 if bad else 0
 
 
 if __name__ == "__main__":

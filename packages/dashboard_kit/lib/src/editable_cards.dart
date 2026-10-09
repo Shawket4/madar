@@ -72,6 +72,7 @@ class DashEditableCardGrid<T> extends StatefulWidget {
     this.searchPlaceholder,
     this.toolbar,
     this.onAdd,
+    this.onAddIntent,
     this.addLabel,
     this.onExport,
     this.bulkActions,
@@ -107,6 +108,10 @@ class DashEditableCardGrid<T> extends StatefulWidget {
   final String? searchPlaceholder;
   final Widget? toolbar;
   final VoidCallback? onAdd;
+
+  /// Add is about to be pressed ([DashIntent]): warm the reads its dialog
+  /// makes.
+  final VoidCallback? onAddIntent;
   final String? addLabel;
   final VoidCallback? onExport;
   final Widget Function(
@@ -221,6 +226,7 @@ class _DashEditableCardGridState<T> extends State<DashEditableCardGrid<T>> {
           label: widget.addLabel ?? t.add,
           icon: 'plus',
           onPressed: widget.onAdd,
+          onIntent: widget.onAddIntent,
         ),
     ];
     final filters = Wrap(
