@@ -24,7 +24,9 @@ extension WasteKeys on Scope {
 final wasteReportProvider = FutureProvider.autoDispose
     .family<List<WasteReportRow>, WasteRange>((ref, k) {
       ref.webCache();
-      ref.watch(realtimeEpochProvider('/reports/branches/${k.id}/waste-report'));
+      ref.watch(
+        realtimeEpochProvider('/reports/branches/${k.id}/waste-report'),
+      );
       return ref
           .watch(apiProvider)
           .reports
@@ -44,7 +46,9 @@ List<ReasonTotal> wasteByReason(List<WasteReportRow> rows) {
   final sums = <String, (int, bool)>{};
   for (final r in rows) {
     final (v, has) = sums[r.reason] ?? (0, false);
-    sums[r.reason] = r.wasteValue == null ? (v, has) : (v + r.wasteValue!, true);
+    sums[r.reason] = r.wasteValue == null
+        ? (v, has)
+        : (v + r.wasteValue!, true);
   }
   final out = [
     for (final e in sums.entries)

@@ -97,8 +97,9 @@ class ScheduleWeekBar extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // `<bdi>`: first-strong, so an Arabic range reads RTL.
                 Text(
-                  ltr('${f.fmtDate(week)} – ${f.fmtDate(addDays(week, 6))}'),
+                  '${f.fmtDate(week)} – ${f.fmtDate(addDays(week, 6))}',
                   maxLines: 1,
                   softWrap: false,
                   style: DashType.bodyStrong.copyWith(color: c.textPrimary),

@@ -243,3 +243,16 @@ FRESH FIXERS: financial aaa6b33c3b4172592, employees a427b50e730b3e595, deals a9
 DONE inventory/purchasing (fixed; 162 tests; purchasing+today 289 pass). For Today: "Arriving → Receive" should warm purchaseOrderProvider(po.id) on intent (Today's files; intent sweep).
 DONE reports/financial (fixed; 199 tests; per-field re-seed). Touched shared reports inventory_scope.dart (optional intent param). KIT: FinReveal = HomeReveal → kit.
 API OUTAGE 2026-10-09 evening: every running agent died (ECONNRESET / no response / 408). Relaunching at ~10 concurrent.
+RELAUNCHED at 10 concurrent (fresh agents reading docs/fdash/pending/*.md):
+ foundation offline a483085bb01499d9d, foundation refresh+audit a3a300f7e96075222,
+ fixers employees ad6657073a978f2c5, deals ae30201f4e5df75f3, items afa4868193fba63f2, studio ad06cfbb5f1f6a8f4, staff_pool_bundles a2d76fbaa8eaa5d71,
+ builders waste a213c797b942feb0a, kitchen add3ca1f95d8ab332, schedule a9cc73a1627b54f15
+WAITING (partial work on disk, relaunch as slots free): builders shifts, payroll, approvals, roles, loyalty, delivery; verifiers floor, basira
+VERIFY QUEUE: loyalty_inventory_staff, today, counts, team_setup, attendance (+ re-verify units after fixes where blockers were fixed)
+BUILD QUEUE (18): inventory transfers, inv_settings | team rules, requests, team_board, team_reports | setup integrations, qr, links, staff_pool, brand_appearance, booking_settings, combo_settings, whatsapp | admin orgs, branches, devices, review
+INTENT SWEEP queued per area for units built before the hooks.
+DONE catalog_offers/deals (fixed; 169 tests; package 527 pass) → catalog_offers area complete (discounts, combos, combo_editor, deals)
+OWNER 18:42: merging some dashboard PRs; will say when done → then diff MadarDashboard (and madar main) from the parity baseline, re-inventory changed pages, and route updates to the affected units.
+OWNER: the PRs are in the React dashboard, the backend, madar-shared and the monorepo (they don't touch the Flutter dashboard). AFTER-MERGE CHECKLIST: (1) diff MadarDashboard 93246e45..main → changed pages → re-inventory + route to units; (2) backend openapi.json diff → regenerate dashboard_api (tool/gen_dashboard_api.py) + update mocks for changed endpoints; (3) madar main → merge into feat/fdash-parity-2 (merge commit), rebuild/check rust_bridge_dashboard if rust-core/madar-shared changed the FRB surface; run all package tests.
+OWNER 18:48: let the current agents finish (resume them on API errors so they finish), launch NOTHING new, commit, then WAIT for the owner's merges before continuing.
+BUILT inventory/waste (31/31, 86 tests; today+ingredients 256 pass) → VERIFY QUEUED. OWNER Qs in inventory-waste.md (scope kept, Restricted, search columns).

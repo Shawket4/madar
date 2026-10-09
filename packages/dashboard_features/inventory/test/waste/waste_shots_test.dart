@@ -21,12 +21,15 @@ const _states = [
 /// Shoots the page top to bottom: `<name>-1`, `<name>-2`, …
 Future<void> shootPage(DashHarness h, String name) async {
   ScrollableState? state;
-  for (final e in find
-      .ancestor(of: page, matching: find.byType(Scrollable))
-      .evaluate()
-      .followedBy(
-        find.descendant(of: page, matching: find.byType(Scrollable)).evaluate(),
-      )) {
+  for (final e
+      in find
+          .ancestor(of: page, matching: find.byType(Scrollable))
+          .evaluate()
+          .followedBy(
+            find
+                .descendant(of: page, matching: find.byType(Scrollable))
+                .evaluate(),
+          )) {
     final s = (e as StatefulElement).state as ScrollableState;
     if (s.position.axis == Axis.vertical && s.position.maxScrollExtent > 0) {
       state = s;
@@ -105,7 +108,11 @@ void main() {
     testWidgets('failed, $tag', (tester) async {
       final s = wasteServer();
       s.server.fail('GET', logRoute, MockResponse.error(500, 'Server error'));
-      s.server.fail('GET', reportRoute, MockResponse.error(500, 'Server error'));
+      s.server.fail(
+        'GET',
+        reportRoute,
+        MockResponse.error(500, 'Server error'),
+      );
       final h = await pumpWaste(
         tester,
         size: size,

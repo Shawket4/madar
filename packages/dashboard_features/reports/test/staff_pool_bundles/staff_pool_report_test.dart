@@ -135,47 +135,47 @@ Future<DashHarness> pumpPool(
 void main() {
   group('the gate', () {
     testWidgets(
-      'REP-SPL-001 without the capability: Restricted, nothing asked',
+      'REP-SPL-001 / REP-ALL-005 without the capability: the page\'s own '
+      'Restricted says who it is for, nothing asked',
       (tester) async {
         final h = await pumpPool(tester, persona: Persona.limited);
+        expect(find.text('Staff drinks'), findsWidgets);
         expect(find.text('Not available on this account'), findsOneWidget);
+        expect(find.text(h.t('reports.noAccess')), findsOneWidget);
         for (final tpl in [todayTpl, drinksTpl, summaryTpl]) {
           expect(h.server.callsTo(tpl), isEmpty, reason: tpl);
         }
       },
     );
 
-    testWidgets('REP-SPL-001 the page\'s own gate says who it is for', (
-      tester,
-    ) async {
-      final h = await pumpReports(
-        tester,
-        path: at(),
-        persona: Persona.limited,
-        area: pageGatedArea,
-      );
-      expect(find.text('Staff drinks'), findsWidgets);
-      expect(find.text('Not available on this account'), findsOneWidget);
-      expect(find.text(h.t('reports.noAccess')), findsOneWidget);
-      for (final tpl in [todayTpl, drinksTpl, summaryTpl]) {
-        expect(h.server.callsTo(tpl), isEmpty, reason: tpl);
-      }
-    });
-
     testWidgets('REP-SPL-001 an owner who lacks only this cap is refused too', (
       tester,
     ) async {
       final s = reportsServer();
       authzWithout(s.server, Persona.owner, {'orders.staff_drink.record'});
-      final h = await pumpReports(
-        tester,
-        path: at(),
-        server: s.server,
-        db: s.db,
-        area: pageGatedArea,
-      );
+      final h = await pumpPool(tester, s: s);
       expect(find.text(h.t('reports.noAccess')), findsOneWidget);
       expect(h.server.callsTo(todayTpl), isEmpty);
+    });
+
+    testWidgets('REP-SPL-001 / REP-ALL-030 while the rights load the page '
+        'renders and asks nothing; then its three reads', (tester) async {
+      final s = reportsServer();
+      final gate = s.server.hold('GET', '/authz/me');
+      final h = await pumpPool(tester, s: s);
+      expect(find.byType(StaffPoolReportPage), findsOneWidget);
+      expect(find.text('Not available on this account'), findsNothing);
+      // Divergence: a skeleton, not the web's zero cards.
+      expect(inPage(find.text('Allowance')), findsNothing);
+      for (final tpl in [todayTpl, drinksTpl, summaryTpl]) {
+        expect(h.server.callsTo(tpl), isEmpty, reason: tpl);
+      }
+      gate.release();
+      await h.settle();
+      for (final tpl in [todayTpl, drinksTpl, summaryTpl]) {
+        expect(h.server.callsTo(tpl), hasLength(1), reason: tpl);
+      }
+      expect(inPage(find.text('Every drink, and its note')), findsOneWidget);
     });
 
     testWidgets(

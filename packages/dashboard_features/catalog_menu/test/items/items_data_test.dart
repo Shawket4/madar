@@ -17,11 +17,16 @@ Category _cat(String id, String name) => Category(
   updatedAt: _t0,
 );
 
-AddonItem _addon(String id, String name, String type) => AddonItem(
+AddonItem _addon(
+  String id,
+  String name,
+  String type, [
+  Map<String, Object?> tr = const {},
+]) => AddonItem(
   id: id,
   orgId: 'org',
   name: name,
-  nameTranslations: const {},
+  nameTranslations: tr,
   addonType: type,
   defaultPrice: 0,
   isActive: true,
@@ -163,13 +168,28 @@ void main() {
       _addon('shot', 'Extra shot', 'extra'),
       _addon('soy', 'Soy milk', 'milk_type'),
     ];
-    final g = addonPickerGroups(addons, 'MILK');
+    final g = addonPickerGroups(addons, 'MILK', 'en');
     expect(g.map((e) => e.$1), ['milk_type']);
     expect(g.single.$2.map((a) => a.id), ['oat', 'soy']);
-    expect(addonPickerGroups(addons, '').map((e) => e.$1), [
+    expect(addonPickerGroups(addons, '', 'en').map((e) => e.$1), [
       'milk_type',
       'extra',
     ]);
+  });
+
+  test('MENU-ITEMS-090 (divergence) addonPickerGroups matches the name the '
+      'chips show in Arabic, and still the raw one', () {
+    final addons = [
+      _addon('oat', 'Oat milk', 'milk_type', {'ar': 'حليب الشوفان'}),
+      _addon('shot', 'Extra shot', 'extra', {'ar': 'شوت إضافي'}),
+    ];
+    String ids(String q, String lang) => [
+      for (final (_, items) in addonPickerGroups(addons, q, lang))
+        for (final a in items) a.id,
+    ].join(',');
+    expect(ids('الشوفان', 'ar'), 'oat');
+    expect(ids('shot', 'ar'), 'shot');
+    expect(ids('الشوفان', 'en'), '', reason: 'English shows no Arabic');
   });
 
   test('egpTextToPiastres', () {

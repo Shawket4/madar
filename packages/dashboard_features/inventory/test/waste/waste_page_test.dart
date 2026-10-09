@@ -12,7 +12,6 @@ import 'package:dashboard_inventory/src/area_seed.dart';
 import 'package:dashboard_inventory/src/waste/waste_dialog.dart';
 import 'package:dashboard_inventory/src/waste/waste_page.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
@@ -69,10 +68,7 @@ void main() {
       expect(log.query, isEmpty);
       final scope = h.container.read(currentScopeProvider);
       final report = h.server.callsTo(reportRoute).single;
-      expect(
-        report.path,
-        '/reports/branches/${SeedIds.zamalek}/waste-report',
-      );
+      expect(report.path, '/reports/branches/${SeedIds.zamalek}/waste-report');
       expect(
         DateTime.parse(report.query['from']!.single),
         DateTime.parse(scope.from),
@@ -101,9 +97,9 @@ void main() {
     testWidgets('INV-WST-025 the log does not follow the period; the report '
         'does', (tester) async {
       final h = await pumpWaste(tester, branch: SeedIds.zamalek);
-      await h.container.read(scopeProvider.notifier).setPreset(
-        ScopePreset.today,
-      );
+      await h.container
+          .read(scopeProvider.notifier)
+          .setPreset(ScopePreset.today);
       await h.settle();
       expect(h.server.callsTo(logRoute).length, 1);
       expect(h.server.callsTo(reportRoute).length, 2);
@@ -187,14 +183,10 @@ void main() {
     testWidgets('INV-WST-005…011 the cells of Zamalek\'s log', (tester) async {
       final h = await pumpWaste(tester, branch: SeedIds.zamalek);
       final t = logTable(tester);
-      expect([for (final c in t.columns) c.label], [
-        'Date',
-        'Ingredient',
-        'Quantity',
-        'Reason',
-        'By',
-        'Source',
-      ]);
+      expect(
+        [for (final c in t.columns) c.label],
+        ['Date', 'Ingredient', 'Quantity', 'Reason', 'By', 'Source'],
+      );
       expect([for (final m in t.rows) m.ingredientName], zamalekOrder);
       // INV-WST-005: when it happened; the offline till's line says when it
       // arrived (06 Oct 19:20 Cairo, received 07 Oct 10:05).
@@ -296,7 +288,12 @@ void main() {
     ) async {
       final s = wasteServer();
       final gate = s.server.hold('GET', logRoute);
-      await pumpWaste(tester, server: s.server, db: s.db, branch: SeedIds.zamalek);
+      await pumpWaste(
+        tester,
+        server: s.server,
+        db: s.db,
+        branch: SeedIds.zamalek,
+      );
       expect(logTable(tester).loading, isTrue);
       expect(inTable(find.text('No waste recorded')), findsNothing);
       expect(
@@ -390,8 +387,9 @@ void main() {
 
     testWidgets('INV-WST-025 a reason with no cost reads "—"', (tester) async {
       final s = wasteServer();
-      s.db[InvTables.ingredients].find(InvIds.ingredient('cocoa'))!
-        ..['cost_per_unit'] = null;
+      s.db[InvTables.ingredients].find(
+        InvIds.ingredient('cocoa'),
+      )!['cost_per_unit'] = null;
       for (final m in s.db[InvTables.movements].rows) {
         if (m['org_ingredient_id'] == InvIds.ingredient('cocoa')) {
           m
@@ -399,7 +397,12 @@ void main() {
             ..['unit_cost_exact'] = null;
         }
       }
-      await pumpWaste(tester, server: s.server, db: s.db, branch: SeedIds.zamalek);
+      await pumpWaste(
+        tester,
+        server: s.server,
+        db: s.db,
+        branch: SeedIds.zamalek,
+      );
       expect(summary(tester), contains(('Other', '—')));
       expect(summary(tester).last, ('Total this period', 'EGP 301.56'));
     });
@@ -409,11 +412,13 @@ void main() {
     ) async {
       final s = wasteServer();
       final gate = s.server.hold('GET', reportRoute);
-      await pumpWaste(tester, server: s.server, db: s.db, branch: SeedIds.zamalek);
-      expect(
-        inReasons(byKey('waste-reasons-loading')),
-        findsOneWidget,
+      await pumpWaste(
+        tester,
+        server: s.server,
+        db: s.db,
+        branch: SeedIds.zamalek,
       );
+      expect(inReasons(byKey('waste-reasons-loading')), findsOneWidget);
       expect(inReasons(find.byType(DashSkeleton)), findsNWidgets(8));
       gate.release();
       await tester.pump();
@@ -524,20 +529,23 @@ void main() {
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.name, 'Waste log');
       expect(sheet.title, 'Waste log');
-      expect([for (final c in sheet.columns) c.header], [
-        'Date',
-        'Received',
-        'Ingredient',
-        'Quantity',
-        'Unit',
-        'Reason',
-        'By',
-        'Approved by',
-        'Menu item',
-        'Source',
-        'Device',
-        'Order',
-      ]);
+      expect(
+        [for (final c in sheet.columns) c.header],
+        [
+          'Date',
+          'Received',
+          'Ingredient',
+          'Quantity',
+          'Unit',
+          'Reason',
+          'By',
+          'Approved by',
+          'Menu item',
+          'Source',
+          'Device',
+          'Order',
+        ],
+      );
       expect([for (final r in sheet.rows) r[2]], zamalekOrder);
       final latte = sheet.rows.first;
       expect(latte[1], isNull, reason: 'received within 5 minutes');

@@ -33,8 +33,10 @@ const List<String> _supplements = [
 ];
 
 /// This unit's two pages exactly as the area's `routes.dart` mounts them
-/// (title, page capability, module) with this unit's mock handlers only, so
-/// another unit's work in progress never stops these tests compiling.
+/// (title, module; no route capability: the page's own `<Restricted>` with
+/// `reports.noAccess` refuses, as the web's routes carry no guard) with this
+/// unit's mock handlers only, so another unit's work in progress never stops
+/// these tests compiling.
 const DashArea unitArea = DashArea(
   key: 'reports',
   routes: [
@@ -43,7 +45,6 @@ const DashArea unitArea = DashArea(
       builder: bundlesReportPageBuilder,
       titleKey: 'reports.bundles.title',
       titleFallback: 'Bundles',
-      caps: [Cap.reportsBundles],
       module: OrgModule.pos,
     ),
     DashRoute(
@@ -51,30 +52,6 @@ const DashArea unitArea = DashArea(
       builder: staffPoolReportPageBuilder,
       titleKey: 'staffPool.reportTitle',
       titleFallback: 'Staff drinks',
-      caps: [Cap.ordersStaffDrinkRecord],
-      module: OrgModule.pos,
-    ),
-  ],
-  registerMocks: registerStaffPoolBundlesMocks,
-  i18nSupplements: _supplements,
-);
-
-/// The two pages without the route's capability, so the page's OWN
-/// `<Restricted>` (with `reports.noAccess`) is what refuses — the routing
-/// the web uses (its routes carry no guard).
-const DashArea pageGatedArea = DashArea(
-  key: 'reports',
-  routes: [
-    DashRoute(
-      path: bundlesPath,
-      builder: bundlesReportPageBuilder,
-      titleKey: 'reports.bundles.title',
-      module: OrgModule.pos,
-    ),
-    DashRoute(
-      path: staffPoolPath,
-      builder: staffPoolReportPageBuilder,
-      titleKey: 'staffPool.reportTitle',
       module: OrgModule.pos,
     ),
   ],

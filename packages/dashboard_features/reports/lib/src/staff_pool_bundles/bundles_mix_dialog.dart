@@ -36,7 +36,7 @@ class BundlesMixDialog extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final q = ref.watch(comboMixProvider(query));
     final Widget body;
-    if (q.firstLoad) {
+    if (q.awaitingFirst) {
       body = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.sm,
@@ -44,7 +44,7 @@ class BundlesMixDialog extends ConsumerWidget {
           for (var i = 0; i < 4; i++) const DashSkeleton(height: Space.xxl),
         ],
       );
-    } else if (q.hasError || q.value == null) {
+    } else if (q.failedFirst || q.value == null) {
       body = DashErrorState(
         framed: false,
         retryLabel: t('common.retry'),
@@ -185,7 +185,7 @@ class _PickName extends ConsumerWidget {
       TextSpan(
         text: translatedName(pick.name, pick.nameTranslations, t.lang),
         children: [
-          if (size != null)
+          if (size != null && size.isNotEmpty)
             TextSpan(
               text: ' · ${sizeLabelText(t, size)}',
               style: TextStyle(color: c.textSecondary),

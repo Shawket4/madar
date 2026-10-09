@@ -114,7 +114,7 @@ class _PhoneFieldState extends ConsumerState<PhoneField> {
               textAlign: TextAlign.start,
               style: DashType.small.copyWith(color: c.textSecondary),
             ),
-          if (widget.description != null && !invalid)
+          if (widget.description != null)
             Text(
               widget.description!,
               style: DashType.body.copyWith(color: c.textSecondary),
@@ -336,10 +336,10 @@ class _SalaryCalculatorState extends ConsumerState<SalaryCalculator> {
   }
 }
 
-/// A day as `yyyy-mm-dd` (the web's `<Input type="date">`): the kit's field
-/// on a phone (a sheet); on a wide screen the month opens in its own small
-/// dialog, since the kit's popover cannot flip above a field low in a
-/// dialog and clips the calendar there (kit candidate: fix the popover).
+/// A day as `yyyy-mm-dd` (the web's `<Input type="date">`): the month opens
+/// in its own small dialog (the kit's date field has no Clear and no year
+/// jump, and its popover cannot flip above a field low in a dialog: kit
+/// candidate), with a year to jump to, Today, and Clear once a day is set.
 class EmployeeDateField extends StatelessWidget {
   const EmployeeDateField({
     required this.label,
@@ -354,6 +354,8 @@ class EmployeeDateField extends StatelessWidget {
 
   /// `yyyy-mm-dd`, or empty.
   final String value;
+
+  /// The day picked, or empty once cleared.
   final ValueChanged<String> onChanged;
 
   /// The business's today (its zone).
@@ -363,15 +365,6 @@ class EmployeeDateField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final picked = dashParseYmd(value);
-    if (DashBreakpoints.isPhone(context)) {
-      return DashDateFormField(
-        label: label,
-        value: picked,
-        today: today,
-        errorText: errorText,
-        onChanged: (d) => onChanged(dashYmd(d)),
-      );
-    }
     final t = context.dashStrings;
     return DashFormField<String>(
       label: label,
@@ -383,23 +376,26 @@ class EmployeeDateField extends StatelessWidget {
         invalid: invalid,
         semanticLabel: label,
         onTap: () async {
-          final d = await showDashDialog<DateTime>(
+          // `(day,)`: a day, or `(null,)` for Clear; null = dismissed.
+          final r = await showDashDialog<(DateTime?,)>(
             context,
             width: DashMetrics.sidePanel - Space.xxl * 3,
+            phoneFullScreen: false,
             builder: (_) => _MonthCard(
               title: label,
               selected: picked,
               today: dashDay(today ?? DateTime.now()),
             ),
           );
-          if (d != null) onChanged(dashYmd(d));
+          if (r == null) return;
+          onChanged(r.$1 == null ? '' : dashYmd(r.$1!));
         },
       ),
     );
   }
 }
 
-class _MonthCard extends StatefulWidget {
+class _MonthCard extends ConsumerStatefulWidget {
   const _MonthCard({
     required this.title,
     required this.selected,
@@ -411,16 +407,24 @@ class _MonthCard extends StatefulWidget {
   final DateTime today;
 
   @override
-  State<_MonthCard> createState() => _MonthCardState();
+  ConsumerState<_MonthCard> createState() => _MonthCardState();
 }
 
-class _MonthCardState extends State<_MonthCard> {
+class _MonthCardState extends ConsumerState<_MonthCard> {
   late DateTime _month = widget.selected ?? widget.today;
 
   @override
   Widget build(BuildContext context) {
     final t = context.dashStrings;
-    void pick(DateTime d) => Navigator.of(context).pop(d);
+    final year = ref.watch(tProvider)('teamEmployees.year');
+    void pick(DateTime? d) => Navigator.of(context).pop((d,));
+    // A hire date can be decades back: jump by year, not month by month.
+    final first = _month.year < widget.today.year - 60
+        ? _month.year
+        : widget.today.year - 60;
+    final last = _month.year > widget.today.year + 5
+        ? _month.year
+        : widget.today.year + 5;
     return DashSurface(
       title: widget.title,
       body: Column(
@@ -428,9 +432,28 @@ class _MonthCardState extends State<_MonthCard> {
         mainAxisSize: MainAxisSize.min,
         spacing: Space.sm,
         children: [
-          DashMonthBar(
-            month: _month,
-            onChanged: (m) => setState(() => _month = m),
+          Row(
+            spacing: Space.sm,
+            children: [
+              Expanded(
+                child: DashMonthBar(
+                  month: _month,
+                  onChanged: (m) => setState(() => _month = m),
+                ),
+              ),
+              DashSelect<int>(
+                expand: false,
+                semanticLabel: year,
+                sheetTitle: year,
+                value: _month.year,
+                options: [
+                  for (var y = last; y >= first; y--)
+                    DashOption(value: y, label: '$y'),
+                ],
+                onChanged: (y) =>
+                    setState(() => _month = DateTime(y, _month.month)),
+              ),
+            ],
           ),
           DashCalendar(
             month: _month,
@@ -441,6 +464,12 @@ class _MonthCardState extends State<_MonthCard> {
         ],
       ),
       actions: [
+        if (widget.selected != null)
+          DashButton(
+            label: t.clear,
+            variant: DashButtonVariant.ghost,
+            onPressed: () => pick(null),
+          ),
         DashButton(
           label: t.today,
           variant: DashButtonVariant.ghost,

@@ -8,6 +8,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_setup/src/brand_appearance/settings_shell.dart';
 import 'package:dashboard_setup/src/kitchen/kitchen_stations_page.dart';
 import 'package:dashboard_setup/src/kitchen/station_dialog.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'kitchen_support.dart';
@@ -884,6 +885,29 @@ void main() {
       expect(_inTable(find.byType(StationPrinter)), findsNWidgets(3));
       await _pickMode(h, 'POS queue');
       await h.expectToast('Routing mode updated');
+    });
+
+    testWidgets('intent: the editor reads nothing of its own; resting on a '
+        'row or New station and pressing asks nothing more', (tester) async {
+      final h = await pumpKitchen(tester);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      final before = h.server.calls.length;
+
+      final row = _inTable(find.text('Kitchen'));
+      await mouse.moveTo(tester.getCenter(row));
+      await h.settle();
+      await h.tap(row);
+      expect(_inDialog(find.text('Edit station')), findsOneWidget);
+      await h.tap(_inDialog(byKey('station-cancel')));
+
+      final add = inStations(byKey('kitchen-new-station'));
+      await mouse.moveTo(tester.getCenter(add));
+      await h.settle();
+      await h.tap(add);
+      expect(_inDialog(find.text('New station')), findsOneWidget);
+      expect(h.server.calls, hasLength(before));
     });
   });
 }

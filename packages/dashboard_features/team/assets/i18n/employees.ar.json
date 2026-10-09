@@ -1,6 +1,7 @@
 {
   "teamEmployees": {
     "chooseFile": "اختر ملفًا",
-    "noFileChosen": "لم يتم اختيار ملف"
+    "noFileChosen": "لم يتم اختيار ملف",
+    "year": "السنة"
   }
 }

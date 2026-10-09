@@ -198,9 +198,11 @@ void main() {
     expect(inDialog(find.text('Pick an ingredient')), findsOneWidget);
     expect(inDialog(find.text('Expired')), findsOneWidget);
     expect(
-      tester.widget<DashTextInput>(
-        find.descendant(of: qtyField, matching: find.byType(DashTextInput)),
-      ).value,
+      tester
+          .widget<DashTextInput>(
+            find.descendant(of: qtyField, matching: find.byType(DashTextInput)),
+          )
+          .value,
       '',
     );
     expect(posted(h), isEmpty);
@@ -295,22 +297,14 @@ void main() {
     final list = tester.widget<DashOptionList<String>>(
       find.byType(DashOptionList<String>),
     );
-    expect([for (final o in list.options) o.label], [
-      'Expired',
-      'Spoiled',
-      'Damaged',
-      'Overproduction',
-      'Theft',
-      'Other',
-    ]);
-    expect([for (final o in list.options) o.value], [
-      'expired',
-      'spoiled',
-      'damaged',
-      'overproduction',
-      'theft',
-      'other',
-    ]);
+    expect(
+      [for (final o in list.options) o.label],
+      ['Expired', 'Spoiled', 'Damaged', 'Overproduction', 'Theft', 'Other'],
+    );
+    expect(
+      [for (final o in list.options) o.value],
+      ['expired', 'spoiled', 'damaged', 'overproduction', 'theft', 'other'],
+    );
   });
 
   testWidgets('INV-WST-020 the note is optional; blank goes as null', (
@@ -360,7 +354,10 @@ void main() {
     expect(
       tester
           .widgetList<DashSummaryLine>(
-            find.descendant(of: reasons, matching: find.byType(DashSummaryLine)),
+            find.descendant(
+              of: reasons,
+              matching: find.byType(DashSummaryLine),
+            ),
           )
           .first
           .value,
@@ -384,9 +381,11 @@ void main() {
     expect(dialog, findsOneWidget);
     expect(submitButton(tester).loading, isFalse);
     expect(
-      tester.widget<DashTextInput>(
-        find.descendant(of: qtyField, matching: find.byType(DashTextInput)),
-      ).value,
+      tester
+          .widget<DashTextInput>(
+            find.descendant(of: qtyField, matching: find.byType(DashTextInput)),
+          )
+          .value,
       '20',
     );
     expect(stockRow(h.db!, SeedIds.zamalek, 'matcha')!['on_hand'], 5.0);
@@ -469,8 +468,13 @@ void main() {
     );
     await h.tap(inPage(byKey('waste-record')));
     expect(dialog, findsOneWidget);
-    expect(inDialog(find.text(h.t('inventory.waste.recordTitle'))), findsWidgets);
-    expect(inDialog(find.text(h.t('inventory.waste.reasons.expired'))),
-        findsOneWidget);
+    expect(
+      inDialog(find.text(h.t('inventory.waste.recordTitle'))),
+      findsWidgets,
+    );
+    expect(
+      inDialog(find.text(h.t('inventory.waste.reasons.expired'))),
+      findsOneWidget,
+    );
   });
 }

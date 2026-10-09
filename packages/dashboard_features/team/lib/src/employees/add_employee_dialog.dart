@@ -25,6 +25,8 @@ import 'employees_providers.dart';
 Future<void> showAddEmployeeDialog(BuildContext context, {String? userId}) =>
     showDashDialog<void>(
       context,
+      // `sm:max-w-md`.
+      width: DashMetrics.dialog - Space.xxl * 2,
       builder: (_) => AddEmployeeDialog(userId: userId),
     );
 
@@ -55,6 +57,22 @@ class _AddEmployeeDialogState extends ConsumerState<AddEmployeeDialog> {
   bool _submitting = false;
 
   bool get _needsPhone => _kind == 'app' || (_kind == 'linked' && _appAccess);
+
+  @override
+  void initState() {
+    super.initState();
+    // A linked person's number defaults to their account's, whenever the
+    // picked person or the list changes (the web's effect): a preset user's
+    // too, once the list answers.
+    ref.listenManual(linkableUsersProvider, (_, next) {
+      if (mounted) setState(() => _fillPhone(next.value));
+    }, fireImmediately: true);
+  }
+
+  void _fillPhone(List<LinkableUser>? users) {
+    final u = users?.where((l) => l.userId == _userId).firstOrNull;
+    if (u?.phone != null && _phone.isEmpty) _phone = u!.phone!;
+  }
 
   Map<String, String> _problems(Translator t) {
     String atMost(int n) => t('common.atMostChars', args: {'n': n});
@@ -234,9 +252,7 @@ class _AddEmployeeDialogState extends ConsumerState<AddEmployeeDialog> {
               ],
               onChanged: (id) => _edit('user', () {
                 _userId = id;
-                // A linked person's number defaults to their account's.
-                final u = linkable.where((l) => l.userId == id).firstOrNull;
-                if (u?.phone != null && _phone.isEmpty) _phone = u!.phone!;
+                _fillPhone(linkable);
               }),
             )
           else

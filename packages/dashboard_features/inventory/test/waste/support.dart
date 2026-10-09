@@ -56,7 +56,7 @@ Future<DashHarness> pumpWaste(
         'org': SeedIds.sabahOrg,
         'branch': branch,
       }),
-    if (preset != null) ScopePrefKeys.preset: preset,
+    ScopePrefKeys.preset: ?preset,
   },
 );
 

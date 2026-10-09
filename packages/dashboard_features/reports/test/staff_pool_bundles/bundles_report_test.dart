@@ -10,6 +10,7 @@ import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_reports/src/mock/staff_pool_bundles_mock.dart';
 import 'package:dashboard_reports/src/staff_pool_bundles/bundles_mix_dialog.dart';
+import 'package:dashboard_reports/src/staff_pool_bundles/bundles_report_page.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,7 +45,8 @@ String num0(int n) => const DashFormat().fmtNumber(n);
 void main() {
   group('the gate', () {
     testWidgets(
-      'REP-BUN-001 without reports.bundles: Restricted, nothing asked',
+      'REP-BUN-001 / REP-ALL-005 without reports.bundles: the page\'s own '
+      'Restricted says who it is for, nothing asked',
       (tester) async {
         final h = await pumpReports(
           tester,
@@ -53,28 +55,31 @@ void main() {
         );
         expect(find.text('Bundles'), findsWidgets);
         expect(find.text('Not available on this account'), findsOneWidget);
+        expect(find.text(h.t('reports.noAccess')), findsOneWidget);
         expect(h.server.callsTo(bundlesTpl), isEmpty);
         expect(find.text('Export Excel'), findsNothing);
       },
     );
 
-    testWidgets('REP-BUN-001 the page\'s own gate says who it is for', (
-      tester,
-    ) async {
+    testWidgets('REP-BUN-001 / REP-ALL-030 while the rights load the page '
+        'renders and asks nothing; then its read', (tester) async {
+      final s = reportsServer();
+      final gate = s.server.hold('GET', '/authz/me');
       final h = await pumpReports(
         tester,
         path: bundlesPath,
-        persona: Persona.limited,
-        area: pageGatedArea,
+        server: s.server,
+        db: s.db,
       );
-      expect(find.text('Not available on this account'), findsOneWidget);
-      expect(
-        find.text(
-          "Your account can't open this report. The owner can give you access.",
-        ),
-        findsOneWidget,
-      );
+      expect(find.byType(DashSegmentedControl<BundleKind>), findsOneWidget);
+      expect(find.text('Not available on this account'), findsNothing);
+      // Divergence: a skeleton, not the web's untrue "No combos sold".
+      expect(find.text(h.t('reports.bundles.emptyCombos')), findsNothing);
       expect(h.server.callsTo(bundlesTpl), isEmpty);
+      gate.release();
+      await h.settle();
+      expect(h.server.callsTo(bundlesTpl), hasLength(1));
+      expect(find.text('Brunch for Two'), findsOneWidget);
     });
 
     testWidgets('REP-BUN-001 the manager sees the report for her branch', (

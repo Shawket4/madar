@@ -88,7 +88,6 @@ const List<DashRoute> reportsRoutes = [
     builder: bundlesReportPageBuilder,
     titleKey: 'reports.bundles.title',
     titleFallback: 'Bundles',
-    caps: [Cap.reportsBundles],
     module: OrgModule.pos,
   ),
   // REP-STF-002: `hr.attendance.read`, checked by the page's own
@@ -107,7 +106,6 @@ const List<DashRoute> reportsRoutes = [
     builder: staffPoolReportPageBuilder,
     titleKey: 'staffPool.reportTitle',
     titleFallback: 'Staff drinks',
-    caps: [Cap.ordersStaffDrinkRecord],
     module: OrgModule.pos,
   ),
   // REP-TIL-001: `till.read.branch` (plain `till.read` is Restricted),

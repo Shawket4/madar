@@ -20,7 +20,7 @@ import 'schedule_providers.dart';
 abstract final class ScheduleMetrics {
   /// The name column (`max-w-[12rem]`); narrower on a phone.
   static const double name = 192;
-  static const double namePhone = 132;
+  static const double namePhone = 168;
 
   /// A day column at its narrowest (`min-w-[56rem]` less the names, / 7).
   static const double day = 100;
@@ -295,7 +295,7 @@ class _ScheduleGridState extends ConsumerState<ScheduleGrid> {
 
         Widget nameBox(Widget child, {bool header = false}) => Container(
           padding: EdgeInsetsDirectional.symmetric(
-            horizontal: phone ? Space.md : Space.lg,
+            horizontal: phone ? Space.sm : Space.lg,
             vertical: header ? Space.sm + 2 : Space.xs + 2,
           ),
           decoration: BoxDecoration(
@@ -488,9 +488,12 @@ class _NameCell extends ConsumerWidget {
   static double heightOf(RosterPerson p) =>
       (Space.xs + 2) * 2 +
       DashMetrics.target +
-      (p.prefTime != null || p.cantWorkDays.isNotEmpty || p.prefsSetBy == 'manager'
-          ? Space.lg + 2
-          : 0);
+      (_hasPrefs(p) ? Space.lg + 2 : 0);
+
+  /// The web shows the line only with a preferred time or days off; "set by
+  /// a manager" rides on it.
+  static bool _hasPrefs(RosterPerson p) =>
+      p.prefTime != null || p.cantWorkDays.isNotEmpty;
 
   final RosterPerson person;
   final VoidCallback onPrefs;
@@ -534,7 +537,7 @@ class _NameCell extends ConsumerWidget {
             ),
           ],
         ),
-        if (prefs.isNotEmpty)
+        if (_hasPrefs(p))
           MadarClippedText(
             prefs,
             maxLines: 1,

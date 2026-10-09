@@ -100,6 +100,8 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
     final canCreate = authz.can(Cap.hrStaffCreate);
     final canEdit = authz.can(Cap.hrStaffEdit);
     final canDelete = authz.can(Cap.hrStaffDelete);
+    // The salary calculator (Add, the profile) reads the rules.
+    final canSetPay = authz.canEverywhere(Cap.hrPayrollEdit);
     final read = employeesReadFor(_key);
     final q = ref.watch(read);
     final departments = ref.watch(staffDepartmentsProvider);
@@ -118,10 +120,14 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
     // (the owner sees it even while nobody has a salary yet).
     final showSalary =
         employees.any((e) => e.baseSalaryPiastres != null) ||
-        authz.canEverywhere(Cap.hrPayrollEdit);
+        canSetPay;
     final addButton = DashButton(
       label: t('dawam.addEmployee'),
       icon: 'plus',
+      onIntent: () {
+        ref.warm(linkableUsersProvider);
+        if (canSetPay) ref.warm(staffAttendanceSettingsProvider);
+      },
       onPressed: () => showAddEmployeeDialog(context),
     );
 
@@ -134,6 +140,7 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
           label: t('staff.departments'),
           icon: 'users',
           variant: DashButtonVariant.outline,
+          onIntent: () => ref.warm(staffDepartmentsProvider),
           onPressed: () => showDepartmentsDialog(context),
         ),
         if (canCreate) ...[
@@ -160,6 +167,9 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
                 label: t('staff.statusTerminated'),
               ),
             ],
+            onOptionIntent: (v) => ref.warm(
+              employeesReadFor((status: v, departmentId: _departmentId)),
+            ),
             onChanged: (v) => setState(() => _status = v),
           ),
           DashFilterSelect<String>(
@@ -170,6 +180,8 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
               for (final d in departments.value ?? const <Department>[])
                 DashOption(value: d.id, label: d.name),
             ],
+            onOptionIntent: (v) =>
+                ref.warm(employeesReadFor((status: _status, departmentId: v))),
             onChanged: (v) => setState(() => _departmentId = v),
           ),
         ],
@@ -178,14 +190,15 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
         columns: _columns(context, branches, showSalary),
         rows: employees,
         rowKey: (e) => e.id,
-        // Nothing to show yet; a failed read keeps its error (and Retry)
-        // while it is asked again.
-        loading: q.isLoading && !q.hasValue && !q.hasError,
+        loading: q.awaitingFirst,
         // A failed refresh replaces the rows (the web's table takes the raw
         // query error, TEAM-ALL-010); the stale-data toast says it too.
         errorMessage: q.hasError ? _err(q.error) : null,
         onRetry: () => ref.invalidate(read),
-        onRowTap: (e) => showEmployeeDialog(context, e),
+        onRowIntent: (_) {
+          if (canSetPay) ref.warm(staffAttendanceSettingsProvider);
+        },
+        onRowTap: (e) => showEmployeeDialog(context, e, live: read),
         searchPlaceholder: t('staff.searchEmployees'),
         rowActionsWidth: 2 * DashMetrics.target,
         rowActions: canEdit || canDelete
@@ -256,7 +269,7 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
         label: t('staff.name'),
         phone: DashPhoneRole.title,
         flex: 2,
-        minWidth: 112,
+        minWidth: 150,
         text: (e) => e.name,
         cell: (context, e) => two(
           e.name,
@@ -267,7 +280,7 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
       DashColumn(
         id: 'kind',
         label: t('staff.kind'),
-        minWidth: 104,
+        minWidth: 112,
         text: (e) => e.kind,
         // One line: a long kind shrinks rather than wraps the badge.
         cell: (context, e) => FittedBox(
@@ -283,7 +296,7 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
       DashColumn(
         id: 'branches',
         label: t('dawam.branches'),
-        minWidth: 96,
+        minWidth: 112,
         searchable: false,
         text: (e) => dash(
           e.branchIds
@@ -297,7 +310,7 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
         label: t('dawam.whatsapp'),
         numeric: true,
         align: DashAlign.start,
-        minWidth: 136,
+        minWidth: 156,
         text: (e) => e.phone ?? '',
         cell: (context, e) => e.phone == null
             ? const Text('—')
@@ -311,7 +324,7 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
       DashColumn(
         id: 'app_access',
         label: t('staff.appAccess'),
-        minWidth: 52,
+        minWidth: 96,
         searchable: false,
         text: (e) =>
             e.appAccess ? t('staff.appAccessYes') : t('staff.appAccessNo'),
@@ -319,7 +332,7 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
       DashColumn(
         id: 'role',
         label: t('staff.madarRole'),
-        minWidth: 80,
+        minWidth: 136,
         text: (e) => e.role ?? '',
         cell: (context, e) => MadarClippedText(
           e.role == null
@@ -334,7 +347,7 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
       DashColumn(
         id: 'device',
         label: t('staff.device'),
-        minWidth: 92,
+        minWidth: 168,
         searchable: false,
         cell: (context, e) => e.deviceModel == null
             ? const Text('—')
@@ -346,7 +359,7 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
       DashColumn(
         id: 'department',
         label: t('staff.department'),
-        minWidth: 96,
+        minWidth: 136,
         text: (e) => e.departmentName ?? '',
         cell: (context, e) => MadarClippedText(
           dash(e.departmentName),
@@ -357,7 +370,7 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
       DashColumn(
         id: 'status',
         label: t('staff.employmentStatus'),
-        minWidth: 104,
+        minWidth: 112,
         text: (e) => e.employmentStatus,
         cell: (context, e) => DashStatusPill(
           tone: employmentStatusTone[e.employmentStatus] ?? DashTone.neutral,
@@ -371,7 +384,7 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
           id: 'salary',
           label: t('staff.baseSalary'),
           numeric: true,
-          minWidth: 132,
+          minWidth: 196,
           searchable: false,
           cell: (context, e) => switch (salaryStateOf(e)) {
             // Nobody set one: payroll won't approve until it is.

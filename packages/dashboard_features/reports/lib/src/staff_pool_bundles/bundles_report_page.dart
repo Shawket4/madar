@@ -68,11 +68,9 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
     );
     final q = watchWhen(ref, canSee, bundlesReportProvider(query));
     final logo = exportLogoUrl(ref);
-    final rows = q.hasError
-        ? const <BundlesRow>[]
-        : (q.value?.rows ?? const <BundlesRow>[]);
+    final rows = q.value?.rows ?? const <BundlesRow>[];
     final totals = q.value?.totals;
-    final loading = q.firstLoad;
+    final loading = q.awaitingFirst;
     final lang = t.lang;
 
     final soldLabel = _combos
@@ -83,7 +81,7 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
     final marginText =
         totals != null &&
             totals.revenue > 0 &&
-            !(q.value?.rows ?? const <BundlesRow>[]).any((r) => r.costMissing)
+            !rows.any((r) => r.costMissing)
         ? fmtRateWire(f, (totals.revenue - totals.cost) / totals.revenue)
         : '—';
 
@@ -102,6 +100,16 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
         child: DashSegmentedControl<BundleKind>(
           value: _kind,
           onChanged: (k) => setState(() => _kind = k),
+          onIntent: canSee
+              ? (k) => ref.warm(
+                  bundlesReportProvider((
+                    from: query.from,
+                    to: query.to,
+                    branchId: query.branchId,
+                    kind: k.wire,
+                  )),
+                )
+              : null,
           options: [
             DashOption(
               value: BundleKind.combo,
@@ -153,10 +161,13 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
             rows: rows,
             rowKey: (r) => '${r.kind}:${r.id}',
             loading: loading,
-            errorMessage: q.hasError ? errorMessage(q.error, t) : null,
+            errorMessage: q.failedFirst ? errorMessage(q.error, t) : null,
             onRetry: () => ref.invalidate(bundlesReportProvider(query)),
             onRowTap: _combos
                 ? (r) => _openMix(r, query, _name(r, lang))
+                : null,
+            onRowIntent: _combos
+                ? (r) => ref.warm(comboMixProvider(_mixQuery(r, query)))
                 : null,
             rowSemanticLabel: (r) => _name(r, lang),
             empty: DashEmptyState(
@@ -260,15 +271,18 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
       width: BundlesMixDialog.width,
       builder: (context) => BundlesMixDialog(
         name: name,
-        query: (
-          comboId: row.id,
-          from: query.from,
-          to: query.to,
-          branchId: query.branchId,
-        ),
+        query: _mixQuery(row, query),
       ),
     );
   }
+
+  /// The Mix dialog's read for [row] (`useComboMix(id, params)`).
+  ComboMixQuery _mixQuery(BundlesRow row, BundlesQuery query) => (
+    comboId: row.id,
+    from: query.from,
+    to: query.to,
+    branchId: query.branchId,
+  );
 
   /// REP-BUN-018/019: the rows as one sheet, money in pounds, the margin a
   /// fraction (blank when the cost is unknown), totals except Orders.

@@ -100,7 +100,7 @@ class StudioModifiersSection extends ConsumerWidget {
                         ),
                       ),
                       if (type != null) DashBadge(type),
-                      _OutlineBadge(
+                      StudioOutlineBadge(
                         a.selectionType == 'single'
                             ? t('menu.studio.modifiers.single')
                             : t('menu.studio.modifiers.multi'),
@@ -136,8 +136,8 @@ class StudioModifiersSection extends ConsumerWidget {
               StudioHint(t('menu.studio.modifiers.noOptions'))
             else
               Wrap(
-                spacing: Space.xs + 2,
-                runSpacing: Space.xs + 2,
+                spacing: Space.xs + DashMetrics.hair,
+                runSpacing: Space.xs + DashMetrics.hair,
                 children: [
                   for (final o in a.allOptions)
                     _OptionChip(
@@ -178,7 +178,7 @@ class StudioModifiersSection extends ConsumerWidget {
                           (o.recipe ?? const []).isNotEmpty
                               ? [
                                   for (final r in o.recipe!)
-                                    '${r.name} ${ltr(jsNumberText(jsParseFloat(r.quantity)))} ${fmtUnit(r.unit)}',
+                                    '${r.name} ${ltr(jsNumberText(jsParseFloat(r.quantity)))} ${unitWord(t, r.unit)}',
                                 ].join(' · ')
                               : t('menu.groups.studio.noStock'),
                           style: DashType.small.copyWith(
@@ -321,32 +321,6 @@ class StudioModifiersSection extends ConsumerWidget {
   }
 }
 
-/// The web's outline `Badge`.
-class _OutlineBadge extends StatelessWidget {
-  const _OutlineBadge(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.madarColors;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Space.sm,
-        vertical: DashMetrics.hair,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(Radii.pill),
-        border: Border.all(color: c.hairline),
-      ),
-      child: Text(
-        label,
-        style: DashType.smallMedium.copyWith(color: c.textSecondary),
-      ),
-    );
-  }
-}
-
 /// An allowlist chip: filled with a check while offered.
 class _OptionChip extends StatelessWidget {
   const _OptionChip({
@@ -378,7 +352,7 @@ class _OptionChip extends StatelessWidget {
           widthFactor: 1,
           child: Container(
             padding: const EdgeInsets.symmetric(
-              horizontal: Space.sm + 2,
+              horizontal: Space.sm + DashMetrics.hair,
               vertical: DashMetrics.hair,
             ),
             decoration: BoxDecoration(

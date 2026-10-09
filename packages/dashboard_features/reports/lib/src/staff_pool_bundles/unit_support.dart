@@ -1,5 +1,5 @@
-/// What the Staff drinks and Bundles pages share: React Query's notion of a
-/// first load, the page's own `<Restricted>`, the spreadsheet a page exports
+/// What the Staff drinks and Bundles pages share: the page's own
+/// `<Restricted>`, the spreadsheet a page exports
 /// (the web's `exportToExcel` with its three toasts and the shop's logo) and
 /// the wire's rate decimals (`rateOf` / `fmtRate`).
 library;
@@ -11,19 +11,14 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 
-/// React Query's `isLoading`: the first load, with nothing to show yet. A
-/// refetch keeps what it had; a failed one shows the failure.
-extension ReportAsync<T> on AsyncValue<T> {
-  bool get firstLoad => isLoading && !hasValue && !hasError;
-}
-
-/// A read the web keeps disabled (no capability yet, no branch): neither
-/// loading nor failed, with no data.
+/// A read the web keeps disabled until the person's rights are known: nothing
+/// is asked, and the page shows its skeleton meanwhile (never a zero or an
+/// empty state that is not the answer, REP-ALL-030).
 AsyncValue<T?> watchWhen<T>(
   WidgetRef ref,
   bool enabled,
   ProviderListenable<AsyncValue<T>> provider,
-) => enabled ? ref.watch(provider) : AsyncData<T?>(null);
+) => enabled ? ref.watch(provider) : AsyncLoading<T?>();
 
 /// The page's own refusal (`<Restricted title who=reports.noAccess>`), once
 /// the person's permissions are known and lack [canSee] (REP-ALL-005).

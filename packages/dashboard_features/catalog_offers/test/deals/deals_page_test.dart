@@ -709,18 +709,19 @@ void main() {
         '(branch.settings_changed): the open dialog\'s branch row and "When" '
         'read the new name', (tester) async {
       final s = dealsServer();
-      s.db.table(OffersTables.deals).find(dealId('weekend-breakfast'))!['windows'] =
-          [
-            {
-              'id': mockUuid('w'),
-              'branch_id': SeedIds.zamalek,
-              'weekdays': 127,
-              'starts_at': null,
-              'ends_at': null,
-              'valid_from': '2026-10-01',
-              'valid_to': null,
-            },
-          ];
+      s.db
+          .table(OffersTables.deals)
+          .find(dealId('weekend-breakfast'))!['windows'] = [
+        {
+          'id': mockUuid('w'),
+          'branch_id': SeedIds.zamalek,
+          'weekdays': 127,
+          'starts_at': null,
+          'ends_at': null,
+          'valid_from': '2026-10-01',
+          'valid_to': null,
+        },
+      ];
       final h = await pumpDeals(
         tester,
         path: '$dealsPath?edit=${dealId('weekend-breakfast')}',
@@ -764,52 +765,55 @@ void main() {
       expect(asked(), (3, 2, 2));
     });
 
-    testWidgets('intent: pointing at a row, its pencil, New deal or the pager '
-        'and pressing it asks nothing more (the dialog reads what the page '
-        'already holds; paging is in the client)', (tester) async {
-      final s = dealsServer();
-      addPromoDeals(s.db, 7);
-      final h = await pumpDeals(tester, server: s.server, db: s.db);
-      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      await mouse.addPointer(location: Offset.zero);
-      addTearDown(mouse.removePointer);
-      int asked() => h.server.calls.where((c) => c.method == 'GET').length;
-      final before = asked();
-      // Older than the deals' 30 s: a press that added a reader would refetch.
-      h.db!.clock.advance(const Duration(seconds: 31));
-
-      Future<void> pointAndPress(Finder f) async {
+    // Intent: the dialog reads only what the page already holds and paging
+    // is in the client, so pointing at a control and pressing it asks
+    // nothing more (the page has no filters and no row menus).
+    // (Built inside each test: a semantics finder needs semantics on.)
+    for (final (kind, target, opened) in <(String, Finder Function(), Finder)>[
+      (
+        'a row',
+        () => rowOf('Juice trio for 270'),
+        inDialog(find.text('Edit deal')),
+      ),
+      (
+        'a row\'s pencil',
+        () => inRow('Any 2 pastries for 150', find.bySemanticsLabel('Edit')),
+        inDialog(find.text('Edit deal')),
+      ),
+      (
+        'New deal',
+        () => inPage(find.text('New deal')).first,
+        inDialog(find.text('New deal')),
+      ),
+      (
+        'the pager',
+        () => inPage(find.bySemanticsLabel('Next')),
+        inPage(find.text('Page 2 of 2')),
+      ),
+    ]) {
+      testWidgets('intent: pointing at $kind and pressing it asks nothing '
+          'more', (tester) async {
+        final s = dealsServer();
+        addPromoDeals(s.db, 7);
+        final h = await pumpDeals(tester, server: s.server, db: s.db);
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: Offset.zero);
+        addTearDown(mouse.removePointer);
+        int asked() => h.server.calls.where((c) => c.method == 'GET').length;
+        final before = asked();
+        // Older than the deals' 30 s: a press that added a reader would
+        // refetch.
+        h.db!.clock.advance(const Duration(seconds: 31));
+        final f = target();
         await tester.ensureVisible(f);
         await h.settle();
         await mouse.moveTo(tester.getCenter(f));
         await h.settle();
         await h.tap(f);
-      }
-
-      Future<void> close() async {
-        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-        await h.settle();
-        expect(dialog, findsNothing);
-      }
-
-      await pointAndPress(rowOf('Juice trio for 270'));
-      expect(inDialog(find.text('Edit deal')), findsOneWidget);
-      expect(asked(), before, reason: 'a row');
-      await close();
-      await pointAndPress(
-        inRow('Any 2 pastries for 150', find.bySemanticsLabel('Edit')),
-      );
-      expect(dialog, findsOneWidget);
-      expect(asked(), before, reason: 'the pencil');
-      await close();
-      await pointAndPress(inPage(find.text('New deal')).first);
-      expect(inDialog(find.text('New deal')), findsOneWidget);
-      expect(asked(), before, reason: 'New deal');
-      await close();
-      await pointAndPress(inPage(find.bySemanticsLabel('Next')));
-      expect(inPage(find.text('Page 2 of 2')), findsOneWidget);
-      expect(asked(), before, reason: 'the pager');
-    });
+        expect(opened, findsOneWidget);
+        expect(asked(), before);
+      });
+    }
 
     testWidgets('OFFR-DEA-023 (divergence) the open deal leaves the list: '
         'the dialog closes and ?edit goes', (tester) async {

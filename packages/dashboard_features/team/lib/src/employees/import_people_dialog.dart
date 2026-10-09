@@ -18,12 +18,13 @@ import '../shared/attendance_errors.dart';
 import 'employees_data.dart';
 import 'employees_providers.dart';
 
-/// Opens "Import from a spreadsheet".
+/// Opens "Import from a spreadsheet"; [context] (the page) shows the run's
+/// toast should the dialog be closed mid-run.
 Future<void> showImportPeopleDialog(BuildContext context) =>
     showDashDialog<void>(
       context,
       width: DashMetrics.dialogWide,
-      builder: (_) => const ImportPeopleDialog(),
+      builder: (_) => ImportPeopleDialog(host: context),
     );
 
 /// The rows of an `.xlsx` (first sheet) or `.csv` (`readSheet`). A file that
@@ -45,7 +46,10 @@ Future<List<List<Object?>>> readSheet(PickedFile file, ExportGateway x) async {
 typedef _Outcome = ({bool ok, String? message});
 
 class ImportPeopleDialog extends ConsumerStatefulWidget {
-  const ImportPeopleDialog({super.key});
+  const ImportPeopleDialog({this.host, super.key});
+
+  /// The opener, which toasts the run's result once the dialog is gone.
+  final BuildContext? host;
 
   @override
   ConsumerState<ImportPeopleDialog> createState() => _ImportPeopleDialogState();
@@ -88,6 +92,7 @@ class _ImportPeopleDialogState extends ConsumerState<ImportPeopleDialog> {
     final f = ref.read(formatProvider);
     final api = ref.read(apiProvider);
     final staff = staffInvalidator(ref);
+    final host = widget.host;
     setState(() => _busy = true);
     final done = Map<int, _Outcome>.of(_outcomes);
     for (final p in parsed.people) {
@@ -110,11 +115,13 @@ class _ImportPeopleDialogState extends ConsumerState<ImportPeopleDialog> {
       if (mounted) setState(() => _outcomes = Map.of(done));
     }
     staff.invalidateStaff();
-    if (!mounted) return;
-    setState(() => _busy = false);
+    if (mounted) setState(() => _busy = false);
+    // Said even after the dialog closed mid-run (the web's toast is global).
+    final at = mounted ? context : host;
+    if (at == null || !at.mounted) return;
     final added = done.values.where((o) => o.ok).length;
     DashToast.success(
-      context,
+      at,
       t(
         'dawam.importDone',
         args: {'added': added, 'total': parsed.people.length},
@@ -217,7 +224,7 @@ class _ImportPeopleDialogState extends ConsumerState<ImportPeopleDialog> {
 typedef _Row = ({int row, NewPerson? person, RowError? error});
 
 // The preview's column shares.
-const int _name = 4, _phone = 4, _branch = 3, _salary = 4, _result = 5;
+const int _name = 3, _phone = 4, _branch = 3, _salary = 3, _result = 7;
 
 class _Preview extends ConsumerWidget {
   const _Preview({

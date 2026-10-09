@@ -18,6 +18,7 @@ import 'package:intl/intl.dart' as intl;
 
 import '../shared/report_shared.dart';
 import 'staff_drink_money.dart';
+import 'staff_pool_providers.dart';
 
 /// "Latte · Large × 2": the size when sized, the quantity when more than one.
 String staffDrinkItemText(StaffDrink d) {
@@ -86,7 +87,8 @@ class StaffDrinksTable extends ConsumerWidget {
         label: t('staffPool.colItem'),
         phone: DashPhoneRole.title,
         flex: 2,
-        minWidth: 128,
+        // "Americano · Regular" whole on a desktop row.
+        minWidth: 176,
         text: staffDrinkItemText,
         cell: (context, d) {
           final text = Text(staffDrinkItemText(d));
@@ -101,6 +103,7 @@ class StaffDrinksTable extends ConsumerWidget {
               _OrderLink(
                 label: t('staffPool.viewOrder'),
                 onTap: () => onOpenOrder!(orderId),
+                onIntent: () => ref.warm(staffDrinkOrderProvider(orderId)),
               ),
             ],
           );
@@ -304,16 +307,24 @@ class _OverBadge extends ConsumerWidget {
 
 /// "View order": a quiet link under the item, 44 tall to the finger.
 class _OrderLink extends StatelessWidget {
-  const _OrderLink({required this.label, required this.onTap});
+  const _OrderLink({
+    required this.label,
+    required this.onTap,
+    required this.onIntent,
+  });
 
   final String label;
   final VoidCallback onTap;
+
+  /// Warms the sale's read the sheet makes.
+  final VoidCallback onIntent;
 
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
     return DashPressable(
       onTap: onTap,
+      onIntent: onIntent,
       semanticLabel: label,
       excludeChildSemantics: true,
       pressScale: false,

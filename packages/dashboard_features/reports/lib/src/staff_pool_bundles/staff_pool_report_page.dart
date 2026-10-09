@@ -78,7 +78,7 @@ class StaffPoolReportPage extends ConsumerWidget {
         canSee,
         staffDrinksSummaryProvider(drinksQuery),
       );
-      if (today.firstLoad) {
+      if (today.awaitingFirst) {
         body = const Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.md,
@@ -87,7 +87,7 @@ class StaffPoolReportPage extends ConsumerWidget {
             DashSkeleton(height: _Heights.table, radius: Radii.card),
           ],
         );
-      } else if (today.hasError) {
+      } else if (today.failedFirst) {
         body = DashErrorState(
           retryLabel: t('common.retry'),
           retrying: today.isLoading,
@@ -250,17 +250,15 @@ class _PoolDay extends ConsumerWidget {
                 ],
               ),
               StaffDrinksSummaryStrip(
-                summary: summary.hasError ? null : summary.value,
-                loading: summary.firstLoad,
-                failed: summary.hasError,
+                summary: summary.value,
+                loading: summary.awaitingFirst,
+                failed: summary.failedFirst,
                 onRetry: onRetrySummary,
               ),
               StaffDrinksTable(
-                drinks: drinks.hasError
-                    ? const []
-                    : (drinks.value ?? const <StaffDrink>[]),
-                loading: drinks.firstLoad,
-                error: drinks.hasError ? drinks.error : null,
+                drinks: drinks.value ?? const <StaffDrink>[],
+                loading: drinks.awaitingFirst,
+                error: drinks.failedFirst ? drinks.error : null,
                 onRetry: onRetryDrinks,
                 showDate: showDate,
                 onOpenOrder: onOpenOrder,

@@ -66,7 +66,10 @@ void main() {
       final api = DashboardApi(s.server).inventory;
       // No such branch.
       await expectLater(
-        api.createWaste(branchId: mockUuid('nowhere'), body: _body('matcha', 1)),
+        api.createWaste(
+          branchId: mockUuid('nowhere'),
+          body: _body('matcha', 1),
+        ),
         _refused(404),
       );
       // A reason a person may not type.
@@ -100,15 +103,14 @@ void main() {
         api.createWaste(branchId: SeedIds.zamalek, body: _body('matcha', 81)),
         _says(
           MockServer.toApiException(
-            MockResponse.badRequest('Only 80.000 on hand — cannot waste 81.000.'),
+            MockResponse.badRequest(
+              'Only 80.000 on hand — cannot waste 81.000.',
+            ),
           ).message,
         ),
       );
       await expectLater(
-        api.createWaste(
-          branchId: SeedIds.zamalek,
-          body: _body('croissant', 1),
-        ),
+        api.createWaste(branchId: SeedIds.zamalek, body: _body('croissant', 1)),
         _refused(400),
       );
       await expectLater(
@@ -121,18 +123,16 @@ void main() {
     test('inventory.waste.record and the branch are checked', () async {
       final limited = wasteServer(persona: Persona.limited);
       await expectLater(
-        DashboardApi(limited.server).inventory.createWaste(
-          branchId: SeedIds.maadi,
-          body: _body('oat', 1),
-        ),
+        DashboardApi(
+          limited.server,
+        ).inventory.createWaste(branchId: SeedIds.maadi, body: _body('oat', 1)),
         _refused(403),
       );
       final manager = wasteServer(persona: Persona.manager);
       await expectLater(
-        DashboardApi(manager.server).inventory.createWaste(
-          branchId: SeedIds.maadi,
-          body: _body('oat', 1),
-        ),
+        DashboardApi(
+          manager.server,
+        ).inventory.createWaste(branchId: SeedIds.maadi, body: _body('oat', 1)),
         _refused(403),
       );
     });
@@ -141,9 +141,9 @@ void main() {
   group('GET /reports/branches/{branch_id}/waste-report', () {
     test('per reason and ingredient, valued at the exact cost', () async {
       final s = wasteServer();
-      final rows = await DashboardApi(s.server).reports.branchWasteReport(
-        branchId: SeedIds.zamalek,
-      );
+      final rows = await DashboardApi(
+        s.server,
+      ).reports.branchWasteReport(branchId: SeedIds.zamalek);
       Map<String, Object?> row(String reason, String ing) {
         final r = rows.firstWhere(
           (r) =>
@@ -181,16 +181,16 @@ void main() {
 
     test('all branches rolls up the org; inventory.read is needed', () async {
       final s = wasteServer();
-      final rows = await DashboardApi(s.server).reports.branchWasteReport(
-        branchId: allBranches,
-      );
+      final rows = await DashboardApi(
+        s.server,
+      ).reports.branchWasteReport(branchId: allBranches);
       final reasons = {for (final r in rows) r.reason};
       expect(reasons, containsAll(['refund', 'order_cancelled']));
       final limited = wasteServer(persona: Persona.limited);
       await expectLater(
-        DashboardApi(limited.server).reports.branchWasteReport(
-          branchId: SeedIds.maadi,
-        ),
+        DashboardApi(
+          limited.server,
+        ).reports.branchWasteReport(branchId: SeedIds.maadi),
         _refused(403),
       );
     });
@@ -228,12 +228,15 @@ void main() {
         r('other', null),
         r('spoiled', 300),
       ]);
-      expect([for (final o in out) (o.reason, o.value, o.hasValue)], [
-        ('expired', 300, true),
-        ('theft', 300, true),
-        ('spoiled', 300, true),
-        ('other', 0, false),
-      ]);
+      expect(
+        [for (final o in out) (o.reason, o.value, o.hasValue)],
+        [
+          ('expired', 300, true),
+          ('theft', 300, true),
+          ('spoiled', 300, true),
+          ('other', 0, false),
+        ],
+      );
       expect(wasteTotal([r('a', 5), r('b', null), r('c', 7)]), 12);
     });
   });

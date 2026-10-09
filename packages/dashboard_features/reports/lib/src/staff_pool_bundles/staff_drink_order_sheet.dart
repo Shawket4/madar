@@ -65,11 +65,11 @@ class StaffDrinkOrderSheet extends ConsumerWidget {
     final f = ref.watch(formatProvider);
     final q = ref.watch(staffDrinkOrderProvider(orderId));
     final order = q.value;
-    if (order == null || q.hasError) {
+    if (order == null) {
       return DashSurface(
         title: t('orders.order'),
-        description: q.hasError ? null : t('common.loading'),
-        body: q.hasError
+        description: q.failedFirst ? null : t('common.loading'),
+        body: q.failedFirst
             ? DashErrorState(
                 message: errorMessage(q.error, t),
                 retryLabel: t('common.retry'),

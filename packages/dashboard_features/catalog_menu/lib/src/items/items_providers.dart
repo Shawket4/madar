@@ -42,10 +42,10 @@ final menuCatalogProvider = FutureProvider.autoDispose
     });
 
 /// `GET /costing/addon-items?org_id`: the add-ons' cost rollup (read only
-/// while the Add-ons tab is open).
+/// while the Add-ons tab is open), fresh for 60 s (`COST_STALE`).
 final addonCostsProvider = FutureProvider.autoDispose
     .family<List<AddonCost>, String>((ref, orgId) {
-      ref.webCache();
+      ref.webCache(staleTime: const Duration(seconds: 60));
       watchMenuPath(ref, MenuPaths.costingAddons);
       return ref.watch(apiProvider).costing.listAddonCosts(orgId: orgId);
     });

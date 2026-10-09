@@ -110,10 +110,7 @@ class _RecordWasteDialogState extends ConsumerState<RecordWasteDialog> {
     final quantity = dashParseNumber(_qty);
     final exceeds = exceedsOnHand(quantity, selected?.onHand);
     final valid =
-        _ingredientId != null &&
-        quantity != null &&
-        quantity > 0 &&
-        !exceeds;
+        _ingredientId != null && quantity != null && quantity > 0 && !exceeds;
     final failed = stock.failedFirst;
     final nothingCounted =
         !failed && !stock.awaitingFirst && rows.every((s) => !s.hasActivity);

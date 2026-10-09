@@ -263,3 +263,29 @@ class DashedRRectPainter extends CustomPainter {
   bool shouldRepaint(DashedRRectPainter old) =>
       old.color != color || old.radius != radius;
 }
+
+/// The web's outline `Badge`.
+class StudioOutlineBadge extends StatelessWidget {
+  const StudioOutlineBadge(this.label, {super.key});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.madarColors;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Space.sm,
+        vertical: DashMetrics.hair,
+      ),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(Radii.pill),
+        border: Border.all(color: c.hairline),
+      ),
+      child: Text(
+        label,
+        style: DashType.smallMedium.copyWith(color: c.textSecondary),
+      ),
+    );
+  }
+}

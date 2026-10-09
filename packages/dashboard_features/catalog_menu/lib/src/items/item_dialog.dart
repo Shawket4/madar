@@ -833,7 +833,7 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
       for (final a in addons)
         if (_allowed.contains(a.id)) a,
     ];
-    final picker = addonPickerGroups(addons, _addonSearch);
+    final picker = addonPickerGroups(addons, _addonSearch, t.lang);
     String name(AddonItem a) =>
         translatedName(a.name, a.nameTranslations, t.lang);
     void toggle(String id) => _edit(() {

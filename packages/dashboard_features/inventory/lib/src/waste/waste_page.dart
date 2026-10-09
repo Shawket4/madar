@@ -248,27 +248,26 @@ class WasteTable extends ConsumerWidget {
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
     final muted = DashType.small.copyWith(color: c.textMuted);
-    Widget lines(String main, List<String> under, {TextStyle? style}) =>
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          spacing: DashMetrics.hair,
-          children: [
-            MadarClippedText(
-              main,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: style,
-            ),
-            for (final u in under)
-              MadarClippedText(
-                u,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: muted,
-              ),
-          ],
-        );
+    Widget lines(String main, List<String> under, {TextStyle? style}) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      spacing: DashMetrics.hair,
+      children: [
+        MadarClippedText(
+          main,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: style,
+        ),
+        for (final u in under)
+          MadarClippedText(
+            u,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: muted,
+          ),
+      ],
+    );
     return DashDataTable<StockMovement>(
       key: const ValueKey('waste-table'),
       rows: rows,
@@ -277,7 +276,10 @@ class WasteTable extends ConsumerWidget {
       errorMessage: errorText,
       onRetry: onRetry,
       searchPlaceholder: t('common.search'),
-      empty: DashEmptyState(icon: 'trash-2', title: t('inventory.waste.noWaste')),
+      empty: DashEmptyState(
+        icon: 'trash-2',
+        title: t('inventory.waste.noWaste'),
+      ),
       columns: [
         DashColumn(
           id: 'occurred_at',
@@ -309,22 +311,18 @@ class WasteTable extends ConsumerWidget {
           id: 'ingredient_name',
           label: t('inventory.waste.ingredient'),
           text: (m) => m.ingredientName,
-          cell: (context, m) => lines(
-            m.ingredientName,
-            [
-              if (_fromItem(m))
-                t(
-                  'inventory.waste.fromItem',
-                  args: {
-                    'item': m.wasteSizeLabel == null
-                        ? m.wasteSubjectName
-                        : '${m.wasteSubjectName} (${m.wasteSizeLabel})',
-                    'qty': f.fmtNumber(m.wasteQuantity ?? 0),
-                  },
-                ),
-            ],
-            style: DashType.bodyMedium.copyWith(color: c.textPrimary),
-          ),
+          cell: (context, m) => lines(m.ingredientName, [
+            if (_fromItem(m))
+              t(
+                'inventory.waste.fromItem',
+                args: {
+                  'item': m.wasteSizeLabel == null
+                      ? m.wasteSubjectName
+                      : '${m.wasteSubjectName} (${m.wasteSizeLabel})',
+                  'qty': f.fmtNumber(m.wasteQuantity ?? 0),
+                },
+              ),
+          ], style: DashType.bodyMedium.copyWith(color: c.textPrimary)),
           phone: DashPhoneRole.title,
           minWidth: Space.xxl * 4 + Space.lg,
         ),
@@ -345,7 +343,8 @@ class WasteTable extends ConsumerWidget {
             m.reason == null ? '—' : wasteReasonLabel(t, m.reason!),
             const [],
           ),
-          minWidth: Space.xxl * 3,
+          // "Overproduction", "Refunded sale" uncut, as the web's nowrap cells.
+          minWidth: Space.xxl * 4,
         ),
         DashColumn(
           id: 'created_by_name',
@@ -353,10 +352,7 @@ class WasteTable extends ConsumerWidget {
           text: (m) => m.createdByName ?? '',
           cell: (context, m) => lines(m.createdByName ?? '—', [
             if (m.approvedByName != null)
-              t(
-                'inventory.waste.approvedBy',
-                args: {'name': m.approvedByName},
-              ),
+              t('inventory.waste.approvedBy', args: {'name': m.approvedByName}),
           ]),
           minWidth: Space.xxl * 3 + Space.xl,
         ),
@@ -393,7 +389,8 @@ class WasteTable extends ConsumerWidget {
               ],
             );
           },
-          minWidth: Space.xxl * 3 + Space.sm,
+          // The widest badge ("Voided order", "لوحة التحكم") on one line.
+          minWidth: Space.xxl * 4,
         ),
       ],
     );
@@ -421,8 +418,11 @@ class SourceBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(Radii.pill),
         border: Border.all(color: filled ? Colors.transparent : c.hairline),
       ),
+      // The web's cells never wrap (`whitespace-nowrap`).
       child: Text(
         label,
+        maxLines: 1,
+        softWrap: false,
         style: DashType.smallMedium.copyWith(color: c.textPrimary),
       ),
     );

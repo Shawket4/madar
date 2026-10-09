@@ -18,6 +18,12 @@ import '../shared/menu_text.dart';
 import 'studio_model.dart';
 import 'studio_widgets.dart';
 
+/// The price box (`w-32`), and the width where Name (`min-w-40`), Price,
+/// Active and the trash share one line.
+const double _priceWidth = Space.xxl * 4;
+const double _oneLine = Space.xxl * 5 + _priceWidth + Space.xxl * 3 +
+    DashMetrics.target + Space.md * 3;
+
 class StudioOptionsSection extends ConsumerWidget {
   const StudioOptionsSection({
     required this.rows,
@@ -37,6 +43,9 @@ class StudioOptionsSection extends ConsumerWidget {
     final c = context.madarColors;
     final byId = ingredientsById(catalog);
     final options = ingredientOptions(catalog, t);
+    // The web hard-codes "(EGP)"; the currency's own word reads right in
+    // Arabic too.
+    final priceLabel = '${t('common.price')} (${fmt.currencyLabel()})';
 
     void set(int i, OptionRow r) =>
         onChanged([for (final (j, x) in rows.indexed) j == i ? r : x]);
@@ -68,56 +77,52 @@ class StudioOptionsSection extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.md,
           children: [
-            Wrap(
-              spacing: Space.md,
-              runSpacing: Space.sm,
-              crossAxisAlignment: WrapCrossAlignment.end,
-              children: [
-                SizedBox(
-                  width: Space.xxl * 7,
-                  child: labelled(
-                    t('common.name'),
-                    DashTextInput(
-                      value: r.name,
-                      placeholder: t('menu.studio.options.namePh'),
-                      semanticLabel: t('common.name'),
-                      onChanged: (v) => set(i, r.copyWith(name: v)),
-                    ),
+            LayoutBuilder(
+              builder: (context, box) {
+                final name = labelled(
+                  t('common.name'),
+                  DashTextInput(
+                    value: r.name,
+                    placeholder: t('menu.studio.options.namePh'),
+                    semanticLabel: t('common.name'),
+                    onChanged: (v) => set(i, r.copyWith(name: v)),
                   ),
-                ),
-                SizedBox(
-                  width: Space.xxl * 4,
+                );
+                final price = SizedBox(
+                  width: _priceWidth,
                   child: labelled(
-                    // The web hard-codes "(EGP)" here, in both languages.
-                    '${t('common.price')} (EGP)',
+                    priceLabel,
                     DashTextInput(
                       value: r.price,
                       mono: true,
                       textAlign: TextAlign.end,
-                      semanticLabel: '${t('common.price')} (EGP)',
+                      semanticLabel: priceLabel,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
                       onChanged: (v) => set(i, r.copyWith(price: v)),
                     ),
                   ),
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: Space.xs,
-                  children: [
-                    DashSwitch(
-                      value: r.isActive,
-                      semanticLabel: t('common.active'),
-                      onChanged: (v) => set(i, r.copyWith(isActive: v)),
-                    ),
-                    Text(
-                      t('common.active'),
-                      style: DashType.body.copyWith(color: c.textPrimary),
-                    ),
-                  ],
-                ),
-                DashIconButton(
+                );
+                final active = SizedBox(
+                  height: DashMetrics.control,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: Space.xs,
+                    children: [
+                      DashSwitch(
+                        value: r.isActive,
+                        semanticLabel: t('common.active'),
+                        onChanged: (v) => set(i, r.copyWith(isActive: v)),
+                      ),
+                      Text(
+                        t('common.active'),
+                        style: DashType.body.copyWith(color: c.textPrimary),
+                      ),
+                    ],
+                  ),
+                );
+                final remove = DashIconButton(
                   icon: 'trash-2',
                   color: c.danger,
                   semanticLabel: t('common.remove'),
@@ -125,8 +130,29 @@ class StudioOptionsSection extends ConsumerWidget {
                     for (final (j, x) in rows.indexed)
                       if (j != i) x,
                   ]),
-                ),
-              ],
+                );
+                // The web's `flex-wrap`: Name grows (min-w-40 flex-1), the
+                // trash sits at the row's end (ms-auto) on whichever line.
+                if (box.maxWidth >= _oneLine) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    spacing: Space.md,
+                    children: [Expanded(child: name), price, active, remove],
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: Space.sm,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      spacing: Space.md,
+                      children: [Expanded(child: name), price],
+                    ),
+                    Row(children: [active, const Spacer(), remove]),
+                  ],
+                );
+              },
             ),
             Container(
               padding: const EdgeInsets.only(top: Space.md),

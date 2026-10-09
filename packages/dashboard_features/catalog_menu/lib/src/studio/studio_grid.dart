@@ -438,7 +438,7 @@ class _StudioRecipeGridState extends ConsumerState<StudioRecipeGrid> {
           textAlign: TextAlign.end,
           style: (cost is CostKnown ? DashType.mono : DashType.small).copyWith(
             color: c.textSecondary,
-            fontSize: 12,
+            fontSize: DashType.small.fontSize,
           ),
         ),
       );
@@ -1044,13 +1044,11 @@ class _StudioBasePickerState extends ConsumerState<StudioBasePicker> {
     final t = ref.read(tProvider);
     final baseId = next == _none ? null : next;
     final invalidate = ref.menuInvalidate;
+    final api = ref.read(apiProvider);
     setState(() => _busy = true);
     try {
       for (final s in widget.sizes) {
-        await ref
-            .read(apiProvider)
-            .menu
-            .putSizeBase(
+        await api.menu.putSizeBase(
               sizeId: s.id,
               body: PutSizeBaseRequest(
                 baseId: baseId,
@@ -1128,6 +1126,7 @@ class _StudioBasePickerState extends ConsumerState<StudioBasePicker> {
           label: t('modeling.base.manage'),
           variant: DashButtonVariant.link,
           size: DashButtonSize.compact,
+          onIntent: () => ref.prefetchRoute('/menu/bases'),
           onPressed: () => context.go('/menu/bases'),
         ),
         if (widget.disabled) StudioHint(t('modeling.base.saveFirst')),
@@ -1186,6 +1185,12 @@ class StudioRecipeLinkBar extends ConsumerWidget {
       label: label,
       variant: DashButtonVariant.link,
       size: DashButtonSize.compact,
+      // Opening the other item reads its aggregate, its link and its row
+      // (both ends of a link read the link).
+      onIntent: () => ref
+        ..warm(menuStudioProvider(id))
+        ..warm(recipeLinkProvider(id))
+        ..warm(studioMenuItemProvider(id)),
       onPressed: () => context.go('/menu/items/$id'),
     );
 
@@ -1200,7 +1205,7 @@ class StudioRecipeLinkBar extends ConsumerWidget {
           Text(t('modeling.linked.follows'), style: style),
           itemLink(source, name),
           if (link?.inSync == false)
-            DashBadge(t('modeling.linked.outOfSync'), tone: DashTone.warning),
+            StudioOutlineBadge(t('modeling.linked.outOfSync')),
           if (canEdit)
             DashButton(
               label: t('modeling.linked.unlink'),

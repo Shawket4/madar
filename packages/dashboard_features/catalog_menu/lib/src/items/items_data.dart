@@ -162,16 +162,25 @@ List<GroupAttachInput> addonAttachments(
   ];
 }
 
-/// The add-on picker's groups: [addons] whose name contains [query] (any
-/// case), by type in first-seen order.
+/// The add-on picker's groups: [addons] whose raw name or name in [lang]
+/// (the one the chips show) contains [query] (any case), by type in
+/// first-seen order.
 List<(String, List<AddonItem>)> addonPickerGroups(
   List<AddonItem> addons,
   String query,
+  String lang,
 ) {
   final q = query.trim().toLowerCase();
+  bool hit(AddonItem a) =>
+      a.name.toLowerCase().contains(q) ||
+      translatedName(
+        a.name,
+        a.nameTranslations,
+        lang,
+      ).toLowerCase().contains(q);
   final byType = <String, List<AddonItem>>{};
   for (final a in addons) {
-    if (q.isNotEmpty && !a.name.toLowerCase().contains(q)) continue;
+    if (q.isNotEmpty && !hit(a)) continue;
     (byType[a.addonType] ??= []).add(a);
   }
   return [for (final e in byType.entries) (e.key, e.value)];

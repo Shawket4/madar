@@ -20,13 +20,17 @@ import 'employee_fields.dart';
 import 'employees_data.dart';
 import 'employees_providers.dart';
 
-/// Opens [e]'s profile: a centred dialog, full screen on a phone.
-Future<void> showEmployeeDialog(BuildContext context, Employee e) =>
-    showDashDialog<void>(
-      context,
-      width: DashMetrics.dialogWide,
-      builder: (_) => EmployeeDialog(employee: e),
-    );
+/// Opens [e]'s profile: a centred dialog, full screen on a phone. [live] is
+/// the list [e] came from: the dialog follows its fresh copy of [e].
+Future<void> showEmployeeDialog(
+  BuildContext context,
+  Employee e, {
+  FutureProvider<List<Employee>>? live,
+}) => showDashDialog<void>(
+  context,
+  width: DashMetrics.dialogWide,
+  builder: (_) => EmployeeDialog(employee: e, live: live),
+);
 
 /// Signs [e]'s phone out after the destructive confirm (TEAM-EMP-011/029):
 /// the phone is refused on its next request. True when it was.
@@ -62,9 +66,14 @@ Future<bool> revokeEmployeePhone(
 }
 
 class EmployeeDialog extends ConsumerStatefulWidget {
-  const EmployeeDialog({required this.employee, super.key});
+  const EmployeeDialog({required this.employee, this.live, super.key});
 
   final Employee employee;
+
+  /// The page's list read: its fresh row re-seeds the form until something
+  /// is edited (the PUT sends every field, so a stale copy would overwrite
+  /// newer data), and always gives the phone signed in.
+  final FutureProvider<List<Employee>>? live;
 
   @override
   ConsumerState<EmployeeDialog> createState() => _EmployeeDialogState();
@@ -73,35 +82,70 @@ class EmployeeDialog extends ConsumerStatefulWidget {
 const String _none = '__none__';
 
 class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
-  Employee get e => widget.employee;
+  /// The freshest copy of the employee.
+  late Employee e = widget.employee;
 
-  // The form, reset from the row each time it opens.
-  late String _name = e.name;
-  late String _phone = e.phone ?? '';
-  late bool _appAccess = e.appAccess;
-  late List<String> _branchIds = [...e.branchIds];
-  late String _departmentId = e.departmentId ?? _none;
-  late String _employeeCode = e.employeeCode ?? '';
-  late String _jobTitle = e.jobTitle ?? '';
-  late String _hireDate = e.hireDate ?? '';
-  late String _status =
-      const {'active', 'suspended', 'terminated'}.contains(e.employmentStatus)
-      ? e.employmentStatus
-      : 'active';
-  late String _terminationDate = e.terminationDate ?? '';
-  late String _salary = e.baseSalaryPiastres == null
-      ? ''
-      : egpText(e.baseSalaryPiastres!);
-  late String _nationalId = e.nationalId ?? '';
-  late String _emergencyName = e.emergencyContactName ?? '';
-  late String _emergencyPhone = e.emergencyContactPhone ?? '';
-  late String _notes = e.notes ?? '';
-  late String _gender = e.gender == 'm' || e.gender == 'f' ? e.gender! : _none;
-  late String _payMethod = const {'cash', 'bank', 'wallet'}.contains(e.payMethod)
-      ? e.payMethod
-      : 'cash';
-  late String _payAccount = e.payAccount ?? '';
-  late bool _onPayroll = e.onPayroll;
+  /// Something was edited: a fresher row no longer re-seeds the form.
+  bool _dirty = false;
+
+  late String _name;
+  late String _phone;
+  late bool _appAccess;
+  late List<String> _branchIds;
+  late String _departmentId;
+  late String _employeeCode;
+  late String _jobTitle;
+  late String _hireDate;
+  late String _status;
+  late String _terminationDate;
+  late String _salary;
+  late String _nationalId;
+  late String _emergencyName;
+  late String _emergencyPhone;
+  late String _notes;
+  late String _gender;
+  late String _payMethod;
+  late String _payAccount;
+  late bool _onPayroll;
+
+  @override
+  void initState() {
+    super.initState();
+    _seed(e);
+  }
+
+  /// The form, from [e].
+  void _seed(Employee e) {
+    _name = e.name;
+    _phone = e.phone ?? '';
+    _appAccess = e.appAccess;
+    _branchIds = [...e.branchIds];
+    _departmentId = e.departmentId ?? _none;
+    _employeeCode = e.employeeCode ?? '';
+    _jobTitle = e.jobTitle ?? '';
+    _hireDate = e.hireDate ?? '';
+    _status =
+        const {'active', 'suspended', 'terminated'}.contains(e.employmentStatus)
+        ? e.employmentStatus
+        : 'active';
+    _terminationDate = e.terminationDate ?? '';
+    _salary = e.baseSalaryPiastres == null ? '' : egpText(e.baseSalaryPiastres!);
+    _nationalId = e.nationalId ?? '';
+    _emergencyName = e.emergencyContactName ?? '';
+    _emergencyPhone = e.emergencyContactPhone ?? '';
+    _notes = e.notes ?? '';
+    _gender = e.gender == 'm' || e.gender == 'f' ? e.gender! : _none;
+    _payMethod = const {'cash', 'bank', 'wallet'}.contains(e.payMethod)
+        ? e.payMethod
+        : 'cash';
+    _payAccount = e.payAccount ?? '';
+    _onPayroll = e.onPayroll;
+  }
+
+  void _edit(VoidCallback change) => setState(() {
+    change();
+    _dirty = true;
+  });
 
   bool _submitted = false;
   bool _busy = false;
@@ -234,6 +278,14 @@ class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final f = ref.watch(formatProvider);
+    if (widget.live case final live?) {
+      final id = widget.employee.id;
+      final fresh = ref.watch(live).value?.where((x) => x.id == id).firstOrNull;
+      if (fresh != null && !identical(fresh, e)) {
+        e = fresh;
+        if (!_dirty) _seed(fresh);
+      }
+    }
     final authz = ref.watch(authzProvider);
     final canRevoke = authz.can(Cap.hrStaffEdit);
     // Shown and sent only to someone who may set it: the server ignores it
@@ -267,7 +319,7 @@ class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
       keyboardType: keyboard,
       description: description,
       errorText: problems[field],
-      onChanged: (v) => setState(() => onChanged(v)),
+      onChanged: (v) => _edit(() => onChanged(v)),
     );
     Widget date(
       String label,
@@ -279,7 +331,7 @@ class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
       value: value,
       today: today,
       errorText: field == null ? null : problems[field],
-      onChanged: (v) => setState(() => onChanged(v)),
+      onChanged: (v) => _edit(() => onChanged(v)),
     );
 
     // (widget, spans both columns)
@@ -290,7 +342,7 @@ class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
           label: t('dawam.whatsapp'),
           value: _phone,
           errorText: problems['phone'],
-          onChanged: (v) => setState(() => _phone = v),
+          onChanged: (v) => _edit(() => _phone = v),
         ),
         false,
       ),
@@ -304,7 +356,7 @@ class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
                 )
               : t('dawam.noDevice'),
           value: _appAccess,
-          onChanged: (v) => setState(() => _appAccess = v),
+          onChanged: (v) => _edit(() => _appAccess = v),
         ),
         true,
       ),
@@ -314,7 +366,7 @@ class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
           branches: branches,
           value: _branchIds,
           errorText: problems['branches'],
-          onChanged: (v) => setState(() => _branchIds = v),
+          onChanged: (v) => _edit(() => _branchIds = v),
         ),
         true,
       ),
@@ -346,7 +398,7 @@ class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
             opt(_none, t('staff.noDepartment')),
             for (final d in departments) opt(d.id, d.name),
           ],
-          onChanged: (v) => setState(() => _departmentId = v),
+          onChanged: (v) => _edit(() => _departmentId = v),
         ),
         false,
       ),
@@ -361,7 +413,7 @@ class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
             opt('suspended', t('staff.statusSuspended')),
             opt('terminated', t('staff.statusTerminated')),
           ],
-          onChanged: (v) => setState(() => _status = v),
+          onChanged: (v) => _edit(() => _status = v),
         ),
         false,
       ),
@@ -381,7 +433,7 @@ class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
             label: t('dawam.onPayroll'),
             description: t('dawam.onPayrollHint'),
             value: _onPayroll,
-            onChanged: (v) => setState(() => _onPayroll = v),
+            onChanged: (v) => _edit(() => _onPayroll = v),
           ),
           true,
         ),
@@ -390,7 +442,7 @@ class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
           SalaryCalculator(
             label: t('staff.baseSalary'),
             monthly: _salary,
-            onMonthly: (v) => setState(() => _salary = v),
+            onMonthly: (v) => _edit(() => _salary = v),
             placeholder: salary == SalaryState.notSet
                 ? t('dawam.notSet')
                 : null,
@@ -413,7 +465,7 @@ class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
             opt('f', t('dawam.gender_f')),
             opt('m', t('dawam.gender_m')),
           ],
-          onChanged: (v) => setState(() => _gender = v),
+          onChanged: (v) => _edit(() => _gender = v),
         ),
         false,
       ),
@@ -426,7 +478,7 @@ class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
             opt('bank', t('dawam.pay_bank')),
             opt('wallet', t('dawam.pay_wallet')),
           ],
-          onChanged: (v) => setState(() => _payMethod = v),
+          onChanged: (v) => _edit(() => _payMethod = v),
         ),
         false,
       ),
