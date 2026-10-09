@@ -7,16 +7,16 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// "42m", "7h 25m", "1d 03h" from a minute count (`fmtMinutes`): attendance
-/// cells and the Team board's "late". Arabic units with a space, in an LTR
+/// cells and the Team board's "late". Arabic units with a space, in an RTL
 /// isolate; a negative count keeps its true minus inside the isolate; null →
 /// "—".
 String fmtMinutes(DashFormat f, num? minutes) {
   if (minutes == null) return '—';
   final out = f.fmtElapsedMs(minutes.abs() * 60000);
   if (minutes >= 0) return out;
-  return out.startsWith(lri)
-      ? '$lri$minusSign${out.substring(lri.length)}'
-      : '$minusSign$out';
+  // Arabic opens with the isolate's mark (RLI): the minus goes after it.
+  final open = f.isArabic ? out.substring(0, 1) : '';
+  return '$open$minusSign${out.substring(open.length)}';
 }
 
 /// A span of work in hours and minutes, never days (`fmtHours`): "56h",

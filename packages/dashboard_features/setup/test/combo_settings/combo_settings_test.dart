@@ -171,8 +171,9 @@ void main() {
       }
     });
 
-    testWidgets('SET-CMB-007 the margin loads as a percent, with its hint; '
-        'none shows the placeholder', (tester) async {
+    testWidgets('SET-CMB-007 the margin loads as a percent, with its hint', (
+      tester,
+    ) async {
       final m = cmbServer();
       final h = await pumpCombos(tester, backend: m);
       expect(tester.widget<EditableText>(marginInput()).controller.text, '55');
@@ -182,13 +183,17 @@ void main() {
       final input = tester.widget<DashTextInput>(byKey('cmb-margin'));
       expect(input.textDirection, TextDirection.ltr);
       expect(input.mono, isTrue);
+    });
 
+    testWidgets('SET-CMB-007 no margin: blank, the placeholder', (
+      tester,
+    ) async {
+      final m = cmbServer();
       m.db[ComboSettingsMock.margins].put({
         'id': SeedIds.sabahOrg,
         'combo_min_margin': null,
       });
-      await h.go('/settings');
-      await h.go(cmbPath);
+      await pumpCombos(tester, backend: m);
       expect(tester.widget<EditableText>(marginInput()).controller.text, '');
       expect(
         tester.widget<DashTextInput>(byKey('cmb-margin')).placeholder,

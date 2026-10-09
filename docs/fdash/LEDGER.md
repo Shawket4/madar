@@ -331,3 +331,5 @@ CORE FIX (me): Arabic durations now RTL-isolated (core fmtElapsedMs/fmtDuration 
 PENDING (launch when a slot frees): pending/admin-review-setup-staff_pool.md
 VERIFIED setup/links NOT (major = kit hintTextDirection, in kit batch 1) + minors → appended to pending/admin-review-setup-staff_pool.md
 BUILT admin/devices (29/29, 111 tests) → VERIFY QUEUED. INTEGRATION: two POST /devices/activation-codes handlers (devices_mock + branch_setup_mock) → keep one; org_errors.dart (orgs) imported by devices+review → move to admin/shared; devices mock hard-codes branch_device_slots table name.
+PEER: MadarRust 7043a9f4 (PR #14) fixed both spec bugs (ReviewedOut; DecisionOut.impact nullable) → regen + drop workarounds agent launched.
+BUILT admin/orgs (59/59, 132 tests) → VERIFY QUEUED. KIT: shared uploader words non-ApiException errors as 'unexpected' (orgs extended ApiException).

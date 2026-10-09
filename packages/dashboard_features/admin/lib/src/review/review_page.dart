@@ -317,7 +317,8 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
               return MadarClippedText(
                 f.capability,
                 textDirection: TextDirection.ltr,
-                maxLines: 1,
+                // A long dotted key wraps once before it is cut (ADM-REV-009).
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: DashType.mono.copyWith(color: c.textSecondary),
               );
@@ -393,7 +394,11 @@ class _ReasonPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         spacing: Space.xs,
         children: [
-          DashIcon(DashStatusPill.glyphFor(tone), size: 12, color: fg),
+          DashIcon(
+            DashStatusPill.glyphFor(tone),
+            size: IconSize.xs,
+            color: fg,
+          ),
           Flexible(
             child: Text(
               label,

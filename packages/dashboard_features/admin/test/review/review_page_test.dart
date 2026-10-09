@@ -5,6 +5,7 @@ import 'package:dashboard_admin/src/shared/access_tabs.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
+import 'package:design_system/design_system.dart' show MadarClippedText;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -218,6 +219,12 @@ void main() {
     );
     expect(onPage('orders.void'), findsNWidgets(2));
     expect(onPage('pos:sign_in'), findsOneWidget);
+    final raw = tester.widget<MadarClippedText>(
+      find.byWidgetPredicate(
+        (w) => w is MadarClippedText && w.data == 'pos:sign_in',
+      ),
+    );
+    expect(raw.maxLines, 2, reason: 'a long key wraps once before the cut');
   });
 
   testWidgets('ADM-REV-009 Arabic names the capability in Arabic', (

@@ -47,9 +47,11 @@ class RulesFirstBanner extends ConsumerWidget {
         ),
       ],
     );
+    final target = more ? '/staff/setup' : '/staff/rules';
     final action = DashButton(
       label: more ? t('dawam.setupFinish') : t('dawam.rulesFirstAction'),
-      onPressed: () => context.go(more ? '/staff/setup' : '/staff/rules'),
+      onPressed: () => context.go(target),
+      onIntent: () => ref.prefetchRoute(target),
     );
     return Semantics(
       liveRegion: true,

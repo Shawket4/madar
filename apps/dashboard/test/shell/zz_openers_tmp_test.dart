@@ -80,6 +80,10 @@ void main() {
       prefs: _at(SeedIds.heliopolis),
     );
     h.allowUnmatched = true; // the order sheet's own extra reads
+    // ignore: avoid_print
+    print([for (final e in find.byKey(const ValueKey('ops-table-name')).evaluate()) e.widget.toString()]);
+    // ignore: avoid_print
+    print(h.location);
     await h.tap(
       find
           .descendant(

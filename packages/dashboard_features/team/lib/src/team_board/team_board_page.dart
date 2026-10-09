@@ -294,7 +294,7 @@ class _StatCards extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final p = presence.value;
     final cols = MediaQuery.sizeOf(context).width >= DashBreakpoints.lg ? 4 : 2;
-    final noFlags = failedEmpty(flags);
+    final noFlags = flags.failedFirst;
     final cards = [
       (
         t('dawam.stateIn'),
@@ -364,7 +364,7 @@ class _FlagsList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final f = ref.watch(formatProvider);
-    if (failedEmpty(read)) {
+    if (read.failedFirst) {
       return DashErrorState(
         title: t('dawam.flagsLoadError'),
         message: attendanceErrorText(read.error, t, f),
@@ -435,7 +435,7 @@ class _PresenceList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final f = ref.watch(formatProvider);
-    if (failedEmpty(read)) {
+    if (read.failedFirst) {
       return DashErrorState(
         title: t('dawam.teamLoadError'),
         message: attendanceErrorText(read.error, t, f),

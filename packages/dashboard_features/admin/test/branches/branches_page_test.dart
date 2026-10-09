@@ -72,11 +72,16 @@ void main() {
     addLocation(s.db);
     addLocation(s.db, name: 'Dokki Kiosk', kind: 'branch', active: false);
     final h = await pumpBranches(tester, server: s.server, db: s.db);
+    // The page's read, and the scope bar's branch picker (the core's), ask
+    // the same thing.
     final calls = _lists(h);
-    expect(calls, hasLength(1));
-    expect(calls.single.query['org_id'], [SeedIds.sabahOrg]);
-    expect(calls.single.query['include_warehouses'], ['true']);
-    expect(calls.single.query.containsKey('page'), isFalse);
+    expect(calls, isNotEmpty);
+    for (final c in calls) {
+      expect(c.query, {
+        'org_id': [SeedIds.sabahOrg],
+        'include_warehouses': ['true'],
+      });
+    }
     expect(_pageText('Obour Warehouse'), findsOneWidget);
     expect(_pageText('Dokki Kiosk'), findsOneWidget);
   });
@@ -247,12 +252,14 @@ void main() {
   testWidgets('ADM-BRA-012 a failed read: the error and Retry, which asks '
       'again', (tester) async {
     final s = branchesServer();
-    s.server.fail('GET', listRoute, MockResponse.error(500, 'boom'), times: 1);
+    // Both reads of the list fail (the page's and the scope bar's).
+    s.server.fail('GET', listRoute, MockResponse.error(500, 'boom'), times: 2);
     final h = await pumpBranches(tester, server: s.server, db: s.db);
     expect(_pageText('Retry'), findsOneWidget);
     expect(_pageText('Branches you add appear here'), findsNothing);
+    final before = _lists(h).length;
     await h.tap(_pageText('Retry'));
-    expect(_lists(h), hasLength(2));
+    expect(_lists(h), hasLength(before + 1), reason: 'only its own read');
     expect(_pageText('Zamalek'), findsOneWidget);
   });
 
@@ -284,7 +291,7 @@ void main() {
     await h.settle();
     expect(h.location.queryParameters.containsKey('edit'), isFalse);
     // Keyboard: focus the row, Enter.
-    Focus.of(tester.element(rowOf('Heliopolis'))).requestFocus();
+    Focus.of(tester.element(_pageText('Heliopolis'))).requestFocus();
     await h.settle();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await h.settle();
@@ -314,7 +321,7 @@ void main() {
       '/branches/${row['id']}',
     );
     await h.expectToast('Branch deleted');
-    expect(_lists(h).length, before + 1);
+    expect(_lists(h).length, greaterThan(before), reason: '/branches asked');
     expect(rowOf('Obour Warehouse'), findsNothing);
   });
 
@@ -356,8 +363,8 @@ void main() {
   testWidgets('ADM-BRA-018 Export: one sheet, six columns, every branch, the '
       'engine\'s toasts', (tester) async {
     final s = branchesServer();
-    final w = addLocation(s.db);
-    w['printer_brand'] = 'star';
+    addLocation(s.db);
+    branchNamed(s.db, 'Obour Warehouse')['printer_brand'] = 'star';
     final h = await pumpBranches(tester, server: s.server, db: s.db);
     await h.enterText(find.byType(DashSearchInput), 'zama');
     await h.tapText('Export Excel');

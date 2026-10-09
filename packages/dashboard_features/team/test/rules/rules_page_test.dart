@@ -415,8 +415,8 @@ void main() {
     sub.close();
   });
 
-  testWidgets('TEAM-ALL-013 (divergence) in Arabic: Latin digits, the read-back arrow '
-      'points the way the line reads', (tester) async {
+  testWidgets('TEAM-ALL-013 (divergence) in Arabic: Latin digits, the '
+      'read-back arrow points the way the line reads', (tester) async {
     final h = await pumpRules(tester, locale: 'ar');
     expect(shown(tester, RulesKeys.tierFrom(0)), '15');
     expect(

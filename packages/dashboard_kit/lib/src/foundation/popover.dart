@@ -28,8 +28,9 @@ class DashPopoverController extends ChangeNotifier {
   void toggle() => _open ? close() : open();
 }
 
-/// Which edge of the trigger a popover lines up with.
-enum DashPopoverAlign { start, end }
+/// Which edge of the trigger a popover lines up with ([center]: its middle,
+/// the web's `align="center"`).
+enum DashPopoverAlign { start, end, center }
 
 /// A floating card anchored under (or, when there is no room, over) its
 /// trigger — the web's Radix popover: a dropdown, a select list, a calendar.
@@ -149,7 +150,11 @@ class _DashPopoverState extends State<DashPopover> {
 
     // Line up with the trigger's start (or end) edge, then keep it inside.
     final startAligned = (widget.align == DashPopoverAlign.start) != rtl;
-    var left = startAligned ? anchor.left : anchor.right - width;
+    var left = widget.align == DashPopoverAlign.center
+        ? anchor.center.dx - width / 2
+        : startAligned
+        ? anchor.left
+        : anchor.right - width;
     left = left.clamp(
       Space.lg,
       math.max(Space.lg, screen.width - Space.lg - width),

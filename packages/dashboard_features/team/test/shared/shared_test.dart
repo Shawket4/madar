@@ -3,7 +3,8 @@
 // itself, and the shared mock reads.
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart' show ensureTimeZones;
+import 'package:dashboard_core/dashboard_core.dart'
+    show DashFormat, ensureTimeZones;
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_team/dashboard_team.dart';
 import 'package:dashboard_team/src/area_seed.dart';
@@ -54,7 +55,15 @@ void main() {
       expect(fmtHours('en', 3360), '56h');
       expect(fmtHours('en', -60), '−1h');
       expect(fmtHours('en', null), '—');
-      expect(fmtHours('ar', 445), '\u20667 س 25 د\u2069');
+      // Right to left: hours first for an Arabic reader (TEAM-ALL-013).
+      expect(fmtHours('ar', 445), '\u20677 س 25 د\u2069');
+      expect(fmtHours('ar', -60), '\u2067−1 س\u2069');
+    });
+
+    test('fmtMinutes keeps the minus inside the Arabic isolate', () {
+      expect(fmtMinutes(const DashFormat(lang: 'ar'), 445), '\u20677 س 25 د\u2069');
+      expect(fmtMinutes(const DashFormat(lang: 'ar'), -42), '\u2067−42 د\u2069');
+      expect(fmtMinutes(const DashFormat(), -42), '−42m');
     });
 
     test('formatSpan', () {

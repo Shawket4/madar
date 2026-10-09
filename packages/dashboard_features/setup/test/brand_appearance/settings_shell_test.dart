@@ -398,15 +398,16 @@ void main() {
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(location: Offset.zero);
       addTearDown(mouse.removePointer);
+      // The header reads the org too; count from where the page stands.
       int reads() => h.server.callsTo(orgRoute, method: 'GET').length;
-      expect(reads(), 0);
+      final before = reads();
       final entry = _inRail(find.text('Brand'));
       await mouse.moveTo(tester.getCenter(entry));
       await h.settle();
-      expect(reads(), 1, reason: 'warmed on intent');
+      expect(reads(), before + 1, reason: 'warmed on intent');
       await h.tap(entry);
       expect(h.location.path, brandPath);
-      expect(reads(), 1, reason: 'opened from the cache');
+      expect(reads(), before + 1, reason: 'opened from the cache');
     });
 
     testWidgets('SET-SHL-013 the picker\'s options warm their pane too', (

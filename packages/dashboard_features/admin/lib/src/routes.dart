@@ -23,6 +23,7 @@ import 'devices/devices_page.dart';
 import 'onboarding/onboarding_page.dart';
 import 'orgs/orgs_page.dart';
 import 'orgs/orgs_providers.dart';
+import 'review/review_data.dart' show reviewFlagsProvider;
 import 'review/review_page.dart';
 import 'roles/roles_data.dart' show prefetchRoles;
 import 'roles/roles_page.dart';
@@ -103,6 +104,7 @@ const List<DashRoute> adminRoutes = [
     builder: _review,
     titleKey: 'access.review.title',
     titleFallback: 'Review',
+    prefetch: _prefetchReview,
   ),
   DashRoute(
     path: OnboardingPage.path,
@@ -111,6 +113,11 @@ const List<DashRoute> adminRoutes = [
     titleFallback: 'Let\'s open your café',
   ),
 ];
+
+/// No web `prefetchRoute` case: resting on the Access "Review" tab warms the
+/// open flags the page mounts with (ADM-REV-001 intent).
+void _prefetchReview(DashPrefetcher warm, Scope s) =>
+    warm(reviewFlagsProvider(false));
 
 /// The web's `prefetchRoute('/orgs')`.
 void _prefetchOrgs(DashPrefetcher warm, Scope s) => warm(orgsListProvider);
