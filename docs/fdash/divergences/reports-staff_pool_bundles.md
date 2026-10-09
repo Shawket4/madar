@@ -1,0 +1,13 @@
+# Reports / Staff drinks and Bundles (`/reports/staff-pool`, `/reports/bundles`): differences from the web
+
+| Row | Web | Flutter | Why |
+|---|---|---|---|
+| REP-BUN-011 the count column's label in Deals | The header reads "Applied", but the Columns menu entry and the phone card's field label still read "Sold" (`meta.label` is never relabelled). | "Applied" in the header, the Columns menu and the phone card. | One column, one word: the web plainly meant to relabel it (SPEC 6.3). Pinned by bundles_report_test "REP-BUN-011 (divergence)…". |
+| REP-SPL-019 the sale behind a drink | Opens the orders area's full `OrderDetailSheet` (member and customer links, onSwitchOrder, delivery block and timeline, rewards, combo and deal rows, deductions). | A local, read-only port of the parts a staff-drink sale uses (header, date, teller, waiter, customer, payment, lines with the staff-drink breakdown, add-ons, totals, COGS and gross profit). No customer or member link. | `dashboard_sell` is not a dependency of `dashboard_reports`. Pending the integration seam ("open this order" hook in dashboard_core). |
+| REP-SPL-015 the business day before the time | `fmtDate(business_date)` parses "YYYY-MM-DD" as UTC midnight, so a branch west of UTC would show the day before. | `fmtBusinessDate`: the day pinned to local noon, so it never slips. | Defect for zones behind UTC (SPEC 6.3); no difference for Cairo. |
+| REP-SPL-017, REP-SPL-018 hover reasons | The unpriced dash and the recount badge explain themselves in a `title` tooltip (hover only) plus screen-reader text. | The same words on hold (and hover), and as the semantics label. | A touch screen has no hover. |
+| REP-SPL-018 "· on recount" | Inside the destructive badge. | A muted line under the badge (same words, same hold hint). | Keeps the desktop table from scrolling sideways with the kit's wider cell padding. |
+| REP-SPL-019 the "View order" link | A text-xs link with no padding. | The same look inside a 44 pt tall target. | Accessibility rule (SPEC 2). |
+| REP-SPL-007, REP-BUN-014 Retry while it runs | The ErrorState's Retry has no busy state on these reads. | Retry spins while the retry runs; the error stays, never a skeleton or empty state. | AGENT_BRIEF loading/error rule. |
+| REP-SPL-015, REP-BUN-007 figure widths | Table cells never wrap; the table grows and scrolls sideways. | Column minimum widths keep every figure whole at desktop width; the phone card's Time wraps. | The kit cuts a plain text cell at its column width. |
+| REP-BUN-016 question: size labels | Size labels show as stored ("Regular") in Arabic too; only `one_size` is translated. | Ported as is. | Owner question: should the menu's Arabic size names be used? |

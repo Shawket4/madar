@@ -1,0 +1,12 @@
+# Catalog menu / bases (`/menu/bases`, `/menu/packaging`): differences from the web
+
+One line per difference: what the web does, what Flutter does, why. Rows marked "question" port
+the web's behaviour as it is and ask the owner.
+
+| Row | Web | Flutter | Why |
+|---|---|---|---|
+| MENU-BAS-016 clearing the Arabic name | Edit: an emptied "Name (ع)" is sent as `name_ar: null`, which the backend reads as "leave it" (`bases.rs` `CASE WHEN $3 THEN $4 ELSE name_ar END`): the toast says saved and the old Arabic name stays. | An emptied Arabic name is sent as `""` (the backend's "clear"); the change test still compares against `null`, so an untouched empty name sends nothing. | A save that silently keeps what the person removed is a web bug (SPEC 6.3). Pinned by "MENU-BAS-016 clearing the Arabic name sends "" (divergence)". |
+| MENU-BAS-014 one-price sizes | "Used by" prints the raw size label, so a one-price item reads "Cortado · one_size". | The sentinel reads `recipes.oneSize`: "Cortado · One size" ("حجم واحد"), as the pricing page and recipe builder name it; other sizes read "item · size". | A raw sentinel shown to people is a web bug. Pinned by "MENU-BAS-014 … one_size reads "One size" (divergence)". |
+| MENU-PKG-004 arrow in Arabic | The rule sub-line always joins matches and lines with " → ", which in a right-to-left line points back at the matches; and a Latin match ("Regular", "Espresso") beside the arrow pulls it into its left-to-right run. | " ← " in Arabic, " → " in English (the web's own Arabic hint `modeling.packaging.emptyHint` already writes "←"); each match and each "ingredient qty" is its own bidi isolate (U+2068…U+2069), so the arrow and separators take the paragraph's direction. | The arrow is meant to read "matches, then what they get"; a fixed glyph and unisolated Latin runs reverse it in Arabic. Pinned by "MENU-PKG-004 (divergence) Arabic …" (it measures the laid-out order). |
+| MENU-BAS-011 "Name (ع)" in Arabic | The synced Arabic of `bilingualField.arabicLabel` is "{{label}} (إنجليزي)", so in Arabic the Arabic-name box is labelled "الاسم (إنجليزي)" ("Name (English)"). | Ported as is (the label comes from the shared table). | Question: a copy defect in the web's shared `ar.json` (also noted in the offers inventory); the fix ("{{label}} (عربي)", which the kit's own fallback table already uses) belongs to the shared i18n, not one unit's supplement. |
+| MENU-BAS-018 nothing changed | Save with no change sends nothing and still toasts "Base saved · 0 sizes updated". | Same. | Product quirk, ported as is. |

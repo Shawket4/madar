@@ -53,7 +53,30 @@ running. Nothing has been pushed or merged into main.
 
 Estimate: about 6–7 hours of wall-clock time for steps 1–4.
 
-## How to restart (new session)
+## How to restart (new session) — CURRENT (2026-10-09, branch feat/fdash-parity-2)
+
+The run moved from workflows to a per-unit Agent loop. **`docs/fdash/LEDGER.md` is the state**
+(newest lines last): which units are DONE, BUILT (awaiting verify), VERIFIED (findings sent back),
+running, and queued, plus the KIT / CORE / INTEGRATION / WEB FIX / OWNER Q to-do lines.
+
+Loop, at most 20 agents at once:
+1. **Builder** (general-purpose agent) per unit: authority preamble + "FIRST read
+   docs/fdash/AGENT_BRIEF.md and follow it exactly. Your unit: area `X`, unit `Y` … web path …
+   notes". If the unit's files already exist, it continues from them.
+2. **Verifier** per built unit: same preamble + "FIRST read docs/fdash/VERIFIER_BRIEF.md … You are
+   READ-ONLY". Its findings go back to a fixer (a new builder agent for that unit if the old one is
+   gone), with the exact fixes.
+3. Commit a unit when it is verified and fixed, with an explicit `git add` of its paths. Units that
+   share files (sell; catalog_menu; catalog_offers) are committed per area.
+4. When every unit is DONE: area checks, the foundation and kit sweep (the KIT/CORE/SEED lines in
+   the ledger), integration (the INTEGRATION lines), then the real-backend check above.
+
+Subagents can't write `.md` files: write divergence files yourself from their reports.
+
+Builders still to launch, and units still to verify, are listed at the end of LEDGER.md under
+"RESTART STATE".
+
+## How to restart (old workflow method, superseded)
 
 The workflow cache does not carry across sessions, so each workflow is launched fresh. Every
 prompt tells agents to read their existing files and continue, not start over. The scripts are
