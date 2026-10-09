@@ -64,7 +64,10 @@ class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView> {
   Future<void> _post(CreateDecisionRequest body, String orgId) async {
     setState(() => _pending++);
     try {
-      await finCreateDecision(ref.read(transportProvider), orgId, body);
+      await ref
+          .read(apiProvider)
+          .insights
+          .createDecision(orgId: orgId, body: body);
     } finally {
       if (mounted) setState(() => _pending--);
     }

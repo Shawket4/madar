@@ -22,12 +22,19 @@ Widget _dateField() => DashDateField(
   onChanged: (_) {},
 );
 
-/// The open calendar card (the popover's frame around the month bar).
-Rect _card(WidgetTester tester) => tester.getRect(
+/// The open popover card holding [inner].
+Rect _cardOf(WidgetTester tester, Finder inner) => tester.getRect(
   find
-      .ancestor(of: find.byType(DashCalendar), matching: find.byType(Container))
-      .last,
+      .descendant(
+        of: find
+            .ancestor(of: inner, matching: find.byType(CustomSingleChildLayout))
+            .first,
+        matching: find.byType(Material),
+      )
+      .first,
 );
+
+Rect _card(WidgetTester tester) => _cardOf(tester, find.byType(DashCalendar));
 
 void main() {
   group('popover placement', () {
@@ -71,7 +78,7 @@ void main() {
       expect(card.top, greaterThanOrEqualTo(0));
       expect(card.bottom, lessThanOrEqualTo(420));
       // The footer is below the fold; scrolling the card brings it in.
-      await tester.drag(find.byType(DashCalendar), const Offset(0, -300));
+      await tester.dragFrom(card.center, const Offset(0, -300));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Today'));
       await tester.pumpAndSettle();
@@ -123,21 +130,15 @@ void main() {
             width: 200,
             align: DashPopoverAlign.center,
             anchor: (context, c) => DashButton(label: 'Cell', onPressed: c.open),
-            content: (context, c) => const SizedBox(height: 60),
+            content: (context, c) =>
+                const SizedBox(key: ValueKey('content'), height: 60),
           ),
         ),
       );
       await tester.tap(find.text('Cell'));
       await tester.pumpAndSettle();
       final trigger = tester.getRect(find.byType(DashButton));
-      final card = tester.getRect(
-        find
-            .ancestor(
-              of: find.byType(SizedBox).last,
-              matching: find.byType(Container),
-            )
-            .first,
-      );
+      final card = _cardOf(tester, find.byKey(const ValueKey('content')));
       expect(card.width, 200);
       expect(card.center.dx, moreOrLessEquals(trigger.center.dx));
     });

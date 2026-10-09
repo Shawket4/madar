@@ -250,6 +250,7 @@ class DashStatusPill extends StatelessWidget {
     this.tone = DashTone.neutral,
     this.icon,
     this.small = false,
+    this.wrap = false,
     super.key,
   });
 
@@ -259,6 +260,10 @@ class DashStatusPill extends StatelessWidget {
   /// Overrides the tone's glyph.
   final String? icon;
   final bool small;
+
+  /// Long words wrap onto more lines and the pill grows (the web's
+  /// `h-auto whitespace-normal` pill for a sentence); off, one line, cut.
+  final bool wrap;
 
   /// The tone's default glyph.
   static String glyphFor(DashTone tone) => switch (tone) {
@@ -307,11 +312,15 @@ class DashStatusPill extends StatelessWidget {
     final fg = tone.foreground(c);
     final style = (small ? DashType.tableHeader : DashType.smallStrong)
         .copyWith(color: fg, letterSpacing: 0);
+    final height = small ? DashMetrics.pillSmall : DashMetrics.pill;
     return Container(
-      height: small ? DashMetrics.pillSmall : DashMetrics.pill,
+      height: wrap ? null : height,
+      constraints: wrap ? BoxConstraints(minHeight: height) : null,
       padding: EdgeInsetsDirectional.only(
         start: small ? Space.xs + DashMetrics.hair : Space.sm,
         end: small ? Space.sm : Space.sm + DashMetrics.hair,
+        top: wrap ? DashMetrics.hair : 0,
+        bottom: wrap ? DashMetrics.hair : 0,
       ),
       decoration: BoxDecoration(
         color: tone.wash(c),
@@ -329,8 +338,8 @@ class DashStatusPill extends StatelessWidget {
           Flexible(
             child: Text(
               label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              maxLines: wrap ? null : 1,
+              overflow: wrap ? null : TextOverflow.ellipsis,
               style: style,
             ),
           ),
@@ -346,6 +355,7 @@ class DashBadge extends StatelessWidget {
     this.label, {
     this.tone = DashTone.neutral,
     this.mono = false,
+    this.outline = false,
     super.key,
   });
 
@@ -353,17 +363,25 @@ class DashBadge extends StatelessWidget {
   final DashTone tone;
   final bool mono;
 
+  /// The web's `variant="outline"`: a hairline ring, no wash, ink words
+  /// (a neutral badge) or the tone's.
+  final bool outline;
+
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
+    final fg = outline && tone == DashTone.neutral
+        ? c.textPrimary
+        : tone.foreground(c);
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: Space.sm,
         vertical: DashMetrics.hair,
       ),
       decoration: BoxDecoration(
-        color: tone.wash(c),
+        color: outline ? null : tone.wash(c),
         borderRadius: BorderRadius.circular(Radii.pill),
+        border: outline ? Border.all(color: c.hairline) : null,
       ),
       child: Text(
         mono ? dashFigure(label) : label,
@@ -371,7 +389,7 @@ class DashBadge extends StatelessWidget {
             (mono
                     ? DashType.monoMedium.copyWith(fontSize: 12)
                     : DashType.smallMedium)
-                .copyWith(color: tone.foreground(c)),
+                .copyWith(color: fg),
       ),
     );
   }

@@ -47,10 +47,7 @@ const Map<String, Map<String, (bool, String)>> _steps = {
     'dispatch': (true, 'dispatched'),
     'cancel': (true, 'cancelled'),
   },
-  'dispatched': {
-    'receive': (false, 'received'),
-    'cancel': (true, 'cancelled'),
-  },
+  'dispatched': {'receive': (false, 'received'), 'cancel': (true, 'cancelled')},
 };
 
 String _stepCap(String status, String action) => action == 'receive'
@@ -115,16 +112,10 @@ class _Doc {
 }
 
 const List<_Doc> _docs = [
-  _Doc(
-    't6',
-    'requested',
-    'maadi',
-    'zamalek',
-    'karim',
-    '2026-10-07T09:10:00Z',
-    [('oat', 1500), ('house-blend', 1000)],
-    note: 'Weekend rush: please send before Friday',
-  ),
+  _Doc('t6', 'requested', 'maadi', 'zamalek', 'karim', '2026-10-07T09:10:00Z', [
+    ('oat', 1500),
+    ('house-blend', 1000),
+  ], note: 'Weekend rush: please send before Friday'),
   _Doc('t7', 'draft', 'maadi', 'heliopolis', 'tarek', '2026-10-07T15:30:00Z', [
     ('croissant', 10),
     ('vanilla-syrup', 300),
@@ -620,14 +611,18 @@ void registerTransfersMocks(MockServer server, MockDb db) {
     final org = req.param('org_id');
     req.requireSameOrg(org);
     req.requireCap('inventory.transfers.create');
-    final rows = db['branches'].where(
-      (b) => b['org_id'] == org && b['is_active'] != false,
-    )..sort((a, b) {
-      final k = _kind(a).compareTo(_kind(b));
-      return k != 0 ? k : (a['name']! as String).compareTo(b['name']! as String);
-    });
+    final rows =
+        db['branches'].where(
+          (b) => b['org_id'] == org && b['is_active'] != false,
+        )..sort((a, b) {
+          final k = _kind(a).compareTo(_kind(b));
+          return k != 0
+              ? k
+              : (a['name']! as String).compareTo(b['name']! as String);
+        });
     return MockResponse.ok([
-      for (final b in rows) {'id': b['id'], 'name': b['name'], 'kind': _kind(b)},
+      for (final b in rows)
+        {'id': b['id'], 'name': b['name'], 'kind': _kind(b)},
     ]);
   });
 
@@ -685,9 +680,7 @@ void registerTransfersMocks(MockServer server, MockDb db) {
     return MockResponse.ok(out.take(2000).toList());
   });
 
-  server.on('GET', '/inventory/warehouses/{warehouse_id}/replenishment', (
-    req,
-  ) {
+  server.on('GET', '/inventory/warehouses/{warehouse_id}/replenishment', (req) {
     final wh = req.param('warehouse_id');
     final branch = req.q('branch_id');
     if (branch == null) {
@@ -714,21 +707,22 @@ void registerTransfersMocks(MockServer server, MockDb db) {
       return s;
     }
 
-    final rows = [
-      for (final r in InvViews.branchStock(db, branch))
-        if (((r['par_min'] as num?) ?? 0) > 0 &&
-            (r['on_hand']! as num) <= (r['par_min']! as num))
-          r,
-    ]..sort((a, b) {
-      final c = (a['category_name']! as String).compareTo(
-        b['category_name']! as String,
-      );
-      return c != 0
-          ? c
-          : (a['ingredient_name']! as String).compareTo(
-              b['ingredient_name']! as String,
-            );
-    });
+    final rows =
+        [
+          for (final r in InvViews.branchStock(db, branch))
+            if (((r['par_min'] as num?) ?? 0) > 0 &&
+                (r['on_hand']! as num) <= (r['par_min']! as num))
+              r,
+        ]..sort((a, b) {
+          final c = (a['category_name']! as String).compareTo(
+            b['category_name']! as String,
+          );
+          return c != 0
+              ? c
+              : (a['ingredient_name']! as String).compareTo(
+                  b['ingredient_name']! as String,
+                );
+        });
     return MockResponse.ok([
       for (final r in rows)
         () {
@@ -787,10 +781,7 @@ void registerTransfersMocks(MockServer server, MockDb db) {
     }
     if (src == dst) req.badRequest('Pick two different locations.');
     final request = body['request'] == true;
-    req.requireCap(
-      'inventory.transfers.create',
-      branchId: request ? dst : src,
-    );
+    req.requireCap('inventory.transfers.create', branchId: request ? dst : src);
     final s = _branch(db, src), d = _branch(db, dst);
     if (s == null || d == null || s['org_id'] != d['org_id']) {
       req.badRequest(
@@ -804,7 +795,10 @@ void registerTransfersMocks(MockServer server, MockDb db) {
     final number =
         db[InvTables.transfers].rows
             .where((t) => t['org_id'] == org)
-            .fold(0, (m, t) => (t['number']! as int) > m ? t['number']! as int : m) +
+            .fold(
+              0,
+              (m, t) => (t['number']! as int) > m ? t['number']! as int : m,
+            ) +
         1;
     final who = req.persona;
     final stamp = _stamp(db.nowIso, who.userId, who.displayName);

@@ -21,6 +21,11 @@ import '../shared/setup_note.dart';
 import 'eligible_items_control.dart';
 import 'staff_pool_data.dart';
 
+/// No web `prefetchRoute` case: resting on the settings rail row warms the
+/// page's reads for the header scope (SET-SPL intent).
+void prefetchStaffPool(DashPrefetcher warm, Scope s) =>
+    warm(staffPoolWarmProvider((orgId: s.orgId, branchId: s.branchId)));
+
 class StaffPoolSettingsPage extends ConsumerWidget {
   const StaffPoolSettingsPage({super.key});
 
@@ -265,7 +270,8 @@ class _StaffPoolSettingsFormState extends ConsumerState<StaffPoolSettingsForm> {
                     orgId: orgId,
                     value: f.itemIds,
                     enabled: canEdit,
-                    onChanged: (ids) => _edit(f.copyWith(itemIds: ids)),
+                    // Read at call time: the phone sheet keeps the closure it opened with.
+                    onChanged: (ids) => _edit(_form!.copyWith(itemIds: ids)),
                   ),
                   // The server's rule, said where the items are chosen.
                   ConstrainedBox(

@@ -175,10 +175,9 @@ void _prefetchWaste(DashPrefetcher warm, Scope s) {
   warm(wasteReportProvider(s.wasteRange));
 }
 
-/// The web's `prefetchRoute('/inventory/transfers')`: the org's branches and
-/// the page's first list (every direction), with the page's own key (the
-/// all-branches id with All branches, as Purchasing does).
+/// The web's `prefetchRoute('/inventory/transfers')`: the org's branches
+/// and, with a location picked, its first list (both ways, every status).
 void _prefetchTransfers(DashPrefetcher warm, Scope s) {
   if (s.orgId != null) warm(branchesProvider);
-  warm(transfersProvider(s.transfersKey(null)));
+  if (s.branchId != null) warm(transfersProvider(s.transfersKey()));
 }

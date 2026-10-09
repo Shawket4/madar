@@ -28,7 +28,7 @@ void repricingAnswer(
   return MockResponse.ok(edit(r.toJson()));
 });
 
-List<FinDecision> shownDecisions(DashHarness h, {String? branchId}) => h
+List<DecisionOut> shownDecisions(DashHarness h, {String? branchId}) => h
     .container
     .read(finDecisionsProvider((orgId: SeedIds.sabahOrg, branchId: branchId)))
     .requireValue;
@@ -219,7 +219,7 @@ void main() {
         SeedIds.zamalek,
       ]);
       final rows = shownDecisions(h, branchId: SeedIds.zamalek);
-      expect(rows.map((r) => r.d.branchId).toSet(), {SeedIds.zamalek});
+      expect(rows.map((r) => r.branchId).toSet(), {SeedIds.zamalek});
     });
 
     testWidgets('REP-FIN-051 the columns: item, signal pill, action, when '
@@ -240,9 +240,9 @@ void main() {
       final rows = shownDecisions(h);
       final f = h.container.read(formatProvider);
       for (final r in rows) {
-        expect(inDecisions(find.text(r.d.itemName)), findsWidgets);
+        expect(inDecisions(find.text(r.itemName)), findsWidgets);
         expect(
-          inDecisions(figure(f.fmtDateTime(r.d.createdAt.toIso8601String()))),
+          inDecisions(figure(f.fmtDateTime(r.createdAt.toIso8601String()))),
           findsOneWidget,
         );
       }
@@ -261,7 +261,7 @@ void main() {
         '"Measurement complete"', (t) async {
       final h = await pumpFin(t);
       await openInner(h, 'Decisions');
-      final done = shownDecisions(h).where((r) => r.d.impactComplete).length;
+      final done = shownDecisions(h).where((r) => r.impactComplete).length;
       expect(done, greaterThan(0));
       expect(
         inDecisions(
@@ -280,13 +280,13 @@ void main() {
       await openInner(h, 'Decisions');
       final f = h.container.read(formatProvider);
       final rows = shownDecisions(h);
-      final fresh = rows.where((r) => r.measuring).toList();
+      final fresh = rows.where((r) => r.impact == null).toList();
       expect(fresh, isNotEmpty);
       expect(inDecisions(find.text('Measuring…')), findsNWidgets(fresh.length));
-      final r = rows.firstWhere((x) => !x.measuring);
+      final r = rows.firstWhere((x) => x.impact != null);
       double n(Map<String, Object?> m, String k) => (m[k]! as num).toDouble();
-      final before = n(r.d.baseline, 'qty_per_day');
-      final after = n(r.d.impact, 'qty_per_day');
+      final before = n(r.baseline, 'qty_per_day');
+      final after = n(r.impact!, 'qty_per_day');
       String q(double v) =>
           f.fmtNumber(v, const NumberOptions(maximumFractionDigits: 2));
       final cell = find.ancestor(
@@ -311,7 +311,7 @@ void main() {
         tone,
       );
       expect(
-        inDecisions(figure(f.fmtPercent(n(r.d.baseline, 'margin_pct') / 100))),
+        inDecisions(figure(f.fmtPercent(n(r.baseline, 'margin_pct') / 100))),
         findsWidgets,
       );
     });

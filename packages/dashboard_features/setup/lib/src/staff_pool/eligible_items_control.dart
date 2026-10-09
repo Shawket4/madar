@@ -17,6 +17,9 @@ import 'staff_pool_data.dart';
 /// The popover's width (`w-72`).
 const double _popoverWidth = 288;
 
+/// The popover's height cap, so a long menu scrolls inside it.
+const double _popoverMaxHeight = 420;
+
 class EligibleItemsControl extends ConsumerStatefulWidget {
   const EligibleItemsControl({
     required this.orgId,
@@ -117,7 +120,7 @@ class _EligibleItemsControlState extends ConsumerState<EligibleItemsControl> {
           DashPopover(
             controller: _popover,
             width: _popoverWidth,
-            maxHeight: 420,
+            maxHeight: _popoverMaxHeight,
             anchor: (context, c) => trigger(c.toggle),
             content: (context, c) => _PickerBody(
               orgId: org,
@@ -279,7 +282,7 @@ class _PickerBodyState extends ConsumerState<_PickerBody> {
             onPick: _toggle,
             searchable: true,
             searchPlaceholder: t('common.search'),
-            emptyText: q?.isLoading ?? false
+            emptyText: q?.awaitingFirst ?? false
                 ? t('common.loading')
                 : t('common.noResults'),
           ),

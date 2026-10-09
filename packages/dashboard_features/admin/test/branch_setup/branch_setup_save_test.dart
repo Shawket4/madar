@@ -236,6 +236,23 @@ void main() {
     expect(tester.widget<DashButton>(byKey('bb-history')).onPressed, isNotNull);
   });
 
+  testWidgets('ADM-BSU-077 Esc still closes the review during a save; the '
+      'save lands all the same', (tester) async {
+    final b = PlanBackend();
+    final h = await pumpBuilder(tester, branchId: SeedIds.zamalek, backend: b);
+    await removeAndReview(h, 'Counter 2');
+    final gate = b.server.hold('PUT', BranchPlanRoutes.plan);
+    await h.tap(byKey('bb-review-save'));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await h.settle();
+    expect(byKey('bb-review-save'), findsNothing);
+    gate.release();
+    await h.settle();
+    await h.expectToast('Branch plan saved');
+    expect(byKey('bb-unsaved'), findsNothing);
+    expect(b.db['branches'].find(SeedIds.zamalek)!['hardware_plan_version'], 1);
+  });
+
   testWidgets('ADM-BSU-080 any other failure: a toast, the dialog stays', (
     tester,
   ) async {
@@ -256,7 +273,7 @@ void main() {
   ) async {
     final b = PlanBackend();
     final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b);
-    await removeAndReview(h, 'Kitchen printer');
+    await removeAndReview(h, 'Kitchen screen');
     // Someone saved in between (no event reached this page).
     b.db['branches'].find(SeedIds.heliopolis)!['hardware_plan_version'] = 3;
     await h.tap(byKey('bb-review-save'));
@@ -267,10 +284,10 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(cardTitled('Kitchen printer'), findsNothing, reason: 'draft kept');
+    expect(cardTitled('Kitchen screen'), findsNothing, reason: 'draft kept');
     await h.tap(find.text('Load their version'));
     expect(h.server.callsTo(BranchPlanRoutes.plan, method: 'GET'), hasLength(2));
-    expect(cardTitled('Kitchen printer'), findsOneWidget);
+    expect(cardTitled('Kitchen screen'), findsOneWidget);
     expect(byKey('bb-unsaved'), findsNothing);
     await h.flushTimers();
   });
@@ -331,7 +348,7 @@ void main() {
     final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis, backend: b);
     expect(pieceOf(tester, cardTitled('Counter 1')).presence!.label, 'Not set up');
     expect(byKey('bb-unsaved'), findsNothing);
-    await removeAndReview(h, 'Kitchen printer');
+    await removeAndReview(h, 'Kitchen screen');
     await h.tap(byKey('bb-review-save'));
     await h.expectToast('Branch plan saved');
     final devices = ((lastSave(h.server)['plan']! as Map)['devices']! as List)

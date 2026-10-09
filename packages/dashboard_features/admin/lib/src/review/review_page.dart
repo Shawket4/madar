@@ -7,7 +7,7 @@
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show ApiException, BulkReviewRequest, ReplayFlag;
+    show BulkReviewRequest, ReplayFlag;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -43,15 +43,12 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
     final api = ref.read(apiProvider);
     final bus = ref.read(realtimeBusProvider);
     setState(() => _reviewing.add(f.id));
-    var ok = true;
     try {
       await api.authz.reviewFlag(id: f.id);
+      bus.invalidate(const [reviewFlagsPath]);
     } on Object catch (e) {
-      // The server answers `{"reviewed": true}`, not the flag its spec names.
-      ok = e is ApiException && e.code == 'decode' && e.status < 300;
-      if (!ok && mounted) DashToast.error(context, orgErrorWords(e, t));
+      if (mounted) DashToast.error(context, orgErrorWords(e, t));
     }
-    if (ok) bus.invalidate(const [reviewFlagsPath]);
     if (mounted) setState(() => _reviewing.remove(f.id));
   }
 
@@ -394,11 +391,7 @@ class _ReasonPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         spacing: Space.xs,
         children: [
-          DashIcon(
-            DashStatusPill.glyphFor(tone),
-            size: IconSize.xs,
-            color: fg,
-          ),
+          DashIcon(DashStatusPill.glyphFor(tone), size: IconSize.xs, color: fg),
           Flexible(
             child: Text(
               label,

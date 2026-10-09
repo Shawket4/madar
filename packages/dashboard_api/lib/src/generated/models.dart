@@ -617,6 +617,7 @@ part 'models/resolved_shift.dart';
 part 'models/result_block.dart';
 part 'models/return_line_input.dart';
 part 'models/review_advance.dart';
+part 'models/reviewed_out.dart';
 part 'models/reward_catalogue.dart';
 part 'models/reward_item.dart';
 part 'models/reward_item_input.dart';

@@ -69,4 +69,28 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await h.settle();
   });
+
+  testWidgets('TEAM-TEM-004 "Log an expense advance" warms the active people; '
+      'pressing it asks nothing more', (tester) async {
+    final h = await pumpTeam(tester);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+
+    int active() => [
+      for (final c in h.server.callsTo(employeesT, method: 'GET'))
+        if (c.query['employment_status']?.single == 'active') c,
+    ].length;
+    final log = boardButton(h.t('dawam.logExpense'));
+    // The rules banner's set-up data already reads the active people.
+    expect(active(), 1);
+    await _rest(tester, mouse, log);
+    await h.settle();
+    expect(active(), 1, reason: 'resting reuses the warm read');
+    await h.tap(log);
+    expect(surfaceText(h.t('dawam.logExpenseHint')), findsOneWidget);
+    expect(active(), 1, reason: 'the dialog opened from the cache');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await h.settle();
+  });
 }

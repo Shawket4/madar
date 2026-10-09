@@ -1,0 +1,7 @@
+{
+  "about": "src/lib/phone_vectors.json is a byte-for-byte copy of madar-shared's file at this tag (the backend, the POS core and this app share it). A change is made there, released with a tag, and copied here with the tag and hash below updated; scripts/check-shared-vectors.sh (CI) and shared_vectors.test.ts check it.",
+  "repo": "Shawket4/madar-shared",
+  "tag": "v0.4.0",
+  "path": "crates/madar-ids/vectors/phone_vectors.json",
+  "sha256": "71f982c90637acd647f564c16a258b551b8c24a0e1080f7e924bac9b33e1070b"
+}

@@ -117,6 +117,7 @@ const List<DashRoute> setupRoutes = [
     titleKey: 'nav.staffPool',
     titleFallback: 'Staff drinks',
     module: OrgModule.pos,
+    prefetch: prefetchStaffPool,
   ),
   DashRoute(
     path: '/settings/kitchen-stations',

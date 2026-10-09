@@ -219,6 +219,8 @@ void main() {
       expect(log.first['menu_item_id'], row.menuItemId);
       expect(log.first['action'], 'dismissed');
       expect(log.first['impact'], isNull, reason: 'measuring');
+      // The spec's DecisionOut takes it (impact optional since MadarRust 7043a9f4).
+      expect(DecisionOut.fromJson(log.first).impact, isNull);
       final after = MarginLedgerReport.fromJson(
         _obj(await _send(s.server, 'GET', ledger)),
       );

@@ -1,0 +1,7 @@
+{
+  "about": "src/lib/reconcile_vectors.json is a byte-for-byte copy of madar-shared's file (the backend and the POS core run the same close check from madar-till). It is pinned to a commit, not a tag, until the next madar-shared tag; then the tag replaces the commit here. A change is made there and copied here with the tag and hash below updated; scripts/check-shared-vectors.sh (CI) and shared_vectors.test.ts check it, and features/tills/util.test.ts runs the close dialog's check against it.",
+  "repo": "Shawket4/madar-shared",
+  "tag": "51572fc4901ae9695d9f5bdf77471e63cb239430",
+  "path": "crates/madar-till/vectors/reconcile_vectors.json",
+  "sha256": "de8855d07934da797d1b1ef2ddaa570ad740b7048698242a4114e11ee878fdc1"
+}

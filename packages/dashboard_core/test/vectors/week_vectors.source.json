@@ -1,0 +1,7 @@
+{
+  "about": "src/lib/week_vectors.json is a byte-for-byte copy of madar-shared's file at this ref (the backend and the POS core run the same rule from madar-time week_start). The ref is a commit sha, not a tag, until the next madar-shared tag; then move it to that tag. A change is made there, released with a tag, and copied here with the tag and hash below updated; scripts/check-shared-vectors.sh (CI) and shared_vectors.test.ts check it, and lib/madar-time.test.ts runs lib/week.ts (WEEK_START, weekStartOf) and features/dawam/week.ts against it.",
+  "repo": "Shawket4/madar-shared",
+  "tag": "51572fc4901ae9695d9f5bdf77471e63cb239430",
+  "path": "crates/madar-time/vectors/week_vectors.json",
+  "sha256": "5b760ce6ecc9f689cc397a6208f179145079e2639dab467db46fa71004737a19"
+}

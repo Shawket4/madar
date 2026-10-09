@@ -1,0 +1,7 @@
+{
+  "about": "src/lib/day_bounds_vectors.json is a byte-for-byte copy of madar-shared's file at this tag (the backend and the POS core run the same rule from madar-time day_bounds). A change is made there, released with a tag, and copied here with the tag and hash below updated; scripts/check-shared-vectors.sh (CI) and shared_vectors.test.ts check it, and lib/madar-time.test.ts runs the dashboard's dayBoundaryISO against it.",
+  "repo": "Shawket4/madar-shared",
+  "tag": "v0.6.0",
+  "path": "crates/madar-time/vectors/day_bounds_vectors.json",
+  "sha256": "b521e88f2bdc3c70dafd311fef8aa4e11ea817711fb718c0b7adc61146846fce"
+}

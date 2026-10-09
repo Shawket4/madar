@@ -18,6 +18,10 @@ enum DashButtonVariant {
   /// A hairline frame on the card face — the everyday secondary.
   outline,
 
+  /// [outline] with danger words and a danger wash on hover (the web's
+  /// `variant="outline"` + `text-destructive`): a quiet destructive action.
+  outlineDanger,
+
   /// The sunk grey.
   secondary,
 
@@ -167,7 +171,7 @@ class DashIconButton extends StatelessWidget {
   final hot = s.highlighted;
   if (!enabled) {
     return switch (variant) {
-      DashButtonVariant.outline => (
+      DashButtonVariant.outline || DashButtonVariant.outlineDanger => (
         fill: null,
         fg: c.disabledText,
         edge: c.input,
@@ -198,6 +202,11 @@ class DashIconButton extends StatelessWidget {
     DashButtonVariant.outline => (
       fill: hot ? c.hover : c.card,
       fg: c.textPrimary,
+      edge: c.input,
+    ),
+    DashButtonVariant.outlineDanger => (
+      fill: hot ? c.danger.withValues(alpha: 0.1) : c.card,
+      fg: c.errorText,
       edge: c.input,
     ),
     DashButtonVariant.secondary => (

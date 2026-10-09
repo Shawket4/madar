@@ -390,3 +390,12 @@ final RegExp _arabicScript = RegExp('[؀-ۿ]');
 /// either wraps the currency or drops it.
 String dashFigure(String s) =>
     _isolates.hasMatch(s) || _arabicScript.hasMatch(s) ? s : MadarFormat.ltr(s);
+
+/// The direction free text reads in, from its first strong letter (the
+/// web's `dir="auto"`): ".Delta Dairy Co" is left to right in an Arabic
+/// table. Null when it has no letter (figures, dashes): the line's own.
+TextDirection? dashTextDirectionOf(String s) => Bidi.startsWithRtl(s)
+    ? TextDirection.rtl
+    : Bidi.startsWithLtr(s)
+    ? TextDirection.ltr
+    : null;

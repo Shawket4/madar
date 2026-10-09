@@ -63,6 +63,8 @@ void main() {
       of: find.byKey(const ValueKey('settings-rail')),
       matching: find.text('WhatsApp'),
     );
+    await tester.ensureVisible(entry); // the rail's last row
+    await h.settle();
     await mouse.moveTo(tester.getCenter(entry));
     await h.settle();
     expect(statusReads(h), 1, reason: 'warmed on intent');

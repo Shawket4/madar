@@ -50,6 +50,20 @@ void _cover(
   });
 }
 
+/// A form field of type [T] labelled [label] in the open dialog.
+Finder _field<T>(String label) =>
+    inSurface(find.widgetWithText(T, label)).first;
+
+/// Picks [option] in the open dialog's select labelled [label].
+Future<void> _pick(DashHarness h, String label, String option) async {
+  await h.tap(_field<DashSelectField<String>>(label));
+  await h.tap(find.text(option).hitTestable().last);
+}
+
+Map<String, Object?> _lastPost(DashHarness h, String path) =>
+    (h.server.callsTo(path, method: 'POST').last.body! as Map)
+        .cast<String, Object?>();
+
 /// The flags' and the team's loading blocks (not the cards' own).
 Finder _blocks() => inBoard(
   find.byWidgetPredicate(
@@ -146,13 +160,63 @@ void main() {
     final h = await pumpTeam(tester);
     await h.tap(boardButton(h.t('dawam.addEmployee')));
     expect(find.byType(DashSurface), findsOneWidget);
+    expect(
+      tester.widget<DashSurface>(surface()).title,
+      h.t('dawam.addEmployee'),
+    );
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await h.settle();
     expect(find.byType(DashSurface), findsNothing);
     await h.tap(boardButton(h.t('dawam.importTitle')));
     expect(find.byType(DashSurface), findsOneWidget);
+    expect(
+      tester.widget<DashSurface>(surface()).title,
+      h.t('dawam.importTitle'),
+    );
+    expect(surfaceText(h.t('dawam.importHint')), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await h.settle();
+  });
+
+  testWidgets('TEAM-TEM-003 a pay line saved from the board: the POST, and '
+      'the board reads again', (tester) async {
+    final h = await pumpTeam(tester);
+    expect(h.server.callsTo(presenceT), hasLength(1));
+    expect(h.server.callsTo(flagsT), hasLength(1));
+    await h.tap(boardButton(h.t('dawam.addPayLineHere')));
+    await _pick(h, 'Employee', 'Adham Reda');
+    await h.enterText(_field<DashMoneyField>('Amount (EGP)'), '50');
+    await h.enterText(_field<DashTextField>('Reason'), 'Big win');
+    await h.tap(surfaceButton('Save'));
+    final body = _lastPost(h, '/staff/adjustments');
+    expect(body['employee_id'], SeedIds.employee('adham'));
+    expect(body['kind'], 'bonus');
+    expect(body['amount_piastres'], 5000);
+    expect(body['reason'], 'Big win');
+    await h.expectToast('Pay line added');
+    expect(find.byType(DashSurface), findsNothing);
+    expect(h.server.callsTo(presenceT), hasLength(2));
+    expect(h.server.callsTo(flagsT), hasLength(2));
+  });
+
+  testWidgets('TEAM-TEM-004 an expense advance logged from the board: the '
+      'POST, and the board reads again', (tester) async {
+    final h = await pumpTeam(tester);
+    await h.tap(boardButton(h.t('dawam.logExpense')));
+    await _pick(h, 'Employee', 'Adham Reda');
+    await h.enterText(_field<DashMoneyField>('Amount (EGP)'), '350');
+    await h.enterText(_field<DashTextField>("What it's for"), 'Ice');
+    await _pick(h, 'Handed over at', 'Maadi');
+    await h.tap(surfaceButton('Save'));
+    final body = _lastPost(h, '/staff/expense-advances');
+    expect(body['employee_id'], SeedIds.employee('adham'));
+    expect(body['amount_piastres'], 35000);
+    expect(body['purpose'], 'Ice');
+    expect(body['branch_id'], SeedIds.maadi);
+    await h.expectToast('Expense advance logged');
+    expect(find.byType(DashSurface), findsNothing);
+    expect(h.server.callsTo(presenceT), hasLength(2));
+    expect(h.server.callsTo(flagsT), hasLength(2));
   });
 
   testWidgets('TEAM-TEM-006 / TEAM-ALL-016 rules never saved: the banner sits '

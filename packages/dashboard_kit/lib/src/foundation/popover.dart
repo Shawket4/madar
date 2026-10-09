@@ -32,9 +32,11 @@ class DashPopoverController extends ChangeNotifier {
 /// the web's `align="center"`).
 enum DashPopoverAlign { start, end, center }
 
-/// A floating card anchored under (or, when there is no room, over) its
+/// A floating card anchored under (or, when it does not fit there, over) its
 /// trigger — the web's Radix popover: a dropdown, a select list, a calendar.
-/// A tap outside or Escape closes it; it never leaves the window.
+/// A tap outside or Escape closes it; it never leaves the window. When it
+/// fits on neither side it is capped to the roomier one, so content that can
+/// be that tall scrolls itself (a list, or a `SingleChildScrollView`).
 class DashPopover extends StatefulWidget {
   const DashPopover({
     required this.anchor,
@@ -77,6 +79,7 @@ class DashPopover extends StatefulWidget {
 class _DashPopoverState extends State<DashPopover> {
   final _portal = OverlayPortalController();
   final _link = LayerLink();
+  final _scope = FocusScopeNode(debugLabel: 'DashPopover');
   DashPopoverController? _own;
   DashPopoverController get _c =>
       widget.controller ?? (_own ??= DashPopoverController());
@@ -100,6 +103,7 @@ class _DashPopoverState extends State<DashPopover> {
   void dispose() {
     _c.removeListener(_sync);
     _own?.dispose();
+    _scope.dispose();
     super.dispose();
   }
 
@@ -108,6 +112,12 @@ class _DashPopoverState extends State<DashPopover> {
     if (_c.isOpen && !_portal.isShowing) {
       _portal.show();
     } else if (!_c.isOpen && _portal.isShowing) {
+      // Hand focus back now: a card that still holds it when it is torn
+      // down next frame pulls focus to the page, away from a dialog its
+      // choice just opened (whose Escape then goes nowhere).
+      if (_scope.hasFocus) {
+        _scope.unfocus(disposition: UnfocusDisposition.previouslyFocusedChild);
+      }
       _portal.hide();
       widget.onClose?.call();
     }
@@ -140,12 +150,14 @@ class _DashPopoverState extends State<DashPopover> {
     if (widget.matchAnchorWidth) width = math.max(width, anchor.width);
     width = math.min(width, screen.width - Space.lg * 2);
 
+    // The room under and over the trigger. The card opens below when it
+    // fits there, above when it fits there instead, and otherwise on the
+    // roomier side, capped to it (its content scrolls).
     final below = screen.height - pad.bottom - anchor.bottom - margin * 2;
     final above = anchor.top - pad.top - margin * 2;
-    final flip = below < math.min(widget.maxHeight, 220) && above > below;
     final maxH = math.max(
       120.0,
-      math.min(widget.maxHeight, flip ? above : below),
+      math.min(widget.maxHeight, math.max(above, below)),
     );
 
     // Line up with the trigger's start (or end) edge, then keep it inside.
@@ -188,6 +200,7 @@ class _DashPopoverState extends State<DashPopover> {
               ),
             },
             child: FocusScope(
+              node: _scope,
               autofocus: widget.autofocusContent,
               child: widget.content(context, _c),
             ),
@@ -205,22 +218,68 @@ class _DashPopoverState extends State<DashPopover> {
             excludeFromSemantics: true,
           ),
         ),
+        // A window-tall column over the trigger, so the side is chosen once
+        // the card's own height is known.
         CompositedTransformFollower(
           link: _link,
           showWhenUnlinked: false,
-          targetAnchor: flip ? Alignment.topLeft : Alignment.bottomLeft,
-          followerAnchor: flip ? Alignment.bottomLeft : Alignment.topLeft,
-          offset: Offset(dx, flip ? -margin : margin),
-          child: Align(
-            alignment: AlignmentDirectional.topStart,
-            widthFactor: 1,
-            heightFactor: 1,
-            child: card,
+          offset: Offset(dx, -anchor.top),
+          child: SizedBox(
+            width: width,
+            height: screen.height,
+            child: CustomSingleChildLayout(
+              delegate: _Placement(
+                top: anchor.top,
+                bottom: anchor.bottom,
+                above: above,
+                below: below,
+                margin: margin,
+              ),
+              child: card,
+            ),
           ),
         ),
       ],
     );
   }
+}
+
+/// Puts the card under the trigger when it fits, else over it when it fits
+/// there, else on the roomier side (where its capped height fits).
+class _Placement extends SingleChildLayoutDelegate {
+  const _Placement({
+    required this.top,
+    required this.bottom,
+    required this.above,
+    required this.below,
+    required this.margin,
+  });
+
+  /// The trigger's edges in this column's frame (the window's).
+  final double top;
+  final double bottom;
+  final double above;
+  final double below;
+  final double margin;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      constraints.loosen();
+
+  @override
+  Offset getPositionForChild(Size size, Size child) {
+    final h = child.height;
+    final up = h > below && (h <= above || above > below);
+    return Offset(0, up ? top - margin - h : bottom + margin);
+  }
+
+  @override
+  bool shouldRelayout(_Placement old) =>
+      top != old.top ||
+      bottom != old.bottom ||
+      above != old.above ||
+      below != old.below ||
+      margin != old.margin;
 }
 
 /// One row of a [DashMenu].
@@ -358,8 +417,10 @@ class _MenuListState extends State<_MenuList> {
       excludeChildSemantics: true,
       onTap: () {
         if (checked != null) setState(() => _checked[i] = !checked);
-        item.onSelected?.call();
+        // Close first, so a dialog the item opens keeps the focus (and its
+        // Escape).
         if (!item.keepOpen) widget.controller.close();
+        item.onSelected?.call();
       },
       builder: (context, s) => Container(
         constraints: const BoxConstraints(

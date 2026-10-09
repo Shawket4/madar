@@ -120,6 +120,11 @@ void main() {
         final r = await _send(s.server, 'POST', '/authz/flags/1/review');
         expect(r.status, 200);
         expect(_json(r), {'reviewed': true});
+        // The spec's ReviewedOut (MadarRust 7043a9f4) decodes it.
+        expect(
+          ReviewedOut.fromJson(_json(r)! as Map<String, Object?>).reviewed,
+          isTrue,
+        );
         expect(
           await _status(_send(s.server, 'POST', '/authz/flags/1/review')),
           404,

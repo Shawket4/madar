@@ -1,0 +1,7 @@
+{
+  "about": "src/lib/unit_vectors.json is a byte-for-byte copy of madar-shared's file at this tag (the backend converts units with madar-units). A change is made there, released with a tag, and copied here with the tag and hash below updated; scripts/check-shared-vectors.sh (CI) and shared_vectors.test.ts check it, and features/inventory/lib.test.ts runs the dashboard's unit rules against it.",
+  "repo": "Shawket4/madar-shared",
+  "tag": "v0.6.0",
+  "path": "crates/madar-units/vectors/unit_vectors.json",
+  "sha256": "1f5d9380bac8ec3ecae42dbb6dbca7b1fb48469b34dd84d73c525ea0bc10e08b"
+}

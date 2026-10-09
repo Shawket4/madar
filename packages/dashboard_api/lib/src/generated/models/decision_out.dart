@@ -12,7 +12,7 @@ class DecisionOut {
     this.createdBy,
     required this.detail,
     required this.id,
-    required this.impact,
+    this.impact,
     required this.impactComplete,
     required this.itemName,
     required this.menuItemId,
@@ -29,7 +29,7 @@ class DecisionOut {
     createdBy: decStringN(json['created_by'], 'DecisionOut.created_by'),
     detail: decJsonMap(json['detail'], 'DecisionOut.detail'),
     id: decString(json['id'], 'DecisionOut.id'),
-    impact: decJsonMap(json['impact'], 'DecisionOut.impact'),
+    impact: decJsonMapN(json['impact'], 'DecisionOut.impact'),
     impactComplete: decBool(
       json['impact_complete'],
       'DecisionOut.impact_complete',
@@ -55,7 +55,7 @@ class DecisionOut {
   final String id;
 
   /// Measured after-window aggregate; `null` until ≥1 day of after-data.
-  final Map<String, Object?> impact;
+  final Map<String, Object?>? impact;
 
   /// True once the full baseline window has elapsed since the decision.
   final bool impactComplete;
@@ -82,7 +82,7 @@ class DecisionOut {
       'created_by': createdBy,
     'detail': detail,
     'id': id,
-    'impact': impact,
+    if (impact != null || explicitNulls.contains('impact')) 'impact': impact,
     'impact_complete': impactComplete,
     'item_name': itemName,
     'menu_item_id': menuItemId,

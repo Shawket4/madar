@@ -31,8 +31,6 @@ final whatsappStatusProvider =
 /// The route's intent warming: the status, for a platform admin only (the
 /// pane refuses everyone else without reading).
 final whatsappWarmProvider = FutureProvider.autoDispose<void>((ref) async {
-  // ignore: avoid_print
-  print('WARM platform=${ref.read(currentSessionProvider)?.isPlatform}');
   if (ref.read(currentSessionProvider)?.isPlatform != true) return;
   await ref.watch(whatsappStatusProvider.future);
 });

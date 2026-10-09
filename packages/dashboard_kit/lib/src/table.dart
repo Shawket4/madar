@@ -126,10 +126,15 @@ class DashLoadMore {
     required this.hasMore,
     required this.onLoadMore,
     this.loading = false,
+    this.onIntent,
   });
   final bool hasMore;
   final bool loading;
   final VoidCallback onLoadMore;
+
+  /// "Load more" is about to be pressed ([DashIntent]): warm the next page's
+  /// read (the same cursor and filters).
+  final VoidCallback? onIntent;
 }
 
 /// THE record table (the web's `DataTable`, POS SPEC §8):
@@ -155,6 +160,7 @@ class DashDataTable<T> extends StatefulWidget {
     this.loading = false,
     this.errorMessage,
     this.onRetry,
+    this.retrying = false,
     this.empty,
     this.onRowTap,
     this.onRowIntent,
@@ -198,6 +204,10 @@ class DashDataTable<T> extends StatefulWidget {
   /// A failed load, already in words (`ApiException.message`).
   final String? errorMessage;
   final VoidCallback? onRetry;
+
+  /// A manual Retry is running: the error state stays, its Retry spins
+  /// (never the skeleton, even while [loading]).
+  final bool retrying;
 
   /// Shown for an empty list; defaults to "No results found".
   final Widget? empty;
@@ -421,10 +431,11 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
         showColumns;
 
     Widget body;
-    if (widget.errorMessage != null && !widget.loading) {
+    if (widget.errorMessage != null && (!widget.loading || widget.retrying)) {
       body = DashErrorState(
         message: widget.errorMessage,
         onRetry: widget.onRetry,
+        retrying: widget.retrying,
         framed: widget.framed,
       );
     } else if (!widget.loading && shown.isEmpty) {
@@ -502,6 +513,7 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
             variant: DashButtonVariant.ghost,
             loading: lm.loading,
             onPressed: lm.onLoadMore,
+            onIntent: lm.onIntent,
           ),
         ),
       if (_usePages && totalPages > 1 && widget.errorMessage == null)
@@ -1039,15 +1051,20 @@ class _Cell<T> extends StatelessWidget {
       );
     } else {
       final v = column.text?.call(row) ?? '';
+      // Free text reads in its own direction (".Delta Dairy Co" in an
+      // Arabic table); the cell still sits at the column's own edge.
+      final dir = column.numeric ? null : dashTextDirectionOf(v);
+      final rtl = Directionality.of(context) == TextDirection.rtl;
       child = MadarClippedText(
         column.numeric ? dashFigure(v) : v,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: style,
+        textDirection: dir,
         textAlign: switch (align) {
-          DashAlign.start => TextAlign.start,
+          DashAlign.start => rtl ? TextAlign.right : TextAlign.left,
           DashAlign.center => TextAlign.center,
-          DashAlign.end => TextAlign.end,
+          DashAlign.end => rtl ? TextAlign.left : TextAlign.right,
         },
       );
     }

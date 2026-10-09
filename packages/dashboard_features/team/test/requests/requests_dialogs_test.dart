@@ -159,7 +159,11 @@ void main() {
   ) async {
     final h = await pumpRequests(tester);
     await h.tap(approveIn(_salma));
-    expect(tester.getSize(find.byType(ApproveWithPayDialog)).width, 448);
+    // Inside the frame's 1 px border (512 would show 510).
+    expect(
+      tester.getSize(find.byType(ApproveWithPayDialog)).width,
+      RequestsMetrics.dialog - 2,
+    );
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await h.settle();
   });

@@ -5,8 +5,6 @@
 /// `/insights` only on `resync` or after a decision / target save).
 library;
 
-import 'dart:convert';
-
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -83,61 +81,17 @@ final finRepricingProvider = FutureProvider.autoDispose
       return ref.watch(apiProvider).insights.repricing(branchId: branchId);
     });
 
-/// One logged decision; [measuring] while the server has no after-window
-/// yet (`impact: null`).
-typedef FinDecision = ({DecisionOut d, bool measuring});
-
-/// REP-FIN-050 the decision log. Read through the transport: the generated
-/// `DecisionOut.impact` is non-nullable while the backend sends `null`
-/// until a day of after-data exists, so the generated decoder would fail
-/// the whole tab on any fresh decision (api candidate: make it nullable).
+/// REP-FIN-050 the decision log; `impact` is null ("Measuring…") until a
+/// day of after-data exists.
 final finDecisionsProvider = FutureProvider.autoDispose
-    .family<List<FinDecision>, FinDecisionsKey>((ref, k) async {
+    .family<List<DecisionOut>, FinDecisionsKey>((ref, k) {
       ref.webCache();
       ref.watch(realtimeEpochProvider('/insights/decisions'));
-      final res = await ref
-          .watch(transportProvider)
-          .send(
-            ApiRequest(
-              method: 'GET',
-              path: '/insights/decisions',
-              query: {
-                'org_id': [k.orgId],
-                if (k.branchId != null) 'branch_id': [k.branchId!],
-              },
-            ),
-          );
-      final list = jsonDecode(utf8.decode(res.bodyBytes));
-      return [
-        for (final e in (list as List).cast<Map<String, Object?>>())
-          (
-            d: DecisionOut.fromJson({
-              ...e,
-              'impact': e['impact'] ?? const <String, Object?>{},
-            }),
-            measuring: e['impact'] == null,
-          ),
-      ];
+      return ref
+          .watch(apiProvider)
+          .insights
+          .listDecisions(orgId: k.orgId, branchId: k.branchId);
     });
-
-/// REP-FIN-030…032 `POST /insights/decisions?org_id`. Through the
-/// transport too: the answer's `impact` is null for a fresh decision, which
-/// the generated decoder refuses (see [finDecisionsProvider]); the page
-/// never reads the answer.
-Future<void> finCreateDecision(
-  ApiTransport transport,
-  String orgId,
-  CreateDecisionRequest body,
-) => transport.send(
-  ApiRequest(
-    method: 'POST',
-    path: '/insights/decisions',
-    query: {
-      'org_id': [orgId],
-    },
-    body: body.toJson(),
-  ),
-);
 
 /// REP-FIN-050 the org's users (who made each decision).
 final finUsersProvider = FutureProvider.autoDispose

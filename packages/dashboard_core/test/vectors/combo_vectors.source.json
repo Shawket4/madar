@@ -1,0 +1,7 @@
+{
+  "about": "src/lib/combo_vectors.json is a byte-for-byte copy of madar-shared's file at this tag (the backend and the POS core quote a combo with madar-catalog; features/public-ordering/pricing.test.ts runs the storefront's combo estimate against it). A change is made there, released with a tag, and copied here with the tag and hash below updated; scripts/check-shared-vectors.sh (CI) and shared_vectors.test.ts check it.",
+  "repo": "Shawket4/madar-shared",
+  "tag": "v0.6.0",
+  "path": "crates/madar-catalog/vectors/combo_vectors.json",
+  "sha256": "98acd0a3a7de11ce5b09ad25b1724f08f112a42fd9483d7d9832f0d94ccad26e"
+}

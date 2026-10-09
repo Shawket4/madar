@@ -436,7 +436,7 @@ class _PayrollTab extends ConsumerWidget {
         'period',
         t('dawam.period'),
         (r) => '${f.fmtDate(r.startDate)} – ${f.fmtDate(r.endDate)}',
-        minWidth: 220,
+        minWidth: 260, // Arabic month names are longer than "Sept"
       ),
       ReportCol('people', t('dawam.people'), (r) => r.people, numeric: true),
       ReportCol('base', t('dawam.salary'), (r) => r.basePiastres, money: true),

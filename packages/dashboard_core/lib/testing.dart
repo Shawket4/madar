@@ -10,3 +10,4 @@ export 'package:dashboard_kit/testing.dart'
     show DashSize, captureShot, dashShotsDir, loadDashFonts;
 
 export 'src/testing/harness.dart';
+export 'src/testing/vectors.dart';

@@ -247,6 +247,9 @@ void main() {
       expect(select.value, brandPath);
       expect(select.options.map((o) => o.label), _ownerPanes);
       expect(select.options.first.icon, 'palette');
+      // Grouped under the rail's group labels (the web's `SelectLabel`).
+      expect(select.options.first.group, h.t('settings.groupThisApp'));
+      expect(select.options.map((o) => o.group).toSet().length, greaterThan(1));
       final top = tester.getBottomLeft(_picker()).dy;
       expect(tester.getTopLeft(find.byType(BrandPage)).dy, greaterThan(top));
       await h.tap(_picker());

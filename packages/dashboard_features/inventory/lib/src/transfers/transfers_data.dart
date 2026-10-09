@@ -233,7 +233,7 @@ String transferStatusLabel(Translator t, String status) =>
     ? t('inventory.transfers.status.$status')
     : status;
 
-/// The Items cell (INV-TRF-008): one line "<name> · <qty> <unit>", several
+/// The Items cell (INV-TRF-008): one line `<name> · <qty> <unit>`, several
 /// the names joined.
 String lineSummary(DashFormat f, StockTransfer tr) => tr.lines.length == 1
     ? '${tr.lines.first.ingredientName} · '

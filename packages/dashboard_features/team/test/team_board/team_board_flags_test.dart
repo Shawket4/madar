@@ -323,6 +323,25 @@ void main() {
     await h.flushTimers();
   });
 
+  testWidgets('TEAM-TEM-022 closed mid-save, the board still reads again', (
+    tester,
+  ) async {
+    final s = teamServer();
+    final gate = s.server.hold('PATCH', resolveT);
+    final h = await pumpTeam(tester, s: s);
+    await _openLeft(h);
+    await h.tap(surfaceButton(h.t('dawam.excusePaid')));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await h.settle();
+    expect(find.byType(DashSurface), findsNothing);
+    expect(h.server.callsTo(flagsT), hasLength(1));
+    gate.release();
+    await h.settle();
+    expect(h.server.callsTo(flagsT), hasLength(2));
+    expect(h.server.callsTo(presenceT), hasLength(2));
+    expect(boardHas('Karim Adel · '), findsNothing);
+  });
+
   testWidgets(
     'TEAM-TEM-022 / TEAM-ALL-015 handled by someone else first: the words, the '
     'board reads again and the dialog closes',

@@ -35,6 +35,7 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/tax_rate.dart';
@@ -348,6 +349,11 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
 
   Future<void> _submit() async {
     if (_busy) return;
+    // A number typed but not settled yet (fields settle on blur) counts, as
+    // on the web, where pressing Save blurs the field first.
+    FocusManager.instance.primaryFocus?.unfocus();
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || _busy) return;
     if (!(_form.currentState?.validate() ?? false)) return;
     final t = ref.read(tProvider);
     final api = ref.read(apiProvider).branches;
@@ -586,14 +592,18 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
             onChanged: (v) => _set(() => _printerIp = v),
             onSubmitted: (_) => _submit(),
           ),
-          DashNumberField(
+          // A port is an address, not an amount: digits as typed, never
+          // grouped ("9100", not "9,100").
+          DashTextField(
             key: const ValueKey('branch-printer-port'),
             label: t('branches.printerPort'),
-            value: _printerPort,
-            decimals: 0,
-            allowEmpty: true,
-            onChanged: (v) => _set(() => _printerPort = v),
-            validator: _atLeastZero,
+            value: _printerPort?.round().toString() ?? '',
+            mono: true,
+            keyboardType: TextInputType.number,
+            textDirection: TextDirection.ltr,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            onChanged: (v) => _set(() => _printerPort = double.tryParse(v)),
+            onSubmitted: (_) => _submit(),
           ),
         ),
     ]);

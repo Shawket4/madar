@@ -135,4 +135,22 @@ void main() {
       isEmpty,
     );
   });
+
+  testWidgets('TEAM-TEM-030 Cancel mid-save: the punch lands and the board '
+      'still reads again', (tester) async {
+    final s = teamServer();
+    final gate = s.server.hold('POST', punchT);
+    final h = await pumpTeam(tester, s: s);
+    await _openTarek(h);
+    await h.tap(surfaceButton(h.t('dawam.reasonNoSignal')));
+    await h.tap(surfaceButton(h.t('dawam.punchIn')));
+    await h.tap(surfaceButton(h.t('common.cancel')));
+    expect(find.byType(DashSurface), findsNothing);
+    expect(h.server.callsTo(presenceT), hasLength(1));
+    gate.release();
+    await h.settle();
+    expect(h.server.callsTo(punchT), hasLength(1));
+    expect(h.server.callsTo(presenceT), hasLength(2));
+    expect(h.server.callsTo(flagsT), hasLength(2));
+  });
 }

@@ -545,6 +545,18 @@ void main() {
     expect(tester.widget<DashSwitch>(_switch()).value, isFalse);
   });
 
+  testWidgets('SET-SPL-011 phone: a pick in the open sheet keeps a refresh '
+      'that landed after it opened', (tester) async {
+    final h = await pumpStaffPool(tester, size: DashSize.phone);
+    await h.tap(_key('spl-items-trigger'));
+    savedRow(h.db!, null)!['daily_allowance'] = 11;
+    h.container.invalidate(staffPoolSettingsProvider(null));
+    await h.settle();
+    expect(tester.widget<DashTextField>(_key('spl-allowance')).value, '11');
+    await h.tap(inPicker(find.text(itemName('latte'))));
+    expect(tester.widget<DashTextField>(_key('spl-allowance')).value, '11');
+  });
+
   testWidgets('phone: the list opens as a sheet and follows each toggle', (
     tester,
   ) async {

@@ -190,8 +190,8 @@ class FinRepricingTab extends ConsumerWidget {
   }
 }
 
-double? _numIn(Map<String, Object?> o, String key) {
-  final v = o[key];
+double? _numIn(Map<String, Object?>? o, String key) {
+  final v = o?[key];
   return v is num && v.isFinite ? v.toDouble() : null;
 }
 
@@ -225,10 +225,10 @@ class FinDecisionsTab extends ConsumerWidget {
     }
 
     final success = DashTone.success.foreground(c);
-    return DashDataTable<FinDecision>(
+    return DashDataTable<DecisionOut>(
       key: const ValueKey('fin-decisions'),
       rows: q.value ?? const [],
-      rowKey: (r) => r.d.id,
+      rowKey: (r) => r.id,
       loading: q.awaitingFirst,
       errorMessage: q.failedFirst ? errorMessage(q.error, t) : null,
       onRetry: () => ref.invalidate(finDecisionsProvider(key)),
@@ -245,18 +245,18 @@ class FinDecisionsTab extends ConsumerWidget {
           phone: DashPhoneRole.title,
           flex: 2,
           minWidth: 200,
-          text: (r) => r.d.itemName,
+          text: (r) => r.itemName,
           cell: (context, r) => Wrap(
             spacing: Space.sm,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               MadarClippedText(
-                r.d.itemName,
+                r.itemName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: DashType.bodyMedium.copyWith(color: c.textPrimary),
               ),
-              if (r.d.sizeLabel != 'one_size') FinOutlineBadge(r.d.sizeLabel),
+              if (r.sizeLabel != 'one_size') FinOutlineBadge(r.sizeLabel),
             ],
           ),
         ),
@@ -264,12 +264,12 @@ class FinDecisionsTab extends ConsumerWidget {
           id: 'signal',
           label: t('insights.columns.signal'),
           minWidth: 130,
-          text: (r) => finSignalLabel(t, r.d.signalKind),
+          text: (r) => finSignalLabel(t, r.signalKind),
           cell: (context, r) => Align(
             alignment: AlignmentDirectional.centerStart,
             child: DashStatusPill(
-              label: finSignalLabel(t, r.d.signalKind),
-              tone: finSignalTone(r.d.signalKind),
+              label: finSignalLabel(t, r.signalKind),
+              tone: finSignalTone(r.signalKind),
               small: true,
             ),
           ),
@@ -278,9 +278,9 @@ class FinDecisionsTab extends ConsumerWidget {
           id: 'action',
           label: t('insights.columns.action'),
           minWidth: 100,
-          text: (r) => finActionLabel(t, r.d.action),
+          text: (r) => finActionLabel(t, r.action),
           cell: (context, r) => Text(
-            finActionLabel(t, r.d.action),
+            finActionLabel(t, r.action),
             style: DashType.body.copyWith(color: c.textSecondary),
           ),
         ),
@@ -288,16 +288,16 @@ class FinDecisionsTab extends ConsumerWidget {
           id: 'when',
           label: t('insights.columns.when'),
           minWidth: 170,
-          text: (r) => f.fmtDateTime(r.d.createdAt.toIso8601String()),
+          text: (r) => f.fmtDateTime(r.createdAt.toIso8601String()),
           cell: (context, r) {
-            final who = nameOf(r.d.createdBy);
+            final who = nameOf(r.createdBy);
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               spacing: DashMetrics.hair,
               children: [
                 Text(
-                  dashFigure(f.fmtDateTime(r.d.createdAt.toIso8601String())),
+                  dashFigure(f.fmtDateTime(r.createdAt.toIso8601String())),
                   style: DashType.mono.copyWith(color: c.textPrimary),
                 ),
                 if (who != null)
@@ -316,14 +316,14 @@ class FinDecisionsTab extends ConsumerWidget {
           label: t('insights.decisions.qtyPerDay'),
           numeric: true,
           minWidth: 140,
-          cell: (context, r) => r.measuring
+          cell: (context, r) => r.impact == null
               ? Text(
                   t('insights.decisions.measuring'),
                   style: DashType.body.copyWith(color: c.textSecondary),
                 )
               : FinBeforeAfter(
-                  before: _numIn(r.d.baseline, 'qty_per_day'),
-                  after: _numIn(r.d.impact, 'qty_per_day'),
+                  before: _numIn(r.baseline, 'qty_per_day'),
+                  after: _numIn(r.impact, 'qty_per_day'),
                   format: (v) => f.fmtNumber(
                     v,
                     const NumberOptions(maximumFractionDigits: 2),
@@ -335,11 +335,11 @@ class FinDecisionsTab extends ConsumerWidget {
           label: t('insights.columns.marginPct'),
           numeric: true,
           minWidth: 140,
-          cell: (context, r) => r.measuring
+          cell: (context, r) => r.impact == null
               ? const SizedBox.shrink()
               : FinBeforeAfter(
-                  before: _numIn(r.d.baseline, 'margin_pct'),
-                  after: _numIn(r.d.impact, 'margin_pct'),
+                  before: _numIn(r.baseline, 'margin_pct'),
+                  after: _numIn(r.impact, 'margin_pct'),
                   format: (v) => f.fmtPercent(v / 100),
                 ),
         ),
@@ -348,7 +348,7 @@ class FinDecisionsTab extends ConsumerWidget {
           // Visually hidden on the web (`sr-only`).
           label: '',
           width: Space.xxl + Space.lg,
-          cell: (context, r) => r.d.impactComplete
+          cell: (context, r) => r.impactComplete
               ? Semantics(
                   label: t('insights.decisions.complete'),
                   excludeSemantics: true,

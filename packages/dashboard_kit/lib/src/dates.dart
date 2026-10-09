@@ -301,7 +301,8 @@ class _DashDateFieldState extends State<DashDateField> {
     final c = context.madarColors;
     final t = context.dashStrings;
     return StatefulBuilder(
-      builder: (context, inner) => Padding(
+      // Scrolls when the popover is capped to a short window.
+      builder: (context, inner) => SingleChildScrollView(
         padding: const EdgeInsets.all(Space.md),
         child: Column(
           mainAxisSize: MainAxisSize.min,

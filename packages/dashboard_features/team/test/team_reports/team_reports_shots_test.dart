@@ -32,6 +32,20 @@ void main() {
     }
   }
 
+  // TEAM-RPT-031: on a tablet the payroll table scrolls, never cuts a cell.
+  for (final lang in ['en', 'ar']) {
+    testWidgets('payroll last month, tablet $lang', (tester) async {
+      final h = await pumpReports(
+        tester,
+        size: DashSize.tablet,
+        locale: lang,
+      );
+      await _tab(h, 'dawam.rPayroll');
+      await h.tap(pageText(h.t('inputs.lastMonth')));
+      await shootPage(h, 'payroll');
+    });
+  }
+
   for (final (size, lang) in [
     (DashSize.desktop, 'en'),
     (DashSize.phone, 'ar'),

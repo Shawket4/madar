@@ -39,6 +39,24 @@ final staffPoolMenuProvider = FutureProvider.autoDispose
       return ref.watch(apiProvider).menu.listMenuItems(orgId: orgId);
     });
 
+/// The page's mount reads for a branch scope, warmed only for a person who
+/// may read them (`org.settings.read`/`.edit`): the settings, then the menu
+/// that names the chips when any item is chosen.
+final staffPoolWarmProvider = FutureProvider.autoDispose
+    .family<void, ({String? orgId, String? branchId})>((ref, key) async {
+      final authz = ref.read(authzProvider);
+      if (!authz.can(Cap.orgSettingsRead) && !authz.can(Cap.orgSettingsEdit)) {
+        return;
+      }
+      final s = await ref.watch(
+        staffPoolSettingsProvider(key.branchId).future,
+      );
+      final org = key.orgId;
+      if (org != null && (s.eligibleItemIds?.isNotEmpty ?? false)) {
+        await ref.watch(staffPoolMenuProvider(org).future);
+      }
+    });
+
 /// `getTranslatedName`: the Arabic name in Arabic when there is one.
 String staffPoolItemName(MenuItem m, String lang) {
   final ar = m.nameTranslations['ar'];

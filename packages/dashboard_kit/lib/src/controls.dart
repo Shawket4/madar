@@ -296,6 +296,9 @@ class _DashTextInputState extends State<DashTextInput> {
               border: InputBorder.none,
               counterText: '',
               hintText: widget.placeholder,
+              // The sample sits where the typed words will (a forced-LTR
+              // number reads from the left in Arabic too).
+              hintTextDirection: widget.textDirection,
               hintStyle: style.copyWith(color: c.textMuted),
               contentPadding: EdgeInsets.symmetric(
                 vertical: multiline ? Space.xs : Space.sm,
@@ -504,6 +507,7 @@ class DashSwitch extends StatelessWidget {
     final c = context.madarColors;
     final active = enabled && onChanged != null;
     final rtl = Directionality.of(context) == TextDirection.rtl;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return DashPressable(
       onTap: active ? () => onChanged!(!value) : null,
       enabled: active,
@@ -529,7 +533,9 @@ class DashSwitch extends StatelessWidget {
                 BorderRadius.circular(Radii.pill),
               ),
               decoration: BoxDecoration(
-                color: value ? c.accent : c.input,
+                color: value
+                    ? c.accent
+                    : (dark ? c.input.withValues(alpha: 0.8) : c.input),
                 borderRadius: BorderRadius.circular(Radii.pill),
               ),
               child: AnimatedAlign(
@@ -542,12 +548,14 @@ class DashSwitch extends StatelessWidget {
                   width: DashMetrics.switchHeight - 4,
                   height: DashMetrics.switchHeight - 4,
                   decoration: BoxDecoration(
-                    color: value ? c.textOnAccent : c.card,
+                    // Off in dark, the knob is the ink (the web's
+                    // `dark:data-[state=unchecked]:bg-foreground`): a card
+                    // knob vanished into the dark track.
+                    color: value
+                        ? c.textOnAccent
+                        : (dark ? c.textPrimary : c.card),
                     shape: BoxShape.circle,
-                    boxShadow: MadarElevation.thumb.shadows(
-                      c,
-                      dark: Theme.of(context).brightness == Brightness.dark,
-                    ),
+                    boxShadow: MadarElevation.thumb.shadows(c, dark: dark),
                   ),
                 ),
               ),

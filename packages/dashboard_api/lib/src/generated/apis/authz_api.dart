@@ -104,7 +104,7 @@ class AuthzApi {
   /// let through.
   ///
   /// `POST /authz/flags/{id}/review` (review_flag)
-  Future<ReplayFlag> reviewFlag({required int id}) async {
+  Future<ReviewedOut> reviewFlag({required int id}) async {
     final response = await _transport.send(
       ApiRequest(
         method: 'POST',
@@ -114,7 +114,7 @@ class AuthzApi {
     return decodeResponse(
       response,
       'review_flag',
-      (json) => decObject(json, 'review_flag', ReplayFlag.fromJson),
+      (json) => decObject(json, 'review_flag', ReviewedOut.fromJson),
     );
   }
 

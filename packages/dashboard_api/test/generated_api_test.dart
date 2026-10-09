@@ -61,10 +61,10 @@ void main() {
 
   group('coverage', () {
     test(
-      'the spec is the one the SPEC describes (637 operations, 795 schemas)',
+      'the spec is the one the SPEC describes (637 operations, 796 schemas)',
       () {
         expect(specOps, hasLength(637));
-        expect(schemas, hasLength(795));
+        expect(schemas, hasLength(796));
       },
     );
 

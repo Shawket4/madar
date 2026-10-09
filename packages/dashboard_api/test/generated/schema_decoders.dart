@@ -598,6 +598,7 @@ final Map<String, Object Function(Map<String, Object?> json)> schemaDecoders = {
   'ResultBlock': ResultBlock.fromJson,
   'ReturnLineInput': ReturnLineInput.fromJson,
   'ReviewAdvance': ReviewAdvance.fromJson,
+  'ReviewedOut': ReviewedOut.fromJson,
   'RewardCatalogue': RewardCatalogue.fromJson,
   'RewardItem': RewardItem.fromJson,
   'RewardItemInput': RewardItemInput.fromJson,

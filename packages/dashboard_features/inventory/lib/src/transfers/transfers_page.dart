@@ -8,8 +8,14 @@ library;
 
 import 'package:collection/collection.dart';
 import 'package:dashboard_api/dashboard_api.dart'
-    show Branch, BranchKind, StockTransfer, StockTransferLine,
-        TransferDifferenceRow, TransferLineInput;
+    show
+        Branch,
+        BranchKind,
+        StockTransfer,
+        StockTransferLine,
+        TransferDifferenceRow,
+        TransferLineInput,
+        TransferLocation;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -26,8 +32,7 @@ import 'transfers_data.dart';
 
 /// The page's own view of the org (INV-TRF-002): the active locations this
 /// person works at (warehouses included on Inventory), none without an org.
-List<Branch> transferBranches(WidgetRef ref) =>
-    ref.watch(orgIdProvider) == null
+List<Branch> transferBranches(WidgetRef ref) => ref.watch(orgIdProvider) == null
     ? const []
     : ref.watch(activeBranchesProvider) ?? const [];
 
@@ -158,8 +163,11 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
 
   /// INV-TRF-009: the drawer on [tr], kept open after a step moves it out
   /// of the current tab.
-  void _open(StockTransfer tr) =>
-      showTransferDrawer(context, transfer: tr, listKey: _key(ref.read(currentScopeProvider)));
+  void _open(StockTransfer tr) => showTransferDrawer(
+    context,
+    transfer: tr,
+    listKey: _key(ref.read(currentScopeProvider)),
+  );
 
   /// INV-TRF-003/040: the transfer dialog in send mode from "here"; its
   /// result opens in the drawer.
@@ -179,7 +187,10 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
 
   /// INV-TRF-004/040: the replenish dialog; its picked lines open the
   /// transfer dialog from the warehouse.
-  Future<void> _replenish(Branch here, List<({String id, String name})> to) async {
+  Future<void> _replenish(
+    Branch here,
+    List<({String id, String name})> to,
+  ) async {
     final pick = await showReplenishDialog(
       context,
       warehouse: here,
@@ -205,7 +216,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
         ? ref.watch(transferLocationsProvider(orgId)).value
         : null;
     final selling = [
-      for (final l in locations ?? const [])
+      for (final l in locations ?? const <TransferLocation>[])
         if (l.kind == 'branch') (id: l.id, name: l.name),
     ];
     final canCreateHere =
@@ -325,7 +336,6 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
               errorText: diffs != null && diffs.failedFirst
                   ? errorMessage(diffs.error, t)
                   : null,
-              retrying: diffs?.isLoading ?? false,
               onRetry: () => ref.invalidate(transferDifferencesProvider(dkey!)),
             )
           : TransfersTable(
@@ -341,7 +351,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
   }
 }
 
-/// A route "<source> → <destination>", a Warehouse glyph before a warehouse
+/// A route `<source> → <destination>`, a Warehouse glyph before a warehouse
 /// side when [kinds], the arrow mirrored in RTL.
 class TransferRoute extends StatelessWidget {
   const TransferRoute({
@@ -367,7 +377,7 @@ class TransferRoute extends StatelessWidget {
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       spacing: Space.xs,
-      runSpacing: Space.xxs,
+      runSpacing: Space.xs,
       children: [
         if (sourceWarehouse) glyph('warehouse'),
         Text(source, style: style),
@@ -486,7 +496,6 @@ class DifferencesTable extends ConsumerWidget {
     required this.rows,
     required this.loading,
     required this.errorText,
-    required this.retrying,
     required this.onRetry,
     super.key,
   });
@@ -494,7 +503,6 @@ class DifferencesTable extends ConsumerWidget {
   final List<TransferDifferenceRow> rows;
   final bool loading;
   final String? errorText;
-  final bool retrying;
   final VoidCallback onRetry;
 
   @override
