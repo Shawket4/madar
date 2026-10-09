@@ -8,6 +8,7 @@ class CreateActivationCodeRequest {
     required this.branchId,
     this.kind,
     this.label,
+    this.slotId,
     this.explicitNulls = const {},
   });
 
@@ -23,6 +24,10 @@ class CreateActivationCodeRequest {
           DeviceKind.fromJson,
         ),
         label: decStringN(json['label'], 'CreateActivationCodeRequest.label'),
+        slotId: decStringN(
+          json['slot_id'],
+          'CreateActivationCodeRequest.slot_id',
+        ),
       );
 
   final String branchId;
@@ -32,6 +37,10 @@ class CreateActivationCodeRequest {
   /// A name for the tablet it is meant for ("Front counter").
   final String? label;
 
+  /// A slot of the branch plan (`GET /branch-plan`). The code takes the
+  /// slot's kind and name, and the device that uses it fills the slot.
+  final String? slotId;
+
   /// Wire names of optional fields to send as an explicit `null` when unset
   /// (a PATCH that clears a value). Unset optional fields are omitted.
   final Set<String> explicitNulls;
@@ -40,6 +49,7 @@ class CreateActivationCodeRequest {
     'branch_id': branchId,
     if (kind != null || explicitNulls.contains('kind')) 'kind': kind?.toJson(),
     if (label != null || explicitNulls.contains('label')) 'label': label,
+    if (slotId != null || explicitNulls.contains('slot_id')) 'slot_id': slotId,
   };
 
   @override

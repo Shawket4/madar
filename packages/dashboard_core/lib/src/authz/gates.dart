@@ -6,6 +6,7 @@ import 'package:dashboard_api/dashboard_api.dart' show ApiException;
 import 'package:dashboard_core/src/authz/authz_providers.dart';
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
 import 'package:dashboard_core/src/routes/nav.dart';
+import 'package:dashboard_kit/dashboard_kit.dart' show DashErrorState;
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -90,6 +91,11 @@ class ModuleGate extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Every page, module or not: with the permissions unread every action
+    // would hide with no reason given (the web's `useAuthzLoadError`, SH-10).
+    if (ref.watch(authzProvider.select((a) => !a.ready && a.error != null))) {
+      return const AuthzLoadError();
+    }
     final needs = moduleOfPath(path);
     if (needs == null) return child;
     final mods = ref.watch(orgModulesProvider);
@@ -132,6 +138,26 @@ class ModuleGate extends ConsumerWidget {
       );
     }
     return child;
+  }
+}
+
+/// The person's permissions could not be read and nothing is remembered:
+/// the shell's `shell.accessLoadError`, the failure's words and Retry.
+class AuthzLoadError extends ConsumerWidget {
+  const AuthzLoadError({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(tProvider);
+    return Padding(
+      padding: const EdgeInsetsDirectional.all(Space.xl),
+      child: DashErrorState(
+        title: t('shell.accessLoadError'),
+        message: errorMessage(ref.watch(authzProvider).error, t),
+        retryLabel: t('common.retry'),
+        onRetry: () => ref.read(authzProvider.notifier).refresh(),
+      ),
+    );
   }
 }
 

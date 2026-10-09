@@ -2,12 +2,10 @@
 // the window, empty/loading/error, the export, the card a row opens and the
 // platform's wallet action (SET-LOY-052 … 063).
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_setup/src/loyalty/google_object_dialog.dart';
 import 'package:dashboard_setup/src/loyalty/member_sheet.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';

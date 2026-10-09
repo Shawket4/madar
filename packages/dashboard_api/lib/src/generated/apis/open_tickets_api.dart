@@ -212,6 +212,8 @@ class OpenTicketsApi {
     );
   }
 
+  /// The table behind a QR code: its label, its branch, and whether the branch is taking orders now.
+  ///
   /// `GET /public/tables/{id}` (public_table)
   Future<PublicTable> publicTable({required String id}) async {
     final response = await _transport.send(

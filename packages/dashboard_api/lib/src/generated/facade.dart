@@ -20,6 +20,7 @@ class DashboardApi {
   late final AuthzApi authz = AuthzApi(transport);
   late final BookingsApi bookings = BookingsApi(transport);
   late final BookingsPublicApi bookingsPublic = BookingsPublicApi(transport);
+  late final BranchPlanApi branchPlan = BranchPlanApi(transport);
   late final BranchesApi branches = BranchesApi(transport);
   late final CostingApi costing = CostingApi(transport);
   late final CustomersApi customers = CustomersApi(transport);
@@ -43,6 +44,7 @@ class DashboardApi {
   late final OrgsApi orgs = OrgsApi(transport);
   late final PaymentMethodsApi paymentMethods = PaymentMethodsApi(transport);
   late final PermissionsApi permissions = PermissionsApi(transport);
+  late final PublicApi public = PublicApi(transport);
   late final PurchasingApi purchasing = PurchasingApi(transport);
   late final PushApi push = PushApi(transport);
   late final QrApi qr = QrApi(transport);

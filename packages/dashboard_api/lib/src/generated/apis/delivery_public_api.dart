@@ -8,6 +8,10 @@ class DeliveryPublicApi {
 
   final ApiTransport _transport;
 
+  /// A shop's branches that take online orders, with each channel's hours and settings.
+  ///
+  /// `org_id` names the shop. With `browse=true` every active branch is listed, for a read-only menu.
+  ///
   /// `GET /public/branches` (public_branches)
   Future<List<PublicBranch>> publicBranches({
     required String orgId,
@@ -34,6 +38,10 @@ class DeliveryPublicApi {
     );
   }
 
+  /// The delivery fee and zone for a point, before ordering.
+  ///
+  /// Needs `lat`, `lng` and `channel`. `status` says whether the branch delivers there; the fee is in piastres.
+  ///
   /// `GET /public/branches/{id}/delivery-quote` (delivery_quote)
   Future<QuoteResponse> deliveryQuote({
     required double lat,
@@ -59,6 +67,10 @@ class DeliveryPublicApi {
     );
   }
 
+  /// A branch's menu for one ordering channel, with prices in piastres.
+  ///
+  /// `channel` is `in_mall`, `outside`, `umbrella` or `pickup`. `preview=true` shows a channel's menu while it is closed, and `channel=dine_in&preview=true` gives the read-only dine-in menu. Nothing can be ordered from a preview.
+  ///
   /// `GET /public/branches/{id}/menu` (public_menu)
   Future<DeliveryMenu> publicMenu({
     required String channel,
@@ -82,6 +94,10 @@ class DeliveryPublicApi {
     );
   }
 
+  /// Place an online order (delivery or pickup) at a branch.
+  ///
+  /// Answers 201 with the order; follow it at `/public/delivery-orders/{id}/track`. The server prices the cart in piastres. Where the branch requires a verified phone (the default), send the `device_token` from `/public/otp/verify`.
+  ///
   /// `POST /public/delivery-orders` (create_delivery_order)
   Future<DeliveryOrder> createDeliveryOrder({
     required DeliveryOrderInput body,
@@ -101,6 +117,10 @@ class DeliveryPublicApi {
     );
   }
 
+  /// A customer's past orders at a shop, by their verified phone.
+  ///
+  /// Needs `phone` and the `device_token` from `/public/otp/verify`; a phone number alone unlocks nothing.
+  ///
   /// `GET /public/delivery-orders/history` (guest_order_history)
   Future<List<OrderHistorySummary>> guestOrderHistory({
     required String phone,
@@ -130,6 +150,10 @@ class DeliveryPublicApi {
     );
   }
 
+  /// A customer's saved delivery addresses at a shop, by their verified phone.
+  ///
+  /// Needs `phone` and the `device_token` from `/public/otp/verify`.
+  ///
   /// `GET /public/delivery-orders/past-locations` (guest_past_locations)
   Future<List<GuestSavedLocation>> guestPastLocations({
     required String phone,
@@ -161,6 +185,10 @@ class DeliveryPublicApi {
     );
   }
 
+  /// An online order's status, timeline and totals, from the id in its tracking link.
+  ///
+  /// Amounts are in piastres.
+  ///
   /// `GET /public/delivery-orders/{id}/track` (track_delivery_order)
   Future<DeliveryTracking> trackDeliveryOrder({required String id}) async {
     final response = await _transport.send(
@@ -177,6 +205,10 @@ class DeliveryPublicApi {
     );
   }
 
+  /// Send a 4-digit code by WhatsApp to verify a phone number.
+  ///
+  /// One live code per phone per minute (409 otherwise). Check it with `/public/otp/verify`.
+  ///
   /// `POST /public/otp/request` (otp_request)
   Future<OtpRequestResponse> otpRequest({required OtpRequestInput body}) async {
     final response = await _transport.send(
@@ -193,6 +225,10 @@ class DeliveryPublicApi {
     );
   }
 
+  /// Check a WhatsApp code and get a `device_token` that proves the phone.
+  ///
+  /// Ordering, booking, the rewards card and order history take this token where a shop asks for a verified phone. A code allows five tries.
+  ///
   /// `POST /public/otp/verify` (otp_verify)
   Future<OtpVerifyResponse> otpVerify({required OtpVerifyInput body}) async {
     final response = await _transport.send(

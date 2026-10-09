@@ -123,6 +123,19 @@ void main() {
       expect(roleRow(roleId('teller')), findsOneWidget);
     });
 
+    testWidgets('ADM-ROL-004 (divergence) while the permissions load: the '
+        'skeleton, never "No roles yet", and no roles asked', (tester) async {
+      final s = rolesServer();
+      final gate = s.server.hold('GET', '/authz/me');
+      final h = await pumpRoles(tester, server: s.server, db: s.db);
+      expect(find.byKey(const ValueKey('roles-loading')), findsOneWidget);
+      expect(onPage('No roles yet'), findsNothing);
+      expect(h.server.callsTo(rolesRoute), isEmpty);
+      gate.release();
+      await h.settle();
+      expect(roleRow(roleId('teller')), findsOneWidget);
+    });
+
     testWidgets('ADM-ROL-005 error: "Couldn\'t load roles" + Retry, which '
         'asks again for the roles only', (tester) async {
       final s = rolesServer();
@@ -439,6 +452,21 @@ void main() {
       expect(switchOf(tester, 'refunds.create').value, isTrue);
       expect(switchOf(tester, 'refunds.create').onChanged, isNotNull);
       expect(switchOf(tester, 'branches.edit').value, isFalse);
+    });
+
+    testWidgets('ADM-ROL-014 (divergence) a switch is named by the '
+        "capability's words, not its key", (tester) async {
+      await pumpRoles(tester);
+      expect(switchOf(tester, 'branches.edit').semanticLabel, isNot(
+        'branches.edit',
+      ));
+      expect(
+        find.descendant(
+          of: capabilityRow(switchOf(tester, 'branches.edit').semanticLabel),
+          matching: grantSwitch('branches.edit'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('ADM-ROL-014/015 switching on: PUT {capability, granted}, '

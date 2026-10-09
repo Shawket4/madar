@@ -724,7 +724,7 @@ void main() {
       MockResponse.error(500, 'Log down'),
       times: null,
     );
-    final h3 = await openPrefs(tester, 'Adham Reda', s: s3);
+    await openPrefs(tester, 'Adham Reda', s: s3);
     expect(surfaceHas('Log down'), findsOneWidget);
     expect(surfaceText('No changes yet.'), findsNothing);
   });

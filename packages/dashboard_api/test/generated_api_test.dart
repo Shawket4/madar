@@ -61,10 +61,10 @@ void main() {
 
   group('coverage', () {
     test(
-      'the spec is the one the SPEC describes (621 operations, 773 schemas)',
+      'the spec is the one the SPEC describes (629 operations, 783 schemas)',
       () {
-        expect(specOps, hasLength(621));
-        expect(schemas, hasLength(773));
+        expect(specOps, hasLength(629));
+        expect(schemas, hasLength(783));
       },
     );
 
@@ -108,7 +108,8 @@ void main() {
       expect(api.bookingsPublic, isA<BookingsPublicApi>());
       expect(api.floorTransfers, isA<FloorTransfersApi>());
       expect(api.orderNow, isA<OrderNowApi>());
-      expect({for (final o in apiOperations) o.tag}, hasLength(47));
+      expect(api.branchPlan, isA<BranchPlanApi>());
+      expect({for (final o in apiOperations) o.tag}, hasLength(49));
     });
   });
 

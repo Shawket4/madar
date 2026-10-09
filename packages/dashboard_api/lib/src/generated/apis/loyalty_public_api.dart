@@ -8,6 +8,10 @@ class LoyaltyPublicApi {
 
   final ApiTransport _transport;
 
+  /// A rewards card: the member's balance, progress to the next reward, rewards and wallet links.
+  ///
+  /// The token is the one on the card's barcode.
+  ///
   /// `GET /public/loyalty/card/{token}` (loyalty_card)
   Future<CardView> loyaltyCard({required String token}) async {
     final response = await _transport.send(
@@ -50,6 +54,10 @@ class LoyaltyPublicApi {
     );
   }
 
+  /// Save a card holder's choices: no marketing messages, and the language to write in.
+  ///
+  /// The card's own token is the key. Answers 204.
+  ///
   /// `POST /public/loyalty/card/{token}/preferences` (set_loyalty_card_preferences)
   Future<void> setLoyaltyCardPreferences({
     required String token,
@@ -85,6 +93,10 @@ class LoyaltyPublicApi {
     );
   }
 
+  /// Join a shop's rewards programme.
+  ///
+  /// Where `require_otp` is on, send the `device_token` from `/public/otp/verify`; until the phone is proven the answer carries no card.
+  ///
   /// `POST /public/loyalty/join` (loyalty_join)
   Future<JoinResult> loyaltyJoin({required JoinInput body}) async {
     final response = await _transport.send(
@@ -101,6 +113,10 @@ class LoyaltyPublicApi {
     );
   }
 
+  /// What a rewards programme's join page shows: its brand, rewards and what joining asks for.
+  ///
+  /// Name the shop with `org_id`, or a branch with `branch_id` from its counter code.
+  ///
   /// `GET /public/loyalty/join-info` (loyalty_join_info)
   Future<JoinInfo> loyaltyJoinInfo({String? branchId, String? orgId}) async {
     final response = await _transport.send(

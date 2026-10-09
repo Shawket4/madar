@@ -263,6 +263,10 @@ String jsNumber(num n) =>
 
 String _iso(DateTime d) => d.toUtc().toIso8601String();
 
+/// A name or a typed line inside an Arabic sentence keeps its own direction:
+/// "Morning · 11 Oct" must not pull the date's figures into the English run.
+String _bdi(String? s) => '\u2068$s\u2069';
+
 /// The closed-month note on a cover or overtime (`ClosedMonthNote`).
 List<PendingBadge> _closedMonth(Translator t) => [
   OutlineBadge(t('staff.monthClosedRejectOnly')),
@@ -304,7 +308,7 @@ List<Pending> buildPending({
           describeWindow(r, t, f),
           r.title,
           r.reason,
-        ].where((s) => s != null && s.isNotEmpty).join(' · '),
+        ].where((s) => s != null && s.isNotEmpty).map(_bdi).join(' · '),
         at: _iso(r.createdAt),
         source: r,
         approveMode: pay
@@ -337,7 +341,7 @@ List<Pending> buildPending({
             count: a.installments,
           ),
           a.reason,
-        ].where((s) => s != null && s.isNotEmpty).join(' · '),
+        ].where((s) => s != null && s.isNotEmpty).map(_bdi).join(' · '),
         at: _iso(a.createdAt),
         source: a,
         badges: advanceCapNote(a, t, f, mayPassCap: mayPassCap),
@@ -363,7 +367,7 @@ List<Pending> buildPending({
           a.percentOfBase != null
               ? '${jsNumber(a.percentOfBase!)}%'
               : f.fmtMoney(a.amountPiastres ?? 0),
-          a.reason,
+          _bdi(a.reason),
         ].join(' · '),
         at: _iso(a.createdAt),
         source: a,
@@ -382,8 +386,8 @@ List<Pending> buildPending({
         who: '${s.requesterName} ↔ ${s.peerName}',
         kind: t('dawam.swap'),
         detail:
-            '${s.requesterShiftName} ${f.fmtDate(s.requesterDate)} ↔ '
-            '${s.peerShiftName} ${f.fmtDate(s.peerDate)}',
+            '${_bdi(s.requesterShiftName)} ${f.fmtDate(s.requesterDate)} ↔ '
+            '${_bdi(s.peerShiftName)} ${f.fmtDate(s.peerDate)}',
         at: _iso(s.createdAt),
         source: s,
         effect: t('dawamOps.meansSwap'),
@@ -401,7 +405,7 @@ List<Pending> buildPending({
         icon: 'calendar-plus',
         who: o.claimedByName ?? '—',
         kind: t('dawam.openShiftClaim'),
-        detail: '${o.shiftName} · ${f.fmtDate(o.onDate)}',
+        detail: '${_bdi(o.shiftName)} · ${f.fmtDate(o.onDate)}',
         at: o.onDate,
         source: o,
         effect: t('dawamOps.meansClaim'),
@@ -423,7 +427,7 @@ List<Pending> buildPending({
         detail: t(
           'dawam.coverDetail',
           args: {
-            'shift': r.workShiftName ?? '',
+            'shift': _bdi(r.workShiftName ?? ''),
             'date': f.fmtDate(r.businessDate),
             'from': f.fmtTime(r.checkInAt?.toUtc().toIso8601String()),
           },

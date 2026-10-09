@@ -24,6 +24,40 @@
     }
   ],
   "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "What this host is, for a person or an agent that opens it.",
+        "operationId": "api_root",
+        "responses": {
+          "200": {
+            "description": "The API's name and where its documentation is",
+            "content": {
+              "application/json": {}
+            }
+          }
+        }
+      }
+    },
+    "/.well-known/mcp/server-card.json": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "The MCP server card: how to reach this server and what it offers, built from\nthe same tool list `tools/list` answers with, so the two cannot disagree. The\nmarketing site's /.well-known/mcp/server-card.json redirects here.",
+        "operationId": "mcp_server_card",
+        "responses": {
+          "200": {
+            "description": "The MCP server card",
+            "content": {
+              "application/json": {}
+            }
+          }
+        }
+      }
+    },
     "/addon-items": {
       "get": {
         "tags": [
@@ -5332,6 +5366,294 @@
         "responses": {
           "204": {
             "description": "Override cleared — item (and its size overrides) revert to the org catalog"
+          },
+          "400": {
+            "description": "Bad request — validation failed or malformed input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — insufficient permission or wrong org",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — FK or domain invariant violation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_jwt": []
+          }
+        ]
+      }
+    },
+    "/branch-plan": {
+      "get": {
+        "tags": [
+          "branch_plan"
+        ],
+        "operationId": "get_plan",
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BranchPlanView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — validation failed or malformed input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — insufficient permission or wrong org",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — FK or domain invariant violation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_jwt": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "branch_plan"
+        ],
+        "operationId": "save_plan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavePlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Saved; the plan as now stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BranchPlanView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — validation failed or malformed input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — insufficient permission or wrong org",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — FK or domain invariant violation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_jwt": []
+          }
+        ]
+      }
+    },
+    "/branch-plan/versions": {
+      "get": {
+        "tags": [
+          "branch_plan"
+        ],
+        "operationId": "list_versions",
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The last 20 saved plans, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlanVersionView"
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad request — validation failed or malformed input",
@@ -21549,6 +21871,37 @@
         ]
       }
     },
+    "/mcp": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "One JSON-RPC message in, one answer out (a notification gets 202 and no body).",
+        "operationId": "mcp",
+        "requestBody": {
+          "description": "One JSON-RPC 2.0 message (MCP Streamable HTTP)",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The JSON-RPC answer",
+            "content": {
+              "application/json": {}
+            }
+          },
+          "202": {
+            "description": "A notification, accepted"
+          }
+        }
+      }
+    },
     "/menu-item-sizes/{size_id}/base": {
       "put": {
         "tags": [
@@ -27088,6 +27441,23 @@
         ]
       }
     },
+    "/openapi.json": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "The public part of this API as OpenAPI 3.1.",
+        "operationId": "public_openapi",
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 document of the `/public/` endpoints",
+            "content": {
+              "application/json": {}
+            }
+          }
+        }
+      }
+    },
     "/orders": {
       "get": {
         "tags": [
@@ -32074,6 +32444,8 @@
         "tags": [
           "bookings-public"
         ],
+        "summary": "A shop's branches that take table bookings online.",
+        "description": "`org_id` names the shop. Only active branches with booking switched on are listed.",
         "operationId": "booking_branches",
         "parameters": [
           {
@@ -32168,6 +32540,8 @@
         "tags": [
           "bookings-public"
         ],
+        "summary": "Book a table at a branch.",
+        "description": "Answers 201 with the booking. The time must be a free slot after the branch's lead time. Where the branch's `require_otp` is on, send the `device_token` from `/public/otp/verify`.",
         "operationId": "create_public_booking",
         "requestBody": {
           "content": {
@@ -32258,6 +32632,7 @@
         "tags": [
           "bookings-public"
         ],
+        "summary": "A booking, by the manage token from its confirmation link.",
         "operationId": "get_public_booking",
         "parameters": [
           {
@@ -32347,6 +32722,8 @@
         "tags": [
           "bookings-public"
         ],
+        "summary": "Change a booking's time, party size or notes, by its manage token.",
+        "description": "Only a confirmed booking, and only until the branch's lead time before it starts; after that, 409.",
         "operationId": "update_public_booking",
         "parameters": [
           {
@@ -32448,6 +32825,8 @@
         "tags": [
           "bookings-public"
         ],
+        "summary": "Cancel a booking, by its manage token.",
+        "description": "Cancelling a booking that is already cancelled returns it unchanged. A party already seated is the venue's to cancel.",
         "operationId": "cancel_public_booking",
         "parameters": [
           {
@@ -32539,6 +32918,8 @@
         "tags": [
           "delivery-public"
         ],
+        "summary": "A shop's branches that take online orders, with each channel's hours and settings.",
+        "description": "`org_id` names the shop. With `browse=true` every active branch is listed, for a read-only menu.",
         "operationId": "public_branches",
         "parameters": [
           {
@@ -32645,6 +33026,8 @@
         "tags": [
           "bookings-public"
         ],
+        "summary": "A branch's booking rules: party sizes, slot length, lead time and how far ahead.",
+        "description": "`require_otp` says whether a booking needs a phone verified through `/public/otp/verify`.",
         "operationId": "booking_info",
         "parameters": [
           {
@@ -32737,6 +33120,8 @@
         "tags": [
           "bookings-public"
         ],
+        "summary": "The free booking times at a branch for one date and party size.",
+        "description": "Refused when the branch takes no online bookings, or the date or party size is outside its rules.",
         "operationId": "booking_slots",
         "parameters": [
           {
@@ -32949,6 +33334,8 @@
         "tags": [
           "delivery-public"
         ],
+        "summary": "The delivery fee and zone for a point, before ordering.",
+        "description": "Needs `lat`, `lng` and `channel`. `status` says whether the branch delivers there; the fee is in piastres.",
         "operationId": "delivery_quote",
         "parameters": [
           {
@@ -33066,6 +33453,8 @@
         "tags": [
           "delivery-public"
         ],
+        "summary": "A branch's menu for one ordering channel, with prices in piastres.",
+        "description": "`channel` is `in_mall`, `outside`, `umbrella` or `pickup`. `preview=true` shows a channel's menu while it is closed, and `channel=dine_in&preview=true` gives the read-only dine-in menu. Nothing can be ordered from a preview.",
         "operationId": "public_menu",
         "parameters": [
           {
@@ -33178,6 +33567,8 @@
         "tags": [
           "delivery-public"
         ],
+        "summary": "Place an online order (delivery or pickup) at a branch.",
+        "description": "Answers 201 with the order; follow it at `/public/delivery-orders/{id}/track`. The server prices the cart in piastres. Where the branch requires a verified phone (the default), send the `device_token` from `/public/otp/verify`.",
         "operationId": "create_delivery_order",
         "requestBody": {
           "content": {
@@ -33268,6 +33659,8 @@
         "tags": [
           "delivery-public"
         ],
+        "summary": "A customer's past orders at a shop, by their verified phone.",
+        "description": "Needs `phone` and the `device_token` from `/public/otp/verify`; a phone number alone unlocks nothing.",
         "operationId": "guest_order_history",
         "parameters": [
           {
@@ -33381,6 +33774,8 @@
         "tags": [
           "delivery-public"
         ],
+        "summary": "A customer's saved delivery addresses at a shop, by their verified phone.",
+        "description": "Needs `phone` and the `device_token` from `/public/otp/verify`.",
         "operationId": "guest_past_locations",
         "parameters": [
           {
@@ -33506,6 +33901,8 @@
         "tags": [
           "delivery-public"
         ],
+        "summary": "An online order's status, timeline and totals, from the id in its tracking link.",
+        "description": "Amounts are in piastres.",
         "operationId": "track_delivery_order",
         "parameters": [
           {
@@ -33597,6 +33994,8 @@
         "tags": [
           "loyalty-public"
         ],
+        "summary": "A rewards card: the member's balance, progress to the next reward, rewards and wallet links.",
+        "description": "The token is the one on the card's barcode.",
         "operationId": "loyalty_card",
         "parameters": [
           {
@@ -33781,6 +34180,8 @@
         "tags": [
           "loyalty-public"
         ],
+        "summary": "Save a card holder's choices: no marketing messages, and the language to write in.",
+        "description": "The card's own token is the key. Answers 204.",
         "operationId": "set_loyalty_card_preferences",
         "parameters": [
           {
@@ -33961,6 +34362,8 @@
         "tags": [
           "loyalty-public"
         ],
+        "summary": "Join a shop's rewards programme.",
+        "description": "Where `require_otp` is on, send the `device_token` from `/public/otp/verify`; until the phone is proven the answer carries no card.",
         "operationId": "loyalty_join",
         "requestBody": {
           "content": {
@@ -34051,6 +34454,8 @@
         "tags": [
           "loyalty-public"
         ],
+        "summary": "What a rewards programme's join page shows: its brand, rewards and what joining asks for.",
+        "description": "Name the shop with `org_id`, or a branch with `branch_id` from its counter code.",
         "operationId": "loyalty_join_info",
         "parameters": [
           {
@@ -34239,6 +34644,8 @@
         "tags": [
           "order-now"
         ],
+        "summary": "\"Order now\" from a wallet card: the member's last branch and channel, to prefill an order.",
+        "description": "The card's token alone shows only a first name and a masked phone. With a `device_token` for the member's current phone it gives the full prefill and saved addresses.",
         "operationId": "order_now_context",
         "parameters": [
           {
@@ -34339,6 +34746,8 @@
         "tags": [
           "order-now"
         ],
+        "summary": "Merge the profile that already holds the new phone into this card's profile.",
+        "description": "The answer to a `PHONE_BELONGS_TO_ANOTHER` refusal from replace-identity, with the same proofs. This card's customer is the one kept.",
         "operationId": "order_now_combine",
         "parameters": [
           {
@@ -34440,6 +34849,8 @@
         "tags": [
           "order-now"
         ],
+        "summary": "Change the phone number on a card's customer profile.",
+        "description": "Needs proof of both phones: `device_token` for the current one and `new_phone_device_token` for the new one. At most two changes in 30 days.",
         "operationId": "order_now_replace_identity",
         "parameters": [
           {
@@ -34858,6 +35269,8 @@
         "tags": [
           "delivery-public"
         ],
+        "summary": "Send a 4-digit code by WhatsApp to verify a phone number.",
+        "description": "One live code per phone per minute (409 otherwise). Check it with `/public/otp/verify`.",
         "operationId": "otp_request",
         "requestBody": {
           "content": {
@@ -34948,6 +35361,8 @@
         "tags": [
           "delivery-public"
         ],
+        "summary": "Check a WhatsApp code and get a `device_token` that proves the phone.",
+        "description": "Ordering, booking, the rewards card and order history take this token where a shop asks for a verified phone. A code allows five tries.",
         "operationId": "otp_verify",
         "requestBody": {
           "content": {
@@ -35130,6 +35545,7 @@
         "tags": [
           "open_tickets"
         ],
+        "summary": "The table behind a QR code: its label, its branch, and whether the branch is taking orders now.",
         "operationId": "public_table",
         "parameters": [
           {
@@ -35409,6 +35825,56 @@
                   "$ref": "#/components/schemas/ErrorBody"
                 }
               }
+            }
+          }
+        }
+      }
+    },
+    "/public/tenant-shell": {
+      "get": {
+        "tags": [
+          "orgs"
+        ],
+        "summary": "A shop page's HTML: the app entry with the shop's head and noscript.",
+        "description": "Called by nginx for page requests on a shop's own host. Public by nature:\nit returns what the shop's public pages and the public JSON endpoints\nalready show.",
+        "operationId": "public_tenant_shell",
+        "parameters": [
+          {
+            "name": "host",
+            "in": "query",
+            "description": "The shop's host, e.g. `rue.madar-pos.cloud`. nginx sends it as the\n`X-Shell-Host` header; the query parameter is for tests and probes.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "description": "The page's path and query, e.g. `/order/menu?branch=…`. nginx sends it\nas the `X-Shell-Path` header.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The page's HTML",
+            "content": {
+              "text/html": {}
+            }
+          },
+          "404": {
+            "description": "No such shop, or a path its apps don't route",
+            "content": {
+              "text/html": {}
+            }
+          },
+          "503": {
+            "description": "The app entry isn't deployed here (nginx serves the static file)",
+            "content": {
+              "text/html": {}
             }
           }
         }
@@ -63988,6 +64454,14 @@
           },
           "org_name": {
             "type": "string"
+          },
+          "slot_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The branch-plan slot this device now fills, when the code was made for one."
           }
         }
       },
@@ -64038,6 +64512,14 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "slot_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The branch-plan slot this code fills, when it was made from the\nbranch builder. The device that uses it takes the slot."
           },
           "state": {
             "$ref": "#/components/schemas/ActivationCodeState"
@@ -67304,6 +67786,95 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "BranchPlan": {
+        "type": "object",
+        "properties": {
+          "devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanDevice"
+            }
+          },
+          "printers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanPrinter"
+            }
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanSection"
+            }
+          },
+          "till_prints_kitchen": {
+            "type": "boolean",
+            "description": "Case 1 (till only): the till's receipt printer also prints kitchen chits."
+          }
+        }
+      },
+      "BranchPlanView": {
+        "type": "object",
+        "required": [
+          "branch_id",
+          "version",
+          "saved",
+          "plan",
+          "routing_mode",
+          "devices",
+          "categories",
+          "open_items",
+          "item_overrides"
+        ],
+        "properties": {
+          "branch_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanCategory"
+            }
+          },
+          "devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanRegisteredDevice"
+            }
+          },
+          "item_overrides": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SectionCount"
+            },
+            "description": "Items routed to a section one by one, bypassing their category."
+          },
+          "open_items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SectionCount"
+            },
+            "description": "Kitchen items not yet bumped, per section. A section with any can't be\nremoved (spec KS-9, CH-4)."
+          },
+          "plan": {
+            "$ref": "#/components/schemas/BranchPlan"
+          },
+          "routing_mode": {
+            "type": "string",
+            "description": "The branch's kitchen routing mode as stored now."
+          },
+          "saved": {
+            "type": "boolean",
+            "description": "False until the plan is first saved. Until then it is assembled from the\nbranch's existing stations, printers and registered devices."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Bumped by every save; send it back as `expected_version`."
           }
         }
       },
@@ -70974,6 +71545,14 @@
               "null"
             ],
             "description": "A name for the tablet it is meant for (\"Front counter\")."
+          },
+          "slot_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "A slot of the branch plan (`GET /branch-plan`). The code takes the\nslot's kind and name, and the device that uses it fills the slot."
           }
         }
       },
@@ -84937,7 +85516,7 @@
               "string",
               "null"
             ],
-            "description": "`https://pay.google.com/gp/v/save/<jwt>`."
+            "description": "The Google Wallet save link: the signed JWT on pay.google.com's save path."
           }
         }
       },
@@ -86218,6 +86797,268 @@
           },
           "inside": {
             "type": "boolean"
+          }
+        }
+      },
+      "PlanCategory": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "name_translations"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "name_translations": {}
+        }
+      },
+      "PlanDevice": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "x",
+          "y"
+        ],
+        "properties": {
+          "device_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The registered install filling this slot, if any."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`pos` | `waiter` | `kitchen`"
+          },
+          "name": {
+            "type": "string"
+          },
+          "receipt_printer_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "For a POS or waiter device: the receipt printer its receipts go to."
+          },
+          "x": {
+            "type": "number",
+            "format": "double"
+          },
+          "y": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "PlanPrinter": {
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "name",
+          "connection",
+          "paper_mm",
+          "x",
+          "y"
+        ],
+        "properties": {
+          "brand": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PrinterBrand"
+              }
+            ]
+          },
+          "connection": {
+            "type": "string",
+            "description": "`network` | `usb` | `bluetooth`"
+          },
+          "host_device_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "For a USB or Bluetooth printer: the device slot it is plugged into."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ip": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "paper_mm": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "port": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "role": {
+            "type": "string",
+            "description": "`receipt` | `kitchen`"
+          },
+          "x": {
+            "type": "number",
+            "format": "double"
+          },
+          "y": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "PlanRegisteredDevice": {
+        "type": "object",
+        "description": "A registered install at the branch, for showing which slot it fills and\nwhen it was last heard from.",
+        "required": [
+          "id",
+          "code",
+          "kind",
+          "last_seen_at"
+        ],
+        "properties": {
+          "app_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`pos` | `kds` | `waiter`"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PlanSection": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "is_default",
+          "x",
+          "y"
+        ],
+        "properties": {
+          "category_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "printer_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Kitchen printers this section prints on."
+          },
+          "screen_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Kitchen screens (device slots of kind `kitchen`) this section shows on."
+          },
+          "x": {
+            "type": "number",
+            "format": "double"
+          },
+          "y": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "PlanVersionView": {
+        "type": "object",
+        "required": [
+          "version",
+          "saved_at",
+          "plan"
+        ],
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/BranchPlan"
+          },
+          "saved_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "saved_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -88112,7 +88953,7 @@
           },
           "url": {
             "type": "string",
-            "description": "`https://…` and nothing else — checked on write and again on read, see\n`orgs::social::links_of`."
+            "description": "An https address and nothing else — checked on write and again on read, see\n`orgs::social::links_of`."
           }
         }
       },
@@ -92374,6 +93215,28 @@
           }
         }
       },
+      "SavePlanRequest": {
+        "type": "object",
+        "required": [
+          "branch_id",
+          "expected_version",
+          "plan"
+        ],
+        "properties": {
+          "branch_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The `version` the plan was loaded at. A save over a newer version is\nrefused (`PLAN_CHANGED`), so two people editing one branch never\nsilently overwrite each other."
+          },
+          "plan": {
+            "$ref": "#/components/schemas/BranchPlan"
+          }
+        }
+      },
       "ScanResult": {
         "type": "object",
         "description": "What the teller's scan screen shows.",
@@ -92643,6 +93506,24 @@
               "format": "uuid"
             },
             "description": "Seat the party on these tables instead (a walk-in took theirs, or the\nhost prefers another). Omit to keep the claim."
+          }
+        }
+      },
+      "SectionCount": {
+        "type": "object",
+        "description": "A count per section: open kitchen items, or items routed there one by one.",
+        "required": [
+          "section_id",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "section_id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -100540,6 +101421,10 @@
       "description": "Organization CRUD. Super-admin only."
     },
     {
+      "name": "public",
+      "description": "What the API host says about itself: its root and the public subset of this spec."
+    },
+    {
       "name": "branches",
       "description": "Branch CRUD within an organization."
     },
@@ -100590,6 +101475,10 @@
     {
       "name": "kitchen",
       "description": "Kitchen Display System: stations, category→station routing, routing mode, the KDS feed, and per-line bump."
+    },
+    {
+      "name": "branch_plan",
+      "description": "The branch plan: device slots, printers and kitchen sections, how they connect, and their canvas positions. Read and saved whole."
     },
     {
       "name": "open_tickets",

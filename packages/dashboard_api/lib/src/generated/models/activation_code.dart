@@ -13,6 +13,7 @@ class ActivationCode {
     required this.kind,
     this.label,
     this.revokedAt,
+    this.slotId,
     required this.state,
     this.usedAt,
     this.usedByDevice,
@@ -28,6 +29,7 @@ class ActivationCode {
     kind: decEnum(json['kind'], 'ActivationCode.kind', DeviceKind.fromJson),
     label: decStringN(json['label'], 'ActivationCode.label'),
     revokedAt: decDateTimeN(json['revoked_at'], 'ActivationCode.revoked_at'),
+    slotId: decStringN(json['slot_id'], 'ActivationCode.slot_id'),
     state: decEnum(
       json['state'],
       'ActivationCode.state',
@@ -57,6 +59,10 @@ class ActivationCode {
 
   final DateTime? revokedAt;
 
+  /// The branch-plan slot this code fills, when it was made from the
+  /// branch builder. The device that uses it takes the slot.
+  final String? slotId;
+
   final ActivationCodeState state;
 
   final DateTime? usedAt;
@@ -77,6 +83,7 @@ class ActivationCode {
     if (label != null || explicitNulls.contains('label')) 'label': label,
     if (revokedAt != null || explicitNulls.contains('revoked_at'))
       'revoked_at': encDateTimeN(revokedAt),
+    if (slotId != null || explicitNulls.contains('slot_id')) 'slot_id': slotId,
     'state': state.toJson(),
     if (usedAt != null || explicitNulls.contains('used_at'))
       'used_at': encDateTimeN(usedAt),

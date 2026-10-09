@@ -5,7 +5,6 @@ import 'package:dashboard_admin/src/roles/ask_manager_card.dart';
 import 'package:dashboard_admin/src/shared/capability_catalog.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';

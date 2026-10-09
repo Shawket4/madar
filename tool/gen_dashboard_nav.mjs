@@ -64,6 +64,7 @@ const ICONS = {
   Link2: "link",
   ListChecks: "list.bullet",
   MessageCircle: "text.bubble",
+  Network: "network",
   Package: "shippingbox",
   Palette: "sun.max",
   Plug: "link",

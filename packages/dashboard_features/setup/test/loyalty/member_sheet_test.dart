@@ -2,7 +2,6 @@
 // the ledger, adjust, leave and the Google Wallet diagnostics
 // (SET-LOY-062, 064 … 075, 084).
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_setup/src/loyalty/google_object_dialog.dart';
@@ -64,7 +63,7 @@ void main() {
     testWidgets('SET-LOY-064 four stats: balance, lifetime, rewards earned, '
         'to next reward', (tester) async {
       final m = loyaltyServer();
-      final h = await _openNada(tester, backend: m);
+      await _openNada(tester, backend: m);
       final lifetime = _ledger(m.db, nadaId)
           .where((e) => e['kind'] == 'earn' || e['kind'] == 'reverse_earn')
           .fold<int>(0, (s, e) => s + (e['points']! as int));

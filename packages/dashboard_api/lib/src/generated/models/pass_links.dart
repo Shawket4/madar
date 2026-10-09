@@ -28,7 +28,7 @@ class PassLinks {
   /// CERTIFICATE, not a configured base URL.
   final String? appleUrl;
 
-  /// `https://pay.google.com/gp/v/save/<jwt>`.
+  /// The Google Wallet save link: the signed JWT on pay.google.com's save path.
   final String? googleUrl;
 
   /// Wire names of optional fields to send as an explicit `null` when unset

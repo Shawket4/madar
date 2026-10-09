@@ -270,6 +270,15 @@ const List<ApiOperation> apiOperations = [
     'bookings-public',
     'bookingSlots',
   ),
+  ApiOperation('get_plan', 'GET', '/branch-plan', 'branch_plan', 'getPlan'),
+  ApiOperation('save_plan', 'PUT', '/branch-plan', 'branch_plan', 'savePlan'),
+  ApiOperation(
+    'list_versions',
+    'GET',
+    '/branch-plan/versions',
+    'branch_plan',
+    'listVersions',
+  ),
   ApiOperation('list_branches', 'GET', '/branches', 'branches', 'listBranches'),
   ApiOperation(
     'create_branch',
@@ -1982,6 +1991,13 @@ const List<ApiOperation> apiOperations = [
     'publicOrgLinks',
   ),
   ApiOperation(
+    'public_tenant_shell',
+    'GET',
+    '/public/tenant-shell',
+    'orgs',
+    'publicTenantShell',
+  ),
+  ApiOperation(
     'list_payment_methods',
     'GET',
     '/payment-methods',
@@ -2092,6 +2108,22 @@ const List<ApiOperation> apiOperations = [
     '/permissions/user/{user_id}/{resource}/{action}',
     'permissions',
     'deleteUserPermission',
+  ),
+  ApiOperation('api_root', 'GET', '/', 'public', 'apiRoot'),
+  ApiOperation(
+    'mcp_server_card',
+    'GET',
+    '/.well-known/mcp/server-card.json',
+    'public',
+    'mcpServerCard',
+  ),
+  ApiOperation('mcp', 'POST', '/mcp', 'public', 'mcp'),
+  ApiOperation(
+    'public_openapi',
+    'GET',
+    '/openapi.json',
+    'public',
+    'publicOpenapi',
   ),
   ApiOperation(
     'list_purchase_orders',

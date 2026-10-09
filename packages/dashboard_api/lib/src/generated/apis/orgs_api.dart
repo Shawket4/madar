@@ -347,4 +347,26 @@ class OrgsApi {
       (json) => decObject(json, 'public_org_links', PublicLinksPage.fromJson),
     );
   }
+
+  /// A shop page's HTML: the app entry with the shop's head and noscript.
+  ///
+  /// Called by nginx for page requests on a shop's own host. Public by nature:
+  /// it returns what the shop's public pages and the public JSON endpoints
+  /// already show.
+  ///
+  /// `GET /public/tenant-shell` (public_tenant_shell)
+  Future<String> publicTenantShell({String? host, String? path}) async {
+    return responseText(
+      await _transport.send(
+        ApiRequest(
+          method: 'GET',
+          path: '/public/tenant-shell',
+          query: {
+            if (host != null) 'host': [queryValue(host)],
+            if (path != null) 'path': [queryValue(path)],
+          },
+        ),
+      ),
+    );
+  }
 }

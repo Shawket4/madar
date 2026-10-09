@@ -194,6 +194,35 @@ void main() {
     }
   });
 
+  group('ModuleGate: permissions that cannot be read (SH-10)', () {
+    for (final path in ['/', '/orders']) {
+      testWidgets('says so on $path, module or not, then retries', (
+        tester,
+      ) async {
+        final rig = CoreRig();
+        rig.server.fail(
+          'GET',
+          '/authz/me',
+          MockResponse.error(500, 'The server is down'),
+        );
+        await pumpCore(tester, rig, ModuleGate(path: path, child: _page));
+        expect(find.text('PAGE BODY'), findsNothing);
+        expect(find.text(_en('shell.accessLoadError')), findsOneWidget);
+        expect(find.textContaining('The server is down'), findsOneWidget);
+        await tester.tap(find.text(_en('common.retry')));
+        await settleRig(tester);
+        expect(find.text('PAGE BODY'), findsOneWidget);
+      });
+    }
+
+    testWidgets('a platform admin is never asked', (tester) async {
+      final rig = CoreRig(persona: Persona.platform);
+      rig.server.fail('GET', '/authz/me', MockResponse.error(500, 'Boom'));
+      await pumpCore(tester, rig, const ModuleGate(path: '/', child: _page));
+      expect(find.text('PAGE BODY'), findsOneWidget);
+    });
+  });
+
   group('CapGate', () {
     testWidgets('shows to whoever holds any of the capabilities', (
       tester,

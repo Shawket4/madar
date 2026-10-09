@@ -171,16 +171,19 @@ class SignUpCode extends ConsumerStatefulWidget {
 class _SignUpCodeState extends ConsumerState<SignUpCode> {
   bool _busy = false;
 
+  LoyaltyQrKey get _key => (orgId: widget.orgId, branchId: widget.branchId);
+
   Future<void> _show() async {
     final t = ref.read(tProvider);
-    final api = ref.read(apiProvider);
+    final read = loyaltyQrProvider(_key);
+    final container = ProviderScope.containerOf(context, listen: false);
     setState(() => _busy = true);
     QrResponse? qr;
     try {
-      qr = widget.branchId != null
-          ? await api.qr.branchLoyaltyQr(id: widget.branchId!)
-          : await api.qr.orgLoyaltyQr(id: widget.orgId);
+      qr = await container.read(read.future);
     } on Object catch (e) {
+      // A refusal is not kept: the next press asks again.
+      container.invalidate(read);
       // "We run no programme here", worth saying rather than swallowing.
       if (mounted) DashToast.error(context, errorMessage(e, t));
     } finally {
@@ -239,6 +242,9 @@ class _SignUpCodeState extends ConsumerState<SignUpCode> {
       variant: DashButtonVariant.outline,
       loading: _busy,
       onPressed: widget.orgId.isEmpty ? null : _show,
+      onIntent: widget.orgId.isEmpty
+          ? null
+          : () => ref.warm(loyaltyQrProvider(_key)),
     );
 
     return DashCard(

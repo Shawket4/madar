@@ -686,6 +686,25 @@ final googleObjectProvider = FutureProvider.autoDispose
           ref.watch(apiProvider).loyalty.getLoyaltyGoogleObject(id: id),
     );
 
+/// The arguments of [loyaltyQrProvider].
+typedef LoyaltyQrKey = ({String orgId, String? branchId});
+
+/// `GET /branches/{id}/loyalty-qr` (a branch in scope) or
+/// `GET /orgs/{id}/loyalty-qr`: the sign-up code. The web asks on each
+/// press; kept here so the button's intent can warm it. A programme save
+/// re-reads it (switching the programme off refuses the code), and it is
+/// asked once, like the web's plain call.
+final loyaltyQrProvider = FutureProvider.autoDispose
+    .family<QrResponse, LoyaltyQrKey>((ref, k) {
+      ref.webCache();
+      ref.watch(realtimeEpochProvider(LoyaltyPaths.settings));
+      final qr = ref.watch(apiProvider).qr;
+      final branchId = k.branchId;
+      return branchId != null
+          ? qr.branchLoyaltyQr(id: branchId)
+          : qr.orgLoyaltyQr(id: k.orgId);
+    }, retry: (_, _) => null);
+
 /// The API with [headers] on every request (the export's
 /// `X-Madar-Export: 1`).
 DashboardApi apiWithHeaders(ApiTransport inner, Map<String, String> headers) =>

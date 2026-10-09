@@ -357,6 +357,15 @@ const List<NavGroup> dashNav = <NavGroup>[
         lucide: 'settings',
       ),
       NavLeaf(
+        to: '/branch-setup',
+        labelKey: 'nav.branchSetup',
+        fallback: 'Branch setup',
+        icon: 'network',
+        lucide: 'network',
+        caps: <String>['kitchen.stations.edit'],
+        module: 'pos',
+      ),
+      NavLeaf(
         to: '/settings/loyalty',
         labelKey: 'nav.loyalty',
         fallback: 'Loyalty',

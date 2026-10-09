@@ -23,7 +23,6 @@ import 'package:go_router/go_router.dart';
 import '../shared/attendance_errors.dart';
 import '../shared/page_gate.dart';
 import '../shared/refresh_button.dart';
-import '../shared/refresh_toast.dart';
 import '../shared/rules_banner.dart';
 import '../shared/staff_query.dart';
 import '../shared/team_format.dart';
@@ -32,6 +31,7 @@ import 'coverage_card.dart';
 import 'day_editor.dart';
 import 'fairness_card.dart';
 import 'preferences_dialog.dart';
+import 'refresh_listener.dart';
 import 'schedule_data.dart';
 import 'schedule_grid.dart';
 import 'schedule_providers.dart';
@@ -308,21 +308,7 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
     final suggestionsQ = sgKey == null
         ? null
         : ref.watch(scheduleSuggestionsProvider(sgKey));
-    if (weekKey != null) {
-      listenStaffRefreshFailure(ref, context, scheduleRosterProvider(weekKey));
-      ref.listen(scheduleRosterProvider(weekKey), (_, next) {
-        if (next.hasValue && !next.isLoading) {
-          _loadedAt = ref.read(clockProvider)();
-        }
-      });
-      if (rosterQ.hasValue) _loadedAt ??= ref.read(clockProvider)();
-    }
-    if (upKey != null) {
-      listenStaffRefreshFailure(ref, context, scheduleRosterProvider(upKey));
-    }
-    if (sgKey != null) {
-      listenStaffRefreshFailure(ref, context, scheduleSuggestionsProvider(sgKey));
-    }
+    if (rosterQ.hasValue) _loadedAt ??= ref.read(clockProvider)();
 
     final view = rosterQ.value;
     final published = view?.publishedWeeks.contains(_week) ?? false;
@@ -442,11 +428,7 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
     }
 
     final note = DashType.body.copyWith(color: c.textSecondary);
-    return DashPageScaffold(
-      title: t('dawam.schedule'),
-      subtitle: t('dawam.scheduleSubtitle'),
-      actions: actions,
-      body: Column(
+    Widget body = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.lg,
         children: [
@@ -524,7 +506,24 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
             ),
           if (canSettings) FairnessCard(month: monthOf(_week)),
         ],
+    );
+    // Failed refreshes toast (TEAM-ALL-022); each read subscribed once.
+    body = ScheduleRefreshListener<RosterView>(
+      read: weekKey == null ? null : scheduleRosterProvider(weekKey),
+      onAnswer: () => _loadedAt = ref.read(clockProvider)(),
+      child: ScheduleRefreshListener<RosterView>(
+        read: upKey == null ? null : scheduleRosterProvider(upKey),
+        child: ScheduleRefreshListener<List<Suggestion>>(
+          read: sgKey == null ? null : scheduleSuggestionsProvider(sgKey),
+          child: body,
+        ),
       ),
+    );
+    return DashPageScaffold(
+      title: t('dawam.schedule'),
+      subtitle: t('dawam.scheduleSubtitle'),
+      actions: actions,
+      body: body,
     );
   }
 }

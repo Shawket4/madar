@@ -1,7 +1,6 @@
 // `/settings/loyalty`: the header, the scope card and its code, the tabs and
 // the scope rules (SET-LOY-001 … 007, 080 … 082; SET-SHL-020).
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_setup/src/loyalty/members_pane.dart';
@@ -125,6 +124,12 @@ void main() {
         ),
       ),
     );
+    // The refusal is not kept: switched back on, the next press asks again.
+    settingsRow(m.db)['enabled'] = true;
+    final asked = h.server.callsTo(LoyaltyRoutes.orgQr).length;
+    await h.tap(find.byKey(const ValueKey('loyalty-code')));
+    expect(h.server.callsTo(LoyaltyRoutes.orgQr), hasLength(asked + 1));
+    expect(find.byType(QrPreviewDialog), findsOneWidget);
   });
 
   testWidgets('SET-LOY-006 tabs: Program (default), Rewards, Members, '

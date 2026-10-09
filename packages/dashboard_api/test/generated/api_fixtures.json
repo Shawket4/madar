@@ -36,7 +36,8 @@
    },
    "device_token": "text",
    "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "org_name": "text"
+   "org_name": "text",
+   "slot_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
   },
   "activate_payment_method": {
    "color": "text",
@@ -191,6 +192,7 @@
    "requester_shift_name": "text",
    "status": "text"
   },
+  "api_root": "any",
   "apply_rules": {
    "catalog_revision": 7,
    "sizes_changed": 7,
@@ -1624,6 +1626,7 @@
    "kind": "pos",
    "label": "text",
    "revoked_at": "2026-10-08T07:00:00.000Z",
+   "slot_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "state": "free",
    "used_at": "2026-10-08T07:00:00.000Z",
    "used_by_device": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
@@ -5333,6 +5336,74 @@
     "user_override": true
    }
   ],
+  "get_plan": {
+   "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "categories": [
+    {
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "name": "text",
+     "name_translations": "any"
+    }
+   ],
+   "devices": [
+    {
+     "app_version": "text",
+     "code": "text",
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "kind": "text",
+     "label": "text",
+     "last_seen_at": "2026-10-08T07:00:00.000Z",
+     "platform": "text"
+    }
+   ],
+   "item_overrides": [
+    {
+     "count": 7,
+     "section_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
+    }
+   ],
+   "open_items": [
+    {
+     "count": 7,
+     "section_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
+    }
+   ],
+   "plan": {
+    "devices": [
+     {
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "kind": "text",
+      "name": "text",
+      "x": 1.5,
+      "y": 1.5
+     }
+    ],
+    "printers": [
+     {
+      "connection": "text",
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "name": "text",
+      "paper_mm": 7,
+      "role": "text",
+      "x": 1.5,
+      "y": 1.5
+     }
+    ],
+    "sections": [
+     {
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "is_default": true,
+      "name": "text",
+      "x": 1.5,
+      "y": 1.5
+     }
+    ],
+    "till_prints_kitchen": true
+   },
+   "routing_mode": "text",
+   "saved": true,
+   "version": 7
+  },
   "get_policy": [
    {
     "ask_manager": true,
@@ -6551,6 +6622,7 @@
     "kind": "pos",
     "label": "text",
     "revoked_at": "2026-10-08T07:00:00.000Z",
+    "slot_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
     "state": "free",
     "used_at": "2026-10-08T07:00:00.000Z",
     "used_by_device": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
@@ -8049,6 +8121,19 @@
     "role": "super_admin"
    }
   ],
+  "list_versions": [
+   {
+    "plan": {
+     "devices": [],
+     "printers": [],
+     "sections": [],
+     "till_prints_kitchen": true
+    },
+    "saved_at": "2026-10-08T07:00:00.000Z",
+    "saved_by_name": "text",
+    "version": 7
+   }
+  ],
   "list_waste": [
    {
     "approved_by_name": "text",
@@ -8622,6 +8707,8 @@
    "period_start": "2026-10-08",
    "worked_days": 1.5
   },
+  "mcp": "any",
+  "mcp_server_card": "any",
   "me": {
    "currency_code": "text",
    "require_table_for_orders": true,
@@ -10288,6 +10375,7 @@
     }
    ]
   },
+  "public_openapi": "any",
   "public_org_brand": {
    "accent_color": "text",
    "background_color": "text",
@@ -11671,6 +11759,7 @@
    "kind": "pos",
    "label": "text",
    "revoked_at": "2026-10-08T07:00:00.000Z",
+   "slot_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "state": "free",
    "used_at": "2026-10-08T07:00:00.000Z",
    "used_by_device": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
@@ -11849,6 +11938,74 @@
     "width": 1.5
    }
   ],
+  "save_plan": {
+   "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "categories": [
+    {
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "name": "text",
+     "name_translations": "any"
+    }
+   ],
+   "devices": [
+    {
+     "app_version": "text",
+     "code": "text",
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "kind": "text",
+     "label": "text",
+     "last_seen_at": "2026-10-08T07:00:00.000Z",
+     "platform": "text"
+    }
+   ],
+   "item_overrides": [
+    {
+     "count": 7,
+     "section_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
+    }
+   ],
+   "open_items": [
+    {
+     "count": 7,
+     "section_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
+    }
+   ],
+   "plan": {
+    "devices": [
+     {
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "kind": "text",
+      "name": "text",
+      "x": 1.5,
+      "y": 1.5
+     }
+    ],
+    "printers": [
+     {
+      "connection": "text",
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "name": "text",
+      "paper_mm": 7,
+      "role": "text",
+      "x": 1.5,
+      "y": 1.5
+     }
+    ],
+    "sections": [
+     {
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "is_default": true,
+      "name": "text",
+      "x": 1.5,
+      "y": 1.5
+     }
+    ],
+    "till_prints_kitchen": true
+   },
+   "routing_mode": "text",
+   "saved": true,
+   "version": 7
+  },
   "schema": {
    "boards": [
     {
@@ -13867,7 +14024,8 @@
    },
    "device_token": "text",
    "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "org_name": "text"
+   "org_name": "text",
+   "slot_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
   },
   "ActivationCode": {
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
@@ -13878,6 +14036,7 @@
    "kind": "pos",
    "label": "text",
    "revoked_at": "2026-10-08T07:00:00.000Z",
+   "slot_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "state": "free",
    "used_at": "2026-10-08T07:00:00.000Z",
    "used_by_device": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
@@ -14862,6 +15021,115 @@
   "BranchPerson": {
    "employee_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "name": "text"
+  },
+  "BranchPlan": {
+   "devices": [
+    {
+     "device_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "kind": "text",
+     "name": "text",
+     "receipt_printer_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "x": 1.5,
+     "y": 1.5
+    }
+   ],
+   "printers": [
+    {
+     "brand": "star",
+     "connection": "text",
+     "host_device_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "ip": "text",
+     "name": "text",
+     "paper_mm": 7,
+     "port": 7,
+     "role": "text",
+     "x": 1.5,
+     "y": 1.5
+    }
+   ],
+   "sections": [
+    {
+     "category_ids": [],
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "is_default": true,
+     "name": "text",
+     "printer_ids": [],
+     "screen_ids": [],
+     "x": 1.5,
+     "y": 1.5
+    }
+   ],
+   "till_prints_kitchen": true
+  },
+  "BranchPlanView": {
+   "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "categories": [
+    {
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "name": "text",
+     "name_translations": "any"
+    }
+   ],
+   "devices": [
+    {
+     "app_version": "text",
+     "code": "text",
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "kind": "text",
+     "label": "text",
+     "last_seen_at": "2026-10-08T07:00:00.000Z",
+     "platform": "text"
+    }
+   ],
+   "item_overrides": [
+    {
+     "count": 7,
+     "section_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
+    }
+   ],
+   "open_items": [
+    {
+     "count": 7,
+     "section_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
+    }
+   ],
+   "plan": {
+    "devices": [
+     {
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "kind": "text",
+      "name": "text",
+      "x": 1.5,
+      "y": 1.5
+     }
+    ],
+    "printers": [
+     {
+      "connection": "text",
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "name": "text",
+      "paper_mm": 7,
+      "role": "text",
+      "x": 1.5,
+      "y": 1.5
+     }
+    ],
+    "sections": [
+     {
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "is_default": true,
+      "name": "text",
+      "x": 1.5,
+      "y": 1.5
+     }
+    ],
+    "till_prints_kitchen": true
+   },
+   "routing_mode": "text",
+   "saved": true,
+   "version": 7
   },
   "BranchRules": {
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
@@ -16219,7 +16487,8 @@
   "CreateActivationCodeRequest": {
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "kind": "pos",
-   "label": "text"
+   "label": "text",
+   "slot_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
   },
   "CreateAddonItemRequest": {
    "addon_type": "text",
@@ -21767,6 +22036,95 @@
    ],
    "inside": true
   },
+  "PlanCategory": {
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "name": "text",
+   "name_translations": "any"
+  },
+  "PlanDevice": {
+   "device_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "kind": "text",
+   "name": "text",
+   "receipt_printer_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "x": 1.5,
+   "y": 1.5
+  },
+  "PlanPrinter": {
+   "brand": "star",
+   "connection": "text",
+   "host_device_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "ip": "text",
+   "name": "text",
+   "paper_mm": 7,
+   "port": 7,
+   "role": "text",
+   "x": 1.5,
+   "y": 1.5
+  },
+  "PlanRegisteredDevice": {
+   "app_version": "text",
+   "code": "text",
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "kind": "text",
+   "label": "text",
+   "last_seen_at": "2026-10-08T07:00:00.000Z",
+   "platform": "text"
+  },
+  "PlanSection": {
+   "category_ids": [
+    "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
+   ],
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "is_default": true,
+   "name": "text",
+   "printer_ids": [
+    "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
+   ],
+   "screen_ids": [
+    "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
+   ],
+   "x": 1.5,
+   "y": 1.5
+  },
+  "PlanVersionView": {
+   "plan": {
+    "devices": [
+     {
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "kind": "text",
+      "name": "text",
+      "x": 1.5,
+      "y": 1.5
+     }
+    ],
+    "printers": [
+     {
+      "connection": "text",
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "name": "text",
+      "paper_mm": 7,
+      "role": "text",
+      "x": 1.5,
+      "y": 1.5
+     }
+    ],
+    "sections": [
+     {
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "is_default": true,
+      "name": "text",
+      "x": 1.5,
+      "y": 1.5
+     }
+    ],
+    "till_prints_kitchen": true
+   },
+   "saved_at": "2026-10-08T07:00:00.000Z",
+   "saved_by_name": "text",
+   "version": 7
+  },
   "PoLeadTimeReport": {
    "by_supplier": [
     {
@@ -23796,6 +24154,42 @@
     }
    ]
   },
+  "SavePlanRequest": {
+   "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "expected_version": 7,
+   "plan": {
+    "devices": [
+     {
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "kind": "text",
+      "name": "text",
+      "x": 1.5,
+      "y": 1.5
+     }
+    ],
+    "printers": [
+     {
+      "connection": "text",
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "name": "text",
+      "paper_mm": 7,
+      "role": "text",
+      "x": 1.5,
+      "y": 1.5
+     }
+    ],
+    "sections": [
+     {
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "is_default": true,
+      "name": "text",
+      "x": 1.5,
+      "y": 1.5
+     }
+    ],
+    "till_prints_kitchen": true
+   }
+  },
   "ScanResult": {
    "any_item": true,
    "any_item_cost": 7,
@@ -23924,6 +24318,10 @@
    "table_ids": [
     "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
    ]
+  },
+  "SectionCount": {
+   "count": 7,
+   "section_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
   },
   "SetAssignmentsRequest": {
    "assignments": [

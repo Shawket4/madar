@@ -5,7 +5,6 @@
 import 'package:dashboard_admin/dashboard_admin.dart';
 import 'package:dashboard_admin/src/roles/role_dialog.dart';
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';

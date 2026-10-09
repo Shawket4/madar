@@ -8,6 +8,10 @@ class OrderNowApi {
 
   final ApiTransport _transport;
 
+  /// "Order now" from a wallet card: the member's last branch and channel, to prefill an order.
+  ///
+  /// The card's token alone shows only a first name and a masked phone. With a `device_token` for the member's current phone it gives the full prefill and saved addresses.
+  ///
   /// `GET /public/order-now/{token}` (order_now_context)
   Future<OrderNowContext> orderNowContext({
     required String token,
@@ -29,6 +33,10 @@ class OrderNowApi {
     );
   }
 
+  /// Merge the profile that already holds the new phone into this card's profile.
+  ///
+  /// The answer to a `PHONE_BELONGS_TO_ANOTHER` refusal from replace-identity, with the same proofs. This card's customer is the one kept.
+  ///
   /// `POST /public/order-now/{token}/combine` (order_now_combine)
   Future<ReplaceIdentityResponse> orderNowCombine({
     required String token,
@@ -52,6 +60,10 @@ class OrderNowApi {
     );
   }
 
+  /// Change the phone number on a card's customer profile.
+  ///
+  /// Needs proof of both phones: `device_token` for the current one and `new_phone_device_token` for the new one. At most two changes in 30 days.
+  ///
   /// `POST /public/order-now/{token}/replace-identity` (order_now_replace_identity)
   Future<ReplaceIdentityResponse> orderNowReplaceIdentity({
     required String token,

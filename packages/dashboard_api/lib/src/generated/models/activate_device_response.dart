@@ -11,6 +11,8 @@ class ActivateDeviceResponse {
     required this.deviceToken,
     required this.orgId,
     required this.orgName,
+    this.slotId,
+    this.explicitNulls = const {},
   });
 
   factory ActivateDeviceResponse.fromJson(Map<String, Object?> json) =>
@@ -34,6 +36,7 @@ class ActivateDeviceResponse {
         ),
         orgId: decString(json['org_id'], 'ActivateDeviceResponse.org_id'),
         orgName: decString(json['org_name'], 'ActivateDeviceResponse.org_name'),
+        slotId: decStringN(json['slot_id'], 'ActivateDeviceResponse.slot_id'),
       );
 
   final String branchId;
@@ -50,6 +53,13 @@ class ActivateDeviceResponse {
 
   final String orgName;
 
+  /// The branch-plan slot this device now fills, when the code was made for one.
+  final String? slotId;
+
+  /// Wire names of optional fields to send as an explicit `null` when unset
+  /// (a PATCH that clears a value). Unset optional fields are omitted.
+  final Set<String> explicitNulls;
+
   Map<String, Object?> toJson() => <String, Object?>{
     'branch_id': branchId,
     'branch_name': branchName,
@@ -57,6 +67,7 @@ class ActivateDeviceResponse {
     'device_token': deviceToken,
     'org_id': orgId,
     'org_name': orgName,
+    if (slotId != null || explicitNulls.contains('slot_id')) 'slot_id': slotId,
   };
 
   @override

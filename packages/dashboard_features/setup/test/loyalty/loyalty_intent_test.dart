@@ -101,4 +101,17 @@ void main() {
     await h.tap(option);
     expect(online(), 1);
   });
+
+  testWidgets('SET-LOY-004 the code button warms the code; the press asks '
+      'nothing more', (tester) async {
+    final h = await pumpLoyalty(tester, query: atBranch(SeedIds.zamalek));
+    final mouse = await _mouse(tester);
+    final button = find.byKey(const ValueKey('loyalty-code'));
+    expect(_count(h.server, LoyaltyRoutes.branchQr), 0);
+    await _rest(h, mouse, button);
+    expect(_count(h.server, LoyaltyRoutes.branchQr), 1);
+    await h.tap(button);
+    expect(_count(h.server, LoyaltyRoutes.branchQr), 1);
+    expect(find.text(h.t('loyalty.joinQr')), findsWidgets);
+  });
 }

@@ -8,6 +8,10 @@ class BookingsPublicApi {
 
   final ApiTransport _transport;
 
+  /// A shop's branches that take table bookings online.
+  ///
+  /// `org_id` names the shop. Only active branches with booking switched on are listed.
+  ///
   /// `GET /public/booking-branches` (booking_branches)
   Future<List<PublicBookingBranch>> bookingBranches({
     required String orgId,
@@ -32,6 +36,10 @@ class BookingsPublicApi {
     );
   }
 
+  /// Book a table at a branch.
+  ///
+  /// Answers 201 with the booking. The time must be a free slot after the branch's lead time. Where the branch's `require_otp` is on, send the `device_token` from `/public/otp/verify`.
+  ///
   /// `POST /public/bookings` (create_public_booking)
   Future<PublicBookingView> createPublicBooking({
     required PublicBookingInput body,
@@ -47,6 +55,8 @@ class BookingsPublicApi {
     );
   }
 
+  /// A booking, by the manage token from its confirmation link.
+  ///
   /// `GET /public/bookings/{token}` (get_public_booking)
   Future<PublicBookingView> getPublicBooking({required String token}) async {
     final response = await _transport.send(
@@ -60,6 +70,10 @@ class BookingsPublicApi {
     );
   }
 
+  /// Change a booking's time, party size or notes, by its manage token.
+  ///
+  /// Only a confirmed booking, and only until the branch's lead time before it starts; after that, 409.
+  ///
   /// `PATCH /public/bookings/{token}` (update_public_booking)
   Future<PublicBookingView> updatePublicBooking({
     required String token,
@@ -80,6 +94,10 @@ class BookingsPublicApi {
     );
   }
 
+  /// Cancel a booking, by its manage token.
+  ///
+  /// Cancelling a booking that is already cancelled returns it unchanged. A party already seated is the venue's to cancel.
+  ///
   /// `POST /public/bookings/{token}/cancel` (cancel_public_booking)
   Future<PublicBookingView> cancelPublicBooking({required String token}) async {
     final response = await _transport.send(
@@ -96,6 +114,10 @@ class BookingsPublicApi {
     );
   }
 
+  /// A branch's booking rules: party sizes, slot length, lead time and how far ahead.
+  ///
+  /// `require_otp` says whether a booking needs a phone verified through `/public/otp/verify`.
+  ///
   /// `GET /public/branches/{id}/booking-info` (booking_info)
   Future<PublicBookingInfo> bookingInfo({required String id}) async {
     final response = await _transport.send(
@@ -111,6 +133,10 @@ class BookingsPublicApi {
     );
   }
 
+  /// The free booking times at a branch for one date and party size.
+  ///
+  /// Refused when the branch takes no online bookings, or the date or party size is outside its rules.
+  ///
   /// `GET /public/branches/{id}/booking-slots` (booking_slots)
   Future<PublicSlots> bookingSlots({
     required String id,

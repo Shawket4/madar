@@ -13,7 +13,6 @@ import 'package:dashboard_team/src/schedule/schedule_page.dart';
 import 'package:dashboard_team/src/shared/refresh_button.dart';
 import 'package:flutter/material.dart' show Tooltip;
 import 'package:flutter/widgets.dart';
-import 'package:flutter/services.dart' show AppLifecycleState;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'schedule_support.dart';

@@ -270,7 +270,7 @@ void main() {
 
   testWidgets('ADM-ROL-017 phone: the dialog is a full-screen sheet',
       (tester) async {
-    final h = await _openNew(tester, size: DashSize.phone);
+    await _openNew(tester, size: DashSize.phone);
     expect(
       tester.getSize(surface).width,
       tester.view.physicalSize.width / tester.view.devicePixelRatio,

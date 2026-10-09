@@ -1,5 +1,4 @@
 // Working with no network, through the real shell and the home page: what
-import 'package:dashboard_api/dashboard_api.dart';
 // was read is saved and shown again offline (after a relaunch too) under the
 // banner; back online the banner goes and the page reads again; signing out
 // wipes it all.
@@ -24,11 +23,13 @@ final Finder _banner = find.textContaining("You're offline. Showing data");
 
 void main() {
   late ({MockServer server, MockDb db}) s;
+  late MemoryBlobs blobs;
   late OfflineStore store;
 
   setUp(() async {
     s = _seeded();
-    store = await OfflineStore.open(MemoryBlobs());
+    blobs = MemoryBlobs();
+    store = await OfflineStore.open(blobs);
   });
 
   Future<DashHarness> launch(WidgetTester tester, {String locale = 'en'}) =>
@@ -71,8 +72,13 @@ void main() {
   for (final locale in ['en', 'ar']) {
     testWidgets('cold start offline ($locale): the kept session, the shell '
         'and the page from disk, with the banner', (tester) async {
-      await launch(tester, locale: locale);
+      final first = await launch(tester, locale: locale);
+      // The saves still queued land before the relaunch.
+      await first.settle();
       s.server.offline = true;
+      // Relaunched: the store opens again from what is on "disk".
+      store = (await tester.runAsync(() => OfflineStore.open(blobs)))!;
+      expect(store.owner, SeedIds.owner);
       final h = await launch(tester, locale: locale);
       expect(h.location.path, '/');
       expect(
@@ -104,9 +110,6 @@ void main() {
 
   testWidgets('signing out wipes every saved answer', (tester) async {
     final h = await launch(tester);
-    // DEBUG
-    await tester.runAsync(() async { try { await h.container.read(transportProvider).send(const ApiRequest(method: 'GET', path: '/branches')); print('DBG ok'); } catch (e, st) { print('DBG err $e $st'); } });
-    print('DBG owner=${store.owner} loc=${h.location} calls=${s.server.calls.map((c) => c.template).toList()}');
     expect(store.keysWithPrefix(''), isNotEmpty);
     await h.container.read(sessionProvider.notifier).signOut();
     await h.settle();

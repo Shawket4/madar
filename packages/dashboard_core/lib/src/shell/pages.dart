@@ -76,25 +76,16 @@ class _PageGate extends ConsumerWidget {
     if (!route.platformOnly && caps.isEmpty) return child;
     final a = ref.watch(authzProvider);
     if (!a.ready) {
-      final error = a.error;
-      if (error == null) return const SizedBox.shrink();
-      final t = ref.watch(tProvider);
-      return Padding(
-        padding: const EdgeInsetsDirectional.all(Space.xl),
-        child: DashErrorState(
-          title: t('shell.accessLoadError'),
-          message: errorMessage(error, t),
-          retryLabel: t('common.retry'),
-          onRetry: () => ref.read(authzProvider.notifier).refresh(),
-        ),
-      );
+      return a.error == null
+          ? const SizedBox.shrink()
+          : const AuthzLoadError();
     }
     final allowed = route.platformOnly ? a.platform : a.canAny(caps);
     return allowed ? child : Restricted(title: title);
   }
 }
 
-/// A path no page answers (the web shows its router's bare "Not Found").
+/// A path no page answers (the web's `components/app/not-found.tsx`).
 class DashNotFoundPage extends ConsumerWidget {
   const DashNotFoundPage({super.key});
 
@@ -110,10 +101,10 @@ class DashNotFoundPage extends ConsumerWidget {
             constraints: const BoxConstraints(maxWidth: DashMetrics.proseWide),
             child: DashEmptyState(
               icon: 'compass',
-              title: t('shell.notFoundTitle'),
-              description: t('shell.notFoundBody'),
+              title: t('notFound.title'),
+              description: t('notFound.body'),
               action: DashButton(
-                label: t('shell.backHome'),
+                label: t('notFound.home'),
                 icon: 'house',
                 variant: DashButtonVariant.outline,
                 onPressed: () => context.go('/'),
