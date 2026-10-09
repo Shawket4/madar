@@ -15,8 +15,9 @@ import { DeviceFrame } from "@/components/app/device-frame";
 const LEN = 6;
 
 /**
- * Staff sign-in (DV-2): the POS teller login — name, then a 6-digit PIN that
- * submits itself, a shake on a refusal. A cook signs in at the start of a shift.
+ * Staff sign-in (DV-2): the POS teller login — a 6-digit PIN that submits
+ * itself (the name is optional: the server finds the person by PIN alone),
+ * a shake on a refusal. A cook signs in at the start of a shift.
  */
 export function LoginScreen() {
   const { t } = useTranslation();
@@ -78,14 +79,13 @@ export function LoginScreen() {
           {keys.map((k, i) => (
             <Pressable
               key={i}
-              disabled={!k || busy || !name.trim()}
+              disabled={!k || busy}
               onPress={() => (k === "⌫" ? setPin(pin.slice(0, -1)) : press(k))}
               accessibilityRole="button"
               accessibilityLabel={k === "⌫" ? t("auth.delete") : k}
               style={({ pressed }) => ({
                 width: "31.5%", height: 68, borderRadius: radius.lg, alignItems: "center", justifyContent: "center",
                 backgroundColor: !k ? "transparent" : pressed ? c.accent : c.secondary,
-                opacity: k && !name.trim() ? 0.5 : 1,
               })}
             >
               {k === "⌫" ? <Delete size={26} color={c.foreground} /> : <Txt size={28} mono weight="semibold">{k}</Txt>}

@@ -45,9 +45,10 @@ export default function App() {
   useEffect(() => { void boot(); }, [boot]);
 
   // The board re-reads local rows on every realtime event; this poll is the
-  // fallback (and keeps the outbox count fresh). Local reads, no network.
+  // fallback (and keeps the outbox count fresh), and keeps the section list
+  // current while a device is being set up. Local reads, no network.
   useEffect(() => {
-    if (device.route !== "board") return;
+    if (device.route !== "board" && device.route !== "sections") return;
     const id = setInterval(() => void refresh(), 3000);
     const sub = AppState.addEventListener("change", (st) => st === "active" && void refresh());
     return () => { clearInterval(id); sub.remove(); };

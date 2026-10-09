@@ -117,11 +117,18 @@ export const useKitchen = create<KitchenState>((set, get) => {
       readState();
       const { route } = get().device;
       if (route === "board") await startLive();
-      else if (route === "sections") await loadSections();
+      else if (route === "sections") {
+        // Sections live in the branch settings the core syncs: pull once now,
+        // and listen, so ones added in the dashboard meanwhile arrive too.
+        await loadSections();
+        void backend().syncNow().then(loadSections, () => {});
+        void backend().startRealtime({ onChange: () => void loadSections(), onConnection: (connected) => set({ connected }), onPing: () => {} }).catch(() => {});
+      }
     },
 
     async refresh() {
       readState();
+      if (get().device.route === "sections") return loadSections();
       if (get().device.route !== "board") return;
       try {
         reparts(await backend().tickets());

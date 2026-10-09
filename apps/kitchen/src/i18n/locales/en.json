@@ -20,7 +20,7 @@
     "delete": "Delete",
     "signOut": "Sign out {{name}}",
     "title": "Sign in to the kitchen",
-    "name": "Name",
+    "name": "Name (optional)",
     "pin": "PIN",
     "checking": "Checking…",
     "changeBranch": "Change branch"
