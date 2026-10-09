@@ -37,7 +37,6 @@ void main() {
     tester,
   ) async {
     final h = await pumpToday(tester, persona: Persona.dawamOnly);
-    h.allowUnmatched = true;
     expect(find.byType(TodayPage), findsNothing);
     expect(find.text("Not part of this business's plan"), findsOneWidget);
     expect(

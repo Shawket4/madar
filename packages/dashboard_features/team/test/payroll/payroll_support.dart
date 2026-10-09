@@ -140,8 +140,8 @@ Future<void> confirm(DashHarness h, String label) => h.tap(
 
 /// Approves this month through the page (TEAM-PAY-006).
 Future<void> approveMonth(DashHarness h) async {
-  await h.tap(inPage(find.widgetWithText(DashButton, 'Approve payroll')));
-  await confirm(h, 'Approve payroll');
+  await h.tap(inPage(find.widgetWithText(DashButton, h.t('dawam.approve'))));
+  await confirm(h, h.t('dawam.approve'));
   await h.flushTimers();
 }
 
@@ -191,5 +191,28 @@ void septemberUnpaid(MockDb db, {int unpaid = 3, String status = 'generated'}) {
     if (s['payroll_period_id'] != id || n >= unpaid) continue;
     db['payslips'].update(s['id']! as String, {'paid_method': null, 'paid_at': null});
     n++;
+  }
+}
+
+/// Shoots the page top to bottom (`payroll/<name>-1`, `-2`, …, at most 4).
+Future<void> shootPage(DashHarness h, String name) async {
+  final scroll = find
+      .descendant(of: find.byType(PayrollPage), matching: find.byType(Scrollable))
+      .evaluate()
+      .map((e) => (e as StatefulElement).state as ScrollableState)
+      .where((s) => s.position.axis == Axis.vertical)
+      .toList();
+  if (scroll.isEmpty) {
+    await h.shot('payroll/$name-1');
+    return;
+  }
+  final position = scroll.first.position;
+  var y = 0.0;
+  for (var i = 1; i <= 4; i++) {
+    position.jumpTo(y);
+    await h.settle(rounds: 2);
+    await h.shot('payroll/$name-$i');
+    if (y >= position.maxScrollExtent) break;
+    y = (y + position.viewportDimension * 0.85).clamp(0, position.maxScrollExtent);
   }
 }

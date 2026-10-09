@@ -152,6 +152,68 @@ void main() {
       expect(find.byType(FloorCanvas), findsOneWidget);
     });
 
+    testWidgets(
+      'SELL-FLR-002/003/004/068/069 a 500 is retried once under the skeleton; '
+      'open tickets are not retried',
+      (tester) async {
+        Future<int> asks(
+          String path,
+          FutureProvider<Object?> read, {
+          required bool retried,
+        }) async {
+          final s = floorServer();
+          s.server.fail(
+            'GET',
+            path,
+            MockResponse.error(500, 'boom'),
+            times: null,
+          );
+          final c = ProviderContainer(
+            retry: webRetry,
+            overrides: [
+              transportProvider.overrideWithValue(s.server),
+              orgIdProvider.overrideWithValue(SeedIds.sabahOrg),
+            ],
+          );
+          final sub = c.listen(read, (_, _) {});
+          await tester.pump(const Duration(milliseconds: 300));
+          // Failed once: while the retry waits it is still the skeleton
+          // (never the empty floor or the failure line).
+          expect(sub.read().awaitingFirst, retried, reason: path);
+          expect(sub.read().failedFirst, !retried, reason: path);
+          for (var i = 0; i < 20; i++) {
+            await tester.pump(const Duration(seconds: 1));
+          }
+          expect(sub.read().failedFirst, isTrue, reason: path);
+          sub.close();
+          c.dispose();
+          return s.server.callsTo(path).length;
+        }
+
+        final b = SeedIds.heliopolis;
+        expect(
+          await asks(tablesPath, floorTablesProvider(b), retried: true),
+          2,
+        );
+        expect(
+          await asks(sectionsPath, floorSectionsProvider(b), retried: true),
+          2,
+        );
+        expect(
+          await asks(
+            historyPath,
+            floorTableHistoryProvider(_id('T1')),
+            retried: true,
+          ),
+          2,
+        );
+        expect(
+          await asks(ticketsPath, floorOpenTicketsProvider(b), retried: false),
+          1,
+        );
+      },
+    );
+
     testWidgets('SELL-FLR-003 a skeleton while tables or sections load', (
       tester,
     ) async {
@@ -350,6 +412,37 @@ void main() {
     );
 
     testWidgets(
+      'SELL-FLR-015 an untouched name follows a refetch; a typed one stays',
+      (tester) async {
+        final s = floorServer();
+        final h = await pumpFloor(tester, s: s);
+        await _edit(h);
+        await h.tap(floorText('Terrace'));
+        await h.tap(find.bySemanticsLabel('Area actions'));
+        await h.tapText('Rename');
+        final field = find.byKey(const ValueKey('floor-section-name'));
+        final row = s.db[SellTables.floorSections].find(
+          SellIds.section('heliopolis', 'terrace'),
+        )!;
+        row['name'] = 'Roof terrace';
+        h.realtime.current!.emit('floor.layout_changed', data: '{}');
+        await h.settle();
+        expect(
+          find.descendant(of: field, matching: find.text('Roof terrace')),
+          findsOneWidget,
+        );
+        await h.enterText(field, 'Patio');
+        row['name'] = 'Upstairs';
+        h.realtime.current!.emit('floor.layout_changed', data: '{}');
+        await h.settle();
+        expect(
+          find.descendant(of: field, matching: find.text('Patio')),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
       'SELL-FLR-011/089 delete an area: its tables (inactive too) move to Unassigned',
       (tester) async {
         final h = await pumpFloor(tester);
@@ -465,7 +558,13 @@ void main() {
         expect(on('Space evenly across'), isFalse);
         await _shiftTap(h, tableBox('T4'));
         expect(on('Space evenly across'), isTrue);
-        expect(floorText(h.t('floor.hint')), findsOneWidget);
+        // The app's fonts lack ⌥ and ⌘: the keys by name.
+        expect(
+          floorText(
+            'Drag to move · Alt ignores the grid · Ctrl/Cmd+C/V · pinch to zoom',
+          ),
+          findsOneWidget,
+        );
         await h.shot('floor/toolbar');
       },
     );
@@ -1017,6 +1116,28 @@ void main() {
       },
     );
 
+    testWidgets(
+      'SELL-FLR-045 zoomed in, a paste still lands in the centre of the view',
+      (tester) async {
+        FakeClipboard(tester);
+        final h = await pumpFloor(tester);
+        await _edit(h);
+        await h.tap(floorText('Main hall'));
+        _vp(h).jumpTo(const FloorView(x: 0, y: 0, zoom: 2));
+        await h.settle(rounds: 2);
+        await h.tap(tableBox('T1'));
+        await pressMod(h, LogicalKeyboardKey.keyC);
+        await h.expectToast('1 copied');
+        await pressMod(h, LogicalKeyboardKey.keyV);
+        final post = h.server.callsTo(tablesPath, method: 'POST').single;
+        final size = tester.getSize(find.byType(FloorCanvas));
+        // Canvas units: half the view's screen size over the zoom (the web
+        // adds the screen pixels themselves).
+        expect(_body(post)['pos_x'], snapTo(size.width / 2 / 2, true) + 20);
+        expect(_body(post)['pos_y'], snapTo(size.height / 2 / 2, true) + 20);
+      },
+    );
+
     testWidgets('SELL-FLR-044/045 a refused clipboard says so', (tester) async {
       final clip = FakeClipboard(tester)..refuse = true;
       final h = await pumpFloor(tester);
@@ -1349,6 +1470,71 @@ void main() {
       },
     );
 
+    testWidgets(
+      'SELL-FLR-059/048 a renamed table can then be moved: the save carries '
+      "the PATCH's token",
+      (tester) async {
+        final s = floorServer();
+        final h = await pumpFloor(tester, s: s);
+        await _edit(h);
+        await h.tap(tableBox('T4'));
+        final later = s.db.clock.now.add(const Duration(minutes: 5));
+        s.db.clock.set(later);
+        final field = find.byKey(ValueKey('floor-label-${_id('T4')}'));
+        await h.enterText(field, 'Window 4');
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await h.settle();
+        expect(
+          h.server.callsTo('/floor/tables/{id}', method: 'PATCH').single.status,
+          200,
+        );
+        await press(h, LogicalKeyboardKey.arrowRight);
+        await letSave(h);
+        final save = h.server.callsTo(layoutPath).single;
+        expect(save.status, 200);
+        expect(
+          DateTime.parse(
+            _saved(h, 'T4')['expected_updated_at']! as String,
+          ).isAtSameMomentAs(later),
+          isTrue,
+        );
+        expect(floorText('Not saved'), findsNothing);
+        await tester.pump(const Duration(seconds: 13));
+        await h.settle(rounds: 2);
+      },
+    );
+
+    testWidgets('SELL-FLR-059/060 a failed save is sent again from the field', (
+      tester,
+    ) async {
+      final s = floorServer();
+      s.server.fail(
+        'PATCH',
+        '/floor/tables/{id}',
+        MockResponse.error(500, 'boom'),
+        times: 1,
+      );
+      final h = await pumpFloor(tester, s: s);
+      await _edit(h);
+      await h.tap(tableBox('T4'));
+      final field = find.byKey(ValueKey('floor-label-${_id('T4')}'));
+      await h.enterText(field, 'Window 4');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await h.settle();
+      List<MockCall> patches() =>
+          h.server.callsTo('/floor/tables/{id}', method: 'PATCH');
+      expect(patches().single.status, 500);
+      await h.flushTimers();
+      await tester.showKeyboard(field);
+      await h.settle();
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await h.settle();
+      expect(patches(), hasLength(2));
+      expect(patches().last.status, 200);
+      expect(_body(patches().last), {'label': 'Window 4'});
+      expect(_title('Window 4'), findsOneWidget);
+    });
+
     testWidgets('SELL-FLR-061 shape: the other one patches', (tester) async {
       final h = await pumpFloor(tester);
       await _edit(h);
@@ -1437,6 +1623,42 @@ void main() {
       await h.tap(_inspector(find.text('Nada Kamal')).first);
       expect(h.server.callsTo('/customers/{id}'), isNotEmpty);
     });
+
+    testWidgets(
+      'SELL-FLR-066/067/072/073 a resting pointer warms the history and the '
+      'customer; the press asks nothing more',
+      (tester) async {
+        final h = await pumpFloor(tester);
+        h.allowUnmatched = true;
+        final mouse = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        await mouse.addPointer(location: Offset.zero);
+        addTearDown(mouse.removePointer);
+        // Locked, a press selects nothing: nothing is warmed.
+        await mouse.moveTo(tester.getCenter(tableBox('T1')));
+        await h.settle();
+        expect(h.server.callsTo(historyPath), isEmpty);
+        await mouse.moveTo(Offset.zero);
+        await _edit(h);
+        await mouse.moveTo(tester.getCenter(tableBox('T1')));
+        await h.settle();
+        expect(
+          h.server.callsTo(historyPath).single.path,
+          '/floor/tables/${_id('T1')}/history',
+        );
+        await h.tap(tableBox('T1'));
+        expect(h.server.callsTo(historyPath), hasLength(1));
+
+        final name = _inspector(find.text('Nada Kamal')).first;
+        expect(h.server.callsTo('/customers/{id}'), isEmpty);
+        await mouse.moveTo(tester.getCenter(name));
+        await h.settle();
+        expect(h.server.callsTo('/customers/{id}'), hasLength(1));
+        await h.tap(name);
+        expect(h.server.callsTo('/customers/{id}'), hasLength(1));
+      },
+    );
 
     testWidgets(
       'SELL-FLR-066 no customer on the bill: no Sitting now; without customers.view a plain name',

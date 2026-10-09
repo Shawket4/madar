@@ -168,58 +168,64 @@ void main() {
       expect(kpi(tester, 'active_member_rate').value, maadi.activeMemberRate);
     });
 
-    testWidgets('REP-LOY-004…008 the five KPIs: labels, rates, hints', (
+    testWidgets(
+      'REP-LOY-004/005/006/007/008 the five KPIs: labels, rates, hints',
+      (tester) async {
+        final s = unitServer();
+        final h = await pumpUnit(
+          tester,
+          path: loyaltyPath,
+          server: s.server,
+          db: s.db,
+        );
+        final b = behaviorOf(s.db);
+        final f = fmtOf(h);
+        final active = kpi(tester, 'active_member_rate');
+        expect(active.label, 'Active member rate');
+        expect(active.format, DashStatFormat.percent);
+        expect(active.value, b.activeMemberRate);
+        expect(
+          active.hint,
+          '${f.fmtNumber(b.activeMembers)} of ${f.fmtNumber(b.totalMembers)} members',
+        );
+        final rate = kpi(tester, 'redemption_rate');
+        expect(rate.label, 'Redemption rate');
+        expect(rate.value, b.redemptionRate);
+        expect(
+          rate.hint,
+          '${b.membersEverRedeemed} members have ever redeemed',
+        );
+        final ratio = kpi(tester, 'redemption_ratio');
+        expect(ratio.label, 'Points redeemed vs earned');
+        expect(ratio.value, b.redemptionRatio);
+        expect(ratio.hint, 'This period');
+        final repeat = kpi(tester, 'repeat_visit_rate');
+        expect(repeat.label, 'Repeat visit rate');
+        expect(repeat.value, b.repeatVisitRate);
+        // earning = repeat + one-time, worked out on the page (REP-LOY-007).
+        expect(
+          repeat.hint,
+          '${b.repeatMembers} of ${b.repeatMembers + b.oneTimeMembers} '
+          'earning members came back',
+        );
+        final share = kpi(tester, 'new_member_share');
+        expect(share.label, 'New member share');
+        expect(share.tone, DashTone.warning);
+        expect(share.value, b.newMemberShare);
+        expect(
+          share.hint,
+          '${b.newMembersActive} of ${b.activeMembers} active members joined '
+          'this period',
+        );
+        // The figures as they read: a percent with at most one decimal.
+        expect(figure(f.fmtPercent(b.activeMemberRate)), findsOneWidget);
+        expect(figure(f.fmtPercent(b.redemptionRatio)), findsOneWidget);
+      },
+    );
+
+    testWidgets('REP-LOY-004/005/006/007/008 the KPIs in Arabic', (
       tester,
     ) async {
-      final s = unitServer();
-      final h = await pumpUnit(
-        tester,
-        path: loyaltyPath,
-        server: s.server,
-        db: s.db,
-      );
-      final b = behaviorOf(s.db);
-      final f = fmtOf(h);
-      final active = kpi(tester, 'active_member_rate');
-      expect(active.label, 'Active member rate');
-      expect(active.format, DashStatFormat.percent);
-      expect(active.value, b.activeMemberRate);
-      expect(
-        active.hint,
-        '${f.fmtNumber(b.activeMembers)} of ${f.fmtNumber(b.totalMembers)} members',
-      );
-      final rate = kpi(tester, 'redemption_rate');
-      expect(rate.label, 'Redemption rate');
-      expect(rate.value, b.redemptionRate);
-      expect(rate.hint, '${b.membersEverRedeemed} members have ever redeemed');
-      final ratio = kpi(tester, 'redemption_ratio');
-      expect(ratio.label, 'Points redeemed vs earned');
-      expect(ratio.value, b.redemptionRatio);
-      expect(ratio.hint, 'This period');
-      final repeat = kpi(tester, 'repeat_visit_rate');
-      expect(repeat.label, 'Repeat visit rate');
-      expect(repeat.value, b.repeatVisitRate);
-      // earning = repeat + one-time, worked out on the page (REP-LOY-007).
-      expect(
-        repeat.hint,
-        '${b.repeatMembers} of ${b.repeatMembers + b.oneTimeMembers} '
-        'earning members came back',
-      );
-      final share = kpi(tester, 'new_member_share');
-      expect(share.label, 'New member share');
-      expect(share.tone, DashTone.warning);
-      expect(share.value, b.newMemberShare);
-      expect(
-        share.hint,
-        '${b.newMembersActive} of ${b.activeMembers} active members joined '
-        'this period',
-      );
-      // The figures as they read: a percent with at most one decimal.
-      expect(figure(f.fmtPercent(b.activeMemberRate)), findsOneWidget);
-      expect(figure(f.fmtPercent(b.redemptionRatio)), findsOneWidget);
-    });
-
-    testWidgets('REP-LOY-004…008 the KPIs in Arabic', (tester) async {
       final s = unitServer();
       final h = await pumpUnit(
         tester,

@@ -4,12 +4,10 @@
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
-import 'package:dashboard_team/src/area_seed.dart';
 import 'package:design_system/design_system.dart' show SkeletonBlock;
 import 'package:dashboard_team/src/payroll/payroll_logic.dart' show SlipRow;
 import 'package:dashboard_team/src/payroll/payroll_steps.dart';
 import 'package:dashboard_team/src/payroll/payslip_sheet.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'payroll_support.dart';
@@ -354,7 +352,7 @@ void main() {
   testWidgets('TEAM-PAY-010 no banner when every older month is paid', (
     tester,
   ) async {
-    final h = await pumpPayroll(tester);
+    await pumpPayroll(tester);
     expect(inPage(find.widgetWithText(DashButton, 'Open it')), findsNothing);
   });
 

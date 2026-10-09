@@ -1,7 +1,6 @@
 // The payslip sheet (TEAM-PAY-030 … -037) and the money dialogs it opens
 // (TEAM-MNY-010/017 from a person's payslip, -034, -035, -038).
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/src/area_seed.dart';
 import 'package:dashboard_team/src/payroll/payslip_sheet.dart';

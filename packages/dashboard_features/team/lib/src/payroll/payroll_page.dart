@@ -103,7 +103,7 @@ class _PayrollRefreshListenerState<T>
   Widget build(BuildContext context) => widget.child;
 }
 
-/// The web's `grid-cols-2 lg:grid-cols-4` stat strip.
+/// Fixed web heights (`Skeleton h-40` under a tab).
 class PayrollMetrics {
   static const double tabSkeleton = Space.xxl * 5;
 }

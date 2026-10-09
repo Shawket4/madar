@@ -1136,6 +1136,43 @@ void main() {
       );
     });
 
+    for (final (row, route, section, words) in [
+      ('INV-TOD-020', orgOrders, 'arriving', "Couldn't load deliveries"),
+      ('INV-TOD-026', wasteRoute, 'waste', "Couldn't load today's waste"),
+    ]) {
+      testWidgets('$row Retry while the read is out: the failure stays up, '
+          'its Retry spinning', (tester) async {
+        final s = todayServer();
+        s.server.fail('GET', route, MockResponse.error(500, 'Down'));
+        final h = await pumpToday(
+          tester,
+          server: s.server,
+          db: s.db,
+          branch: SeedIds.zamalek,
+        );
+        final own = find.byType(
+          section == 'arriving' ? TodayArrivingSection : TodayWasteSection,
+        );
+        Finder err() => find.descendant(
+          of: own,
+          matching: find.byType(DashErrorState),
+        );
+        expect(tester.widget<DashErrorState>(err()).retrying, isFalse);
+        final gate = s.server.hold('GET', route);
+        final retry = find.descendant(of: own, matching: find.text('Retry'));
+        await tester.ensureVisible(retry);
+        await tester.pump();
+        await tester.tap(retry);
+        await tester.pump();
+        expect(find.descendant(of: own, matching: find.text(words)),
+            findsOneWidget);
+        expect(tester.widget<DashErrorState>(err()).retrying, isTrue);
+        gate.release();
+        await h.settle();
+        expect(err(), findsNothing);
+      });
+    }
+
     testWidgets('INV-TOD-027 nothing today: "No waste logged today"', (
       tester,
     ) async {
@@ -1260,6 +1297,7 @@ void main() {
         'quantity': 250,
         'reason': 'spoiled',
       });
+      await h.expectToast('Waste recorded');
       expect(dialog, findsNothing);
       expect(
         h.server.callsTo(wasteRoute, method: 'GET').length,
@@ -1321,10 +1359,20 @@ void main() {
       );
     });
 
-    testWidgets('INV-TOD-032 tablet: KPIs across, lists side by side', (
-      tester,
-    ) async {
+    testWidgets('INV-TOD-032 tablet: KPIs two by two (kit divergence), lists '
+        'side by side', (tester) async {
       await pumpToday(tester, size: DashSize.tablet, branch: SeedIds.zamalek);
+      // The kit's strip counts columns by its own width, the web's
+      // `lg:grid-cols-4` by the viewport's: 2 x 2 here, 4 across on the web.
+      final cards = find.byType(DashStatCard);
+      final tops = {
+        for (final e in cards.evaluate()) tester.getTopLeft(find.byWidget(e.widget)).dy,
+      };
+      final lefts = {
+        for (final e in cards.evaluate()) tester.getTopLeft(find.byWidget(e.widget)).dx,
+      };
+      expect(tops, hasLength(2));
+      expect(lefts, hasLength(2));
       final a = tester.getTopLeft(find.byType(TodayArrivingSection));
       final w = tester.getTopLeft(find.byType(TodayWasteSection));
       expect(a.dy, w.dy);

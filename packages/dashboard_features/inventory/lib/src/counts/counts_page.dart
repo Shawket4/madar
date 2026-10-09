@@ -42,6 +42,14 @@ class _CountsPageState extends ConsumerState<CountsPage> {
         StartCountDialog(branchId: branchId, orgId: ref.read(orgIdProvider)),
   );
 
+  /// The start dialog's reads (its category and ingredient pickers).
+  void _warmStart() {
+    final orgId = ref.read(orgIdProvider);
+    if (orgId == null) return;
+    ref.warm(ingredientCategoriesProvider(orgId));
+    ref.warm(inventoryCatalogProvider(orgId));
+  }
+
   Future<void> _report(String id) => showVarianceReport(context, id);
 
   Future<void> _export(List<Stocktake> rows) async {
@@ -136,6 +144,7 @@ class _CountsPageState extends ConsumerState<CountsPage> {
             label: t('inventory.stocktakes.start'),
             icon: 'plus-circle',
             onPressed: () => _start(branchId),
+            onIntent: _warmStart,
           ),
       ],
       filters: branchId == null
@@ -148,7 +157,11 @@ class _CountsPageState extends ConsumerState<CountsPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.xl,
         children: [
-          if (firstRun) _FirstRunCard(onStart: () => _start(branchId)),
+          if (firstRun)
+            _FirstRunCard(
+              onStart: () => _start(branchId),
+              onIntent: _warmStart,
+            ),
           if (branchId != null && open != null)
             CountEditor(
               key: ValueKey('count-editor-${open.id}'),
@@ -162,8 +175,8 @@ class _CountsPageState extends ConsumerState<CountsPage> {
             allBranches: branchId == null,
             loading: q.firstLoad,
             // Kept while Retry runs, as React Query keeps `error` (no false
-            // "No counts yet" in between).
-            errorText: q.hasError ? errorMessage(q.error, t) : null,
+            // "No counts yet" in between); never during automatic retries.
+            errorText: q.errorText(t),
             onRetry: () => ref.invalidate(stocktakesProvider(listKey)),
             onReport: _report,
           ),
@@ -175,9 +188,10 @@ class _CountsPageState extends ConsumerState<CountsPage> {
 
 /// "This branch has never been counted" (INV-CNT-006).
 class _FirstRunCard extends ConsumerWidget {
-  const _FirstRunCard({required this.onStart});
+  const _FirstRunCard({required this.onStart, required this.onIntent});
 
   final VoidCallback onStart;
+  final VoidCallback onIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -206,6 +220,7 @@ class _FirstRunCard extends ConsumerWidget {
       label: t('inventory.stocktakes.startFirst'),
       icon: 'clipboard-list',
       onPressed: onStart,
+      onIntent: onIntent,
     );
     return DashCard(
       key: const ValueKey('counts-first-run-card'),
@@ -254,12 +269,6 @@ class CountsHistoryTable extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
-    Widget muted(String s) => MadarClippedText(
-      s,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: DashType.body.copyWith(color: c.textSecondary),
-    );
     return DashDataTable<Stocktake>(
       key: const ValueKey('counts-table'),
       rows: rows,
@@ -271,6 +280,9 @@ class CountsHistoryTable extends ConsumerWidget {
       onRowTap: (s) {
         if (s.status == 'finalized') onReport(s.id);
       },
+      onRowIntent: (s) {
+        if (s.status == 'finalized') ref.warm(varianceReportProvider(s.id));
+      },
       rowActionsWidth: Space.xxl * 4,
       rowActions: (context, s) => s.status == 'finalized'
           ? DashButton(
@@ -279,6 +291,7 @@ class CountsHistoryTable extends ConsumerWidget {
               variant: DashButtonVariant.outline,
               size: DashButtonSize.compact,
               onPressed: () => onReport(s.id),
+              onIntent: () => ref.warm(varianceReportProvider(s.id)),
             )
           : const SizedBox.shrink(),
       empty: DashEmptyState(
@@ -304,7 +317,7 @@ class CountsHistoryTable extends ConsumerWidget {
         DashColumn(
           id: 'scope',
           label: t('inventory.stocktakes.scope'),
-          cell: (context, s) => Text.rich(
+          cell: (context, s) => MadarClippedText.rich(
             TextSpan(
               children: [
                 TextSpan(text: stocktakeScopeLabel(t, s)),
@@ -328,13 +341,11 @@ class CountsHistoryTable extends ConsumerWidget {
         DashColumn(
           id: 'started_by_name',
           label: t('inventory.transfers.by'),
-          cell: (context, s) => s.startedByName == null
-              ? muted('—')
-              : MadarClippedText(
-                  s.startedByName!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+          cell: (context, s) => MadarClippedText(
+            s.startedByName ?? '—',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           minWidth: Space.xxl * 4,
         ),
         DashColumn(

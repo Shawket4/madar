@@ -1,5 +1,6 @@
 // Intent warming on Today (owner rule, SPEC 6.1): pointing at a control warms
 // the read its press makes, so the press asks the server nothing more.
+import 'package:dashboard_api/mock.dart' show SeedIds;
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_inventory/src/area_seed.dart';
 import 'package:dashboard_inventory/src/purchasing/receive_dialog.dart';

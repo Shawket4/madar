@@ -93,9 +93,7 @@ class _InventoryLowStockTabState extends ConsumerState<InventoryLowStockTab> {
       rowKey: (r) => '${r.branchId}-${r.orgIngredientId}',
       rows: rows,
       loading: q.awaitingFirst,
-      errorMessage: q.hasError && !q.retrying
-          ? errorMessage(q.error, t)
-          : null,
+      errorMessage: q.hasError && !q.retrying ? errorMessage(q.error, t) : null,
       onRetry: k == null ? null : () => ref.invalidate(invLowStockProvider(k)),
       pageSize: 50,
       toolbar: DashExportButton(

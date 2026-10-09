@@ -47,6 +47,13 @@ void main() {
     }
   }
 
+  // The edit hint shows from the lg width: its Arabic, with the key names.
+  testWidgets('the edit hint, desktop ar', (tester) async {
+    final h = await pumpFloor(tester, locale: 'ar');
+    await _edit(h);
+    await h.shot('floor/toolbar');
+  });
+
   for (final (size, lang) in [
     (DashSize.desktop, 'en'),
     (DashSize.phone, 'ar'),

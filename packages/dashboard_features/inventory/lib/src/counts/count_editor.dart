@@ -11,6 +11,7 @@ import 'dart:async';
 import 'package:dashboard_api/dashboard_api.dart'
     show DashboardApi, OrgIngredient, StocktakeFull, UpsertItemsRequest;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -440,7 +441,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
     );
 
     final Widget body;
-    if (q.hasError && data == null) {
+    if (q.failedFirst) {
       body = DashErrorState(
         key: const ValueKey('count-error'),
         title: t('inventory.stocktakes.loadFailed'),
@@ -462,6 +463,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
           variant: DashButtonVariant.outline,
           size: DashButtonSize.compact,
           onPressed: () => GoRouter.of(context).go('/inventory/ingredients'),
+          onIntent: () => ref.prefetchRoute('/inventory/ingredients'),
         ),
       );
     } else {

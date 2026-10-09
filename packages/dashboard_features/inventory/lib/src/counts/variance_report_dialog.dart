@@ -35,11 +35,11 @@ class VarianceReportDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final q = ref.watch(varianceReportProvider(stocktakeId));
-    final data = q.hasError ? null : q.value;
+    final data = q.failedFirst ? null : q.value;
     final net = data?.netVarianceValue ?? 0;
 
     final Widget body;
-    if (q.hasError) {
+    if (q.failedFirst) {
       body = DashErrorState(
         title: t('inventory.stocktakes.reportFailed'),
         retryLabel: t('common.retry'),
@@ -73,7 +73,7 @@ class VarianceReportDialog extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.lg,
         children: [
-          if (!q.hasError)
+          if (!q.failedFirst)
             DashLedgerStrip(
               key: const ValueKey('variance-kpis'),
               items: [

@@ -183,6 +183,19 @@ void main() {
       expect(h.server.callsTo(disciplineTpl), hasLength(2));
     });
 
+    testWidgets('REP-STF-005 reopened on cached data: coming back after '
+        '30 s still asks again', (tester) async {
+      final h = await pumpUnit(tester, path: staffPath);
+      final clock = h.db!.clock;
+      await h.go(loyaltyPath);
+      clock.advance(const Duration(seconds: 10));
+      await h.go(staffPath);
+      expect(h.server.callsTo(disciplineTpl), hasLength(1));
+      clock.advance(const Duration(seconds: 31));
+      await background(tester, h);
+      expect(h.server.callsTo(disciplineTpl), hasLength(2));
+    });
+
     testWidgets('REP-STF-004 Refresh asks again; "Refreshing…" and the spin '
         'while it runs; a second tap joins it', (tester) async {
       final s = unitServer();

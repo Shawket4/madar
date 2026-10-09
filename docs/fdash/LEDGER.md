@@ -284,3 +284,7 @@ BUILT team/approvals (26/26, 42+26 tests) → VERIFY QUEUED. For REQUESTS builde
 VERIFIED inventory/today (6 major) + counts (5 major): intent missing, retry error flashes, supplier cut, waste test fakes the dialog → pending/inventory-today-counts.md
 VERIFIED reports/loyalty_inventory_staff: NOT at parity (BLOCKER no intent on tabs/toggle; MAJOR hand-written firstLoad) → pending file
 DONE reports/basira (fixed; 114 tests)
+BUILT team/payroll (PAY 38/38 + MNY 22/22 + ALL rows, 116 tests) → VERIFY QUEUED. Fixed money dialogs Save losing a typed number on touch (kit candidate: form validate applies the focused field's value).
+CORE TODO: shared date format prints "Sept" (Dart intl CLDR) where the web's Intl prints "Sep" → normalise in core format. TEAM AREA CHECK: approvals' own review-advance/reject dialogs duplicate payroll's money_dialogs → share; remove schedule's and payroll's local refresh-listener workarounds now that core webCache ignores re-listens.
+VERIFIED team/team_setup (2 major intent) + attendance (3 major: retry flashes incl. shared helpers, intent, cut header) → pending/team-setup-attendance.md
+DONE sell/floor (fixed; floor+bookings+orders+customers 606 pass) → sell area: orders, tills, bookings, customers, floor all done

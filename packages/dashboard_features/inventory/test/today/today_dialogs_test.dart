@@ -301,7 +301,6 @@ void main() {
       tester,
     ) async {
       final h = await pumpToday(tester, branch: SeedIds.zamalek);
-      h.allowUnmatched = true;
       await h.tap(byKey('today-view-all'));
       expect(h.location.path, '/inventory/ingredients');
       expect(h.container.read(scopeProvider).branchId, SeedIds.zamalek);
@@ -311,7 +310,6 @@ void main() {
       'INV-ALL-024 (divergence) the first-count button keeps the branch',
       (tester) async {
         final h = await pumpToday(tester, branch: SeedIds.heliopolis);
-        h.allowUnmatched = true;
         await h.tap(byKey('today-first-count'));
         expect(h.location.path, '/inventory/counts');
         expect(h.container.read(scopeProvider).branchId, SeedIds.heliopolis);
