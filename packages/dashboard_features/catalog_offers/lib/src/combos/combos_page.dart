@@ -174,15 +174,14 @@ class _CombosListState extends ConsumerState<_CombosList> {
     final loading = steppingBack || (list?.awaitingFirst ?? false);
 
     // The page a filter option or the pager would show, with the rest kept.
-    void warmList({String? category, bool? active, int page = 1}) =>
-        ref.warm(
-          combosListProvider((
-            q: key.q,
-            categoryId: category,
-            isActive: active,
-            page: page,
-          )),
-        );
+    void warmList({String? category, bool? active, int page = 1}) => ref.warm(
+      combosListProvider((
+        q: key.q,
+        categoryId: category,
+        isActive: active,
+        page: page,
+      )),
+    );
 
     Widget newCombo() => DashButton(
       label: t('combos.new'),

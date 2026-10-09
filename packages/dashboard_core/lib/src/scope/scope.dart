@@ -23,6 +23,7 @@ import 'package:dashboard_core/src/format/tz.dart';
 import 'package:dashboard_core/src/gateways/preferences.dart';
 import 'package:dashboard_core/src/generated/capabilities.dart';
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
+import 'package:dashboard_core/src/data/query_cache.dart';
 import 'package:dashboard_core/src/providers.dart';
 import 'package:dashboard_core/src/scope/period.dart';
 import 'package:dashboard_core/src/session/session.dart';
@@ -171,6 +172,9 @@ final currentOrgProvider = FutureProvider<Org?>((ref) async {
 
 /// Every org, by name, for a platform admin's org picker (inactive included).
 final orgsProvider = FutureProvider<List<Org>>((ref) async {
+  // The web's one `/orgs` query: kept, and refetched when a page opens on it
+  // after the stale time (the picker and the Organizations page share it).
+  ref.webCache();
   final session = ref.watch(currentSessionProvider);
   if (session == null || !session.isPlatform) return const [];
   final orgs = await ref.watch(coreApiProvider).listOrgs();

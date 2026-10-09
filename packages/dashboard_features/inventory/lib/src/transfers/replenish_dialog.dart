@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../purchasing/purchasing_widgets.dart' show PoNumberInput;
+import '../shared/inventory_data.dart' show branchStockProvider;
 import '../shared/inventory_labels.dart';
 import '../shared/inventory_lib.dart' show jsNumberString;
 import 'transfers_data.dart';
@@ -53,6 +54,8 @@ class _ReplenishDialogState extends ConsumerState<ReplenishDialog> {
   Map<String, String> _qty = {};
   Map<String, bool> _on = {};
   String? _seededFor;
+  List<ReplenishmentRow>? _seededRows;
+  bool _edited = false;
 
   ReplenishKey _key(String branchId) =>
       (warehouseId: widget.warehouse.id, branchId: branchId);
@@ -65,9 +68,14 @@ class _ReplenishDialogState extends ConsumerState<ReplenishDialog> {
         ? null
         : ref.watch(replenishmentProvider(_key(branchId)));
     final rows = q?.value;
-    // Seeded once per branch picked: a background refetch keeps the edits.
-    if (rows != null && _seededFor != branchId) {
+    // Seeded per branch picked, and again from a newer answer until the
+    // first edit: after it, a background refetch keeps the edits.
+    if (rows != null &&
+        (_seededFor != branchId ||
+            (!_edited && !identical(rows, _seededRows)))) {
+      if (_seededFor != branchId) _edited = false;
       _seededFor = branchId;
+      _seededRows = rows;
       _qty = {
         for (final r in rows)
           r.orgIngredientId: r.suggested > 0 ? jsNumberString(r.suggested) : '',
@@ -115,8 +123,14 @@ class _ReplenishDialogState extends ConsumerState<ReplenishDialog> {
         rows: rows,
         qty: _qty,
         on: _on,
-        onTick: (id, v) => setState(() => _on[id] = v),
-        onQty: (id, v) => setState(() => _qty[id] = v),
+        onTick: (id, v) => setState(() {
+          _edited = true;
+          _on[id] = v;
+        }),
+        onQty: (id, v) => setState(() {
+          _edited = true;
+          _qty[id] = v;
+        }),
       );
     }
 
@@ -160,6 +174,13 @@ class _ReplenishDialogState extends ConsumerState<ReplenishDialog> {
         DashButton(
           key: const ValueKey('replenish-review'),
           label: t('inventory.transfers.reviewTransfer', count: picked.length),
+          // The transfer dialog's reads: the warehouse's stock, what you
+          // hold at the branch.
+          onIntent: picked.isEmpty
+              ? null
+              : () => ref
+                  ..warm(branchStockProvider(widget.warehouse.id))
+                  ..warm(authzAtProvider(branchId!)),
           onPressed: picked.isEmpty
               ? null
               : () =>

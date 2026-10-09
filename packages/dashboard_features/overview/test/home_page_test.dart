@@ -630,6 +630,16 @@ void main() {
       expect(homeText(age), findsOneWidget);
     });
 
+    testWidgets('OVW-HOME-045 16 px between the KPI strip and the card, at '
+        'every width', (tester) async {
+      for (final size in [DashSize.desktop, DashSize.phone]) {
+        await pumpHome(tester, path: '/?branchId=${SeedIds.maadi}', size: size);
+        final strip = tester.getRect(find.byType(HomeKpiStrip));
+        final card = tester.getRect(find.byType(HomeOpenTillsCard));
+        expect(card.top - strip.bottom, 16, reason: '$size');
+      }
+    });
+
     testWidgets('OVW-HOME-046 loading: one skeleton block', (tester) async {
       final s = homeServer();
       final gate = s.server.hold('GET', _tills);

@@ -10,7 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support.dart';
 
 /// Every GET so far, as `template` strings.
-List<String> _gets(MockServer s) => [
+List<String?> _gets(MockServer s) => [
   for (final c in s.calls)
     if (c.method == 'GET') c.template,
 ];
@@ -41,6 +41,12 @@ void main() {
     freshCafe(s.db);
     addCategory(s.db);
     final h = await pumpOnboarding(tester, server: s.server, db: s.db);
+    // The session's branches and org, which the app's shell holds (core's
+    // offline layer reads them on the editor's first call), not this page's.
+    h.container
+      ..listen(branchesProvider, (_, _) {})
+      ..listen(currentOrgProvider, (_, _) {});
+    await h.settle();
     final mouse = await _mouse(tester);
     expect(_gets(h.server), isNot(contains('/categories')));
 

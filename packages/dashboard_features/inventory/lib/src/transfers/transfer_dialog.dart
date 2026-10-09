@@ -402,6 +402,15 @@ class _TransferDialogState extends ConsumerState<TransferDialog> {
                   label: t('inventory.transfers.modeRequest'),
                 ),
               ],
+              // Asking reads the catalogue; sending reads the new source's
+              // stock (the ends swap).
+              onIntent: (v) {
+                if (v) {
+                  if (orgId != null) ref.warm(inventoryCatalogProvider(orgId));
+                } else if (dst.isNotEmpty) {
+                  ref.warm(branchStockProvider(dst));
+                }
+              },
               onChanged: (v) => setState(() {
                 _asRequest = v;
                 // Your side swaps ends: sending to X becomes asking X.

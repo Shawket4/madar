@@ -76,7 +76,7 @@ class _AvailabilityTabState extends ConsumerState<AvailabilityTab> {
     final availability = ref.watch(pmAvailabilityProvider(branchId));
     final devicesQ = ref.watch(pmDevicesProvider(branchId));
 
-    if (availability.firstLoad || methodsQ.firstLoad) {
+    if (availability.awaitingFirst || methodsQ.awaitingFirst) {
       return Column(
         key: const ValueKey('pm-availability-loading'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -87,9 +87,10 @@ class _AvailabilityTabState extends ConsumerState<AvailabilityTab> {
         ],
       );
     }
-    final error = availability.hasError
+    // Never during Riverpod's automatic retries; kept while Retry runs.
+    final error = availability.hasError && !availability.retrying
         ? availability.error
-        : methodsQ.hasError
+        : methodsQ.hasError && !methodsQ.retrying
         ? methodsQ.error
         : null;
     if (error != null) {

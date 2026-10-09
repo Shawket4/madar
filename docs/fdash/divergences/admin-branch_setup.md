@@ -6,7 +6,6 @@ branch-builder change is `localizeServerNames`, ported). Backend read at MadarRu
 
 | Row | Web | Flutter | Why |
 |---|---|---|---|
-| ADM-BSU-006 | The server's "<section> printer" names are localised with `t("builder.names.sectionPrinter", "{{section}} printer")`, a key in neither locale file, so Arabic shows the English default. | The key is in this unit's supplement, "طابعة {{section}}" in Arabic. | Web bug: English in the Arabic UI. |
 | ADM-BSU-008 | The line legend and the counts still float over the error panel. | Hidden with the error, as while loading. | Visual defect. |
 | ADM-BSU-009 | An empty plan's summary reads "Nothing placed yet" and "Every order has somewhere to go." together. | Ported as is. | Question: the checks are empty, so the all-clear is true, if odd. |
 | ADM-BSU-011 | (checked against `use-scope.ts:84-87`, `route.tsx:104-108`: confirmed) The scope bar writes the store, the stored branch and `X-Branch-Id` before the blocked navigation; after Cancel they name the new branch while the URL and the editor stay on the old one. | Cancel puts the scope back (`setBranch(old)`: store, header and stored choice). | Web bug. |

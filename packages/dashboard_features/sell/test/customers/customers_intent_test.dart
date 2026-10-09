@@ -52,14 +52,10 @@ void main() {
     await restThenPress(
       h,
       rowOf('Nada Kamal'),
-      () =>
-          h.server.callsTo('/customers/{id}', method: 'GET').length +
-          h.server.callsTo('/loyalty/members/{id}', method: 'GET').length -
-          1,
-      'the sheet (the customer and the card)',
+      () => h.server.callsTo('/customers/{id}', method: 'GET').length,
+      'the sheet',
     );
-    // Both reads warmed: the press asked for neither.
-    expect(h.server.callsTo('/customers/{id}', method: 'GET'), hasLength(1));
+    // Nada is a member: her card was warmed beside her, and only once.
     expect(h.server.callsTo('/loyalty/members/{id}'), hasLength(1));
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await h.settle();

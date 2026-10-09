@@ -322,7 +322,14 @@ void main() {
     testWidgets('MENU-PRC-012 a failed studio read: "Couldn\'t load items" '
         'in the row', (tester) async {
       final s = pricingServer();
-      s.server.fail('GET', studioT, MockResponse.error(500, 'boom'));
+      // Twice: the press's touch warms the read first, and a failed warm is
+      // dropped so the expanded row asks again.
+      s.server.fail(
+        'GET',
+        studioT,
+        MockResponse.error(500, 'boom'),
+        times: 2,
+      );
       final h = await pumpPricing(tester, seeded: s);
       await expand(h, 'Iced Latte');
       expect(

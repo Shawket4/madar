@@ -148,6 +148,17 @@ class _PaymentMethodsPageState extends ConsumerState<PaymentMethodsPage> {
     if (mounted) setState(() => _exporting = false);
   }
 
+  /// The Availability tab's reads, warmed on the tab's intent (the list is
+  /// already held).
+  void _warmTab(PmTab tab, String orgId) {
+    if (tab != PmTab.availability) return;
+    ref.warm(pmUsersProvider(orgId));
+    final branchId = ref.read(currentScopeProvider).branchId;
+    if (branchId == null) return;
+    ref.warm(pmAvailabilityProvider(branchId));
+    ref.warm(pmDevicesProvider(branchId));
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
@@ -168,10 +179,10 @@ class _PaymentMethodsPageState extends ConsumerState<PaymentMethodsPage> {
     ref.watch(publicBrandProvider);
     final list = ref.watch(paymentMethodsProvider);
     final methods = list.value ?? const <OrgPaymentMethod>[];
-    // A Retry after a failure is a load again (skeleton), never a flash of
-    // "No results".
-    final loading = list.isLoading && !list.hasValue;
-    final error = !loading && list.hasError ? list.error : null;
+    // Never a flash of "No results": the skeleton through the automatic
+    // retries, then the error, kept (Retry spinning) while a Retry runs.
+    final loading = list.awaitingFirst;
+    final error = list.failedFirst ? list.error : null;
     _syncDialog(list.value);
 
     return DashPageScaffold(
@@ -196,6 +207,7 @@ class _PaymentMethodsPageState extends ConsumerState<PaymentMethodsPage> {
         key: const ValueKey('pm-tabs'),
         value: _tab,
         onChanged: (v) => setState(() => _tab = v),
+        onIntent: (v) => _warmTab(v, orgId),
         tabs: [
           DashTab(value: PmTab.methods, label: title),
           DashTab(
@@ -210,6 +222,7 @@ class _PaymentMethodsPageState extends ConsumerState<PaymentMethodsPage> {
               methods: methods,
               loading: loading,
               error: error,
+              retrying: list.isLoading,
               onRetry: () => ref.invalidate(paymentMethodsProvider),
               onEdit: (m) => _setEdit(m.id),
               onToggle: _toggle,
@@ -224,6 +237,7 @@ class _MethodsView extends ConsumerWidget {
     required this.methods,
     required this.loading,
     required this.error,
+    required this.retrying,
     required this.onRetry,
     required this.onEdit,
     required this.onToggle,
@@ -232,6 +246,7 @@ class _MethodsView extends ConsumerWidget {
   final List<OrgPaymentMethod> methods;
   final bool loading;
   final Object? error;
+  final bool retrying;
   final VoidCallback onRetry;
   final ValueChanged<OrgPaymentMethod> onEdit;
   final ValueChanged<OrgPaymentMethod> onToggle;
@@ -282,6 +297,7 @@ class _MethodsView extends ConsumerWidget {
           methods: methods,
           loading: loading,
           errorText: error == null ? null : errorMessage(error, t),
+          retrying: retrying,
           onRetry: onRetry,
           onEdit: onEdit,
           onToggle: onToggle,
@@ -330,6 +346,7 @@ class _MethodsTable extends ConsumerWidget {
     required this.methods,
     required this.loading,
     required this.errorText,
+    required this.retrying,
     required this.onRetry,
     required this.onEdit,
     required this.onToggle,
@@ -338,6 +355,7 @@ class _MethodsTable extends ConsumerWidget {
   final List<OrgPaymentMethod> methods;
   final bool loading;
   final String? errorText;
+  final bool retrying;
   final VoidCallback onRetry;
   final ValueChanged<OrgPaymentMethod> onEdit;
   final ValueChanged<OrgPaymentMethod> onToggle;
@@ -353,6 +371,7 @@ class _MethodsTable extends ConsumerWidget {
       rowKey: (m) => m.id,
       loading: loading,
       errorMessage: errorText,
+      retrying: retrying,
       onRetry: onRetry,
       onRowTap: onEdit,
       hideViewOptions: true,

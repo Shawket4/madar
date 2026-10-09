@@ -1,6 +1,7 @@
 // Ingredients: the New / Edit ingredient dialog (INV-ING-004, -014…032,
 // -050…052, -055, INV-ALL-010, -011, -023), driven through the real shell.
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_core/dashboard_core.dart' show realtimeBusProvider;
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_inventory/src/area_seed.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -590,5 +591,23 @@ void main() {
     final cat = tester.getRect(inDialog(byKey('ingredient-category')));
     final unit = tester.getRect(inDialog(byKey('ingredient-unit')));
     expect(cat.top, unit.top);
+  });
+
+  testWidgets('INV-ING-015 (re-seed) the edit dialog takes a fresher row '
+      'until the person types; then their words stay', (tester) async {
+    final s = ingredientsServer();
+    final h = await pumpIngredients(tester, server: s.server, db: s.db);
+    await openEdit(h, 'Full Cream Milk');
+    Future<void> rename(String name) async {
+      ingredientRow(s.db, 'full-cream')['name'] = name;
+      h.container.read(realtimeBusProvider).invalidate(const ['/inventory']);
+      await h.settle();
+    }
+
+    await rename('Whole Milk');
+    expect(fieldText(tester, 'ingredient-name'), 'Whole Milk');
+    await h.enterText(inDialog(byKey('ingredient-name')), 'My Milk');
+    await rename('Barista Milk');
+    expect(fieldText(tester, 'ingredient-name'), 'My Milk');
   });
 }

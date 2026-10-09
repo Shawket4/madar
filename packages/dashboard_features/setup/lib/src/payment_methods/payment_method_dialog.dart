@@ -55,20 +55,42 @@ class PaymentMethodDialog extends ConsumerStatefulWidget {
 
 class _PmDialogState extends ConsumerState<PaymentMethodDialog> {
   final _form = GlobalKey<FormState>();
-  late final OrgPaymentMethod? _m = widget.method;
-  late final Map<String, String> _tr = _m == null
-      ? const {}
-      : pmTranslations(_m);
-  late String _name = _m?.name ?? '';
-  late String _labelEn = _tr['en'] ?? '';
-  late String _labelAr = _tr['ar'] ?? '';
-  late String _icon = (_m?.icon.isNotEmpty ?? false) ? _m!.icon : 'money';
-  late String _color = (_m?.color.startsWith('#') ?? false)
-      ? _m!.color
-      : pmDefaultColor;
-  late bool _isCash = _m?.isCash ?? false;
-  late bool _isActive = _m?.isActive ?? true;
-  late bool _visible = _m?.visibleInIntegrations ?? true;
+  late OrgPaymentMethod? _m = widget.method;
+  late String _name;
+  late String _labelEn;
+  late String _labelAr;
+  late String _icon;
+  late String _color;
+  late bool _isCash;
+  late bool _isActive;
+  late bool _visible;
+
+  /// Set by the person's first change: until then a fresher row from the
+  /// list fills the form again (a background refresh lands).
+  bool _edited = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _seed(_m);
+  }
+
+  void _seed(OrgPaymentMethod? m) {
+    final tr = m == null ? const <String, String>{} : pmTranslations(m);
+    _name = m?.name ?? '';
+    _labelEn = tr['en'] ?? '';
+    _labelAr = tr['ar'] ?? '';
+    _icon = (m?.icon.isNotEmpty ?? false) ? m!.icon : 'money';
+    _color = (m?.color.startsWith('#') ?? false) ? m!.color : pmDefaultColor;
+    _isCash = m?.isCash ?? false;
+    _isActive = m?.isActive ?? true;
+    _visible = m?.visibleInIntegrations ?? true;
+  }
+
+  void _edit(VoidCallback change) => setState(() {
+    _edited = true;
+    change();
+  });
   bool _saving = false;
 
   /// Identifiers never change once created (and a system method's never).
@@ -125,6 +147,17 @@ class _PmDialogState extends ConsumerState<PaymentMethodDialog> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
+    if (_m != null) {
+      final fresh = ref
+          .watch(paymentMethodsProvider)
+          .value
+          ?.where((m) => m.id == _m!.id)
+          .firstOrNull;
+      if (fresh != null && !_edited && !identical(fresh, _m)) {
+        _m = fresh;
+        _seed(fresh);
+      }
+    }
     return Form(
       key: _form,
       child: DashSurface(
@@ -146,7 +179,7 @@ class _PmDialogState extends ConsumerState<PaymentMethodDialog> {
                 _locked ? 'settings.pm.idLocked' : 'settings.pm.idHint',
               ),
               inputFormatters: [_Identifier()],
-              onChanged: (v) => setState(() => _name = v),
+              onChanged: (v) => _edit(() => _name = v),
               onSubmitted: (_) => _save(),
               validator: (v) => v.isEmpty
                   ? t('common.requiredField')
@@ -165,7 +198,7 @@ class _PmDialogState extends ConsumerState<PaymentMethodDialog> {
                     label: t('settings.pm.labelEn'),
                     value: _labelEn,
                     placeholder: t('settings.pm.labelEnPlaceholder'),
-                    onChanged: (v) => setState(() => _labelEn = v),
+                    onChanged: (v) => _edit(() => _labelEn = v),
                     onSubmitted: (_) => _save(),
                     validator: (v) =>
                         v.isEmpty ? t('common.requiredField') : null,
@@ -178,7 +211,7 @@ class _PmDialogState extends ConsumerState<PaymentMethodDialog> {
                     value: _labelAr,
                     textDirection: TextDirection.rtl,
                     placeholder: t('settings.pm.labelArPlaceholder'),
-                    onChanged: (v) => setState(() => _labelAr = v),
+                    onChanged: (v) => _edit(() => _labelAr = v),
                     onSubmitted: (_) => _save(),
                   ),
                 ),
@@ -192,7 +225,7 @@ class _PmDialogState extends ConsumerState<PaymentMethodDialog> {
                 for (final i in pmIcons)
                   DashOption(value: i.id, label: t(i.labelKey), icon: i.glyph),
               ],
-              onChanged: (v) => setState(() => _icon = v),
+              onChanged: (v) => _edit(() => _icon = v),
             ),
             DashFormField<String>(
               label: t('settings.pm.color'),
@@ -206,7 +239,7 @@ class _PmDialogState extends ConsumerState<PaymentMethodDialog> {
                     _Swatch(
                       hex: hex,
                       selected: _color == hex,
-                      onTap: () => setState(() => _color = hex),
+                      onTap: () => _edit(() => _color = hex),
                     ),
                 ],
               ),
@@ -222,7 +255,7 @@ class _PmDialogState extends ConsumerState<PaymentMethodDialog> {
                       label: t('settings.pm.acceptsCash'),
                       hint: t('settings.pm.acceptsCashHint'),
                       value: _isCash,
-                      onChanged: (v) => setState(() => _isCash = v),
+                      onChanged: (v) => _edit(() => _isCash = v),
                     ),
                   ),
                   Expanded(
@@ -231,7 +264,7 @@ class _PmDialogState extends ConsumerState<PaymentMethodDialog> {
                       label: t('common.active'),
                       hint: t('settings.pm.statusHint'),
                       value: _isActive,
-                      onChanged: (v) => setState(() => _isActive = v),
+                      onChanged: (v) => _edit(() => _isActive = v),
                     ),
                   ),
                 ],
@@ -242,7 +275,7 @@ class _PmDialogState extends ConsumerState<PaymentMethodDialog> {
               label: t('settings.pm.visibleInIntegrations'),
               hint: t('settings.pm.visibleInIntegrationsHint'),
               value: _visible,
-              onChanged: (v) => setState(() => _visible = v),
+              onChanged: (v) => _edit(() => _visible = v),
             ),
           ],
         ),

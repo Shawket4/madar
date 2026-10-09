@@ -215,4 +215,100 @@ void main() {
     await h.tap(inPage(byKey('transfers-replenish')));
     expect(_gets(h, replenishRoute), 1);
   });
+
+  testWidgets('INV-TRF-020 / INV-TRF-035 (intent) resting on Edit of a draft '
+      'warms the source\'s stock; the dialog opens on it', (tester) async {
+    final h = await pumpTransfers(tester);
+    await openRow(h, 'TR-7');
+    final maadi = '/inventory/branches/${SeedIds.maadi}/stock';
+    final n = _gets(h, stockRoute);
+    final mouse = await _mouse(tester);
+    await _hover(h, mouse, inDrawer(byKey('transfer-step-edit')));
+    expect(_gets(h, stockRoute), n + 1);
+    expect(h.server.callsTo(stockRoute).last.path, maadi);
+    await h.tap(inDrawer(byKey('transfer-step-edit')));
+    expect(dialog, findsOneWidget);
+    expect(_gets(h, stockRoute), n + 1);
+  });
+
+  testWidgets('INV-TRF-020 / INV-TRF-035 (intent) resting on Edit of a '
+      'request warms the catalogue, not stock', (tester) async {
+    final h = await pumpTransfers(tester);
+    await openRow(h, 'TR-6');
+    final stock = _gets(h, stockRoute), catalog = _gets(h, catalogRoute);
+    final mouse = await _mouse(tester);
+    await _hover(h, mouse, inDrawer(byKey('transfer-step-edit')));
+    expect(_gets(h, catalogRoute), catalog + 1);
+    expect(_gets(h, stockRoute), stock);
+    await h.tap(inDrawer(byKey('transfer-step-edit')));
+    expect(dialog, findsOneWidget);
+    expect(_gets(h, catalogRoute), catalog + 1);
+  });
+
+  testWidgets('INV-TRF-020 / INV-TRF-036 (intent) resting on Accept warms '
+      'the source\'s stock; the dialog opens on it', (tester) async {
+    final h = await pumpTransfers(tester);
+    await openRow(h, 'TR-6');
+    final n = _gets(h, stockRoute);
+    final mouse = await _mouse(tester);
+    await _hover(h, mouse, inDrawer(byKey('transfer-step-accept')));
+    expect(_gets(h, stockRoute), n + 1);
+    expect(
+      h.server.callsTo(stockRoute).last.path,
+      '/inventory/branches/${SeedIds.maadi}/stock',
+    );
+    await h.tap(inDrawer(byKey('transfer-step-accept')));
+    expect(dialog, findsOneWidget);
+    expect(_gets(h, stockRoute), n + 1);
+  });
+
+  testWidgets('INV-TRF-026 (intent) resting on Request stock warms the '
+      'catalogue; resting on Send stock warms the new source\'s stock', (
+    tester,
+  ) async {
+    final h = await pumpTransfers(tester, branch: SeedIds.zamalek);
+    await h.tap(inPage(byKey('transfers-new')));
+    await pick(h, 'transfer-destination', 'Maadi');
+    final mouse = await _mouse(tester);
+    await _hover(h, mouse, inDialog(find.text('Request stock')));
+    expect(_gets(h, catalogRoute), 1);
+    await h.tap(inDialog(find.text('Request stock')).last);
+    expect(_gets(h, catalogRoute), 1);
+    // Asking for Heliopolis: sending back makes it the source.
+    await pick(h, 'transfer-destination', 'Heliopolis');
+    final n = _gets(h, stockRoute);
+    await _hover(h, mouse, inDialog(find.text('Send stock')));
+    expect(_gets(h, stockRoute), n + 1);
+    expect(
+      h.server.callsTo(stockRoute).last.path,
+      '/inventory/branches/${SeedIds.heliopolis}/stock',
+    );
+    await h.tap(inDialog(find.text('Send stock')));
+    expect(_gets(h, stockRoute), n + 1);
+  });
+
+  testWidgets('INV-TRF-040 (intent) resting on Review transfer warms the '
+      'store\'s stock; the transfer dialog opens on it', (tester) async {
+    final s = transfersServer();
+    withWarehouse(s.db);
+    final h = await pumpTransfers(
+      tester,
+      server: s.server,
+      db: s.db,
+      branch: centralStore,
+    );
+    await h.tap(inPage(byKey('transfers-replenish')));
+    await pick(h, 'replenish-branch', 'Zamalek', scope: replenishDialog);
+    final n = _gets(h, stockRoute);
+    final mouse = await _mouse(tester);
+    await _hover(h, mouse, inReplenish(byKey('replenish-review')));
+    expect(_gets(h, stockRoute), n + 1);
+    expect(
+      h.server.callsTo(stockRoute).last.path,
+      '/inventory/branches/$centralStore/stock',
+    );
+    await h.tap(inReplenish(byKey('replenish-review')));
+    expect(dialog, findsOneWidget);
+    expect(_gets(h, stockRoute), n + 1);
+  });
 }

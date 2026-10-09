@@ -242,8 +242,9 @@ void main() {
     final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis);
     await removeAndReview(h, 'Bar');
     expect(byKey('bb-review-busy'), findsOneWidget);
-    for (final r in h.db[BranchPlanTables.ticketItems].rows) {
-      r['bumped_at'] = h.db.nowIso;
+    final db = h.db!;
+    for (final r in db[BranchPlanTables.ticketItems].rows) {
+      r['bumped_at'] = db.nowIso;
     }
     h.container.invalidate(branchPlanProvider(SeedIds.heliopolis));
     await h.settle();

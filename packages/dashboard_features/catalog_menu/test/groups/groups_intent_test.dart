@@ -1,7 +1,9 @@
 // Intent warming on Modifier groups: resting on a group's Edit, its
 // "Used on" link, "New group" or the editor's "Manage" warms the reads the
-// press makes, so the press asks the server nothing more.
+// press makes, so the press asks the server nothing more. Also: a save
+// refreshes the page's list even when the editor closed while it ran.
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dashboard_core/testing.dart';
 
@@ -51,6 +53,8 @@ void main() {
     // The editor's "Manage" warms the usage dialog's item list.
     final items = callsTo(h, 'GET', itemsT).length;
     final manage = find.text(h.t('menu.groups.manage'));
+    await tester.ensureVisible(manage);
+    await h.settle();
     await mouse.moveTo(tester.getCenter(manage));
     await h.settle();
     expect(callsTo(h, 'GET', itemsT), hasLength(items + 1));
@@ -89,5 +93,25 @@ void main() {
     await h.tap(button);
     expect(surface(h.t('menu.groups.editor.newTitle')), findsOneWidget);
     expect(_editorReads(h), warm, reason: 'the editor opened from the cache');
+  });
+
+  testWidgets('MENU-GRP-017 a save refetches the list even when the editor '
+      'closed while it ran (the web\'s onSaved)', (tester) async {
+    final s = groupsServer();
+    final h = await pumpGroups(tester, seeded: s);
+    int listed() => [
+      for (final c in callsTo(h, 'GET', listT))
+        if (c.query['include_inactive']?.single == 'true') c,
+    ].length;
+    await h.tap(labelIn(rowOf(beansId), h.t('common.edit')));
+    final gate = s.server.hold('PATCH', groupT);
+    await h.tap(find.text(h.t('common.save')));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await h.settle();
+    expect(find.text(h.t('menu.groups.editor.editTitle')), findsNothing);
+    final before = listed();
+    gate.release();
+    await h.settle();
+    expect(listed(), greaterThan(before));
   });
 }

@@ -107,6 +107,27 @@ void main() {
     expect(planOf(tester).tillPrintsKitchen, isTrue);
   });
 
+  testWidgets('ADM-BSU-047 the whole chits row toggles; the hint describes '
+      'the switch', (tester) async {
+    final handle = tester.ensureSemantics();
+    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis);
+    await unlock(h);
+    final hint = h.t('builder.tillPrintsKitchenHintSections');
+    await h.tap(ins(hint));
+    expect(planOf(tester).tillPrintsKitchen, isFalse);
+    await h.tap(ins(h.t('builder.tillPrintsKitchen')));
+    expect(planOf(tester).tillPrintsKitchen, isTrue);
+    expect(
+      tester.getSemantics(byKey('bb-till-chits-row')),
+      isSemantics(
+        label: h.t('builder.tillPrintsKitchen'),
+        hint: hint,
+        isChecked: true,
+      ),
+    );
+    handle.dispose();
+  });
+
   testWidgets('ADM-BSU-046/047 a till-only branch: "Till only" and the chits '
       'hint for no sections', (tester) async {
     await pumpBuilder(tester, branchId: SeedIds.maadi);
@@ -401,10 +422,8 @@ void main() {
     );
     h.container.invalidate(branchPlanProvider(SeedIds.heliopolis));
     await h.settle();
-    expect(
-      pieceOf(tester, cardTitled('Counter 1')).presence!.label,
-      startsWith('Seen '),
-    );
+    // The activation is the tablet's first sign of life: online.
+    expect(pieceOf(tester, cardTitled('Counter 1')).presence!.label, 'Online');
   });
 
   testWidgets('ADM-BSU-061/062/063/064 a printer: how it connects, IP and '

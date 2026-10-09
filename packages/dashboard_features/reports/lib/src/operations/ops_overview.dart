@@ -378,7 +378,7 @@ class OpsExcludeItemsControl extends ConsumerWidget {
         // The list reads the menu when it opens.
         onIntent: orgId == null
             ? null
-            : () => ref.warm(opsMenuItemsProvider(orgId!)),
+            : () => ref.warmCold(opsMenuItemsProvider(orgId!)),
         pressScale: false,
         tooltip: t('analytics.excludeItems'),
         semanticLabel: t('analytics.excludeItems'),
@@ -447,7 +447,7 @@ class _ExcludeListState extends ConsumerState<_ExcludeList> {
     final excluded = ref.watch(excludedItemsProvider(org));
     final notifier = ref.read(excludedItemsProvider(org).notifier);
     // A pick (or Clear) reads the Overview's sales with the new list.
-    void warmSales(List<String> ids) => ref.warm(
+    void warmSales(List<String> ids) => ref.warmCold(
       opsSalesProvider(
         ref.read(currentScopeProvider).opsSales(excludeItemsParam(ids)),
       ),

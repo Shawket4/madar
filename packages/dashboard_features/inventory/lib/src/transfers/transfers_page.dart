@@ -448,8 +448,9 @@ class TransfersTable extends ConsumerWidget {
           cell: (context, tr) => Text(f.fmtDateTime(transferWhen(tr))),
           numeric: true,
           align: DashAlign.start,
-          // "30 Sept, 12:15 PM" uncut, as the web's nowrap cell.
-          width: Space.xxl * 6,
+          // "30 Sept, 12:15 PM" uncut, as the web's nowrap cell, leaving
+          // Direction room for one line at tablet width.
+          width: Space.xxl * 5 + Space.sm,
         ),
         DashColumn(
           id: 'route',

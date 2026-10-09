@@ -119,6 +119,23 @@ void main() {
     }
   });
 
+  testWidgets('INV-TRF-039 before any edit, a newer answer re-seeds Send', (
+    tester,
+  ) async {
+    final r = await _open(tester);
+    await pick(r.h, 'replenish-branch', 'Zamalek', scope: replenishDialog);
+    Finder qty(String v) => find.descendant(
+      of: inReplenish(byKey('replenish-qty-$_oat')),
+      matching: find.text(v),
+    );
+    expect(qty('6500'), findsOneWidget);
+    stockRow(r.db, SeedIds.zamalek, 'oat')!['on_hand'] = 1000.0;
+    r.h.container.read(realtimeBusProvider).invalidate(const ['/inventory']);
+    await r.h.settle();
+    expect(r.h.server.callsTo(replenishRoute), hasLength(2));
+    expect(qty('7500'), findsOneWidget);
+  });
+
   testWidgets('INV-TRF-039 a background refetch keeps the person\'s edits', (
     tester,
   ) async {

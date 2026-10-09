@@ -9,27 +9,16 @@ import 'support.dart';
 void main() {
   Future<void> editing(DashHarness h) async =>
       expect(inDialog(find.text('Edit discount')), findsOneWidget);
-  for (final (kind, target, opened) in <(
-    String,
-    Finder Function(),
-    Future<void> Function(DashHarness),
-  )>[
-    (
-      'a row',
-      () => inTable(find.text('Staff Meal')),
-      editing,
-    ),
-    (
-      'a row\'s pencil',
-      () => labelled('Edit', of: table).first,
-      editing,
-    ),
-    (
-      'Export',
-      () => inPage(find.text('Export Excel')),
-      (h) => h.expectToast('Exported 7 rows'),
-    ),
-  ]) {
+  for (final (kind, target, opened)
+      in <(String, Finder Function(), Future<void> Function(DashHarness))>[
+        ('a row', () => inTable(find.text('Staff Meal')), editing),
+        ('a row\'s pencil', () => labelled('Edit', of: table).first, editing),
+        (
+          'Export',
+          () => inPage(find.text('Export Excel')),
+          (h) => h.expectToast('Exported 7 rows'),
+        ),
+      ]) {
     testWidgets('intent: resting on $kind warms its read; the press asks '
         'nothing more', (tester) async {
       final h = await pumpDiscounts(tester);

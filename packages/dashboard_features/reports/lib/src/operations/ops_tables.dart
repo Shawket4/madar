@@ -161,7 +161,7 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView> {
         .firstOrNull
         ?.id;
     if (id != null) {
-      ref.warm(opsTableHistoryProvider((id: id, from: s.from, to: s.to)));
+      ref.warmCold(opsTableHistoryProvider((id: id, from: s.from, to: s.to)));
     }
   }
 

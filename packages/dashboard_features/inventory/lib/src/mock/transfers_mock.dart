@@ -199,7 +199,10 @@ void _seed(MockDb db) {
     final dst = r['destination_branch_id']! as String;
     final ing = db[InvTables.ingredients].find(
       r['org_ingredient_id']! as String,
-    )!;
+    );
+    // An app whose ingredient seed differs (another area seeded first) skips
+    // the transfer rather than crashing every mock registration.
+    if (ing == null) continue;
     final qty = (r['quantity']! as num).toDouble();
     final at = r['initiated_at']! as String;
     final stamp = _stamp(
@@ -231,6 +234,11 @@ void _seed(MockDb db) {
     });
   }
   for (final d in _docs) {
+    if (d.lines.any(
+      (l) => db[InvTables.ingredients].find(InvIds.ingredient(l.$1)) == null,
+    )) {
+      continue;
+    }
     final id = InvIds.transfer(d.key);
     final src = _branchId(d.from), dst = _branchId(d.to);
     final stamp = _stamp(

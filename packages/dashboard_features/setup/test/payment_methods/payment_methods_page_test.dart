@@ -306,14 +306,14 @@ void main() {
       final gate = m.server.hold('GET', PmRoutes.list);
       final before = h.server.calls.length;
       await h.tap(inPage(find.text('Retry')));
-      // On its way again: the skeleton, never "No results".
+      // On its way again: the error stays with Retry spinning, never
+      // "No results".
       expect(inPage(find.text('No results found')), findsNothing);
-      expect(
-        tester.widget<DashDataTable<OrgPaymentMethod>>(
-          inPage(find.byType(DashDataTable<OrgPaymentMethod>)),
-        ).loading,
-        isTrue,
+      final table = tester.widget<DashDataTable<OrgPaymentMethod>>(
+        inPage(find.byType(DashDataTable<OrgPaymentMethod>)),
       );
+      expect(table.errorMessage, isNotNull);
+      expect(table.retrying, isTrue);
       gate.release();
       await h.settle();
       expect(inPage(find.byType(PmNameCell)), findsNWidgets(8));

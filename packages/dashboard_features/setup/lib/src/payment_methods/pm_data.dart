@@ -208,6 +208,4 @@ List<UserPublic> availabilityTellers(List<UserPublic> users, String branchId) =>
     ];
 
 /// React Query's `isLoading`: the first load, nothing to show yet.
-extension PmAsync<T> on AsyncValue<T> {
-  bool get firstLoad => isLoading && !hasValue && !hasError;
-}
+

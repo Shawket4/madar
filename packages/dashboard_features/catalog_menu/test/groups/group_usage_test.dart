@@ -264,7 +264,14 @@ void main() {
 
     testWidgets('a failed read: the words and Retry', (tester) async {
       final s = groupsServer();
-      s.server.fail('GET', itemsT, MockResponse.error(500, 'Database is down'));
+      // Twice: the press's touch warms the read first, and a failed warm is
+      // dropped so the dialog asks again.
+      s.server.fail(
+        'GET',
+        itemsT,
+        MockResponse.error(500, 'Database is down'),
+        times: 2,
+      );
       final h = await openBeansUsage(tester, seeded: s);
       expect(textIn(dialog(), "Couldn't load this"), findsOneWidget);
       expect(textIn(dialog(), 'Database is down'), findsOneWidget);

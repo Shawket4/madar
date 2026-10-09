@@ -106,7 +106,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final refetch = _listRefetcher(orgId);
-      final saved = await showGroupEditorDialog(
+      await showGroupEditorDialog(
         context,
         orgId: orgId,
         group: group,
@@ -121,10 +121,11 @@ class _GroupsPageState extends ConsumerState<GroupsPage> {
                 group: group!,
                 readOnly: !canEdit,
               ),
+        // The web's `onSaved`: the page's list refetches, even when the
+        // editor was closed while the save ran.
+        onSaved: (_) => refetch(),
         readOnly: !canEdit,
       );
-      // The web's `onSaved`: the page's list refetches.
-      if (saved != null) refetch();
       if (!mounted) return;
       _openFor = null;
       _closedFor = edit;

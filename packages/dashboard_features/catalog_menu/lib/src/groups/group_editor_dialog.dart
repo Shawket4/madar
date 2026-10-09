@@ -51,6 +51,7 @@ Future<GroupOut?> showGroupEditorDialog(
   GroupOut? group,
   int? usedOn,
   VoidCallback? onManageItems,
+  ValueChanged<GroupOut>? onSaved,
   bool readOnly = false,
 }) => showDashDialog<GroupOut>(
   context,
@@ -60,6 +61,7 @@ Future<GroupOut?> showGroupEditorDialog(
     group: group,
     usedOn: usedOn,
     onManageItems: onManageItems,
+    onSaved: onSaved,
     readOnly: readOnly,
   ),
 );
@@ -70,6 +72,7 @@ class GroupEditorDialog extends ConsumerStatefulWidget {
     this.group,
     this.usedOn,
     this.onManageItems,
+    this.onSaved,
     this.readOnly = false,
     super.key,
   });
@@ -89,6 +92,10 @@ class GroupEditorDialog extends ConsumerStatefulWidget {
   /// "Manage…": opens the usage dialog on top (the row shows whenever this
   /// or [usedOn] is given).
   final VoidCallback? onManageItems;
+
+  /// The web's `onSaved`: called once the save lands, even when the dialog
+  /// was closed while it ran.
+  final ValueChanged<GroupOut>? onSaved;
 
   /// Without the capability: every control disabled, no Save.
   final bool readOnly;
@@ -170,6 +177,7 @@ class _GroupEditorDialogState extends ConsumerState<GroupEditorDialog> {
     setState(() => _busy = true);
     final api = ref.read(apiProvider).menu;
     final invalidate = ref.menuInvalidate;
+    final onSaved = widget.onSaved;
     final catalog = ref.read(ingredientCatalogProvider(widget.orgId)).value;
     final unitById = {for (final c in catalog ?? const []) c.id: c.unit};
     String? unitOf(String id) => unitById[id];
@@ -342,6 +350,7 @@ class _GroupEditorDialogState extends ConsumerState<GroupEditorDialog> {
           .listGroups(orgId: widget.orgId)
           .catchError((Object _) => const <GroupOut>[]);
       final result = fresh.where((g) => g.id == saved.id).firstOrNull ?? saved;
+      onSaved?.call(result);
       if (!mounted) return;
       DashToast.success(context, t('common.savedChanges'));
       Navigator.of(context).pop(result);

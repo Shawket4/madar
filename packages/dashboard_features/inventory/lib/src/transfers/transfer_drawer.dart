@@ -149,6 +149,7 @@ class _TransferDrawerState extends ConsumerState<TransferDrawer> {
       VoidCallback onPressed, {
       DashButtonVariant variant = DashButtonVariant.primary,
       bool loading = false,
+      VoidCallback? onIntent,
     }) => DashButton(
       key: ValueKey('transfer-step-$key'),
       label: label,
@@ -156,6 +157,7 @@ class _TransferDrawerState extends ConsumerState<TransferDrawer> {
       variant: variant,
       loading: loading,
       onPressed: busy ? null : onPressed,
+      onIntent: onIntent,
     );
 
     Widget stamp(String key, String label, TransferStamp? s) => s == null
@@ -168,7 +170,9 @@ class _TransferDrawerState extends ConsumerState<TransferDrawer> {
               Text(label, style: DashType.body.copyWith(color: c.textMuted)),
               Expanded(
                 child: Text(
-                  '${s.byName} · ${f.fmtDateTime(s.at)}',
+                  // Isolated: a Latin name never pulls the Arabic date
+                  // into its run.
+                  '\u2068${s.byName}\u2069 · ${f.fmtDateTime(s.at)}',
                   textAlign: TextAlign.end,
                   style: DashType.body.copyWith(color: c.textPrimary),
                 ),
@@ -303,6 +307,15 @@ class _TransferDrawerState extends ConsumerState<TransferDrawer> {
               ),
             ),
             variant: DashButtonVariant.outline,
+            // Editing a request lists the catalogue; a send, the source's
+            // stock.
+            onIntent: () {
+              if (status != 'requested') {
+                ref.warm(branchStockProvider(tr.sourceBranchId));
+              } else if (ref.read(orgIdProvider) case final orgId?) {
+                ref.warm(inventoryCatalogProvider(orgId));
+              }
+            },
           ),
         if (actions.contains(TransferAction.accept))
           step(
@@ -316,6 +329,7 @@ class _TransferDrawerState extends ConsumerState<TransferDrawer> {
                 transfer: tr,
               ),
             ),
+            onIntent: () => ref.warm(branchStockProvider(tr.sourceBranchId)),
           ),
         if (actions.contains(TransferAction.dispatch))
           DashButton(

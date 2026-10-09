@@ -81,6 +81,9 @@ void main() {
       expect(sheetText("Couldn't load this customer"), findsOneWidget);
       expect(sheetText(h.refusalWords(missing)), findsOneWidget);
       h.server.clearFailures();
+      // The press warmed the read too: a failed warm is dropped and the
+      // sheet asks again, as React Query refetches an errored prefetch.
+      final failed = h.server.callsTo('/customers/{id}').length;
       final gate = h.server.hold('GET', '/customers/{id}');
       await h.tap(inSheet(find.text('Retry')));
       // The failure stays, its Retry spinning, while the retry runs.
@@ -89,7 +92,7 @@ void main() {
       gate.release();
       h.server.clearFailures();
       await h.settle();
-      expect(h.server.callsTo('/customers/{id}'), hasLength(2));
+      expect(h.server.callsTo('/customers/{id}'), hasLength(failed + 1));
       expect(sheetText('Nada Kamal'), findsOneWidget);
     });
 

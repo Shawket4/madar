@@ -56,12 +56,12 @@ void main() {
     final four = stored(h.db!).firstWhere((b) => b.id == heliBooking(4));
     final sections = s.callsTo(sectionsTemplate).length;
 
-    // A row (onRowIntent).
+    // A row (onRowIntent); the guest's link inside it has the same label.
     final row = inPage(
       find.byWidgetPredicate(
         (w) => w is DashPressable && w.semanticLabel == four.guestName,
       ),
-    );
+    ).first;
     expect(_avail(s, exclude: four.id), 0);
     await _rest(h, mouse, row);
     expect(_avail(s, exclude: four.id), 1, reason: 'the slots are warmed');

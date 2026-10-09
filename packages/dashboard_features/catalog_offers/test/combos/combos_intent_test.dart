@@ -17,13 +17,7 @@ void main() {
   Finder editor() => find.byType(ComboEditorPage);
   for (final (kind, open, target, warms, opened)
       in <(String, String?, Finder Function(), String, Finder Function())>[
-        (
-          'a row',
-          null,
-          () => rowOf('Coffee & Cookie'),
-          '/combos/{id}',
-          editor,
-        ),
+        ('a row', null, () => rowOf('Coffee & Cookie'), '/combos/{id}', editor),
         (
           'a row\'s pencil',
           null,
@@ -31,7 +25,13 @@ void main() {
           '/combos/{id}',
           editor,
         ),
-        ('New combo', null, () => pageButton('New combo'), '/menu-items', editor),
+        (
+          'New combo',
+          null,
+          () => pageButton('New combo'),
+          '/menu-items',
+          editor,
+        ),
         (
           'a Status option',
           'Status',

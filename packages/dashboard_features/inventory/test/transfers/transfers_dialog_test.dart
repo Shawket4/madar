@@ -416,7 +416,10 @@ void main() {
     await h.enterText(inDialog(byKey('transfer-qty-0')), '90');
     await h.tap(inDialog(byKey('transfer-send')));
     expect(h.server.callsTo(createRoute), hasLength(1));
-    expect(h.server.callsTo(itemRoute).single.method, 'PATCH');
+    final patch = h.server.callsTo(itemRoute).single;
+    expect(patch.method, 'PATCH');
+    final lines = (patch.body! as Map)['lines'] as List;
+    expect((lines[0] as Map)['quantity'], 90);
     expect(h.server.callsTo(stepRoute('dispatch')), hasLength(2));
     await h.expectToast('Transfer sent');
   });

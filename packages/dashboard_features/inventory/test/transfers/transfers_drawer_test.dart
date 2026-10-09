@@ -158,7 +158,7 @@ void main() {
       find.descendant(
         of: inDrawer(byKey('transfer-stamp-requested')),
         matching: find.text(
-          'Karim Adel · ${f.fmtDateTime(DateTime.utc(2026, 10, 7, 9, 10))}',
+          '\u2068Karim Adel\u2069 · ${f.fmtDateTime(DateTime.utc(2026, 10, 7, 9, 10))}',
         ),
       ),
       findsOneWidget,
@@ -167,7 +167,7 @@ void main() {
     await h.tap(find.byTooltip('Close').last);
     await openRow(h, 'TR-5');
     final at =
-        'Tarek Saber · ${f.fmtDateTime(DateTime.utc(2026, 10, 6, 8, 30))}';
+        '\u2068Tarek Saber\u2069 · ${f.fmtDateTime(DateTime.utc(2026, 10, 6, 8, 30))}';
     for (final (key, label) in [
       ('created', 'Created'),
       ('sent', 'Sent'),
@@ -187,8 +187,23 @@ void main() {
       find.descendant(
         of: inDrawer(byKey('transfer-stamp-cancelled')),
         matching: find.text(
-          'Dina Fouad · ${f.fmtDateTime(DateTime.utc(2026, 10, 2, 13, 20))}',
+          '\u2068Dina Fouad\u2069 · ${f.fmtDateTime(DateTime.utc(2026, 10, 2, 13, 20))}',
         ),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('INV-TRF-017 (ar) a stamp isolates the Latin name, so the '
+      'Arabic date never joins its run', (tester) async {
+    final h = await pumpTransfers(tester, locale: 'ar');
+    final f = h.container.read(formatProvider);
+    await openRow(h, 'TR-6');
+    final at = f.fmtDateTime(DateTime.utc(2026, 10, 7, 9, 10));
+    expect(
+      find.descendant(
+        of: inDrawer(byKey('transfer-stamp-requested')),
+        matching: find.text('\u2068Karim Adel\u2069 · $at'),
       ),
       findsOneWidget,
     );

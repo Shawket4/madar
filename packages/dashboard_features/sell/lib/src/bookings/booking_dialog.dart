@@ -159,9 +159,7 @@ class _BookingDialogState extends ConsumerState<BookingDialog> {
     _party = '${k.partySize}';
     _startsAt = b?.startsAt;
     _customTime = b == null ? '' : localHHMM(b.startsAt, _tz);
-    _duration = b == null
-        ? ''
-        : '${b.endsAt.difference(b.startsAt).inMinutes}';
+    _duration = b == null ? '' : '${b.endsAt.difference(b.startsAt).inMinutes}';
     _sectionId = k.sectionId;
     _manualTables = b != null && (b.needsTable || b.tableIds.isNotEmpty);
     _tableIds = [...?b?.tableIds];

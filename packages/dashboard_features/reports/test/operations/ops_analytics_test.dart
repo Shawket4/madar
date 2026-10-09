@@ -130,6 +130,9 @@ void main() {
       );
       await h.shot('operations/items-failed');
       s.server.clearFailures();
+      // The tab press's warm-up failed too (dropped, read again): count from
+      // here.
+      final asked = h.server.callsTo(itemsRoute).length;
       final addons = h.server.callsTo(addonsRoute).length;
       // While the retry runs: still the error, never the empty words.
       final gate = s.server.hold('GET', itemsRoute);
@@ -144,7 +147,7 @@ void main() {
       );
       gate.release();
       await h.settle();
-      expect(h.server.callsTo(itemsRoute), hasLength(2));
+      expect(h.server.callsTo(itemsRoute), hasLength(asked + 1));
       expect(h.server.callsTo(addonsRoute), hasLength(addons));
       expect(
         find.descendant(of: items, matching: find.text("Couldn't load this")),
@@ -255,8 +258,10 @@ void main() {
       await openTab(h, 'Tellers');
       expect(pageText("Couldn't load this"), findsNWidgets(2));
       s.server.clearFailures();
+      // The tab press's warm-up failed too (dropped, read again).
+      final asked = h.server.callsTo(tellersRoute).length;
       await h.tap(pageText('Retry').first);
-      expect(h.server.callsTo(tellersRoute), hasLength(2));
+      expect(h.server.callsTo(tellersRoute), hasLength(asked + 1));
       expect(pageText("Couldn't load this"), findsNothing);
     });
 

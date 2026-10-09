@@ -141,14 +141,16 @@ class _LegalReportPageState extends ConsumerState<LegalReportPage> {
               ],
               value: tab,
               onChanged: (v) => setState(() => _picked = v),
-              // The tab shown reads its report: warm that one.
+              // The tab shown reads its report: warm that one, unless it is
+              // cached (the core's warm drops a stale read's figures).
               onIntent: query == null
                   ? null
-                  : (v) => ref.warm(
-                      v == LegalTab.tax
+                  : (v) {
+                      final p = v == LegalTab.tax
                           ? legalTaxProvider(query)
-                          : legalAuditProvider((v, query)),
-                    ),
+                          : legalAuditProvider((v, query));
+                      if (!ref.exists(p)) ref.warm(p);
+                    },
             ),
       body: switch (tab) {
         null => const SizedBox.shrink(),

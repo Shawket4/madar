@@ -219,6 +219,8 @@ void main() {
     final before = h.server.callsTo(listRoute).length;
     await h.tap(inPage(byKey('transfers-export')));
     final walk = h.server.callsTo(listRoute).skip(before).toList();
+    expect(walk, isNotEmpty);
+    expect(walk.first.query['offset'], ['0']);
     for (final c in walk) {
       expect(c.query['limit'], ['500']);
       expect(c.query['direction'], ['incoming']);
