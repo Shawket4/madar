@@ -25,9 +25,9 @@ Widget _home(BuildContext context, GoRouterState state) => const HomeRoute();
 /// The web's `prefetchRoute('/')`: the branch's sales when one is picked, the
 /// org's trend and branch comparison when an org is in scope (`HomeData`).
 void _prefetchHome(DashPrefetcher warm, Scope s) {
-  if (s.branchId != null) warm(homeBranchSalesProvider(s));
+  if (s.branchId != null) warm(homeBranchSalesProvider(s.branchRange));
   if (s.orgId != null) {
-    warm(homeTimeseriesProvider(s));
-    warm(homeComparisonProvider(s));
+    warm(homeTimeseriesProvider(s.series));
+    warm(homeComparisonProvider(s.orgRange));
   }
 }

@@ -113,13 +113,21 @@ class HomeLink extends StatelessWidget {
   }
 }
 
-/// Fades a section up into place once (the web's `fadeInUp`, staggered by
-/// [order] × 60 ms); nothing moves under reduced motion.
+/// Fades a section up into place once — the web's `fadeInUp` / `listItem`
+/// (160 ms, a 6 px rise) at [order] × [step] ms into its container's
+/// stagger (`staggerContainer(0.06)` for cards, `0.04` for list rows).
+/// Nothing moves under reduced motion.
 class HomeReveal extends StatefulWidget {
-  const HomeReveal({required this.child, this.order = 0, super.key});
+  const HomeReveal({
+    required this.child,
+    this.order = 0,
+    this.step = 60,
+    super.key,
+  });
 
   final Widget child;
   final int order;
+  final int step;
 
   @override
   State<HomeReveal> createState() => _HomeRevealState();
@@ -127,9 +135,22 @@ class HomeReveal extends StatefulWidget {
 
 class _HomeRevealState extends State<HomeReveal>
     with SingleTickerProviderStateMixin {
+  static const double _rise = Space.xs + DashMetrics.hair;
+
+  late final Duration _delay = Duration(
+    milliseconds: widget.step * widget.order,
+  );
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: DashMotion.slow + Duration(milliseconds: 60 * widget.order),
+    duration: DashMotion.fast + _delay,
+  );
+  late final Animation<double> _shown = CurvedAnimation(
+    parent: _c,
+    curve: Interval(
+      _delay.inMicroseconds / _c.duration!.inMicroseconds,
+      1,
+      curve: const Cubic(0.22, 1, 0.36, 1),
+    ),
   );
   bool _started = false;
 
@@ -152,23 +173,17 @@ class _HomeRevealState extends State<HomeReveal>
   }
 
   @override
-  Widget build(BuildContext context) {
-    final delay = widget.order * 60 / _c.duration!.inMilliseconds;
-    final curve = CurvedAnimation(
-      parent: _c,
-      curve: Interval(delay.clamp(0, 0.9), 1, curve: DashMotion.ease),
-    );
-    return FadeTransition(
-      opacity: curve,
-      child: SlideTransition(
-        position: Tween(
-          begin: const Offset(0, 0.02),
-          end: Offset.zero,
-        ).animate(curve),
-        child: widget.child,
+  Widget build(BuildContext context) => FadeTransition(
+    opacity: _shown,
+    child: AnimatedBuilder(
+      animation: _shown,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, _rise * (1 - _shown.value)),
+        child: child,
       ),
-    );
-  }
+      child: widget.child,
+    ),
+  );
 }
 
 /// Cards side by side sharing one height (the web's grid row with `h-full`

@@ -28,7 +28,11 @@ class HomeDeliverySection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
-    final q = watchIf(ref, scope.orgId != null, homeDeliveryProvider(scope));
+    final q = watchIf(
+      ref,
+      scope.orgId != null,
+      () => homeDeliveryProvider(scope.scopeRange),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
@@ -41,7 +45,9 @@ class HomeDeliverySection extends ConsumerWidget {
           DashErrorState(
             title: t('dashboard.deliveryFailed'),
             retryLabel: t('common.retry'),
-            onRetry: () => ref.invalidate(homeDeliveryProvider(scope)),
+            onRetry: () => ref.invalidate(
+              homeDeliveryProvider(scope.scopeRange),
+            ),
           )
         else
           HomeDeliveryKpis(data: q.value, loading: q.firstLoad),

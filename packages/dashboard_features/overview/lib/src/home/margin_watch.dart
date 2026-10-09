@@ -100,7 +100,11 @@ class HomeMarginWatchCard extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final fmt = ref.watch(formatProvider);
     final c = context.madarColors;
-    final q = watchIf(ref, scope.orgId != null, homeMarginWatchProvider(scope));
+    final q = watchIf(
+      ref,
+      scope.orgId != null,
+      () => homeMarginWatchProvider(scope.scopeRange),
+    );
     final data = q.value;
     final totals = data?.totals;
     final empty =
@@ -115,7 +119,9 @@ class HomeMarginWatchCard extends ConsumerWidget {
         title: t('insights.watch.loadFailed'),
         retryLabel: t('common.retry'),
         retrying: q.isLoading,
-        onRetry: () => ref.invalidate(homeMarginWatchProvider(scope)),
+        onRetry: () => ref.invalidate(
+          homeMarginWatchProvider(scope.scopeRange),
+        ),
       );
     } else if (empty) {
       body = DashEmptyState(framed: false, title: t('insights.watch.empty'));

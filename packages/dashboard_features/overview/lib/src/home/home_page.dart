@@ -79,13 +79,13 @@ class HomePage extends ConsumerWidget {
             HomeEqualRow(
               flex: const [2, 1],
               children: [
-                HomeReveal(order: 1, child: trend),
-                HomeReveal(order: 2, child: payments),
+                HomeReveal(child: trend),
+                HomeReveal(order: 1, child: payments),
               ],
             )
           else ...[
-            HomeReveal(order: 1, child: trend),
-            HomeReveal(order: 2, child: payments),
+            HomeReveal(child: trend),
+            HomeReveal(order: 1, child: payments),
           ],
           HomeBranchPerformanceCard(data: data),
           HomeMarginWatchCard(scope: scope),

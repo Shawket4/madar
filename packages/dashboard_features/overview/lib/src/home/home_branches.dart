@@ -30,7 +30,9 @@ class HomeBranchPerformanceCard extends ConsumerWidget {
         framed: false,
         title: t('dashboard.branchesFailed'),
         retryLabel: t('common.retry'),
-        onRetry: () => ref.invalidate(homeComparisonProvider(data.scope)),
+        onRetry: () => ref.invalidate(
+          homeComparisonProvider(data.scope.orgRange),
+        ),
       );
     } else if (ranked.isEmpty) {
       body = DashEmptyState(framed: false, title: t('dashboard.noSalesPeriod'));
@@ -42,6 +44,7 @@ class HomeBranchPerformanceCard extends ConsumerWidget {
           for (final (i, b) in ranked.indexed)
             HomeReveal(
               order: i,
+              step: 40,
               child: _BranchRow(rank: i + 1, branch: b),
             ),
         ],

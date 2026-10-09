@@ -23,7 +23,11 @@ class HomeRevenueTrendCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final fmt = ref.watch(formatProvider);
-    final q = watchIf(ref, scope.orgId != null, homeTimeseriesProvider(scope));
+    final q = watchIf(
+      ref,
+      scope.orgId != null,
+      () => homeTimeseriesProvider(scope.series),
+    );
     final points = q.value ?? const <TimeseriesPoint>[];
     final Widget body;
     if (q.firstLoad) {
@@ -35,7 +39,9 @@ class HomeRevenueTrendCard extends ConsumerWidget {
           framed: false,
           title: t('dashboard.trendFailed'),
           retryLabel: t('common.retry'),
-          onRetry: () => ref.invalidate(homeTimeseriesProvider(scope)),
+          onRetry: () => ref.invalidate(
+            homeTimeseriesProvider(scope.series),
+          ),
         ),
       );
     } else if (points.isEmpty) {
@@ -96,8 +102,12 @@ class HomePaymentMixCard extends ConsumerWidget {
           title: t('dashboard.paymentsFailed'),
           retryLabel: t('common.retry'),
           onRetry: () => data.branchPicked
-              ? ref.invalidate(homeBranchSalesProvider(data.scope))
-              : ref.invalidate(homeComparisonProvider(data.scope)),
+              ? ref.invalidate(
+                  homeBranchSalesProvider(data.scope.branchRange),
+                )
+              : ref.invalidate(
+                  homeComparisonProvider(data.scope.orgRange),
+                ),
         ),
       );
     } else if (payments.isEmpty) {

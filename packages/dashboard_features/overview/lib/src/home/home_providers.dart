@@ -1,6 +1,7 @@
 /// The home's reads (inventory E1–E7), one provider per endpoint, keyed by
-/// the resolved [Scope] so a branch or period change asks again — the web's
-/// React Query keys (`[path, params]`).
+/// exactly the params its request sends — the web's React Query key
+/// (`[path, params]`) — so a branch or period change asks again and nothing
+/// else does.
 ///
 /// - Each read watches `realtimeEpochProvider(<its path>)`: a realtime event
 ///   that invalidates a prefix of the path (`till.*` → `/tills`, `/reports`;
@@ -27,95 +28,114 @@ import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 
 DateTime _instant(String iso) => DateTime.parse(iso);
 
+/// A report read's key: the branch (or org) id and the period it sends.
+typedef HomeRange = ({String id, String from, String to});
+
+/// The trend's key: its range and its granularity.
+typedef HomeSeries = ({String id, String from, String to, String granularity});
+
+/// The one place each read's key is built from the scope (the page, the
+/// Retry buttons, the prefetch and the tests all use these).
+extension HomeKeys on Scope {
+  /// E1: the picked branch (only read with one picked).
+  HomeRange get branchRange => (id: branchId!, from: from, to: to);
+
+  /// E4, E5: the branch or the all-branches sentinel.
+  HomeRange get scopeRange => (id: scopeBranchId, from: from, to: to);
+
+  /// E3: the org in scope (only read with one).
+  HomeRange get orgRange => (id: orgId!, from: from, to: to);
+
+  /// E2: hourly for today / yesterday, else daily.
+  HomeSeries get series => (
+    id: scopeBranchId,
+    from: from,
+    to: to,
+    granularity: granularity,
+  );
+}
+
 /// E1 `GET /reports/branches/{branchId}/sales` — only with a branch picked.
 final homeBranchSalesProvider = FutureProvider.autoDispose
-    .family<BranchSalesReport, Scope>((ref, s) {
+    .family<BranchSalesReport, HomeRange>((ref, k) {
       ref.webCache();
-      final id = s.branchId!;
-      ref.watch(realtimeEpochProvider('/reports/branches/$id/sales'));
+      ref.watch(realtimeEpochProvider('/reports/branches/${k.id}/sales'));
       return ref
           .watch(apiProvider)
           .reports
           .branchSales(
-            branchId: id,
-            from: _instant(s.from),
-            to: _instant(s.to),
+            branchId: k.id,
+            from: _instant(k.from),
+            to: _instant(k.to),
           );
     });
 
 /// E2 `GET /reports/branches/{scopeBranchId}/sales/timeseries` — hourly for
 /// today / yesterday, else daily.
 final homeTimeseriesProvider = FutureProvider.autoDispose
-    .family<List<TimeseriesPoint>, Scope>((ref, s) {
+    .family<List<TimeseriesPoint>, HomeSeries>((ref, k) {
       ref.webCache();
       ref.watch(
-        realtimeEpochProvider(
-          '/reports/branches/${s.scopeBranchId}/sales/timeseries',
-        ),
+        realtimeEpochProvider('/reports/branches/${k.id}/sales/timeseries'),
       );
       return ref
           .watch(apiProvider)
           .reports
           .branchSalesTimeseries(
-            branchId: s.scopeBranchId,
-            from: _instant(s.from),
-            to: _instant(s.to),
-            granularity: s.granularity,
+            branchId: k.id,
+            from: _instant(k.from),
+            to: _instant(k.to),
+            granularity: k.granularity,
           );
     });
 
 /// E3 `GET /reports/orgs/{orgId}/comparison` — every branch of the org.
 final homeComparisonProvider = FutureProvider.autoDispose
-    .family<OrgComparisonReport, Scope>((ref, s) {
+    .family<OrgComparisonReport, HomeRange>((ref, k) {
       ref.webCache();
-      final org = s.orgId!;
-      ref.watch(realtimeEpochProvider('/reports/orgs/$org/comparison'));
+      ref.watch(realtimeEpochProvider('/reports/orgs/${k.id}/comparison'));
       return ref
           .watch(apiProvider)
           .reports
           .orgBranchComparison(
-            orgId: org,
-            from: _instant(s.from),
-            to: _instant(s.to),
+            orgId: k.id,
+            from: _instant(k.from),
+            to: _instant(k.to),
           );
     });
 
 /// E4 `GET /reports/branches/{scopeBranchId}/delivery-sales`.
 final homeDeliveryProvider = FutureProvider.autoDispose
-    .family<DeliverySalesReport, Scope>((ref, s) {
+    .family<DeliverySalesReport, HomeRange>((ref, k) {
       ref.webCache();
       ref.watch(
-        realtimeEpochProvider(
-          '/reports/branches/${s.scopeBranchId}/delivery-sales',
-        ),
+        realtimeEpochProvider('/reports/branches/${k.id}/delivery-sales'),
       );
       return ref
           .watch(apiProvider)
           .reports
           .branchDeliverySales(
-            branchId: s.scopeBranchId,
-            from: _instant(s.from),
-            to: _instant(s.to),
+            branchId: k.id,
+            from: _instant(k.from),
+            to: _instant(k.to),
           );
     });
 
 /// E5 `GET /insights/branches/{scopeBranchId}/margin-watch` (no
 /// `cost_basis`: the server's snapshot).
 final homeMarginWatchProvider = FutureProvider.autoDispose
-    .family<MarginWatch, Scope>((ref, s) {
+    .family<MarginWatch, HomeRange>((ref, k) {
       ref.webCache();
       ref.watch(
-        realtimeEpochProvider(
-          '/insights/branches/${s.scopeBranchId}/margin-watch',
-        ),
+        realtimeEpochProvider('/insights/branches/${k.id}/margin-watch'),
       );
       return ref
           .watch(apiProvider)
           .insights
           .marginWatch(
-            branchId: s.scopeBranchId,
-            from: _instant(s.from),
-            to: _instant(s.to),
+            branchId: k.id,
+            from: _instant(k.from),
+            to: _instant(k.to),
           );
     });
 
@@ -150,12 +170,13 @@ final homeNudgeDismissedProvider = NotifierProvider<NudgeDismissed, bool>(
 
 /// The state of a read the web keeps disabled until [enabled]: a disabled
 /// query is neither loading nor failed and has no data, so the card shows
-/// its empty (or zero) state.
+/// its empty (or zero) state. [provider] is built only when enabled (its
+/// key may need the branch or org that is missing otherwise).
 AsyncValue<T?> watchIf<T>(
   WidgetRef ref,
   bool enabled,
-  ProviderListenable<AsyncValue<T>> provider,
-) => enabled ? ref.watch(provider) : AsyncData<T?>(null);
+  ProviderListenable<AsyncValue<T>> Function() provider,
+) => enabled ? ref.watch(provider()) : AsyncData<T?>(null);
 
 /// React Query's `isLoading`: the first load, with nothing to show yet.
 extension HomeAsync<T> on AsyncValue<T> {

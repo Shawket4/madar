@@ -92,12 +92,12 @@ class HomeData {
     branchSales: watchIf(
       ref,
       scope.branchId != null,
-      homeBranchSalesProvider(scope),
+      () => homeBranchSalesProvider(scope.branchRange),
     ),
     comparison: watchIf(
       ref,
       scope.orgId != null,
-      homeComparisonProvider(scope),
+      () => homeComparisonProvider(scope.orgRange),
     ),
   );
 
