@@ -35,7 +35,9 @@ int _int(Object? v) => v is num ? v.round() : 0;
   }
   DateTime day(String s) =>
       DateTime.tryParse('${s}T00:00:00Z') ??
-      req.badRequest('Query deserialize error: input contains invalid characters');
+      req.badRequest(
+        'Query deserialize error: input contains invalid characters',
+      );
   final days = day(to).difference(day(from)).inDays;
   if (days < 0 || days > reportMaxDays) {
     req.badRequest('The range must be 0–$reportMaxDays days');
@@ -151,8 +153,9 @@ List<Map<String, Object?>> payrollHistory(
           )
           .toList()
         ..sort(
-          (a, b) =>
-              (b['start_date']! as String).compareTo(a['start_date']! as String),
+          (a, b) => (b['start_date']! as String).compareTo(
+            a['start_date']! as String,
+          ),
         );
   final slips = db.hasTable(payslipsTable)
       ? db[payslipsTable].rows
@@ -287,8 +290,6 @@ void registerTeamReportsMocks(MockServer server, MockDb db) {
   server.on('GET', '/staff/reports/advances', (req) {
     final k = _query(req);
     final scope = _scopeAt(req, 'hr.payroll.read', k.branchId);
-    return MockResponse.ok(
-      advancesReport(db, req.orgId!, k.from, k.to, scope),
-    );
+    return MockResponse.ok(advancesReport(db, req.orgId!, k.from, k.to, scope));
   });
 }

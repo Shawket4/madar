@@ -82,11 +82,9 @@ void main() {
         tester,
         size: size,
         locale: lang,
-        edit: (db) =>
-            db[TeamTables.advances].rows.firstWhere(
-                  (a) => a['id'] == TeamSeedIds.advance('mariam'),
-                )['decided_at'] =
-                '2026-10-02T09:00:00Z',
+        edit: (db) => db[TeamTables.advances].rows.firstWhere(
+          (a) => a['id'] == TeamSeedIds.advance('mariam'),
+        )['decided_at'] = '2026-10-02T09:00:00Z',
       );
       await _tab(h, 'dawam.salaryAdvances');
       await shootPage(h, 'advances');

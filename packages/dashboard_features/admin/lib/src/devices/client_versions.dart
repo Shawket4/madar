@@ -11,6 +11,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../orgs/org_errors.dart';
 import 'devices_data.dart';
 import 'devices_table.dart';
 
@@ -76,7 +77,7 @@ class ClientVersionsView extends ConsumerWidget {
         ClientVersionsTable(
           rows: rows,
           loading: loading,
-          errorMessage: q.failedFirst ? devicesErrorText(q.error, t) : null,
+          errorMessage: q.failedFirst ? orgErrorWords(q.error, t) : null,
           onRetry: () => ref.invalidate(clientVersionsProvider(key)),
           showBranch: branchId == null,
           days: days,

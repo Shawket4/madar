@@ -7,12 +7,14 @@
 ///   watching `realtimeEpochProvider(<its path>)` so a prefix invalidation
 ///   (a change here, the server's `resync`) refetches it;
 /// - [DevicesInvalidate]: what each change invalidates, as the web's
-///   `invalidate(...prefixes)` does;
-/// - [devicesErrorText]: a failure in words (the web's `getErrorMessage`).
+///   `invalidate(...prefixes)` does.
+///
+/// Failures are worded by the area's `orgErrorWords` (the web's
+/// `getErrorMessage`).
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show ActivationCode, ApiException, ClientSeen, Device;
+    show ActivationCode, ClientSeen, Device;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -132,31 +134,4 @@ class DevicesInvalidate {
 extension DevicesInvalidateRef on WidgetRef {
   DevicesInvalidate get devicesInvalidate =>
       DevicesInvalidate(read(realtimeBusProvider));
-}
-
-final RegExp _serverKind = RegExp(
-  r'^(Unauthorized|Forbidden|Not found|Bad request|Conflict|Service unavailable|Database error): ',
-);
-
-/// A failure in words, as the web's `getErrorMessage` picks them: a coded
-/// refusal the tables word (`errors.codes.<CODE>`, with its vars); an
-/// uncoded 403 is a missing right (`errors.unauthorized`); else the
-/// server's sentence without its kind prefix. In real mode the core has
-/// already done this (the message arrives worded), so it changes nothing
-/// there; in mock mode it gives the same words.
-String devicesErrorText(Object? error, Translator t) {
-  if (error is ApiException) {
-    final code = error.code;
-    if (code != null && t.exists('errors.codes.$code')) {
-      final details = error.details;
-      final vars = details is Map && details['vars'] is Map
-          ? Map<String, Object?>.from(details['vars']! as Map)
-          : null;
-      return t('errors.codes.$code', args: vars);
-    }
-    if (error.status == 403 && code == null) return t('errors.unauthorized');
-    final said = error.message.replaceFirst(_serverKind, '').trim();
-    if (said.isNotEmpty) return said;
-  }
-  return errorMessage(error, t);
 }

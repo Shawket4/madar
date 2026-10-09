@@ -175,23 +175,26 @@ void main() {
     expect(boardText(h.t('dawam.rulesFirstTitle')), findsNothing);
   });
 
-  testWidgets('TEAM-TEM-007 the presence is asked again every 60 s, the flags '
-      'are not; both refetch on return after 30 s', (tester) async {
-    final h = await pumpTeam(tester);
-    expect(h.server.callsTo(presenceT), hasLength(1));
-    expect(h.server.callsTo(flagsT), hasLength(1));
-    await tester.pump(const Duration(seconds: 60));
-    await h.settle();
-    expect(h.server.callsTo(presenceT), hasLength(2));
-    expect(h.server.callsTo(flagsT), hasLength(1));
-    // Back to the app: stale (over 30 s) reads are asked again.
-    h.server.clock.advance(const Duration(seconds: 45));
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await h.settle();
-    expect(h.server.callsTo(presenceT), hasLength(3));
-    expect(h.server.callsTo(flagsT), hasLength(2));
-  });
+  testWidgets(
+    'TEAM-TEM-007 / TEAM-ALL-009 the presence is asked again every 60 s, the flags '
+    'are not; both refetch on return after 30 s',
+    (tester) async {
+      final h = await pumpTeam(tester);
+      expect(h.server.callsTo(presenceT), hasLength(1));
+      expect(h.server.callsTo(flagsT), hasLength(1));
+      await tester.pump(const Duration(seconds: 60));
+      await h.settle();
+      expect(h.server.callsTo(presenceT), hasLength(2));
+      expect(h.server.callsTo(flagsT), hasLength(1));
+      // Back to the app: stale (over 30 s) reads are asked again.
+      h.server.clock.advance(const Duration(seconds: 45));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await h.settle();
+      expect(h.server.callsTo(presenceT), hasLength(3));
+      expect(h.server.callsTo(flagsT), hasLength(2));
+    },
+  );
 
   testWidgets('TEAM-ALL-008 Refresh asks the page\'s reads again', (
     tester,
@@ -202,21 +205,41 @@ void main() {
     expect(h.server.callsTo(flagsT), hasLength(2));
   });
 
-  testWidgets('TEAM-ALL-022 a failed poll keeps the board and toasts once', (
-    tester,
-  ) async {
+  testWidgets('TEAM-TEM-007 / TEAM-ALL-008 Refresh spins while a read is '
+      'fetching', (tester) async {
     final h = await pumpTeam(tester);
-    h.server.fail(
-      'GET',
-      presenceT,
-      MockResponse.error(500, 'boom'),
-      times: null,
+    final gate = h.server.hold('GET', presenceT);
+    await h.tap(inBoard(find.bySemanticsLabel('Refresh')).first);
+    expect(
+      inBoard(find.bySemanticsLabel(h.t('common.refreshing'))),
+      findsWidgets,
     );
-    await tester.pump(const Duration(seconds: 60));
-    await h.settle();
+    // Still on screen while it refreshes.
     expect(boardText('Adham Reda'), findsOneWidget);
-    await h.expectToast(h.refusalWords(MockResponse.error(500, 'boom')));
+    gate.release();
+    await h.settle();
+    expect(
+      inBoard(find.bySemanticsLabel(h.t('common.refreshing'))),
+      findsNothing,
+    );
   });
+
+  testWidgets(
+    'TEAM-ALL-022 / TEAM-ALL-010 a failed poll keeps the board and toasts once',
+    (tester) async {
+      final h = await pumpTeam(tester);
+      h.server.fail(
+        'GET',
+        presenceT,
+        MockResponse.error(500, 'boom'),
+        times: null,
+      );
+      await tester.pump(const Duration(seconds: 60));
+      await h.settle();
+      expect(boardText('Adham Reda'), findsOneWidget);
+      await h.expectToast(h.refusalWords(MockResponse.error(500, 'boom')));
+    },
+  );
 
   testWidgets('TEAM-ALL-018 the scope\'s branch is sent; All branches sends '
       'none', (tester) async {
@@ -435,6 +458,7 @@ void main() {
   testWidgets('TEAM-TEM-026 a row: branch, in time, lateness and its state '
       'pill', (tester) async {
     final h = await pumpTeam(tester);
+    expect(h.server.callsTo(presenceT), hasLength(1));
     final adham = tester.widget<DashListRow>(rowOf('Adham Reda'));
     expect(adham.meta, startsWith('Zamalek · in '));
     expect(adham.meta, contains('07:33'));

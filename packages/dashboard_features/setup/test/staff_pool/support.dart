@@ -85,9 +85,9 @@ Finder inPane(Finder f) =>
 /// [text] on the pane.
 Finder paneText(String text) => inPane(find.text(text));
 
-/// [f] inside the top-most dialog / surface.
+/// [f] inside the confirmation dialog.
 Finder inDialog(Finder f) =>
-    find.descendant(of: find.byType(DashSurface).last, matching: f);
+    find.descendant(of: find.byType(DashConfirmDialog), matching: f);
 
 /// The picker list (popover or sheet).
 Finder inPicker(Finder f) =>

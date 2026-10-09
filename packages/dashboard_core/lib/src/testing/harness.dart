@@ -20,6 +20,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_kit/testing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
@@ -102,6 +103,8 @@ class DashHarness {
   /// - [offlineStore]: save every GET answer there and answer from it when
   ///   the network is down (`server.offline`); pass the same store to a
   ///   second pump to relaunch. Without it nothing is saved.
+  /// - [overrides]: more provider overrides (the app's cross-area
+  ///   [areaOpenersProvider], say), applied after the harness's own.
   static Future<DashHarness> pump(
     WidgetTester tester, {
     List<DashArea> areas = const [],
@@ -117,6 +120,7 @@ class DashHarness {
     bool reducedMotion = true,
     String? shotArea,
     OfflineStore? offlineStore,
+    List<Override> overrides = const [],
   }) async {
     await tester.runAsync(loadDashFonts);
     final cacheKey = areas.map((a) => a.key).join(',');
@@ -168,6 +172,7 @@ class DashHarness {
           (ref) =>
               (uri) async => h.openedLinks.add(uri),
         ),
+        ...overrides,
       ],
     );
     h = DashHarness._(

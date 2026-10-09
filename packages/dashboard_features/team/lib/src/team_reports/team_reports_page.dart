@@ -12,8 +12,13 @@ library;
 import 'dart:convert';
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show AttendanceSummary, Branch, ExpenseAdvanceRow, LabourDay,
-        PayrollHistoryRow, SalaryAdvanceRow;
+    show
+        AttendanceSummary,
+        Branch,
+        ExpenseAdvanceRow,
+        LabourDay,
+        PayrollHistoryRow,
+        SalaryAdvanceRow;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -140,9 +145,7 @@ class _ReportsBodyState extends ConsumerState<_ReportsBody> {
         : (tabs.isEmpty ? null : tabs.first);
     final backwards = range.to.compareTo(range.from) < 0;
     final ReportQuery k = (from: range.from, to: range.to, branchId: branchId);
-    final read = _read = tab == null || backwards
-        ? null
-        : reportReadOf(tab, k);
+    final read = _read = tab == null || backwards ? null : reportReadOf(tab, k);
     final q = read == null ? null : ref.watch(read);
     if (read != null) {
       listenStaffRefreshFailure(ref, context, read);
@@ -163,7 +166,9 @@ class _ReportsBodyState extends ConsumerState<_ReportsBody> {
     return DashPageScaffold(
       title: t('dawam.reports'),
       subtitle: t('dawamOps.reportsSubtitle'),
-      actions: [DawamRefreshButton(busy: anyFetching([settingsQ, ?q]))],
+      actions: [
+        DawamRefreshButton(busy: anyFetching([settingsQ, ?q])),
+      ],
       filters: Align(
         alignment: AlignmentDirectional.centerStart,
         child: ConstrainedBox(
@@ -195,15 +200,11 @@ class _ReportsBodyState extends ConsumerState<_ReportsBody> {
         children: [
           if (tab != null)
             DashPageTabs<String>(
-              tabs: [
-                for (final v in tabs) DashTab(value: v, label: names[v]!),
-              ],
+              tabs: [for (final v in tabs) DashTab(value: v, label: names[v]!)],
               value: tab,
               onChanged: (v) => setState(() => _picked = v),
               // The read the tab shows, with the page's params.
-              onIntent: backwards
-                  ? null
-                  : (v) => ref.warm(reportReadOf(v, k)),
+              onIntent: backwards ? null : (v) => ref.warm(reportReadOf(v, k)),
             ),
           if (backwards)
             DashEmptyState(
@@ -354,7 +355,12 @@ class _LabourTab extends ConsumerWidget {
     final cols = <ReportCol<LabourDay>>[
       ReportCol('date', t('dawam.rDate'), (r) => f.fmtDate(r.date)),
       ReportCol('branch', t('dawam.branch'), (r) => names[r.branchId] ?? '—'),
-      ReportCol('sales', t('dawam.rSales'), (r) => r.salesPiastres, money: true),
+      ReportCol(
+        'sales',
+        t('dawam.rSales'),
+        (r) => r.salesPiastres,
+        money: true,
+      ),
       ReportCol(
         'labour',
         t('dawam.rLabourCost'),
@@ -654,9 +660,7 @@ class _Cards extends StatelessWidget {
         return Wrap(
           spacing: Space.md,
           runSpacing: Space.md,
-          children: [
-            for (final c in children) SizedBox(width: w, child: c),
-          ],
+          children: [for (final c in children) SizedBox(width: w, child: c)],
         );
       },
     );

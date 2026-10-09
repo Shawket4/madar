@@ -20,6 +20,15 @@ Future<ApiResponse> _send(
 
 Object? _json(ApiResponse r) => jsonDecode(utf8.decode(r.bodyBytes));
 
+/// The status a call answers (the mock throws a refusal as an exception).
+Future<int> _status(Future<ApiResponse> call) async {
+  try {
+    return (await call).status;
+  } on ApiException catch (e) {
+    return e.status;
+  }
+}
+
 void main() {
   group('ADM-REV-007/008 rules', () {
     test('ADM-REV-007 reason tones; unknown is neutral', () {
@@ -67,52 +76,58 @@ void main() {
       final s = reviewServer();
       final open = _json(await _send(s.server, 'GET', '/authz/flags'))! as List;
       expect([for (final f in open) (f as Map)['id']], [1, 2, 3, 4, 5, 6]);
-      final all = _json(
-        await _send(
-          s.server,
-          'GET',
-          '/authz/flags',
-          query: {
-            'include_reviewed': ['true'],
-          },
-        ),
-      )! as List;
+      final all =
+          _json(
+                await _send(
+                  s.server,
+                  'GET',
+                  '/authz/flags',
+                  query: {
+                    'include_reviewed': ['true'],
+                  },
+                ),
+              )!
+              as List;
       expect(all, hasLength(8));
     });
 
     test('ADM-REV-004 every route refuses without approvals.review', () async {
       final s = reviewServer(persona: Persona.manager);
-      expect((await _send(s.server, 'GET', '/authz/flags')).status, 403);
+      expect(await _status(_send(s.server, 'GET', '/authz/flags')), 403);
       expect(
-        (await _send(s.server, 'POST', '/authz/flags/1/review')).status,
+        await _status(_send(s.server, 'POST', '/authz/flags/1/review')),
         403,
       );
       expect(
-        (await _send(
-          s.server,
-          'POST',
-          '/authz/flags/bulk-review',
-          body: {
-            'flag_ids': [1],
-          },
-        )).status,
+        await _status(
+          _send(
+            s.server,
+            'POST',
+            '/authz/flags/bulk-review',
+            body: {
+              'flag_ids': [1],
+            },
+          ),
+        ),
         403,
       );
     });
 
-    test('ADM-REV-011 review answers {"reviewed": true}; a second time 404',
-        () async {
-      final s = reviewServer();
-      final r = await _send(s.server, 'POST', '/authz/flags/1/review');
-      expect(r.status, 200);
-      expect(_json(r), {'reviewed': true});
-      expect(
-        (await _send(s.server, 'POST', '/authz/flags/1/review')).status,
-        404,
-      );
-      final row = flagRows(s.db).rows.firstWhere((f) => f['id'] == 1);
-      expect(row['reviewed_by'], SeedIds.owner);
-    });
+    test(
+      'ADM-REV-011 review answers {"reviewed": true}; a second time 404',
+      () async {
+        final s = reviewServer();
+        final r = await _send(s.server, 'POST', '/authz/flags/1/review');
+        expect(r.status, 200);
+        expect(_json(r), {'reviewed': true});
+        expect(
+          await _status(_send(s.server, 'POST', '/authz/flags/1/review')),
+          404,
+        );
+        final row = flagRows(s.db).rows.firstWhere((f) => f['id'] == 1);
+        expect(row['reviewed_by'], SeedIds.owner);
+      },
+    );
 
     test('ADM-REV-015 bulk: per id; an already reviewed id is resolved, an '
         'unknown one pending with the reason; the note is kept', () async {
@@ -134,13 +149,13 @@ void main() {
       });
       final row = flagRows(s.db).rows.firstWhere((f) => f['id'] == 1);
       expect(row['review_note'], 'checked');
-      final bad = await _send(
+      final bad = _send(
         s.server,
         'POST',
         '/authz/flags/bulk-review',
         body: {'note': 'x'},
       );
-      expect(bad.status, 400);
+      expect(await _status(bad), 400, reason: 'flag_ids is required');
     });
   });
 }

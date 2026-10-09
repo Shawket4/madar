@@ -33,9 +33,8 @@ Future<void> _csv(DashHarness h, [int index = 0]) =>
 /// Mariam's approved advance, decided this pay period.
 void _mariamThisMonth(MockDb db) {
   db[TeamTables.advances].rows.firstWhere(
-        (a) => a['id'] == TeamSeedIds.advance('mariam'),
-      )['decided_at'] =
-      '2026-10-02T09:00:00Z';
+    (a) => a['id'] == TeamSeedIds.advance('mariam'),
+  )['decided_at'] = '2026-10-02T09:00:00Z';
 }
 
 void main() {
@@ -129,15 +128,21 @@ void main() {
       inCard('Labour share', find.text(ltr(labourShare(labour, sales)))),
       findsOneWidget,
     );
-    for (final c in ['Date', 'Branch', 'Sales', 'Labour cost', 'Labour share']) {
+    for (final c in [
+      'Date',
+      'Branch',
+      'Sales',
+      'Labour cost',
+      'Labour share',
+    ]) {
       expect(tableText(c.toUpperCase()), findsOneWidget, reason: c);
     }
     final r = rows.first;
     expect(tableText(f.fmtDate(r.date)), findsWidgets);
     expect(tableText(dashFigure(labourShareBp(r.labourShareBp))), findsWidgets);
-    final branch = h.db![
-      'branches'
-    ].rows.firstWhere((b) => b['id'] == r.branchId)['name']! as String;
+    final branch =
+        h.db!['branches'].rows.firstWhere((b) => b['id'] == r.branchId)['name']!
+            as String;
     expect(tableText(branch), findsWidgets);
     await _csv(h);
     expect(h.files.saved.last.filename, 'labour-vs-sales.csv');

@@ -79,11 +79,15 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
             args: {'ok': ok, 'failed': res.pending.length},
           ),
           description: [
-            for (final p in res.pending) '#${p.id}: ${pendingWords(p.reason, t)}',
+            for (final p in res.pending)
+              '#${p.id}: ${pendingWords(p.reason, t)}',
           ].join('\n'),
         );
       } else {
-        DashToast.success(context, t('access.review.bulkDone', args: {'ok': ok}));
+        DashToast.success(
+          context,
+          t('access.review.bulkDone', args: {'ok': ok}),
+        );
       }
       setState(() {
         _picked = {};
@@ -109,8 +113,14 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
 
     final q = ref.watch(reviewFlagsProvider(_showReviewed));
     final rows = q.value ?? const <ReplayFlag>[];
-    final open = [for (final f in rows) if (f.reviewedAt == null) f];
-    final chosen = [for (final f in open) if (_picked.contains(f.id)) f];
+    final open = [
+      for (final f in rows)
+        if (f.reviewedAt == null) f,
+    ];
+    final chosen = [
+      for (final f in open)
+        if (_picked.contains(f.id)) f,
+    ];
     final allPicked = open.isNotEmpty && chosen.length == open.length;
 
     final toolbar = Wrap(
@@ -138,7 +148,8 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
             onTap: open.isEmpty
                 ? null
                 : () => setState(
-                    () => _picked = allPicked ? {} : {for (final f in open) f.id},
+                    () =>
+                        _picked = allPicked ? {} : {for (final f in open) f.id},
                   ),
             control: DashCheckbox(
               key: const ValueKey('review-select-all'),
@@ -159,7 +170,10 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
-                t('access.review.selectedCount', args: {'count': chosen.length}),
+                t(
+                  'access.review.selectedCount',
+                  args: {'count': chosen.length},
+                ),
                 style: DashType.body.copyWith(color: c.textSecondary),
               ),
               SizedBox(
@@ -246,9 +260,8 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
                       key: ValueKey('review-pick-${f.id}'),
                       value: _picked.contains(f.id),
                       semanticLabel: t('access.review.selectOne'),
-                      onChanged: (_) => setState(
-                        () => _picked = {..._picked}..toggle(f.id),
-                      ),
+                      onChanged: (_) =>
+                          setState(() => _picked = {..._picked}..toggle(f.id)),
                     ),
             ),
           DashColumn<ReplayFlag>(
@@ -338,10 +351,7 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
     return (label: t(k.key), tone: k.tone);
   }
   final key = 'access.review.reasons.${f.reason}';
-  return (
-    label: t.exists(key) ? t(key) : f.reason,
-    tone: reasonTone(f.reason),
-  );
+  return (label: t.exists(key) ? t(key) : f.reason, tone: reasonTone(f.reason));
 }
 
 /// A bulk refusal's reason: the server's one sentence in our words; any other
@@ -387,10 +397,7 @@ class _ReasonPill extends StatelessWidget {
           Flexible(
             child: Text(
               label,
-              style: DashType.tableHeader.copyWith(
-                color: fg,
-                letterSpacing: 0,
-              ),
+              style: DashType.tableHeader.copyWith(color: fg, letterSpacing: 0),
             ),
           ),
         ],
@@ -433,7 +440,9 @@ class _ToolbarBox extends StatelessWidget {
             child: ExcludeSemantics(
               child: Text(
                 label,
-                style: DashType.body.copyWith(color: c.textPrimary),
+                style: DashType.body.copyWith(
+                  color: onTap == null ? c.textSecondary : c.textPrimary,
+                ),
               ),
             ),
           ),

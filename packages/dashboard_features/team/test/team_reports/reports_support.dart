@@ -113,7 +113,10 @@ Finder inCard(String label, Finder f) =>
 
 /// Opens the tab labelled [label].
 Future<void> openTab(DashHarness h, String label) => h.tap(
-  find.descendant(of: find.byType(DashPageTabs<String>), matching: find.text(label)),
+  find.descendant(
+    of: find.byType(DashPageTabs<String>),
+    matching: find.text(label),
+  ),
 );
 
 /// GETs to [template] so far.

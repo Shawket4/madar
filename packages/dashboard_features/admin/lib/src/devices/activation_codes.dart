@@ -16,6 +16,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../orgs/org_errors.dart';
 import 'devices_data.dart';
 import 'devices_table.dart';
 
@@ -58,7 +59,7 @@ class ActivationCodesSection extends ConsumerWidget {
       await api.devices.revokeCode(id: code.id);
       invalidate.codesChanged();
     } on Object catch (e) {
-      if (context.mounted) DashToast.error(context, devicesErrorText(e, t));
+      if (context.mounted) DashToast.error(context, orgErrorWords(e, t));
     }
   }
 
@@ -97,7 +98,7 @@ class ActivationCodesSection extends ConsumerWidget {
             rows: q.value ?? const [],
             rowKey: (r) => r.id,
             loading: q.awaitingFirst,
-            errorMessage: q.failedFirst ? devicesErrorText(q.error, t) : null,
+            errorMessage: q.failedFirst ? orgErrorWords(q.error, t) : null,
             onRetry: () => ref.invalidate(activationCodesProvider(branchId)),
             hideViewOptions: true,
             pageSize: 10,
@@ -238,7 +239,7 @@ class _IssueCodeDialogState extends ConsumerState<IssueCodeDialog> {
     } on Object catch (e) {
       final at = mounted ? context : widget.host;
       if (at != null && at.mounted) {
-        DashToast.error(at, devicesErrorText(e, t));
+        DashToast.error(at, orgErrorWords(e, t));
       }
       if (mounted) setState(() => _busy = false);
     }

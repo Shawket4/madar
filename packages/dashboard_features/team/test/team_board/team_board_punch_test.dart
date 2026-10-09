@@ -92,21 +92,28 @@ void main() {
     expect(h.server.callsTo(punchT), isEmpty);
   });
 
-  testWidgets('TEAM-TEM-030 a refusal for want of a reason reads in the '
-      'punch\'s own words and keeps the dialog', (tester) async {
-    final s = teamServer();
-    s.server.fail(
-      'POST',
-      punchT,
-      MockResponse.error(400, 'A reason is required.', code: 'REASON_REQUIRED'),
-    );
-    final h = await pumpTeam(tester, s: s);
-    await _openTarek(h);
-    await h.tap(surfaceButton(h.t('dawam.reasonPhoneDied')));
-    await h.tap(surfaceButton(h.t('dawam.punchIn')));
-    await h.expectToast(h.t('errors.codes.REASON_REQUIRED_punchFor'));
-    expect(find.byType(DashSurface), findsOneWidget);
-  });
+  testWidgets(
+    'TEAM-TEM-030 / TEAM-ALL-019 a refusal for want of a reason reads in the '
+    'punch\'s own words and keeps the dialog',
+    (tester) async {
+      final s = teamServer();
+      s.server.fail(
+        'POST',
+        punchT,
+        MockResponse.error(
+          400,
+          'A reason is required.',
+          code: 'REASON_REQUIRED',
+        ),
+      );
+      final h = await pumpTeam(tester, s: s);
+      await _openTarek(h);
+      await h.tap(surfaceButton(h.t('dawam.reasonPhoneDied')));
+      await h.tap(surfaceButton(h.t('dawam.punchIn')));
+      await h.expectToast(h.t('errors.codes.REASON_REQUIRED_punchFor'));
+      expect(find.byType(DashSurface), findsOneWidget);
+    },
+  );
 
   testWidgets('TEAM-ALL-017 a punch refused for unsaved rules reads in the '
       'person\'s language', (tester) async {

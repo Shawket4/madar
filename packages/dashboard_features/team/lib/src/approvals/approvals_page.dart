@@ -403,8 +403,9 @@ class _ApprovalsQueueState extends ConsumerState<ApprovalsQueue> {
       listenStaffRefreshFailure(ref, context, p);
       final provider = p as ProviderBase<Object?>;
       reads.add(provider);
-      if (labelKey != null)
+      if (labelKey != null) {
         sections[labelKey] = _Section(labelKey, v, provider);
+      }
       return v;
     }
 

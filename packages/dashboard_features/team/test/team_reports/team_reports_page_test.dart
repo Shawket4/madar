@@ -76,10 +76,7 @@ void main() {
   testWidgets('TEAM-RPT-003 / TEAM-ALL-018 the scope bar\'s branch is sent; '
       'All branches sends none', (tester) async {
     final h = await pumpReports(tester);
-    expect(
-      gets(h, summaryT).single.query,
-      _q(thisPeriod.from, thisPeriod.to),
-    );
+    expect(gets(h, summaryT).single.query, _q(thisPeriod.from, thisPeriod.to));
     await h.tap(find.text('All branches'));
     await h.tap(find.text('Zamalek').hitTestable());
     expect(
@@ -147,7 +144,7 @@ void main() {
 
   testWidgets('TEAM-RPT-005 without POS there is no labour tab; payroll '
       'rights only open on Overtime & payroll', (tester) async {
-    final h = await pumpReports(tester, persona: Persona.dawamOnly);
+    await pumpReports(tester, persona: Persona.dawamOnly);
     expect(pageText('Labour vs sales'), findsNothing);
     expect(pageText('Attendance & discipline'), findsOneWidget);
     expect(pageText('Overtime & payroll'), findsOneWidget);
@@ -196,21 +193,15 @@ void main() {
           .every((c) => c.loading),
       isTrue,
     );
-    expect(
-      tester.widget<DashDataTable>(inPage(tables)).loading,
-      isTrue,
-    );
+    expect(tester.widget<DashDataTable>(inPage(tables)).loading, isTrue);
     gate.release();
     await h.settle();
-    expect(
-      tester.widget<DashDataTable>(inPage(tables)).loading,
-      isFalse,
-    );
+    expect(tester.widget<DashDataTable>(inPage(tables)).loading, isFalse);
   });
 
   testWidgets('TEAM-RPT-006 / TEAM-RPT-011 empty: "Nothing in this period" '
       'and the CSV button disabled', (tester) async {
-    final h = await pumpReports(
+    await pumpReports(
       tester,
       edit: (db) => db[TeamTables.attendance].removeWhere((_) => true),
     );
@@ -281,9 +272,7 @@ void main() {
   testWidgets('TEAM-ALL-020 / TEAM-RPT-051 pages of 10, no search box and no '
       'Columns menu', (tester) async {
     final h = await pumpReports(tester);
-    final table = tester.widget<DashDataTable>(
-      inPage(tables),
-    );
+    final table = tester.widget<DashDataTable>(inPage(tables));
     expect(table.pageSize, 10);
     expect(table.hideViewOptions, isTrue);
     expect(table.searchPlaceholder, isNull);
@@ -299,16 +288,14 @@ void main() {
 
   testWidgets('TEAM-RPT-050 / TEAM-ALL-020 phone: stat cards two across, '
       'rows become cards titled by the first column', (tester) async {
-    final h = await pumpReports(tester, size: DashSize.phone);
+    await pumpReports(tester, size: DashSize.phone);
     final cards = inPage(find.byType(DashStatCard));
     final ys = {
       for (final e in cards.evaluate())
         tester.getTopLeft(find.byWidget(e.widget)).dy,
     };
     expect(ys, hasLength(2), reason: '4 cards, 2 rows of 2');
-    final table = tester.widget<DashDataTable>(
-      inPage(tables),
-    );
+    final table = tester.widget<DashDataTable>(inPage(tables));
     final first = table.rows.first as dynamic;
     expect(pageText(first.employeeName as String), findsOneWidget);
     expect(pageText('Name'), findsNothing, reason: 'no header row on cards');

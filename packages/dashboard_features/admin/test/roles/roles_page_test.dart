@@ -100,6 +100,20 @@ void main() {
       final h = await pumpRoles(tester, size: DashSize.phone);
       expect(tester.getRect(header).top,
           greaterThan(tester.getRect(find.byType(DashListCard)).bottom));
+      // A short phone: the role opens below the fold, and selecting brings
+      // it into view.
+      const viewHeight = 500.0;
+      tester.view.physicalSize =
+          const Size(390, viewHeight) * DashSize.pixelRatio;
+      await h.settle();
+      expect(tester.getRect(header).top, greaterThan(viewHeight));
+      // The teller's row is in sight: pressing it scrolls nothing by itself.
+      expect(tester.getRect(roleRow(roleId('teller'))).bottom,
+          lessThan(viewHeight));
+      await tester.tap(roleRow(roleId('teller')));
+      await h.settle();
+      expect(h.location.queryParameters['role'], roleId('teller'));
+      expect(tester.getRect(header).top, inInclusiveRange(0, viewHeight - 1));
       await h.tap(roleRow(roleId('kitchen')));
       expect(h.location.queryParameters['role'], roleId('kitchen'));
       expect(inHeader('Works like Kitchen on older tablets'), findsOneWidget);

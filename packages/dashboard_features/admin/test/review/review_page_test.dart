@@ -27,7 +27,8 @@ Finder _tab(String label) => find.descendant(
   matching: find.text(label),
 );
 
-DashButton _button(WidgetTester tester, Finder f) => tester.widget<DashButton>(f);
+DashButton _button(WidgetTester tester, Finder f) =>
+    tester.widget<DashButton>(f);
 
 void main() {
   testWidgets('ADM-REV-001 the Review tab shows only with approvals.review', (
@@ -39,13 +40,15 @@ void main() {
     expect(_tab('Roles & Permissions'), findsOneWidget);
   });
 
-  testWidgets('ADM-REV-001 a manager (no approvals.review) sees no Review tab',
-      (tester) async {
-    final h = await pumpReview(tester, persona: Persona.manager);
-    expect(_tab('Users'), findsOneWidget);
-    expect(_tab('Review'), findsNothing);
-    expect(h.location.path, reviewPath);
-  });
+  testWidgets(
+    'ADM-REV-001 a manager (no approvals.review) sees no Review tab',
+    (tester) async {
+      final h = await pumpReview(tester, persona: Persona.manager);
+      expect(_tab('Users'), findsOneWidget);
+      expect(_tab('Review'), findsNothing);
+      expect(h.location.path, reviewPath);
+    },
+  );
 
   testWidgets('ADM-REV-002 header title and description', (tester) async {
     final h = await pumpReview(tester);
@@ -71,8 +74,9 @@ void main() {
   });
 
   group('ADM-REV-004 refusal', () {
-    testWidgets('without approvals.review the read is refused: error + Retry',
-        (tester) async {
+    testWidgets('without approvals.review the read is refused: error + Retry', (
+      tester,
+    ) async {
       final h = await pumpReview(tester, persona: Persona.manager);
       expect(
         onPage(shown(h, MockResponse.denied('approvals.review'))),
@@ -133,8 +137,11 @@ void main() {
     // 20 on the first page: the last of the 25 rows is on page 2.
     expect(onPage('Teller 101'), findsOneWidget);
     expect(onPage('Omar Khaled'), findsNothing);
-    expect(find.descendant(of: page, matching: find.byType(DashCheckbox)),
-        findsNWidgets(21), reason: '20 rows + select all');
+    expect(
+      find.descendant(of: page, matching: find.byType(DashCheckbox)),
+      findsNWidgets(21),
+      reason: '20 rows + select all',
+    );
     await h.tap(find.bySemanticsLabel(h.t('common.next')).last);
     expect(onPage('Omar Khaled'), findsOneWidget);
   });
@@ -143,12 +150,16 @@ void main() {
       'shows raw', (tester) async {
     final s = reviewServer();
     flagRows(s.db).rows.first['reason'] = 'brand_new_reason';
-    final h = await pumpReview(tester, server: s.server, db: s.db);
+    await pumpReview(tester, server: s.server, db: s.db);
     expect(onPage('brand_new_reason'), findsOneWidget);
-    expect(onPage('Done offline before a permission change reached the till'),
-        findsOneWidget); // Youssef
-    expect(onPage("Correct PIN at a branch they don't work at"),
-        findsOneWidget);
+    expect(
+      onPage('Done offline before a permission change reached the till'),
+      findsOneWidget,
+    ); // Youssef
+    expect(
+      onPage("Correct PIN at a branch they don't work at"),
+      findsOneWidget,
+    );
     expect(onPage('Done offline without the permission'), findsOneWidget);
   });
 
@@ -159,19 +170,35 @@ void main() {
         'orders.discount.preset:inactive';
     final h = await pumpReview(tester, server: s.server, db: s.db);
     expect(
-      onPage('Staff drink: the till gave a different amount free than the '
-          'server priced'),
+      onPage(
+        'Staff drink: the till gave a different amount free than the '
+        'server priced',
+      ),
       findsOneWidget,
     );
-    expect(onPage(h.t('access.review.details.orders_staff_drink_record'
-        '.overspent')), findsOneWidget);
+    expect(
+      onPage(
+        h.t(
+          'access.review.details.orders_staff_drink_record'
+          '.overspent',
+        ),
+      ),
+      findsOneWidget,
+    );
     expect(onPage('orders.discount.preset:inactive'), findsOneWidget);
     expect(onPage('Done offline without the permission'), findsNWidgets(2));
     // No key leaks.
-    expect(find.descendant(of: page, matching: find.textContaining(
-        'access.review')), findsNothing);
-    expect(find.descendant(of: page, matching: find.textContaining(
-        'orders.staff_drink')), findsNothing);
+    expect(
+      find.descendant(of: page, matching: find.textContaining('access.review')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: page,
+        matching: find.textContaining('orders.staff_drink'),
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('ADM-REV-009 a known detail names its capability (key on '
@@ -181,9 +208,11 @@ void main() {
     expect(
       find.descendant(
         of: page,
-        matching: find.byWidgetPredicate((w) =>
-            w is Tooltip &&
-            w.message == 'orders.staff_drink.record:comp_mismatch'),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is Tooltip &&
+              w.message == 'orders.staff_drink.record:comp_mismatch',
+        ),
       ),
       findsOneWidget,
     );
@@ -197,8 +226,10 @@ void main() {
     await pumpReview(tester, locale: 'ar');
     expect(onPage('تسجيل مشروب موظفين'), findsNWidgets(2));
     expect(
-      onPage('مشروب موظفين: المبلغ المجاني الذي سجّله الكاشير يختلف عمّا '
-          'حسبه الخادم'),
+      onPage(
+        'مشروب موظفين: المبلغ المجاني الذي سجّله الكاشير يختلف عمّا '
+        'حسبه الخادم',
+      ),
       findsOneWidget,
     );
   });
@@ -252,8 +283,10 @@ void main() {
     expect(pick(1), findsOneWidget);
     expect(pick(7), findsNothing);
     expect(pick(8), findsNothing);
-    expect(tester.widget<DashCheckbox>(pick(1)).semanticLabel,
-        'Select this action');
+    expect(
+      tester.widget<DashCheckbox>(pick(1)).semanticLabel,
+      'Select this action',
+    );
     await h.tap(pick(1));
     expect(tester.widget<DashCheckbox>(pick(1)).value, isTrue);
   });
@@ -262,12 +295,16 @@ void main() {
       'reviewed one; unticking clears', (tester) async {
     final h = await pumpReview(tester);
     await h.tap(showReviewed);
-    expect(tester.widget<DashCheckbox>(selectAll).semanticLabel,
-        'Select all shown');
+    expect(
+      tester.widget<DashCheckbox>(selectAll).semanticLabel,
+      'Select all shown',
+    );
     await h.tap(selectAll);
     expect(tester.widget<DashCheckbox>(selectAll).value, isTrue);
-    expect(find.descendant(of: bulkBar, matching: find.text('6 selected')),
-        findsOneWidget);
+    expect(
+      find.descendant(of: bulkBar, matching: find.text('6 selected')),
+      findsOneWidget,
+    );
     await h.tap(pick(1));
     expect(tester.widget<DashCheckbox>(selectAll).value, isFalse);
     await h.tap(pick(1));
@@ -287,17 +324,21 @@ void main() {
     expect(tester.widget<DashCheckbox>(selectAll).enabled, isFalse);
   });
 
-  testWidgets('ADM-REV-014 the bulk bar: count, note, Mark N reviewed, Clear',
-      (tester) async {
+  testWidgets('ADM-REV-014 the bulk bar: count, note, Mark N reviewed, Clear', (
+    tester,
+  ) async {
     final h = await pumpReview(tester);
     expect(bulkBar, findsNothing);
     await h.tap(pick(1));
     await h.tap(pick(2));
-    Finder inBar(String t) => find.descendant(of: bulkBar, matching: find.text(t));
+    Finder inBar(String t) =>
+        find.descendant(of: bulkBar, matching: find.text(t));
     expect(inBar('2 selected'), findsOneWidget);
     expect(inBar('Mark 2 reviewed'), findsOneWidget);
-    expect(tester.widget<DashTextInput>(bulkNote).placeholder,
-        'Note (optional)');
+    expect(
+      tester.widget<DashTextInput>(bulkNote).placeholder,
+      'Note (optional)',
+    );
     await h.tap(inBar('Clear'));
     expect(bulkBar, findsNothing);
     expect(tester.widget<DashCheckbox>(pick(1)).value, isFalse);
@@ -307,8 +348,10 @@ void main() {
     await pumpReview(tester, locale: 'ar');
     await tester.tap(pick(1));
     await tester.pumpAndSettle();
-    expect(find.descendant(of: bulkResolve, matching: find.text('تمييز 1 كمراجَع')),
-        findsOneWidget);
+    expect(
+      find.descendant(of: bulkResolve, matching: find.text('تمييز 1 كمراجَع')),
+      findsOneWidget,
+    );
   });
 
   group('ADM-REV-015 bulk resolve', () {
@@ -362,13 +405,19 @@ void main() {
     testWidgets('(divergence) Arabic: the refused reason is not the server '
         'English', (tester) async {
       final s = reviewServer();
-      final h = await pumpReview(tester, server: s.server, db: s.db,
-          locale: 'ar');
+      final h = await pumpReview(
+        tester,
+        server: s.server,
+        db: s.db,
+        locale: 'ar',
+      );
       await h.tap(pick(2));
       flagRows(s.db).removeWhere((r) => r['id'] == 2);
       await h.tap(bulkResolve);
-      expect(find.text('#2: ${h.t('access.review.pendingNotOpen')}'),
-          findsOneWidget);
+      expect(
+        find.text('#2: ${h.t('access.review.pendingNotOpen')}'),
+        findsOneWidget,
+      );
       await h.flushTimers();
     });
 
@@ -400,8 +449,10 @@ void main() {
       final s = reviewServer();
       final gate = s.server.hold('GET', flagsRoute);
       final h = await pumpReview(tester, server: s.server, db: s.db);
-      expect(find.descendant(of: page, matching: find.byType(DashSkeleton)),
-          findsWidgets);
+      expect(
+        find.descendant(of: page, matching: find.byType(DashSkeleton)),
+        findsWidgets,
+      );
       expect(onPage('Nothing to review'), findsNothing);
       gate.release();
       await h.settle();
@@ -440,8 +491,10 @@ void main() {
       await h.tap(pick(1));
       await h.tap(showReviewed);
       expect(tester.widget<DashCheckbox>(pick(1)).value, isTrue);
-      expect(find.descendant(of: bulkBar, matching: find.text('1 selected')),
-          findsOneWidget);
+      expect(
+        find.descendant(of: bulkBar, matching: find.text('1 selected')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('Select all takes every page; picks survive paging', (
@@ -451,14 +504,18 @@ void main() {
       addFlags(s.db, 19); // 25 open over two pages
       final h = await pumpReview(tester, server: s.server, db: s.db);
       await h.tap(selectAll);
-      expect(find.descendant(of: bulkBar, matching: find.text('25 selected')),
-          findsOneWidget);
+      expect(
+        find.descendant(of: bulkBar, matching: find.text('25 selected')),
+        findsOneWidget,
+      );
       await h.tap(find.bySemanticsLabel(h.t('common.next')).last);
       expect(tester.widget<DashCheckbox>(pick(6)).value, isTrue);
       await h.tap(pick(6));
       await h.tap(find.bySemanticsLabel(h.t('common.previous')).last);
-      expect(find.descendant(of: bulkBar, matching: find.text('24 selected')),
-          findsOneWidget);
+      expect(
+        find.descendant(of: bulkBar, matching: find.text('24 selected')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('the count keeps only picks still open; a single Mark '
@@ -468,8 +525,10 @@ void main() {
       await h.tap(pick(2));
       await h.tap(mark(1));
       expect(_toasts, findsNothing);
-      expect(find.descendant(of: bulkBar, matching: find.text('1 selected')),
-          findsOneWidget);
+      expect(
+        find.descendant(of: bulkBar, matching: find.text('1 selected')),
+        findsOneWidget,
+      );
       await h.tap(bulkResolve);
       expect(h.server.callsTo(bulkRoute).single.body, {
         'flag_ids': [2],

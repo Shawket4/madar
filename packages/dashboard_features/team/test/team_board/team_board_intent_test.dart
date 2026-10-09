@@ -3,7 +3,6 @@
 // and Add employee buttons warms their dialogs' reads, so the press asks the
 // server nothing more.
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/testing.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

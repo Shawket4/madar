@@ -5,7 +5,6 @@
 /// server's; `payroll_data.dart` lays the reads out.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';

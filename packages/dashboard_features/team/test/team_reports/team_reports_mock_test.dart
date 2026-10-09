@@ -162,7 +162,9 @@ void main() {
 
     test('without POS it is refused (403)', () {
       expect(
-        api(Persona.dawamOnly).labourVsSales(from: '2026-10-01', to: '2026-10-31'),
+        api(
+          Persona.dawamOnly,
+        ).labourVsSales(from: '2026-10-01', to: '2026-10-31'),
         refused(403, 'Labour cost vs sales needs POS switched on.'),
       );
     });
@@ -191,16 +193,19 @@ void main() {
       }
     });
 
-    test('another org\'s periods never show; outside the range nothing', () async {
-      final rows = await api(
-        Persona.dawamOnly,
-      ).payrollHistory(from: '2026-09-01', to: '2026-09-30');
-      expect(rows.single.periodId, TeamSeedIds.period('nakhla', '2026-09'));
-      expect(
-        await api().payrollHistory(from: '2026-06-01', to: '2026-07-31'),
-        isEmpty,
-      );
-    });
+    test(
+      'another org\'s periods never show; outside the range nothing',
+      () async {
+        final rows = await api(
+          Persona.dawamOnly,
+        ).payrollHistory(from: '2026-09-01', to: '2026-09-30');
+        expect(rows.single.periodId, TeamSeedIds.period('nakhla', '2026-09'));
+        expect(
+          await api().payrollHistory(from: '2026-06-01', to: '2026-07-31'),
+          isEmpty,
+        );
+      },
+    );
   });
 
   group('GET /staff/reports/advances', () {

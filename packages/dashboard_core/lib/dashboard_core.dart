@@ -41,6 +41,7 @@ export 'src/i18n/strings.dart';
 export 'src/kit/kit_l10n.dart';
 export 'src/providers.dart';
 export 'src/routes/nav.dart';
+export 'src/routes/openers.dart';
 export 'src/routes/route.dart';
 export 'src/scope/period.dart';
 export 'src/scope/scope.dart';

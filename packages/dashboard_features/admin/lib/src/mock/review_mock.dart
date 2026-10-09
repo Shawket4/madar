@@ -25,24 +25,30 @@ void registerReviewMocks(MockServer server, MockDb db) {
     return flags.where((r) => (r['org_id'] ?? SeedIds.sabahOrg) == org);
   }
 
-  MockRow? openFlag(List<MockRow> rows, Object? id) => rows
-      .where((r) => r['id'] == id && r['reviewed_at'] == null)
-      .firstOrNull;
+  MockRow? openFlag(List<MockRow> rows, Object? id) =>
+      rows.where((r) => r['id'] == id && r['reviewed_at'] == null).firstOrNull;
 
   server.on('GET', '/authz/flags', (req) {
     req.requireCap('approvals.review');
     final all = req.qBool('include_reviewed') ?? false;
-    final rows = [
-      for (final r in orgFlags(req))
-        if (all || r['reviewed_at'] == null) r,
-    ]..sort((a, b) => (b['created_at']! as String).compareTo(a['created_at']! as String));
+    final rows =
+        [
+          for (final r in orgFlags(req))
+            if (all || r['reviewed_at'] == null) r,
+        ]..sort(
+          (a, b) => (b['created_at']! as String).compareTo(
+            a['created_at']! as String,
+          ),
+        );
     return MockResponse.ok(rows.take(500).toList());
   });
 
   server.on('POST', '/authz/flags/{id}/review', (req) {
     req.requireCap('approvals.review');
     final flag = openFlag(orgFlags(req), int.tryParse(req.param('id')));
-    if (flag == null) throw MockHttpError(MockResponse.notFound('No such open flag'));
+    if (flag == null) {
+      throw MockHttpError(MockResponse.notFound('No such open flag'));
+    }
     flag
       ..['reviewed_at'] = req.now.toUtc().toIso8601String()
       ..['reviewed_by'] = req.persona.userId;
@@ -51,6 +57,14 @@ void registerReviewMocks(MockServer server, MockDb db) {
 
   server.on('POST', '/authz/flags/bulk-review', (req) {
     req.requireCap('approvals.review');
+    // actix's JSON extractor: `flag_ids` has no serde default.
+    if (req.json['flag_ids'] is! List) {
+      throw MockHttpError(
+        MockResponse.badRequest(
+          'Json deserialize error: missing field `flag_ids`',
+        ),
+      );
+    }
     final body = req.bodyAs(BulkReviewRequest.fromJson);
     final rows = orgFlags(req);
     final resolved = <int>[];

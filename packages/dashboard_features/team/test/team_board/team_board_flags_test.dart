@@ -323,45 +323,51 @@ void main() {
     await h.flushTimers();
   });
 
-  testWidgets('TEAM-TEM-022 handled by someone else first: the words, the '
-      'board reads again and the dialog closes', (tester) async {
-    final s = teamServer();
-    s.server.fail(
-      'PATCH',
-      resolveT,
-      MockResponse.error(
-        404,
-        'That flag is already handled.',
-        code: 'FLAG_HANDLED',
-      ),
-    );
-    final h = await pumpTeam(tester, s: s);
-    await _openLeft(h);
-    await h.tap(surfaceButton(h.t('dawam.ignore')));
-    await h.expectToast(h.t('errors.codes.FLAG_HANDLED'));
-    expect(find.byType(DashSurface), findsNothing);
-    expect(h.server.callsTo(flagsT), hasLength(2));
-  });
+  testWidgets(
+    'TEAM-TEM-022 / TEAM-ALL-015 handled by someone else first: the words, the '
+    'board reads again and the dialog closes',
+    (tester) async {
+      final s = teamServer();
+      s.server.fail(
+        'PATCH',
+        resolveT,
+        MockResponse.error(
+          404,
+          'That flag is already handled.',
+          code: 'FLAG_HANDLED',
+        ),
+      );
+      final h = await pumpTeam(tester, s: s);
+      await _openLeft(h);
+      await h.tap(surfaceButton(h.t('dawam.ignore')));
+      await h.expectToast(h.t('errors.codes.FLAG_HANDLED'));
+      expect(find.byType(DashSurface), findsNothing);
+      expect(h.server.callsTo(flagsT), hasLength(2));
+    },
+  );
 
-  testWidgets('TEAM-TEM-022 any other refusal keeps the dialog open with the '
-      'server\'s words (OWN_DECISION)', (tester) async {
-    final s = teamServer();
-    s.server.fail(
-      'PATCH',
-      resolveT,
-      MockResponse.error(
-        403,
-        'Someone else has to decide this one.',
-        code: 'OWN_DECISION',
-      ),
-    );
-    final h = await pumpTeam(tester, s: s);
-    await _openLeft(h);
-    await h.tap(surfaceButton(h.t('dawam.ignore')));
-    await h.expectToast(h.t('errors.codes.OWN_DECISION'));
-    expect(find.byType(DashSurface), findsOneWidget);
-    expect(h.server.callsTo(flagsT), hasLength(1));
-  });
+  testWidgets(
+    'TEAM-TEM-022 / TEAM-ALL-014 any other refusal keeps the dialog open with the '
+    'server\'s words (OWN_DECISION)',
+    (tester) async {
+      final s = teamServer();
+      s.server.fail(
+        'PATCH',
+        resolveT,
+        MockResponse.error(
+          403,
+          'Someone else has to decide this one.',
+          code: 'OWN_DECISION',
+        ),
+      );
+      final h = await pumpTeam(tester, s: s);
+      await _openLeft(h);
+      await h.tap(surfaceButton(h.t('dawam.ignore')));
+      await h.expectToast(h.t('errors.codes.OWN_DECISION'));
+      expect(find.byType(DashSurface), findsOneWidget);
+      expect(h.server.callsTo(flagsT), hasLength(1));
+    },
+  );
 
   testWidgets('TEAM-TEM-022 a capability refusal reads the person\'s words', (
     tester,

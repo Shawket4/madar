@@ -447,32 +447,39 @@ class _ReviewAdvanceDialogState extends ConsumerState<ReviewAdvanceDialog> {
     return DashSurface(
       title: t('dawam.reviewAdvance', args: {'name': a.employeeName ?? ''}),
       description: t('dawam.reviewAdvanceHint'),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.md,
-        children: [
-          DashMoneyField(
-            label: t('dawam.amountEgp'),
-            value: _amount,
-            allowEmpty: true,
-            errorText: problems['amount'],
-            onChanged: (v) => _edit(() => _amount = v),
-          ),
-          DashNumberField(
-            label: t('dawam.installments'),
-            value: _installments,
-            stepper: true,
-            allowEmpty: true,
-            errorText: problems['installments'],
-            onChanged: (v) => _edit(() => _installments = v),
-          ),
-          DashTextField(
-            label: t('staff.note'),
-            value: _note,
-            errorText: problems['note'],
-            onChanged: (v) => _edit(() => _note = v),
-          ),
-        ],
+      // Focusing a field starts an edit: a refresh never wipes a number
+      // typed but not settled yet (fields settle on blur).
+      body: Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        onFocusChange: (focused) => _edited = _edited || focused,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.md,
+          children: [
+            DashMoneyField(
+              label: t('dawam.amountEgp'),
+              value: _amount,
+              allowEmpty: true,
+              errorText: problems['amount'],
+              onChanged: (v) => _edit(() => _amount = v),
+            ),
+            DashNumberField(
+              label: t('dawam.installments'),
+              value: _installments,
+              stepper: true,
+              allowEmpty: true,
+              errorText: problems['installments'],
+              onChanged: (v) => _edit(() => _installments = v),
+            ),
+            DashTextField(
+              label: t('staff.note'),
+              value: _note,
+              errorText: problems['note'],
+              onChanged: (v) => _edit(() => _note = v),
+            ),
+          ],
+        ),
       ),
       actions: [
         DashButton(

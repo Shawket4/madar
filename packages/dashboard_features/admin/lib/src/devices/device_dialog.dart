@@ -16,6 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../orgs/org_errors.dart';
 import 'devices_data.dart';
 
 /// Opens the dialog for [device]; [host] is the page, which shows the
@@ -82,7 +83,7 @@ class _DeviceDialogState extends ConsumerState<DeviceDialog> {
     } on Object catch (e) {
       final at = mounted ? context : host;
       if (at != null && at.mounted) {
-        DashToast.error(at, devicesErrorText(e, t));
+        DashToast.error(at, orgErrorWords(e, t));
       }
       if (mounted) setState(() => _saving = false);
     }

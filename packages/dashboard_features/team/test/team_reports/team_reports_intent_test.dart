@@ -5,11 +5,9 @@
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart'
     show DashAsyncState, orgIdProvider, transportProvider, webRetry;
-import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart' show DashPageTabs;
 import 'package:dashboard_team/src/team_reports/team_reports_providers.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/widgets.dart' show Offset;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -41,14 +39,10 @@ void main() {
       await mouse.moveTo(tester.getCenter(_tab(label)));
       await h.settle();
       expect(gets(h, path), hasLength(1), reason: '$label warmed');
-      expect(
-        gets(h, path).single.query,
-        {
-          'from': [thisPeriod.from],
-          'to': [thisPeriod.to],
-        },
-        reason: label,
-      );
+      expect(gets(h, path).single.query, {
+        'from': [thisPeriod.from],
+        'to': [thisPeriod.to],
+      }, reason: label);
       await h.tap(_tab(label));
       expect(gets(h, path), hasLength(1), reason: '$label from the cache');
     }

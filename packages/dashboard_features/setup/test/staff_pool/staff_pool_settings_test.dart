@@ -495,15 +495,20 @@ void main() {
     );
     final all = m.db['menu_items'].where((r) => r['org_id'] == SeedIds.sabahOrg);
     expect(list.options, hasLength(all.length));
-    expect(tester.getSize(_key('spl-picker')).width, 288);
+    // The 288 px card (`w-72`), less its 1 px border each side.
+    expect(tester.getSize(_key('spl-picker')).width, 288 - 2);
     // Chips are named in Arabic too.
     expect(
       find.descendant(of: _key('spl-chips'), matching: find.text(itemName('latte', 'ar'))),
       findsOneWidget,
     );
     await h.enterText(inPicker(find.byType(DashTextInput)), itemName('latte', 'ar'));
-    expect(inPicker(find.text(itemName('latte', 'ar'))), findsOneWidget);
-    await h.tap(inPicker(find.text(itemName('latte', 'ar'))));
+    final row = find.descendant(
+      of: inPicker(find.byType(ListView)),
+      matching: find.text(itemName('latte', 'ar')),
+    );
+    expect(row, findsOneWidget);
+    await h.tap(row);
     expect(_key('spl-picker'), findsOneWidget, reason: 'still open');
     expect(
       find.descendant(of: _key('spl-chips'), matching: find.text(itemName('latte', 'ar'))),

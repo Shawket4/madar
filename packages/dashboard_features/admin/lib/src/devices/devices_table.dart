@@ -11,6 +11,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/row_action.dart';
+import '../orgs/org_errors.dart';
 import 'devices_data.dart';
 
 /// `devices.kinds.<kind>`, or the raw kind a newer server sent.
@@ -47,7 +48,7 @@ class DevicesSection extends ConsumerWidget {
     return DevicesTable(
       devices: q.value ?? const [],
       loading: q.awaitingFirst,
-      errorMessage: q.failedFirst ? devicesErrorText(q.error, t) : null,
+      errorMessage: q.failedFirst ? orgErrorWords(q.error, t) : null,
       onRetry: () => ref.invalidate(devicesListProvider(branchId)),
       onEdit: onEdit,
     );

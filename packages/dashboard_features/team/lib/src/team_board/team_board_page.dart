@@ -507,10 +507,7 @@ class _PresenceList extends ConsumerWidget {
                 meta: [
                   ?r.branchName,
                   if (r.checkInAt != null)
-                    t(
-                      'dawam.inAt',
-                      args: {'time': ltr(f.fmtTime(r.checkInAt))},
-                    ),
+                    t('dawam.inAt', args: {'time': f.fmtTime(r.checkInAt)}),
                   if (r.lateMinutes > 0)
                     t(
                       'dawam.lateBy',
